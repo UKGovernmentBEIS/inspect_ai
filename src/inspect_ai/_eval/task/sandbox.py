@@ -1,9 +1,9 @@
-import asyncio
 import base64
 import contextlib
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
+import anyio
 import httpx
 from tenacity import (
     retry,
@@ -15,10 +15,9 @@ from tenacity import (
 
 from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_TIMEOUT
 from inspect_ai._util.file import file, filesystem
+from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
 from inspect_ai.util._concurrency import concurrency
@@ -62,7 +61,7 @@ async def sandboxenv_context(
     # in and grab all of the sandboxes). Therefore, in this case we wait a random
     # delay so that all tasks/samples have an equal shot at getting scheduled.
     if max_sandboxes is not None:
-        await asyncio.sleep(random())
+        await anyio.sleep(random())
 
     # enforce concurrency if required
     sandboxes_cm = (
@@ -103,7 +102,7 @@ async def sandboxenv_context(
             # run sample
             yield
 
-        except asyncio.CancelledError as ex:
+        except anyio.get_cancelled_exc_class() as ex:
             interrupted = True
             raise ex
 
@@ -186,14 +185,14 @@ async def _retrying_httpx_get(
     url: str,
     client: httpx.AsyncClient = httpx.AsyncClient(),
     timeout: int = 30,  # per-attempt timeout
-    max_retries: int = DEFAULT_MAX_RETRIES,
-    total_timeout: int = DEFAULT_TIMEOUT,  #  timeout for the whole retry loop. not for an individual attempt
+    max_retries: int = 10,
+    total_timeout: int = 120,  #  timeout for the whole retry loop. not for an individual attempt
 ) -> bytes:
     @retry(
         wait=wait_exponential_jitter(),
         stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
         retry=retry_if_exception(httpx_should_retry),
-        before_sleep=log_retry_attempt(url),
+        before_sleep=log_httpx_retry_attempt(url),
     )
     async def do_get() -> bytes:
         response = await client.get(

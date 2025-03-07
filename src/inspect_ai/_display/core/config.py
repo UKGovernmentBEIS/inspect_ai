@@ -34,7 +34,7 @@ def task_config(
             value = value if isinstance(value, list) else [value]
             value = [str(v) for v in value]
             config_print.append(f"{name}: {','.join(value)}")
-        elif name not in ["limit", "model"]:
+        elif name not in ["limit", "model", "response_schema"]:
             if isinstance(value, list):
                 value = ",".join([str(v) for v in value])
             if isinstance(value, str):

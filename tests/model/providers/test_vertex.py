@@ -11,7 +11,7 @@ from inspect_ai.model import (
 from inspect_ai.scorer import includes
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_vertex
 async def test_vertex_api() -> None:
     model = get_model(

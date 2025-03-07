@@ -1,16 +1,21 @@
 from textwrap import dedent
 from typing import Any
 
+from openai import BaseModel
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.solver import bridge, solver
+from inspect_ai.util._json import json_schema
 
 
 async def agent(sample: dict[str, Any]) -> dict[str, Any]:
     from openai import AsyncOpenAI
+
+    class Message(BaseModel):
+        text: str
 
     client = AsyncOpenAI()
     completion = await client.chat.completions.create(
@@ -29,6 +34,13 @@ async def agent(sample: dict[str, Any]) -> dict[str, Any]:
         logit_bias=dict([(42, 10), (43, -10)]),  # type: ignore[call-overload]
         reasoning_effort="low",
         timeout=200,
+        response_format=dict(
+            type="json_schema",
+            json_schema=dict(
+                name="message",
+                schema=json_schema(Message).model_dump(exclude_none=True),
+            ),
+        ),
     )
 
     return {"output": completion.choices[0].message.content}
@@ -96,10 +108,8 @@ def check_openai_log_json(log_json: str):
     assert r'"n": 3' in log_json
     assert r'"logprobs": true' in log_json
     assert r'"top_logprobs": 3' in log_json
-    assert dedent("""
-    "logprobs": {
-      "content": [
-    """)
+    assert r'"response_schema"' in log_json
+    assert r'"logprobs"' in log_json
 
 
 @skip_if_no_openai

@@ -8,19 +8,19 @@ import pytest
 from inspect_ai.util import subprocess
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_subprocess_execute():
     result = await subprocess(["python3", "-c", "print('foo')"])
     assert result.stdout.strip() == "foo"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_subprocess_fail():
     result = await subprocess(["cat", "phantom.txt"])
     assert result.success is False
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_subprocess_stdin():
     input = "tell me a story"
     result = await subprocess(
@@ -29,7 +29,7 @@ async def test_subprocess_stdin():
     assert result.stdout.strip() == input
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_subprocess_binary():
     input = "tell me a story".encode()
     result = await subprocess(
@@ -40,7 +40,7 @@ async def test_subprocess_binary():
     assert result.stdout.decode().strip() == input.decode()
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_subprocess_cwd():
     parent_dir = Path(os.getcwd()).parent.as_posix()
     result = await subprocess(
@@ -49,7 +49,7 @@ async def test_subprocess_cwd():
     assert result.stdout.strip() == parent_dir
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_subprocess_env():
     ENV_VAR = "TEST_SUBPROCESS_ENV"
     ENV_VALUE = "test value"
@@ -60,7 +60,7 @@ async def test_subprocess_env():
     assert result.stdout.strip() == ENV_VALUE
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_subprocess_timeout():
     def process_found(pattern: str) -> bool:
         return any(

@@ -1,10 +1,11 @@
-import asyncio
 import contextlib
-from typing import Any, AsyncIterator, Coroutine, Iterator
+from typing import AsyncIterator, Awaitable, Callable, Iterator
 
+import anyio
 import rich
 
 from inspect_ai._display.core.rich import rich_initialise
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.text import truncate
 from inspect_ai._util.throttle import throttle
 
@@ -22,7 +23,7 @@ from ..core.display import (
     TaskSpec,
     TaskWithResult,
 )
-from ..core.footer import task_http_rate_limits_str
+from ..core.footer import task_http_retries_str
 from ..core.panel import task_panel, task_targets
 from ..core.results import task_metric, tasks_results
 
@@ -41,8 +42,8 @@ class PlainDisplay(Display):
     def progress(self, total: int) -> Iterator[Progress]:
         yield PlainProgress(total)
 
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
-        return asyncio.run(main)
+    def run_task_app(self, main: Callable[[], Awaitable[TR]]) -> TR:
+        return anyio.run(main, backend=configured_async_backend())
 
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:
@@ -182,7 +183,7 @@ class PlainTaskDisplay(TaskDisplay):
             status_parts.append(resources)
 
             # Add rate limits
-            rate_limits = task_http_rate_limits_str()
+            rate_limits = task_http_retries_str()
             if rate_limits:
                 status_parts.append(rate_limits)
 

@@ -1,6 +1,6 @@
-import asyncio
 import inspect
 import json
+import sys
 import types
 from dataclasses import is_dataclass
 from logging import getLogger
@@ -22,7 +22,13 @@ from typing import (
     is_typeddict,
 )
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import ExceptionGroup
+
+
+import anyio
 import yaml
+from anyio.streams.memory import MemoryObjectSendStream
 from jsonschema import Draft7Validator
 from pydantic import BaseModel
 
@@ -80,7 +86,10 @@ async def call_tools(
 
         tdefs = tool_defs(tools)
 
-        async def call_tool_task(call: ToolCall) -> tuple[ChatMessageTool, ToolEvent]:
+        async def call_tool_task(
+            call: ToolCall,
+            send_stream: MemoryObjectSendStream[tuple[ChatMessageTool, ToolEvent]],
+        ) -> None:
             # create a transript for this call
             init_transcript(Transcript(name=call.function))
 
@@ -166,20 +175,23 @@ async def call_tools(
                 events=list(transcript().events),
             )
 
-            # return message and event
-            return ChatMessageTool(
-                content=content,
-                tool_call_id=call.id,
-                function=call.function,
-                error=tool_error,
-            ), event
+            # yield message and event
+            async with send_stream:
+                await send_stream.send(
+                    (
+                        ChatMessageTool(
+                            content=content,
+                            tool_call_id=call.id,
+                            function=call.function,
+                            error=tool_error,
+                        ),
+                        event,
+                    )
+                )
 
         # call tools
         tool_messages: list[ChatMessageTool] = []
         for call in message.tool_calls:
-            # create the task
-            task = asyncio.create_task(call_tool_task(call))
-
             # create pending tool event and add it to the transcript
             # (record the waiting time for the sample so we can compare
             # it at the end to deduce total waiting time inside the tool
@@ -192,38 +204,46 @@ async def call_tools(
                 view=call.view,
                 pending=True,
             )
-            event._set_task(task)
             transcript()._event(event)
 
-            # execute the tool call. if the operator cancelled the
+            # execute the tool call. if the operator cancels the
             # tool call then synthesize the appropriate message/event
+            send_stream, receive_stream = anyio.create_memory_object_stream[
+                tuple[ChatMessageTool, ToolEvent]
+            ]()
             try:
-                tool_message, result_event = await task
-            except asyncio.CancelledError:
-                if event.cancelled:
-                    tool_message = ChatMessageTool(
-                        content="",
-                        function=call.function,
-                        tool_call_id=call.id,
-                        error=ToolCallError(
-                            "timeout", "Command timed out before completing."
-                        ),
-                    )
-                    result_event = ToolEvent(
-                        id=call.id,
-                        function=call.function,
-                        arguments=call.arguments,
-                        result=tool_message.content,
-                        truncated=None,
-                        view=call.view,
-                        error=tool_message.error,
-                        events=[],
-                    )
-                    transcript().info(
-                        f"Tool call '{call.function}' was cancelled by operator."
-                    )
-                else:
-                    raise
+                async with anyio.create_task_group() as tg:
+                    tg.start_soon(call_tool_task, call, send_stream)
+                    event._set_cancel_fn(tg.cancel_scope.cancel)
+                    async with receive_stream:
+                        async for result in receive_stream:
+                            tool_message, result_event = result
+                            break
+            except ExceptionGroup as ex:
+                raise ex.exceptions[0]
+
+            if event.cancelled:
+                tool_message = ChatMessageTool(
+                    content="",
+                    function=call.function,
+                    tool_call_id=call.id,
+                    error=ToolCallError(
+                        "timeout", "Command timed out before completing."
+                    ),
+                )
+                result_event = ToolEvent(
+                    id=call.id,
+                    function=call.function,
+                    arguments=call.arguments,
+                    result=tool_message.content,
+                    truncated=None,
+                    view=call.view,
+                    error=tool_message.error,
+                    events=[],
+                )
+                transcript().info(
+                    f"Tool call '{call.function}' was cancelled by operator."
+                )
 
             # update return messages
             tool_messages.append(tool_message)

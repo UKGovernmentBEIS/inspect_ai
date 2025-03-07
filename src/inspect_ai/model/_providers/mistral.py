@@ -7,6 +7,7 @@ from httpcore import ReadTimeout
 from httpx import ReadTimeout as AsyncReadTimeout
 from mistralai import (
     ContentChunk,
+    DocumentURLChunk,
     FunctionCall,
     FunctionName,
     ImageURL,
@@ -22,6 +23,12 @@ from mistralai.models import (
     ChatCompletionChoice as MistralChatCompletionChoice,
 )
 from mistralai.models import Function as MistralFunction
+from mistralai.models import (
+    JSONSchema as MistralJSONSchema,
+)
+from mistralai.models import (
+    ResponseFormat as MistralResponseFormat,
+)
 from mistralai.models import SDKError
 from mistralai.models import SystemMessage as MistralSystemMessage
 from mistralai.models import Tool as MistralTool
@@ -38,11 +45,9 @@ from typing_extensions import override
 
 # TODO: Migration guide:
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
-from inspect_ai._util.constants import (
-    DEFAULT_TIMEOUT,
-    NO_CONTENT,
-)
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -61,7 +66,7 @@ from .._model_output import (
     StopReason,
 )
 from .util import environment_prerequisite_error, model_base_url
-from .util.tracker import HttpxTimeTracker
+from .util.hooks import HttpxHooks
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -127,16 +132,12 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # create client
-        with Mistral(
-            api_key=self.api_key,
-            timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT) * 1000,
-            **self.model_args,
-        ) as client:
+        with Mistral(api_key=self.api_key, **self.model_args) as client:
             # create time tracker
-            time_tracker = HttpxTimeTracker(client.sdk_configuration.async_client)
+            http_hooks = HttpxHooks(client.sdk_configuration.async_client)
 
             # build request
-            request_id = time_tracker.start_request()
+            request_id = http_hooks.start_request()
             request: dict[str, Any] = dict(
                 model=self.model_name,
                 messages=await mistral_chat_messages(input),
@@ -144,7 +145,7 @@ class MistralAPI(ModelAPI):
                 tool_choice=(
                     mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
                 ),
-                http_headers={HttpxTimeTracker.REQUEST_ID_HEADER: request_id},
+                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             )
             if config.temperature is not None:
                 request["temperature"] = config.temperature
@@ -154,6 +155,18 @@ class MistralAPI(ModelAPI):
                 request["max_tokens"] = config.max_tokens
             if config.seed is not None:
                 request["random_seed"] = config.seed
+            if config.response_schema is not None:
+                request["response_format"] = MistralResponseFormat(
+                    type="json_schema",
+                    json_schema=MistralJSONSchema(
+                        name=config.response_schema.name,
+                        description=config.response_schema.description,
+                        schema_definition=config.response_schema.json_schema.model_dump(
+                            exclude_none=True
+                        ),
+                        strict=config.response_schema.strict,
+                    ),
+                )
 
             # prepare response for inclusion in model call
             response: dict[str, Any] = {}
@@ -169,7 +182,7 @@ class MistralAPI(ModelAPI):
                 return ModelCall.create(
                     request=req,
                     response=response,
-                    time=time_tracker.end_request(request_id),
+                    time=http_hooks.end_request(request_id),
                 )
 
             # send request
@@ -205,12 +218,13 @@ class MistralAPI(ModelAPI):
             ), model_call()
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return (
-            isinstance(ex, SDKError)
-            and ex.status_code == 429
-            or isinstance(ex, ReadTimeout | AsyncReadTimeout)
-        )
+    def should_retry(self, ex: Exception) -> bool:
+        if isinstance(ex, SDKError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, ReadTimeout | AsyncReadTimeout):
+            return True
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
@@ -462,6 +476,8 @@ def completion_content_chunk(content: ContentChunk) -> Content:
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
         return ContentText(text=content.text)
+    elif isinstance(content, DocumentURLChunk):
+        return ContentText(text=content.document_url)
     else:
         if isinstance(content.image_url, str):
             return ContentImage(image=content.image_url)

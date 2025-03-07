@@ -156,11 +156,6 @@
       "title": "ApproverPolicyConfig",
       "type": "object"
     },
-    "BaseModel": {
-      "properties": {},
-      "title": "BaseModel",
-      "type": "object"
-    },
     "ChatCompletionChoice": {
       "description": "Choice generated for completion.",
       "properties": {
@@ -204,10 +199,8 @@
     "ChatMessageAssistant": {
       "description": "Assistant chat message.",
       "properties": {
-        "role": {
-          "const": "assistant",
-          "default": "assistant",
-          "title": "Role",
+        "id": {
+          "title": "Id",
           "type": "string"
         },
         "content": {
@@ -255,6 +248,12 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "role": {
+          "const": "assistant",
+          "default": "assistant",
+          "title": "Role",
+          "type": "string"
         },
         "tool_calls": {
           "anyOf": [
@@ -273,9 +272,10 @@
         }
       },
       "required": [
-        "role",
+        "id",
         "content",
         "source",
+        "role",
         "tool_calls"
       ],
       "title": "ChatMessageAssistant",
@@ -285,10 +285,8 @@
     "ChatMessageSystem": {
       "description": "System chat message.",
       "properties": {
-        "role": {
-          "const": "system",
-          "default": "system",
-          "title": "Role",
+        "id": {
+          "title": "Id",
           "type": "string"
         },
         "content": {
@@ -336,12 +334,19 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "role": {
+          "const": "system",
+          "default": "system",
+          "title": "Role",
+          "type": "string"
         }
       },
       "required": [
-        "role",
+        "id",
         "content",
-        "source"
+        "source",
+        "role"
       ],
       "title": "ChatMessageSystem",
       "type": "object",
@@ -350,10 +355,8 @@
     "ChatMessageTool": {
       "description": "Tool chat message.",
       "properties": {
-        "role": {
-          "const": "tool",
-          "default": "tool",
-          "title": "Role",
+        "id": {
+          "title": "Id",
           "type": "string"
         },
         "content": {
@@ -401,6 +404,12 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "role": {
+          "const": "tool",
+          "default": "tool",
+          "title": "Role",
+          "type": "string"
         },
         "tool_call_id": {
           "anyOf": [
@@ -439,9 +448,10 @@
         }
       },
       "required": [
-        "role",
+        "id",
         "content",
         "source",
+        "role",
         "tool_call_id",
         "function",
         "error"
@@ -453,10 +463,8 @@
     "ChatMessageUser": {
       "description": "User chat message.",
       "properties": {
-        "role": {
-          "const": "user",
-          "default": "user",
-          "title": "Role",
+        "id": {
+          "title": "Id",
           "type": "string"
         },
         "content": {
@@ -505,6 +513,12 @@
           "default": null,
           "title": "Source"
         },
+        "role": {
+          "const": "user",
+          "default": "user",
+          "title": "Role",
+          "type": "string"
+        },
         "tool_call_id": {
           "anyOf": [
             {
@@ -522,9 +536,10 @@
         }
       },
       "required": [
-        "role",
+        "id",
         "content",
         "source",
+        "role",
         "tool_call_id"
       ],
       "title": "ChatMessageUser",
@@ -1261,7 +1276,8 @@
             "cache_prompt": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
-            "reasoning_history": null
+            "reasoning_history": null,
+            "response_schema": null
           }
         }
       },
@@ -2559,6 +2575,17 @@
           ],
           "default": null,
           "title": "Reasoning History"
+        },
+        "response_schema": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResponseSchema"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "GenerateConfig",
@@ -2587,7 +2614,8 @@
         "cache_prompt",
         "reasoning_effort",
         "reasoning_tokens",
-        "reasoning_history"
+        "reasoning_history",
+        "response_schema"
       ],
       "additionalProperties": false
     },
@@ -2698,6 +2726,146 @@
       ],
       "title": "InputEvent",
       "type": "object",
+      "additionalProperties": false
+    },
+    "JSONSchema": {
+      "description": "JSON Schema for type.",
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "string",
+                "integer",
+                "number",
+                "boolean",
+                "array",
+                "object",
+                "null"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JSONSchema"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JSONSchema"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Properties"
+        },
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JSONSchema"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Additionalproperties"
+        },
+        "anyOf": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/JSONSchema"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anyof"
+        },
+        "required": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required"
+        }
+      },
+      "title": "JSONSchema",
+      "type": "object",
+      "required": [
+        "type",
+        "description",
+        "default",
+        "enum",
+        "items",
+        "properties",
+        "additionalProperties",
+        "anyOf",
+        "required"
+      ],
       "additionalProperties": false
     },
     "JsonChange": {
@@ -3283,6 +3451,51 @@
       ],
       "additionalProperties": false
     },
+    "ResponseSchema": {
+      "description": "Schema for model response when using Structured Output.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "json_schema": {
+          "$ref": "#/$defs/JSONSchema"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "strict": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strict"
+        }
+      },
+      "required": [
+        "name",
+        "json_schema",
+        "description",
+        "strict"
+      ],
+      "title": "ResponseSchema",
+      "type": "object",
+      "additionalProperties": false
+    },
     "Sample": {
       "description": "Sample for an evaluation task.",
       "properties": {
@@ -3544,30 +3757,24 @@
       "additionalProperties": false
     },
     "SandboxEnvironmentSpec": {
-      "maxItems": 2,
-      "minItems": 1,
-      "prefixItems": [
-        {
+      "description": "Specification of a SandboxEnvironment.",
+      "properties": {
+        "type": {
           "title": "Type",
           "type": "string"
         },
-        {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/BaseModel"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
+        "config": {
           "default": null,
           "title": "Config"
         }
+      },
+      "required": [
+        "type",
+        "config"
       ],
-      "type": "array"
+      "title": "SandboxEnvironmentSpec",
+      "type": "object",
+      "additionalProperties": false
     },
     "SandboxEvent": {
       "description": "Sandbox execution or I/O",
@@ -4652,146 +4859,6 @@
       "type": "object",
       "additionalProperties": false
     },
-    "ToolParam": {
-      "description": "Description of tool parameter in JSON Schema format.",
-      "properties": {
-        "type": {
-          "anyOf": [
-            {
-              "enum": [
-                "string",
-                "integer",
-                "number",
-                "boolean",
-                "array",
-                "object",
-                "null"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Type"
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Description"
-        },
-        "default": {
-          "default": null,
-          "title": "Default"
-        },
-        "enum": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Enum"
-        },
-        "items": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolParam"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "properties": {
-          "anyOf": [
-            {
-              "additionalProperties": {
-                "$ref": "#/$defs/ToolParam"
-              },
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Properties"
-        },
-        "additionalProperties": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolParam"
-            },
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Additionalproperties"
-        },
-        "anyOf": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/ToolParam"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Anyof"
-        },
-        "required": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Required"
-        }
-      },
-      "title": "ToolParam",
-      "type": "object",
-      "required": [
-        "type",
-        "description",
-        "default",
-        "enum",
-        "items",
-        "properties",
-        "additionalProperties",
-        "anyOf",
-        "required"
-      ],
-      "additionalProperties": false
-    },
     "ToolParams": {
       "description": "Description of tool parameters object in JSON Schema format.",
       "properties": {
@@ -4804,7 +4871,7 @@
         "properties": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/ToolParam"
+            "$ref": "#/$defs/JSONSchema"
           },
           "title": "Properties"
         },

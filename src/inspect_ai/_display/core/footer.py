@@ -1,7 +1,7 @@
 from rich.console import RenderableType
 from rich.text import Text
 
-from inspect_ai._util.logger import http_rate_limit_count
+from inspect_ai._util.retry import http_retries_count
 from inspect_ai.util._concurrency import concurrency_status
 from inspect_ai.util._throttle import throttle
 
@@ -26,12 +26,12 @@ def task_resources() -> str:
 
 
 def task_counters(counters: dict[str, str]) -> str:
-    return task_dict(counters | task_http_rate_limits())
+    return task_dict(counters | task_http_retries())
 
 
-def task_http_rate_limits() -> dict[str, str]:
-    return {"HTTP rate limits": f"{http_rate_limit_count():,}"}
+def task_http_retries() -> dict[str, str]:
+    return {"HTTP retries": f"{http_retries_count():,}"}
 
 
-def task_http_rate_limits_str() -> str:
-    return f"HTTP rate limits: {http_rate_limit_count():,}"
+def task_http_retries_str() -> str:
+    return f"HTTP retries: {http_retries_count():,}"

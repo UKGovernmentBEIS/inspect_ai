@@ -9,6 +9,7 @@ from test_helpers.utils import (
     failing_task,
     failing_task_deterministic,
     keyboard_interrupt,
+    skip_if_trio,
     sleep_for_solver,
 )
 
@@ -226,6 +227,7 @@ def test_latest_completed_task_eval_logs() -> None:
 
 
 @pytest.mark.slow
+@skip_if_trio
 def test_eval_set_s3(mock_s3) -> None:
     success, logs = eval_set(
         tasks=failing_task(rate=0, samples=1),

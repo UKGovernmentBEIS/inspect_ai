@@ -8,27 +8,7 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import generate
 
 
-def test_mock_model_eval():
-    task = Task(
-        dataset=[
-            Sample(
-                input="your responses are laughably predictable",
-                target=MockLLM.default_output,
-            ),
-        ],
-        solver=[generate()],
-        scorer=includes(),
-    )
-
-    result = eval(task, model="mockllm/model")[0]
-
-    print(f"result: [{str(result)}]")
-
-    assert result.status == "success"
-    assert result.samples[0].messages[-1].content == MockLLM.default_output
-
-
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_default() -> None:
     model = get_model("mockllm/model")
 
@@ -36,7 +16,7 @@ async def test_mock_generate_default() -> None:
     assert response.completion == MockLLM.default_output
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_custom_valid() -> None:
     custom_content_str = "custom #content"
     model = get_model(
@@ -50,7 +30,7 @@ async def test_mock_generate_custom_valid() -> None:
     assert response.completion == custom_content_str
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_custom_invalid() -> None:
     model = get_model(
         "mockllm/model",
@@ -61,7 +41,7 @@ async def test_mock_generate_custom_invalid() -> None:
     assert "must be an instance of ModelOutput" in str(e_info.value)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_custom_invalid_iterable_string() -> None:
     model = get_model(
         "mockllm/model",
@@ -72,7 +52,7 @@ async def test_mock_generate_custom_invalid_iterable_string() -> None:
     assert "must be an instance of ModelOutput" in str(e_info.value)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_custom_invalid_iterable_number() -> None:
     with pytest.raises(ValueError) as e_info:
         get_model(
@@ -82,7 +62,7 @@ async def test_mock_generate_custom_invalid_iterable_number() -> None:
     assert "must be an Iterable or a Generator" in str(e_info.value)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_mock_generate_not_enough() -> None:
     model = get_model(
         "mockllm/model",
@@ -97,3 +77,21 @@ async def test_mock_generate_not_enough() -> None:
     with pytest.raises(ValueError) as e_info:
         await model.generate(input="unused input")
         assert "custom_outputs ran out of values" in str(e_info.value)
+
+
+def test_mock_model_eval():
+    task = Task(
+        dataset=[
+            Sample(
+                input="your responses are laughably predictable",
+                target=MockLLM.default_output,
+            ),
+        ],
+        solver=[generate()],
+        scorer=includes(),
+    )
+
+    result = eval(task, model="mockllm/model")[0]
+
+    assert result.status == "success"
+    assert result.samples[0].messages[-1].content == MockLLM.default_output

@@ -1,6 +1,6 @@
-import asyncio
 import os
 
+import anyio
 import click
 import rich
 from rich.panel import Panel
@@ -13,6 +13,7 @@ from inspect_ai._display import display
 from inspect_ai._display.core.rich import rich_theme
 from inspect_ai._eval.context import init_eval_context, init_task_context
 from inspect_ai._eval.score import ScoreAction, task_score
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.file import basename, dirname, exists
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders import create_recorder_for_location
@@ -64,8 +65,8 @@ def score_command(
     process_common_options(common)
 
     # score
-    asyncio.run(
-        score(
+    async def run_score() -> None:
+        return await score(
             log_dir=common["log_dir"],
             log_file=log_file,
             scorer=scorer,
@@ -74,7 +75,8 @@ def score_command(
             action=action,
             log_level=common["log_level"],
         )
-    )
+
+    anyio.run(run_score, backend=configured_async_backend())
 
 
 async def score(

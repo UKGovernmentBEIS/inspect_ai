@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import gzip
 import json
@@ -13,6 +12,7 @@ from logging import FileHandler, Logger
 from pathlib import Path
 from typing import Any, Callable, Generator, Literal, TextIO
 
+import anyio
 import jsonlines
 from pydantic import BaseModel, Field, JsonValue
 from shortuuid import uuid
@@ -83,7 +83,7 @@ def trace_action(
                 "duration": duration,
             },
         )
-    except (KeyboardInterrupt, asyncio.CancelledError):
+    except (KeyboardInterrupt, anyio.get_cancelled_exc_class()):
         duration = time.monotonic() - start_monotonic
         logger.log(
             TRACE,
