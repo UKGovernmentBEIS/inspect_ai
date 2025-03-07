@@ -2,6 +2,7 @@ from textwrap import dedent
 from typing import Any
 
 from openai import BaseModel
+from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
@@ -127,11 +128,13 @@ def check_openai_log_json(log_json: str, tools: bool):
     assert r'"logprobs"' in log_json
 
 
+@skip_if_no_openai
 def test_bridged_agent():
     log_json = eval_bridged_task("openai/gpt-4o", tools=False)
     check_openai_log_json(log_json, tools=False)
 
 
+@skip_if_no_openai
 def test_bridged_agent_tools():
     log_json = eval_bridged_task("openai/gpt-4o", tools=True)
     check_openai_log_json(log_json, tools=True)
@@ -148,11 +151,14 @@ def check_anthropic_log_json(log_json: str):
     """)
 
 
+@skip_if_no_anthropic
+@skip_if_no_openai
 def test_anthropic_bridged_agent():
     log_json = eval_bridged_task("anthropic/claude-3-haiku-20240307", tools=False)
     check_anthropic_log_json(log_json)
 
 
+@skip_if_no_openai
 def test_bridged_agent_context():
     logs = eval(
         [bridged_task(tools=False), openai_api_task()],
