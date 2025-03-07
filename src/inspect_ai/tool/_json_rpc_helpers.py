@@ -1,3 +1,9 @@
+"""
+This module provides helper code for handling JSON-RPC communication between the inspect process and the sandbox environment.
+
+It includes definitions for JSON-RPC request and response models, as well as functions to create and parse JSON-RPC requests and responses.
+"""
+
 import json
 from itertools import count
 from typing import Literal, Type, TypeVar
@@ -47,11 +53,29 @@ async def exec_sandbox_rpc(
     result_cls: Type[BaseModelT],
     timeout: int | None = None,
 ) -> BaseModelT:
+    """
+    Execute a JSON-RPC command to a sandbox environment.
+
+    Args:
+      sandbox (SandboxEnvironment): The sandbox environment to execute the command in.
+      cmd_prefix (list[str]): The command prefix to use for the execution.
+      method (str): The JSON-RPC method to call.
+      params (dict[str, object] | tuple[object, ...]): The parameters for the JSON-RPC method.
+      result_cls (Type[BaseModelT]): The class to use for parsing the result.
+      timeout (int | None, optional): The timeout for the execution. Defaults to None.
+
+    Returns:
+      BaseModelT: The parsed result of the JSON-RPC call.
+
+    Raises:
+      RuntimeError: If the sandbox execution fails or if there is an error in the JSON-RPC response.
+      ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
+    """
     request = _create_json_rpc_request(method, params)
     exec_result = await sandbox.exec(cmd_prefix + [request], timeout=timeout)
 
     # TODO: Verify this:
-    # Since we're using JSON RPC, a non successful result from sanbox_env.exec() doesn't make
+    # Since we're using JSON RPC, a non successful result from sandbox_env.exec() doesn't make
     # sense. We encode success/failure within the RPC response. It's weird to store it in two
     # places that have to agree.
     # confirm what happens when:

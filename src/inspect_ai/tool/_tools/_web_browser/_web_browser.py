@@ -13,7 +13,7 @@ from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
 from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB
 from inspect_ai.util._store_model import StoreModel, store_as
-from multi_tool._remote_tools._web_browser.tool_types import (
+from inspect_tool_container.src.inspect_tool_container._remote_tools._web_browser.tool_types import (
     CrawlerResult,
     NewSessionResult,
 )
