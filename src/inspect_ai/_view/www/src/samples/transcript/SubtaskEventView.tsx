@@ -7,13 +7,10 @@ import { EventPanel } from "./event/EventPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
 import { TranscriptView } from "./TranscriptView";
-import { TranscriptEventState } from "./types";
 
 interface SubtaskEventViewProps {
   id: string;
   event: SubtaskEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   depth: number;
   className?: string | string[];
 }
@@ -24,8 +21,6 @@ interface SubtaskEventViewProps {
 export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   depth,
   className,
 }) => {
@@ -83,14 +78,6 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
       )}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       collapse={false}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       {body}
     </EventPanel>

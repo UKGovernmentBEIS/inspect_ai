@@ -5,7 +5,6 @@ import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { SandboxEvent } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
-import { TranscriptEventState } from "./types";
 
 import clsx from "clsx";
 import { FC } from "react";
@@ -15,8 +14,6 @@ import { formatTiming } from "./event/utils";
 interface SandboxEventViewProps {
   id: string;
   event: SandboxEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 
@@ -26,8 +23,6 @@ interface SandboxEventViewProps {
 export const SandboxEventView: FC<SandboxEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   className,
 }) => {
   return (
@@ -37,14 +32,6 @@ export const SandboxEventView: FC<SandboxEventViewProps> = ({
       title={`Sandbox: ${event.action}`}
       icon={ApplicationIcons.sandbox}
       subTitle={formatTiming(event.timestamp, event.working_start)}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       {event.action === "exec" ? (
         <ExecView id={`${id}-exec`} event={event} />
