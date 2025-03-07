@@ -101,12 +101,26 @@ export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("low" | "medium" | "high") | null;
 export type ReasoningTokens = number | null;
 export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
+export type Name5 = string;
+export type Type2 =
+  | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
+  | null;
+export type Description = string | null;
+export type Enum = unknown[] | null;
+export type Properties = {
+  [k: string]: JSONSchema;
+} | null;
+export type Additionalproperties = JSONSchema | boolean | null;
+export type Anyof = JSONSchema[] | null;
+export type Required = string[] | null;
+export type Description1 = string | null;
+export type Strict = boolean | null;
 export type TotalSamples = number;
 export type CompletedSamples = number;
-export type Name5 = string;
+export type Name6 = string;
 export type Scorer = string;
 export type Reducer = string | null;
-export type Name6 = string;
+export type Name7 = string;
 export type Value = number;
 export type Metadata2 = {} | null;
 export type Metadata3 = {} | null;
@@ -144,19 +158,19 @@ export type Content =
       | ContentAudio
       | ContentVideo
     )[];
-export type Type2 = "text";
+export type Type3 = "text";
 export type Text = string;
-export type Type3 = "reasoning";
+export type Type4 = "reasoning";
 export type Reasoning = string;
 export type Signature = string | null;
 export type Redacted = boolean;
-export type Type4 = "image";
+export type Type5 = "image";
 export type Image = string;
 export type Detail = "auto" | "low" | "high";
-export type Type5 = "audio";
+export type Type6 = "audio";
 export type Audio = string;
 export type Format = "wav" | "mp3";
-export type Type6 = "video";
+export type Type7 = "video";
 export type Video = string;
 export type Format1 = "mp4" | "mpeg" | "mov";
 export type Source = ("input" | "generate") | null;
@@ -189,7 +203,7 @@ export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
 export type Id4 = string;
 export type Function = string;
-export type Type7 = "function";
+export type Type8 = "function";
 export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
@@ -208,7 +222,7 @@ export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
-export type Type8 =
+export type Type9 =
   | "parsing"
   | "timeout"
   | "unicode_decode"
@@ -288,7 +302,7 @@ export type Timestamp1 = string;
 export type WorkingStart1 = number;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type9 =
+export type Type10 =
   | "message"
   | "time"
   | "working"
@@ -335,25 +349,14 @@ export type Input3 = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Name7 = string;
-export type Description = string;
-export type Type10 = "object";
-export type Type11 =
-  | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
-  | null;
-export type Description1 = string | null;
-export type Enum = unknown[] | null;
-export type Properties1 = {
-  [k: string]: ToolParam;
-} | null;
-export type Additionalproperties = ToolParam | boolean | null;
-export type Anyof = ToolParam[] | null;
-export type Required = string[] | null;
+export type Name8 = string;
+export type Description2 = string;
+export type Type11 = "object";
 export type Required1 = string[];
 export type Additionalproperties1 = boolean;
 export type Tools1 = ToolInfo[];
 export type ToolChoice = ("auto" | "any" | "none") | ToolFunction;
-export type Name8 = string;
+export type Name9 = string;
 export type Error1 = string | null;
 export type Cache = ("read" | "write") | null;
 export type Time1 = number | null;
@@ -416,7 +419,7 @@ export type Timestamp11 = string;
 export type WorkingStart11 = number;
 export type Pending11 = boolean | null;
 export type Event11 = "logger";
-export type Name9 = string | null;
+export type Name10 = string | null;
 export type Level =
   | "debug"
   | "trace"
@@ -442,12 +445,12 @@ export type Pending13 = boolean | null;
 export type Event13 = "step";
 export type Action1 = "begin" | "end";
 export type Type13 = string | null;
-export type Name10 = string;
+export type Name11 = string;
 export type Timestamp14 = string;
 export type WorkingStart14 = number;
 export type Pending14 = boolean | null;
 export type Event14 = "subtask";
-export type Name11 = string;
+export type Name12 = string;
 export type Type14 = string | null;
 export type Events2 = (
   | SampleInitEvent
@@ -714,6 +717,33 @@ export interface GenerateConfig {
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
   reasoning_history: ReasoningHistory;
+  response_schema: ResponseSchema | null;
+}
+/**
+ * Schema for model response when using Structured Output.
+ */
+export interface ResponseSchema {
+  name: Name5;
+  json_schema: JSONSchema;
+  description: Description1;
+  strict: Strict;
+}
+/**
+ * JSON Schema for type.
+ */
+export interface JSONSchema {
+  type: Type2;
+  description: Description;
+  default: Default;
+  enum: Enum;
+  items: JSONSchema | null;
+  properties: Properties;
+  additionalProperties: Additionalproperties;
+  anyOf: Anyof;
+  required: Required;
+}
+export interface Default {
+  [k: string]: unknown;
 }
 /**
  * Scoring results from evaluation.
@@ -728,7 +758,7 @@ export interface EvalResults {
  * Score for evaluation task.
  */
 export interface EvalScore {
-  name: Name5;
+  name: Name6;
   scorer: Scorer;
   reducer: Reducer;
   params: Params2;
@@ -743,7 +773,7 @@ export interface Metrics2 {
  * Metric for evaluation score.
  */
 export interface EvalMetric {
-  name: Name6;
+  name: Name7;
   value: Value;
   params: Params3;
   metadata: Metadata2;
@@ -818,7 +848,7 @@ export interface ChatMessageSystem {
  * Text content.
  */
 export interface ContentText {
-  type: Type2;
+  type: Type3;
   text: Text;
 }
 /**
@@ -827,7 +857,7 @@ export interface ContentText {
  * See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
  */
 export interface ContentReasoning {
-  type: Type3;
+  type: Type4;
   reasoning: Reasoning;
   signature: Signature;
   redacted: Redacted;
@@ -836,7 +866,7 @@ export interface ContentReasoning {
  * Image content.
  */
 export interface ContentImage {
-  type: Type4;
+  type: Type5;
   image: Image;
   detail: Detail;
 }
@@ -844,7 +874,7 @@ export interface ContentImage {
  * Audio content.
  */
 export interface ContentAudio {
-  type: Type5;
+  type: Type6;
   audio: Audio;
   format: Format;
 }
@@ -852,7 +882,7 @@ export interface ContentAudio {
  * Video content.
  */
 export interface ContentVideo {
-  type: Type6;
+  type: Type7;
   video: Video;
   format: Format1;
 }
@@ -880,7 +910,7 @@ export interface ToolCall {
   id: Id4;
   function: Function;
   arguments: Arguments;
-  type: Type7;
+  type: Type8;
   parse_error: ParseError;
   view: ToolCallContent | null;
 }
@@ -906,7 +936,7 @@ export interface ChatMessageTool {
   error: ToolCallError | null;
 }
 export interface ToolCallError {
-  type: Type8;
+  type: Type9;
   message: Message1;
 }
 /**
@@ -994,7 +1024,7 @@ export interface SampleLimitEvent {
   working_start: WorkingStart1;
   pending: Pending1;
   event: Event1;
-  type: Type9;
+  type: Type10;
   message: Message2;
   limit: Limit1;
 }
@@ -1096,41 +1126,24 @@ export interface ModelEvent {
  * ```
  */
 export interface ToolInfo {
-  name: Name7;
-  description: Description;
+  name: Name8;
+  description: Description2;
   parameters: ToolParams;
 }
 /**
  * Description of tool parameters object in JSON Schema format.
  */
 export interface ToolParams {
-  type: Type10;
-  properties: Properties;
+  type: Type11;
+  properties: Properties1;
   required: Required1;
   additionalProperties: Additionalproperties1;
 }
-export interface Properties {
-  [k: string]: ToolParam;
-}
-/**
- * Description of tool parameter in JSON Schema format.
- */
-export interface ToolParam {
-  type: Type11;
-  description: Description1;
-  default: Default;
-  enum: Enum;
-  items: ToolParam | null;
-  properties: Properties1;
-  additionalProperties: Additionalproperties;
-  anyOf: Anyof;
-  required: Required;
-}
-export interface Default {
-  [k: string]: unknown;
+export interface Properties1 {
+  [k: string]: JSONSchema;
 }
 export interface ToolFunction {
-  name: Name8;
+  name: Name9;
 }
 /**
  * Model generation options.
@@ -1160,6 +1173,7 @@ export interface GenerateConfig1 {
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
   reasoning_history: ReasoningHistory;
+  response_schema: ResponseSchema | null;
 }
 /**
  * Model call (raw request/response data).
@@ -1274,7 +1288,7 @@ export interface LoggerEvent {
  * Message written to Python log.
  */
 export interface LoggingMessage {
-  name: Name9;
+  name: Name10;
   level: Level;
   message: Message4;
   created: Created1;
@@ -1303,7 +1317,7 @@ export interface StepEvent {
   event: Event13;
   action: Action1;
   type: Type13;
-  name: Name10;
+  name: Name11;
 }
 /**
  * Subtask spawned.
@@ -1313,7 +1327,7 @@ export interface SubtaskEvent {
   working_start: WorkingStart14;
   pending: Pending14;
   event: Event14;
-  name: Name11;
+  name: Name12;
   type: Type14;
   input: Input5;
   result: Result2;
