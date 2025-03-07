@@ -24,6 +24,7 @@ export interface AppState {
   listPositions: Record<string, StateSnapshot>;
   collapsed: Record<string, boolean>;
   messages: Record<string, boolean>;
+  propertyBags: Record<string, Record<string, unknown>>;
 }
 
 export interface LogsState {

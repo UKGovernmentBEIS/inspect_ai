@@ -25860,7 +25860,8 @@ self.onmessage = function (e) {
       scrollPositions: {},
       listPositions: {},
       collapsed: {},
-      messages: {}
+      messages: {},
+      propertyBags: {}
     };
     const createAppSlice = (set2, get2, _store) => {
       const getBoolRecord = (record, name2, defaultValue) => {
@@ -25962,6 +25963,27 @@ self.onmessage = function (e) {
           clearMessageVisible: (name2) => {
             set2((state) => {
               delete state.app.messages[name2];
+            });
+          },
+          getPropertyValue: (bagName, key2, defaultValue) => {
+            const state = get2();
+            const bag = state.app.propertyBags[bagName] || {};
+            return key2 in bag ? bag[key2] : defaultValue;
+          },
+          setPropertyValue: (bagName, key2, value2) => {
+            set2((state) => {
+              if (!state.app.propertyBags[bagName]) {
+                state.app.propertyBags[bagName] = {};
+              }
+              state.app.propertyBags[bagName][key2] = value2;
+            });
+          },
+          removePropertyValue: (bagName, key2) => {
+            set2((state) => {
+              if (state.app.propertyBags[bagName]) {
+                const { [key2]: _, ...rest } = state.app.propertyBags[bagName];
+                state.app.propertyBags[bagName] = rest;
+              }
             });
           }
         }
@@ -73633,37 +73655,61 @@ ${events}
       next,
       prev
     };
-    const LightboxCarousel = ({ slides }) => {
-      const [isOpen, setIsOpen] = reactExports.useState(false);
-      const [showOverlay, setShowOverlay] = reactExports.useState(false);
-      const [currentIndex, setCurrentIndex] = reactExports.useState(0);
+    const kIsOpen = "isOpen";
+    const kShowOverlay = "showOverlay";
+    const kCurrentIndex = "currentIndex";
+    const LightboxCarousel = ({ id: id2, slides }) => {
+      const isOpen = useStore(
+        (state) => state.appActions.getPropertyValue(id2, kIsOpen, false)
+      );
+      const showOverlay = useStore(
+        (state) => state.appActions.getPropertyValue(id2, kShowOverlay, false)
+      );
+      const currentIndex = useStore(
+        (state) => state.appActions.getPropertyValue(id2, kCurrentIndex, 0)
+      );
+      const setPropertyValue = useStore(
+        (state) => state.appActions.setPropertyValue
+      );
+      const removePropertyValue = useStore(
+        (state) => state.appActions.removePropertyValue
+      );
+      reactExports.useEffect(() => {
+        return () => {
+          [kIsOpen, kShowOverlay, kCurrentIndex].forEach(
+            (p) => removePropertyValue(id2, p)
+          );
+        };
+      }, []);
       const openLightbox = reactExports.useCallback(
         (index) => {
-          setCurrentIndex(index);
-          setShowOverlay(true);
-          setTimeout(() => setIsOpen(true), 10);
+          setPropertyValue(id2, kCurrentIndex, index);
+          setPropertyValue(id2, kShowOverlay, true);
+          setTimeout(() => setPropertyValue(id2, kIsOpen, true), 10);
         },
-        [setCurrentIndex, setShowOverlay]
+        [setPropertyValue]
       );
       const closeLightbox = reactExports.useCallback(() => {
-        setIsOpen(false);
-      }, [setIsOpen]);
+        setPropertyValue(id2, kIsOpen, false);
+      }, [setPropertyValue]);
       reactExports.useEffect(() => {
         if (!isOpen && showOverlay) {
           const timer = setTimeout(() => {
-            setShowOverlay(false);
+            setPropertyValue(id2, kShowOverlay, false);
           }, 300);
           return () => clearTimeout(timer);
         }
-      }, [isOpen, showOverlay, setShowOverlay]);
+      }, [isOpen, showOverlay, setPropertyValue]);
       const showNext = reactExports.useCallback(() => {
-        setCurrentIndex((prev2) => {
-          return (prev2 + 1) % slides.length;
-        });
-      }, [slides, setCurrentIndex]);
+        setPropertyValue(id2, kCurrentIndex, currentIndex + 1);
+      }, [slides, setPropertyValue]);
       const showPrev = reactExports.useCallback(() => {
-        setCurrentIndex((prev2) => (prev2 - 1 + slides.length) % slides.length);
-      }, [slides, setCurrentIndex]);
+        setPropertyValue(
+          id2,
+          kCurrentIndex,
+          (currentIndex - 1 + slides.length) % slides.length
+        );
+      }, [slides, setPropertyValue]);
       reactExports.useEffect(() => {
         if (!isOpen) return;
         const handleKeyUp = (e) => {
@@ -73690,7 +73736,7 @@ ${events}
               children: [
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: slide.label }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                  lineNumber: 86,
+                  lineNumber: 115,
                   columnNumber: 15
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -73705,13 +73751,13 @@ ${events}
                   false,
                   {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                    lineNumber: 88,
+                    lineNumber: 117,
                     columnNumber: 17
                   },
                   void 0
                 ) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                  lineNumber: 87,
+                  lineNumber: 116,
                   columnNumber: 15
                 }, void 0)
               ]
@@ -73720,14 +73766,14 @@ ${events}
             true,
             {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-              lineNumber: 81,
+              lineNumber: 110,
               columnNumber: 13
             },
             void 0
           );
         }) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-          lineNumber: 78,
+          lineNumber: 107,
           columnNumber: 7
         }, void 0),
         showOverlay && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -73742,7 +73788,7 @@ ${events}
                   onClick: closeLightbox,
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.close }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                    lineNumber: 108,
+                    lineNumber: 137,
                     columnNumber: 15
                   }, void 0)
                 },
@@ -73750,13 +73796,13 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                  lineNumber: 104,
+                  lineNumber: 133,
                   columnNumber: 13
                 },
                 void 0
               ) }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                lineNumber: 103,
+                lineNumber: 132,
                 columnNumber: 11
               }, void 0),
               slides.length > 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -73766,7 +73812,7 @@ ${events}
                   onClick: showPrev,
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.previous }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                    lineNumber: 116,
+                    lineNumber: 145,
                     columnNumber: 15
                   }, void 0)
                 },
@@ -73774,7 +73820,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                  lineNumber: 112,
+                  lineNumber: 141,
                   columnNumber: 13
                 },
                 void 0
@@ -73786,7 +73832,7 @@ ${events}
                   onClick: showNext,
                   children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.next }, void 0, false, {
                     fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                    lineNumber: 126,
+                    lineNumber: 155,
                     columnNumber: 15
                   }, void 0)
                 },
@@ -73794,7 +73840,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                  lineNumber: 122,
+                  lineNumber: 151,
                   columnNumber: 13
                 },
                 void 0
@@ -73809,7 +73855,7 @@ ${events}
                 false,
                 {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-                  lineNumber: 131,
+                  lineNumber: 160,
                   columnNumber: 11
                 },
                 void 0
@@ -73820,14 +73866,14 @@ ${events}
           true,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-            lineNumber: 100,
+            lineNumber: 129,
             columnNumber: 9
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/LightboxCarousel.tsx",
-        lineNumber: 77,
+        lineNumber: 106,
         columnNumber: 5
       }, void 0);
     };
@@ -73964,7 +74010,7 @@ ${events}
           lineNumber: 128,
           columnNumber: 9
         }, void 0),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "asciinema-body", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LightboxCarousel, { slides: player_fns }, void 0, false, {
+        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: "asciinema-body", children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(LightboxCarousel, { id: "ascii-cinema", slides: player_fns }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/components/HumanBaselineView.tsx",
           lineNumber: 136,
           columnNumber: 11

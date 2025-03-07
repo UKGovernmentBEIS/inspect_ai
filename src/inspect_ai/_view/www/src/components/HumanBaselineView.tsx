@@ -133,7 +133,7 @@ export const HumanBaselineView: FC<HumanBaselineViewProps> = ({
           />
         </div>
         <div className={"asciinema-body"}>
-          <LightboxCarousel slides={player_fns} />
+          <LightboxCarousel id="ascii-cinema" slides={player_fns} />
         </div>
       </div>
     </div>
