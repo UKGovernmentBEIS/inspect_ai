@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { SampleSummary } from "../api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import {
@@ -286,3 +286,45 @@ export const useMessageVisibility = (
     return [visible, set];
   }, [visible, setVisible, id]);
 };
+
+export function useProperty<T>(
+  id: string,
+  propertyName: string,
+  options?: {
+    defaultValue?: T;
+    cleanup?: boolean;
+  },
+): [T, (value: T) => void, () => void] {
+  options = options || { cleanup: true };
+  const setPropertyValue = useStore(
+    (state) => state.appActions.setPropertyValue,
+  );
+  const removePropertyValue = useStore(
+    (state) => state.appActions.removePropertyValue,
+  );
+  const propertyValue = useStore((state) =>
+    state.appActions.getPropertyValue(id, propertyName, options.defaultValue),
+  );
+
+  const setValue = useCallback(
+    (value: T) => {
+      setPropertyValue(id, propertyName, value);
+    },
+    [id, propertyName, setPropertyValue],
+  );
+
+  const removeValue = useCallback(() => {
+    removePropertyValue(id, propertyName);
+  }, [id, propertyName, removePropertyValue]);
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (options.cleanup) {
+        removePropertyValue(id, propertyName);
+      }
+    };
+  }, [id, propertyName, removePropertyValue]);
+
+  return [propertyValue, setValue, removeValue];
+}
