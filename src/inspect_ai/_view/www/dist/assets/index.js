@@ -17956,7 +17956,8 @@ self.onmessage = function (e) {
       scrollPositions: {},
       listPositions: {},
       collapsed: {},
-      messages: {}
+      messages: {},
+      propertyBags: {}
     };
     const createAppSlice = (set2, get2, _store) => {
       const getBoolRecord = (record, name2, defaultValue) => {
@@ -18058,6 +18059,27 @@ self.onmessage = function (e) {
           clearMessageVisible: (name2) => {
             set2((state) => {
               delete state.app.messages[name2];
+            });
+          },
+          getPropertyValue: (bagName, key2, defaultValue) => {
+            const state = get2();
+            const bag = state.app.propertyBags[bagName] || {};
+            return key2 in bag ? bag[key2] : defaultValue;
+          },
+          setPropertyValue: (bagName, key2, value2) => {
+            set2((state) => {
+              if (!state.app.propertyBags[bagName]) {
+                state.app.propertyBags[bagName] = {};
+              }
+              state.app.propertyBags[bagName][key2] = value2;
+            });
+          },
+          removePropertyValue: (bagName, key2) => {
+            set2((state) => {
+              if (state.app.propertyBags[bagName]) {
+                const { [key2]: _, ...rest } = state.app.propertyBags[bagName];
+                state.app.propertyBags[bagName] = rest;
+              }
             });
           }
         }
@@ -30899,6 +30921,7 @@ categories: ${categories.join(" ")}`;
           isFirstRender.current = false;
           return;
         }
+        log$1.debug("clear message (eval)", id2);
         clearVisible(id2);
       }, [selectedLogFile, clearVisible, id2]);
       const selectedSampleIndex = useStore(
@@ -30909,11 +30932,14 @@ categories: ${categories.join(" ")}`;
           return;
         }
         if (scope === "sample") {
+          log$1.debug("clear message (sample)", id2);
           clearVisible(id2);
         }
       }, [selectedSampleIndex, clearVisible, id2, scope]);
       return reactExports.useMemo(() => {
+        log$1.debug("visibility", id2, visible2);
         const set2 = (visible22) => {
+          log$1.debug("set visiblity", id2);
           setVisible(id2, visible22);
         };
         return [visible2, set2];
@@ -63279,37 +63305,61 @@ ${events}
       lightboxButtonClose,
       lightboxPreviewButton
     };
-    const LightboxCarousel = ({ slides }) => {
-      const [isOpen, setIsOpen] = reactExports.useState(false);
-      const [showOverlay, setShowOverlay] = reactExports.useState(false);
-      const [currentIndex, setCurrentIndex] = reactExports.useState(0);
+    const kIsOpen = "isOpen";
+    const kShowOverlay = "showOverlay";
+    const kCurrentIndex = "currentIndex";
+    const LightboxCarousel = ({ id: id2, slides }) => {
+      const isOpen = useStore(
+        (state) => state.appActions.getPropertyValue(id2, kIsOpen, false)
+      );
+      const showOverlay = useStore(
+        (state) => state.appActions.getPropertyValue(id2, kShowOverlay, false)
+      );
+      const currentIndex = useStore(
+        (state) => state.appActions.getPropertyValue(id2, kCurrentIndex, 0)
+      );
+      const setPropertyValue = useStore(
+        (state) => state.appActions.setPropertyValue
+      );
+      const removePropertyValue = useStore(
+        (state) => state.appActions.removePropertyValue
+      );
+      reactExports.useEffect(() => {
+        return () => {
+          [kIsOpen, kShowOverlay, kCurrentIndex].forEach(
+            (p) => removePropertyValue(id2, p)
+          );
+        };
+      }, []);
       const openLightbox = reactExports.useCallback(
         (index2) => {
-          setCurrentIndex(index2);
-          setShowOverlay(true);
-          setTimeout(() => setIsOpen(true), 10);
+          setPropertyValue(id2, kCurrentIndex, index2);
+          setPropertyValue(id2, kShowOverlay, true);
+          setTimeout(() => setPropertyValue(id2, kIsOpen, true), 10);
         },
-        [setCurrentIndex, setShowOverlay]
+        [setPropertyValue]
       );
       const closeLightbox = reactExports.useCallback(() => {
-        setIsOpen(false);
-      }, [setIsOpen]);
+        setPropertyValue(id2, kIsOpen, false);
+      }, [setPropertyValue]);
       reactExports.useEffect(() => {
         if (!isOpen && showOverlay) {
           const timer = setTimeout(() => {
-            setShowOverlay(false);
+            setPropertyValue(id2, kShowOverlay, false);
           }, 300);
           return () => clearTimeout(timer);
         }
-      }, [isOpen, showOverlay, setShowOverlay]);
+      }, [isOpen, showOverlay, setPropertyValue]);
       const showNext = reactExports.useCallback(() => {
-        setCurrentIndex((prev) => {
-          return (prev + 1) % slides.length;
-        });
-      }, [slides, setCurrentIndex]);
+        setPropertyValue(id2, kCurrentIndex, currentIndex + 1);
+      }, [slides, setPropertyValue]);
       const showPrev = reactExports.useCallback(() => {
-        setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
-      }, [slides, setCurrentIndex]);
+        setPropertyValue(
+          id2,
+          kCurrentIndex,
+          (currentIndex - 1 + slides.length) % slides.length
+        );
+      }, [slides, setPropertyValue]);
       reactExports.useEffect(() => {
         if (!isOpen) return;
         const handleKeyUp = (e) => {
@@ -63476,7 +63526,7 @@ ${events}
             answer: answer2
           }
         ) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "asciinema-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx(LightboxCarousel, { slides: player_fns }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "asciinema-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx(LightboxCarousel, { id: "ascii-cinema", slides: player_fns }) })
       ] }) });
     };
     const extractSize = (value2, label2, defaultValue) => {
