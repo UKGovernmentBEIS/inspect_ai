@@ -1,6 +1,7 @@
 import clsx from "clsx";
-import { FC, ReactNode, useCallback, useEffect, useState } from "react";
+import { FC, ReactNode, useCallback, useEffect } from "react";
 import { ApplicationIcons } from "../appearance/icons";
+import { useStore } from "../state/store";
 import styles from "./LightboxCarousel.module.css";
 
 interface Slide {
@@ -9,51 +10,79 @@ interface Slide {
 }
 
 interface LightboxCarouselProps {
+  id: string;
   slides: Slide[];
 }
+
+const kIsOpen = "isOpen";
+const kShowOverlay = "showOverlay";
+const kCurrentIndex = "currentIndex";
 
 /**
  * LightboxCarousel component provides a carousel with lightbox functionality.
  */
-export const LightboxCarousel: FC<LightboxCarouselProps> = ({ slides }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
+export const LightboxCarousel: FC<LightboxCarouselProps> = ({ id, slides }) => {
+  const isOpen = useStore((state) =>
+    state.appActions.getPropertyValue(id, kIsOpen, false),
+  );
+  const showOverlay = useStore((state) =>
+    state.appActions.getPropertyValue(id, kShowOverlay, false),
+  );
+  const currentIndex = useStore((state) =>
+    state.appActions.getPropertyValue(id, kCurrentIndex, 0),
+  );
+
+  const setPropertyValue = useStore(
+    (state) => state.appActions.setPropertyValue,
+  );
+  const removePropertyValue = useStore(
+    (state) => state.appActions.removePropertyValue,
+  );
+
+  useEffect(() => {
+    return () => {
+      [kIsOpen, kShowOverlay, kCurrentIndex].forEach((p) =>
+        removePropertyValue(id, p),
+      );
+    };
+  }, []);
 
   const openLightbox = useCallback(
     (index: number) => {
-      setCurrentIndex(index);
-      setShowOverlay(true);
+      setPropertyValue(id, kCurrentIndex, index);
+      setPropertyValue(id, kShowOverlay, true);
 
       // Slight delay before setting isOpen so the fade-in starts from opacity: 0
-      setTimeout(() => setIsOpen(true), 10);
+      setTimeout(() => setPropertyValue(id, kIsOpen, true), 10);
     },
-    [setCurrentIndex, setShowOverlay],
+    [setPropertyValue],
   );
 
   const closeLightbox = useCallback(() => {
-    setIsOpen(false);
-  }, [setIsOpen]);
+    setPropertyValue(id, kIsOpen, false);
+  }, [setPropertyValue]);
 
   // Remove the overlay from the DOM after fade-out completes
   useEffect(() => {
     if (!isOpen && showOverlay) {
       const timer = setTimeout(() => {
-        setShowOverlay(false);
+        setPropertyValue(id, kShowOverlay, false);
       }, 300); // match your transition duration
       return () => clearTimeout(timer);
     }
-  }, [isOpen, showOverlay, setShowOverlay]);
+  }, [isOpen, showOverlay, setPropertyValue]);
 
   const showNext = useCallback(() => {
-    setCurrentIndex((prev) => {
-      return (prev + 1) % slides.length;
-    });
-  }, [slides, setCurrentIndex]);
+    setPropertyValue(id, kCurrentIndex, currentIndex + 1);
+  }, [slides, setPropertyValue]);
 
   const showPrev = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
-  }, [slides, setCurrentIndex]);
+    setPropertyValue(
+      id,
+      kCurrentIndex,
+      (currentIndex - 1 + slides.length) % slides.length,
+    );
+  }, [slides, setPropertyValue]);
 
   // Keyboard Navigation
   useEffect(() => {
