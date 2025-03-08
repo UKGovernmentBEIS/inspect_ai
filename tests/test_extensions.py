@@ -3,7 +3,7 @@ import importlib
 import pytest
 from pydantic_core import to_jsonable_python
 from test_helpers.tools import list_files
-from test_helpers.utils import ensure_test_package_installed
+from test_helpers.utils import ensure_test_package_installed, skip_if_trio
 
 from inspect_ai import Task, eval_async
 from inspect_ai.dataset import Sample
@@ -13,7 +13,8 @@ from inspect_ai.solver import generate, use_tools
 from inspect_ai.util import SandboxEnvironmentSpec
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
+@skip_if_trio
 async def test_extension_model():
     # ensure the package is installed
     ensure_test_package_installed()
