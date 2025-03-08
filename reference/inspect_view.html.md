@@ -1,3 +1,0 @@
-# inspect view
-
-
