@@ -412,11 +412,13 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             pass
         finally:
             # Always ensure channels are closed
+            await anyio.sleep(0)  # yield control to allow tasks to process cancellation
             try:
                 await send_channel.aclose()
             except anyio.ClosedResourceError:
                 pass
 
+            await anyio.sleep(0)  # yield control again
             try:
                 await receive_channel.aclose()
             except anyio.ClosedResourceError:
