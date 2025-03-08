@@ -9,7 +9,7 @@ from inspect_ai.scorer import includes
 from inspect_ai.solver import generate
 
 
-@pytest.mark.asycnio
+@pytest.mark.asyncio
 @skip_if_trio
 async def test_mock_generate_default() -> None:
     model = get_model("mockllm/model")
