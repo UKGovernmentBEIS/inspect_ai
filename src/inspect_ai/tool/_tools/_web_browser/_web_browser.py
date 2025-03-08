@@ -344,7 +344,9 @@ def web_browser_refresh() -> Tool:
     return execute
 
 
-MULTI_TOOL_V1 = "/opt/inspect/multi_tool_v1.py"
+SANDBOX_CMD = "inspect-tool-exec"
+# TODO: Figure out how to get a version number in there
+MULTI_TOOL_V1 = f"/usr/local/bin/{SANDBOX_CMD}"
 
 
 async def web_browser_cmd(tool_name: str, params: dict[str, object]) -> ToolResult:
@@ -356,7 +358,7 @@ async def web_browser_cmd(tool_name: str, params: dict[str, object]) -> ToolResu
             store.session_id = (
                 await exec_sandbox_rpc(
                     sandbox_env,
-                    ["python3", MULTI_TOOL_V1],
+                    [SANDBOX_CMD],
                     tool_name,
                     {"headful": False},
                     NewSessionResult,
@@ -368,7 +370,7 @@ async def web_browser_cmd(tool_name: str, params: dict[str, object]) -> ToolResu
         sandbox_env = await web_browser_sandbox()
 
     crawler_result = await exec_sandbox_rpc(
-        sandbox_env, ["python3", MULTI_TOOL_V1], tool_name, params, CrawlerResult
+        sandbox_env, [SANDBOX_CMD], tool_name, params, CrawlerResult
     )
     if crawler_result.error and crawler_result.error.strip() != "":
         raise ToolError(crawler_result.error)
