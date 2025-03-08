@@ -397,10 +397,9 @@ def content_from_openai(
     parse_reasoning: bool = False,
 ) -> list[Content]:
     # Some providers omit the type tag and use "object-with-a-single-field" encoding
-    keys = list(content) if isinstance(content, dict) else []
-    fallback = keys[0] if len(keys) == 1 else None
-    type = content.get("type", fallback)
-    if type == "text":
+    if "type" not in content and len(content) == 1:
+      content["type"] = list(content.keys())[0]
+    if content["type"] == "text":
         text = content["text"]
         if parse_reasoning:
             result = parse_content_with_reasoning(text)
@@ -417,22 +416,22 @@ def content_from_openai(
                 return [ContentText(text=text)]
         else:
             return [ContentText(text=text)]
-    elif type == "reasoning":
+    elif content["type"] == "reasoning":
         return [ContentReasoning(reasoning=content["reasoning"])]
-    elif type == "image_url":
+    elif content["type"] == "image_url":
         return [
             ContentImage(
                 image=content["image_url"]["url"], detail=content["image_url"]["detail"]
             )
         ]
-    elif type == "input_audio":
+    elif content["type"] == "input_audio":
         return [
             ContentAudio(
                 audio=content["input_audio"]["data"],
                 format=content["input_audio"]["format"],
             )
         ]
-    elif type == "refusal":
+    elif content["type"] == "refusal":
         return [ContentText(text=content["refusal"])]
 
 
