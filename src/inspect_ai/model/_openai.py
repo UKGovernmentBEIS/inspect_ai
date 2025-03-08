@@ -398,7 +398,7 @@ def content_from_openai(
 ) -> list[Content]:
     # Some providers omit the type tag and use "object-with-a-single-field" encoding
     if "type" not in content and len(content) == 1:
-      content["type"] = list(content.keys())[0]
+        content["type"] = list(content.keys())[0]  # type: ignore[arg-type]
     if content["type"] == "text":
         text = content["text"]
         if parse_reasoning:
@@ -416,7 +416,7 @@ def content_from_openai(
                 return [ContentText(text=text)]
         else:
             return [ContentText(text=text)]
-    elif content["type"] == "reasoning":
+    elif content["type"] == "reasoning":  # type: ignore[comparison-overlap]
         return [ContentReasoning(reasoning=content["reasoning"])]
     elif content["type"] == "image_url":
         return [
@@ -433,6 +433,9 @@ def content_from_openai(
         ]
     elif content["type"] == "refusal":
         return [ContentText(text=content["refusal"])]
+    else:
+        content_type = content["type"]
+        raise ValueError(f"Unexpected content type '{content_type}' in message.")
 
 
 def chat_message_assistant_from_openai(
