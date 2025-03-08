@@ -128,12 +128,11 @@ export const useSamplesTabConfig = (
       scrollable: totalSampleCount === 1,
       scrollRef: sampleTabScrollRef,
       label: totalSampleCount > 1 ? "Samples" : "Sample",
-      content: () => (
-        <SamplesTab
-          running={evalStatus === "started"}
-          sampleTabScrollRef={sampleTabScrollRef}
-        />
-      ),
+      component: SamplesTab,
+      componentProps: {
+        running: evalStatus === "started",
+        sampleTabScrollRef: sampleTabScrollRef,
+      },
       tools: () =>
         totalSampleCount === 1 || !samplesDescriptor
           ? undefined
@@ -176,16 +175,15 @@ export const useInfoTabConfig = (
       id: kInfoWorkspaceTabId,
       label: "Info",
       scrollable: true,
-      content: () => (
-        <InfoTab
-          evalSpec={evalSpec}
-          evalPlan={evalPlan}
-          evalError={evalError}
-          evalResults={evalResults}
-          evalStats={evalStats}
-          sampleCount={totalSampleCount}
-        />
-      ),
+      component: InfoTab,
+      componentProps: {
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        sampleCount: totalSampleCount,
+      },
     };
   }, [evalSpec, evalPlan, evalError, evalResults, evalStats, totalSampleCount]);
 };
@@ -206,27 +204,25 @@ export const useJsonTabConfig = (
   const selectedTab = useStore((state) => state.app.tabs.workspace);
 
   return useMemo(() => {
+    const evalHeader = {
+      version: evalVersion,
+      status: evalStatus,
+      eval: evalSpec,
+      plan: evalPlan,
+      error: evalError,
+      results: evalResults,
+      stats: evalStats,
+    };
+
     return {
       id: kJsonWorkspaceTabId,
       label: "JSON",
       scrollable: true,
-      content: () => {
-        const evalHeader = {
-          version: evalVersion,
-          status: evalStatus,
-          eval: evalSpec,
-          plan: evalPlan,
-          error: evalError,
-          results: evalResults,
-          stats: evalStats,
-        };
-        return (
-          <JsonTab
-            logFile={selectedLogFile}
-            json={JSON.stringify(evalHeader, null, 2)}
-            selected={selectedTab === kJsonWorkspaceTabId}
-          />
-        );
+      component: JsonTab,
+      componentProps: {
+        logFile: selectedLogFile,
+        json: JSON.stringify(evalHeader, null, 2),
+        selected: selectedTab === kJsonWorkspaceTabId,
       },
       tools: () => [
         <ToolButton
