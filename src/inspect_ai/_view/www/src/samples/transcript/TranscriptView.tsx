@@ -29,17 +29,19 @@ interface TranscriptViewProps {
 /**
  * Renders the TranscriptView component.
  */
-export const TranscriptView: FC<TranscriptViewProps> = memo(
-  ({ id, events, depth }) => {
-    // Normalize Events themselves
-    const resolvedEvents = fixupEventStream(events);
-    const eventNodes = treeifyEvents(
-      resolvedEvents,
-      depth !== undefined ? depth : 0,
-    );
-    return <TranscriptComponent id={id} eventNodes={eventNodes} />;
-  },
-);
+export const TranscriptView: FC<TranscriptViewProps> = ({
+  id,
+  events,
+  depth,
+}) => {
+  // Normalize Events themselves
+  const resolvedEvents = fixupEventStream(events);
+  const eventNodes = treeifyEvents(
+    resolvedEvents,
+    depth !== undefined ? depth : 0,
+  );
+  return <TranscriptComponent id={id} eventNodes={eventNodes} />;
+};
 
 interface TranscriptVirtualListProps {
   id: string;
