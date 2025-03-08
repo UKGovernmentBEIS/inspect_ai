@@ -1,5 +1,12 @@
 import clsx from "clsx";
-import { FC, Fragment, MouseEvent, RefObject, useCallback } from "react";
+import {
+  createElement,
+  FC,
+  Fragment,
+  MouseEvent,
+  RefObject,
+  useCallback,
+} from "react";
 import { RunningMetric } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
@@ -24,7 +31,7 @@ interface WorkSpaceViewProps {
   evalStats?: EvalStats;
   status?: Status;
   showToggle: boolean;
-  tabs: Record<string, TabDescriptor>;
+  tabs: Record<string, TabDescriptor<any>>;
   divRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -95,6 +102,7 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
             >
               {Object.keys(tabs).map((key) => {
                 const tab = tabs[key];
+                console.log({ tab });
                 return (
                   <TabPanel
                     key={tab.id}
@@ -105,7 +113,7 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
                     scrollable={!!tab.scrollable}
                     scrollRef={tab.scrollRef}
                   >
-                    {tab.content()}
+                    {createElement(tab.component, tab.componentProps)}
                   </TabPanel>
                 );
               })}
