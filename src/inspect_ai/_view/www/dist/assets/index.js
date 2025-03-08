@@ -18558,30 +18558,45 @@ self.onmessage = function (e) {
       });
     };
     const resolveAttachments = (value2, attachments) => {
-      const kContentProtocol = "tc://";
-      const kAttachmentProtocol = "attachment://";
-      if (Array.isArray(value2)) {
-        return value2.map((v) => resolveAttachments(v, attachments));
+      const CONTENT_PROTOCOL = "tc://";
+      const ATTACHMENT_PROTOCOL = "attachment://";
+      if (value2 === null || value2 === void 0) {
+        return value2;
       }
-      if (value2 && typeof value2 === "object") {
+      if (Array.isArray(value2)) {
+        let hasChanged = false;
+        const resolvedArray = value2.map((v) => {
+          const resolved = resolveAttachments(v, attachments);
+          if (resolved !== v) hasChanged = true;
+          return resolved;
+        });
+        return hasChanged ? resolvedArray : value2;
+      }
+      if (typeof value2 === "object" && !(value2 instanceof Date) && !(value2 instanceof RegExp)) {
+        let hasChanged = false;
         const resolvedObject = {};
-        for (const key2 of Object.keys(value2)) {
-          resolvedObject[key2] = resolveAttachments(value2[key2], attachments);
+        for (const [key2, val] of Object.entries(value2)) {
+          const resolved = resolveAttachments(val, attachments);
+          resolvedObject[key2] = resolved;
+          if (resolved !== val) hasChanged = true;
         }
-        return resolvedObject;
+        return hasChanged ? resolvedObject : value2;
       }
       if (typeof value2 === "string") {
-        let resolvedValue = value2;
-        if (resolvedValue.startsWith(kContentProtocol)) {
-          resolvedValue = resolvedValue.replace(
-            kContentProtocol,
-            kAttachmentProtocol
-          );
+        if (value2.startsWith(CONTENT_PROTOCOL)) {
+          const updatedValue = value2.replace(CONTENT_PROTOCOL, ATTACHMENT_PROTOCOL);
+          if (updatedValue.startsWith(ATTACHMENT_PROTOCOL)) {
+            const attachmentId = updatedValue.slice(ATTACHMENT_PROTOCOL.length);
+            const attachment = attachments[attachmentId];
+            return attachment !== void 0 ? attachment : value2;
+          }
+          return updatedValue;
         }
-        if (resolvedValue.startsWith(kAttachmentProtocol)) {
-          return attachments[resolvedValue.replace(kAttachmentProtocol, "")];
+        if (value2.startsWith(ATTACHMENT_PROTOCOL)) {
+          const attachmentId = value2.slice(ATTACHMENT_PROTOCOL.length);
+          const attachment = attachments[attachmentId];
+          return attachment !== void 0 ? attachment : value2;
         }
-        return resolvedValue;
       }
       return value2;
     };
@@ -18591,10 +18606,14 @@ self.onmessage = function (e) {
       return {
         addData: (data) => {
           data.attachments.forEach((a) => {
-            attachments[a.hash] = a.content;
+            if (attachments[a.hash] === void 0) {
+              attachments[a.hash] = a.content;
+            }
           });
           data.events.forEach((e) => {
-            events[e.event_id] = e;
+            if (events[e.event_id] === void 0) {
+              events[e.event_id] = e;
+            }
           });
         },
         resolvedEvents: () => {
@@ -64199,7 +64218,7 @@ ${events}
       node,
       first
     };
-    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef }) => {
+    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef }) => {
       const listHandle = reactExports.useRef(null);
       const { restoreState, isScrolling } = useVirtuosoState(
         listHandle,
@@ -64208,7 +64227,7 @@ ${events}
       const [followOutput, setFollowOutput] = useProperty(id, "follow", {
         defaultValue: false
       });
-      const renderRow = (item2, index2) => {
+      const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$l.darkenedBg : styles$l.normalBg;
         const paddingClass = index2 === 0 ? styles$l.first : void 0;
         const eventId = `${id}-event${index2}`;
@@ -64221,7 +64240,16 @@ ${events}
             scrollRef
           }
         ) }, eventId);
-      };
+      }, []);
+      const handleAtBottom = reactExports.useCallback(
+        (atBottom) => {
+          setFollowOutput(atBottom);
+        },
+        [setFollowOutput]
+      );
+      const restored = reactExports.useMemo(() => {
+        return restoreState();
+      }, [restoreState]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         $r,
         {
@@ -64229,25 +64257,20 @@ ${events}
           customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
           style: { height: "100%", width: "100%" },
           data: eventNodes,
-          itemContent: (index2, data) => {
-            return renderRow(data, index2);
-          },
+          itemContent: renderRow,
           increaseViewportBy: { top: 1e3, bottom: 1e3 },
           overscan: {
             main: 2,
             reverse: 2
           },
           followOutput,
-          atBottomStateChange: (atBottom) => {
-            setFollowOutput(atBottom);
-          },
-          skipAnimationFrameInResizeObserver: true,
+          atBottomStateChange: handleAtBottom,
           className: clsx("transcript"),
           isScrolling,
-          restoreStateFrom: restoreState()
+          restoreStateFrom: restored
         }
       );
-    };
+    });
     const TranscriptView = ({
       id,
       events,
@@ -66996,6 +67019,7 @@ ${events}
               tabPanelsClassName: clsx(styles.tabPanels),
               children: Object.keys(tabs2).map((key2) => {
                 const tab2 = tabs2[key2];
+                console.log({ tab: tab2 });
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(
                   TabPanel,
                   {
@@ -67005,7 +67029,7 @@ ${events}
                     selected: selectedTab === tab2.id,
                     scrollable: !!tab2.scrollable,
                     scrollRef: tab2.scrollRef,
-                    children: tab2.content()
+                    children: reactExports.createElement(tab2.component, tab2.componentProps)
                   },
                   tab2.id
                 );
@@ -67082,13 +67106,11 @@ ${events}
           scrollable: totalSampleCount === 1,
           scrollRef: sampleTabScrollRef,
           label: totalSampleCount > 1 ? "Samples" : "Sample",
-          content: () => /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SamplesTab,
-            {
-              running: evalStatus === "started",
-              sampleTabScrollRef
-            }
-          ),
+          component: SamplesTab,
+          componentProps: {
+            running: evalStatus === "started",
+            sampleTabScrollRef
+          },
           tools: () => totalSampleCount === 1 || !samplesDescriptor ? void 0 : [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               SampleTools,
@@ -67124,17 +67146,15 @@ ${events}
           id: kInfoWorkspaceTabId,
           label: "Info",
           scrollable: true,
-          content: () => /* @__PURE__ */ jsxRuntimeExports.jsx(
-            InfoTab,
-            {
-              evalSpec,
-              evalPlan,
-              evalError,
-              evalResults,
-              evalStats,
-              sampleCount: totalSampleCount
-            }
-          )
+          component: InfoTab,
+          componentProps: {
+            evalSpec,
+            evalPlan,
+            evalError,
+            evalResults,
+            evalStats,
+            sampleCount: totalSampleCount
+          }
         };
       }, [evalSpec, evalPlan, evalError, evalResults, evalStats, totalSampleCount]);
     };
@@ -67144,28 +67164,24 @@ ${events}
       );
       const selectedTab = useStore((state) => state.app.tabs.workspace);
       return reactExports.useMemo(() => {
+        const evalHeader = {
+          version: evalVersion,
+          status: evalStatus,
+          eval: evalSpec,
+          plan: evalPlan,
+          error: evalError,
+          results: evalResults,
+          stats: evalStats
+        };
         return {
           id: kJsonWorkspaceTabId,
           label: "JSON",
           scrollable: true,
-          content: () => {
-            const evalHeader = {
-              version: evalVersion,
-              status: evalStatus,
-              eval: evalSpec,
-              plan: evalPlan,
-              error: evalError,
-              results: evalResults,
-              stats: evalStats
-            };
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              JsonTab,
-              {
-                logFile: selectedLogFile,
-                json: JSON.stringify(evalHeader, null, 2),
-                selected: selectedTab === kJsonWorkspaceTabId
-              }
-            );
+          component: JsonTab,
+          componentProps: {
+            logFile: selectedLogFile,
+            json: JSON.stringify(evalHeader, null, 2),
+            selected: selectedTab === kJsonWorkspaceTabId
           },
           tools: () => [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
