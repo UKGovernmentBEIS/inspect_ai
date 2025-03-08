@@ -7,7 +7,7 @@ import {
   SampleSummary,
 } from "./api/types";
 import { ScorerInfo } from "./scoring/utils";
-import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
+import { ContentImage, ContentText, EvalSample } from "./types/log";
 
 export interface AppState {
   status: AppStatus;
@@ -89,6 +89,6 @@ export interface ContentTool {
 }
 
 export interface RunningSampleData {
-  events: Events;
+  events: Event[];
   summary: SampleSummary;
 }

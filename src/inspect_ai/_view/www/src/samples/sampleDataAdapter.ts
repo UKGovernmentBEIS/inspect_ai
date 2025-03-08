@@ -1,5 +1,4 @@
 import { EventData, SampleData } from "../api/types";
-import { Events } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
 
 export const sampleDataAdapter = () => {
@@ -9,19 +8,23 @@ export const sampleDataAdapter = () => {
   return {
     addData: (data: SampleData) => {
       data.attachments.forEach((a) => {
-        attachments[a.hash] = a.content;
+        if (attachments[a.hash] === undefined) {
+          attachments[a.hash] = a.content;
+        }
       });
 
       data.events.forEach((e) => {
-        events[e.event_id] = e;
+        if (events[e.event_id] === undefined) {
+          events[e.event_id] = e;
+        }
       });
     },
-    resolvedEvents: (): Events => {
+    resolvedEvents: (): Event[] => {
       const eventDatas = Object.values(events);
-      const resolvedEvents = eventDatas.map((ed: EventData) => {
+      const resolvedEvents: Event[] = eventDatas.map((ed: EventData) => {
         return ed.event;
       });
-      return resolveAttachments(resolvedEvents, attachments);
+      return resolveAttachments<Event[]>(resolvedEvents, attachments);
     },
   };
 };
