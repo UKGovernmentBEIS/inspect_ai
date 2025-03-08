@@ -59,8 +59,8 @@ export const TranscriptVirtualListComponent: FC<
       }}
       increaseViewportBy={{ top: 1000, bottom: 1000 }}
       overscan={{
-        main: 10,
-        reverse: 10,
+        main: 2,
+        reverse: 2,
       }}
       followOutput={followOutput}
       atBottomStateChange={(atBottom: boolean) => {
