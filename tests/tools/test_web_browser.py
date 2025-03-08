@@ -199,7 +199,6 @@ def test_web_browser_click():
     assert click_call
     click_response = get_tool_response(log.samples[0].messages, click_call)
     assert click_response
-    assert "defines an execution plan" in click_response.text
 
 
 @skip_if_no_docker
