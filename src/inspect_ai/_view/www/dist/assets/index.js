@@ -63893,8 +63893,8 @@ ${events}
           },
           increaseViewportBy: { top: 1e3, bottom: 1e3 },
           overscan: {
-            main: 10,
-            reverse: 10
+            main: 2,
+            reverse: 2
           },
           followOutput,
           atBottomStateChange: (atBottom) => {
@@ -63907,16 +63907,18 @@ ${events}
         }
       );
     };
-    const TranscriptView = reactExports.memo(
-      ({ id, events, depth }) => {
-        const resolvedEvents = fixupEventStream(events);
-        const eventNodes = treeifyEvents(
-          resolvedEvents,
-          depth !== void 0 ? depth : 0
-        );
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
-      }
-    );
+    const TranscriptView = ({
+      id,
+      events,
+      depth
+    }) => {
+      const resolvedEvents = fixupEventStream(events);
+      const eventNodes = treeifyEvents(
+        resolvedEvents,
+        depth !== void 0 ? depth : 0
+      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
+    };
     const TranscriptVirtualList = reactExports.memo(
       (props) => {
         let { id, scrollRef, events, depth } = props;
