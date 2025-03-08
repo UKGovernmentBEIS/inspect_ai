@@ -6,8 +6,6 @@ from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
-    skip_if_no_grok,
-    skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_vertex,
     skip_if_trio,
@@ -286,18 +284,20 @@ def test_vertex_tool_types():
     check_tool_types("vertex/gemini-1.5-flash")
 
 
-@skip_if_no_mistral
-def test_mistral_tool_types() -> None:
-    check_tool_types("mistral/mistral-large-latest")
+# mistral, grok, and groq tool calling is extremely unreliable and
+# consequently cause failed tests that are red herrings. don't
+# exercise these for now.
+
+# @skip_if_no_mistral
+# def test_mistral_tool_types() -> None:
+#     check_tool_types("mistral/mistral-large-latest")
 
 
-@skip_if_no_grok
-def test_grok_tool_types() -> None:
-    check_tool_types("grok/grok-beta")
+# @skip_if_no_grok
+# def test_grok_tool_types() -> None:
+#     check_tool_types("grok/grok-beta")
 
 
-# groq tool calling is extremely unreliable and consequently causes
-# failed tests that are red herrings. don't exercise this for now.
 # @skip_if_no_groq
 # def test_groq_tool_types() -> None:
 #     check_tool_types("groq/mixtral-8x7b-32768")

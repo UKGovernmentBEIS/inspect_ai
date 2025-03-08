@@ -195,10 +195,8 @@ async def subprocess(
                             await anyio.sleep(2)
                             if proc.returncode is None:
                                 proc.kill()
-                        except Exception as ex:
-                            logger.warning(
-                                f"Unexpected error terminating timed out process '{args}': {ex}"
-                            )
+                        except Exception:
+                            pass
                     raise
 
             # await result without timeout

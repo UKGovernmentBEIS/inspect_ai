@@ -252,6 +252,7 @@ def test_eval_zero_retries() -> None:
         assert not success
 
 
+@skip_if_trio  # throwing the keyboardinterrupt corrupts trio's internals
 def test_eval_set_previous_task_args():
     with tempfile.TemporaryDirectory() as log_dir:
 
