@@ -1,4 +1,4 @@
-import jsonrpcserver
+from jsonrpcserver import method
 
 from inspect_tool_container._remote_tools._web_browser.controller import Controller
 from inspect_tool_container._remote_tools._web_browser.tool_types import (
@@ -18,46 +18,60 @@ from inspect_tool_container._util._json_rpc_helpers import (
 controller = Controller()
 
 
-@jsonrpcserver.method
+@method
 async def web_new_session(**params: object) -> object:
     return await with_validated_rpc_method_params(
         NewSessionParams, _web_new_session, **params
     )
 
 
-@jsonrpcserver.method
+@method
 async def web_go(**params: object) -> object:
     return await with_validated_rpc_method_params(GoParams, _web_go, **params)
 
 
-@jsonrpcserver.method
+@method
 async def web_click(**params: object) -> object:
     return await with_validated_rpc_method_params(ClickParams, _web_click, **params)
 
 
-@jsonrpcserver.method
+@method
 async def web_scroll(**params: object) -> object:
     return await with_validated_rpc_method_params(ScrollParams, _web_scroll, **params)
 
 
-@jsonrpcserver.method
+@method
 async def web_forward(**params: object) -> object:
     return await with_validated_rpc_method_params(
         CrawlerBaseParams, _web_forward, **params
     )
 
 
-@jsonrpcserver.method
+@method
 async def web_back(**params: object) -> object:
     return await with_validated_rpc_method_params(
         CrawlerBaseParams, _web_back, **params
     )
 
 
-@jsonrpcserver.method
+@method
 async def web_refresh(**params: object) -> object:
     return await with_validated_rpc_method_params(
         CrawlerBaseParams, _web_refresh, **params
+    )
+
+
+@method
+async def web_type(**params: object) -> object:
+    return await with_validated_rpc_method_params(
+        TypeOrSubmitParams, _web_type, **params
+    )
+
+
+@method
+async def web_type_submit(**params: object) -> object:
+    return await with_validated_rpc_method_params(
+        TypeOrSubmitParams, _web_type_submit, **params
     )
 
 
@@ -89,23 +103,9 @@ async def _web_refresh(params: CrawlerBaseParams) -> CrawlerResult:
     return await controller.refresh(params.session_name)
 
 
-@jsonrpcserver.method
-async def web_type(**params: object) -> object:
-    return await with_validated_rpc_method_params(
-        TypeOrSubmitParams, _web_type, **params
-    )
-
-
 async def _web_type(params: TypeOrSubmitParams) -> CrawlerResult:
     return await controller.type_text(
         params.session_name, params.element_id, params.text
-    )
-
-
-@jsonrpcserver.method
-async def web_type_submit(**params: object) -> object:
-    return await with_validated_rpc_method_params(
-        TypeOrSubmitParams, _web_type_submit, **params
     )
 
 

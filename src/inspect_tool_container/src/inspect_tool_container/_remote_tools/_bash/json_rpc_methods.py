@@ -1,4 +1,4 @@
-import jsonrpcserver
+from jsonrpcserver import method
 
 from inspect_tool_container._remote_tools._bash.controller import Controller
 from inspect_tool_container._remote_tools._bash.tool_types import (
@@ -15,7 +15,7 @@ from inspect_tool_container._util._json_rpc_helpers import (
 controller = Controller()
 
 
-@jsonrpcserver.method
+@method
 async def bash(**params: object) -> object:
     return await with_validated_rpc_method_params(BashParams, _bash, **params)
 
