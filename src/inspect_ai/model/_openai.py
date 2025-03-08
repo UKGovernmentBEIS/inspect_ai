@@ -396,6 +396,9 @@ def content_from_openai(
     content: ChatCompletionContentPartParam | ChatCompletionContentPartRefusalParam,
     parse_reasoning: bool = False,
 ) -> list[Content]:
+    # Some providers omit the type tag and use "object-with-a-single-field" encoding
+    if "type" not in content and len(content) == 1:
+      content["type"] = list(content.keys())[0]
     if content["type"] == "text":
         text = content["text"]
         if parse_reasoning:
@@ -413,6 +416,8 @@ def content_from_openai(
                 return [ContentText(text=text)]
         else:
             return [ContentText(text=text)]
+    elif content["type"] == "reasoning":
+        return [ContentReasoning(reasoning=content["reasoning"])]
     elif content["type"] == "image_url":
         return [
             ContentImage(
