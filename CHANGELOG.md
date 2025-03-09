@@ -1,3 +1,9 @@
+## Future
+
+- Model API: Specifying a default model (e.g. `--model`) is no longer required (as some evals have no model or use `get_model()` for model access).
+- Tasks can now directly specify a `model`, and model is no longer a required axis for parallel tasks.
+- Eval Set: Improved parallelisation in scheduler (all pending tasks are now run together rather than in model groups).
+
 ## Unreleased
 
 - Constrain model output to a particular JSON schema using [Structured Output](https://inspect.ai-safety-institute.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).
@@ -9,7 +15,6 @@
 - Improved async implementation using AnyIO (can now optionally run Trio rather than asyncio as the [async backend](https://inspect.ai-safety-institute.org.uk/parallelism.html#async-backends)).
 - Agent Bridge: Correct handling for `tool_choice` option.
 - Model API: `ChatMessage` now includes an `id` field (defaults to auto-generated uuid).
-- Model API: Specifying a default model (e.g. `--model`) is no longer required (as some evals have no model or use `get_model()` for model access).
 - Mistral: Update to new Mistral API (v1.5.1 of `mistralai` is now required).
 - Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
 - Tasks: For filesystem based tasks, no longer switch to the task file's directory during execution (directory switching still occurs during task loading). Specify `@task(chdir=True)` to preserve the previous behavior.
