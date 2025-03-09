@@ -92,6 +92,14 @@ export const FindBand: FC<FindBandProps> = () => {
     [storeHideFind, handleSearch],
   );
 
+  const showSearch = useCallback(() => {
+    handleSearch(true);
+  }, [handleSearch]);
+
+  const hideSearch = useCallback(() => {
+    handleSearch(false);
+  }, [handleSearch]);
+
   return (
     <div className="findBand">
       <input
@@ -105,7 +113,7 @@ export const FindBand: FC<FindBandProps> = () => {
         type="button"
         title="Previous match"
         className="btn next"
-        onClick={() => handleSearch(true)}
+        onClick={showSearch}
       >
         <i className={ApplicationIcons.arrows.up} />
       </button>
@@ -113,7 +121,7 @@ export const FindBand: FC<FindBandProps> = () => {
         type="button"
         title="Next match"
         className="btn prev"
-        onClick={() => handleSearch(false)}
+        onClick={hideSearch}
       >
         <i className={ApplicationIcons.arrows.down} />
       </button>

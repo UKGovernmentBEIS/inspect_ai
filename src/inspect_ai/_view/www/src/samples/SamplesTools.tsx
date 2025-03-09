@@ -3,7 +3,6 @@ import { Fragment } from "react/jsx-runtime";
 import { SampleSummary } from "../api/types";
 import { useScores } from "../state/hooks";
 import { useStore } from "../state/store";
-import { ScoreFilter, ScoreLabel } from "../types";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
 import { SelectScorer } from "./sample-tools/SelectScorer";
@@ -33,35 +32,15 @@ export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
       <SampleFilter
         samples={samples}
         scoreFilter={filter}
-        setScoreFilter={(filter: ScoreFilter) => {
-          setFilter(filter);
-        }}
+        setScoreFilter={setFilter}
       />
       {scores?.length > 1 ? (
-        <SelectScorer
-          scores={scores}
-          score={score}
-          setScore={(score: ScoreLabel) => {
-            setScore(score);
-          }}
-        />
+        <SelectScorer scores={scores} score={score} setScore={setScore} />
       ) : undefined}
       {epochs > 1 ? (
-        <EpochFilter
-          epoch={epoch}
-          setEpoch={(epoch: string) => {
-            setEpoch(epoch);
-          }}
-          epochs={epochs}
-        />
+        <EpochFilter epoch={epoch} setEpoch={setEpoch} epochs={epochs} />
       ) : undefined}
-      <SortFilter
-        sort={sort}
-        setSort={(sort: string) => {
-          setSort(sort);
-        }}
-        epochs={epochs}
-      />
+      <SortFilter sort={sort} setSort={setSort} epochs={epochs} />
     </Fragment>
   );
 };

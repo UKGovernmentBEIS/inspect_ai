@@ -55,7 +55,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
       <LabeledValue
         key="sb-dataset"
         label="Dataset"
-        className={(styles.staticCol, "text-size-small")}
+        className={clsx(styles.staticCol, "text-size-small")}
       >
         <DatasetSummary
           dataset={evalSpec.dataset}

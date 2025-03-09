@@ -1,6 +1,6 @@
 import clsx from "clsx";
 
-import { FC } from "react";
+import { FC, useCallback } from "react";
 import styles from "./EventNav.module.css";
 
 interface EventNavProps {
@@ -19,6 +19,11 @@ export const EventNav: FC<EventNavProps> = ({
   setSelectedNav,
 }) => {
   const active = target === selectedNav;
+
+  const handleClick = useCallback(() => {
+    setSelectedNav(target);
+  }, [setSelectedNav, target]);
+
   return (
     <li className="nav-item">
       <button
@@ -33,9 +38,7 @@ export const EventNav: FC<EventNavProps> = ({
           "text-size-small",
           styles.tab,
         )}
-        onClick={() => {
-          setSelectedNav(target);
-        }}
+        onClick={handleClick}
       >
         {title}
       </button>

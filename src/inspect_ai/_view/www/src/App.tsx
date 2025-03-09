@@ -20,7 +20,7 @@ import { WorkSpace } from "./workspace/WorkSpace";
 
 import ClipboardJS from "clipboard";
 import clsx from "clsx";
-import { FC, useCallback, useEffect, useRef } from "react";
+import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
 import { ClientAPI, HostMessage } from "./api/types.ts";
 import { useStore } from "./state/store.ts";
 
@@ -212,6 +212,41 @@ export const App: FC<AppProps> = ({ api }) => {
 
   const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
 
+  const handleSelectedIndexChanged = useCallback(
+    (index: number) => {
+      setSelectedLogIndex(index);
+      setOffCanvas(false);
+      resetFiltering();
+      clearSampleTab();
+      clearWorkspaceTab();
+      selectSample(0);
+    },
+    [
+      setSelectedLogIndex,
+      setOffCanvas,
+      resetFiltering,
+      clearSampleTab,
+      clearWorkspaceTab,
+      selectSample,
+    ],
+  );
+
+  const handleKeyboard = useCallback(
+    (e: KeyboardEvent) => {
+      // Add keyboard shortcuts for find, if needed
+      if (nativeFind || !setShowFind) {
+        return;
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        setShowFind(true);
+      } else if (e.key === "Escape") {
+        hideFind();
+      }
+    },
+    [nativeFind, setShowFind, hideFind],
+  );
+
   return (
     <>
       {!fullScreen && selectedLogSummary ? (
@@ -220,14 +255,7 @@ export const App: FC<AppProps> = ({ api }) => {
           logHeaders={logHeaders}
           loading={headersLoading}
           selectedIndex={selectedLogIndex}
-          onSelectedIndexChanged={(index) => {
-            setSelectedLogIndex(index);
-            setOffCanvas(false);
-            resetFiltering();
-            clearSampleTab();
-            clearWorkspaceTab();
-            selectSample(0);
-          }}
+          onSelectedIndexChanged={handleSelectedIndexChanged}
         />
       ) : undefined}
       <div
@@ -238,18 +266,7 @@ export const App: FC<AppProps> = ({ api }) => {
           offCanvas ? "off-canvas" : undefined,
         )}
         tabIndex={0}
-        onKeyDown={(e) => {
-          // Add keyboard shortcuts for find, if needed
-          if (nativeFind || !setShowFind) {
-            return;
-          }
-
-          if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-            setShowFind(true);
-          } else if (e.key === "Escape") {
-            hideFind();
-          }
-        }}
+        onKeyDown={handleKeyboard}
       >
         {!nativeFind && showFind ? <FindBand /> : ""}
         <ProgressBar animating={appStatus.loading} />

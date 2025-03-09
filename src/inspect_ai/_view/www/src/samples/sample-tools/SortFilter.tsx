@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { ChangeEvent, FC, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import {
   kEpochAscVal,
@@ -43,6 +43,15 @@ export const SortFilter: FC<SortFilterProps> = ({ sort, setSort, epochs }) => {
     label: "score desc",
     val: kScoreDescVal,
   });
+
+  const handleChange = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) => {
+      const sel = e.target as HTMLSelectElement;
+      setSort(sel.value);
+    },
+    [setSort],
+  );
+
   return (
     <div className={styles.flex}>
       <span
@@ -60,10 +69,7 @@ export const SortFilter: FC<SortFilterProps> = ({ sort, setSort, epochs }) => {
         className={clsx("form-select", "form-select-sm", "text-size-smaller")}
         aria-label=".sort-filter-label"
         value={sort}
-        onChange={(e) => {
-          const sel = e.target as HTMLSelectElement;
-          setSort(sel.value);
-        }}
+        onChange={handleChange}
       >
         {options.map((option) => {
           return (

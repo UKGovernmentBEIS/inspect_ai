@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, useCallback } from "react";
+import { FC, MouseEvent, useCallback } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { EvalLogHeader, LogFiles } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
@@ -29,6 +29,14 @@ export const Sidebar: FC<SidebarProps> = ({
   const handleToggle = useCallback(() => {
     setOffCanvas(!offCanvas);
   }, [offCanvas, setOffCanvas]);
+
+  const handleClick = useCallback(
+    (e: MouseEvent<HTMLLIElement>) => {
+      const index = Number((e.currentTarget as HTMLLIElement).dataset.index);
+      onSelectedIndexChanged(index);
+    },
+    [onSelectedIndexChanged],
+  );
 
   return (
     <Fragment>
@@ -69,7 +77,8 @@ export const Sidebar: FC<SidebarProps> = ({
                   styles.item,
                   selectedIndex === index ? styles.active : undefined,
                 )}
-                onClick={() => onSelectedIndexChanged(index)}
+                data-index={index}
+                onClick={handleClick}
               >
                 <SidebarLogEntry
                   logHeader={logHeader}

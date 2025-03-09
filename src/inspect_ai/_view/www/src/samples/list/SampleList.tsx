@@ -87,7 +87,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   }, [samplesDescriptor]);
 
   const renderRow = useCallback(
-    (item: ListItem) => {
+    (_index: number, item: ListItem) => {
       if (item.type === "sample") {
         return (
           <SampleRow
@@ -152,7 +152,9 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.`
       : limitCount
         ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`
-        : "IGNORE THIS BRUH";
+        : undefined;
+
+  const handleItemContent = useCallback(() => {}, []);
 
   return (
     <div className={styles.mainLayout}>
@@ -175,13 +177,9 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         style={{ height: "100%" }}
         data={items}
         defaultItemHeight={50}
-        itemContent={(_index: number, data: ListItem) => {
-          return renderRow(data);
-        }}
+        itemContent={renderRow}
         followOutput={followOutput}
-        atBottomStateChange={(atBottom: boolean) => {
-          setFollowOutput(atBottom);
-        }}
+        atBottomStateChange={setFollowOutput}
         increaseViewportBy={{ top: 300, bottom: 300 }}
         overscan={{
           main: 10,
