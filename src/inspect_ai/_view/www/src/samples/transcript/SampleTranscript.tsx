@@ -1,4 +1,4 @@
-import { FC, memo, RefObject } from "react";
+import { FC, RefObject } from "react";
 import { Events } from "../../types/log";
 import { TranscriptVirtualList } from "./TranscriptView";
 
@@ -11,14 +11,12 @@ interface SampleTranscriptProps {
 /**
  * Renders the SampleTranscript component.=
  */
-export const SampleTranscript: FC<SampleTranscriptProps> = memo(
-  ({ id, evalEvents, scrollRef }) => {
-    return (
-      <TranscriptVirtualList
-        id={id}
-        events={evalEvents}
-        scrollRef={scrollRef}
-      />
-    );
-  },
-);
+export const SampleTranscript: FC<SampleTranscriptProps> = ({
+  id,
+  evalEvents,
+  scrollRef,
+}) => {
+  return (
+    <TranscriptVirtualList id={id} events={evalEvents} scrollRef={scrollRef} />
+  );
+};

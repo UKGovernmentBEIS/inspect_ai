@@ -1,4 +1,5 @@
 import {
+  ApprovalEvent,
   EvalError,
   EvalLog,
   EvalPlan,
@@ -6,10 +7,22 @@ import {
   EvalSample,
   EvalSpec,
   EvalStats,
+  InfoEvent,
   Input,
+  LoggerEvent,
+  ModelEvent,
+  SampleInitEvent,
+  SampleLimitEvent,
+  SandboxEvent,
+  ScoreEvent,
   Scores1,
+  StateEvent,
   Status,
+  StepEvent,
+  StoreEvent,
+  SubtaskEvent,
   Target,
+  ToolEvent,
   Version,
 } from "../types/log";
 
@@ -58,7 +71,22 @@ export interface EventData {
   event_id: string;
   sample_id: string;
   epoch: number;
-  event: Event;
+  event:
+    | SampleInitEvent
+    | SampleLimitEvent
+    | SandboxEvent
+    | StateEvent
+    | StoreEvent
+    | ModelEvent
+    | ToolEvent
+    | ApprovalEvent
+    | InputEvent
+    | ScoreEvent
+    | ErrorEvent
+    | LoggerEvent
+    | InfoEvent
+    | StepEvent
+    | SubtaskEvent;
 }
 
 export interface AttachmentData {
