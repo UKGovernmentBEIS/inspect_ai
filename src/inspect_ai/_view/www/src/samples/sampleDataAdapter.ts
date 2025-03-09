@@ -1,4 +1,5 @@
 import { EventData, SampleData } from "../api/types";
+import { Events } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
 
 export const sampleDataAdapter = () => {
@@ -19,12 +20,14 @@ export const sampleDataAdapter = () => {
         }
       });
     },
-    resolvedEvents: (): Event[] => {
+    resolvedEvents: (): Events => {
       const eventDatas = Object.values(events);
-      const resolvedEvents: Event[] = eventDatas.map((ed: EventData) => {
+
+      const resolvedEvents = eventDatas.map((ed: EventData) => {
         return ed.event;
-      });
-      return resolveAttachments<Event[]>(resolvedEvents, attachments);
+      }) as Events;
+
+      return resolveAttachments<Events>(resolvedEvents, attachments);
     },
   };
 };

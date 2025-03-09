@@ -102,7 +102,6 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
             >
               {Object.keys(tabs).map((key) => {
                 const tab = tabs[key];
-                console.log({ tab });
                 return (
                   <TabPanel
                     key={tab.id}

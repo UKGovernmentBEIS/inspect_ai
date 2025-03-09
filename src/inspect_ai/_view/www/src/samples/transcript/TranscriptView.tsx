@@ -1,4 +1,4 @@
-import { FC, memo, RefObject, useMemo } from "react";
+import { FC, RefObject, useMemo } from "react";
 import { Events } from "../../types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
@@ -53,27 +53,27 @@ interface TranscriptVirtualListProps {
 /**
  * Renders the Transcript Virtual List.
  */
-export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
-  (props) => {
-    let { id, scrollRef, events, depth } = props;
+export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
+  props,
+) => {
+  let { id, scrollRef, events, depth } = props;
 
-    // Normalize Events themselves
-    const eventNodes = useMemo(() => {
-      const resolvedEvents = fixupEventStream(events);
-      const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
+  // Normalize Events themselves
+  const eventNodes = useMemo(() => {
+    const resolvedEvents = fixupEventStream(events);
+    const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
 
-      return eventNodes;
-    }, [events, depth]);
+    return eventNodes;
+  }, [events, depth]);
 
-    return (
-      <TranscriptVirtualListComponent
-        id={id}
-        eventNodes={eventNodes}
-        scrollRef={scrollRef}
-      />
-    );
-  },
-);
+  return (
+    <TranscriptVirtualListComponent
+      id={id}
+      eventNodes={eventNodes}
+      scrollRef={scrollRef}
+    />
+  );
+};
 
 interface TranscriptComponentProps {
   id: string;

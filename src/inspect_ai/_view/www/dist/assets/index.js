@@ -63940,24 +63940,22 @@ ${events}
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
     };
-    const TranscriptVirtualList = reactExports.memo(
-      (props) => {
-        let { id, scrollRef, events, depth } = props;
-        const eventNodes = reactExports.useMemo(() => {
-          const resolvedEvents = fixupEventStream(events);
-          const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
-          return eventNodes2;
-        }, [events, depth]);
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          TranscriptVirtualListComponent,
-          {
-            id,
-            eventNodes,
-            scrollRef
-          }
-        );
-      }
-    );
+    const TranscriptVirtualList = (props) => {
+      let { id, scrollRef, events, depth } = props;
+      const eventNodes = reactExports.useMemo(() => {
+        const resolvedEvents = fixupEventStream(events);
+        const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
+        return eventNodes2;
+      }, [events, depth]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        TranscriptVirtualListComponent,
+        {
+          id,
+          eventNodes,
+          scrollRef
+        }
+      );
+    };
     const TranscriptComponent = ({
       id,
       eventNodes
@@ -64139,18 +64137,13 @@ ${events}
       });
       return rootNodes;
     }
-    const SampleTranscript = reactExports.memo(
-      ({ id, evalEvents, scrollRef }) => {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          TranscriptVirtualList,
-          {
-            id,
-            events: evalEvents,
-            scrollRef
-          }
-        );
-      }
-    );
+    const SampleTranscript = ({
+      id,
+      evalEvents,
+      scrollRef
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptVirtualList, { id, events: evalEvents, scrollRef });
+    };
     const SampleDisplay = ({
       id,
       sample: sample2,
@@ -66713,7 +66706,6 @@ ${events}
               tabPanelsClassName: clsx(styles.tabPanels),
               children: Object.keys(tabs2).map((key2) => {
                 const tab2 = tabs2[key2];
-                console.log({ tab: tab2 });
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(
                   TabPanel,
                   {
