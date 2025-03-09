@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Set
 
 from inspect_ai._eval.task import Task
 from inspect_ai._eval.task.run import EvalSampleSource
@@ -26,3 +26,10 @@ class ResolvedTask:
             return any(
                 [True if sample.sandbox else False for sample in self.task.dataset]
             )
+
+
+def resolved_model_names(tasks: list[ResolvedTask]) -> list[str]:
+    models: Set[str] = set()
+    for task in tasks:
+        models.add(str(task.model))
+    return list(models)

@@ -52,7 +52,7 @@ from .context import init_eval_context
 from .loader import resolve_tasks
 from .run import eval_run
 from .task import Epochs, PreviousTask
-from .task.resolved import ResolvedTask
+from .task.resolved import ResolvedTask, resolved_model_names
 from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
@@ -148,7 +148,7 @@ def eval(
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
-            (default is 1)
+            (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -298,7 +298,8 @@ async def eval_async(
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
         max_samples: Maximum number of samples to run in parallel (default is max_connections)
-        max_tasks: Maximum number of tasks to run in parallel (default is 1)
+        max_tasks: Maximum number of tasks to run in parallel
+            (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
@@ -353,6 +354,12 @@ async def eval_async(
         if len(resolved_tasks) == 0:
             log.warning("No inspect tasks were found at the specified paths.")
             return []
+
+        # if there is no max tasks then base it on unique model names
+        if max_tasks is None:
+            model_count = len(resolved_model_names(resolved_tasks))
+            if model_count > 0:
+                max_tasks = model_count
 
         # apply conversation display constraints
         if display_type() == "conversation":
@@ -516,7 +523,7 @@ def eval_retry(
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
-            (default is 1)
+            (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
