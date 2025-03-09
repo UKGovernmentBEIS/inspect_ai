@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, ReactNode, useCallback, useEffect } from "react";
+import { FC, MouseEvent, ReactNode, useCallback, useEffect } from "react";
 import { ApplicationIcons } from "../appearance/icons";
 import { useProperty } from "../state/hooks";
 import styles from "./LightboxCarousel.module.css";
@@ -81,6 +81,13 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ id, slides }) => {
     return () => window.removeEventListener("keyup", handleKeyUp);
   }, [isOpen, showNext, showPrev]);
 
+  const handleThumbClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      const index = Number((e.currentTarget as HTMLDivElement).dataset.index);
+      openLightbox(index);
+    },
+    [openLightbox],
+  );
   return (
     <div className={clsx("lightbox-carousel-container")}>
       <div className={clsx(styles.carouselThumbs)}>
@@ -88,8 +95,9 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ id, slides }) => {
           return (
             <div
               key={index}
+              data-index={index}
               className={clsx(styles.carouselThumb)}
-              onClick={() => openLightbox(index)}
+              onClick={handleThumbClick}
             >
               <div>{slide.label}</div>
               <div>

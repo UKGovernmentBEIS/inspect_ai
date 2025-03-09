@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, isValidElement, ReactNode } from "react";
+import { FC, isValidElement, ReactNode, useCallback } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
@@ -70,6 +70,10 @@ export const EventPanel: FC<EventPanelProps> = ({
   gridColumns.push("minmax(0, max-content)");
   gridColumns.push("minmax(0, max-content)");
 
+  const toggleCollapse = useCallback(() => {
+    setCollapsed(!isCollapsed);
+  }, [setCollapsed, isCollapsed]);
+
   const titleEl =
     title || icon || filteredArrChildren.length > 1 ? (
       <div
@@ -84,9 +88,7 @@ export const EventPanel: FC<EventPanelProps> = ({
       >
         {hasCollapse ? (
           <i
-            onClick={() => {
-              setCollapsed(!isCollapsed);
-            }}
+            onClick={toggleCollapse}
             className={
               isCollapsed
                 ? ApplicationIcons.chevron.right
@@ -102,31 +104,21 @@ export const EventPanel: FC<EventPanelProps> = ({
               icon || ApplicationIcons.metadata,
               "text-style-secondary",
             )}
-            onClick={() => {
-              setCollapsed(!isCollapsed);
-            }}
+            onClick={toggleCollapse}
           />
         ) : (
           ""
         )}
         <div
           className={clsx("text-style-secondary", "text-style-label")}
-          onClick={() => {
-            setCollapsed(!isCollapsed);
-          }}
+          onClick={toggleCollapse}
         >
           {title}
         </div>
-        <div
-          onClick={() => {
-            setCollapsed(!isCollapsed);
-          }}
-        ></div>
+        <div onClick={toggleCollapse}></div>
         <div
           className={clsx("text-style-secondary", styles.label)}
-          onClick={() => {
-            setCollapsed(!isCollapsed);
-          }}
+          onClick={toggleCollapse}
         >
           {isCollapsed ? text : ""}
         </div>

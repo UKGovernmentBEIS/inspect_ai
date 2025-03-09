@@ -103,7 +103,7 @@ const Tab: FC<{
         role="tab"
         aria-controls={tabContentsId}
         aria-selected={isActive}
-        onClick={(e) => tab.props.onSelected(e)}
+        onClick={tab.props.onSelected}
       >
         {tab.props.icon && (
           <i className={clsx(tab.props.icon, moduleStyles.tabIcon)} />

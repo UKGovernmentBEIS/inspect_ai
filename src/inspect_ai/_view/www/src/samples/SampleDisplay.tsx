@@ -10,7 +10,7 @@ import { ToolButton } from "../components/ToolButton";
 import { SampleScoreView } from "./scores/SampleScoreView";
 
 import clsx from "clsx";
-import { FC, Fragment, MouseEvent, RefObject } from "react";
+import { FC, Fragment, MouseEvent, RefObject, useCallback } from "react";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { JSONPanel } from "../components/JsonPanel";
 import {
@@ -77,6 +77,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
 
+  const handlePrintClick = useCallback(() => {
+    printSample(id, targetId);
+  }, [printSample, id, targetId]);
+
   const tools = [];
   if (!isVscode()) {
     tools.push(
@@ -84,9 +88,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         key="sample-print-tool"
         label="Print"
         icon={ApplicationIcons.copy}
-        onClick={() => {
-          printSample(id, targetId);
-        }}
+        onClick={handlePrintClick}
       />,
     );
   }
