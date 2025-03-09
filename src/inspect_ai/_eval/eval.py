@@ -49,9 +49,11 @@ from inspect_ai.util._display import (
 )
 
 from .context import init_eval_context
-from .loader import ResolvedTask, resolve_tasks
+from .loader import resolve_tasks
 from .run import eval_run
-from .task import Epochs, PreviousTask, Tasks
+from .task import Epochs, PreviousTask
+from .task.resolved import ResolvedTask
+from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
 
@@ -749,7 +751,7 @@ async def eval_retry_async(
         log = (
             await eval_async(
                 tasks=PreviousTask(
-                    id=task_id, task=task, task_args=task_args, log=eval_log
+                    id=task_id, task=task, task_args=task_args, model=None, log=eval_log
                 ),
                 model=model,
                 model_base_url=model_base_url,

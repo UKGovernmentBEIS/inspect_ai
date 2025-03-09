@@ -2,7 +2,6 @@ import ast
 import contextlib
 import inspect
 import os
-from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from logging import getLogger
@@ -12,6 +11,7 @@ from typing import Any, Callable, Tuple, cast
 
 from typing_extensions import overload
 
+from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import task_file, task_run_dir
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.decorator import parse_decorators
@@ -31,37 +31,19 @@ from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
 from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
-from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
+from inspect_ai.util._sandbox.environment import (
+    resolve_sandbox_environment,
+)
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
 from .registry import task_create
-from .task import PreviousTask, Task, TaskInfo, Tasks
+from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
-from .task.run import EvalSampleSource, eval_log_sample_source
+from .task.run import eval_log_sample_source
+from .task.tasks import Tasks
 
 logger = getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class ResolvedTask:
-    task: Task
-    task_args: dict[str, Any]
-    task_file: str | None
-    model: Model
-    sandbox: SandboxEnvironmentSpec | None
-    sequence: int
-    id: str | None = field(default=None)
-    sample_source: EvalSampleSource | None = field(default=None)
-
-    @property
-    def has_sandbox(self) -> bool:
-        if self.sandbox:
-            return True
-        else:
-            return any(
-                [True if sample.sandbox else False for sample in self.task.dataset]
-            )
 
 
 def resolve_tasks(
@@ -82,6 +64,12 @@ def resolve_tasks(
             )
             for sequence, task in enumerate(tasks)
         ]
+
+    # reflect resolved tasks right back
+    if isinstance(tasks, ResolvedTask):
+        return [tasks]
+    elif isinstance(tasks, list) and isinstance(tasks[0], ResolvedTask):
+        return cast(list[ResolvedTask], tasks)
 
     # take empty lists out of play
     if isinstance(tasks, list) and len(tasks) == 0:
@@ -118,7 +106,7 @@ def resolve_tasks(
                 task=loaded_task,
                 task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
-                model=loaded_task.model or model,
+                model=previous_task.model or loaded_task.model or model,
                 sandbox=previous_task.log.eval.sandbox,
                 sequence=sequence,
                 id=previous_task.id,

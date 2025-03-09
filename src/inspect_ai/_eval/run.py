@@ -44,11 +44,11 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .loader import (
-    ResolvedTask,
     as_solver_spec,
     solver_from_spec,
 )
 from .task.log import TaskLogger
+from .task.resolved import ResolvedTask
 from .task.run import TaskRunOptions, task_run
 from .task.rundir import task_run_dir_switching
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
