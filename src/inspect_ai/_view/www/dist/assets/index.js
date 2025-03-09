@@ -18967,6 +18967,12 @@ self.onmessage = function (e) {
         },
         [storeHideFind, handleSearch]
       );
+      const showSearch = reactExports.useCallback(() => {
+        handleSearch(true);
+      }, [handleSearch]);
+      const hideSearch = reactExports.useCallback(() => {
+        handleSearch(false);
+      }, [handleSearch]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "findBand", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "input",
@@ -18984,7 +18990,7 @@ self.onmessage = function (e) {
             type: "button",
             title: "Previous match",
             className: "btn next",
-            onClick: () => handleSearch(true),
+            onClick: showSearch,
             children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.up })
           }
         ),
@@ -18994,7 +19000,7 @@ self.onmessage = function (e) {
             type: "button",
             title: "Next match",
             className: "btn prev",
-            onClick: () => handleSearch(false),
+            onClick: hideSearch,
             children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.down })
           }
         ),
@@ -19456,6 +19462,13 @@ self.onmessage = function (e) {
       const handleToggle = reactExports.useCallback(() => {
         setOffCanvas(!offCanvas);
       }, [offCanvas, setOffCanvas]);
+      const handleClick = reactExports.useCallback(
+        (e) => {
+          const index2 = Number(e.currentTarget.dataset.index);
+          onSelectedIndexChanged(index2);
+        },
+        [onSelectedIndexChanged]
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$17.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -19491,7 +19504,8 @@ self.onmessage = function (e) {
                       styles$17.item,
                       selectedIndex === index2 ? styles$17.active : void 0
                     ),
-                    onClick: () => onSelectedIndexChanged(index2),
+                    "data-index": index2,
+                    onClick: handleClick,
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       SidebarLogEntry,
                       {
@@ -21107,6 +21121,15 @@ self.onmessage = function (e) {
       children: children2
     }) => {
       const active2 = activeItem === title2;
+      const handleClick = reactExports.useCallback(
+        (e) => {
+          const target2 = e.currentTarget.dataset.target;
+          if (target2) {
+            setActiveItem(target2);
+          }
+        },
+        [setActiveItem]
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("li", { className: "nav-item", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "button",
@@ -21120,9 +21143,8 @@ self.onmessage = function (e) {
               active2 ? "active " : "",
               styles$10.pill
             ),
-            onClick: () => {
-              setActiveItem(title2);
-            },
+            "data-target": title2,
+            onClick: handleClick,
             children: title2
           }
         ),
@@ -30607,6 +30629,13 @@ categories: ${categories.join(" ")}`;
         label: "score desc",
         val: kScoreDescVal
       });
+      const handleChange = reactExports.useCallback(
+        (e) => {
+          const sel = e.target;
+          setSort(sel.value);
+        },
+        [setSort]
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$R.flex, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
@@ -30627,10 +30656,7 @@ categories: ${categories.join(" ")}`;
             className: clsx("form-select", "form-select-sm", "text-size-smaller"),
             "aria-label": ".sort-filter-label",
             value: sort,
-            onChange: (e) => {
-              const sel = e.target;
-              setSort(sel.value);
-            },
+            onChange: handleChange,
             children: options2.map((option) => {
               return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: option.val, children: option.label }, option.val);
             })
@@ -51471,6 +51497,12 @@ Supported expressions:
         }
         return accum;
       }, []);
+      const handleSelectScore = reactExports.useCallback(
+        (index2) => {
+          setScore(scores2[index2]);
+        },
+        [setScore, scores2]
+      );
       if (scorers.length === 1) {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$O.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -51491,9 +51523,7 @@ Supported expressions:
             {
               scores: scores2,
               selectedIndex: scoreIndex(scores2, score2),
-              setSelectedIndex: (index2) => {
-                setScore(scores2[index2]);
-              }
+              setSelectedIndex: handleSelectScore
             }
           )
         ] });
@@ -51521,9 +51551,7 @@ Supported expressions:
             {
               scorers,
               selectedIndex: scorerIndex(scorers, score2),
-              setSelectedIndex: (index2) => {
-                setScore(scorers[index2]);
-              }
+              setSelectedIndex: handleSelectScore
             }
           ),
           scorerScores.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -51532,9 +51560,7 @@ Supported expressions:
               className: clsx(styles$O.secondSel),
               scores: scorerScores,
               selectedIndex: scoreIndex(scorerScores, score2),
-              setSelectedIndex: (index2) => {
-                setScore(scorerScores[index2]);
-              }
+              setSelectedIndex: handleSelectScore
             }
           ) : void 0
         ] });
@@ -51546,6 +51572,13 @@ Supported expressions:
       setSelectedIndex,
       className: className2
     }) => {
+      const handleChange = reactExports.useCallback(
+        (e) => {
+          const sel = e.target;
+          setSelectedIndex(sel.selectedIndex);
+        },
+        [setSelectedIndex]
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "select",
         {
@@ -51557,10 +51590,7 @@ Supported expressions:
           ),
           "aria-label": ".select-scorer-label",
           value: scores2[selectedIndex].name,
-          onChange: (e) => {
-            const sel = e.target;
-            setSelectedIndex(sel.selectedIndex);
-          },
+          onChange: handleChange,
           children: scores2.map((score2) => {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: score2.name, children: score2.name }, score2.name);
           })
@@ -51572,16 +51602,20 @@ Supported expressions:
       selectedIndex,
       setSelectedIndex
     }) => {
+      const handleChange = reactExports.useCallback(
+        (e) => {
+          const sel = e.target;
+          setSelectedIndex(sel.selectedIndex);
+        },
+        [setSelectedIndex]
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "select",
         {
           className: clsx("form-select", "form-select-sm", "text-size-smaller"),
           "aria-label": ".epoch-filter-label",
           value: scorers[selectedIndex].scorer,
-          onChange: (e) => {
-            const sel = e.target;
-            setSelectedIndex(sel.selectedIndex);
-          },
+          onChange: handleChange,
           children: scorers.map((scorer) => {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: scorer.scorer, children: scorer.scorer }, scorer.scorer);
           })
@@ -51612,41 +51646,12 @@ Supported expressions:
           {
             samples,
             scoreFilter: filter,
-            setScoreFilter: (filter2) => {
-              setFilter(filter2);
-            }
+            setScoreFilter: setFilter
           }
         ),
-        (scores2 == null ? void 0 : scores2.length) > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SelectScorer,
-          {
-            scores: scores2,
-            score: score2,
-            setScore: (score22) => {
-              setScore(score22);
-            }
-          }
-        ) : void 0,
-        epochs > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          EpochFilter,
-          {
-            epoch,
-            setEpoch: (epoch2) => {
-              setEpoch(epoch2);
-            },
-            epochs
-          }
-        ) : void 0,
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SortFilter,
-          {
-            sort,
-            setSort: (sort2) => {
-              setSort(sort2);
-            },
-            epochs
-          }
-        )
+        (scores2 == null ? void 0 : scores2.length) > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(SelectScorer, { scores: scores2, score: score2, setScore }) : void 0,
+        epochs > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EpochFilter, { epoch, setEpoch, epochs }) : void 0,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(SortFilter, { sort, setSort, epochs })
       ] });
     };
     const DownloadButton = ({
@@ -51905,7 +51910,7 @@ Supported expressions:
           role: "tab",
           "aria-controls": tabContentsId,
           "aria-selected": isActive,
-          onClick: (e) => tab2.props.onSelected(e),
+          onClick: tab2.props.onSelected,
           children: [
             tab2.props.icon && /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(tab2.props.icon, moduleStyles.tabIcon) }),
             tab2.props.title
@@ -55540,7 +55545,7 @@ Supported expressions:
         listHandle,
         "chat-view"
       );
-      const renderRow = (item2, index2) => {
+      const renderRow = (index2, item2) => {
         const number2 = collapsedMessages.length > 1 && numbered ? index2 + 1 : void 0;
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           ChatMessageRow,
@@ -55560,18 +55565,14 @@ Supported expressions:
           customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
           style: { height: "100%", width: "100%" },
           data: collapsedMessages,
-          itemContent: (index2, data) => {
-            return renderRow(data, index2);
-          },
+          itemContent: renderRow,
           increaseViewportBy: { top: 1e3, bottom: 1e3 },
           overscan: {
             main: 10,
             reverse: 10
           },
           followOutput,
-          atBottomStateChange: (atBottom) => {
-            setFollowOutput(atBottom);
-          },
+          atBottomStateChange: setFollowOutput,
           skipAnimationFrameInResizeObserver: true,
           className: clsx(styles$H.list, className2),
           restoreStateFrom: restoreState(),
@@ -55876,6 +55877,9 @@ Supported expressions:
       setSelectedNav
     }) => {
       const active2 = target2 === selectedNav;
+      const handleClick = reactExports.useCallback(() => {
+        setSelectedNav(target2);
+      }, [setSelectedNav, target2]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { className: "nav-item", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "button",
         {
@@ -55890,9 +55894,7 @@ Supported expressions:
             "text-size-small",
             styles$C.tab
           ),
-          onClick: () => {
-            setSelectedNav(target2);
-          },
+          onClick: handleClick,
           children: title2
         }
       ) });
@@ -55972,6 +55974,9 @@ Supported expressions:
       gridColumns2.push("auto");
       gridColumns2.push("minmax(0, max-content)");
       gridColumns2.push("minmax(0, max-content)");
+      const toggleCollapse = reactExports.useCallback(() => {
+        setCollapsed(!isCollapsed);
+      }, [setCollapsed, isCollapsed]);
       const titleEl = title2 || icon2 || filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -55987,9 +55992,7 @@ Supported expressions:
             hasCollapse ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               "i",
               {
-                onClick: () => {
-                  setCollapsed(!isCollapsed);
-                },
+                onClick: toggleCollapse,
                 className: isCollapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down
               }
             ) : "",
@@ -56000,36 +56003,23 @@ Supported expressions:
                   icon2 || ApplicationIcons.metadata,
                   "text-style-secondary"
                 ),
-                onClick: () => {
-                  setCollapsed(!isCollapsed);
-                }
+                onClick: toggleCollapse
               }
             ) : "",
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx("text-style-secondary", "text-style-label"),
-                onClick: () => {
-                  setCollapsed(!isCollapsed);
-                },
+                onClick: toggleCollapse,
                 children: title2
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                onClick: () => {
-                  setCollapsed(!isCollapsed);
-                }
-              }
-            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: toggleCollapse }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx("text-style-secondary", styles$A.label),
-                onClick: () => {
-                  setCollapsed(!isCollapsed);
-                },
+                onClick: toggleCollapse,
                 children: isCollapsed ? text2 : ""
               }
             ),
@@ -63319,13 +63309,21 @@ ${events}
         window.addEventListener("keyup", handleKeyUp, true);
         return () => window.removeEventListener("keyup", handleKeyUp);
       }, [isOpen, showNext, showPrev]);
+      const handleThumbClick = reactExports.useCallback(
+        (e) => {
+          const index2 = Number(e.currentTarget.dataset.index);
+          openLightbox(index2);
+        },
+        [openLightbox]
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("lightbox-carousel-container"), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$r.carouselThumbs), children: slides.map((slide, index2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
+              "data-index": index2,
               className: clsx(styles$r.carouselThumb),
-              onClick: () => openLightbox(index2),
+              onClick: handleThumbClick,
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: slide.label }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64519,6 +64517,9 @@ ${events}
       const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
       const tabsetId = `task-sample-details-tab-${id}`;
       const targetId = `${tabsetId}-content`;
+      const handlePrintClick = reactExports.useCallback(() => {
+        printSample(id, targetId);
+      }, [printSample, id, targetId]);
       const tools2 = [];
       if (!isVscode()) {
         tools2.push(
@@ -64527,9 +64528,7 @@ ${events}
             {
               label: "Print",
               icon: ApplicationIcons.copy,
-              onClick: () => {
-                printSample(id, targetId);
-              }
+              onClick: handlePrintClick
             },
             "sample-print-tool"
           )
@@ -65369,7 +65368,7 @@ ${events}
         return gridColumnsValue(samplesDescriptor);
       }, [samplesDescriptor]);
       const renderRow = reactExports.useCallback(
-        (item2) => {
+        (_index, item2) => {
           if (item2.type === "sample") {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SampleRow,
@@ -65423,7 +65422,9 @@ ${events}
       }, 0);
       const percentError = errorCount / sampleCount * 100;
       const percentLimit = limitCount / sampleCount * 100;
-      const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : "IGNORE THIS BRUH";
+      const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
+      reactExports.useCallback(() => {
+      }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$d.mainLayout, children: [
         warningMessage ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MessageBand,
@@ -65450,13 +65451,9 @@ ${events}
             style: { height: "100%" },
             data: items,
             defaultItemHeight: 50,
-            itemContent: (_index, data) => {
-              return renderRow(data);
-            },
+            itemContent: renderRow,
             followOutput,
-            atBottomStateChange: (atBottom) => {
-              setFollowOutput(atBottom);
-            },
+            atBottomStateChange: setFollowOutput,
             increaseViewportBy: { top: 300, bottom: 300 },
             overscan: {
               main: 10,
@@ -66785,7 +66782,7 @@ ${events}
           LabeledValue,
           {
             label: "Dataset",
-            className: "text-size-small",
+            className: clsx(styles$1.staticCol, "text-size-small"),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               DatasetSummary,
               {
@@ -68036,6 +68033,37 @@ ${events}
       }, [setLogs, selectLogFile, refreshLogs]);
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
+      const handleSelectedIndexChanged = reactExports.useCallback(
+        (index2) => {
+          setSelectedLogIndex(index2);
+          setOffCanvas(false);
+          resetFiltering();
+          clearSampleTab();
+          clearWorkspaceTab();
+          selectSample(0);
+        },
+        [
+          setSelectedLogIndex,
+          setOffCanvas,
+          resetFiltering,
+          clearSampleTab,
+          clearWorkspaceTab,
+          selectSample
+        ]
+      );
+      const handleKeyboard = reactExports.useCallback(
+        (e) => {
+          if (nativeFind || !setShowFind) {
+            return;
+          }
+          if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+            setShowFind(true);
+          } else if (e.key === "Escape") {
+            hideFind();
+          }
+        },
+        [nativeFind, setShowFind, hideFind]
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         !fullScreen && selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
@@ -68044,14 +68072,7 @@ ${events}
             logHeaders,
             loading: headersLoading,
             selectedIndex: selectedLogIndex,
-            onSelectedIndexChanged: (index2) => {
-              setSelectedLogIndex(index2);
-              setOffCanvas(false);
-              resetFiltering();
-              clearSampleTab();
-              clearWorkspaceTab();
-              selectSample(0);
-            }
+            onSelectedIndexChanged: handleSelectedIndexChanged
           }
         ) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -68064,16 +68085,7 @@ ${events}
               offCanvas ? "off-canvas" : void 0
             ),
             tabIndex: 0,
-            onKeyDown: (e) => {
-              if (nativeFind || !setShowFind) {
-                return;
-              }
-              if ((e.ctrlKey || e.metaKey) && e.key === "f") {
-                setShowFind(true);
-              } else if (e.key === "Escape") {
-                hideFind();
-              }
-            },
+            onKeyDown: handleKeyboard,
             children: [
               !nativeFind && showFind ? /* @__PURE__ */ jsxRuntimeExports.jsx(FindBand, {}) : "",
               /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: appStatus.loading }),

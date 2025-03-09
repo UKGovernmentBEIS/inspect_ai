@@ -44,7 +44,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
     "chat-view",
   );
 
-  const renderRow = (item: ResolvedMessage, index: number) => {
+  const renderRow = (index: number, item: ResolvedMessage) => {
     const number =
       collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
     return (
@@ -64,18 +64,14 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
       customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
       style={{ height: "100%", width: "100%" }}
       data={collapsedMessages}
-      itemContent={(index: number, data: ResolvedMessage) => {
-        return renderRow(data, index);
-      }}
+      itemContent={renderRow}
       increaseViewportBy={{ top: 1000, bottom: 1000 }}
       overscan={{
         main: 10,
         reverse: 10,
       }}
       followOutput={followOutput}
-      atBottomStateChange={(atBottom: boolean) => {
-        setFollowOutput(atBottom);
-      }}
+      atBottomStateChange={setFollowOutput}
       skipAnimationFrameInResizeObserver={true}
       className={clsx(styles.list, className)}
       restoreStateFrom={restoreState()}

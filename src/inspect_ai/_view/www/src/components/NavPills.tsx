@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { FC, ReactElement, ReactNode } from "react";
+import { FC, MouseEvent, ReactElement, ReactNode, useCallback } from "react";
 import { useProperty } from "../state/hooks";
 import styles from "./NavPills.module.css";
 
@@ -81,6 +81,15 @@ const NavPill: FC<NavPillProps> = ({
   children,
 }) => {
   const active = activeItem === title;
+  const handleClick = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      const target = (e.currentTarget as HTMLButtonElement).dataset.target;
+      if (target) {
+        setActiveItem(target);
+      }
+    },
+    [setActiveItem],
+  );
 
   return (
     <li className={"nav-item"}>
@@ -94,9 +103,8 @@ const NavPill: FC<NavPillProps> = ({
           active ? "active " : "",
           styles.pill,
         )}
-        onClick={() => {
-          setActiveItem(title);
-        }}
+        data-target={title}
+        onClick={handleClick}
       >
         {title}
       </button>
