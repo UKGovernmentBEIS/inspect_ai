@@ -154,8 +154,6 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.`
         : undefined;
 
-  const handleItemContent = useCallback(() => {}, []);
-
   return (
     <div className={styles.mainLayout}>
       {warningMessage ? (
@@ -189,7 +187,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         onKeyDown={onkeydown}
         skipAnimationFrameInResizeObserver={true}
         isScrolling={isScrolling}
-        restoreStateFrom={restoreState()}
+        restoreStateFrom={restoreState}
       />
       <SampleFooter sampleCount={sampleCount} running={running} />
     </div>

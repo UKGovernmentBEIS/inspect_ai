@@ -128,7 +128,6 @@ export const TranscriptComponent: FC<TranscriptComponentProps> = ({
 interface RenderedEventNodeProps {
   id: string;
   node: EventNode;
-  scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string | string[];
 }
 /**
@@ -137,7 +136,6 @@ interface RenderedEventNodeProps {
 export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
   id,
   node,
-  scrollRef,
   className,
 }) => {
   switch (node.event.event) {
@@ -181,7 +179,6 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
         <StepEventView
           event={node.event}
           children={node.children}
-          scrollRef={scrollRef}
           className={className}
         />
       );
