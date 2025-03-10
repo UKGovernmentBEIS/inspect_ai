@@ -1,13 +1,32 @@
 import { StateSnapshot } from "react-virtuoso";
 import {
+  AttachmentData,
   EvalLogHeader,
   EvalSummary,
+  EventData,
   LogFiles,
   PendingSamples,
   SampleSummary,
 } from "./api/types";
 import { ScorerInfo } from "./scoring/utils";
-import { ContentImage, ContentText, EvalSample, Events } from "./types/log";
+import {
+  ApprovalEvent,
+  ContentImage,
+  ContentText,
+  EvalSample,
+  InfoEvent,
+  LoggerEvent,
+  ModelEvent,
+  SampleInitEvent,
+  SampleLimitEvent,
+  SandboxEvent,
+  ScoreEvent,
+  StateEvent,
+  StepEvent,
+  StoreEvent,
+  SubtaskEvent,
+  ToolEvent,
+} from "./types/log";
 
 export interface AppState {
   status: AppStatus;
@@ -54,8 +73,27 @@ export interface SampleState {
   selectedSample: EvalSample | undefined;
   sampleStatus: SampleStatus;
   sampleError: Error | undefined;
-  runningSampleData: RunningSampleData | undefined;
+
+  // Events and attachments
+  runningEvents: Event[];
 }
+
+export type Event =
+  | SampleInitEvent
+  | SampleLimitEvent
+  | SandboxEvent
+  | StateEvent
+  | StoreEvent
+  | ModelEvent
+  | ToolEvent
+  | ApprovalEvent
+  | InputEvent
+  | ScoreEvent
+  | ErrorEvent
+  | LoggerEvent
+  | InfoEvent
+  | StepEvent
+  | SubtaskEvent;
 
 export interface AppStatus {
   loading: boolean;
@@ -89,6 +127,7 @@ export interface ContentTool {
 }
 
 export interface RunningSampleData {
-  events: Events;
-  summary: SampleSummary;
+  events: Map<string, EventData>;
+  attachments: Map<string, AttachmentData>;
+  summary?: SampleSummary;
 }

@@ -17885,6 +17885,10 @@ self.onmessage = function (e) {
       return initializer(store.setState, get2, store);
     };
     const immer = immerImpl;
+    const getEnabledNamespaces = () => {
+      return __LOGGING_FILTER__.split(",").map((ns) => ns.trim()).filter(Boolean);
+    };
+    new Set(getEnabledNamespaces());
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
@@ -18157,7 +18161,7 @@ self.onmessage = function (e) {
         isStopped = false;
         poll();
       };
-      return { start, stop };
+      return { name: name2, start, stop };
     };
     const log$8 = createLogger("logPolling");
     function createLogPolling(get2, set2) {
@@ -18600,38 +18604,33 @@ self.onmessage = function (e) {
       }
       return value2;
     };
-    const sampleDataAdapter = () => {
-      const attachments = {};
-      const events = {};
-      return {
-        addData: (data) => {
-          data.attachments.forEach((a) => {
-            if (attachments[a.hash] === void 0) {
-              attachments[a.hash] = a.content;
-            }
-          });
-          data.events.forEach((e) => {
-            if (events[e.event_id] === void 0) {
-              events[e.event_id] = e;
-            }
-          });
-        },
-        resolvedEvents: () => {
-          const eventDatas = Object.values(events);
-          const resolvedEvents = eventDatas.map((ed) => {
-            return ed.event;
-          });
-          return resolveAttachments(resolvedEvents, attachments);
-        }
-      };
-    };
     const log$4 = createLogger("samplePolling");
-    function createSamplePolling(get2, _set) {
+    function createSamplePolling(get2, set2) {
       let currentPolling = null;
       let isActive = true;
+      const pollingState = {
+        eventId: -1,
+        attachmentId: -1,
+        eventMapping: {},
+        attachments: {},
+        events: []
+      };
       const startPolling = (logFile, summary2) => {
+        log$4.debug("START POLLING");
+        const pollingId = `${logFile}:${summary2.id}-${summary2.epoch}`;
+        if (currentPolling && currentPolling.name === pollingId) {
+          return;
+        }
         if (currentPolling) {
           currentPolling.stop();
+          set2((state) => {
+            state.sample.runningEvents = [];
+          });
+          pollingState.eventId = -1;
+          pollingState.attachmentId = -1;
+          pollingState.eventMapping = {};
+          pollingState.attachments = {};
+          pollingState.events = [];
         }
         isActive = true;
         log$4.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
@@ -18642,7 +18641,8 @@ self.onmessage = function (e) {
             );
             return false;
           }
-          const api2 = get2().api;
+          const state = get2();
+          const api2 = state.api;
           if (!api2) {
             throw new Error("Required API is missing");
           }
@@ -18653,10 +18653,15 @@ self.onmessage = function (e) {
           if (!isActive) {
             return false;
           }
+          const eventId = pollingState.eventId;
+          const attachmentId = pollingState.attachmentId;
+          log$4.debug(`> event: ${eventId}, attachments: ${attachmentId}`);
           const sampleDataResponse = await api2.get_log_sample_data(
             logFile,
             summary2.id,
-            summary2.epoch
+            summary2.epoch,
+            eventId,
+            attachmentId
           );
           if (!isActive) {
             return false;
@@ -18668,12 +18673,50 @@ self.onmessage = function (e) {
             if (!isActive) {
               return false;
             }
-            const adapter = sampleDataAdapter();
-            adapter.addData(sampleDataResponse.sampleData);
-            const events = adapter.resolvedEvents();
-            const runningData = { events, summary: summary2 };
-            log$4.debug(`EVENTS: ${events.length}`);
-            get2().sampleActions.setRunningSampleData(runningData);
+            log$4.debug(
+              `PROCESS ${sampleDataResponse.sampleData.attachments.length} ATTACHMENTS`
+            );
+            Object.values(sampleDataResponse.sampleData.attachments).forEach(
+              (v) => {
+                pollingState.attachments[v.hash] = v.content;
+              }
+            );
+            log$4.debug(
+              `PROCESS ${sampleDataResponse.sampleData.events.length} EVENTS`
+            );
+            for (const eventData of sampleDataResponse.sampleData.events) {
+              const existingIndex = pollingState.eventMapping[eventData.event_id];
+              const resolvedEvent = resolveAttachments(
+                eventData.event,
+                pollingState.attachments
+              );
+              if (existingIndex) {
+                pollingState.events[existingIndex] = resolvedEvent;
+              } else {
+                const currentIndex = pollingState.events.length;
+                pollingState.eventMapping[eventData.event_id] = currentIndex;
+                pollingState.events.push(resolvedEvent);
+              }
+            }
+            if (sampleDataResponse.sampleData.attachments.length > 0) {
+              const maxAttachment = sampleDataResponse.sampleData.attachments.reduce(
+                (max2, attachment) => Math.max(max2, attachment.id),
+                pollingState.attachmentId
+              );
+              log$4.debug(`UPDATE MAX ATTACHMENT ID TO ${maxAttachment}`);
+              pollingState.attachmentId = maxAttachment;
+            }
+            if (sampleDataResponse.sampleData.events.length > 0) {
+              const maxEvent = sampleDataResponse.sampleData.events.reduce(
+                (max2, event) => Math.max(max2, event.id),
+                pollingState.eventId
+              );
+              log$4.debug(`UPDATE MAX EVENT ID TO ${maxEvent}`);
+              pollingState.eventId = maxEvent;
+            }
+            set2((state2) => {
+              state2.sample.runningEvents = [...pollingState.events];
+            });
           }
           return true;
         };
@@ -18707,10 +18750,11 @@ self.onmessage = function (e) {
       selectedSample: void 0,
       sampleStatus: "ok",
       sampleError: void 0,
-      runningSampleData: void 0
+      // The resolved events
+      runningEvents: []
     };
     const createSampleSlice = (set2, get2, _store) => {
-      const migrateOldSample = (sample2) => {
+      const resolveSample2 = (sample2) => {
         sample2 = { ...sample2 };
         if (sample2.transcript) {
           sample2.events = sample2.transcript.events;
@@ -18723,7 +18767,7 @@ self.onmessage = function (e) {
         sample2.attachments = {};
         return sample2;
       };
-      const samplePolling = createSamplePolling(get2);
+      const samplePolling = createSamplePolling(get2, set2);
       const slice = {
         // Actions
         sample: initialState,
@@ -18745,12 +18789,6 @@ self.onmessage = function (e) {
           setSampleError: (error2) => set2((state) => {
             state.sample.sampleError = error2;
           }),
-          setRunningSampleData: (data) => set2((state) => {
-            state.sample.runningSampleData = data;
-          }),
-          clearRunningSampleData: () => set2((state) => {
-            state.sample.runningSampleData = void 0;
-          }),
           loadSample: async (logFile, sampleSummary) => {
             var _a2;
             const sampleActions = get2().sampleActions;
@@ -18767,7 +18805,7 @@ self.onmessage = function (e) {
                   sampleSummary.epoch
                 ));
                 if (sample2) {
-                  const migratedSample = migrateOldSample(sample2);
+                  const migratedSample = resolveSample2(sample2);
                   sampleActions.setSelectedSample(migratedSample);
                 } else {
                   throw new Error(
@@ -30907,23 +30945,17 @@ categories: ${categories.join(" ")}`;
       const sampleStatus = useStore((state) => state.sample.sampleStatus);
       const sampleError = useStore((state) => state.sample.sampleError);
       const selectedSample = useStore((state) => state.sample.selectedSample);
-      const runningSampleData = useStore((state) => state.sample.runningSampleData);
-      const loadSample = useStore((state) => state.sampleActions.loadSample);
+      const runningEvents = useStore(
+        (state) => state.sample.runningEvents
+      );
       return reactExports.useMemo(() => {
         return {
           status: sampleStatus,
           error: sampleError,
           sample: selectedSample,
-          running: runningSampleData,
-          loadSample
+          running: runningEvents
         };
-      }, [
-        sampleStatus,
-        sampleError,
-        selectedSample,
-        runningSampleData,
-        loadSample
-      ]);
+      }, [sampleStatus, sampleError, selectedSample, runningEvents]);
     };
     const useLogSelection = () => {
       const selectedSampleSummary = useSelectedSampleSummary();
@@ -64216,14 +64248,14 @@ ${events}
       node,
       first
     };
-    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef }) => {
+    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef, allowFollow }) => {
       const listHandle = reactExports.useRef(null);
       const { restoreState, isScrolling } = useVirtuosoState(
         listHandle,
         "transcript"
       );
       const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-        defaultValue: false
+        defaultValue: true
       });
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$l.darkenedBg : styles$l.normalBg;
@@ -64239,12 +64271,6 @@ ${events}
           }
         ) }, eventId);
       }, []);
-      const handleAtBottom = reactExports.useCallback(
-        (atBottom) => {
-          setFollowOutput(atBottom);
-        },
-        [setFollowOutput]
-      );
       const restored = reactExports.useMemo(() => {
         return restoreState();
       }, [restoreState]);
@@ -64261,8 +64287,7 @@ ${events}
             main: 2,
             reverse: 2
           },
-          followOutput,
-          atBottomStateChange: handleAtBottom,
+          followOutput: allowFollow && followOutput,
           className: clsx("transcript"),
           isScrolling,
           restoreStateFrom: restored
@@ -64491,7 +64516,7 @@ ${events}
       selectedTab,
       setSelectedTab,
       scrollRef,
-      runningSampleData
+      runningEvents: runningSampleData
     }) => {
       const baseId = `sample-dialog`;
       const sampleSummaries = useSampleSummaries();
@@ -64499,7 +64524,7 @@ ${events}
         (state) => state.log.selectedSampleIndex
       );
       const sampleSummary = sampleSummaries[selectedSampleIndex];
-      const sampleEvents = (sample2 == null ? void 0 : sample2.events) || (runningSampleData == null ? void 0 : runningSampleData.events);
+      const sampleEvents = (sample2 == null ? void 0 : sample2.events) || runningSampleData;
       const onSelectedTab = (e) => {
         const el = e.currentTarget;
         const id2 = el.id;
@@ -64788,13 +64813,24 @@ ${events}
       setSelectedTab,
       scrollRef
     }) => {
+      var _a2, _b2, _c, _d;
       const sampleData = useSampleData();
+      const loadSample = useStore((state) => state.sampleActions.loadSample);
       const logSelection = useLogSelection();
       reactExports.useEffect(() => {
+        var _a3;
         if (logSelection.logFile && logSelection.sample) {
-          sampleData.loadSample(logSelection.logFile, logSelection.sample);
+          if (((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch) {
+            loadSample(logSelection.logFile, logSelection.sample);
+          }
         }
-      }, [logSelection.logFile, logSelection.sample]);
+      }, [
+        logSelection.logFile,
+        (_a2 = logSelection.sample) == null ? void 0 : _a2.id,
+        (_b2 = logSelection.sample) == null ? void 0 : _b2.epoch,
+        (_c = sampleData.sample) == null ? void 0 : _c.id,
+        (_d = sampleData.sample) == null ? void 0 : _d.epoch
+      ]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$k.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: sampleData.status === "loading" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$k.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64802,7 +64838,7 @@ ${events}
           {
             id,
             sample: sampleData.sample,
-            runningSampleData: sampleData.running,
+            runningEvents: sampleData.running,
             selectedTab,
             setSelectedTab,
             scrollRef
@@ -64941,18 +64977,26 @@ ${events}
       selectedTab,
       setSelectedTab
     }) => {
+      var _a2, _b2, _c, _d;
       const scrollRef = reactExports.useRef(null);
       useStatefulScrollPosition(scrollRef, "sample-dialog");
       const sampleData = useSampleData();
+      const loadSample = useStore((state) => state.sampleActions.loadSample);
       const logSelection = useLogSelection();
       reactExports.useEffect(() => {
-        var _a2;
+        var _a3;
         if (logSelection.logFile && logSelection.sample) {
-          if (((_a2 = sampleData.sample) == null ? void 0 : _a2.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch) {
-            sampleData.loadSample(logSelection.logFile, logSelection.sample);
+          if (((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch) {
+            loadSample(logSelection.logFile, logSelection.sample);
           }
         }
-      }, [logSelection.logFile, logSelection.sample]);
+      }, [
+        logSelection.logFile,
+        (_a2 = logSelection.sample) == null ? void 0 : _a2.id,
+        (_b2 = logSelection.sample) == null ? void 0 : _b2.epoch,
+        (_c = sampleData.sample) == null ? void 0 : _c.id,
+        (_d = sampleData.sample) == null ? void 0 : _d.epoch
+      ]);
       const tools2 = reactExports.useMemo(() => {
         const nextTool = {
           label: "Next Sample",
@@ -65010,7 +65054,7 @@ ${events}
             {
               id,
               sample: sampleData.sample,
-              runningSampleData: sampleData.running,
+              runningEvents: sampleData.running,
               selectedTab,
               setSelectedTab,
               scrollRef
