@@ -23,8 +23,7 @@ import {
 } from "../constants";
 import { useSampleSummaries } from "../state/hooks";
 import { useStore } from "../state/store";
-import { RunningSampleData } from "../types";
-import { EvalSample } from "../types/log";
+import { EvalSample, Events } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { formatTime } from "../utils/format";
 import { printHeadingHtml, printHtml } from "../utils/print";
@@ -39,7 +38,7 @@ interface SampleDisplayProps {
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
-  runningSampleData?: RunningSampleData;
+  runningEvents?: Events;
 }
 
 /**
@@ -51,7 +50,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   selectedTab,
   setSelectedTab,
   scrollRef,
-  runningSampleData,
+  runningEvents: runningSampleData,
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
@@ -61,7 +60,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   );
 
   const sampleSummary = sampleSummaries[selectedSampleIndex];
-  const sampleEvents = sample?.events || runningSampleData?.events;
+  const sampleEvents = sample?.events || runningSampleData;
 
   // Tab selection
   const onSelectedTab = (e: MouseEvent<HTMLElement>) => {

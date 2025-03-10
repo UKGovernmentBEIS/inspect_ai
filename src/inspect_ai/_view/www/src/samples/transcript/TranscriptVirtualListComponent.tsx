@@ -12,13 +12,14 @@ interface TranscriptVirtualListComponentProps {
   id: string;
   eventNodes: EventNode[];
   scrollRef?: RefObject<HTMLDivElement | null>;
+  allowFollow?: boolean;
 }
 
 /**
  * Renders the Transcript component.
  */
 export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentProps> =
-  memo(({ id, eventNodes, scrollRef }) => {
+  memo(({ id, eventNodes, scrollRef, allowFollow }) => {
     const listHandle = useRef<VirtuosoHandle>(null);
     const { restoreState, isScrolling } = useVirtuosoState(
       listHandle,
@@ -26,7 +27,7 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
     );
 
     const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-      defaultValue: false,
+      defaultValue: true,
     });
 
     const renderRow = useCallback((index: number, item: EventNode) => {
@@ -47,13 +48,6 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
       );
     }, []);
 
-    const handleAtBottom = useCallback(
-      (atBottom: boolean) => {
-        setFollowOutput(atBottom);
-      },
-      [setFollowOutput],
-    );
-
     const restored = useMemo(() => {
       return restoreState();
     }, [restoreState]);
@@ -70,8 +64,7 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
           main: 2,
           reverse: 2,
         }}
-        followOutput={followOutput}
-        atBottomStateChange={handleAtBottom}
+        followOutput={allowFollow && followOutput}
         className={clsx("transcript")}
         isScrolling={isScrolling}
         restoreStateFrom={restored}

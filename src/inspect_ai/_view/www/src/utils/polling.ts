@@ -7,6 +7,7 @@ export interface PollingOptions {
 }
 
 export interface Polling {
+  name: string;
   start: () => void;
   stop: () => void;
 }
@@ -93,5 +94,5 @@ export const createPolling = (
     poll();
   };
 
-  return { start, stop };
+  return { name, start, stop };
 };
