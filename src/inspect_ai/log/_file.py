@@ -3,11 +3,10 @@ import re
 from logging import getLogger
 from typing import Any, Callable, Generator, Literal
 
-import anyio
 from pydantic import BaseModel
 from pydantic_core import to_json
 
-from inspect_ai._util._async import current_async_backend
+from inspect_ai._util._async import current_async_backend, run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
@@ -117,7 +116,7 @@ def write_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    anyio.run(write_eval_log_async, log, location, format, backend="asyncio")
+    run_coroutine(write_eval_log_async(log, location, format))
 
 
 async def write_eval_log_async(
@@ -225,13 +224,13 @@ def read_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return anyio.run(
-        read_eval_log_async,
-        log_file,
-        header_only,
-        resolve_attachments,
-        format,
-        backend="asyncio",
+    return run_coroutine(
+        read_eval_log_async(
+            log_file,
+            header_only,
+            resolve_attachments,
+            format,
+        )
     )
 
 
@@ -288,7 +287,7 @@ def read_eval_log_headers(
 ) -> list[EvalLog]:
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return anyio.run(read_eval_log_headers_async, log_files, backend="asyncio")
+    return run_coroutine(read_eval_log_headers_async(log_files))
 
 
 async def read_eval_log_headers_async(
@@ -331,14 +330,8 @@ def read_eval_log_sample(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return anyio.run(
-        read_eval_log_sample_async,
-        log_file,
-        id,
-        epoch,
-        resolve_attachments,
-        format,
-        backend="asyncio",
+    return run_coroutine(
+        read_eval_log_sample_async(log_file, id, epoch, resolve_attachments, format)
     )
 
 
