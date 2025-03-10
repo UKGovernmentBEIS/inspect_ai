@@ -30,7 +30,7 @@ import { printHeadingHtml, printHtml } from "../utils/print";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
-import { SampleTranscript } from "./transcript/SampleTranscript";
+import { TranscriptVirtualList } from "./transcript/TranscriptView";
 
 interface SampleDisplayProps {
   id: string;
@@ -116,10 +116,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             }
             scrollable={false}
           >
-            <SampleTranscript
+            <TranscriptVirtualList
               key={`${baseId}-transcript-display-${id}`}
               id={`${baseId}-transcript-display-${id}`}
-              evalEvents={sampleEvents}
+              events={sampleEvents}
+              tailOutput={!!runningSampleData && runningSampleData.length > 0}
               scrollRef={scrollRef}
             />
           </TabPanel>
