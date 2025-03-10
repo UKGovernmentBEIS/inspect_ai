@@ -41,7 +41,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
   const listHandle = useRef<VirtuosoHandle>(null);
   const { restoreState, isScrolling } = useVirtuosoState(
     listHandle,
-    "chat-view",
+    `chat-view-${id}`,
   );
 
   const renderRow = (index: number, item: ResolvedMessage) => {
@@ -74,7 +74,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
       atBottomStateChange={setFollowOutput}
       skipAnimationFrameInResizeObserver={true}
       className={clsx(styles.list, className)}
-      restoreStateFrom={restoreState()}
+      restoreStateFrom={restoreState}
       isScrolling={isScrolling}
     />
   );

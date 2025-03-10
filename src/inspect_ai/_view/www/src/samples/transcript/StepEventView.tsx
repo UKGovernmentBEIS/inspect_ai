@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, RefObject } from "react";
+import { FC } from "react";
 import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
@@ -9,7 +9,6 @@ import { EventNode } from "./types";
 interface StepEventViewProps {
   event: StepEvent;
   children: EventNode[];
-  scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string | string[];
 }
 
@@ -19,7 +18,6 @@ interface StepEventViewProps {
 export const StepEventView: FC<StepEventViewProps> = ({
   event,
   children,
-  scrollRef,
   className,
 }) => {
   const descriptor = stepDescriptor(event);

@@ -1,4 +1,4 @@
-import { RefObject, useCallback, useEffect } from "react";
+import { RefObject, useCallback, useEffect, useRef } from "react";
 import { StateCallback, StateSnapshot, VirtuosoHandle } from "react-virtuoso";
 import { createLogger } from "../utils/logger";
 import { debounce } from "../utils/sync";
@@ -90,37 +90,64 @@ export function useStatefulScrollPosition<
   return { restoreScrollPosition };
 }
 
+// Define a type for the debounced function that includes the cancel method
+type DebouncedFunction<T extends (...args: any[]) => any> = T & {
+  cancel: () => void;
+  flush: () => void;
+};
+
 export const useVirtuosoState = (
   virtuosoRef: RefObject<VirtuosoHandle | null>,
   elementKey: string,
   delay = 500,
 ) => {
-  const getListPosition = useStore((state) => state.appActions.getListPosition);
+  const restoreState = useStore((state) => state.app.listPositions[elementKey]);
   const setListPosition = useStore((state) => state.appActions.setListPosition);
+  const clearListPosition = useStore(
+    (state) => state.appActions.clearListPosition,
+  );
 
-  // Create debounced scroll handler
+  // Properly type the debounced function ref
+  const debouncedFnRef = useRef<DebouncedFunction<
+    (isScrolling: boolean) => void
+  > | null>(null);
+
+  // Create the state change handler
   const handleStateChange: StateCallback = useCallback(
     (state: StateSnapshot) => {
       log.debug(`Storing list state: [${elementKey}]`, state);
       setListPosition(elementKey, state);
     },
-    [elementKey, setListPosition, delay],
+    [elementKey, setListPosition],
   );
 
-  const restoreState = useCallback(() => {
-    return getListPosition(elementKey);
-  }, [getListPosition]);
-
-  const isScrolling = useCallback(
-    debounce((isScrolling: boolean) => {
+  // Setup the debounced function once
+  useEffect(() => {
+    debouncedFnRef.current = debounce((isScrolling: boolean) => {
       log.debug("List scroll", isScrolling);
       const element = virtuosoRef.current;
       if (!element) {
         return;
       }
       element.getState(handleStateChange);
-    }, delay),
-    [setListPosition, handleStateChange],
-  );
+    }, delay) as DebouncedFunction<(isScrolling: boolean) => void>;
+
+    return () => {
+      // Clear the stored position when component unmounts
+      clearListPosition(elementKey);
+    };
+  }, [delay, elementKey, handleStateChange, clearListPosition, virtuosoRef]);
+
+  // Return a stable function reference that uses the ref internally
+  const isScrolling = useCallback((scrolling: boolean) => {
+    if (!scrolling) {
+      return;
+    }
+
+    if (debouncedFnRef.current) {
+      debouncedFnRef.current(scrolling);
+    }
+  }, []);
+
   return { restoreState, isScrolling };
 };

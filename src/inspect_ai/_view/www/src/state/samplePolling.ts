@@ -106,6 +106,9 @@ export function createSamplePolling(
 
       if (sampleDataResponse?.status === "NotFound") {
         // Stop polling
+        set((state) => {
+          state.sample.runningEvents = [];
+        });
         return false;
       }
 
