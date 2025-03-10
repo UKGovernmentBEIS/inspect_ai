@@ -48,6 +48,7 @@ interface TranscriptVirtualListProps {
   events: Events;
   depth?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
+  tailOutput?: boolean;
 }
 
 /**
@@ -56,7 +57,7 @@ interface TranscriptVirtualListProps {
 export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
   props,
 ) => {
-  let { id, scrollRef, events, depth } = props;
+  let { id, scrollRef, events, depth, tailOutput } = props;
 
   // Normalize Events themselves
   const eventNodes = useMemo(() => {
@@ -71,6 +72,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
       id={id}
       eventNodes={eventNodes}
       scrollRef={scrollRef}
+      tailOutput={tailOutput}
     />
   );
 };

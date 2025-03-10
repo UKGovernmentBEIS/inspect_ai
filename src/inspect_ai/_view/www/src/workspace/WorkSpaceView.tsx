@@ -111,6 +111,7 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
                     selected={selectedTab === tab.id}
                     scrollable={!!tab.scrollable}
                     scrollRef={tab.scrollRef}
+                    style={{ height: tab.scrollable ? "100%" : undefined }}
                   >
                     {createElement(tab.component, tab.componentProps)}
                   </TabPanel>

@@ -63921,15 +63921,54 @@ ${events}
       node,
       first
     };
-    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef }) => {
+    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef, tailOutput }) => {
       const listHandle = reactExports.useRef(null);
       const { restoreState, isScrolling } = useVirtuosoState(
         listHandle,
         `transcript-${id}`
       );
       const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-        defaultValue: false
+        defaultValue: tailOutput
       });
+      const isAutoScrollingRef = reactExports.useRef(false);
+      reactExports.useEffect(() => {
+        setTimeout(() => {
+          var _a2;
+          if (followOutput) {
+            isAutoScrollingRef.current = true;
+            (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({ index: "LAST", align: "end" });
+            setTimeout(() => {
+              isAutoScrollingRef.current = false;
+            }, 50);
+          }
+        }, 100);
+      }, [eventNodes, followOutput]);
+      const handleParentScroll = reactExports.useCallback(
+        debounce$1(
+          () => {
+            if (isAutoScrollingRef.current) return;
+            if ((scrollRef == null ? void 0 : scrollRef.current) && listHandle.current) {
+              const parent = scrollRef.current;
+              const isAtBottom = parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 5;
+              if (isAtBottom && !followOutput) {
+                setFollowOutput(true);
+              } else if (!isAtBottom && followOutput) {
+                setFollowOutput(false);
+              }
+            }
+          },
+          100,
+          { leading: true, trailing: true }
+        ),
+        [scrollRef, setFollowOutput, followOutput]
+      );
+      reactExports.useEffect(() => {
+        const parent = scrollRef == null ? void 0 : scrollRef.current;
+        if (parent) {
+          parent.addEventListener("scroll", handleParentScroll);
+          return () => parent.removeEventListener("scroll", handleParentScroll);
+        }
+      }, [scrollRef, handleParentScroll]);
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$l.darkenedBg : styles$l.normalBg;
         const paddingClass = index2 === 0 ? styles$l.first : void 0;
@@ -63954,11 +63993,10 @@ ${events}
           itemContent: renderRow,
           increaseViewportBy: { top: 1e3, bottom: 1e3 },
           overscan: { main: 2, reverse: 2 },
-          followOutput,
-          atBottomStateChange: setFollowOutput,
           className: clsx("transcript"),
           isScrolling,
-          restoreStateFrom: restoreState
+          restoreStateFrom: restoreState,
+          logLevel: ht.DEBUG
         }
       );
     });
@@ -63975,7 +64013,7 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
     };
     const TranscriptVirtualList = (props) => {
-      let { id, scrollRef, events, depth } = props;
+      let { id, scrollRef, events, depth, tailOutput } = props;
       const eventNodes = reactExports.useMemo(() => {
         const resolvedEvents = fixupEventStream(events);
         const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
@@ -63986,7 +64024,8 @@ ${events}
         {
           id,
           eventNodes,
-          scrollRef
+          scrollRef,
+          tailOutput
         }
       );
     };
@@ -64169,13 +64208,6 @@ ${events}
       });
       return rootNodes;
     }
-    const SampleTranscript = ({
-      id,
-      evalEvents,
-      scrollRef
-    }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptVirtualList, { id, events: evalEvents, scrollRef });
-    };
     const SampleDisplay = ({
       id,
       sample: sample2,
@@ -64238,10 +64270,11 @@ ${events}
                   selected: selectedTab === kSampleTranscriptTabId || selectedTab === void 0,
                   scrollable: false,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    SampleTranscript,
+                    TranscriptVirtualList,
                     {
                       id: `${baseId}-transcript-display-${id}`,
-                      evalEvents: sampleEvents,
+                      events: sampleEvents,
+                      tailOutput: !!runningSampleData && runningSampleData.length > 0,
                       scrollRef
                     },
                     `${baseId}-transcript-display-${id}`
@@ -66764,6 +66797,7 @@ ${events}
                     selected: selectedTab === tab2.id,
                     scrollable: !!tab2.scrollable,
                     scrollRef: tab2.scrollRef,
+                    style: { height: tab2.scrollable ? "100%" : void 0 },
                     children: reactExports.createElement(tab2.component, tab2.componentProps)
                   },
                   tab2.id
