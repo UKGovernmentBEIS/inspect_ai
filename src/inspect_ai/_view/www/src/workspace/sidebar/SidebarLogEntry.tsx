@@ -66,20 +66,20 @@ export const SidebarLogEntry: FC<SidebarLogEntryProps> = ({
         <small className={"mb-1"}>
           {hyperparameters
             ? Object.keys(hyperparameters)
-              .map((key) => {
-                const val = hyperparameters[key];
-                if (Array.isArray(val) || typeof val === "object") {
-                  return `${key}: ${JSON.stringify(val)}`;
-                } else {
-                  return `${key}: ${val}`;
-                }
-              })
-              .join(", ")
+                .map((key) => {
+                  const val = hyperparameters[key];
+                  if (Array.isArray(val) || typeof val === "object") {
+                    return `${key}: ${JSON.stringify(val)}`;
+                  } else {
+                    return `${key}: ${val}`;
+                  }
+                })
+                .join(", ")
             : ""}
         </small>
       </div>
       {(logHeader?.eval?.dataset || logHeader?.results?.scores) &&
-        logHeader?.status === "success" ? (
+      logHeader?.status === "success" ? (
         <div
           className={clsx("text-truncate", "text-size-small", styles.scores)}
         >

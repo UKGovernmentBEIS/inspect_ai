@@ -72,18 +72,22 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             >
               {evalSpec?.task}
             </div>
-            {evalSpec?.model && evalSpec.model !== kModelNone ? <div
-              id="task-model"
-              className={clsx(
-                "task-model",
-                "text-truncate",
-                styles.taskModel,
-                "text-size-base",
-              )}
-              title={evalSpec?.model}
-            >
-              {evalSpec?.model}
-            </div> : ""}
+            {evalSpec?.model && evalSpec.model !== kModelNone ? (
+              <div
+                id="task-model"
+                className={clsx(
+                  "task-model",
+                  "text-truncate",
+                  styles.taskModel,
+                  "text-size-base",
+                )}
+                title={evalSpec?.model}
+              >
+                {evalSpec?.model}
+              </div>
+            ) : (
+              ""
+            )}
           </div>
           <div className={clsx("text-size-small", styles.secondaryContainer)}>
             <div className={clsx("navbar-secondary-text", "text-truncate")}>
