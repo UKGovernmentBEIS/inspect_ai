@@ -39,7 +39,7 @@ def web_surfer() -> Tool:
                 answer questions. You don't need to answer the questions with
                 a single web browser request, rather, you can perform searches,
                 follow links, backtrack, and otherwise use the browser to its
-                fullest capability to help answer the question. 
+                fullest capability to help answer the question.
 
                 In some cases questions will be about your previous web searches,
                 in those cases you don't always need to use the web browser tool
