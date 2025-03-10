@@ -18073,6 +18073,11 @@ self.onmessage = function (e) {
               state.app.listPositions[name2] = position;
             });
           },
+          clearListPosition: (name2) => {
+            set2((state) => {
+              delete state.app.listPositions[name2];
+            });
+          },
           getCollapsed: (name2, defaultValue) => {
             return getBoolRecord(get2().app.collapsed, name2, defaultValue);
           },
@@ -18682,6 +18687,9 @@ self.onmessage = function (e) {
             return false;
           }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
+            set2((state2) => {
+              state2.sample.runningEvents = [];
+            });
             return false;
           }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
@@ -51809,27 +51817,38 @@ Supported expressions:
       return { restoreScrollPosition };
     }
     const useVirtuosoState = (virtuosoRef, elementKey, delay = 500) => {
-      const getListPosition = useStore((state) => state.appActions.getListPosition);
+      const restoreState = useStore((state) => state.app.listPositions[elementKey]);
       const setListPosition = useStore((state) => state.appActions.setListPosition);
+      const clearListPosition = useStore(
+        (state) => state.appActions.clearListPosition
+      );
+      const debouncedFnRef = reactExports.useRef(null);
       const handleStateChange = reactExports.useCallback(
         (state) => {
           setListPosition(elementKey, state);
         },
-        [elementKey, setListPosition, delay]
+        [elementKey, setListPosition]
       );
-      const restoreState = reactExports.useCallback(() => {
-        return getListPosition(elementKey);
-      }, [getListPosition]);
-      const isScrolling = reactExports.useCallback(
-        debounce$1((isScrolling2) => {
+      reactExports.useEffect(() => {
+        debouncedFnRef.current = debounce$1((isScrolling2) => {
           const element = virtuosoRef.current;
           if (!element) {
             return;
           }
           element.getState(handleStateChange);
-        }, delay),
-        [setListPosition, handleStateChange]
-      );
+        }, delay);
+        return () => {
+          clearListPosition(elementKey);
+        };
+      }, [delay, elementKey, handleStateChange, clearListPosition, virtuosoRef]);
+      const isScrolling = reactExports.useCallback((scrolling) => {
+        if (!scrolling) {
+          return;
+        }
+        if (debouncedFnRef.current) {
+          debouncedFnRef.current(scrolling);
+        }
+      }, []);
       return { restoreState, isScrolling };
     };
     const tabs$1 = "_tabs_1qj7d_1";
@@ -55504,7 +55523,7 @@ Supported expressions:
       const listHandle = reactExports.useRef(null);
       const { restoreState, isScrolling } = useVirtuosoState(
         listHandle,
-        "chat-view"
+        `chat-view-${id}`
       );
       const renderRow = (index2, item2) => {
         const number2 = collapsedMessages.length > 1 && numbered ? index2 + 1 : void 0;
@@ -55536,7 +55555,7 @@ Supported expressions:
           atBottomStateChange: setFollowOutput,
           skipAnimationFrameInResizeObserver: true,
           className: clsx(styles$H.list, className2),
-          restoreStateFrom: restoreState(),
+          restoreStateFrom: restoreState,
           isScrolling
         }
       );
@@ -63648,7 +63667,6 @@ ${events}
     const StepEventView = ({
       event,
       children: children2,
-      scrollRef,
       className: className2
     }) => {
       const descriptor = stepDescriptor(event);
@@ -63974,14 +63992,14 @@ ${events}
       node,
       first
     };
-    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef, allowFollow }) => {
+    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef }) => {
       const listHandle = reactExports.useRef(null);
       const { restoreState, isScrolling } = useVirtuosoState(
         listHandle,
-        "transcript"
+        `transcript-${id}`
       );
       const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-        defaultValue: true
+        defaultValue: false
       });
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$l.darkenedBg : styles$l.normalBg;
@@ -63992,14 +64010,10 @@ ${events}
           {
             id: eventId,
             node: item2,
-            className: clsx(bgClass),
-            scrollRef
+            className: clsx(bgClass)
           }
         ) }, eventId);
       }, []);
-      const restored = reactExports.useMemo(() => {
-        return restoreState();
-      }, [restoreState]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         $r,
         {
@@ -64007,16 +64021,15 @@ ${events}
           customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
           style: { height: "100%", width: "100%" },
           data: eventNodes,
+          defaultItemHeight: 250,
           itemContent: renderRow,
           increaseViewportBy: { top: 1e3, bottom: 1e3 },
-          overscan: {
-            main: 2,
-            reverse: 2
-          },
-          followOutput: allowFollow && followOutput,
+          overscan: { main: 2, reverse: 2 },
+          followOutput,
+          atBottomStateChange: setFollowOutput,
           className: clsx("transcript"),
           isScrolling,
-          restoreStateFrom: restored
+          restoreStateFrom: restoreState
         }
       );
     });
@@ -64093,7 +64106,6 @@ ${events}
     const RenderedEventNode = ({
       id,
       node: node2,
-      scrollRef,
       className: className2
     }) => {
       switch (node2.event.event) {
@@ -64124,7 +64136,6 @@ ${events}
             {
               event: node2.event,
               children: node2.children,
-              scrollRef,
               className: className2
             }
           );
@@ -65200,8 +65211,6 @@ ${events}
       const percentError = errorCount / sampleCount * 100;
       const percentLimit = limitCount / sampleCount * 100;
       const warningMessage = errorCount > 0 ? `INFO: ${errorCount} of ${sampleCount} samples (${formatNoDecimal(percentError)}%) had errors and were not scored.` : limitCount ? `INFO: ${limitCount} of ${sampleCount} samples (${formatNoDecimal(percentLimit)}%) completed due to exceeding a limit.` : void 0;
-      reactExports.useCallback(() => {
-      }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$d.mainLayout, children: [
         warningMessage ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MessageBand,
@@ -65240,7 +65249,7 @@ ${events}
             onKeyDown: onkeydown,
             skipAnimationFrameInResizeObserver: true,
             isScrolling,
-            restoreStateFrom: restoreState()
+            restoreStateFrom: restoreState
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFooter, { sampleCount, running: running2 })

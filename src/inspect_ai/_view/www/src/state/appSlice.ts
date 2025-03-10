@@ -26,6 +26,7 @@ export interface AppSlice {
 
     getListPosition: (name: string) => StateSnapshot | undefined;
     setListPosition: (name: string, state: StateSnapshot) => void;
+    clearListPosition: (name: string) => void;
 
     getCollapsed: (name: string, defaultValue?: boolean) => boolean;
     setCollapsed: (name: string, value: boolean) => void;
@@ -156,6 +157,11 @@ export const createAppSlice = (
       setListPosition: (name: string, position: StateSnapshot) => {
         set((state) => {
           state.app.listPositions[name] = position;
+        });
+      },
+      clearListPosition: (name: string) => {
+        set((state) => {
+          delete state.app.listPositions[name];
         });
       },
       getCollapsed: (name: string, defaultValue?: boolean) => {
