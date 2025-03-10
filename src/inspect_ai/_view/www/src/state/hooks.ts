@@ -12,6 +12,7 @@ import {
   sortSamples,
 } from "../samples/sample-tools/SortFilter";
 import { getAvailableScorers, getDefaultScorer } from "../scoring/utils";
+import { Events } from "../types/log";
 import { createLogger } from "../utils/logger";
 import { useStore } from "./store";
 import { mergeSampleSummaries } from "./utils";
@@ -181,23 +182,17 @@ export const useSampleData = () => {
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
   const sampleError = useStore((state) => state.sample.sampleError);
   const selectedSample = useStore((state) => state.sample.selectedSample);
-  const runningSampleData = useStore((state) => state.sample.runningSampleData);
-  const loadSample = useStore((state) => state.sampleActions.loadSample);
+  const runningEvents = useStore(
+    (state) => state.sample.runningEvents,
+  ) as Events;
   return useMemo(() => {
     return {
       status: sampleStatus,
       error: sampleError,
       sample: selectedSample,
-      running: runningSampleData,
-      loadSample,
+      running: runningEvents,
     };
-  }, [
-    sampleStatus,
-    sampleError,
-    selectedSample,
-    runningSampleData,
-    loadSample,
-  ]);
+  }, [sampleStatus, sampleError, selectedSample, runningEvents]);
 };
 
 export const useLogSelection = () => {

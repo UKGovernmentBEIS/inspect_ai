@@ -1,6 +1,6 @@
 import { SampleSummary } from "../api/types";
 import { kSampleMessagesTabId } from "../constants";
-import { RunningSampleData, SampleState, SampleStatus } from "../types";
+import { SampleState, SampleStatus } from "../types";
 import { EvalSample } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
@@ -18,10 +18,6 @@ export interface SampleSlice {
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
-    // Running data
-    setRunningSampleData: (data: RunningSampleData) => void;
-    clearRunningSampleData: () => void;
-
     // Loading
     loadSample: (
       logFile: string,
@@ -34,7 +30,9 @@ const initialState: SampleState = {
   selectedSample: undefined,
   sampleStatus: "ok",
   sampleError: undefined,
-  runningSampleData: undefined,
+
+  // The resolved events
+  runningEvents: [],
 };
 
 export const createSampleSlice = (
@@ -42,9 +40,10 @@ export const createSampleSlice = (
   get: () => StoreState,
   _store: any,
 ): [SampleSlice, () => void] => {
-  // Migrates old versions of samples to the new structure
-  const migrateOldSample = (sample: any) => {
+  const resolveSample = (sample: any) => {
     sample = { ...sample };
+
+    // Migrates old versions of samples to the new structure
     if (sample.transcript) {
       sample.events = sample.transcript.events;
       sample.attachments = sample.transcript.content;
@@ -85,15 +84,6 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.sampleError = error;
         }),
-      setRunningSampleData: (data: RunningSampleData) =>
-        set((state) => {
-          state.sample.runningSampleData = data;
-        }),
-      clearRunningSampleData: () =>
-        set((state) => {
-          state.sample.runningSampleData = undefined;
-        }),
-
       loadSample: async (logFile: string, sampleSummary: SampleSummary) => {
         const sampleActions = get().sampleActions;
 
@@ -110,7 +100,7 @@ export const createSampleSlice = (
               sampleSummary.epoch,
             );
             if (sample) {
-              const migratedSample = migrateOldSample(sample);
+              const migratedSample = resolveSample(sample);
               sampleActions.setSelectedSample(migratedSample);
             } else {
               throw new Error(

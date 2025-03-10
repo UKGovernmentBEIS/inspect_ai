@@ -4,6 +4,7 @@ import { ProgressBar } from "../components/ProgressBar";
 import { SampleDisplay } from "./SampleDisplay";
 
 import { useLogSelection, useSampleData } from "../state/hooks";
+import { useStore } from "../state/store";
 import styles from "./InlineSampleDisplay.module.css";
 
 interface InlineSampleDisplayProps {
@@ -23,12 +24,24 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   scrollRef,
 }) => {
   const sampleData = useSampleData();
+  const loadSample = useStore((state) => state.sampleActions.loadSample);
   const logSelection = useLogSelection();
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
-      sampleData.loadSample(logSelection.logFile, logSelection.sample);
+      if (
+        sampleData.sample?.id !== logSelection.sample.id ||
+        sampleData.sample.epoch !== logSelection.sample.epoch
+      ) {
+        loadSample(logSelection.logFile, logSelection.sample);
+      }
     }
-  }, [logSelection.logFile, logSelection.sample]);
+  }, [
+    logSelection.logFile,
+    logSelection.sample?.id,
+    logSelection.sample?.epoch,
+    sampleData.sample?.id,
+    sampleData.sample?.epoch,
+  ]);
 
   return (
     <div className={styles.container}>
@@ -40,7 +53,7 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
           <SampleDisplay
             id={id}
             sample={sampleData.sample}
-            runningSampleData={sampleData.running}
+            runningEvents={sampleData.running}
             selectedTab={selectedTab}
             setSelectedTab={setSelectedTab}
             scrollRef={scrollRef}
