@@ -9,7 +9,6 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
-import { EmptyPanel } from "../../components/EmptyPanel.tsx";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
 import { SampleDialog } from "../../samples/SampleDialog";
 import { SampleList } from "../../samples/list/SampleList";
@@ -22,6 +21,7 @@ import {
   useTotalSampleCount,
 } from "../../state/hooks.ts";
 import { useStore } from "../../state/store.ts";
+import { NoSamplesPanel } from "./NoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
@@ -161,11 +161,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       : "";
 
   if (totalSampleCount === 0) {
-    return (
-      <EmptyPanel>
-        <div>No samples</div>
-      </EmptyPanel>
-    );
+    return <NoSamplesPanel />;
   } else {
     return (
       <Fragment>
