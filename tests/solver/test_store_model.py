@@ -160,8 +160,8 @@ def test_store_model_multiple_instances_same_store():
 
 def test_store_multiple_model_instances_context():
     store = Store()
-    model1 = MyModel(store=store, namespace="m1")
-    model2 = MyModel(store=store, namespace="m2")
+    model1 = MyModel(store=store, instance="m1")
+    model2 = MyModel(store=store, instance="m2")
 
     model1.x = 42
     assert model2.x != 42

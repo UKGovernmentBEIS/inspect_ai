@@ -15,7 +15,7 @@ class StoreModel(BaseModel):
     """
 
     store: Store = Field(exclude=True, default_factory=store)
-    namespace: str | None = Field(exclude=True, default=None)
+    instance: str | None = Field(exclude=True, default=None)
 
     def model_post_init(self, __context: Any) -> None:
         for name in self.model_fields.keys():
@@ -36,7 +36,7 @@ class StoreModel(BaseModel):
         # handle model_fields (except 'store' and 'namespace') by reading the store
         elif name in object.__getattribute__(self, "model_fields") and name not in [
             "store",
-            "namespace",
+            "instance",
         ]:
             store_key = self._ns_name(name)
             if store_key in self.store:
@@ -91,13 +91,13 @@ class StoreModel(BaseModel):
         self.__class__.model_validate(validate)
 
     def _ns_name(self, name: str) -> str:
-        namespace = f"{self.namespace}:" if self.namespace is not None else ""
+        namespace = f"{self.instance}:" if self.instance is not None else ""
         return f"{self.__class__.__name__}:{namespace}{name}"
 
     def _un_ns_name(self, name: str) -> str:
         name = name.replace(f"{self.__class__.__name__}:", "", 1)
-        if self.namespace:
-            name = name.replace(f"{self.namespace}:", "", 1)
+        if self.instance:
+            name = name.replace(f"{self.instance}:", "", 1)
         return name
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -106,16 +106,16 @@ class StoreModel(BaseModel):
 SMT = TypeVar("SMT", bound=StoreModel)
 
 
-def store_as(model_cls: Type[SMT], namespace: str | None = None) -> SMT:
+def store_as(model_cls: Type[SMT], instance: str | None = None) -> SMT:
     """Get a Pydantic model interface to the store.
 
     Args:
       model_cls: Pydantic model type (must derive from StoreModel)
-      namespace: Optional namespace name for store (enables multiple instances
+      instance: Optional instance name for store (enables multiple instances
         of a given StoreModel type within a single sample)
 
 
     Returns:
-      StoreModel: Instance of model_cls bound to current Store.
+      StoreModel: model_cls bound to current Store.
     """
-    return model_cls(store=store(), namespace=namespace)
+    return model_cls(store=store(), instance=instance)

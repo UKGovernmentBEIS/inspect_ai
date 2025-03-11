@@ -206,18 +206,18 @@ class EvalSample(BaseModel):
     store: dict[str, Any] = Field(default_factory=dict)
     """State at end of sample execution."""
 
-    def store_as(self, model_cls: Type[SMT], namespace: str | None = None) -> SMT:
+    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
         """Pydantic model interface to the store.
 
         Args:
           model_cls: Pydantic model type (must derive from StoreModel)
-          namespace: Optional namespace name for store (enables multiple instances
+          instance: Optional instances name for store (enables multiple instances
             of a given StoreModel type within a single sample)
 
         Returns:
-          StoreModel: Instance of model_cls bound to sample store data.
+          StoreModel: model_cls bound to sample store data.
         """
-        return model_cls(store=Store(self.store), namespace=namespace)
+        return model_cls(store=Store(self.store), instance=instance)
 
     events: list[Event] = Field(default_factory=list)
     """Events that occurred during sample execution."""
