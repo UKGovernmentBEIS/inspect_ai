@@ -14,6 +14,7 @@
 - Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
 - Tasks: For filesystem based tasks, no longer switch to the task file's directory during execution (directory switching still occurs during task loading). Specify `@task(chdir=True)` to preserve the previous behavior.
 - Model API: `generate_loop()` method for calling generate in a tool use loop.
+- Store: `context` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
 - Bugfix: Fix issue with deserializing custom sandbox configuration objects.
 
 ## v0.3.72 (03 March 2025)
