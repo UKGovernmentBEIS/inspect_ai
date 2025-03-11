@@ -1,12 +1,13 @@
 import clsx from "clsx";
 import { FC, memo, RefObject, useCallback, useEffect, useRef } from "react";
-import { LogLevel, Virtuoso, VirtuosoHandle } from "react-virtuoso";
+import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { RenderedEventNode } from "./TranscriptView";
 import { EventNode } from "./types";
 
 import { useProperty } from "../../state/hooks";
 import { useVirtuosoState } from "../../state/scrolling";
 import { debounce } from "../../utils/sync";
+import { TranscriptLoadingPanel } from "./TranscriptLoadingPanel";
 import styles from "./TranscriptVirtualListComponent.module.css";
 
 interface TranscriptVirtualListComponentProps {
@@ -100,6 +101,7 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
         </div>
       );
     }, []);
+
     return (
       <Virtuoso
         ref={listHandle}
@@ -113,7 +115,9 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
         className={clsx("transcript")}
         isScrolling={isScrolling}
         restoreStateFrom={restoreState}
-        logLevel={LogLevel.DEBUG}
+        components={{
+          Footer: tailOutput ? TranscriptLoadingPanel : undefined,
+        }}
       />
     );
   });
