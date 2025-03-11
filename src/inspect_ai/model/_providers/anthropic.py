@@ -6,6 +6,9 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, TypedDict, cast
 
+import httpcore
+import httpx
+
 from inspect_ai._util.http import is_retryable_http_status
 
 from .util.hooks import HttpxHooks
@@ -325,7 +328,10 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APITimeoutError):
+        elif isinstance(
+            ex,
+            APITimeoutError | httpx.RemoteProtocolError | httpcore.RemoteProtocolError,
+        ):
             return True
         else:
             return False
