@@ -10,6 +10,7 @@
 - Agent Bridge: Correct handling for `tool_choice` option.
 - Model API: `ChatMessage` now includes an `id` field (defaults to auto-generated uuid).
 - OpenAI: More flexible parsing of content parts (some providers omit the "type" field); support for "reasoning" content parts.
+- Anthropic: Retry remote protocol errors that occur during streaming.
 - Mistral: Update to new Mistral API (v1.5.1 of `mistralai` is now required).
 - Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
 - Tasks: For filesystem based tasks, no longer switch to the task file's directory during execution (directory switching still occurs during task loading). Specify `@task(chdir=True)` to preserve the previous behavior.
