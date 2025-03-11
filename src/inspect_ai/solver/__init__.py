@@ -26,6 +26,7 @@ __all__ = [
     "human_agent",
     "chain",
     "fork",
+    "run",
     "generate",
     "prompt_template",
     "chain_of_thought",
