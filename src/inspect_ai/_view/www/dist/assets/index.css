@@ -19425,6 +19425,18 @@ span.ap-marker-container:hover span.ap-marker {
   flex-direction: column;
   width: 100%;
 }
+._panel_twp3v_1 {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+._container_twp3v_7 {
+  margin-top: 3em;
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+}
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
