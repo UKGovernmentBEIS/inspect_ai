@@ -7,7 +7,19 @@ class WebSurferState(StoreModel):
     messages: list[ChatMessage]
 
 
-def web_surfer() -> Tool:
+def web_surfer(context: str | None) -> Tool:
+    """Stateful web surfer tool for researching topics.
+
+    The web_surfer tool builds on the web_browser tool to complete sequences of
+    web_browser actions in service of researching a topic. Input can either
+    be requests to do research or questions about previous research.
+
+    Args:
+       context: Optional context used if you are creating multiple
+         web_surfer tools within the scope of a single sample (e.g. one
+         for each of two 'teams').
+    """
+
     async def execute(input: str, clear_history: bool = False) -> str:
         """Use the web to research a topic.
 
@@ -24,7 +36,7 @@ def web_surfer() -> Tool:
            Answer to research prompt or question.
         """
         # keep track of message history in the store
-        state = store_as(WebSurferState)
+        state = store_as(WebSurferState, context)
 
         # clear history if requested.
         if clear_history:
