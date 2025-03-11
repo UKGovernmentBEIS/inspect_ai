@@ -1,5 +1,6 @@
 
 import {
+  commands,
   ExtensionContext,
   Uri,
   ViewColumn,
@@ -59,13 +60,6 @@ export class InspectViewManager {
 
   public async showLogFile(uri: Uri, activation?: "open" | "activate") {
     await this.webViewManager_.showLogFile(uri, activation);
-  }
-
-  public async selectAndOpenLogFile() {
-    const uri = await selectFileUri();
-    if (uri) {
-      await this.webViewManager_.showLogFile(uri, "open");
-    }
   }
 
   public logFileWillVisiblyUpdate(uri: Uri): boolean {
