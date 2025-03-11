@@ -1,23 +1,20 @@
+from pydantic import Field
+
 from inspect_ai.model import ChatMessage, ChatMessageSystem, ChatMessageUser, get_model
 from inspect_ai.tool import Tool, web_browser
 from inspect_ai.util import StoreModel, store_as
 
 
 class WebSurferState(StoreModel):
-    messages: list[ChatMessage]
+    messages: list[ChatMessage] = Field(default_factory=list)
 
 
-def web_surfer(context: str | None) -> Tool:
+def web_surfer() -> Tool:
     """Stateful web surfer tool for researching topics.
 
     The web_surfer tool builds on the web_browser tool to complete sequences of
     web_browser actions in service of researching a topic. Input can either
     be requests to do research or questions about previous research.
-
-    Args:
-       context: Optional context used if you are creating multiple
-         web_surfer tools within the scope of a single sample (e.g. one
-         for each of two 'teams').
     """
 
     async def execute(input: str, clear_history: bool = False) -> str:
@@ -36,7 +33,7 @@ def web_surfer(context: str | None) -> Tool:
            Answer to research prompt or question.
         """
         # keep track of message history in the store
-        state = store_as(WebSurferState, context)
+        state = store_as(WebSurferState)
 
         # clear history if requested.
         if clear_history:

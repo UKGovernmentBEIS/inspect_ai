@@ -42,13 +42,13 @@ Note that all instances of `Activity` created within a running sample share the 
 
 The names used in the underlying `Store` are namespaced to prevent collisions with other `Store` accessors. For example, the `active` field in the `Activity` class is written to the store with the name `Activity:active`.
 
-#### Context
+#### Namespaces
 
-If you need to create multiple instances of a `StoreModel` within a sample, you can use the `context` option to deliniate multiple named contexts. For example:
+If you need to create multiple instances of a `StoreModel` within a sample, you can use the `namespace` option to deliniate multiple named contexts. For example:
 
 ```python
-red_activity = state.store_as(Activity, context="red_team")
-blue_activity = state.store_as(Activity, contxt="blue_team")
+red_activity = state.store_as(Activity, namespace="red_team")
+blue_activity = state.store_as(Activity, namespace="blue_team")
 ```
 
 
