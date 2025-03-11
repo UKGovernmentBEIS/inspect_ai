@@ -1,11 +1,12 @@
 import contextlib
-from typing import AsyncIterator, Awaitable, Callable, Iterator
+from typing import AsyncIterator, Callable, Coroutine, Iterator
 
 import anyio
 import rich
 
 from inspect_ai._display.core.rich import rich_initialise
-from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util._async import configured_async_backend, run_coroutine
+from inspect_ai._util.platform import running_in_notebook
 from inspect_ai._util.text import truncate
 from inspect_ai._util.throttle import throttle
 
@@ -42,8 +43,11 @@ class PlainDisplay(Display):
     def progress(self, total: int) -> Iterator[Progress]:
         yield PlainProgress(total)
 
-    def run_task_app(self, main: Callable[[], Awaitable[TR]]) -> TR:
-        return anyio.run(main, backend=configured_async_backend())
+    def run_task_app(self, main: Callable[[], Coroutine[None, None, TR]]) -> TR:
+        if running_in_notebook():
+            return run_coroutine(main())
+        else:
+            return anyio.run(main, backend=configured_async_backend())
 
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]:
