@@ -52,7 +52,7 @@ from ._model_output import ModelUsage, StopReason, as_stop_reason
 
 
 def is_o_series(name: str) -> bool:
-    return bool(re.match(r"^o\d+", name))
+    return bool(re.match(r"(^|.*\/)o\d+", name))
 
 
 def is_o1_mini(name: str) -> bool:
