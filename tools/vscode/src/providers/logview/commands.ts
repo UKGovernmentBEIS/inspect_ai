@@ -5,6 +5,7 @@ import { commands } from "vscode";
 import { kInspectEvalLogFormatVersion, kInspectOpenInspectViewVersion } from "../inspect/inspect-constants";
 import { LogviewState } from "./logview-state";
 import { inspectVersionDescriptor } from "../../inspect/props";
+import { selectFileUri } from "./log-file-selector";
 
 export interface LogviewOptions {
   state?: LogviewState;
@@ -25,7 +26,7 @@ export async function logviewCommands(
     enableOpenInView
   );
 
-  return [new ShowLogviewCommand(manager)];
+  return [new ShowLogviewCommand(manager), new ShowOpenLogCommand(manager)];
 }
 
 class ShowLogviewCommand implements Command {
@@ -45,4 +46,23 @@ class ShowLogviewCommand implements Command {
   private static readonly id = "inspect.inspectView";
   public readonly id = ShowLogviewCommand.id;
 }
+
+
+class ShowOpenLogCommand implements Command {
+  constructor(private readonly manager_: InspectViewManager) { }
+  async execute(): Promise<void> {
+    try {
+      const uri = await selectFileUri();
+      if (uri) {
+        await commands.executeCommand("inspect.openLogViewer", uri);
+      }
+
+    } catch (err: unknown) {
+    }
+  }
+
+  private static readonly id = "inspect.inspectViewLog";
+  public readonly id = ShowOpenLogCommand.id;
+}
+
 
