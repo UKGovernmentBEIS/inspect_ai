@@ -19192,6 +19192,28 @@ span.ap-marker-container:hover span.ap-marker {
 ._eventNodeContainer_c8m1t_43._noBottom_c8m1t_47 {
   padding-bottom: 0;
 }
+._panel_1h2fp_1 {
+  display: flex;
+  justify-content: center;
+  padding-top: 1em;
+}
+
+._container_1h2fp_7 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+}
+
+._spinner_1h2fp_13 {
+  height: 15px;
+  width: 14px;
+  border-width: 2px;
+  color: var(--bs-secondary);
+}
+
+._text_1h2fp_20 {
+  margin-top: -2px;
+}
 ._darkenedBg_1ye6u_1 {
   background-color: var(--bs-light-bg-subtle);
 }
