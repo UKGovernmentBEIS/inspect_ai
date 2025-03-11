@@ -23,6 +23,7 @@ import { LogviewPanel } from "./logview-panel";
 import { selectLogDirectory } from "../activity-bar/log-listing/log-directory-selector";
 import { dirname, getRelativeUri } from "../../core/uri";
 import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
+import { selectFileUri } from "./log-file-selector";
 
 const kLogViewId = "inspect.logview";
 
@@ -58,6 +59,13 @@ export class InspectViewManager {
 
   public async showLogFile(uri: Uri, activation?: "open" | "activate") {
     await this.webViewManager_.showLogFile(uri, activation);
+  }
+
+  public async selectAndOpenLogFile() {
+    const uri = await selectFileUri();
+    if (uri) {
+      await this.webViewManager_.showLogFile(uri, "open");
+    }
   }
 
   public logFileWillVisiblyUpdate(uri: Uri): boolean {

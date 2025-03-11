@@ -78,6 +78,13 @@
         "enablement": "workspaceFolderCount != 0"
       },
       {
+        "command": "inspect.inspectViewLog",
+        "title": "Open Log File...",
+        "icon": "$(code-oss)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
         "command": "inspect.createTask",
         "title": "Create Task",
         "category": "Inspect",

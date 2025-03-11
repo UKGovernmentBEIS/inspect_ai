@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.57
+
+- Add open log file command (paste a path to a local or remote log file in the command palette to open it in the Inspect viewer)
+
 ## 0.3.56
 
 - Improve startup performance and task detection performance
