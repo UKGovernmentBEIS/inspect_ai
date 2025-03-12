@@ -19337,6 +19337,53 @@ span.ap-marker-container:hover span.ap-marker {
 .message-band-btn.warning {
   color: var(--bs-warning-text-emphasis);
 }
+/* PulsingDots.module.css */
+._container_e3c4f_2 {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+._dotsContainer_e3c4f_8 {
+  padding-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+._dot_e3c4f_8 {
+  width: 4px;
+  height: 4px;
+  background-color: var(--bs-primary-bg-subtle);
+  border-radius: 50%;
+  display: inline-block;
+  animation: _pulse_e3c4f_1 1.5s ease-in-out infinite;
+}
+
+._visuallyHidden_e3c4f_25 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@keyframes _pulse_e3c4f_1 {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
 ._body_5y0hl_1 {
   color: var(--bs-danger);
   display: grid;
@@ -19399,7 +19446,7 @@ span.ap-marker-container:hover span.ap-marker {
   font-weight: 600;
   border-bottom: solid 1px var(--bs-border-color);
 }
-._footer_b2hk0_1 {
+._footer_symcv_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   background: var(--bs-light-bg-subtle);
   display: grid;
@@ -19409,21 +19456,22 @@ span.ap-marker-container:hover span.ap-marker {
   padding: 0.2em 1em;
 }
 
-._spinnerContainer_b2hk0_11 {
+._spinnerContainer_symcv_11 {
   display: grid;
   grid-template-columns: max-content max-content;
-  column-gap: 0.5em;
+  column-gap: 0.3em;
   padding-top: 0.2em;
 }
 
-._spinner_b2hk0_11 {
-  height: 13px;
-  width: 13px;
+._spinner_symcv_11 {
+  height: 11px;
+  width: 11px;
   color: var(--bs-secondary);
+  border-width: 1px;
 }
 
-._label_b2hk0_24 {
-  margin-top: -0.1em;
+._label_symcv_25 {
+  margin-top: -4px;
 }
 ._header_16ngy_1 {
   display: grid;
