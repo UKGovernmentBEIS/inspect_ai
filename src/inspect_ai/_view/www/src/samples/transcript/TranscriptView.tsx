@@ -48,7 +48,7 @@ interface TranscriptVirtualListProps {
   events: Events;
   depth?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
-  tailOutput?: boolean;
+  running?: boolean;
 }
 
 /**
@@ -57,11 +57,11 @@ interface TranscriptVirtualListProps {
 export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
   props,
 ) => {
-  let { id, scrollRef, events, depth, tailOutput } = props;
+  let { id, scrollRef, events, depth, running } = props;
 
   // Normalize Events themselves
   const eventNodes = useMemo(() => {
-    const resolvedEvents = fixupEventStream(events);
+    const resolvedEvents = fixupEventStream(events, !running);
     const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
 
     return eventNodes;
@@ -72,7 +72,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
       id={id}
       eventNodes={eventNodes}
       scrollRef={scrollRef}
-      tailOutput={tailOutput}
+      tailOutput={running}
     />
   );
 };
@@ -241,14 +241,14 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
 /**
  * Normalizes event content
  */
-const fixupEventStream = (events: Events) => {
+const fixupEventStream = (events: Events, filterPending: boolean = true) => {
   const initEventIndex = events.findIndex((e) => {
     return e.event === "sample_init";
   });
   const initEvent = events[initEventIndex];
 
   // Filter pending events
-  const finalEvents = events.filter((e) => !e.pending);
+  const finalEvents = filterPending ? events.filter((e) => !e.pending) : events;
 
   // See if the find an init step
   const hasInitStep =
