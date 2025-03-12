@@ -1,13 +1,20 @@
-import { SampleSummary } from "../api/types";
+import { SampleData, SampleSummary } from "../api/types";
 import { Event } from "../types";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
 import { StoreState } from "./store";
 
-// The logger
 const log = createLogger("samplePolling");
 
+const kNoId = -1;
+const kPollingInterval = 2;
+const kPollingMaxRetries = 10;
+
+// Keeps the state for polling (the last ids for events
+// and attachments, the attachments and events, and
+// a mapping from eventIds to event indexes to enable
+// replacing events)
 interface PollingState {
   eventId: number;
   attachmentId: number;
@@ -22,15 +29,16 @@ export function createSamplePolling(
   get: () => StoreState,
   set: (fn: (state: StoreState) => void) => void,
 ) {
-  // Tracks the currently polling instance
+  // The polling function that will be returned
   let currentPolling: ReturnType<typeof createPolling> | null = null;
 
   // Track whether or not we're active
   let isActive = true;
 
+  // The inintial polling state
   const pollingState: PollingState = {
-    eventId: -1,
-    attachmentId: -1,
+    eventId: kNoId,
+    attachmentId: kNoId,
 
     eventMapping: {},
     attachments: {},
@@ -39,59 +47,57 @@ export function createSamplePolling(
 
   // Function to start polling for a specific log file
   const startPolling = (logFile: string, summary: SampleSummary) => {
-    log.debug("START POLLING");
     // Create a unique identifier for this polling session
     const pollingId = `${logFile}:${summary.id}-${summary.epoch}`;
+    log.debug(`Start Polling ${pollingId}`);
 
-    // If we're already polling this exact resource, don't restart
+    // If we're already polling this resource, don't restart
     if (currentPolling && currentPolling.name === pollingId) {
-      return; // Already polling this resource, no need to restart
+      log.debug(`Aleady polling, ignoring start`);
+      return;
     }
 
     // Stop any existing polling first
     if (currentPolling) {
+      log.debug(`Resetting existing polling`);
       currentPolling.stop();
+
+      // Clear any current running events
       set((state) => {
         state.sample.runningEvents = [];
       });
-      pollingState.eventId = -1;
-      pollingState.attachmentId = -1;
-      pollingState.eventMapping = {};
-      pollingState.attachments = {};
-      pollingState.events = [];
+
+      // Reset the current polling state
+      resetPollingState(pollingState);
     }
     isActive = true;
 
-    log.debug(`POLLING RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
-
     // Create the polling callback
+    log.debug(`Polling sample: ${summary.id}-${summary.epoch}`);
     const pollCallback = async () => {
       if (!isActive) {
-        log.debug(
-          `Component unmounted, stopping poll for: ${summary.id}-${summary.epoch}`,
-        );
-        return false; // Stop polling
+        return false;
       }
 
       const state = get();
+
+      // Get the api
       const api = state.api;
       if (!api) {
         throw new Error("Required API is missing");
       }
 
       if (!api.get_log_sample_data) {
-        return false; // Stop polling
+        throw new Error("Required API get_log_sample_data is undefined.");
       }
-
-      log.debug(`GET RUNNING SAMPLE: ${summary.id}-${summary.epoch}`);
 
       if (!isActive) {
-        return false; // Stop polling
+        return false;
       }
 
+      // Fetch sample data
       const eventId = pollingState.eventId;
       const attachmentId = pollingState.attachmentId;
-      log.debug(`> event: ${eventId}, attachments: ${attachmentId}`);
       const sampleDataResponse = await api.get_log_sample_data(
         logFile,
         summary.id,
@@ -101,11 +107,14 @@ export function createSamplePolling(
       );
 
       if (!isActive) {
-        return false; // Stop polling
+        return false;
       }
 
       if (sampleDataResponse?.status === "NotFound") {
-        // Stop polling
+        // A 404 from the server means that this sample
+        // has been flushed to the main eval file, no events
+        // are available and we should retrieve the data from the
+        // sample file itself.
         set((state) => {
           state.sample.runningEvents = [];
         });
@@ -117,65 +126,47 @@ export function createSamplePolling(
         sampleDataResponse.sampleData
       ) {
         if (!isActive) {
-          return false; // Stop polling
+          return false;
         }
 
-        // Push the attachments
-        log.debug(
-          `PROCESS ${sampleDataResponse.sampleData.attachments.length} ATTACHMENTS`,
-        );
-        Object.values(sampleDataResponse.sampleData.attachments).forEach(
-          (v) => {
-            pollingState.attachments[v.hash] = v.content;
-          },
-        );
+        if (sampleDataResponse.sampleData) {
+          // Process attachments
+          processAttachments(sampleDataResponse.sampleData, pollingState);
 
-        // Go through each event and resolve it, either appending or replacing
-        log.debug(
-          `PROCESS ${sampleDataResponse.sampleData.events.length} EVENTS`,
-        );
-        for (const eventData of sampleDataResponse.sampleData.events) {
-          const existingIndex = pollingState.eventMapping[eventData.event_id];
-          const resolvedEvent = resolveAttachments<Event>(
-            eventData.event,
-            pollingState.attachments,
+          // Process events
+          const processedEvents = processEvents(
+            sampleDataResponse.sampleData,
+            pollingState,
           );
-          if (existingIndex) {
-            pollingState.events[existingIndex] = resolvedEvent;
-          } else {
-            // Note where this event is going in the array
-            const currentIndex = pollingState.events.length;
-            pollingState.eventMapping[eventData.event_id] = currentIndex;
 
-            // Place the event on the array
-            pollingState.events.push(resolvedEvent);
+          // update max attachment id
+          if (sampleDataResponse.sampleData.attachments.length > 0) {
+            const maxAttachment =
+              sampleDataResponse.sampleData.attachments.reduce(
+                (max, attachment) => Math.max(max, attachment.id),
+                pollingState.attachmentId,
+              );
+            log.debug(`New max attachment ${maxAttachment}`);
+            pollingState.attachmentId = maxAttachment;
+          }
+
+          // update max event id
+          if (sampleDataResponse.sampleData.events.length > 0) {
+            const maxEvent = sampleDataResponse.sampleData.events.reduce(
+              (max, event) => Math.max(max, event.id),
+              pollingState.eventId,
+            );
+            log.debug(`New max event ${maxEvent}`);
+            pollingState.eventId = maxEvent;
+          }
+
+          // Update the running events (ensure identity of runningEvents fails equality)
+          if (processedEvents) {
+            set((state) => {
+              state.sample.runningEvents = [...pollingState.events];
+            });
           }
         }
-
-        // update max attachment id
-        if (sampleDataResponse.sampleData.attachments.length > 0) {
-          const maxAttachment =
-            sampleDataResponse.sampleData.attachments.reduce(
-              (max, attachment) => Math.max(max, attachment.id),
-              pollingState.attachmentId,
-            );
-          log.debug(`UPDATE MAX ATTACHMENT ID TO ${maxAttachment}`);
-          pollingState.attachmentId = maxAttachment;
-        }
-
-        // update max event id
-        if (sampleDataResponse.sampleData.events.length > 0) {
-          const maxEvent = sampleDataResponse.sampleData.events.reduce(
-            (max, event) => Math.max(max, event.id),
-            pollingState.eventId,
-          );
-          log.debug(`UPDATE MAX EVENT ID TO ${maxEvent}`);
-          pollingState.eventId = maxEvent;
-        }
-
-        set((state) => {
-          state.sample.runningEvents = [...pollingState.events];
-        });
       }
 
       // Continue polling
@@ -183,10 +174,9 @@ export function createSamplePolling(
     };
 
     // Create the polling instance
-    const name = `${logFile}:${summary.id}-${summary.epoch}`;
-    const polling = createPolling(name, pollCallback, {
-      maxRetries: 10,
-      interval: 2,
+    const polling = createPolling(pollingId, pollCallback, {
+      maxRetries: kPollingMaxRetries,
+      interval: kPollingInterval,
     });
 
     // Store the polling instance and start it
@@ -213,4 +203,56 @@ export function createSamplePolling(
     stopPolling,
     cleanup,
   };
+}
+
+const resetPollingState = (state: PollingState) => {
+  state.eventId = -1;
+  state.attachmentId = -1;
+  state.eventMapping = {};
+  state.attachments = {};
+  state.events = [];
+};
+
+function processAttachments(
+  sampleData: SampleData,
+  pollingState: PollingState,
+) {
+  log.debug(`Processing ${sampleData.attachments.length} attachments`);
+  Object.values(sampleData.attachments).forEach((v) => {
+    pollingState.attachments[v.hash] = v.content;
+  });
+}
+
+function processEvents(sampleData: SampleData, pollingState: PollingState) {
+  // Go through each event and resolve it, either appending or replacing
+  log.debug(`Processing ${sampleData.events.length} events`);
+  if (sampleData.events.length === 0) {
+    return false;
+  }
+
+  for (const eventData of sampleData.events) {
+    // Identify if this event id already has an event in the event list
+    const existingIndex = pollingState.eventMapping[eventData.event_id];
+
+    // Resolve attachments within this event
+    const resolvedEvent = resolveAttachments<Event>(
+      eventData.event,
+      pollingState.attachments,
+    );
+
+    if (existingIndex) {
+      // There is an existing event in the stream, replace it
+      log.debug("replace event" + existingIndex);
+      pollingState.events[existingIndex] = resolvedEvent;
+    } else {
+      // This is a new event, add to the event list and note
+      // its position
+      log.debug("new event " + pollingState.events.length);
+
+      const currentIndex = pollingState.events.length;
+      pollingState.eventMapping[eventData.event_id] = currentIndex;
+      pollingState.events.push(resolvedEvent);
+    }
+  }
+  return true;
 }
