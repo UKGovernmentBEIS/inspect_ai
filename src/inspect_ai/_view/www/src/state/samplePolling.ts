@@ -242,12 +242,12 @@ function processEvents(sampleData: SampleData, pollingState: PollingState) {
 
     if (existingIndex) {
       // There is an existing event in the stream, replace it
-      log.debug("replace event" + existingIndex);
+      log.debug(`Replace event ${existingIndex}`);
       pollingState.events[existingIndex] = resolvedEvent;
     } else {
       // This is a new event, add to the event list and note
       // its position
-      log.debug("new event " + pollingState.events.length);
+      log.debug(`New event ${pollingState.events.length}`);
 
       const currentIndex = pollingState.events.length;
       pollingState.eventMapping[eventData.event_id] = currentIndex;
