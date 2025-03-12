@@ -19461,6 +19461,28 @@ span.ap-marker-container:hover span.ap-marker {
   grid-template-columns: max-content max-content;
   column-gap: 0.3em;
 }
+._panel_1yknn_1 {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+._container_1yknn_7 {
+  margin-top: 3em;
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+}
+
+._spinner_1yknn_14 {
+  border-width: 1px;
+  height: 15px;
+  width: 15px;
+}
+
+._text_1yknn_20 {
+  margin-top: -2px;
+}
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
