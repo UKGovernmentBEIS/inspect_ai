@@ -2,6 +2,7 @@ import clsx from "clsx";
 import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
+import { PulsingDots } from "../../components/PulsingDots";
 import { useStore } from "../../state/store";
 import { arrayToString, inputString } from "../../utils/format";
 import { SampleErrorView } from "../error/SampleErrorView";
@@ -103,17 +104,9 @@ export const SampleRow: FC<SampleRowProps> = ({
         ) : completed ? (
           scoreRendered
         ) : (
-          <Spinner />
+          <PulsingDots />
         )}
       </div>
-    </div>
-  );
-};
-
-const Spinner: FC = () => {
-  return (
-    <div className={clsx("spinner-border", styles.spinner)} role="status">
-      <span className={clsx("visually-hidden")}>Running...</span>
     </div>
   );
 };

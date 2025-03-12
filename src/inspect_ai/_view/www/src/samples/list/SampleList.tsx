@@ -4,6 +4,7 @@ import {
   memo,
   RefObject,
   useCallback,
+  useEffect,
   useMemo,
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
@@ -58,6 +59,19 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
   const [followOutput, setFollowOutput] = useProperty("sample-list", "follow", {
     defaultValue: false,
   });
+
+  useEffect(() => {
+    // When we finish running, if we are following output
+    // then scroll up to the top
+    if (!running && followOutput && listHandle.current) {
+      requestAnimationFrame(() => {
+        setFollowOutput(false);
+        if (listHandle.current) {
+          listHandle.current.scrollTo({ top: 0 });
+        }
+      });
+    }
+  }, [running, followOutput, listHandle]);
 
   const onkeydown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {

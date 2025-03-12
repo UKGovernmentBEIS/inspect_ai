@@ -11,16 +11,17 @@
 .spinnerContainer {
   display: grid;
   grid-template-columns: max-content max-content;
-  column-gap: 0.5em;
+  column-gap: 0.3em;
   padding-top: 0.2em;
 }
 
 .spinner {
-  height: 13px;
-  width: 13px;
+  height: 11px;
+  width: 11px;
   color: var(--bs-secondary);
+  border-width: 1px;
 }
 
 .label {
-  margin-top: -0.1em;
+  margin-top: -4px;
 }
