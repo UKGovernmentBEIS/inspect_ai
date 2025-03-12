@@ -3,7 +3,7 @@ import { FC, RefObject, useCallback, useState } from "react";
 import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptVirtualListComponent } from "./TranscriptView";
+import { TranscriptComponent } from "./TranscriptView";
 import { EventNode, TranscriptEventState } from "./types";
 
 interface StepEventViewProps {
@@ -58,10 +58,9 @@ export const StepEventView: FC<StepEventViewProps> = ({
         setEventState({ ...eventState, collapsed });
       }}
     >
-      <TranscriptVirtualListComponent
+      <TranscriptComponent
         id={`step-${event.name}-transcript`}
         eventNodes={children}
-        scrollRef={scrollRef}
         transcriptState={transcriptState}
         setTranscriptState={onTranscriptState}
       />
