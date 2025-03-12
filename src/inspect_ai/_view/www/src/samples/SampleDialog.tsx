@@ -112,7 +112,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       onkeyup={handleKeyUp}
       visible={showingSampleDialog}
       onHide={onHide}
-      showProgress={sampleData.status === "loading"}
+      showProgress={
+        sampleData.status === "loading" || sampleData.status === "streaming"
+      }
       scrollRef={scrollRef}
     >
       {sampleData.error ? (

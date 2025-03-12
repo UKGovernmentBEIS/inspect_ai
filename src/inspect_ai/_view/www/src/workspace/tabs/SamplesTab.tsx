@@ -9,9 +9,9 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
-import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
-import { SampleDialog } from "../../samples/SampleDialog";
-import { SampleList } from "../../samples/list/SampleList";
+import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay.tsx";
+import { SampleDialog } from "../../samples/SampleDialog.tsx";
+import { SampleList } from "../../samples/list/SampleList.tsx";
 import {
   useFilteredSamples,
   useGroupBy,
@@ -22,6 +22,7 @@ import {
 } from "../../state/hooks.ts";
 import { useStore } from "../../state/store.ts";
 import { NoSamplesPanel } from "./NoSamples.tsx";
+import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
@@ -161,7 +162,11 @@ export const SamplesTab: FC<SamplesTabProps> = ({
       : "";
 
   if (totalSampleCount === 0) {
-    return <NoSamplesPanel />;
+    if (running) {
+      return <RunningNoSamples />;
+    } else {
+      return <NoSamplesPanel />;
+    }
   } else {
     return (
       <Fragment>
