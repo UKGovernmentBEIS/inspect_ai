@@ -71,9 +71,10 @@ export const createPolling = (
       retryCount += 1;
 
       if (retryCount >= maxRetries) {
-        log.error(`Polling stopped after ${maxRetries} failed attempts`);
         stop();
-        return;
+        throw new Error(
+          `Gave up polling ${name} after ${maxRetries} attempts.`,
+        );
       }
 
       const backoffTime = calculateBackoff(retryCount);
