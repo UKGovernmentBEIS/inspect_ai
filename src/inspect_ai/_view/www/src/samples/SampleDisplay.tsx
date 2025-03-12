@@ -120,7 +120,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
               key={`${baseId}-transcript-display-${id}`}
               id={`${baseId}-transcript-display-${id}`}
               events={sampleEvents}
-              tailOutput={!!runningSampleData && runningSampleData.length > 0}
+              tailOutput={
+                !!runningSampleData &&
+                runningSampleData.length > 0 &&
+                !sampleSummary.completed
+              }
               scrollRef={scrollRef}
             />
           </TabPanel>
