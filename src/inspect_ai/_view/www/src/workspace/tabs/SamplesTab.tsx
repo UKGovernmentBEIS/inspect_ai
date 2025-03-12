@@ -1,7 +1,6 @@
 import {
   FC,
   Fragment,
-  RefObject,
   useCallback,
   useEffect,
   useMemo,
@@ -29,13 +28,9 @@ import { ListItem } from "./types.ts";
 interface SamplesTabProps {
   // Required props
   running: boolean;
-  sampleTabScrollRef: RefObject<HTMLDivElement | null>;
 }
 
-export const SamplesTab: FC<SamplesTabProps> = ({
-  running,
-  sampleTabScrollRef,
-}) => {
+export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const selectSample = useStore((state) => state.logActions.selectSample);
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
@@ -175,7 +170,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({
             id="sample-display"
             selectedTab={selectedSampleTab}
             setSelectedTab={setSelectedSampleTab}
-            scrollRef={sampleTabScrollRef}
           />
         ) : undefined}
         {samplesDescriptor && totalSampleCount > 1 ? (

@@ -5,7 +5,7 @@ import { JsonTab } from "./tabs/JsonTab";
 import { SamplesTab } from "./tabs/SamplesTab";
 
 import clsx from "clsx";
-import { FC, MouseEvent, RefObject, useEffect, useMemo, useRef } from "react";
+import { FC, MouseEvent, useEffect, useMemo, useRef } from "react";
 import { RunningMetric } from "../api/types.ts";
 import {
   kEvalWorkspaceTabId,
@@ -115,7 +115,6 @@ const copyFeedback = (e: MouseEvent<HTMLElement>) => {
 export const useSamplesTabConfig = (
   evalStatus: Status | undefined,
   refreshLog: () => void,
-  sampleTabScrollRef: RefObject<HTMLDivElement | null>,
 ) => {
   const totalSampleCount = useTotalSampleCount();
   const samplesDescriptor = useSampleDescriptor();
@@ -125,13 +124,11 @@ export const useSamplesTabConfig = (
   return useMemo(() => {
     return {
       id: kEvalWorkspaceTabId,
-      scrollable: totalSampleCount === 1,
-      scrollRef: sampleTabScrollRef,
+      scrollable: false,
       label: totalSampleCount > 1 ? "Samples" : "Sample",
       component: SamplesTab,
       componentProps: {
         running: evalStatus === "started",
-        sampleTabScrollRef: sampleTabScrollRef,
       },
       tools: () =>
         totalSampleCount === 1 || !samplesDescriptor
@@ -154,7 +151,6 @@ export const useSamplesTabConfig = (
   }, [
     evalStatus,
     refreshLog,
-    sampleTabScrollRef,
     sampleSummaries,
     samplesDescriptor,
     totalSampleCount,
@@ -261,14 +257,8 @@ export const useResolvedTabs = (props: WorkSpaceProps) => {
     refreshLog,
   } = props;
 
-  const sampleTabScrollRef = useRef<HTMLDivElement>(null);
-
   // Use individual tab config hooks
-  const samplesTabConfig = useSamplesTabConfig(
-    evalStatus,
-    refreshLog,
-    sampleTabScrollRef,
-  );
+  const samplesTabConfig = useSamplesTabConfig(evalStatus, refreshLog);
 
   const configTabConfig = useInfoTabConfig(
     evalSpec,

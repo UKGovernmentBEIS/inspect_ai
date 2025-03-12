@@ -181,7 +181,7 @@ export const EventPanel: FC<EventPanelProps> = ({
           })}
         </div>
       </div>
-      <ProgressBar animating={!!running} fixed={false} />
+      <ProgressBar animating={!!running} />
     </>
   );
   return card;

@@ -16809,24 +16809,19 @@ self.onmessage = function (e) {
       for (var e, t2, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t2 = r(e)) && (n && (n += " "), n += t2);
       return n;
     }
-    const wrapper$4 = "_wrapper_1cv95_1";
-    const container$g = "_container_1cv95_12";
-    const fixed = "_fixed_1cv95_21";
-    const animate = "_animate_1cv95_25";
+    const wrapper$4 = "_wrapper_1tajk_1";
+    const container$g = "_container_1tajk_12";
+    const animate = "_animate_1tajk_21";
     const styles$1c = {
       wrapper: wrapper$4,
       container: container$g,
-      fixed,
       animate
     };
-    const ProgressBar = ({
-      animating,
-      fixed: fixed2 = true
-    }) => {
+    const ProgressBar = ({ animating }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1c.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1c.container, fixed2 ? styles$1c.fixed : void 0),
+          className: clsx(styles$1c.container),
           role: "progressbar",
           "aria-label": "Basic example",
           "aria-valuenow": 25,
@@ -56158,7 +56153,7 @@ Supported expressions:
             }
           )
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: !!running2, fixed: false })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: !!running2 })
       ] });
       return card2;
     };
@@ -64892,17 +64887,18 @@ ${events}
         }
       }
     };
-    const container$8 = "_container_gzd7f_1";
-    const body$2 = "_body_gzd7f_6";
+    const container$8 = "_container_w243q_1";
+    const body$2 = "_body_w243q_7";
+    const scroller = "_scroller_w243q_11";
     const styles$n = {
       container: container$8,
-      body: body$2
+      body: body$2,
+      scroller
     };
     const InlineSampleDisplay = ({
       id,
       selectedTab,
-      setSelectedTab,
-      scrollRef
+      setSelectedTab
     }) => {
       var _a2, _b2, _c, _d;
       const sampleData = useSampleData();
@@ -64922,6 +64918,7 @@ ${events}
         (_c = sampleData.sample) == null ? void 0 : _c.id,
         (_d = sampleData.sample) == null ? void 0 : _d.epoch
       ]);
+      const scrollRef = reactExports.useRef(null);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           ProgressBar,
@@ -64929,7 +64926,13 @@ ${events}
             animating: sampleData.status === "loading" || sampleData.status === "streaming"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Unable to load sample", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.scroller), ref: scrollRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ErrorPanel,
+          {
+            title: "Unable to load sample",
+            error: sampleData.error
+          }
+        ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleDisplay,
           {
             id,
@@ -64939,7 +64942,7 @@ ${events}
             setSelectedTab,
             scrollRef
           }
-        ) })
+        ) }) })
       ] });
     };
     const title = "_title_yj2nt_1";
@@ -65035,7 +65038,7 @@ ${events}
                     }
                   )
                 ] }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: showProgress, fixed: false }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: showProgress }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", ref: scrollRef, children: children2 }),
                 modalFooter
               ] })
@@ -65834,10 +65837,7 @@ ${events}
         }
       };
     };
-    const SamplesTab = ({
-      running: running2,
-      sampleTabScrollRef
-    }) => {
+    const SamplesTab = ({ running: running2 }) => {
       var _a2, _b2;
       const selectSample = useStore((state) => state.logActions.selectSample);
       const selectedSampleIndex = useStore(
@@ -65948,8 +65948,7 @@ ${events}
             {
               id: "sample-display",
               selectedTab: selectedSampleTab,
-              setSelectedTab: setSelectedSampleTab,
-              scrollRef: sampleTabScrollRef
+              setSelectedTab: setSelectedSampleTab
             }
           ) : void 0,
           samplesDescriptor && totalSampleCount > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -67283,7 +67282,7 @@ ${events}
         }, 1250);
       }
     };
-    const useSamplesTabConfig = (evalStatus, refreshLog, sampleTabScrollRef) => {
+    const useSamplesTabConfig = (evalStatus, refreshLog) => {
       const totalSampleCount = useTotalSampleCount();
       const samplesDescriptor = useSampleDescriptor();
       const sampleSummaries = useFilteredSamples();
@@ -67291,13 +67290,11 @@ ${events}
       return reactExports.useMemo(() => {
         return {
           id: kEvalWorkspaceTabId,
-          scrollable: totalSampleCount === 1,
-          scrollRef: sampleTabScrollRef,
+          scrollable: false,
           label: totalSampleCount > 1 ? "Samples" : "Sample",
           component: SamplesTab,
           componentProps: {
-            running: evalStatus === "started",
-            sampleTabScrollRef
+            running: evalStatus === "started"
           },
           tools: () => totalSampleCount === 1 || !samplesDescriptor ? void 0 : [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -67321,7 +67318,6 @@ ${events}
       }, [
         evalStatus,
         refreshLog,
-        sampleTabScrollRef,
         sampleSummaries,
         samplesDescriptor,
         totalSampleCount
@@ -67408,12 +67404,7 @@ ${events}
         evalError,
         refreshLog
       } = props;
-      const sampleTabScrollRef = reactExports.useRef(null);
-      const samplesTabConfig = useSamplesTabConfig(
-        evalStatus,
-        refreshLog,
-        sampleTabScrollRef
-      );
+      const samplesTabConfig = useSamplesTabConfig(evalStatus, refreshLog);
       const configTabConfig = useInfoTabConfig(
         evalSpec,
         evalPlan,
