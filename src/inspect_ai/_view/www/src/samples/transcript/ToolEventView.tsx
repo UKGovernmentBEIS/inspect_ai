@@ -45,6 +45,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
       className={className}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
+      progressMessage={event.pending ? "calling tool..." : undefined}
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView

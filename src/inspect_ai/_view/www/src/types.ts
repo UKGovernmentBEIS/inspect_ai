@@ -67,7 +67,7 @@ export interface LogState {
   scores?: ScorerInfo[];
 }
 
-export type SampleStatus = "ok" | "loading" | "error";
+export type SampleStatus = "ok" | "loading" | "streaming" | "error";
 
 export interface SampleState {
   selectedSample: EvalSample | undefined;

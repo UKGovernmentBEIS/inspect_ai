@@ -7,7 +7,6 @@ import { EventNode } from "./types";
 import { useProperty } from "../../state/hooks";
 import { useVirtuosoState } from "../../state/scrolling";
 import { debounce } from "../../utils/sync";
-import { TranscriptLoadingPanel } from "./TranscriptLoadingPanel";
 import styles from "./TranscriptVirtualListComponent.module.css";
 
 interface TranscriptVirtualListComponentProps {
@@ -115,9 +114,6 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
         isScrolling={isScrolling}
         restoreStateFrom={restoreState}
         totalListHeightChanged={heightChanged}
-        components={{
-          Footer: tailOutput ? TranscriptLoadingPanel : undefined,
-        }}
       />
     );
   });
