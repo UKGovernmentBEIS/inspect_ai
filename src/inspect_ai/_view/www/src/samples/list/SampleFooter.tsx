@@ -23,7 +23,7 @@ export const SampleFooter: FC<SampleFooterProps> = ({
               <span className={clsx("visually-hidden")}>Running...</span>
             </div>
             <div className={clsx("text-style-secondary", styles.label)}>
-              Running...
+              running...
             </div>
           </div>
         ) : undefined}
