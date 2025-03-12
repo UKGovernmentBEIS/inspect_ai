@@ -69,7 +69,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       title={formatTitle(`Model Call: ${event.model}`, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
-      progressMessage={event.pending ? "generating..." : undefined}
+      running={!!event.pending}
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView

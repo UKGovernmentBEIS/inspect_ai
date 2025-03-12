@@ -13,9 +13,13 @@
   width: 100%;
   height: 1px;
   background-color: transparent;
-  position: fixed;
+  position: relative;
   overflow: hidden;
   z-index: 1200;
+}
+
+.container.fixed {
+  position: fixed;
 }
 
 .animate {

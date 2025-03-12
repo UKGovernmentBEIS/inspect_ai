@@ -1,15 +1,20 @@
+import clsx from "clsx";
 import { FC } from "react";
 import styles from "./ProgressBar.module.css";
 
 interface ProgressBarProps {
   animating: boolean;
+  fixed?: boolean;
 }
 
-export const ProgressBar: FC<ProgressBarProps> = ({ animating }) => {
+export const ProgressBar: FC<ProgressBarProps> = ({
+  animating,
+  fixed = true,
+}) => {
   return (
-    <div className={styles.wrapper}>
+    <div className={clsx(styles.wrapper)}>
       <div
-        className={styles.container}
+        className={clsx(styles.container, fixed ? styles.fixed : undefined)}
         role="progressbar"
         aria-label="Basic example"
         aria-valuenow={25}

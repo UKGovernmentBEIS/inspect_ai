@@ -78,6 +78,7 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
       )}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       collapse={false}
+      running={!!event.pending}
     >
       {body}
     </EventPanel>

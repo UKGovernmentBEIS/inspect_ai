@@ -3,9 +3,9 @@ import { FC, isValidElement, ReactNode, useCallback } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
+import { ProgressBar } from "../../../components/ProgressBar";
 import { useProperty } from "../../../state/hooks";
 import styles from "./EventPanel.module.css";
-import { EventProgressPanel } from "./EventProgressPanel";
 
 interface EventPanelProps {
   id: string;
@@ -16,7 +16,7 @@ interface EventPanelProps {
   icon?: string;
   collapse?: boolean;
   children?: ReactNode | ReactNode[];
-  progressMessage?: string;
+  running?: boolean;
 }
 
 interface ChildProps {
@@ -35,7 +35,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   icon,
   collapse,
   children,
-  progressMessage,
+  running,
 }) => {
   const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
     defaultValue: !!collapse,
@@ -155,34 +155,34 @@ export const EventPanel: FC<EventPanelProps> = ({
     );
 
   const card = (
-    <div id={id} className={clsx(className, styles.card)}>
-      {titleEl}
-      <div
-        className={clsx(
-          "tab-content",
-          styles.cardContent,
-          hasCollapse && isCollapsed ? styles.hidden : undefined,
-        )}
-      >
-        {filteredArrChildren?.map((child, index) => {
-          const id = pillId(index);
-          const isSelected = id === selectedNav;
+    <>
+      <div id={id} className={clsx(className, styles.card)}>
+        {titleEl}
+        <div
+          className={clsx(
+            "tab-content",
+            styles.cardContent,
+            hasCollapse && isCollapsed ? styles.hidden : undefined,
+          )}
+        >
+          {filteredArrChildren?.map((child, index) => {
+            const id = pillId(index);
+            const isSelected = id === selectedNav;
 
-          return (
-            <div
-              key={`children-${id}-${index}`}
-              id={id}
-              className={clsx("tab-pane", "show", isSelected ? "active" : "")}
-            >
-              {child}
-            </div>
-          );
-        })}
+            return (
+              <div
+                key={`children-${id}-${index}`}
+                id={id}
+                className={clsx("tab-pane", "show", isSelected ? "active" : "")}
+              >
+                {child}
+              </div>
+            );
+          })}
+        </div>
       </div>
-      {progressMessage ? (
-        <EventProgressPanel text={progressMessage} />
-      ) : undefined}
-    </div>
+      <ProgressBar animating={!!running} fixed={false} />
+    </>
   );
   return card;
 };
