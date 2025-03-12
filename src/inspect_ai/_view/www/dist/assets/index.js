@@ -18179,36 +18179,40 @@ self.onmessage = function (e) {
       return { name: name2, start, stop };
     };
     const log$8 = createLogger("logPolling");
+    const kRetries = 10;
+    const kPollingInterval$1 = 2;
     function createLogPolling(get2, set2) {
       let currentPolling = null;
-      let isActive = true;
+      let abortController;
       const startPolling = (logFileName) => {
         var _a2;
         if (currentPolling) {
           currentPolling.stop();
         }
-        isActive = true;
+        abortController = new AbortController();
         currentPolling = createPolling(
           `PendingSamples-${logFileName}`,
           async () => {
             var _a3;
-            if (!isActive) {
+            if (abortController.signal.aborted) {
               log$8.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
             const api2 = state.api;
-            if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) return false;
-            const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
-            log$8.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
-            if (!isActive) {
+            if (!(api2 == null ? void 0 : api2.get_log_pending_samples)) {
               return false;
             }
+            if (abortController.signal.aborted) {
+              return false;
+            }
+            log$8.debug(`Polling running samples: ${logFileName}`);
+            const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
             const pendingSamples = await api2.get_log_pending_samples(
               logFileName,
               currentEtag
             );
-            if (!isActive) {
+            if (abortController.signal.aborted) {
               return false;
             }
             if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
@@ -18218,26 +18222,26 @@ self.onmessage = function (e) {
               get2().logActions.refreshLog();
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$8.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+              log$8.debug(`Stop polling running samples: ${logFileName}`);
               clearPendingSummaries(logFileName);
               return false;
             }
             return true;
           },
           {
-            maxRetries: 10,
-            interval: ((_a2 = get2().log.pendingSampleSummaries) == null ? void 0 : _a2.refresh) || 2
+            maxRetries: kRetries,
+            interval: ((_a2 = get2().log.pendingSampleSummaries) == null ? void 0 : _a2.refresh) || kPollingInterval$1
           }
         );
         currentPolling.start();
       };
       const clearPendingSummaries = (logFileName) => {
-        if (!isActive) {
+        if (abortController.signal.aborted) {
           return false;
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-          log$8.debug(`CLEAR PENDING: ${logFileName}`);
+          log$8.debug(`Clear pending: ${logFileName}`);
           set2((state) => {
             state.log.pendingSampleSummaries = {
               samples: [],
@@ -18254,8 +18258,8 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
-        log$8.debug(`CLEANUP`);
-        isActive = false;
+        log$8.debug(`Cleanup`);
+        abortController.abort();
         stopPolling();
       };
       return {
@@ -18328,7 +18332,7 @@ self.onmessage = function (e) {
               console.error("API not initialized in Store");
               return;
             }
-            log$7.debug(`LOAD LOG: ${logFileName}`);
+            log$7.debug(`Load log: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
@@ -18360,7 +18364,7 @@ self.onmessage = function (e) {
             if (!api2 || !selectedLogFile) {
               return;
             }
-            log$7.debug(`REFRESH: ${selectedLogFile}`);
+            log$7.debug(`refresh: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
@@ -18625,7 +18629,7 @@ self.onmessage = function (e) {
     const kPollingMaxRetries = 10;
     function createSamplePolling(get2, set2) {
       let currentPolling = null;
-      let isActive = true;
+      let abortController;
       const pollingState = {
         eventId: kNoId,
         attachmentId: kNoId,
@@ -18648,12 +18652,9 @@ self.onmessage = function (e) {
           });
           resetPollingState(pollingState);
         }
-        isActive = true;
+        abortController = new AbortController();
         log$4.debug(`Polling sample: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
-          if (!isActive) {
-            return false;
-          }
           const state = get2();
           const api2 = state.api;
           if (!api2) {
@@ -18662,7 +18663,7 @@ self.onmessage = function (e) {
           if (!api2.get_log_sample_data) {
             throw new Error("Required API get_log_sample_data is undefined.");
           }
-          if (!isActive) {
+          if (abortController.signal.aborted) {
             return false;
           }
           const eventId = pollingState.eventId;
@@ -18674,7 +18675,7 @@ self.onmessage = function (e) {
             eventId,
             attachmentId
           );
-          if (!isActive) {
+          if (abortController.signal.aborted) {
             return false;
           }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
@@ -18684,7 +18685,7 @@ self.onmessage = function (e) {
             return false;
           }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
-            if (!isActive) {
+            if (abortController.signal.aborted) {
               return false;
             }
             if (sampleDataResponse.sampleData) {
@@ -18694,16 +18695,16 @@ self.onmessage = function (e) {
                 pollingState
               );
               if (sampleDataResponse.sampleData.attachments.length > 0) {
-                const maxAttachment = sampleDataResponse.sampleData.attachments.reduce(
-                  (max2, attachment) => Math.max(max2, attachment.id),
+                const maxAttachment = findMaxId(
+                  sampleDataResponse.sampleData.attachments,
                   pollingState.attachmentId
                 );
                 log$4.debug(`New max attachment ${maxAttachment}`);
                 pollingState.attachmentId = maxAttachment;
               }
               if (sampleDataResponse.sampleData.events.length > 0) {
-                const maxEvent = sampleDataResponse.sampleData.events.reduce(
-                  (max2, event) => Math.max(max2, event.id),
+                const maxEvent = findMaxId(
+                  sampleDataResponse.sampleData.events,
                   pollingState.eventId
                 );
                 log$4.debug(`New max event ${maxEvent}`);
@@ -18733,7 +18734,7 @@ self.onmessage = function (e) {
       };
       const cleanup = () => {
         log$4.debug(`CLEANUP`);
-        isActive = false;
+        abortController.abort();
         stopPolling();
       };
       return {
@@ -18778,6 +18779,13 @@ self.onmessage = function (e) {
       }
       return true;
     }
+    const findMaxId = (items, currentMax) => {
+      if (items.length > 0) {
+        const newMax = Math.max(...items.map((i2) => i2.id), currentMax);
+        return newMax;
+      }
+      return currentMax;
+    };
     const log$3 = createLogger("sampleSlice");
     const initialState = {
       selectedSample: void 0,

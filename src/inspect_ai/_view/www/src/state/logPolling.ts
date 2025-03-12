@@ -5,6 +5,9 @@ import { StoreState } from "./store";
 // The logger
 const log = createLogger("logPolling");
 
+const kRetries = 10;
+const kPollingInterval = 2;
+
 export function createLogPolling(
   get: () => StoreState,
   set: (fn: (state: StoreState) => void) => void,
@@ -12,8 +15,8 @@ export function createLogPolling(
   // Tracks the currently polling instance
   let currentPolling: ReturnType<typeof createPolling> | null = null;
 
-  // Are we active
-  let isActive = true;
+  // handle aborts
+  let abortController: AbortController;
 
   // Function to start polling for a specific log file
   const startPolling = (logFileName: string) => {
@@ -23,38 +26,40 @@ export function createLogPolling(
     }
 
     // note that we're active
-    isActive = true;
+    abortController = new AbortController();
 
     // Create a new polling instance
     currentPolling = createPolling(
       `PendingSamples-${logFileName}`,
       async () => {
-        if (!isActive) {
+        if (abortController.signal.aborted) {
           log.debug(`Component unmounted, stopping poll for: ${logFileName}`);
-          return false; // Stop polling
+          return false;
         }
 
+        // The state for polling
         const state = get();
-        const api = state.api;
 
         // Don't proceed if API doesn't support it
-        if (!api?.get_log_pending_samples) return false;
-
-        const currentEtag = get().log.pendingSampleSummaries?.etag;
-
-        log.debug(`POLL RUNNING SAMPLES: ${logFileName}`);
-
-        if (!isActive) {
-          return false; // Stop polling
+        const api = state.api;
+        if (!api?.get_log_pending_samples) {
+          return false;
         }
 
+        if (abortController.signal.aborted) {
+          return false;
+        }
+
+        // Fetch pending samples
+        log.debug(`Polling running samples: ${logFileName}`);
+        const currentEtag = get().log.pendingSampleSummaries?.etag;
         const pendingSamples = await api.get_log_pending_samples(
           logFileName,
           currentEtag,
         );
 
-        if (!isActive) {
-          return false; // Stop polling
+        if (abortController.signal.aborted) {
+          return false;
         }
 
         if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
@@ -69,7 +74,8 @@ export function createLogPolling(
           // Continue polling
           return true;
         } else if (pendingSamples.status === "NotFound") {
-          log.debug(`STOP POLLING RUNNING SAMPLES: ${logFileName}`);
+          // The eval has completed (no more events/pending samples will be delivered)
+          log.debug(`Stop polling running samples: ${logFileName}`);
 
           // Clear pending summaries
           clearPendingSummaries(logFileName);
@@ -82,8 +88,8 @@ export function createLogPolling(
         return true;
       },
       {
-        maxRetries: 10,
-        interval: get().log.pendingSampleSummaries?.refresh || 2,
+        maxRetries: kRetries,
+        interval: get().log.pendingSampleSummaries?.refresh || kPollingInterval,
       },
     );
 
@@ -93,13 +99,13 @@ export function createLogPolling(
 
   // Clear pending summaries
   const clearPendingSummaries = (logFileName: string) => {
-    if (!isActive) {
-      return false; // Stop polling
+    if (abortController.signal.aborted) {
+      return false;
     }
 
     const pendingSampleSummaries = get().log.pendingSampleSummaries;
     if ((pendingSampleSummaries?.samples.length || 0) > 0) {
-      log.debug(`CLEAR PENDING: ${logFileName}`);
+      log.debug(`Clear pending: ${logFileName}`);
       set((state) => {
         state.log.pendingSampleSummaries = {
           samples: [],
@@ -120,8 +126,8 @@ export function createLogPolling(
 
   // Method to call when component unmounts
   const cleanup = () => {
-    log.debug(`CLEANUP`);
-    isActive = false;
+    log.debug(`Cleanup`);
+    abortController.abort();
     stopPolling();
   };
 
