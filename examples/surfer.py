@@ -61,12 +61,12 @@ def web_surfer() -> Tool:
         state.messages.append(ChatMessageUser(content=input))
 
         # web browser session
-        output, messages = await get_model().generate_loop(
+        messages, output = await get_model().generate_loop(
             state.messages, tools=web_browser()
         )
 
         # update state
-        state.messages = messages
+        state.messages.extend(messages)
 
         # return response
         return output.completion

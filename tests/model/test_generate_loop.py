@@ -14,7 +14,8 @@ async def test_generate_loop():
             ModelOutput.from_content("mockllm/model", "All done!"),
         ],
     )
-    _, messages = await model.generate_loop(
+    messages, output = await model.generate_loop(
         "Please call the addition function", tools=[addition()]
     )
-    assert len(messages) == 6
+
+    assert len(messages) == 5

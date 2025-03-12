@@ -7,8 +7,8 @@ from pydantic import JsonValue
 from inspect_ai._util.ansi import render_text
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._score import score
+from inspect_ai.solver._task_state import TaskState
 
-from ..._task_state import TaskState
 from ..state import HumanAgentState, IntermediateScoring
 from .command import HumanAgentCommand, call_human_agent
 

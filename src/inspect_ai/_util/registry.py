@@ -20,6 +20,7 @@ RegistryType = Literal[
     "scorer",
     "metric",
     "tool",
+    "agent",
     "sandboxenv",
     "score_reducer",
     "approver",

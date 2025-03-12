@@ -6,7 +6,7 @@ import logging
 import os
 import time
 from contextvars import ContextVar
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import datetime
 from types import TracebackType
 from typing import Any, AsyncIterator, Callable, Literal, Type, cast
@@ -48,7 +48,12 @@ from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
-from ._call_tools import call_tools, disable_parallel_tools, tool_call_view, tools_info
+from ._call_tools import (
+    disable_parallel_tools,
+    execute_tools,
+    tool_call_view,
+    tools_info,
+)
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -374,7 +379,7 @@ class Model:
         tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef] = [],
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
-    ) -> tuple[ModelOutput, list[ChatMessage]]:
+    ) -> tuple[list[ChatMessage], ModelOutput]:
         """Generate output from the model, looping as long as the model calls tools.
 
         Similar to `generate()`, but runs in a loop resolving model tool calls.
@@ -389,29 +394,34 @@ class Model:
           cache: Caching behavior for generate responses (defaults to no caching).
 
         Returns:
-           Tuple of ModelOutput, list[ChatMessage]
+           Tuple of list[ChatMessage], ModelOutput
         """
         # initialise messages
-        messages = (
-            list(input) if isinstance(input, list) else [ChatMessageUser(content=input)]
-        )
+        input = [ChatMessageUser(content=input)] if isinstance(input, str) else input
+        messages = copy(input)
+        new_messages: list[ChatMessage] = []
         while True:
             # call model
             output = await self.generate(
-                input=messages,
+                input=messages + new_messages,
                 tools=tools,  # type:ignore[arg-type]
                 config=config,
                 cache=cache,
             )
 
-            # append to output
-            messages.append(output.message)
+            # append to new messages
+            new_messages.append(output.message)
 
             # make tool calls or terminate if there are none
             if output.message.tool_calls:
-                messages.extend(await call_tools(output.message, tools))
+                tools_messages, tools_output = await execute_tools(
+                    messages, tools, config.max_tool_output
+                )
+                new_messages.extend(tools_messages)
+                if tools_output is not None:
+                    output = tools_output
             else:
-                return output, messages
+                return new_messages, output
 
     async def _generate(
         self,

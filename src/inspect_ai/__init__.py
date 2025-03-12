@@ -9,7 +9,7 @@ from inspect_ai._eval.registry import task
 from inspect_ai._eval.score import score, score_async
 from inspect_ai._eval.task import Epochs, Task, TaskInfo, Tasks, task_with
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai.solver._human_agent.agent import human_agent
+from inspect_ai.agent._human.agent import human
 
 __version__ = importlib_version(PKG_NAME)
 

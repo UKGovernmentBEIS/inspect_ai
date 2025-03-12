@@ -2,11 +2,11 @@ from typing import cast
 
 import anyio
 
+from inspect_ai.solver._solver import Generate, Solver, solver
+from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import display_type, input_panel, sandbox
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
-from .._solver import Generate, Solver, solver
-from .._task_state import TaskState
 from .commands import human_agent_commands
 from .install import install_human_agent
 from .panel import HumanAgentPanel
@@ -15,7 +15,7 @@ from .view import ConsoleView, HumanAgentView
 
 
 @solver
-def human_agent(
+def human(
     answer: bool | str = True,
     intermediate_scoring: bool = False,
     record_session: bool = True,
