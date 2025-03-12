@@ -120,7 +120,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
               key={`${baseId}-transcript-display-${id}`}
               id={`${baseId}-transcript-display-${id}`}
               events={sampleEvents}
-              tailOutput={
+              running={
                 !!runningSampleData &&
                 runningSampleData.length > 0 &&
                 !sampleSummary.completed

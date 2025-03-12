@@ -18562,12 +18562,15 @@ self.onmessage = function (e) {
       return value2;
     };
     const log$1 = createLogger("samplePolling");
+    const kNoId = -1;
+    const kPollingInterval = 2;
+    const kPollingMaxRetries = 10;
     function createSamplePolling(get2, set2) {
       let currentPolling = null;
       let isActive = true;
       const pollingState = {
-        eventId: -1,
-        attachmentId: -1,
+        eventId: kNoId,
+        attachmentId: kNoId,
         eventMapping: {},
         attachments: {},
         events: []
@@ -18582,19 +18585,12 @@ self.onmessage = function (e) {
           set2((state) => {
             state.sample.runningEvents = [];
           });
-          pollingState.eventId = -1;
-          pollingState.attachmentId = -1;
-          pollingState.eventMapping = {};
-          pollingState.attachments = {};
-          pollingState.events = [];
+          resetPollingState(pollingState);
         }
         isActive = true;
-        log$1.debug(`POLLING RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
+        log$1.debug(`Polling sample: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
           if (!isActive) {
-            log$1.debug(
-              `Component unmounted, stopping poll for: ${summary2.id}-${summary2.epoch}`
-            );
             return false;
           }
           const state = get2();
@@ -18603,9 +18599,8 @@ self.onmessage = function (e) {
             throw new Error("Required API is missing");
           }
           if (!api2.get_log_sample_data) {
-            return false;
+            throw new Error("Required API get_log_sample_data is undefined.");
           }
-          log$1.debug(`GET RUNNING SAMPLE: ${summary2.id}-${summary2.epoch}`);
           if (!isActive) {
             return false;
           }
@@ -18631,55 +18626,38 @@ self.onmessage = function (e) {
             if (!isActive) {
               return false;
             }
-            log$1.debug(
-              `PROCESS ${sampleDataResponse.sampleData.attachments.length} ATTACHMENTS`
-            );
-            Object.values(sampleDataResponse.sampleData.attachments).forEach(
-              (v) => {
-                pollingState.attachments[v.hash] = v.content;
+            if (sampleDataResponse.sampleData) {
+              processAttachments(sampleDataResponse.sampleData, pollingState);
+              const processedEvents = processEvents(
+                sampleDataResponse.sampleData,
+                pollingState
+              );
+              if (sampleDataResponse.sampleData.attachments.length > 0) {
+                const maxAttachment = sampleDataResponse.sampleData.attachments.reduce(
+                  (max2, attachment) => Math.max(max2, attachment.id),
+                  pollingState.attachmentId
+                );
+                pollingState.attachmentId = maxAttachment;
               }
-            );
-            log$1.debug(
-              `PROCESS ${sampleDataResponse.sampleData.events.length} EVENTS`
-            );
-            for (const eventData of sampleDataResponse.sampleData.events) {
-              const existingIndex = pollingState.eventMapping[eventData.event_id];
-              const resolvedEvent = resolveAttachments(
-                eventData.event,
-                pollingState.attachments
-              );
-              if (existingIndex) {
-                pollingState.events[existingIndex] = resolvedEvent;
-              } else {
-                const currentIndex = pollingState.events.length;
-                pollingState.eventMapping[eventData.event_id] = currentIndex;
-                pollingState.events.push(resolvedEvent);
+              if (sampleDataResponse.sampleData.events.length > 0) {
+                const maxEvent = sampleDataResponse.sampleData.events.reduce(
+                  (max2, event) => Math.max(max2, event.id),
+                  pollingState.eventId
+                );
+                pollingState.eventId = maxEvent;
+              }
+              if (processedEvents) {
+                set2((state2) => {
+                  state2.sample.runningEvents = [...pollingState.events];
+                });
               }
             }
-            if (sampleDataResponse.sampleData.attachments.length > 0) {
-              const maxAttachment = sampleDataResponse.sampleData.attachments.reduce(
-                (max2, attachment) => Math.max(max2, attachment.id),
-                pollingState.attachmentId
-              );
-              pollingState.attachmentId = maxAttachment;
-            }
-            if (sampleDataResponse.sampleData.events.length > 0) {
-              const maxEvent = sampleDataResponse.sampleData.events.reduce(
-                (max2, event) => Math.max(max2, event.id),
-                pollingState.eventId
-              );
-              pollingState.eventId = maxEvent;
-            }
-            set2((state2) => {
-              state2.sample.runningEvents = [...pollingState.events];
-            });
           }
           return true;
         };
-        const name2 = `${logFile}:${summary2.id}-${summary2.epoch}`;
-        const polling = createPolling(name2, pollCallback, {
-          maxRetries: 10,
-          interval: 2
+        const polling = createPolling(pollingId, pollCallback, {
+          maxRetries: kPollingMaxRetries,
+          interval: kPollingInterval
         });
         currentPolling = polling;
         polling.start();
@@ -18699,6 +18677,41 @@ self.onmessage = function (e) {
         stopPolling,
         cleanup
       };
+    }
+    const resetPollingState = (state) => {
+      state.eventId = -1;
+      state.attachmentId = -1;
+      state.eventMapping = {};
+      state.attachments = {};
+      state.events = [];
+    };
+    function processAttachments(sampleData, pollingState) {
+      log$1.debug(`Processing ${sampleData.attachments.length} attachments`);
+      Object.values(sampleData.attachments).forEach((v) => {
+        pollingState.attachments[v.hash] = v.content;
+      });
+    }
+    function processEvents(sampleData, pollingState) {
+      log$1.debug(`Processing ${sampleData.events.length} events`);
+      if (sampleData.events.length === 0) {
+        return false;
+      }
+      for (const eventData of sampleData.events) {
+        const existingIndex = pollingState.eventMapping[eventData.event_id];
+        const resolvedEvent = resolveAttachments(
+          eventData.event,
+          pollingState.attachments
+        );
+        if (existingIndex) {
+          pollingState.events[existingIndex] = resolvedEvent;
+        } else {
+          log$1.debug("new event " + pollingState.events.length);
+          const currentIndex = pollingState.events.length;
+          pollingState.eventMapping[eventData.event_id] = currentIndex;
+          pollingState.events.push(resolvedEvent);
+        }
+      }
+      return true;
     }
     const log = createLogger("sampleSlice");
     const initialState = {
@@ -51578,7 +51591,7 @@ Supported expressions:
       const filter = useStore((state) => state.log.filter);
       const setFilter = useStore((state) => state.logActions.setFilter);
       const scores2 = useScores();
-      const score2 = useStore((state) => state.log.score);
+      const score2 = useScore();
       const setScore = useStore((state) => state.logActions.setScore);
       const epoch = useStore((state) => state.log.epoch);
       const setEpoch = useStore((state) => state.logActions.setEpoch);
@@ -63948,18 +63961,6 @@ ${events}
         defaultValue: tailOutput
       });
       const isAutoScrollingRef = reactExports.useRef(false);
-      reactExports.useEffect(() => {
-        setTimeout(() => {
-          var _a2;
-          if (followOutput) {
-            isAutoScrollingRef.current = true;
-            (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({ index: "LAST", align: "end" });
-            setTimeout(() => {
-              isAutoScrollingRef.current = false;
-            }, 50);
-          }
-        }, 100);
-      }, [eventNodes, followOutput]);
       const handleParentScroll = reactExports.useCallback(
         debounce$1(
           () => {
@@ -63979,6 +63980,21 @@ ${events}
         ),
         [scrollRef, setFollowOutput, followOutput]
       );
+      const heightChanged = reactExports.useCallback(() => {
+        requestAnimationFrame(() => {
+          var _a2;
+          if (followOutput) {
+            isAutoScrollingRef.current = true;
+            (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({
+              index: "LAST",
+              align: "end"
+            });
+            requestAnimationFrame(() => {
+              isAutoScrollingRef.current = false;
+            });
+          }
+        });
+      }, [scrollRef, listHandle.current]);
       reactExports.useEffect(() => {
         const parent = scrollRef == null ? void 0 : scrollRef.current;
         if (parent) {
@@ -64013,6 +64029,7 @@ ${events}
           className: clsx("transcript"),
           isScrolling,
           restoreStateFrom: restoreState,
+          totalListHeightChanged: heightChanged,
           components: {
             Footer: tailOutput ? TranscriptLoadingPanel : void 0
           }
@@ -64032,9 +64049,9 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
     };
     const TranscriptVirtualList = (props) => {
-      let { id, scrollRef, events, depth, tailOutput } = props;
+      let { id, scrollRef, events, depth, running: running2 } = props;
       const eventNodes = reactExports.useMemo(() => {
-        const resolvedEvents = fixupEventStream(events);
+        const resolvedEvents = fixupEventStream(events, !running2);
         const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
         return eventNodes2;
       }, [events, depth]);
@@ -64044,7 +64061,7 @@ ${events}
           id,
           eventNodes,
           scrollRef,
-          tailOutput
+          tailOutput: running2
         }
       );
     };
@@ -64168,12 +64185,12 @@ ${events}
           return null;
       }
     };
-    const fixupEventStream = (events) => {
+    const fixupEventStream = (events, filterPending = true) => {
       const initEventIndex = events.findIndex((e) => {
         return e.event === "sample_init";
       });
       const initEvent = events[initEventIndex];
-      const finalEvents = events.filter((e) => !e.pending);
+      const finalEvents = filterPending ? events.filter((e) => !e.pending) : events;
       const hasInitStep = events.findIndex((e) => {
         return e.event === "step" && e.name === "init";
       }) !== -1;
@@ -64293,7 +64310,7 @@ ${events}
                     {
                       id: `${baseId}-transcript-display-${id}`,
                       events: sampleEvents,
-                      tailOutput: !!runningSampleData && runningSampleData.length > 0,
+                      running: !!runningSampleData && runningSampleData.length > 0 && !sampleSummary.completed,
                       scrollRef
                     },
                     `${baseId}-transcript-display-${id}`
