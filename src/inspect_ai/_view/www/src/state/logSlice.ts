@@ -135,7 +135,7 @@ export const createLogSlice = (
           return;
         }
 
-        log.debug(`LOAD LOG: ${logFileName}`);
+        log.debug(`Load log: ${logFileName}`);
         try {
           const logContents = await api.get_log_summary(logFileName);
           state.logActions.setSelectedLogSummary(logContents);
@@ -175,7 +175,7 @@ export const createLogSlice = (
           return;
         }
 
-        log.debug(`REFRESH: ${selectedLogFile}`);
+        log.debug(`refresh: ${selectedLogFile}`);
         try {
           const logContents = await api.get_log_summary(selectedLogFile);
           state.logActions.setSelectedLogSummary(logContents);

@@ -1,4 +1,9 @@
-import { SampleData, SampleSummary } from "../api/types";
+import {
+  AttachmentData,
+  EventData,
+  SampleData,
+  SampleSummary,
+} from "../api/types";
 import { Event } from "../types";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
@@ -32,8 +37,8 @@ export function createSamplePolling(
   // The polling function that will be returned
   let currentPolling: ReturnType<typeof createPolling> | null = null;
 
-  // Track whether or not we're active
-  let isActive = true;
+  // handle aborts
+  let abortController: AbortController;
 
   // The inintial polling state
   const pollingState: PollingState = {
@@ -70,15 +75,11 @@ export function createSamplePolling(
       // Reset the current polling state
       resetPollingState(pollingState);
     }
-    isActive = true;
+    abortController = new AbortController();
 
     // Create the polling callback
     log.debug(`Polling sample: ${summary.id}-${summary.epoch}`);
     const pollCallback = async () => {
-      if (!isActive) {
-        return false;
-      }
-
       const state = get();
 
       // Get the api
@@ -91,7 +92,7 @@ export function createSamplePolling(
         throw new Error("Required API get_log_sample_data is undefined.");
       }
 
-      if (!isActive) {
+      if (abortController.signal.aborted) {
         return false;
       }
 
@@ -106,7 +107,7 @@ export function createSamplePolling(
         attachmentId,
       );
 
-      if (!isActive) {
+      if (abortController.signal.aborted) {
         return false;
       }
 
@@ -125,7 +126,7 @@ export function createSamplePolling(
         sampleDataResponse?.status === "OK" &&
         sampleDataResponse.sampleData
       ) {
-        if (!isActive) {
+        if (abortController.signal.aborted) {
           return false;
         }
 
@@ -141,19 +142,18 @@ export function createSamplePolling(
 
           // update max attachment id
           if (sampleDataResponse.sampleData.attachments.length > 0) {
-            const maxAttachment =
-              sampleDataResponse.sampleData.attachments.reduce(
-                (max, attachment) => Math.max(max, attachment.id),
-                pollingState.attachmentId,
-              );
+            const maxAttachment = findMaxId(
+              sampleDataResponse.sampleData.attachments,
+              pollingState.attachmentId,
+            );
             log.debug(`New max attachment ${maxAttachment}`);
             pollingState.attachmentId = maxAttachment;
           }
 
           // update max event id
           if (sampleDataResponse.sampleData.events.length > 0) {
-            const maxEvent = sampleDataResponse.sampleData.events.reduce(
-              (max, event) => Math.max(max, event.id),
+            const maxEvent = findMaxId(
+              sampleDataResponse.sampleData.events,
               pollingState.eventId,
             );
             log.debug(`New max event ${maxEvent}`);
@@ -194,7 +194,7 @@ export function createSamplePolling(
 
   const cleanup = () => {
     log.debug(`CLEANUP`);
-    isActive = false;
+    abortController.abort();
     stopPolling();
   };
 
@@ -256,3 +256,14 @@ function processEvents(sampleData: SampleData, pollingState: PollingState) {
   }
   return true;
 }
+
+const findMaxId = (
+  items: EventData[] | AttachmentData[],
+  currentMax: number,
+) => {
+  if (items.length > 0) {
+    const newMax = Math.max(...items.map((i) => i.id), currentMax);
+    return newMax;
+  }
+  return currentMax;
+};
