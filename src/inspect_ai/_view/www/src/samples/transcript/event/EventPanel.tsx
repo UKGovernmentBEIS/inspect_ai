@@ -5,6 +5,7 @@ import { EventNavs } from "./EventNavs";
 
 import { useProperty } from "../../../state/hooks";
 import styles from "./EventPanel.module.css";
+import { EventProgressPanel } from "./EventProgressPanel";
 
 interface EventPanelProps {
   id: string;
@@ -15,6 +16,7 @@ interface EventPanelProps {
   icon?: string;
   collapse?: boolean;
   children?: ReactNode | ReactNode[];
+  progressMessage?: string;
 }
 
 interface ChildProps {
@@ -33,6 +35,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   icon,
   collapse,
   children,
+  progressMessage,
 }) => {
   const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
     defaultValue: !!collapse,
@@ -176,6 +179,9 @@ export const EventPanel: FC<EventPanelProps> = ({
           );
         })}
       </div>
+      {progressMessage ? (
+        <EventProgressPanel text={progressMessage} />
+      ) : undefined}
     </div>
   );
   return card;
