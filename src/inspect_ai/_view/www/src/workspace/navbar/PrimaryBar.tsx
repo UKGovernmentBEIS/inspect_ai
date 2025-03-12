@@ -45,6 +45,8 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
     setOffCanvas(!offCanvas);
   }, [offCanvas, setOffCanvas]);
 
+  const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
+
   return (
     <div className={clsx(styles.wrapper)}>
       <div
@@ -103,7 +105,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
         {status === "success" ||
-        (status === "started" && streamSamples && runningMetrics) ? (
+        (status === "started" && streamSamples && hasRunningMetrics) ? (
           <ResultsPanel
             scorers={
               runningMetrics
@@ -115,7 +117,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
         {status === "cancelled" ? (
           <CancelledPanel sampleCount={sampleCount || 0} />
         ) : undefined}
-        {status === "started" && (!streamSamples || !runningMetrics) ? (
+        {status === "started" && (!streamSamples || !hasRunningMetrics) ? (
           <RunningStatusPanel sampleCount={sampleCount || 0} />
         ) : undefined}
         {status === "error" ? (

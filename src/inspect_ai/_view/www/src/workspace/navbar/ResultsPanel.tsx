@@ -93,19 +93,15 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
     return (
       <div className={styles.simpleMetricsRows}>
         {metrics.map((metric, i) => {
-          if (metric.value) {
-            return (
-              <VerticalMetric
-                key={`simple-metric-${i}`}
-                reducer={scorers[0].reducer}
-                metric={metric}
-                isFirst={i === 0}
-                showReducer={showReducer}
-              />
-            );
-          } else {
-            return undefined;
-          }
+          return (
+            <VerticalMetric
+              key={`simple-metric-${i}`}
+              reducer={scorers[0].reducer}
+              metric={metric}
+              isFirst={i === 0}
+              showReducer={showReducer}
+            />
+          );
         })}
       </div>
     );
@@ -174,7 +170,7 @@ const VerticalMetric: FC<VerticalMetricProps> = ({
           styles.verticalMetricValue,
         )}
       >
-        {metric.value ? formatPrettyDecimal(metric.value) : undefined}
+        {metric.value ? formatPrettyDecimal(metric.value) : "n/a"}
       </div>
     </div>
   );
