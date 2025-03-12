@@ -1,8 +1,9 @@
-import { FC, RefObject, useEffect } from "react";
+import { FC, useEffect, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
-import { ProgressBar } from "../components/ProgressBar";
 import { SampleDisplay } from "./SampleDisplay";
 
+import clsx from "clsx";
+import { ProgressBar } from "../components/ProgressBar";
 import { useLogSelection, useSampleData } from "../state/hooks";
 import { useStore } from "../state/store";
 import styles from "./InlineSampleDisplay.module.css";
@@ -11,7 +12,6 @@ interface InlineSampleDisplayProps {
   id: string;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
-  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
@@ -21,7 +21,6 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   id,
   selectedTab,
   setSelectedTab,
-  scrollRef,
 }) => {
   const sampleData = useSampleData();
   const loadSample = useStore((state) => state.sampleActions.loadSample);
@@ -42,6 +41,7 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
     sampleData.sample?.id,
     sampleData.sample?.epoch,
   ]);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className={styles.container}>
@@ -50,19 +50,24 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
           sampleData.status === "loading" || sampleData.status === "streaming"
         }
       />
-      <div className={styles.body}>
-        {sampleData.error ? (
-          <ErrorPanel title="Unable to load sample" error={sampleData.error} />
-        ) : (
-          <SampleDisplay
-            id={id}
-            sample={sampleData.sample}
-            runningEvents={sampleData.running}
-            selectedTab={selectedTab}
-            setSelectedTab={setSelectedTab}
-            scrollRef={scrollRef}
-          />
-        )}
+      <div className={clsx(styles.scroller)} ref={scrollRef}>
+        <div className={styles.body}>
+          {sampleData.error ? (
+            <ErrorPanel
+              title="Unable to load sample"
+              error={sampleData.error}
+            />
+          ) : (
+            <SampleDisplay
+              id={id}
+              sample={sampleData.sample}
+              runningEvents={sampleData.running}
+              selectedTab={selectedTab}
+              setSelectedTab={setSelectedTab}
+              scrollRef={scrollRef}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

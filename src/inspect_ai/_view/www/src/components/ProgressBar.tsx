@@ -4,17 +4,13 @@ import styles from "./ProgressBar.module.css";
 
 interface ProgressBarProps {
   animating: boolean;
-  fixed?: boolean;
 }
 
-export const ProgressBar: FC<ProgressBarProps> = ({
-  animating,
-  fixed = true,
-}) => {
+export const ProgressBar: FC<ProgressBarProps> = ({ animating }) => {
   return (
     <div className={clsx(styles.wrapper)}>
       <div
-        className={clsx(styles.container, fixed ? styles.fixed : undefined)}
+        className={clsx(styles.container)}
         role="progressbar"
         aria-label="Basic example"
         aria-valuenow={25}

@@ -1,8 +1,14 @@
 .container {
-  flex-direction: row;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .body {
   margin: 1em 1em 1em 1em;
+}
+
+.scroller {
+  overflow-y: auto;
+  width: 100%;
 }

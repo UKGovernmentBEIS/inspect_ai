@@ -115,7 +115,7 @@ export const LargeModal: FC<LargeModalProps> = ({
               <HtmlEntity html={"&times;"} />
             </button>
           </div>
-          <ProgressBar animating={showProgress} fixed={false} />
+          <ProgressBar animating={showProgress} />
           <div className={"modal-body"} ref={scrollRef}>
             {children}
           </div>
