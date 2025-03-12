@@ -173,8 +173,6 @@ class TaskLogger:
             log_images=self.eval.config.log_images is not False,
             log_shared=self.eval.config.log_shared,
         )
-        self._sample_events_pending: list[SampleEvent] = []
-        self._sample_events_last_write: float = time.monotonic()
 
     @property
     def location(self) -> str:
@@ -192,25 +190,10 @@ class TaskLogger:
         self._buffer_db.start_sample(sample)
 
     def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
-        # collect in pending queue
-        self._sample_events_pending.append(SampleEvent(id=id, epoch=epoch, event=event))
-
-        # flush pending if its been more than the update interval
-        if (
-            time.monotonic() - self._sample_events_last_write
-        ) > self._buffer_db.update_interval:
-            self.flush_pending_sample_events()
-
-    def flush_pending_sample_events(self) -> None:
-        if len(self._sample_events_pending) > 0:
-            self._buffer_db.log_events(self._sample_events_pending)
-            self._sample_events_pending.clear()
-        self._sample_events_last_write = time.monotonic()
+        # log the sample event
+        self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
 
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
-        # flush any pending events
-        self.flush_pending_sample_events()
-
         # log the sample
         await self.recorder.log_sample(self.eval, sample)
 
