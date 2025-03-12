@@ -76,7 +76,7 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.selectedSample = undefined;
         }),
-      setSampleStatus: (status: "ok" | "loading" | "error") =>
+      setSampleStatus: (status: SampleStatus) =>
         set((state) => {
           state.sample.sampleStatus = status;
         }),
@@ -102,7 +102,9 @@ export const createSampleSlice = (
             if (sample) {
               const migratedSample = resolveSample(sample);
               sampleActions.setSelectedSample(migratedSample);
+              sampleActions.setSampleStatus("ok");
             } else {
+              sampleActions.setSampleStatus("error");
               throw new Error(
                 "Unable to load sample - an unknown error occurred",
               );
@@ -114,8 +116,8 @@ export const createSampleSlice = (
 
             // Poll running sample
             samplePolling.startPolling(logFile, sampleSummary);
+            sampleActions.setSampleStatus("streaming");
           }
-          sampleActions.setSampleStatus("ok");
         } catch (e) {
           sampleActions.setSampleError(e as Error);
           sampleActions.setSampleStatus("error");

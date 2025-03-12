@@ -45,7 +45,11 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
 
   return (
     <div className={styles.container}>
-      <ProgressBar animating={sampleData.status === "loading"} />
+      <ProgressBar
+        animating={
+          sampleData.status === "loading" || sampleData.status === "streaming"
+        }
+      />
       <div className={styles.body}>
         {sampleData.error ? (
           <ErrorPanel title="Unable to load sample" error={sampleData.error} />

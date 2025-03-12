@@ -1,18 +1,18 @@
 import clsx from "clsx";
 import { FC } from "react";
 
-import styles from "./TranscriptLoadingPanel.module.css";
+import styles from "./EventProgressPanel.module.css";
 
-interface TranscriptLoadingPanelProps {}
+interface EventProgressPanelProps {
+  text: string;
+}
 
-export const TranscriptLoadingPanel: FC<TranscriptLoadingPanelProps> = () => {
+export const EventProgressPanel: FC<EventProgressPanelProps> = ({ text }) => {
   return (
     <div className={clsx(styles.panel)}>
       <div className={clsx(styles.container)}>
         <Spinner />
-        <div className={clsx("text-size-smaller", styles.text)}>
-          generating...
-        </div>
+        <div className={clsx("text-size-smaller", styles.text)}>{text}</div>
       </div>
     </div>
   );
