@@ -18,6 +18,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    FieldSerializationInfo,
     JsonValue,
     field_serializer,
 )
@@ -50,11 +51,8 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
-    @property
-    def _id(self) -> str:
-        if not hasattr(self, "_id_value"):
-            self._id_value = uuid()
-        return self._id_value
+    id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
+    """This field is included in `model_dump()` but excluded from JSON serialization."""
 
     timestamp: datetime = Field(default_factory=datetime.now)
     """Clock time at which event occurred."""
