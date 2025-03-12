@@ -35,22 +35,6 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
     });
     const isAutoScrollingRef = useRef(false);
 
-    // This will actually implement the follow capability
-    // Note that the autofollow feature of virtuoso seems to have trouble
-    // when using a custom scroll ref, so this is implemented manually here
-    useEffect(() => {
-      setTimeout(() => {
-        if (followOutput) {
-          isAutoScrollingRef.current = true;
-          listHandle.current?.scrollToIndex({ index: "LAST", align: "end" });
-          // Reset the flag after scrolling completes
-          setTimeout(() => {
-            isAutoScrollingRef.current = false;
-          }, 50);
-        }
-      }, 100);
-    }, [eventNodes, followOutput]);
-
     const handleParentScroll = useCallback(
       debounce(
         () => {
@@ -75,6 +59,21 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
       ),
       [scrollRef, setFollowOutput, followOutput],
     );
+
+    const heightChanged = useCallback(() => {
+      requestAnimationFrame(() => {
+        if (followOutput) {
+          isAutoScrollingRef.current = true;
+          listHandle.current?.scrollToIndex({
+            index: "LAST",
+            align: "end",
+          });
+          requestAnimationFrame(() => {
+            isAutoScrollingRef.current = false;
+          });
+        }
+      });
+    }, [scrollRef, listHandle.current]);
 
     useEffect(() => {
       // Listen to scroll events
@@ -115,6 +114,7 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
         className={clsx("transcript")}
         isScrolling={isScrolling}
         restoreStateFrom={restoreState}
+        totalListHeightChanged={heightChanged}
         components={{
           Footer: tailOutput ? TranscriptLoadingPanel : undefined,
         }}
