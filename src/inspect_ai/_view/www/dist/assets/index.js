@@ -64381,7 +64381,7 @@ ${events}
       node,
       first
     };
-    const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef, running: running2 }) => {
+    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2 }) => {
       const listHandle = reactExports.useRef(null);
       const { getRestoreState, isScrolling } = useVirtuosoState(
         listHandle,
@@ -64425,7 +64425,15 @@ ${events}
             });
           }
         });
-      }, [scrollRef, listHandle.current]);
+      }, [scrollRef]);
+      reactExports.useEffect(() => {
+        const timer = setTimeout(() => {
+          forceUpdate();
+        }, 0);
+        return () => clearTimeout(timer);
+      }, []);
+      const [, forceRender] = reactExports.useState({});
+      const forceUpdate = reactExports.useCallback(() => forceRender({}), []);
       reactExports.useEffect(() => {
         const parent = scrollRef == null ? void 0 : scrollRef.current;
         if (parent) {
@@ -64437,14 +64445,7 @@ ${events}
         const bgClass = item2.depth % 2 == 0 ? styles$n.darkenedBg : styles$n.normalBg;
         const paddingClass = index2 === 0 ? styles$n.first : void 0;
         const eventId = `${id}-event${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          RenderedEventNode,
-          {
-            id: eventId,
-            node: item2,
-            className: clsx(bgClass)
-          }
-        ) }, eventId);
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) }) }, eventId);
       }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         $r,
@@ -64463,7 +64464,7 @@ ${events}
           totalListHeightChanged: heightChanged
         }
       );
-    });
+    };
     const TranscriptView = ({
       id,
       events,
@@ -64476,143 +64477,149 @@ ${events}
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
     };
-    const TranscriptVirtualList = (props) => {
-      let { id, scrollRef, events, depth, running: running2 } = props;
-      const eventNodes = reactExports.useMemo(() => {
-        const resolvedEvents = fixupEventStream(events, !running2);
-        const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
-        return eventNodes2;
-      }, [events, depth]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        TranscriptVirtualListComponent,
-        {
-          id,
-          eventNodes,
-          scrollRef,
-          tailOutput: running2
-        }
-      );
-    };
-    const TranscriptComponent = ({
-      id,
-      eventNodes
-    }) => {
-      const rows = eventNodes.map((eventNode2, index2) => {
-        const clz = [styles$o.eventNode];
-        if (eventNode2.depth % 2 == 0) {
-          clz.push(styles$o.darkenBg);
-        }
-        if (index2 === eventNodes.length - 1) {
-          clz.push(styles$o.lastNode);
-        }
-        const eventId = `${id}-event${index2}`;
-        const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
+    const TranscriptVirtualList = reactExports.memo(
+      (props) => {
+        let { id, scrollRef, events, depth, running: running2 } = props;
+        const eventNodes = reactExports.useMemo(() => {
+          const resolvedEvents = fixupEventStream(events, !running2);
+          const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
+          return eventNodes2;
+        }, [events, depth]);
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          TranscriptVirtualListComponent,
+          {
+            id,
+            eventNodes,
+            scrollRef,
+            running: running2
+          }
+        );
+      }
+    );
+    const TranscriptComponent = reactExports.memo(
+      ({ id, eventNodes }) => {
+        const rows = eventNodes.map((eventNode2, index2) => {
+          const clz = [styles$o.eventNode];
+          if (eventNode2.depth % 2 == 0) {
+            clz.push(styles$o.darkenBg);
+          }
+          if (index2 === eventNodes.length - 1) {
+            clz.push(styles$o.lastNode);
+          }
+          const eventId = `${id}-event${index2}`;
+          const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(
+                styles$o.eventNodeContainer,
+                index2 === eventNodes.length - 1 ? styles$o.noBottom : void 0
+              ),
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                RenderedEventNode,
+                {
+                  id: eventId,
+                  node: eventNode2,
+                  className: clsx(clz)
+                }
+              )
+            },
+            eventId
+          );
+          return row2;
+        });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx(
-              styles$o.eventNodeContainer,
-              index2 === eventNodes.length - 1 ? styles$o.noBottom : void 0
-            ),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              RenderedEventNode,
-              {
-                id: eventId,
-                node: eventNode2,
-                className: clsx(clz)
-              }
-            )
-          },
-          eventId
+            id,
+            className: clsx("text-size-small", styles$o.transcriptComponent),
+            children: rows
+          }
         );
-        return row2;
-      });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          id,
-          className: clsx("text-size-small", styles$o.transcriptComponent),
-          children: rows
-        }
-      );
-    };
-    const RenderedEventNode = ({
-      id,
-      node: node2,
-      className: className2
-    }) => {
-      switch (node2.event.event) {
-        case "sample_init":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(SampleInitEventView, { id, event: node2.event, className: className2 });
-        case "sample_limit":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SampleLimitEventView,
-            {
-              id,
-              event: node2.event,
-              className: className2
-            }
-          );
-        case "info":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(InfoEventView, { id, event: node2.event, className: className2 });
-        case "logger":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(LoggerEventView, { event: node2.event, className: className2 });
-        case "model":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(ModelEventView, { id, event: node2.event, className: className2 });
-        case "score":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreEventView, { id, event: node2.event, className: className2 });
-        case "state":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(StateEventView, { id, event: node2.event, className: className2 });
-        case "step":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            StepEventView,
-            {
-              event: node2.event,
-              children: node2.children,
-              className: className2
-            }
-          );
-        case "store":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            StateEventView,
-            {
-              id,
-              event: node2.event,
-              className: className2,
-              isStore: true
-            }
-          );
-        case "subtask":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SubtaskEventView,
-            {
-              id,
-              event: node2.event,
-              className: className2,
-              depth: node2.depth
-            }
-          );
-        case "tool":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ToolEventView,
-            {
-              id,
-              event: node2.event,
-              className: className2,
-              depth: node2.depth
-            }
-          );
-        case "input":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(InputEventView, { id, event: node2.event, className: className2 });
-        case "error":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorEventView, { id, event: node2.event, className: className2 });
-        case "approval":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalEventView, { event: node2.event, className: className2 });
-        case "sandbox":
-          return /* @__PURE__ */ jsxRuntimeExports.jsx(SandboxEventView, { id, event: node2.event, className: className2 });
-        default:
-          return null;
       }
-    };
+    );
+    const RenderedEventNode = reactExports.memo(
+      ({ id, node: node2, className: className2 }) => {
+        switch (node2.event.event) {
+          case "sample_init":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SampleInitEventView,
+              {
+                id,
+                event: node2.event,
+                className: className2
+              }
+            );
+          case "sample_limit":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SampleLimitEventView,
+              {
+                id,
+                event: node2.event,
+                className: className2
+              }
+            );
+          case "info":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(InfoEventView, { id, event: node2.event, className: className2 });
+          case "logger":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(LoggerEventView, { event: node2.event, className: className2 });
+          case "model":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(ModelEventView, { id, event: node2.event, className: className2 });
+          case "score":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreEventView, { id, event: node2.event, className: className2 });
+          case "state":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(StateEventView, { id, event: node2.event, className: className2 });
+          case "step":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              StepEventView,
+              {
+                event: node2.event,
+                children: node2.children,
+                className: className2
+              }
+            );
+          case "store":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              StateEventView,
+              {
+                id,
+                event: node2.event,
+                className: className2,
+                isStore: true
+              }
+            );
+          case "subtask":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SubtaskEventView,
+              {
+                id,
+                event: node2.event,
+                className: className2,
+                depth: node2.depth
+              }
+            );
+          case "tool":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ToolEventView,
+              {
+                id,
+                event: node2.event,
+                className: className2,
+                depth: node2.depth
+              }
+            );
+          case "input":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(InputEventView, { id, event: node2.event, className: className2 });
+          case "error":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorEventView, { id, event: node2.event, className: className2 });
+          case "approval":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalEventView, { event: node2.event, className: className2 });
+          case "sandbox":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(SandboxEventView, { id, event: node2.event, className: className2 });
+          default:
+            return null;
+        }
+      }
+    );
     const fixupEventStream = (events, filterPending = true) => {
       const initEventIndex = events.findIndex((e) => {
         return e.event === "sample_init";
