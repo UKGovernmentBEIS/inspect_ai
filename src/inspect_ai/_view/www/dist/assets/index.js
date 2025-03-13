@@ -51901,6 +51901,31 @@ Supported expressions:
       const getRestoreState = reactExports.useCallback(() => stateRef.current, []);
       return { getRestoreState, isScrolling };
     };
+    function useRafThrottle(callback, dependencies = []) {
+      const rafRef = reactExports.useRef(null);
+      const callbackRef = reactExports.useRef(callback);
+      reactExports.useEffect(() => {
+        callbackRef.current = callback;
+      }, [callback, ...dependencies]);
+      const throttledCallback = reactExports.useCallback((...args) => {
+        if (rafRef.current) {
+          return;
+        }
+        rafRef.current = requestAnimationFrame(() => {
+          callbackRef.current(...args);
+          rafRef.current = null;
+        });
+      }, []);
+      reactExports.useEffect(() => {
+        return () => {
+          if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+        };
+      }, []);
+      return throttledCallback;
+    }
     const tabs$1 = "_tabs_1qj7d_1";
     const tabContents = "_tabContents_1qj7d_5";
     const scrollable = "_scrollable_1qj7d_10";
@@ -64059,41 +64084,33 @@ ${events}
         defaultValue: running2
       });
       const isAutoScrollingRef = reactExports.useRef(false);
-      const handleParentScroll = reactExports.useCallback(
-        debounce$1(
-          () => {
-            if (isAutoScrollingRef.current) return;
-            if ((scrollRef == null ? void 0 : scrollRef.current) && listHandle.current) {
-              const parent = scrollRef.current;
-              const isAtBottom = parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 5;
-              if (isAtBottom && !followOutput) {
-                setFollowOutput(true);
-              } else if (!isAtBottom && followOutput) {
-                setFollowOutput(false);
-              }
-            }
-          },
-          100,
-          { leading: true, trailing: true }
-        ),
-        [scrollRef, setFollowOutput, followOutput]
-      );
-      const heightChanged = reactExports.useCallback(() => {
-        requestAnimationFrame(() => {
-          var _a2;
-          if (followOutput) {
-            isAutoScrollingRef.current = true;
-            (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({
-              index: "LAST",
-              align: "end",
-              behavior: "auto"
-            });
-            requestAnimationFrame(() => {
-              isAutoScrollingRef.current = false;
-            });
+      const handleScroll = useRafThrottle(() => {
+        if (isAutoScrollingRef.current) return;
+        if ((scrollRef == null ? void 0 : scrollRef.current) && listHandle.current) {
+          const parent = scrollRef.current;
+          const isAtBottom = parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 30;
+          if (isAtBottom && !followOutput) {
+            setFollowOutput(true);
+          } else if (!isAtBottom && followOutput) {
+            setFollowOutput(false);
           }
-        });
-      }, [scrollRef]);
+        }
+      }, [setFollowOutput, followOutput]);
+      const heightChanged = reactExports.useCallback(
+        (height) => {
+          requestAnimationFrame(() => {
+            var _a2;
+            if (followOutput) {
+              isAutoScrollingRef.current = true;
+              (_a2 = listHandle.current) == null ? void 0 : _a2.scrollTo({ top: height });
+              requestAnimationFrame(() => {
+                isAutoScrollingRef.current = false;
+              });
+            }
+          });
+        },
+        [scrollRef, followOutput]
+      );
       reactExports.useEffect(() => {
         const timer = setTimeout(() => {
           forceUpdate();
@@ -64105,10 +64122,10 @@ ${events}
       reactExports.useEffect(() => {
         const parent = scrollRef == null ? void 0 : scrollRef.current;
         if (parent) {
-          parent.addEventListener("scroll", handleParentScroll);
-          return () => parent.removeEventListener("scroll", handleParentScroll);
+          parent.addEventListener("scroll", handleScroll);
+          return () => parent.removeEventListener("scroll", handleScroll);
         }
-      }, [scrollRef, handleParentScroll]);
+      }, [scrollRef, handleScroll]);
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$n.darkenedBg : styles$n.normalBg;
         const paddingClass = index2 === 0 ? styles$n.first : void 0;
