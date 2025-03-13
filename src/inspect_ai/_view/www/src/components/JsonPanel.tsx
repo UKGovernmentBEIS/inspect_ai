@@ -3,7 +3,7 @@ import { highlightElement } from "prismjs";
 import { CSSProperties, FC, useEffect, useMemo, useRef } from "react";
 import "./JsonPanel.css";
 
-const kPrismRenderMaxSize = 250000;
+const kPrismRenderMaxSize = 1000000;
 
 interface JSONPanelProps {
   id?: string;
