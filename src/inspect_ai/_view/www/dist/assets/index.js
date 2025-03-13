@@ -7,25 +7,6 @@ var __commonJS = (cb, mod) => function __require() {
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 var require_assets = __commonJS({
   "assets/index.js"(exports) {
-    function _mergeNamespaces(n, m) {
-      for (var i2 = 0; i2 < m.length; i2++) {
-        const e = m[i2];
-        if (typeof e !== "string" && !Array.isArray(e)) {
-          for (const k in e) {
-            if (k !== "default" && !(k in n)) {
-              const d = Object.getOwnPropertyDescriptor(e, k);
-              if (d) {
-                Object.defineProperty(n, k, d.get ? d : {
-                  enumerable: true,
-                  get: () => e[k]
-                });
-              }
-            }
-          }
-        }
-      }
-      return Object.freeze(Object.defineProperty(n, Symbol.toStringTag, { value: "Module" }));
-    }
     (function polyfill() {
       const relList = document.createElement("link").relList;
       if (relList && relList.supports && relList.supports("modulepreload")) {
@@ -66,30 +47,6 @@ var require_assets = __commonJS({
     var commonjsGlobal = typeof globalThis !== "undefined" ? globalThis : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : {};
     function getDefaultExportFromCjs(x2) {
       return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
-    }
-    function getAugmentedNamespace(n) {
-      if (n.__esModule) return n;
-      var f = n.default;
-      if (typeof f == "function") {
-        var a = function a2() {
-          if (this instanceof a2) {
-            return Reflect.construct(f, arguments, this.constructor);
-          }
-          return f.apply(this, arguments);
-        };
-        a.prototype = f.prototype;
-      } else a = {};
-      Object.defineProperty(a, "__esModule", { value: true });
-      Object.keys(n).forEach(function(k) {
-        var d = Object.getOwnPropertyDescriptor(n, k);
-        Object.defineProperty(a, k, d.get ? d : {
-          enumerable: true,
-          get: function() {
-            return n[k];
-          }
-        });
-      });
-      return a;
     }
     var jsxRuntime = { exports: {} };
     var reactJsxRuntime_production = {};
@@ -403,7 +360,7 @@ var require_assets = __commonJS({
       scheduler.exports = scheduler_production;
     }
     var schedulerExports = scheduler.exports;
-    var react$1 = { exports: {} };
+    var react = { exports: {} };
     var react_production = {};
     /**
      * @license React
@@ -831,15 +788,10 @@ var require_assets = __commonJS({
     };
     react_production.version = "19.0.0";
     {
-      react$1.exports = react_production;
+      react.exports = react_production;
     }
-    var reactExports = react$1.exports;
+    var reactExports = react.exports;
     const E = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
-    const react = /* @__PURE__ */ _mergeNamespaces({
-      __proto__: null,
-      default: E
-    }, [reactExports]);
-    const require$$1 = /* @__PURE__ */ getAugmentedNamespace(react);
     var reactDom = { exports: {} };
     var reactDom_production = {};
     /**
@@ -851,7 +803,7 @@ var require_assets = __commonJS({
      * This source code is licensed under the MIT license found in the
      * LICENSE file in the root directory of this source tree.
      */
-    var React$1 = require$$1;
+    var React$1 = reactExports;
     function formatProdErrorMessage$1(code2) {
       var url = "https://react.dev/errors/" + code2;
       if (1 < arguments.length) {
@@ -1017,7 +969,7 @@ var require_assets = __commonJS({
      * This source code is licensed under the MIT license found in the
      * LICENSE file in the root directory of this source tree.
      */
-    var Scheduler = schedulerExports, React = require$$1, ReactDOM = reactDomExports;
+    var Scheduler = schedulerExports, React = reactExports, ReactDOM = reactDomExports;
     function formatProdErrorMessage(code2) {
       var url = "https://react.dev/errors/" + code2;
       if (1 < arguments.length) {
@@ -51996,6 +51948,31 @@ Supported expressions:
       const getRestoreState = reactExports.useCallback(() => stateRef.current, []);
       return { getRestoreState, isScrolling };
     };
+    function useRafThrottle(callback, dependencies = []) {
+      const rafRef = reactExports.useRef(null);
+      const callbackRef = reactExports.useRef(callback);
+      reactExports.useEffect(() => {
+        callbackRef.current = callback;
+      }, [callback, ...dependencies]);
+      const throttledCallback = reactExports.useCallback((...args) => {
+        if (rafRef.current) {
+          return;
+        }
+        rafRef.current = requestAnimationFrame(() => {
+          callbackRef.current(...args);
+          rafRef.current = null;
+        });
+      }, []);
+      reactExports.useEffect(() => {
+        return () => {
+          if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+        };
+      }, []);
+      return throttledCallback;
+    }
     const tabs$1 = "_tabs_1qj7d_1";
     const tabContents = "_tabContents_1qj7d_5";
     const scrollable = "_scrollable_1qj7d_10";
@@ -64391,41 +64368,33 @@ ${events}
         defaultValue: running2
       });
       const isAutoScrollingRef = reactExports.useRef(false);
-      const handleParentScroll = reactExports.useCallback(
-        debounce$1(
-          () => {
-            if (isAutoScrollingRef.current) return;
-            if ((scrollRef == null ? void 0 : scrollRef.current) && listHandle.current) {
-              const parent = scrollRef.current;
-              const isAtBottom = parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 5;
-              if (isAtBottom && !followOutput) {
-                setFollowOutput(true);
-              } else if (!isAtBottom && followOutput) {
-                setFollowOutput(false);
-              }
-            }
-          },
-          100,
-          { leading: true }
-        ),
-        [scrollRef, setFollowOutput, followOutput]
-      );
-      const heightChanged = reactExports.useCallback(() => {
-        requestAnimationFrame(() => {
-          var _a2;
-          if (followOutput) {
-            isAutoScrollingRef.current = true;
-            (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({
-              index: "LAST",
-              align: "end",
-              behavior: "auto"
-            });
-            requestAnimationFrame(() => {
-              isAutoScrollingRef.current = false;
-            });
+      const handleScroll = useRafThrottle(() => {
+        if (isAutoScrollingRef.current) return;
+        if ((scrollRef == null ? void 0 : scrollRef.current) && listHandle.current) {
+          const parent = scrollRef.current;
+          const isAtBottom = parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 30;
+          if (isAtBottom && !followOutput) {
+            setFollowOutput(true);
+          } else if (!isAtBottom && followOutput) {
+            setFollowOutput(false);
           }
-        });
-      }, [scrollRef]);
+        }
+      }, [setFollowOutput, followOutput]);
+      const heightChanged = reactExports.useCallback(
+        (height) => {
+          requestAnimationFrame(() => {
+            var _a2;
+            if (followOutput) {
+              isAutoScrollingRef.current = true;
+              (_a2 = listHandle.current) == null ? void 0 : _a2.scrollTo({ top: height });
+              requestAnimationFrame(() => {
+                isAutoScrollingRef.current = false;
+              });
+            }
+          });
+        },
+        [scrollRef, followOutput]
+      );
       reactExports.useEffect(() => {
         const timer = setTimeout(() => {
           forceUpdate();
@@ -64437,10 +64406,10 @@ ${events}
       reactExports.useEffect(() => {
         const parent = scrollRef == null ? void 0 : scrollRef.current;
         if (parent) {
-          parent.addEventListener("scroll", handleParentScroll);
-          return () => parent.removeEventListener("scroll", handleParentScroll);
+          parent.addEventListener("scroll", handleScroll);
+          return () => parent.removeEventListener("scroll", handleScroll);
         }
-      }, [scrollRef, handleParentScroll]);
+      }, [scrollRef, handleScroll]);
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$n.darkenedBg : styles$n.normalBg;
         const paddingClass = index2 === 0 ? styles$n.first : void 0;

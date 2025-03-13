@@ -5,8 +5,7 @@ import { RenderedEventNode } from "./TranscriptView";
 import { EventNode } from "./types";
 
 import { useProperty } from "../../state/hooks";
-import { useVirtuosoState } from "../../state/scrolling";
-import { debounce } from "../../utils/sync";
+import { useRafThrottle, useVirtuosoState } from "../../state/scrolling";
 import styles from "./TranscriptVirtualListComponent.module.css";
 
 interface TranscriptVirtualListComponentProps {
@@ -35,46 +34,38 @@ export const TranscriptVirtualListComponent: FC<
   });
   const isAutoScrollingRef = useRef(false);
 
-  const handleParentScroll = useCallback(
-    debounce(
-      () => {
-        // Skip processing if auto-scrolling is in progress
-        if (isAutoScrollingRef.current) return;
+  const handleScroll = useRafThrottle(() => {
+    // Skip processing if auto-scrolling is in progress
+    if (isAutoScrollingRef.current) return;
 
-        // Make the bottom start following
-        if (scrollRef?.current && listHandle.current) {
-          const parent = scrollRef.current;
-          const isAtBottom =
-            parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 5;
+    // Make the bottom start following
+    if (scrollRef?.current && listHandle.current) {
+      const parent = scrollRef.current;
+      const isAtBottom =
+        parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 30;
 
-          if (isAtBottom && !followOutput) {
-            setFollowOutput(true);
-          } else if (!isAtBottom && followOutput) {
-            setFollowOutput(false);
-          }
-        }
-      },
-      100,
-      { leading: true, trailing: true },
-    ),
-    [scrollRef, setFollowOutput, followOutput],
-  );
-
-  const heightChanged = useCallback(() => {
-    requestAnimationFrame(() => {
-      if (followOutput) {
-        isAutoScrollingRef.current = true;
-        listHandle.current?.scrollToIndex({
-          index: "LAST",
-          align: "end",
-          behavior: "auto",
-        });
-        requestAnimationFrame(() => {
-          isAutoScrollingRef.current = false;
-        });
+      if (isAtBottom && !followOutput) {
+        setFollowOutput(true);
+      } else if (!isAtBottom && followOutput) {
+        setFollowOutput(false);
       }
-    });
-  }, [scrollRef]);
+    }
+  }, [setFollowOutput, followOutput]);
+
+  const heightChanged = useCallback(
+    (height: number) => {
+      requestAnimationFrame(() => {
+        if (followOutput) {
+          isAutoScrollingRef.current = true;
+          listHandle.current?.scrollTo({ top: height });
+          requestAnimationFrame(() => {
+            isAutoScrollingRef.current = false;
+          });
+        }
+      });
+    },
+    [scrollRef, followOutput],
+  );
 
   useEffect(() => {
     // Force a re-render after initial mount
@@ -95,10 +86,10 @@ export const TranscriptVirtualListComponent: FC<
     // Listen to scroll events
     const parent = scrollRef?.current;
     if (parent) {
-      parent.addEventListener("scroll", handleParentScroll);
-      return () => parent.removeEventListener("scroll", handleParentScroll);
+      parent.addEventListener("scroll", handleScroll);
+      return () => parent.removeEventListener("scroll", handleScroll);
     }
-  }, [scrollRef, handleParentScroll]);
+  }, [scrollRef, handleScroll]);
 
   const renderRow = useCallback((index: number, item: EventNode) => {
     const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
