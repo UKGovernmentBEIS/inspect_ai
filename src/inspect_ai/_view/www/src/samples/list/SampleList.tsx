@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { MessageBand } from "../../components/MessageBand";
@@ -60,18 +61,37 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     defaultValue: false,
   });
 
+  // Track whether we were previously running so we can
+  // decide whether to pop up to the top
+  const prevRunningRef = useRef(running);
+
   useEffect(() => {
     // When we finish running, if we are following output
     // then scroll up to the top
-    if (!running && followOutput && listHandle.current) {
-      requestAnimationFrame(() => {
-        setFollowOutput(false);
+    if (
+      !running &&
+      prevRunningRef.current &&
+      followOutput &&
+      listHandle.current
+    ) {
+      setFollowOutput(false);
+      setTimeout(() => {
         if (listHandle.current) {
           listHandle.current.scrollTo({ top: 0 });
         }
-      });
+      }, 100);
     }
+    prevRunningRef.current = running;
   }, [running, followOutput, listHandle]);
+
+  const handleAtBottomStateChange = useCallback(
+    (atBottom: boolean) => {
+      if (running) {
+        setFollowOutput(atBottom);
+      }
+    },
+    [running, setFollowOutput],
+  );
 
   const onkeydown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -191,7 +211,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         defaultItemHeight={50}
         itemContent={renderRow}
         followOutput={followOutput}
-        atBottomStateChange={setFollowOutput}
+        atBottomStateChange={handleAtBottomStateChange}
         increaseViewportBy={{ top: 300, bottom: 300 }}
         overscan={{
           main: 10,
