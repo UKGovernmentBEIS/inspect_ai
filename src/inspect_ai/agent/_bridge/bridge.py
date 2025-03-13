@@ -8,9 +8,8 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.model._providers.providers import validate_openai_client
 from inspect_ai.scorer._metric import Score
-
-from .._solver import Generate, Solver, solver
-from .._task_state import TaskState
+from inspect_ai.solver._solver import Generate, Solver, solver
+from inspect_ai.solver._task_state import TaskState
 
 
 @solver

@@ -22,6 +22,9 @@ from typing import (
     is_typeddict,
 )
 
+from inspect_ai._util.logger import warn_once
+from inspect_ai.model._model_output import ModelOutput
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
@@ -52,7 +55,7 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 
-from ._chat_message import ChatMessageAssistant, ChatMessageTool
+from ._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageTool
 from ._generate_config import active_generate_config
 
 logger = getLogger(__name__)
@@ -63,19 +66,35 @@ async def call_tools(
     tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
     max_output: int | None = None,
 ) -> list[ChatMessageTool]:
+    warn_once(
+        logger,
+        "call_tools is deprecated -- please use execute_tools instead (as it supports agent handoff tools)",
+    )
+
+    messages, _ = await execute_tools([message], tools, max_output)
+    return [m for m in messages if isinstance(m, ChatMessageTool)]
+
+
+async def execute_tools(
+    messages: ChatMessage | list[ChatMessage],
+    tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
+    max_output: int | None = None,
+) -> tuple[list[ChatMessage], ModelOutput | None]:
     """Perform tool calls in assistant message.
 
     Args:
-       message (ChatMessageAssistant): Assistant message
+       messages: Current message list
        tools (list[Tool]): Available tools
        max_output (int | None): Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig
           (16 * 1024 by default).
 
     Returns:
-       List of tool calls
+       Messages added to the conversation and final model output (if any)
     """
-    if message.tool_calls:
+    messages = messages if isinstance(messages, list) else [messages]
+    message = messages[-1]
+    if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         from inspect_ai.log._transcript import (
             ToolEvent,
             Transcript,
@@ -190,7 +209,7 @@ async def call_tools(
                 )
 
         # call tools
-        tool_messages: list[ChatMessageTool] = []
+        tool_messages: list[ChatMessage] = []
         for call in message.tool_calls:
             # create pending tool event and add it to the transcript
             # (record the waiting time for the sample so we can compare
@@ -262,10 +281,10 @@ async def call_tools(
             )
 
         # return tool messages
-        return tool_messages
+        return tool_messages, None
 
     else:
-        return []
+        return [], None
 
 
 async def call_tool(tools: list[ToolDef], message: str, call: ToolCall) -> Any:

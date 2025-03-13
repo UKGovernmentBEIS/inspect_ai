@@ -5,10 +5,11 @@ from openai import BaseModel
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
+from inspect_ai.agent import bridge
 from inspect_ai.dataset import Sample
 from inspect_ai.model._openai import openai_chat_tools
 from inspect_ai.scorer import includes
-from inspect_ai.solver import bridge, solver
+from inspect_ai.solver import solver
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParam, ToolParams
 from inspect_ai.util._json import json_schema
