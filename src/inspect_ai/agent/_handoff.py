@@ -14,8 +14,8 @@ from inspect_ai.tool._tool_with import tool_with
 
 def handoff(
     agent: Solver | Agent,
-    tool_name: str | None,
-    tool_description: str | None,
+    tool_name: str | None = None,
+    tool_description: str | None = None,
     input_filter: Callable[[list[ChatMessage]], list[ChatMessage]] | None = None,
 ) -> Tool:
     """Create a tool that enables models to handoff to agents and solvers.
