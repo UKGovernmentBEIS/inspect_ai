@@ -1,17 +1,19 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { ApplicationIcons } from "../../appearance/icons";
 
-import styles from "./NoSamples.module.css";
+import { ApplicationIcons } from "../appearance/icons";
+import styles from "./NoContentsPanel.module.css";
 
-interface NoSamplesPanelProps {}
+interface NoContentsPanelProps {
+  text: string;
+}
 
-export const NoSamplesPanel: FC<NoSamplesPanelProps> = () => {
+export const NoContentsPanel: FC<NoContentsPanelProps> = ({ text }) => {
   return (
     <div className={clsx(styles.panel)}>
       <div className={clsx(styles.container, "text-size-smaller")}>
         <i className={ApplicationIcons.noSamples} />
-        <div>No samples</div>
+        <div>{text}</div>
       </div>
     </div>
   );

@@ -13,14 +13,14 @@ interface TranscriptVirtualListComponentProps {
   id: string;
   eventNodes: EventNode[];
   scrollRef?: RefObject<HTMLDivElement | null>;
-  tailOutput?: boolean;
+  running?: boolean;
 }
 
 /**
  * Renders the Transcript component.
  */
 export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentProps> =
-  memo(({ id, eventNodes, scrollRef, tailOutput }) => {
+  memo(({ id, eventNodes, scrollRef, running }) => {
     // The list handle and list state management
     const listHandle = useRef<VirtuosoHandle>(null);
     const { restoreState, isScrolling } = useVirtuosoState(
@@ -30,7 +30,7 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
 
     // Track whether we're following output
     const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-      defaultValue: tailOutput,
+      defaultValue: running,
     });
     const isAutoScrollingRef = useRef(false);
 

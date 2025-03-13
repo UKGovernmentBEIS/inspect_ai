@@ -16087,6 +16087,18 @@ ul.jsondiffpatch-textdiff {
   font-size: var(--inspect-font-size-small);
   width: 100%;
 }
+._panel_twp3v_1 {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+._container_twp3v_7 {
+  margin-top: 3em;
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+}
 ._tabs_1qj7d_1 {
   align-items: space-between;
 }
@@ -19479,18 +19491,6 @@ span.ap-marker-container:hover span.ap-marker {
   display: flex;
   flex-direction: column;
   width: 100%;
-}
-._panel_twp3v_1 {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
-._container_twp3v_7 {
-  margin-top: 3em;
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: 0.3em;
 }
 ._panel_1yknn_1 {
   width: 100%;
