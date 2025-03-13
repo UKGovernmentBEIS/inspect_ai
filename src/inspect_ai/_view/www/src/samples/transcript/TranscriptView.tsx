@@ -1,4 +1,4 @@
-import { FC, RefObject, useMemo } from "react";
+import { FC, memo, RefObject, useMemo } from "react";
 import { Events } from "../../types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
@@ -54,28 +54,28 @@ interface TranscriptVirtualListProps {
 /**
  * Renders the Transcript Virtual List.
  */
-export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = (
-  props,
-) => {
-  let { id, scrollRef, events, depth, running } = props;
+export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
+  (props) => {
+    let { id, scrollRef, events, depth, running } = props;
 
-  // Normalize Events themselves
-  const eventNodes = useMemo(() => {
-    const resolvedEvents = fixupEventStream(events, !running);
-    const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
+    // Normalize Events themselves
+    const eventNodes = useMemo(() => {
+      const resolvedEvents = fixupEventStream(events, !running);
+      const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
 
-    return eventNodes;
-  }, [events, depth]);
+      return eventNodes;
+    }, [events, depth]);
 
-  return (
-    <TranscriptVirtualListComponent
-      id={id}
-      eventNodes={eventNodes}
-      scrollRef={scrollRef}
-      tailOutput={running}
-    />
-  );
-};
+    return (
+      <TranscriptVirtualListComponent
+        id={id}
+        eventNodes={eventNodes}
+        scrollRef={scrollRef}
+        running={running}
+      />
+    );
+  },
+);
 
 interface TranscriptComponentProps {
   id: string;
@@ -84,48 +84,47 @@ interface TranscriptComponentProps {
 /**
  * Renders the Transcript component.
  */
-export const TranscriptComponent: FC<TranscriptComponentProps> = ({
-  id,
-  eventNodes,
-}) => {
-  const rows = eventNodes.map((eventNode, index) => {
-    const clz = [styles.eventNode];
-    if (eventNode.depth % 2 == 0) {
-      clz.push(styles.darkenBg);
-    }
-    if (index === eventNodes.length - 1) {
-      clz.push(styles.lastNode);
-    }
+export const TranscriptComponent: FC<TranscriptComponentProps> = memo(
+  ({ id, eventNodes }) => {
+    const rows = eventNodes.map((eventNode, index) => {
+      const clz = [styles.eventNode];
+      if (eventNode.depth % 2 == 0) {
+        clz.push(styles.darkenBg);
+      }
+      if (index === eventNodes.length - 1) {
+        clz.push(styles.lastNode);
+      }
 
-    const eventId = `${id}-event${index}`;
+      const eventId = `${id}-event${index}`;
 
-    const row = (
+      const row = (
+        <div
+          key={eventId}
+          className={clsx(
+            styles.eventNodeContainer,
+            index === eventNodes.length - 1 ? styles.noBottom : undefined,
+          )}
+        >
+          <RenderedEventNode
+            id={eventId}
+            node={eventNode}
+            className={clsx(clz)}
+          />
+        </div>
+      );
+      return row;
+    });
+
+    return (
       <div
-        key={eventId}
-        className={clsx(
-          styles.eventNodeContainer,
-          index === eventNodes.length - 1 ? styles.noBottom : undefined,
-        )}
+        id={id}
+        className={clsx("text-size-small", styles.transcriptComponent)}
       >
-        <RenderedEventNode
-          id={eventId}
-          node={eventNode}
-          className={clsx(clz)}
-        />
+        {rows}
       </div>
     );
-    return row;
-  });
-
-  return (
-    <div
-      id={id}
-      className={clsx("text-size-small", styles.transcriptComponent)}
-    >
-      {rows}
-    </div>
-  );
-};
+  },
+);
 
 interface RenderedEventNodeProps {
   id: string;
@@ -135,108 +134,112 @@ interface RenderedEventNodeProps {
 /**
  * Renders the event based on its type.
  */
-export const RenderedEventNode: FC<RenderedEventNodeProps> = ({
-  id,
-  node,
-  className,
-}) => {
-  switch (node.event.event) {
-    case "sample_init":
-      return (
-        <SampleInitEventView id={id} event={node.event} className={className} />
-      );
+export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
+  ({ id, node, className }) => {
+    switch (node.event.event) {
+      case "sample_init":
+        return (
+          <SampleInitEventView
+            id={id}
+            event={node.event}
+            className={className}
+          />
+        );
 
-    case "sample_limit":
-      return (
-        <SampleLimitEventView
-          id={id}
-          event={node.event}
-          className={className}
-        />
-      );
+      case "sample_limit":
+        return (
+          <SampleLimitEventView
+            id={id}
+            event={node.event}
+            className={className}
+          />
+        );
 
-    case "info":
-      return <InfoEventView id={id} event={node.event} className={className} />;
+      case "info":
+        return (
+          <InfoEventView id={id} event={node.event} className={className} />
+        );
 
-    case "logger":
-      return <LoggerEventView event={node.event} className={className} />;
+      case "logger":
+        return <LoggerEventView event={node.event} className={className} />;
 
-    case "model":
-      return (
-        <ModelEventView id={id} event={node.event} className={className} />
-      );
+      case "model":
+        return (
+          <ModelEventView id={id} event={node.event} className={className} />
+        );
 
-    case "score":
-      return (
-        <ScoreEventView id={id} event={node.event} className={className} />
-      );
+      case "score":
+        return (
+          <ScoreEventView id={id} event={node.event} className={className} />
+        );
 
-    case "state":
-      return (
-        <StateEventView id={id} event={node.event} className={className} />
-      );
+      case "state":
+        return (
+          <StateEventView id={id} event={node.event} className={className} />
+        );
 
-    case "step":
-      return (
-        <StepEventView
-          event={node.event}
-          children={node.children}
-          className={className}
-        />
-      );
+      case "step":
+        return (
+          <StepEventView
+            event={node.event}
+            children={node.children}
+            className={className}
+          />
+        );
 
-    case "store":
-      return (
-        <StateEventView
-          id={id}
-          event={node.event}
-          className={className}
-          isStore={true}
-        />
-      );
+      case "store":
+        return (
+          <StateEventView
+            id={id}
+            event={node.event}
+            className={className}
+            isStore={true}
+          />
+        );
 
-    case "subtask":
-      return (
-        <SubtaskEventView
-          id={id}
-          event={node.event}
-          className={className}
-          depth={node.depth}
-        />
-      );
+      case "subtask":
+        return (
+          <SubtaskEventView
+            id={id}
+            event={node.event}
+            className={className}
+            depth={node.depth}
+          />
+        );
 
-    case "tool":
-      return (
-        <ToolEventView
-          id={id}
-          event={node.event}
-          className={className}
-          depth={node.depth}
-        />
-      );
+      case "tool":
+        return (
+          <ToolEventView
+            id={id}
+            event={node.event}
+            className={className}
+            depth={node.depth}
+          />
+        );
 
-    case "input":
-      return (
-        <InputEventView id={id} event={node.event} className={className} />
-      );
+      case "input":
+        return (
+          <InputEventView id={id} event={node.event} className={className} />
+        );
 
-    case "error":
-      return (
-        <ErrorEventView id={id} event={node.event} className={className} />
-      );
+      case "error":
+        return (
+          <ErrorEventView id={id} event={node.event} className={className} />
+        );
 
-    case "approval":
-      return <ApprovalEventView event={node.event} className={className} />;
+      case "approval":
+        return <ApprovalEventView event={node.event} className={className} />;
 
-    case "sandbox":
-      return (
-        <SandboxEventView id={id} event={node.event} className={className} />
-      );
+      case "sandbox":
+        return (
+          <SandboxEventView id={id} event={node.event} className={className} />
+        );
 
-    default:
-      return null;
-  }
-};
+      default:
+        return null;
+    }
+  },
+);
 
 /**
  * Normalizes event content
