@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, memo, RefObject, useCallback, useEffect, useRef } from "react";
+import { FC, RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { RenderedEventNode } from "./TranscriptView";
 import { EventNode } from "./types";
@@ -19,102 +19,114 @@ interface TranscriptVirtualListComponentProps {
 /**
  * Renders the Transcript component.
  */
-export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentProps> =
-  memo(({ id, eventNodes, scrollRef, running }) => {
-    // The list handle and list state management
-    const listHandle = useRef<VirtuosoHandle>(null);
-    const { getRestoreState, isScrolling } = useVirtuosoState(
-      listHandle,
-      `transcript-${id}`,
-    );
+export const TranscriptVirtualListComponent: FC<
+  TranscriptVirtualListComponentProps
+> = ({ id, eventNodes, scrollRef, running }) => {
+  // The list handle and list state management
+  const listHandle = useRef<VirtuosoHandle>(null);
+  const { getRestoreState, isScrolling } = useVirtuosoState(
+    listHandle,
+    `transcript-${id}`,
+  );
 
-    // Track whether we're following output
-    const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-      defaultValue: running,
-    });
-    const isAutoScrollingRef = useRef(false);
+  // Track whether we're following output
+  const [followOutput, setFollowOutput] = useProperty(id, "follow", {
+    defaultValue: running,
+  });
+  const isAutoScrollingRef = useRef(false);
 
-    const handleParentScroll = useCallback(
-      debounce(
-        () => {
-          // Skip processing if auto-scrolling is in progress
-          if (isAutoScrollingRef.current) return;
+  const handleParentScroll = useCallback(
+    debounce(
+      () => {
+        // Skip processing if auto-scrolling is in progress
+        if (isAutoScrollingRef.current) return;
 
-          // Make the bottom start following
-          if (scrollRef?.current && listHandle.current) {
-            const parent = scrollRef.current;
-            const isAtBottom =
-              parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 5;
+        // Make the bottom start following
+        if (scrollRef?.current && listHandle.current) {
+          const parent = scrollRef.current;
+          const isAtBottom =
+            parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 5;
 
-            if (isAtBottom && !followOutput) {
-              setFollowOutput(true);
-            } else if (!isAtBottom && followOutput) {
-              setFollowOutput(false);
-            }
+          if (isAtBottom && !followOutput) {
+            setFollowOutput(true);
+          } else if (!isAtBottom && followOutput) {
+            setFollowOutput(false);
           }
-        },
-        100,
-        { leading: true, trailing: true },
-      ),
-      [scrollRef, setFollowOutput, followOutput],
-    );
-
-    const heightChanged = useCallback(() => {
-      requestAnimationFrame(() => {
-        if (followOutput) {
-          isAutoScrollingRef.current = true;
-          listHandle.current?.scrollToIndex({
-            index: "LAST",
-            align: "end",
-            behavior: "auto",
-          });
-          requestAnimationFrame(() => {
-            isAutoScrollingRef.current = false;
-          });
         }
-      });
-    }, [scrollRef, listHandle.current]);
+      },
+      100,
+      { leading: true, trailing: true },
+    ),
+    [scrollRef, setFollowOutput, followOutput],
+  );
 
-    useEffect(() => {
-      // Listen to scroll events
-      const parent = scrollRef?.current;
-      if (parent) {
-        parent.addEventListener("scroll", handleParentScroll);
-        return () => parent.removeEventListener("scroll", handleParentScroll);
+  const heightChanged = useCallback(() => {
+    requestAnimationFrame(() => {
+      if (followOutput) {
+        isAutoScrollingRef.current = true;
+        listHandle.current?.scrollToIndex({
+          index: "LAST",
+          align: "end",
+          behavior: "auto",
+        });
+        requestAnimationFrame(() => {
+          isAutoScrollingRef.current = false;
+        });
       }
-    }, [scrollRef, handleParentScroll]);
+    });
+  }, [scrollRef]);
 
-    const renderRow = useCallback((index: number, item: EventNode) => {
-      const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
-      const paddingClass = index === 0 ? styles.first : undefined;
+  useEffect(() => {
+    // Force a re-render after initial mount
+    // This is here only because in VScode, for some reason,
+    // when this transcript is restored, the height isn't computed
+    // properly on the first render. This basically gives it a second
+    // change to compute the height and lay itself out.
+    const timer = setTimeout(() => {
+      forceUpdate();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
-      const eventId = `${id}-event${index}`;
+  const [, forceRender] = useState({});
+  const forceUpdate = useCallback(() => forceRender({}), []);
 
-      return (
-        <div key={eventId} className={clsx(styles.node, paddingClass)}>
-          <RenderedEventNode
-            id={eventId}
-            node={item}
-            className={clsx(bgClass)}
-          />
-        </div>
-      );
-    }, []);
+  useEffect(() => {
+    // Listen to scroll events
+    const parent = scrollRef?.current;
+    if (parent) {
+      parent.addEventListener("scroll", handleParentScroll);
+      return () => parent.removeEventListener("scroll", handleParentScroll);
+    }
+  }, [scrollRef, handleParentScroll]);
+
+  const renderRow = useCallback((index: number, item: EventNode) => {
+    const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
+    const paddingClass = index === 0 ? styles.first : undefined;
+
+    const eventId = `${id}-event${index}`;
 
     return (
-      <Virtuoso
-        ref={listHandle}
-        customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
-        style={{ height: "100%", width: "100%" }}
-        data={eventNodes}
-        defaultItemHeight={250}
-        itemContent={renderRow}
-        increaseViewportBy={{ top: 1000, bottom: 1000 }}
-        overscan={{ main: 2, reverse: 2 }}
-        className={clsx("transcript")}
-        isScrolling={isScrolling}
-        restoreStateFrom={getRestoreState()}
-        totalListHeightChanged={heightChanged}
-      />
+      <div key={eventId} className={clsx(styles.node, paddingClass)}>
+        <RenderedEventNode id={eventId} node={item} className={clsx(bgClass)} />
+      </div>
     );
-  });
+  }, []);
+
+  return (
+    <Virtuoso
+      ref={listHandle}
+      customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
+      style={{ height: "100%", width: "100%" }}
+      data={eventNodes}
+      defaultItemHeight={250}
+      itemContent={renderRow}
+      increaseViewportBy={{ top: 1000, bottom: 1000 }}
+      overscan={{ main: 2, reverse: 2 }}
+      className={clsx("transcript")}
+      isScrolling={isScrolling}
+      restoreStateFrom={getRestoreState()}
+      totalListHeightChanged={heightChanged}
+    />
+  );
+};
