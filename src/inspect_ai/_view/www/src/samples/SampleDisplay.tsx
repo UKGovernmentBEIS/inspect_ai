@@ -13,6 +13,7 @@ import clsx from "clsx";
 import { FC, Fragment, MouseEvent, RefObject, useCallback } from "react";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { JSONPanel } from "../components/JsonPanel";
+import { NoContentsPanel } from "../components/NoContentsPanel";
 import {
   kSampleErrorTabId,
   kSampleJsonTabId,
@@ -61,6 +62,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   const sampleSummary = sampleSummaries[selectedSampleIndex];
   const sampleEvents = sample?.events || runningSampleData;
+
+  // TODO: Synthesize a message stream by using the last model call in the running
+  // sample data, parsing the JSON, and using that to make the message stream.
+  // Hopefully this isn't too slow (time it)
 
   // Tab selection
   const onSelectedTab = (e: MouseEvent<HTMLElement>) => {
@@ -129,16 +134,16 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             />
           </TabPanel>
         ) : null}
-        {sample?.messages ? (
-          <TabPanel
-            key={kSampleMessagesTabId}
-            id={kSampleMessagesTabId}
-            className={clsx("sample-tab", styles.fullWidth)}
-            title="Messages"
-            onSelected={onSelectedTab}
-            selected={selectedTab === kSampleMessagesTabId}
-            scrollable={false}
-          >
+        <TabPanel
+          key={kSampleMessagesTabId}
+          id={kSampleMessagesTabId}
+          className={clsx("sample-tab", styles.fullWidth)}
+          title="Messages"
+          onSelected={onSelectedTab}
+          selected={selectedTab === kSampleMessagesTabId}
+          scrollable={false}
+        >
+          {sample?.messages ? (
             <ChatViewVirtualList
               key={`${baseId}-chat-${id}`}
               id={`${baseId}-chat-${id}`}
@@ -147,8 +152,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
               scrollRef={scrollRef}
               toolCallStyle="complete"
             />
-          </TabPanel>
-        ) : undefined}
+          ) : (
+            <NoContentsPanel text="No messages" />
+          )}
+        </TabPanel>
         {sample && scorerNames.length === 1 ? (
           <TabPanel
             key={kSampleScoringTabId}
@@ -181,17 +188,19 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
               : undefined}
           </>
         )}
-        {sampleMetadatas.length > 0 ? (
-          <TabPanel
-            id={kSampleMetdataTabId}
-            className={clsx("sample-tab")}
-            title="Metadata"
-            onSelected={onSelectedTab}
-            selected={selectedTab === kSampleMetdataTabId}
-          >
+        <TabPanel
+          id={kSampleMetdataTabId}
+          className={clsx("sample-tab")}
+          title="Metadata"
+          onSelected={onSelectedTab}
+          selected={selectedTab === kSampleMetdataTabId}
+        >
+          {sampleMetadatas.length > 0 ? (
             <div className={clsx(styles.metadataPanel)}>{sampleMetadatas}</div>
-          </TabPanel>
-        ) : null}
+          ) : (
+            <NoContentsPanel text="No metadata" />
+          )}
+        </TabPanel>
         {sample?.error ? (
           <TabPanel
             id={kSampleErrorTabId}
@@ -208,14 +217,18 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             </div>
           </TabPanel>
         ) : null}
-        {sample && sample?.messages.length < 100 ? (
-          <TabPanel
-            id={kSampleJsonTabId}
-            className={"sample-tab"}
-            title="JSON"
-            onSelected={onSelectedTab}
-            selected={selectedTab === kSampleJsonTabId}
-          >
+        <TabPanel
+          id={kSampleJsonTabId}
+          className={"sample-tab"}
+          title="JSON"
+          onSelected={onSelectedTab}
+          selected={selectedTab === kSampleJsonTabId}
+        >
+          {!sample ? (
+            <NoContentsPanel text="JSON not available" />
+          ) : sample.messages.length > 100 ? (
+            <NoContentsPanel text="JSON too large too display" />
+          ) : (
             <div className={clsx(styles.padded, styles.fullWidth)}>
               <JSONPanel
                 data={sample}
@@ -223,8 +236,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
                 className={clsx("text-size-small")}
               />
             </div>
-          </TabPanel>
-        ) : null}
+          )}
+        </TabPanel>
       </TabSet>
     </Fragment>
   );
