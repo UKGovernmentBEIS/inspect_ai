@@ -65159,16 +65159,26 @@ ${events}
       const [followOutput, setFollowOutput] = useProperty("sample-list", "follow", {
         defaultValue: false
       });
+      const prevRunningRef = reactExports.useRef(running2);
       reactExports.useEffect(() => {
-        if (!running2 && followOutput && listHandle.current) {
-          requestAnimationFrame(() => {
-            setFollowOutput(false);
+        if (!running2 && prevRunningRef.current && followOutput && listHandle.current) {
+          setFollowOutput(false);
+          setTimeout(() => {
             if (listHandle.current) {
               listHandle.current.scrollTo({ top: 0 });
             }
-          });
+          }, 100);
         }
+        prevRunningRef.current = running2;
       }, [running2, followOutput, listHandle]);
+      const handleAtBottomStateChange = reactExports.useCallback(
+        (atBottom) => {
+          if (running2) {
+            setFollowOutput(atBottom);
+          }
+        },
+        [running2, setFollowOutput]
+      );
       const onkeydown = reactExports.useCallback(
         (e) => {
           switch (e.key) {
@@ -65278,7 +65288,7 @@ ${events}
             defaultItemHeight: 50,
             itemContent: renderRow,
             followOutput,
-            atBottomStateChange: setFollowOutput,
+            atBottomStateChange: handleAtBottomStateChange,
             increaseViewportBy: { top: 300, bottom: 300 },
             overscan: {
               main: 10,
