@@ -48,7 +48,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     listHandle,
   } = props;
 
-  const { restoreState, isScrolling } = useVirtuosoState(
+  const { getRestoreState, isScrolling } = useVirtuosoState(
     listHandle,
     "sample-list",
   );
@@ -77,7 +77,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
       setFollowOutput(false);
       setTimeout(() => {
         if (listHandle.current) {
-          listHandle.current.scrollTo({ top: 0 });
+          listHandle.current.scrollTo({ top: 0, behavior: "instant" });
         }
       }, 100);
     }
@@ -221,7 +221,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         onKeyDown={onkeydown}
         skipAnimationFrameInResizeObserver={true}
         isScrolling={isScrolling}
-        restoreStateFrom={restoreState}
+        restoreStateFrom={getRestoreState()}
       />
       <SampleFooter sampleCount={sampleCount} running={running} />
     </div>

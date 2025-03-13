@@ -99,12 +99,19 @@ type DebouncedFunction<T extends (...args: any[]) => any> = T & {
 export const useVirtuosoState = (
   virtuosoRef: RefObject<VirtuosoHandle | null>,
   elementKey: string,
-  delay = 500,
+  delay = 1000,
 ) => {
-  const restoreState = useStore((state) => state.app.listPositions[elementKey]);
-  const setListPosition = useStore((state) => state.appActions.setListPosition);
+  // Use useCallback to stabilize the selectors
+  const restoreState = useStore(
+    useCallback((state) => state.app.listPositions[elementKey], [elementKey]),
+  );
+
+  const setListPosition = useStore(
+    useCallback((state) => state.appActions.setListPosition, []),
+  );
+
   const clearListPosition = useStore(
-    (state) => state.appActions.clearListPosition,
+    useCallback((state) => state.appActions.clearListPosition, []),
   );
 
   // Properly type the debounced function ref
@@ -149,5 +156,14 @@ export const useVirtuosoState = (
     }
   }, []);
 
-  return { restoreState, isScrolling };
+  // Use a state to prevent re-rendering just because the restore
+  // state changes
+  const stateRef = useRef(restoreState);
+  useEffect(() => {
+    stateRef.current = restoreState;
+  }, [restoreState]);
+
+  const getRestoreState = useCallback(() => stateRef.current, []);
+
+  return { getRestoreState, isScrolling };
 };

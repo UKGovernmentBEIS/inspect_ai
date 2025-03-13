@@ -31057,7 +31057,14 @@ categories: ${categories.join(" ")}`;
         (state) => state.appActions.removePropertyValue
       );
       const propertyValue = useStore(
-        (state) => state.appActions.getPropertyValue(id, propertyName2, options2.defaultValue)
+        reactExports.useCallback(
+          (state) => state.appActions.getPropertyValue(
+            id,
+            propertyName2,
+            options2.defaultValue
+          ),
+          [id, propertyName2, options2.defaultValue]
+        )
       );
       const setValue = reactExports.useCallback(
         (value2) => {
@@ -51850,11 +51857,15 @@ Supported expressions:
       }, [elementKey, elementRef, handleScroll]);
       return { restoreScrollPosition };
     }
-    const useVirtuosoState = (virtuosoRef, elementKey, delay = 500) => {
-      const restoreState = useStore((state) => state.app.listPositions[elementKey]);
-      const setListPosition = useStore((state) => state.appActions.setListPosition);
+    const useVirtuosoState = (virtuosoRef, elementKey, delay = 1e3) => {
+      const restoreState = useStore(
+        reactExports.useCallback((state) => state.app.listPositions[elementKey], [elementKey])
+      );
+      const setListPosition = useStore(
+        reactExports.useCallback((state) => state.appActions.setListPosition, [])
+      );
       const clearListPosition = useStore(
-        (state) => state.appActions.clearListPosition
+        reactExports.useCallback((state) => state.appActions.clearListPosition, [])
       );
       const debouncedFnRef = reactExports.useRef(null);
       const handleStateChange = reactExports.useCallback(
@@ -51883,7 +51894,12 @@ Supported expressions:
           debouncedFnRef.current(scrolling);
         }
       }, []);
-      return { restoreState, isScrolling };
+      const stateRef = reactExports.useRef(restoreState);
+      reactExports.useEffect(() => {
+        stateRef.current = restoreState;
+      }, [restoreState]);
+      const getRestoreState = reactExports.useCallback(() => stateRef.current, []);
+      return { getRestoreState, isScrolling };
     };
     const tabs$1 = "_tabs_1qj7d_1";
     const tabContents = "_tabContents_1qj7d_5";
@@ -55555,7 +55571,7 @@ Supported expressions:
         defaultValue: false
       });
       const listHandle = reactExports.useRef(null);
-      const { restoreState, isScrolling } = useVirtuosoState(
+      const { getRestoreState, isScrolling } = useVirtuosoState(
         listHandle,
         `chat-view-${id}`
       );
@@ -55589,7 +55605,7 @@ Supported expressions:
           atBottomStateChange: setFollowOutput,
           skipAnimationFrameInResizeObserver: true,
           className: clsx(styles$J.list, className2),
-          restoreStateFrom: restoreState,
+          restoreStateFrom: getRestoreState(),
           isScrolling
         }
       );
@@ -64035,7 +64051,7 @@ ${events}
     };
     const TranscriptVirtualListComponent = reactExports.memo(({ id, eventNodes, scrollRef, running: running2 }) => {
       const listHandle = reactExports.useRef(null);
-      const { restoreState, isScrolling } = useVirtuosoState(
+      const { getRestoreState, isScrolling } = useVirtuosoState(
         listHandle,
         `transcript-${id}`
       );
@@ -64069,7 +64085,8 @@ ${events}
             isAutoScrollingRef.current = true;
             (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({
               index: "LAST",
-              align: "end"
+              align: "end",
+              behavior: "auto"
             });
             requestAnimationFrame(() => {
               isAutoScrollingRef.current = false;
@@ -64110,7 +64127,7 @@ ${events}
           overscan: { main: 2, reverse: 2 },
           className: clsx("transcript"),
           isScrolling,
-          restoreStateFrom: restoreState,
+          restoreStateFrom: getRestoreState(),
           totalListHeightChanged: heightChanged
         }
       );
@@ -64615,9 +64632,9 @@ ${events}
         }
       }
     };
-    const container$7 = "_container_w243q_1";
-    const body$2 = "_body_w243q_7";
-    const scroller = "_scroller_w243q_11";
+    const container$7 = "_container_kgsc6_1";
+    const body$2 = "_body_kgsc6_7";
+    const scroller = "_scroller_kgsc6_11";
     const styles$m = {
       container: container$7,
       body: body$2,
@@ -65231,7 +65248,7 @@ ${events}
         className: className2,
         listHandle
       } = props;
-      const { restoreState, isScrolling } = useVirtuosoState(
+      const { getRestoreState, isScrolling } = useVirtuosoState(
         listHandle,
         "sample-list"
       );
@@ -65248,7 +65265,7 @@ ${events}
           setFollowOutput(false);
           setTimeout(() => {
             if (listHandle.current) {
-              listHandle.current.scrollTo({ top: 0 });
+              listHandle.current.scrollTo({ top: 0, behavior: "instant" });
             }
           }, 100);
         }
@@ -65381,7 +65398,7 @@ ${events}
             onKeyDown: onkeydown,
             skipAnimationFrameInResizeObserver: true,
             isScrolling,
-            restoreStateFrom: restoreState
+            restoreStateFrom: getRestoreState()
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFooter, { sampleCount, running: running2 })

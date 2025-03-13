@@ -19221,19 +19221,21 @@ span.ap-marker-container:hover span.ap-marker {
   padding-top: 0;
   padding-bottom: 0.5em;
 }
-._container_w243q_1 {
+._container_kgsc6_1 {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-._body_w243q_7 {
+._body_kgsc6_7 {
   margin: 1em 1em 1em 1em;
 }
 
-._scroller_w243q_11 {
+._scroller_kgsc6_11 {
   overflow-y: auto;
   width: 100%;
+  height: 100%;
+  position: relative;
 }
 ._title_yj2nt_1 {
   flex: 1 1 auto;
