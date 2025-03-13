@@ -399,29 +399,28 @@ class Model:
         # initialise messages
         input = [ChatMessageUser(content=input)] if isinstance(input, str) else input
         messages = copy(input)
-        new_messages: list[ChatMessage] = []
         while True:
             # call model
             output = await self.generate(
-                input=messages + new_messages,
+                input=messages,
                 tools=tools,  # type:ignore[arg-type]
                 config=config,
                 cache=cache,
             )
 
             # append to new messages
-            new_messages.append(output.message)
+            messages.append(output.message)
 
             # make tool calls or terminate if there are none
             if output.message.tool_calls:
                 tools_messages, tools_output = await execute_tools(
                     messages, tools, config.max_tool_output
                 )
-                new_messages.extend(tools_messages)
+                messages.extend(tools_messages)
                 if tools_output is not None:
                     output = tools_output
             else:
-                return new_messages, output
+                return messages[len(input) :], output
 
     async def _generate(
         self,
