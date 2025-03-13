@@ -6,7 +6,9 @@ from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool import Tool, ToolResult, tool
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.tool._tool_params import ToolParam
 
 
 @solver
@@ -53,5 +55,14 @@ def as_tool(agent: Agent) -> Tool:
             return ""
 
     tool_info = parse_tool_info(agent)
-
-    return execute
+    del tool_info.parameters.properties["messages"]
+    tool_info.parameters.properties["input"] = ToolParam(
+        type="string", description="Input message."
+    )
+    tool_def = ToolDef(
+        execute,
+        name=tool_info.name,
+        description=tool_info.description,
+        parameters=tool_info.parameters,
+    )
+    return tool_def.as_tool()
