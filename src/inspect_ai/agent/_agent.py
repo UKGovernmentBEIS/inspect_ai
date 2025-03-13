@@ -17,7 +17,7 @@ from inspect_ai.model._model_output import ModelOutput
 class Agent(Protocol):
     async def __call__(
         self,
-        messages: list[ChatMessage],
+        input: list[ChatMessage],
         *args: Any,
         **kwargs: Any,
     ) -> tuple[list[ChatMessage], ModelOutput | None]:
@@ -35,7 +35,7 @@ class Agent(Protocol):
         a solver from an agent using `agent_as_solver()`.
 
         Args:
-            messages: Previous conversation history
+            input: Previous conversation history
             *args: Arguments for the agent.
             **kwargs: Keyword arguments for the agent.
 

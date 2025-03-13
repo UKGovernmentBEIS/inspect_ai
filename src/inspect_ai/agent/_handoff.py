@@ -1,12 +1,14 @@
 from typing import Callable
 
+from inspect_ai._util.registry import registry_info
 from inspect_ai.agent._agent import Agent
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._run import run
 from inspect_ai.solver._solver import Solver
 from inspect_ai.tool._tool import Tool, ToolResult
-from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
+from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.tool._tool_with import tool_with
 
 
@@ -33,17 +35,20 @@ def handoff(
         solver = agent
 
         async def run_agent(
-            messages: list[ChatMessage],
+            input: list[ChatMessage],
         ) -> tuple[list[ChatMessage], ModelOutput | None]:
-            return await run(solver, messages)
+            return await run(solver, input)
 
         handoff_agent = run_agent
+        tool_info = ToolInfo(
+            name=registry_info(solver).name,
+            description=parse_tool_info(solver).description,
+            parameters=ToolParams(),
+        )
     else:
         handoff_agent = agent
-
-    # present the model a version of the tool w/o the messages
-    tool_info = parse_tool_info(handoff_agent)
-    del tool_info.parameters.properties["messages"]
+        tool_info = parse_tool_info(handoff_agent)
+        del tool_info.parameters.properties["input"]
 
     # we are going to intercept agent tool calls and do the
     # message / model output handling
