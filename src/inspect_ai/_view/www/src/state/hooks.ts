@@ -297,8 +297,16 @@ export function useProperty<T>(
   const removePropertyValue = useStore(
     (state) => state.appActions.removePropertyValue,
   );
-  const propertyValue = useStore((state) =>
-    state.appActions.getPropertyValue(id, propertyName, options.defaultValue),
+  const propertyValue = useStore(
+    useCallback(
+      (state) =>
+        state.appActions.getPropertyValue(
+          id,
+          propertyName,
+          options.defaultValue,
+        ),
+      [id, propertyName, options.defaultValue],
+    ),
   );
 
   const setValue = useCallback(

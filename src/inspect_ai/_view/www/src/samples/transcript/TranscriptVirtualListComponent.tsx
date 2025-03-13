@@ -23,7 +23,7 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
   memo(({ id, eventNodes, scrollRef, running }) => {
     // The list handle and list state management
     const listHandle = useRef<VirtuosoHandle>(null);
-    const { restoreState, isScrolling } = useVirtuosoState(
+    const { getRestoreState, isScrolling } = useVirtuosoState(
       listHandle,
       `transcript-${id}`,
     );
@@ -66,6 +66,7 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
           listHandle.current?.scrollToIndex({
             index: "LAST",
             align: "end",
+            behavior: "auto",
           });
           requestAnimationFrame(() => {
             isAutoScrollingRef.current = false;
@@ -112,7 +113,7 @@ export const TranscriptVirtualListComponent: FC<TranscriptVirtualListComponentPr
         overscan={{ main: 2, reverse: 2 }}
         className={clsx("transcript")}
         isScrolling={isScrolling}
-        restoreStateFrom={restoreState}
+        restoreStateFrom={getRestoreState()}
         totalListHeightChanged={heightChanged}
       />
     );
