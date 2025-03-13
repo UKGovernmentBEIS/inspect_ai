@@ -17,12 +17,6 @@ title: "inspect_ai.solver"
 ### self_critique
 ### multiple_choice
 
-## Agents
-
-### basic_agent
-### human_agent
-### bridge
-
 ## Composition
 
 ### chain

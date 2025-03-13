@@ -1,0 +1,17 @@
+---
+title: "inspect_ai.agent"
+---
+
+## Orchestration
+
+### react
+### human
+### bridge
+
+## Agent Protocol
+
+### Agent
+### agent
+### handoff
+### agent_as_tool
+### agent_as_solver
