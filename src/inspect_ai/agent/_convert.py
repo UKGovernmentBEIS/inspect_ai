@@ -34,7 +34,7 @@ def agent_as_solver(agent: Agent) -> Solver:
 
 
 @tool
-def agent_as_tool(agent: Agent) -> Tool:
+def as_tool(agent: Agent) -> Tool:
     """Convert an agent to a tool.
 
     Args:

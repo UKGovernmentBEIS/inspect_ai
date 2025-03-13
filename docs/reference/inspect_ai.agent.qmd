@@ -8,10 +8,10 @@ title: "inspect_ai.agent"
 ### human
 ### bridge
 
-## Agent Protocol
+## Protocol
 
 ### Agent
 ### agent
 ### handoff
-### agent_as_tool
-### agent_as_solver
+### as_tool
+

@@ -35,9 +35,9 @@ def handoff(
         solver = agent
 
         async def run_agent(
-            input: list[ChatMessage],
+            messages: list[ChatMessage],
         ) -> tuple[list[ChatMessage], ModelOutput | None]:
-            return await run(solver, input)
+            return await run(solver, messages)
 
         handoff_agent = run_agent
         tool_info = ToolInfo(
@@ -48,7 +48,7 @@ def handoff(
     else:
         handoff_agent = agent
         tool_info = parse_tool_info(handoff_agent)
-        del tool_info.parameters.properties["input"]
+        del tool_info.parameters.properties["messages"]
 
     # we are going to intercept agent tool calls and do the
     # message / model output handling

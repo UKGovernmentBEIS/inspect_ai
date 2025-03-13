@@ -12,12 +12,14 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model_output import ModelOutput
 
+# distinguish the speaker in coversation history
+
 
 @runtime_checkable
 class Agent(Protocol):
     async def __call__(
         self,
-        input: list[ChatMessage],
+        messages: list[ChatMessage],
         *args: Any,
         **kwargs: Any,
     ) -> tuple[list[ChatMessage], ModelOutput | None]:
@@ -35,7 +37,7 @@ class Agent(Protocol):
         a solver from an agent using `agent_as_solver()`.
 
         Args:
-            input: Previous conversation history
+            messages: Previous conversation history
             *args: Arguments for the agent.
             **kwargs: Keyword arguments for the agent.
 
