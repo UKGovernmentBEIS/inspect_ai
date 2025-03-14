@@ -8,6 +8,7 @@ import { Event } from "../types";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
+import { resolveSample } from "./sampleUtils"; // Import the shared utility
 import { StoreState } from "./store";
 
 const log = createLogger("samplePolling");
@@ -116,9 +117,47 @@ export function createSamplePolling(
         // has been flushed to the main eval file, no events
         // are available and we should retrieve the data from the
         // sample file itself.
-        set((state) => {
-          state.sample.runningEvents = [];
-        });
+
+        // Stop polling since we now have the complete sample
+        stopPolling();
+
+        // Also fetch a fresh sample and clear the runnning Events
+        try {
+          log.debug(
+            `LOADING COMPLETED SAMPLE AFTER FLUSH: ${summary.id}-${summary.epoch}`,
+          );
+          const sample = await api.get_log_sample(
+            logFile,
+            summary.id,
+            summary.epoch,
+          );
+
+          if (sample) {
+            const migratedSample = resolveSample(sample);
+
+            // Update the store with the completed sample
+            set((state) => {
+              state.sample.selectedSample = migratedSample;
+              state.sample.sampleStatus = "ok";
+              state.sample.runningEvents = [];
+            });
+          } else {
+            set((state) => {
+              state.sample.sampleStatus = "error";
+              state.sample.sampleError = new Error(
+                "Unable to load sample - an unknown error occurred",
+              );
+              state.sample.runningEvents = [];
+            });
+          }
+        } catch (e) {
+          set((state) => {
+            state.sample.sampleError = e as Error;
+            state.sample.sampleStatus = "error";
+            state.sample.runningEvents = [];
+          });
+        }
+
         return false;
       }
 
