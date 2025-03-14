@@ -1,4 +1,8 @@
-import { openRemoteLogFile, RemoteLogFile } from "../logfile/remoteLogFile";
+import {
+  openRemoteLogFile,
+  RemoteLogFile,
+  SampleNotFoundError,
+} from "../logfile/remoteLogFile";
 import { FileSizeLimitError } from "../logfile/remoteZipFile";
 import { EvalLog, EvalSample } from "../types/log";
 import { encodePathParts } from "./api-shared";
@@ -158,19 +162,34 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     epoch: number,
   ): Promise<EvalSample | undefined> => {
     if (isEvalFile(log_file)) {
-      const remoteLogFile = await remoteEvalFile(log_file, true);
-      try {
-        if (remoteLogFile) {
-          const sample = await remoteLogFile.readSample(String(id), epoch);
-          return sample;
-        } else {
-          throw new Error(`Unable to read remove eval file ${log_file}`);
+      async function fetchSample(useCache: boolean) {
+        const remoteLogFile = await remoteEvalFile(log_file, useCache);
+        if (!remoteLogFile) {
+          throw new Error(`Unable to read remote eval file ${log_file}`);
         }
-      } catch (error) {
+        return await remoteLogFile.readSample(String(id), epoch);
+      }
+
+      function handleError(error: unknown) {
         if (error instanceof FileSizeLimitError) {
           throw new SampleSizeLimitedExceededError(id, epoch, error.maxBytes);
+        }
+        throw error;
+      }
+
+      try {
+        // First attempt with cache
+        return await fetchSample(true);
+      } catch (error) {
+        if (error instanceof SampleNotFoundError) {
+          try {
+            // Retry without cache
+            return await fetchSample(false);
+          } catch (retryError) {
+            handleError(retryError);
+          }
         } else {
-          throw error;
+          handleError(error);
         }
       }
     } else {
