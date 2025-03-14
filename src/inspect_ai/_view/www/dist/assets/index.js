@@ -22154,6 +22154,13 @@ self.onmessage = function (e) {
       }
     }
     const MAX_BYTES = 50 * 1024 * 1024;
+    class SampleNotFoundError extends Error {
+      constructor(message2) {
+        super(message2 || "Sample not found");
+        this.name = "SampleNotFoundError";
+        Object.setPrototypeOf(this, SampleNotFoundError.prototype);
+      }
+    }
     const openRemoteLogFile = async (api2, url, concurrency) => {
       const queue = new AsyncQueue(concurrency);
       const remoteZipFile = await openRemoteZipFile(
@@ -22197,7 +22204,7 @@ self.onmessage = function (e) {
         if (remoteZipFile.centralDirectory.has(sampleFile)) {
           return await readJSONFile(sampleFile, MAX_BYTES);
         } else {
-          throw new Error(
+          throw new SampleNotFoundError(
             `Unable to read sample file ${sampleFile} - it is not present in the manifest.`
           );
         }
@@ -22393,19 +22400,30 @@ self.onmessage = function (e) {
       };
       const get_log_sample = async (log_file2, id, epoch) => {
         if (isEvalFile(log_file2)) {
-          const remoteLogFile = await remoteEvalFile(log_file2, true);
-          try {
-            if (remoteLogFile) {
-              const sample2 = await remoteLogFile.readSample(String(id), epoch);
-              return sample2;
-            } else {
-              throw new Error(`Unable to read remove eval file ${log_file2}`);
-            }
-          } catch (error2) {
+          let handleError2 = function(error2) {
             if (error2 instanceof FileSizeLimitError) {
               throw new SampleSizeLimitedExceededError(id, epoch, error2.maxBytes);
+            }
+            throw error2;
+          };
+          async function fetchSample(useCache) {
+            const remoteLogFile = await remoteEvalFile(log_file2, useCache);
+            if (!remoteLogFile) {
+              throw new Error(`Unable to read remote eval file ${log_file2}`);
+            }
+            return await remoteLogFile.readSample(String(id), epoch);
+          }
+          try {
+            return await fetchSample(true);
+          } catch (error2) {
+            if (error2 instanceof SampleNotFoundError) {
+              try {
+                return await fetchSample(false);
+              } catch (retryError) {
+                handleError2(retryError);
+              }
             } else {
-              throw error2;
+              handleError2(error2);
             }
           }
         } else {
@@ -26575,6 +26593,19 @@ self.onmessage = function (e) {
       }
       return value2;
     };
+    const resolveSample$1 = (sample2) => {
+      sample2 = { ...sample2 };
+      if (sample2.transcript) {
+        sample2.events = sample2.transcript.events;
+        sample2.attachments = sample2.transcript.content;
+      }
+      sample2.attachments = sample2.attachments || {};
+      sample2.input = resolveAttachments(sample2.input, sample2.attachments);
+      sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
+      sample2.events = resolveAttachments(sample2.events, sample2.attachments);
+      sample2.attachments = {};
+      return sample2;
+    };
     const log$4 = createLogger("samplePolling");
     const kNoId = -1;
     const kPollingInterval = 2;
@@ -26631,9 +26662,41 @@ self.onmessage = function (e) {
             return false;
           }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
-            set2((state2) => {
-              state2.sample.runningEvents = [];
-            });
+            stopPolling();
+            if (state.sample.runningEvents.length > 0) {
+              try {
+                log$4.debug(
+                  `LOADING COMPLETED SAMPLE AFTER FLUSH: ${summary2.id}-${summary2.epoch}`
+                );
+                const sample2 = await api2.get_log_sample(
+                  logFile,
+                  summary2.id,
+                  summary2.epoch
+                );
+                if (sample2) {
+                  const migratedSample = resolveSample$1(sample2);
+                  set2((state2) => {
+                    state2.sample.selectedSample = migratedSample;
+                    state2.sample.sampleStatus = "ok";
+                    state2.sample.runningEvents = [];
+                  });
+                } else {
+                  set2((state2) => {
+                    state2.sample.sampleStatus = "error";
+                    state2.sample.sampleError = new Error(
+                      "Unable to load sample - an unknown error occurred"
+                    );
+                    state2.sample.runningEvents = [];
+                  });
+                }
+              } catch (e) {
+                set2((state2) => {
+                  state2.sample.sampleError = e;
+                  state2.sample.sampleStatus = "error";
+                  state2.sample.runningEvents = [];
+                });
+              }
+            }
             return false;
           }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "OK" && sampleDataResponse.sampleData) {
@@ -26747,19 +26810,6 @@ self.onmessage = function (e) {
       runningEvents: []
     };
     const createSampleSlice = (set2, get2, _store) => {
-      const resolveSample2 = (sample2) => {
-        sample2 = { ...sample2 };
-        if (sample2.transcript) {
-          sample2.events = sample2.transcript.events;
-          sample2.attachments = sample2.transcript.content;
-        }
-        sample2.attachments = sample2.attachments || {};
-        sample2.input = resolveAttachments(sample2.input, sample2.attachments);
-        sample2.messages = resolveAttachments(sample2.messages, sample2.attachments);
-        sample2.events = resolveAttachments(sample2.events, sample2.attachments);
-        sample2.attachments = {};
-        return sample2;
-      };
       const samplePolling = createSamplePolling(get2, set2);
       const slice = {
         // Actions
@@ -26798,7 +26848,7 @@ self.onmessage = function (e) {
                   sampleSummary.epoch
                 ));
                 if (sample2) {
-                  const migratedSample = resolveSample2(sample2);
+                  const migratedSample = resolveSample$1(sample2);
                   sampleActions.setSelectedSample(migratedSample);
                   sampleActions.setSampleStatus("ok");
                 } else {
@@ -75140,8 +75190,21 @@ ${events}
         defaultValue: running2
       });
       const isAutoScrollingRef = reactExports.useRef(false);
+      const prevRunningRef = reactExports.useRef(running2);
+      reactExports.useEffect(() => {
+        if (!running2 && prevRunningRef.current && followOutput && listHandle.current) {
+          setFollowOutput(false);
+          setTimeout(() => {
+            if (listHandle.current) {
+              listHandle.current.scrollTo({ top: 0, behavior: "instant" });
+            }
+          }, 100);
+        }
+        prevRunningRef.current = running2;
+      }, [running2, followOutput, listHandle]);
       const handleScroll = useRafThrottle(() => {
         if (isAutoScrollingRef.current) return;
+        if (!running2) return;
         if ((scrollRef == null ? void 0 : scrollRef.current) && listHandle.current) {
           const parent = scrollRef.current;
           const isAtBottom = parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 30;
@@ -75151,12 +75214,12 @@ ${events}
             setFollowOutput(false);
           }
         }
-      }, [setFollowOutput, followOutput]);
+      }, [setFollowOutput, followOutput, running2]);
       const heightChanged = reactExports.useCallback(
         (height) => {
           requestAnimationFrame(() => {
             var _a2;
-            if (followOutput) {
+            if (followOutput && running2) {
               isAutoScrollingRef.current = true;
               (_a2 = listHandle.current) == null ? void 0 : _a2.scrollTo({ top: height });
               requestAnimationFrame(() => {
@@ -75165,7 +75228,7 @@ ${events}
             }
           });
         },
-        [scrollRef, followOutput]
+        [scrollRef, followOutput, running2]
       );
       reactExports.useEffect(() => {
         const timer = setTimeout(() => {
@@ -75188,11 +75251,11 @@ ${events}
         const eventId = `${id}-event${index}`;
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$n.node, paddingClass), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-          lineNumber: 102,
+          lineNumber: 129,
           columnNumber: 9
         }, void 0) }, eventId, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-          lineNumber: 101,
+          lineNumber: 128,
           columnNumber: 7
         }, void 0);
       }, []);
@@ -75216,7 +75279,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-          lineNumber: 108,
+          lineNumber: 135,
           columnNumber: 5
         },
         void 0
@@ -78705,7 +78768,7 @@ ${events}
               "text-size-largest",
               styles$4.verticalMetricValue
             ),
-            children: metric2.value ? formatPrettyDecimal(metric2.value) : "n/a"
+            children: metric2.value !== void 0 && metric2.value !== null ? formatPrettyDecimal(metric2.value) : "n/a"
           },
           void 0,
           false,
@@ -78754,7 +78817,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                lineNumber: 201,
+                lineNumber: 203,
                 columnNumber: 7
               },
               void 0
@@ -78774,7 +78837,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                lineNumber: 213,
+                lineNumber: 215,
                 columnNumber: 9
               },
               void 0
@@ -78783,22 +78846,22 @@ ${events}
               return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$4.multiScoreMetricGrid, children: [
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: metricDisplayName(metric2) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                  lineNumber: 228,
+                  lineNumber: 230,
                   columnNumber: 15
                 }, void 0),
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$4.multiScorerValueContent, children: metric2.value ? formatPrettyDecimal(metric2.value) : void 0 }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                  lineNumber: 229,
+                  lineNumber: 231,
                   columnNumber: 15
                 }, void 0)
               ] }, metric2.name, true, {
                 fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-                lineNumber: 227,
+                lineNumber: 229,
                 columnNumber: 13
               }, void 0);
             }) }, void 0, false, {
               fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-              lineNumber: 224,
+              lineNumber: 226,
               columnNumber: 7
             }, void 0)
           ]
@@ -78807,7 +78870,7 @@ ${events}
         true,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/workspace/navbar/ResultsPanel.tsx",
-          lineNumber: 195,
+          lineNumber: 197,
           columnNumber: 5
         },
         void 0
