@@ -250,6 +250,27 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
+@modelapi(name="sglang")
+def sglang() -> type[ModelAPI]:
+    # validate OpenAI compatibility
+    validate_openai_client("SGLang API")
+
+    # Validate SGLang
+    FEATURE = "SGLang"
+    PACKAGE = "sglang"
+
+    # verify we have the package
+    try:
+        import sglang  # noqa: F401
+    except ImportError:
+        raise pip_dependency_error(FEATURE, [PACKAGE])
+
+    # in the clear
+    from .sglang import SGLangAPI
+
+    return SGLangAPI
+
+
 @modelapi("goodfire")
 def goodfire() -> type[ModelAPI]:
     """Get the Goodfire API provider."""

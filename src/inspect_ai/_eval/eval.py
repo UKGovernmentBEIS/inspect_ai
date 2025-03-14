@@ -485,6 +485,12 @@ async def eval_async(
             logs = EvalLogs(results)
 
     finally:
+        if isinstance(model, list):
+            for model in model:
+                if isinstance(model, Model):
+                    await model.api.close()
+        elif isinstance(model, Model):
+            await model.api.close()
         _eval_async_running = False
 
     # return logs

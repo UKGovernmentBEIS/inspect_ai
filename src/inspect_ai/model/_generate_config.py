@@ -25,6 +25,34 @@ class ResponseSchema(BaseModel):
     OpenAI and Mistral only."""
 
 
+class GuidedDecodingConfig(BaseModel):
+    """Configuration for guided decoding in VLLM."""
+
+    json_schema: dict | None = Field(
+        default=None, alias="json", serialization_alias="guided_json"
+    )
+    """JSON schema to guide the model's output format."""
+
+    regex: str | None = Field(default=None, serialization_alias="guided_regex")
+    """Regular expression to constrain the model's output format."""
+
+    choice: list[str] | None = Field(default=None, serialization_alias="guided_choice")
+    """List of possible choices the model can output."""
+
+    grammar: str | None = Field(default=None, serialization_alias="guided_grammar")
+    """Context-free grammar in EBNF format to define the output structure."""
+
+    backend: Literal["outlines", "lm-format-enforcer", "xgrammar"] | None = Field(
+        default=None, serialization_alias="guided_decoding_backend"
+    )
+    """Backend implementation to use for guided decoding."""
+
+    whitespace_pattern: str | None = Field(
+        default=None, serialization_alias="guided_whitespace_pattern"
+    )
+    """Pattern to use for whitespace handling in guided json decoding."""
+
+
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
 
@@ -102,6 +130,18 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
+
+    guided_decoding: GuidedDecodingConfig | None
+    """Configuration for guided decoding to control model output format. vLLM only."""
+
+    add_generation_prompt: bool | None
+    """If true, the generation prompt will be added to the chat template. This is a parameter used by chat template in tokenizer config of the model. vLLM only."""
+
+    continue_final_message: bool | None
+    """If this is set, the chat will be formatted so that the final message in the chat is open-ended, without any EOS tokens. The model will continue this message rather than starting a new one. This allows you to "prefill" part of the model's response for it. Cannot be used at the same time as `add_generation_prompt`. vLLM only."""
+
+    extra_body: dict[str, Any] | None
+    """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
 
 class GenerateConfig(BaseModel):
@@ -183,6 +223,18 @@ class GenerateConfig(BaseModel):
 
     response_schema: ResponseSchema | None = Field(default=None)
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
+
+    guided_decoding: GuidedDecodingConfig | None = Field(default=None)
+    """Configuration for guided decoding to control model output format. vLLM only."""
+
+    add_generation_prompt: bool | None = Field(default=None)
+    """If true, the generation prompt will be added to the chat template. This is a parameter used by chat template in tokenizer config of the model. vLLM only."""
+
+    continue_final_message: bool | None = Field(default=None)
+    """If this is set, the chat will be formatted so that the final message in the chat is open-ended, without any EOS tokens. The model will continue this message rather than starting a new one. This allows you to "prefill" part of the model's response for it. Cannot be used at the same time as `add_generation_prompt`. vLLM only."""
+
+    extra_body: dict[str, Any] | None = Field(default=None)
+    """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
