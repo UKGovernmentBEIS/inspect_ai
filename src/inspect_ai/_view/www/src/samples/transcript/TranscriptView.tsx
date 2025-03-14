@@ -253,13 +253,38 @@ const fixupEventStream = (events: Events, filterPending: boolean = true) => {
   // Filter pending events
   const finalEvents = filterPending ? events.filter((e) => !e.pending) : events;
 
-  // See if the find an init step
+  // Collapse sequential pending events of the same type
+  const collapsed = !filterPending
+    ? events.reduce<Events>((acc, event) => {
+        if (!event.pending) {
+          // Not a pending event
+          acc.push(event);
+        } else {
+          // For pending events, replace previous pending or add new
+          const lastIndex = acc.length - 1;
+          if (
+            lastIndex >= 0 &&
+            acc[lastIndex].pending &&
+            acc[lastIndex].event === event.event
+          ) {
+            // Replace previous pending with current one (if they're of the same type)
+            acc[lastIndex] = event;
+          } else {
+            // First event or follows non-pending
+            acc.push(event);
+          }
+        }
+        return acc;
+      }, [])
+    : events;
+
+  // See if the events have an init step
   const hasInitStep =
-    events.findIndex((e) => {
+    collapsed.findIndex((e) => {
       return e.event === "step" && e.name === "init";
     }) !== -1;
 
-  const fixedUp = [...finalEvents];
+  const fixedUp = [...collapsed];
   if (!hasInitStep && initEvent) {
     fixedUp.splice(initEventIndex, 0, {
       timestamp: initEvent.timestamp,
