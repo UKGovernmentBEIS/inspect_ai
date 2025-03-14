@@ -18,6 +18,55 @@ export function createLogPolling(
   // handle aborts
   let abortController: AbortController;
 
+  // Refresh logs and clear pending in a single transaction
+  const refreshLog = async (logFileName: string, clearPending = false) => {
+    if (abortController?.signal.aborted) {
+      return false;
+    }
+
+    const state = get();
+    const api = state.api;
+    const selectedLogFile = state.logsActions.getSelectedLogFile();
+
+    if (!api || !selectedLogFile) {
+      return false;
+    }
+
+    log.debug(`refresh: ${selectedLogFile}`);
+
+    try {
+      const logContents = await api.get_log_summary(selectedLogFile);
+
+      set((state) => {
+        // Set the log summary
+        state.log.selectedLogSummary = logContents;
+        log.debug(
+          `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
+          logContents,
+        );
+
+        // Clear pending summaries if requested
+        if (clearPending) {
+          const pendingSampleSummaries = state.log.pendingSampleSummaries;
+          if ((pendingSampleSummaries?.samples.length || 0) > 0) {
+            log.debug(
+              `Clearing pending summaries during refresh for: ${logFileName}`,
+            );
+            state.log.pendingSampleSummaries = {
+              samples: [],
+              refresh: pendingSampleSummaries?.refresh || 2,
+            };
+          }
+        }
+      });
+
+      return true;
+    } catch (error) {
+      log.error("Error refreshing log:", error);
+      return false;
+    }
+  };
+
   // Function to start polling for a specific log file
   const startPolling = (logFileName: string) => {
     // Stop any existing polling
@@ -69,7 +118,7 @@ export function createLogPolling(
           });
 
           // Refresh the log to get latest data
-          get().logActions.refreshLog();
+          await refreshLog(logFileName, false);
 
           // Continue polling
           return true;
@@ -77,8 +126,8 @@ export function createLogPolling(
           // The eval has completed (no more events/pending samples will be delivered)
           log.debug(`Stop polling running samples: ${logFileName}`);
 
-          // Clear pending summaries
-          clearPendingSummaries(logFileName);
+          // Clear pending summaries and refresh in one transaction
+          await refreshLog(logFileName, true);
 
           // Stop polling
           return false;
@@ -97,7 +146,7 @@ export function createLogPolling(
     currentPolling.start();
   };
 
-  // Clear pending summaries
+  // Clear pending summaries (now using the transactional approach)
   const clearPendingSummaries = (logFileName: string) => {
     if (abortController.signal.aborted) {
       return false;
@@ -106,14 +155,10 @@ export function createLogPolling(
     const pendingSampleSummaries = get().log.pendingSampleSummaries;
     if ((pendingSampleSummaries?.samples.length || 0) > 0) {
       log.debug(`Clear pending: ${logFileName}`);
-      set((state) => {
-        state.log.pendingSampleSummaries = {
-          samples: [],
-          refresh: pendingSampleSummaries?.refresh || 2,
-        };
-      });
-      get().logActions.refreshLog();
+      return refreshLog(logFileName, true);
     }
+
+    return false;
   };
 
   // Stop polling
@@ -136,5 +181,8 @@ export function createLogPolling(
     stopPolling,
     clearPendingSummaries,
     cleanup,
+    // Expose the refresh function so components can use it directly
+    refreshLog: (clearPending = false) =>
+      refreshLog(get().logsActions.getSelectedLogFile() || "", clearPending),
   };
 }

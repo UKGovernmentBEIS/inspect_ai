@@ -18197,6 +18197,44 @@ self.onmessage = function (e) {
     function createLogPolling(get2, set2) {
       let currentPolling = null;
       let abortController;
+      const refreshLog = async (logFileName, clearPending = false) => {
+        if (abortController == null ? void 0 : abortController.signal.aborted) {
+          return false;
+        }
+        const state = get2();
+        const api2 = state.api;
+        const selectedLogFile = state.logsActions.getSelectedLogFile();
+        if (!api2 || !selectedLogFile) {
+          return false;
+        }
+        log$8.debug(`refresh: ${selectedLogFile}`);
+        try {
+          const logContents = await api2.get_log_summary(selectedLogFile);
+          set2((state2) => {
+            state2.log.selectedLogSummary = logContents;
+            log$8.debug(
+              `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
+              logContents
+            );
+            if (clearPending) {
+              const pendingSampleSummaries = state2.log.pendingSampleSummaries;
+              if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
+                log$8.debug(
+                  `Clearing pending summaries during refresh for: ${logFileName}`
+                );
+                state2.log.pendingSampleSummaries = {
+                  samples: [],
+                  refresh: (pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.refresh) || 2
+                };
+              }
+            }
+          });
+          return true;
+        } catch (error2) {
+          log$8.error("Error refreshing log:", error2);
+          return false;
+        }
+      };
       const startPolling = (logFileName) => {
         var _a2;
         if (currentPolling) {
@@ -18232,11 +18270,11 @@ self.onmessage = function (e) {
               set2((state2) => {
                 state2.log.pendingSampleSummaries = pendingSamples.pendingSamples;
               });
-              get2().logActions.refreshLog();
+              await refreshLog(logFileName, false);
               return true;
             } else if (pendingSamples.status === "NotFound") {
               log$8.debug(`Stop polling running samples: ${logFileName}`);
-              clearPendingSummaries(logFileName);
+              await refreshLog(logFileName, true);
               return false;
             }
             return true;
@@ -18255,14 +18293,9 @@ self.onmessage = function (e) {
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
           log$8.debug(`Clear pending: ${logFileName}`);
-          set2((state) => {
-            state.log.pendingSampleSummaries = {
-              samples: [],
-              refresh: (pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.refresh) || 2
-            };
-          });
-          get2().logActions.refreshLog();
+          return refreshLog(logFileName, true);
         }
+        return false;
       };
       const stopPolling = () => {
         if (currentPolling) {
@@ -18279,7 +18312,9 @@ self.onmessage = function (e) {
         startPolling,
         stopPolling,
         clearPendingSummaries,
-        cleanup
+        cleanup,
+        // Expose the refresh function so components can use it directly
+        refreshLog: (clearPending = false) => refreshLog(get2().logsActions.getSelectedLogFile() || "", clearPending)
       };
     }
     const log$7 = createLogger("logSlice");
@@ -64700,7 +64735,7 @@ ${events}
             tabPanelsClassName: clsx(styles$I.tabPanel),
             tools: tools2,
             children: [
-              sampleEvents && sampleEvents.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleTranscriptTabId,
@@ -64713,7 +64748,7 @@ ${events}
                     TranscriptVirtualList,
                     {
                       id: `${baseId}-transcript-display-${id}`,
-                      events: sampleEvents,
+                      events: sampleEvents || [],
                       running: !!runningSampleData && runningSampleData.length > 0 && !sampleSummary.completed,
                       scrollRef
                     },
@@ -64721,7 +64756,7 @@ ${events}
                   )
                 },
                 kSampleTranscriptTabId
-              ) : null,
+              ),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
@@ -64953,23 +64988,29 @@ ${events}
       selectedTab,
       setSelectedTab
     }) => {
-      var _a2, _b2, _c, _d;
+      var _a2, _b2, _c, _d, _e2, _f;
       const sampleData = useSampleData();
       const loadSample = useStore((state) => state.sampleActions.loadSample);
       const logSelection = useLogSelection();
+      const sampleCompleteRef = reactExports.useRef(true);
+      reactExports.useEffect(() => {
+        var _a3;
+        sampleCompleteRef.current = !!((_a3 = logSelection.sample) == null ? void 0 : _a3.completed);
+      }, [(_a2 = logSelection.sample) == null ? void 0 : _a2.completed]);
       reactExports.useEffect(() => {
         var _a3;
         if (logSelection.logFile && logSelection.sample) {
-          if (((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch) {
+          if (((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch || logSelection.sample.completed !== sampleCompleteRef.current) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
       }, [
         logSelection.logFile,
-        (_a2 = logSelection.sample) == null ? void 0 : _a2.id,
-        (_b2 = logSelection.sample) == null ? void 0 : _b2.epoch,
-        (_c = sampleData.sample) == null ? void 0 : _c.id,
-        (_d = sampleData.sample) == null ? void 0 : _d.epoch
+        (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
+        (_c = logSelection.sample) == null ? void 0 : _c.epoch,
+        (_d = logSelection.sample) == null ? void 0 : _d.completed,
+        (_e2 = sampleData.sample) == null ? void 0 : _e2.id,
+        (_f = sampleData.sample) == null ? void 0 : _f.epoch
       ]);
       const scrollRef = reactExports.useRef(null);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$m.container, children: [
