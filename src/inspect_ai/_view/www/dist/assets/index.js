@@ -36531,7 +36531,7 @@ self.onmessage = function (e) {
         return entries;
       }
     };
-    const kPrismRenderMaxSize = 1e6;
+    const kPrismRenderMaxSize = 25e4;
     const JSONPanel = ({
       id,
       json,
