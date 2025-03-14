@@ -1,4 +1,4 @@
-from inspect_ai._util.registry import is_registry_dict
+from inspect_ai._util.registry import is_model_dict, is_registry_dict
 from inspect_ai.log._log import eval_config_defaults
 
 from .display import TaskProfile
@@ -14,6 +14,8 @@ def task_config(
         value = task_args[key]
         if is_registry_dict(value):
             task_args[key] = value["name"]
+        if is_model_dict(value):
+            task_args[key] = value["model"]
     # get eval_config overrides
     eval_config = dict(profile.eval_config.model_dump(exclude_none=True))
     for name, default_value in eval_config_defaults().items():

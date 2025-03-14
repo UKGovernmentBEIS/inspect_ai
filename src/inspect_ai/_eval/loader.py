@@ -2,7 +2,6 @@ import ast
 import contextlib
 import inspect
 import os
-from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from logging import getLogger
@@ -12,6 +11,7 @@ from typing import Any, Callable, Tuple, cast
 
 from typing_extensions import overload
 
+from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import task_file, task_run_dir
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.decorator import parse_decorators
@@ -26,42 +26,24 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_params,
 )
-from inspect_ai.model import Model, ModelName
+from inspect_ai.model import Model
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
 from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
-from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
+from inspect_ai.util._sandbox.environment import (
+    resolve_sandbox_environment,
+)
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
 from .registry import task_create
-from .task import PreviousTask, Task, TaskInfo, Tasks
+from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
-from .task.run import EvalSampleSource, eval_log_sample_source
+from .task.run import eval_log_sample_source
+from .task.tasks import Tasks
 
 logger = getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class ResolvedTask:
-    task: Task
-    task_args: dict[str, Any]
-    task_file: str | None
-    model: Model
-    sandbox: SandboxEnvironmentSpec | None
-    sequence: int
-    id: str | None = field(default=None)
-    sample_source: EvalSampleSource | None = field(default=None)
-
-    @property
-    def has_sandbox(self) -> bool:
-        if self.sandbox:
-            return True
-        else:
-            return any(
-                [True if sample.sandbox else False for sample in self.task.dataset]
-            )
 
 
 def resolve_tasks(
@@ -76,16 +58,22 @@ def resolve_tasks(
                 task=task,
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
-                model=model,
+                model=task.model or model,
                 sandbox=resolve_task_sandbox(task, sandbox),
                 sequence=sequence,
             )
             for sequence, task in enumerate(tasks)
         ]
 
+    # reflect resolved tasks right back
+    if isinstance(tasks, ResolvedTask):
+        return [tasks]
+    elif isinstance(tasks, list) and isinstance(tasks[0], ResolvedTask):
+        return cast(list[ResolvedTask], tasks)
+
     # take empty lists out of play
     if isinstance(tasks, list) and len(tasks) == 0:
-        return as_resolved_tasks(load_tasks(None, model, task_args))
+        return as_resolved_tasks(load_tasks(None, task_args))
 
     # simple cases of passing us Task objects
     if isinstance(tasks, Task):
@@ -109,9 +97,7 @@ def resolve_tasks(
                 loaded_task = previous_task.task
             else:
                 loaded_task_args = previous_task.task_args
-                loaded_task = load_tasks([previous_task.task], model, loaded_task_args)[
-                    0
-                ]
+                loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
             loaded_tasks.append(loaded_task)
             loaded_tasks_args.append(loaded_task_args)
 
@@ -120,7 +106,7 @@ def resolve_tasks(
                 task=loaded_task,
                 task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
-                model=model,
+                model=previous_task.model or loaded_task.model or model,
                 sandbox=previous_task.log.eval.sandbox,
                 sequence=sequence,
                 id=previous_task.id,
@@ -153,19 +139,14 @@ def resolve_tasks(
         tasks = [tasks]
 
     # done! let's load the tasks
-    return as_resolved_tasks(
-        load_tasks(cast(list[str] | None, tasks), model, task_args)
-    )
+    return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
 
 
 def resolve_task_args(task: Task) -> dict[str, Any]:
     # was the task instantiated via the registry or a decorator?
     # if so then we can get the task_args from the registry.
     try:
-        # filter out model as that's dyanmic and automatically passed
         task_args = dict(registry_params(task))
-        if "model" in task_args:
-            del task_args["model"]
         return task_args
 
     # if it wasn't instantiated via the registry or a decorator
@@ -217,34 +198,29 @@ def resolve_task_sandbox(
 
 
 def load_tasks(
-    task_specs: list[str] | None, model: Model, task_args: dict[str, Any] = {}
+    task_specs: list[str] | None, task_args: dict[str, Any] = {}
 ) -> list[Task]:
     """Load one more more tasks (if no tasks are specified, load from the current working directory"""
-    # determine ModelName object for task creation parameterized by model
-    model_name = ModelName(model)
     # load tasks
     return [
         spec
         for task_spec in (task_specs if task_specs else [Path.cwd().as_posix()])
-        for spec in load_task_spec(task_spec, model_name, task_args)
+        for spec in load_task_spec(task_spec, task_args)
     ]
 
 
-def load_task_spec(
-    task_spec: str, model: ModelName, task_args: dict[str, Any] = {}
-) -> list[Task]:
+def load_task_spec(task_spec: str, task_args: dict[str, Any] = {}) -> list[Task]:
     # task in a python package
     if registry_lookup("task", task_spec) is not None:
         # create the task from a python package
-        return [task_create(task_spec, model, **task_args)]
+        return [task_create(task_spec, **task_args)]
     else:
         # load tasks from glob
-        return create_tasks([task_spec], model, task_args)
+        return create_tasks([task_spec], task_args)
 
 
 def create_tasks(
     globs: list[str],
-    model: ModelName,
     task_args: dict[str, Any] = {},
     root_dir: Path | None = None,
 ) -> list[Task]:
@@ -261,9 +237,7 @@ def create_tasks(
         if spec_split[1] is not None:
             task_path = Path(spec_split[0])
             load_file_tasks(task_path.absolute())
-            tasks.extend(
-                create_file_tasks(task_path, model, [spec_split[1]], task_args)
-            )
+            tasks.extend(create_file_tasks(task_path, [spec_split[1]], task_args))
         else:
             # if the glob is the root dir then set it to empty (will result in
             # enumeration of the root dir)
@@ -271,7 +245,7 @@ def create_tasks(
             files = task_files(target, root_dir)
             files = sorted(files, key=lambda f: f.as_posix())
             for file in files:
-                tasks.extend(create_file_tasks(file, model, None, task_args))
+                tasks.extend(create_file_tasks(file, None, task_args))
     return tasks
 
 
@@ -282,7 +256,6 @@ def load_file_tasks(file: Path) -> None:
 
 def create_file_tasks(
     file: Path,
-    model: ModelName,
     task_specs: list[str] | list[RegistryInfo] | None = None,
     task_args: dict[str, Any] = {},
 ) -> list[Task]:
@@ -302,7 +275,7 @@ def create_file_tasks(
             # create the task from the loaded source file and
             # note that it was loaded from this directory
             # (will be used later to ensure it runs in the directory)
-            task = task_create(task_spec, model, **task_args)
+            task = task_create(task_spec, **task_args)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
             setattr(task, TASK_RUN_DIR_ATTR, run_dir)
             tasks.append(task)

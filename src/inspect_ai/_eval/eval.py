@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
+from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
@@ -47,16 +49,18 @@ from inspect_ai.util._display import (
 )
 
 from .context import init_eval_context
-from .loader import ResolvedTask, resolve_tasks
+from .loader import resolve_tasks
 from .run import eval_run
-from .task import Epochs, PreviousTask, Tasks
+from .task import Epochs, PreviousTask
+from .task.resolved import ResolvedTask, resolved_model_names
+from .task.tasks import Tasks
 
 log = logging.getLogger(__name__)
 
 
 def eval(
     tasks: Tasks,
-    model: str | Model | list[str] | list[Model] | None = None,
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
     task_args: dict[str, Any] | str = dict(),
@@ -96,9 +100,9 @@ def eval(
     Args:
         tasks: Task(s) to evaluate. If None, attempt
             to evaluate a task in the current working directory
-        model: Model(s) for
-            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
-            environment variable.
+        model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+            environment variable. Specify `None` to define no default model(s), which will
+            leave model usage entirely up to tasks.
         model_base_url: Base URL for communicating
             with the model API.
         model_args: Model creation args
@@ -144,7 +148,7 @@ def eval(
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
-            (default is 1)
+            (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -223,7 +227,7 @@ _eval_async_running = False
 
 async def eval_async(
     tasks: Tasks,
-    model: str | Model | list[str] | list[Model] | None = None,
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
     task_args: dict[str, Any] | str = dict(),
@@ -259,67 +263,53 @@ async def eval_async(
     r"""Evaluate tasks using a Model (async).
 
     Args:
-        tasks: (Tasks): Task(s) to evaluate. If None, attempt
+        tasks: Task(s) to evaluate. If None, attempt
             to evaluate a task in the current working directory
-        model (str | Model | list[str] | list[Model] | None): Model(s) for
-            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
-            environment variable.
-        model_base_url: (str | None): Base URL for communicating
-            with the model API.
-        model_args (dict[str,Any] | str): Model creation args
-            (as a dictionary or as a path to a JSON or YAML config file)
-        task_args (dict[str,Any] | str): Task creation arguments
-            (as a dictionary or as a path to a JSON or YAML config file)
-        sandbox (SandboxEnvironmentType | None): Sandbox environment type
-          (or optionally a str or tuple with a shorthand spec)
-        sandbox_cleanup (bool | None): Cleanup sandbox environments after task completes
-           (defaults to True)
-        solver (Solver | list[Solver] | SolverSpec | None): Alternative solver for task(s).
-          Optional (uses task solver by default).
+        model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+            environment variable. Specify `None` to define no default model(s), which will
+            leave model usage entirely up to tasks.
+        model_base_url: Base URL for communicating with the model API.
+        model_args: Model creation args (as a dictionary or as a path to a JSON or YAML config file)
+        task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
+        sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+        sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
+        solver: Alternative solver for task(s).  Optional (uses task solver by default).
         tags (list[str] | None): Tags to associate with this evaluation run.
-        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
+        approval: Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
-        log_level (str | None): Level for logging to the console: "debug", "http", "sandbox",
+        log_level: Level for logging to the console: "debug", "http", "sandbox",
           "info", "warning", "error", or "critical" (defaults to "warning")
-        log_level_transcript (str | None): Level for logging to the log file (defaults to "info")
-        log_dir (str | None): Output path for logging results
-            (defaults to file log in ./logs directory).
-        log_format (Literal["eval", "json"] | None): Format for writing log files (defaults
-           to "eval", the native high-performance format).
-        limit (str | int | list[str | int] | None): Limit evaluated samples
-            (defaults to all samples).
-        sample_id (str | list[str] | None): Evaluate specific sample(s) from the dataset.
-        epochs (int | Epochs | None): Epochs to repeat samples for and optional score
+        log_level_transcript: Level for logging to the log file (defaults to "info")
+        log_dir: Output path for logging results (defaults to file log in ./logs directory).
+        log_format: Format for writing log files (defaults to "eval", the native high-performance format).
+        limit: Limit evaluated samples (defaults to all samples).
+        sample_id: Evaluate specific sample(s) from the dataset.
+        epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
-        fail_on_error (bool | float | None): `True` to fail on first sample error
+        fail_on_error: `True` to fail on first sample error
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail eval if a count of samples fails.
-        debug_errors (bool | None): Raise task errors (rather than logging them)
-           so they can be debugged (defaults to False).
-        message_limit (int | None): Limit on total messages used for each sample.
-        token_limit (int | None): Limit on total tokens used for each sample.
+        debug_errors: Raise task errors (rather than logging them) so they can be debugged (defaults to False).
+        message_limit: Limit on total messages used for each sample.
+        token_limit: Limit on total tokens used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
-        max_samples (int | None): Maximum number of samples to run in parallel
-           (default is max_connections)
-        max_tasks (int | None): Maximum number of tasks to run in parallel
-           (default is 1)
-        max_subprocesses (int | None): Maximum number of subprocesses to
-            run in parallel (default is os.cpu_count())
-        max_sandboxes (int | None): Maximum number of sandboxes (per-provider)
-           to run in parallel.
-        log_samples: (bool | None): Log detailed samples and scores (defaults to True)
-        log_images: (bool | None): Log base64 encoded version of images,
-            even if specified as a filename or URL (defaults to False)
-        log_buffer: (int | None): Number of samples to buffer before writing log file.
+        max_samples: Maximum number of samples to run in parallel (default is max_connections)
+        max_tasks: Maximum number of tasks to run in parallel
+            (defaults to number of models being evaluated)
+        max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
+        max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
+        log_samples: Log detailed samples and scores (defaults to True)
+        log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
+        log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-        score (bool): Score output (defaults to True)
-        score_display (bool | None): Show scoring metrics in realtime (defaults to True)
-        **kwargs (GenerateConfigArgs): Model generation options.
+        score: Score output (defaults to True)
+        score_display: Show scoring metrics in realtime (defaults to True)
+        **kwargs: Model generation options.
 
     Returns:
         List of EvalLog (one for each task)
@@ -364,6 +354,12 @@ async def eval_async(
         if len(resolved_tasks) == 0:
             log.warning("No inspect tasks were found at the specified paths.")
             return []
+
+        # if there is no max tasks then base it on unique model names
+        if max_tasks is None:
+            model_count = len(resolved_model_names(resolved_tasks))
+            if model_count > 0:
+                max_tasks = model_count
 
         # apply conversation display constraints
         if display_type() == "conversation":
@@ -450,7 +446,6 @@ async def eval_async(
                         eval_config=eval_config,
                         eval_sandbox=sandbox,
                         recorder=recorder,
-                        model_args=model_args,
                         epochs_reducer=epochs_reducer,
                         solver=solver,
                         tags=tags,
@@ -475,7 +470,6 @@ async def eval_async(
                 eval_config=eval_config,
                 eval_sandbox=sandbox,
                 recorder=recorder,
-                model_args=model_args,
                 epochs_reducer=epochs_reducer,
                 solver=solver,
                 tags=tags,
@@ -529,7 +523,7 @@ def eval_retry(
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
-            (default is 1)
+            (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -764,7 +758,7 @@ async def eval_retry_async(
         log = (
             await eval_async(
                 tasks=PreviousTask(
-                    id=task_id, task=task, task_args=task_args, log=eval_log
+                    id=task_id, task=task, task_args=task_args, model=None, log=eval_log
                 ),
                 model=model,
                 model_base_url=model_base_url,
@@ -809,7 +803,7 @@ async def eval_retry_async(
 
 def eval_init(
     tasks: Tasks,
-    model: str | Model | list[str] | list[Model] | None = None,
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
     task_args: dict[str, Any] | str = dict(),
@@ -886,7 +880,7 @@ def init_eval_display(
         # multiple models not allowed in trace mode
         if isinstance(model, list) and len(model) > 1:
             raise PrerequisiteError(
-                "Trace mode cannot be used when evaluating multiple models."
+                "Conversation mode cannot be used when evaluating multiple models."
             )
 
     return max_tasks, max_samples

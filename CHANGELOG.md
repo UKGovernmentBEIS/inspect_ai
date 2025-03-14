@@ -1,5 +1,11 @@
 ## Unreleased
 
+- Model API: Specifying a default model (e.g. `--model`) is no longer required (as some evals have no model or use `get_model()` for model access).
+- Tasks can now directly specify a `model`, and model is no longer a required axis for parallel tasks.
+- Eval Set: Improved parallelisation in scheduler (all pending tasks are now run together rather than in model groups).
+
+## v0.3.73 (14 March 2025)
+
 - Constrain model output to a particular JSON schema using [Structured Output](https://inspect.ai-safety-institute.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).
 - New "HTTP Retries" display (replacing the "HTTP Rate Limits" display) which counts all retries and does so much more consistently and accurately across providers.
 - The `ModelAPI` class now has a `should_retry()` method that replaces the deprecated `is_rate_limit()` method.
@@ -10,11 +16,12 @@
 - Agent Bridge: Correct handling for `tool_choice` option.
 - Model API: `ChatMessage` now includes an `id` field (defaults to auto-generated uuid).
 - OpenAI: More flexible parsing of content parts (some providers omit the "type" field); support for "reasoning" content parts.
-- Anthropic: Retry remote protocol errors that occur during streaming.
+- Anthropic: Retry api connection errors and remote protocol errors that occur during streaming.
 - Mistral: Update to new Mistral API (v1.5.1 of `mistralai` is now required).
 - Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
 - Tasks: For filesystem based tasks, no longer switch to the task file's directory during execution (directory switching still occurs during task loading). Specify `@task(chdir=True)` to preserve the previous behavior.
 - Bugfix: Fix issue with deserializing custom sandbox configuration objects.
+- Bugfix: Handle `parallel_tool_calls` correctly for OpenAI models served through Azure.
 
 ## v0.3.72 (03 March 2025)
 
