@@ -34,7 +34,6 @@ export const TranscriptVirtualListComponent: FC<
   });
   const isAutoScrollingRef = useRef(false);
 
-
   // Track whether we were previously running so we can
   // decide whether to pop up to the top
   const prevRunningRef = useRef(running);

@@ -97,6 +97,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     );
   }
 
+  const running =
+    (!runningSampleData || runningSampleData.length === 0) && !sampleSummary
+      ? undefined
+      : (!!runningSampleData && runningSampleData.length > 0) ||
+        !sampleSummary.completed;
+
   return (
     <Fragment>
       {sample || sampleSummary ? (
@@ -123,11 +129,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
-            running={
-              !!runningSampleData &&
-              runningSampleData.length > 0 &&
-              !sampleSummary.completed
-            }
+            running={running}
             scrollRef={scrollRef}
           />
         </TabPanel>
