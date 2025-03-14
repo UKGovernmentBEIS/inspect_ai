@@ -44,6 +44,22 @@
   tasks:
   - swe_bench
   title: 'SWE-bench Verified: Resolving Real-World GitHub Issues'
+- arxiv: https://arxiv.org/abs/2407.13168
+  categories:
+  - Coding
+  contributors:
+  - xantheocracy
+  dependency: scicode
+  description: 'SciCode tests the ability of language models to generate code to solve
+    scientific research problems. It assesses models on 65 problems from mathematics,
+    physics, chemistry, biology, and materials science.
+
+    '
+  group: Coding
+  path: src/inspect_evals/scicode
+  tasks:
+  - scicode
+  title: 'SciCode: A Research Coding Benchmark Curated by Scientists'
 - arxiv: https://arxiv.org/abs/2211.11501
   categories:
   - Coding
@@ -71,6 +87,24 @@
   - bigcodebench
   title: 'BigCodeBench: Benchmarking Code Generation with Diverse Function Calls and
     Complex Instructions'
+- arxiv: https://arxiv.org/pdf/2105.09938v3
+  categories:
+  - Coding
+  contributors:
+  - camtice
+  description: 'APPS is a dataset for evaluating model performance on Python programming
+    tasks across three difficulty levels consisting of 1,000 at introductory, 3,000
+    at interview, and 1,000 at competition level. The dataset consists of an additional
+    5,000 training samples, for a total of 10,000 total samples. We evaluate on questions
+    from the test split, which consists of programming problems commonly found in
+    coding interviews.
+
+    '
+  group: Coding
+  path: src/inspect_evals/apps
+  tasks:
+  - apps
+  title: 'APPS: Automated Programming Progress Standard'
 - arxiv: https://arxiv.org/abs/2308.01861
   categories:
   - Coding
@@ -144,6 +178,20 @@
   tasks:
   - assistant_bench
   title: 'AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?'
+- arxiv: https://arxiv.org/abs/2310.13548
+  categories:
+  - Assistants
+  contributors:
+  - alexdzm
+  description: 'Evaluate sycophancy of language models across a variety of free-form
+    text-generation tasks.
+
+    '
+  group: Assistants
+  path: src/inspect_evals/sycophancy
+  tasks:
+  - sycophancy
+  title: Sycophancy Eval
 - arxiv: https://arxiv.org/abs/2408.08926
   categories:
   - Cybersecurity
@@ -741,13 +789,47 @@
   tasks:
   - xstest
   title: 'XSTest: A benchmark for identifying exaggerated safety behaviours in LLM''s'
+- arxiv: https://arxiv.org/abs/2501.14249
+  categories:
+  - Knowledge
+  contributors:
+  - SasankYadati
+  description: 'Humanity''s Last Exam (HLE) is a multi-modal benchmark at the frontier
+    of human knowledge, designed to be the final closed-ended academic benchmark of
+    its kind with broad subject coverage. Humanity''s Last Exam consists of 3,000
+    questions across dozens of subjects, including mathematics, humanities, and the
+    natural sciences. HLE is developed globally by subject-matter experts and consists
+    of multiple-choice and short-answer questions suitable for automated grading.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/hle
+  tasks:
+  - hle
+  title: Humanity's Last Exam
+- categories:
+  - Knowledge
+  contributors:
+  - bact
+  description: 'Questions and answers from the Ordinary National Educational Test
+    (O-NET), administered annually by the National Institute of Educational Testing
+    Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand. The exam contains
+    six subjects: English language, math, science, social knowledge, and Thai language.
+    There are questions with multiple-choice and true/false answers. Questions can
+    be in either English or Thai.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/onet
+  tasks:
+  - onet_m6
+  title: 'O-NET: A high-school student knowledge test'
 - arxiv: https://arxiv.org/abs/1909.06146
   categories:
   - Knowledge
   contributors:
   - MattFisher
-  description: 'Novel biomedical question answering (QA) dataset collected from PubMed
-    abstracts.
+  description: 'Biomedical question answering (QA) dataset collected from PubMed abstracts.
 
     '
   group: Knowledge
@@ -758,6 +840,8 @@
 - arxiv: https://arxiv.org/abs/2304.06364
   categories:
   - Knowledge
+  contributors:
+  - bouromain
   description: 'AGIEval is a human-centric benchmark specifically designed to evaluate
     the general abilities of foundation models in tasks pertinent to human cognition
     and problem-solving.
@@ -776,36 +860,17 @@
   - agie_sat_en_without_passage
   - agie_sat_math
   title: 'AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models'
-- arxiv: https://arxiv.org/abs/2407.13168
+- arxiv: https://arxiv.org/abs/2411.04368
   categories:
-  - Coding
-  contributors:
-  - xantheocracy
-  dependency: scicode
-  description: 'SciCode tests the ability of language models to generate code to solve
-    scientific research problems. It assesses models on 65 problems from mathematics,
-    physics, chemistry, biology, and materials science.
-
-    '
-  group: Coding
-  path: src/inspect_evals/scicode
-  tasks:
-  - scicode
-  title: 'SciCode: A Research Coding Benchmark Curated by Scientists'
-- categories:
   - Knowledge
   contributors:
-  - bact
-  description: 'Questions and answers from the Ordinary National Educational Test
-    (O-NET), administered annually by the National Institute of Educational Testing
-    Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand. The exam contains
-    six subjects: English language, math, science, social knowledge, and Thai language.
-    There are questions with multiple-choice and true/false answers. Questions can
-    be in either English or Thai.
+  - osc245
+  description: 'A benchmark that evaluates the ability of language models to answer
+    short, fact-seeking questions.
 
     '
   group: Knowledge
-  path: src/inspect_evals/onet
+  path: src/inspect_evals/simpleqa
   tasks:
-  - onet_m6
-  title: O-NET
+  - simpleqa
+  title: 'SimpleQA: Measuring short-form factuality in large language models'

@@ -6,6 +6,7 @@ from test_helpers.utils import (
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_together,
+    skip_if_trio,
 )
 
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
@@ -31,37 +32,43 @@ async def check_stop_reason(model_name):
     assert response.choices[0].stop_reason == "max_tokens"
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_groq
+@skip_if_trio
 async def test_groq_stop_reason() -> None:
     await check_stop_reason("groq/llama3-70b-8192")
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_openai
+@skip_if_trio
 async def test_openai_stop_reason() -> None:
     await check_stop_reason("openai/gpt-3.5-turbo")
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_anthropic
+@skip_if_trio
 async def test_anthropic_stop_reason() -> None:
     await check_stop_reason("anthropic/claude-3-haiku-20240307")
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_mistral
+@skip_if_trio
 async def test_mistral_stop_reason() -> None:
     await check_stop_reason("mistral/mistral-medium-latest")
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_grok
+@skip_if_trio
 async def test_grok_stop_reason() -> None:
     await check_stop_reason("grok/grok-beta")
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 @skip_if_no_together
+@skip_if_trio
 async def test_together_stop_reason() -> None:
     await check_stop_reason("together/google/gemma-2b-it")

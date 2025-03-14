@@ -1,5 +1,6 @@
 
 import {
+  commands,
   ExtensionContext,
   Uri,
   ViewColumn,
@@ -23,6 +24,7 @@ import { LogviewPanel } from "./logview-panel";
 import { selectLogDirectory } from "../activity-bar/log-listing/log-directory-selector";
 import { dirname, getRelativeUri } from "../../core/uri";
 import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
+import { selectFileUri } from "./log-file-selector";
 
 const kLogViewId = "inspect.logview";
 

@@ -14,7 +14,7 @@ Solvers are the heart of Inspect evaluations and can serve a wide variety of pur
 5.  Multi-turn dialog
 6.  Running an agent scaffold
 
-Tasks have a single top-level solver that defines an execution plan. This solver could be implemented with arbitrary Python code (calling the model as required) or could consist of a set of other solvers composed together. Solvers can therefore play two differnet roles:
+Tasks have a single top-level solver that defines an execution plan. This solver could be implemented with arbitrary Python code (calling the model as required) or could consist of a set of other solvers composed together. Solvers can therefore play two different roles:
 
 1.  *Composite* specifications for task execution; and
 

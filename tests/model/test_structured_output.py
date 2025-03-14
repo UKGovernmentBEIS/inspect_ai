@@ -1,5 +1,10 @@
 from pydantic import BaseModel, ValidationError
-from test_helpers.utils import skip_if_no_google, skip_if_no_mistral, skip_if_no_openai
+from test_helpers.utils import (
+    skip_if_no_google,
+    skip_if_no_mistral,
+    skip_if_no_openai,
+    skip_if_trio,
+)
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
@@ -75,6 +80,7 @@ def test_openai_structured_output():
 
 
 @skip_if_no_google
+@skip_if_trio
 def test_google_structured_output():
     check_structured_output("google/gemini-2.0-flash")
 

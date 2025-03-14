@@ -71,14 +71,6 @@ inspect trace anomalies --filter model
 
 ## HTTP Requests
 
-::: {.callout-note appearance="simple"}
-Note that the `inspect trace http` command described below is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 You can view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
 
 ``` bash
