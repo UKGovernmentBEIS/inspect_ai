@@ -25,11 +25,18 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   const sampleData = useSampleData();
   const loadSample = useStore((state) => state.sampleActions.loadSample);
   const logSelection = useLogSelection();
+
+  const sampleCompleteRef = useRef(true);
+  useEffect(() => {
+    sampleCompleteRef.current = !!logSelection.sample?.completed;
+  }, [logSelection.sample?.completed]);
+
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
       if (
         sampleData.sample?.id !== logSelection.sample.id ||
-        sampleData.sample.epoch !== logSelection.sample.epoch
+        sampleData.sample.epoch !== logSelection.sample.epoch ||
+        logSelection.sample.completed !== sampleCompleteRef.current
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
@@ -38,6 +45,7 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
     logSelection.logFile,
     logSelection.sample?.id,
     logSelection.sample?.epoch,
+    logSelection.sample?.completed,
     sampleData.sample?.id,
     sampleData.sample?.epoch,
   ]);
