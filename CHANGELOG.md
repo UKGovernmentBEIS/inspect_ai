@@ -1,3 +1,9 @@
+## Unreleased
+
+- Model API: Specifying a default model (e.g. `--model`) is no longer required (as some evals have no model or use `get_model()` for model access).
+- Tasks can now directly specify a `model`, and model is no longer a required axis for parallel tasks.
+- Eval Set: Improved parallelisation in scheduler (all pending tasks are now run together rather than in model groups).
+
 ## v0.3.73 (14 March 2025)
 
 - Constrain model output to a particular JSON schema using [Structured Output](https://inspect.ai-safety-institute.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).

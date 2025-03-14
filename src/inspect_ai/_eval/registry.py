@@ -1,6 +1,5 @@
 import inspect
 import logging
-from copy import deepcopy
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, TypeVar, cast, overload
@@ -16,7 +15,6 @@ from inspect_ai._util.registry import (
     registry_name,
     registry_tag,
 )
-from inspect_ai.model import ModelName
 
 from .task import Task
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
@@ -54,7 +52,7 @@ def task_register(
     return task
 
 
-def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
+def task_create(name: str, **kwargs: Any) -> Task:
     r"""Create a Task based on its registered name.
 
     Tasks can be a function that returns a Task or a
@@ -62,17 +60,11 @@ def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
 
     Args:
         name (str): Name of task (Optional, defaults to object name)
-        model (ModelName): Model name
         **kwargs (dict): Optional creation arguments for the task
 
     Returns:
         Task with registry info attribute
     """
-    # bring in model arg (first deepcopy as we will mutate it)
-    # add model to task_args
-    kwargs = deepcopy(kwargs)
-    kwargs[MODEL_PARAM] = model
-
     # match kwargs params to signature (warn if param not found)
     # (note that we always pass the 'model' param but tasks aren't
     # required to consume it, so we don't warn for 'model')
@@ -85,7 +77,6 @@ def task_create(name: str, model: ModelName, **kwargs: Any) -> Task:
     for param in kwargs.keys():
         if param in task_params:
             task_args[param] = kwargs[param]
-        elif param != MODEL_PARAM:
             if "kwargs" in task_params:
                 task_args[param] = kwargs[param]
             else:

@@ -1,5 +1,6 @@
 from importlib import metadata as importlib_metadata
-from typing import Any, Literal, cast
+from inspect import isgenerator
+from typing import Any, Iterator, Literal, cast
 
 from shortuuid import uuid
 
@@ -82,6 +83,13 @@ class TaskLogger:
         if "api_key" in model_args:
             del model_args["api_key"]
         model_args = {k: v for k, v in model_args.items() if not k.startswith("aws_")}
+
+        # don't try to serialise generators
+        model_args = {
+            k: v
+            for k, v in model_args.items()
+            if not isgenerator(v) and not isinstance(v, Iterator)
+        }
 
         # cwd_relative_path for sandbox config
         if sandbox and isinstance(sandbox.config, str):

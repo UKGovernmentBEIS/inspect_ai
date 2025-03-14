@@ -2,7 +2,7 @@ import functools
 import logging
 import os
 import sys
-from typing import Any, Awaitable, Callable, Set, cast
+from typing import Awaitable, Callable, Set, cast
 
 from inspect_ai._util.trace import trace_action
 
@@ -44,11 +44,11 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .loader import (
-    ResolvedTask,
     as_solver_spec,
     solver_from_spec,
 )
 from .task.log import TaskLogger
+from .task.resolved import ResolvedTask
 from .task.run import TaskRunOptions, task_run
 from .task.rundir import task_run_dir_switching
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
@@ -64,7 +64,6 @@ async def eval_run(
     eval_config: EvalConfig,
     eval_sandbox: SandboxEnvironmentType | None,
     recorder: Recorder,
-    model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
     tags: list[str] | None = None,
@@ -200,7 +199,7 @@ async def eval_run(
                     sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
                     task_args=resolved_task.task_args,
-                    model_args=model_args,
+                    model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,
                     metadata=task.metadata,
                     recorder=recorder,
