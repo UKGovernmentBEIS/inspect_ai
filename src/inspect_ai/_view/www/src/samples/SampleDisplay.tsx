@@ -108,32 +108,29 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         tabPanelsClassName={clsx(styles.tabPanel)}
         tools={tools}
       >
-        {sampleEvents && sampleEvents.length > 0 ? (
-          <TabPanel
-            key={kSampleTranscriptTabId}
-            id={kSampleTranscriptTabId}
-            className="sample-tab"
-            title="Transcript"
-            onSelected={onSelectedTab}
-            selected={
-              selectedTab === kSampleTranscriptTabId ||
-              selectedTab === undefined
+        <TabPanel
+          key={kSampleTranscriptTabId}
+          id={kSampleTranscriptTabId}
+          className="sample-tab"
+          title="Transcript"
+          onSelected={onSelectedTab}
+          selected={
+            selectedTab === kSampleTranscriptTabId || selectedTab === undefined
+          }
+          scrollable={false}
+        >
+          <TranscriptVirtualList
+            key={`${baseId}-transcript-display-${id}`}
+            id={`${baseId}-transcript-display-${id}`}
+            events={sampleEvents || []}
+            running={
+              !!runningSampleData &&
+              runningSampleData.length > 0 &&
+              !sampleSummary.completed
             }
-            scrollable={false}
-          >
-            <TranscriptVirtualList
-              key={`${baseId}-transcript-display-${id}`}
-              id={`${baseId}-transcript-display-${id}`}
-              events={sampleEvents}
-              running={
-                !!runningSampleData &&
-                runningSampleData.length > 0 &&
-                !sampleSummary.completed
-              }
-              scrollRef={scrollRef}
-            />
-          </TabPanel>
-        ) : null}
+            scrollRef={scrollRef}
+          />
+        </TabPanel>
         <TabPanel
           key={kSampleMessagesTabId}
           id={kSampleMessagesTabId}
