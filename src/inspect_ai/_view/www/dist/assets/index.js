@@ -64701,11 +64701,24 @@ ${events}
         return e.event === "sample_init";
       });
       const initEvent = events[initEventIndex];
-      const finalEvents = filterPending ? events.filter((e) => !e.pending) : events;
-      const hasInitStep = events.findIndex((e) => {
+      filterPending ? events.filter((e) => !e.pending) : events;
+      const collapsed = !filterPending ? events.reduce((acc, event) => {
+        if (!event.pending) {
+          acc.push(event);
+        } else {
+          const lastIndex = acc.length - 1;
+          if (lastIndex >= 0 && acc[lastIndex].pending && acc[lastIndex].event === event.event) {
+            acc[lastIndex] = event;
+          } else {
+            acc.push(event);
+          }
+        }
+        return acc;
+      }, []) : events;
+      const hasInitStep = collapsed.findIndex((e) => {
         return e.event === "step" && e.name === "init";
       }) !== -1;
-      const fixedUp = [...finalEvents];
+      const fixedUp = [...collapsed];
       if (!hasInitStep && initEvent) {
         fixedUp.splice(initEventIndex, 0, {
           timestamp: initEvent.timestamp,
