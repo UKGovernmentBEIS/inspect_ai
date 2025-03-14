@@ -11,7 +11,7 @@ as for increased determinism.
 
 There are two types of caching available: Inspect local caching and
 provider level caching. We’ll first describe local caching (which works
-for all models) then cover [provider caching](sec-provider-caching)
+for all models) then cover [provider caching](#sec-provider-caching)
 which currently works only for Anthropic models.
 
 ## Caching Basics
