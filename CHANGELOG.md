@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.73 (14 March 2025)
 
 - Constrain model output to a particular JSON schema using [Structured Output](https://inspect.ai-safety-institute.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).
 - New "HTTP Retries" display (replacing the "HTTP Rate Limits" display) which counts all retries and does so much more consistently and accurately across providers.
