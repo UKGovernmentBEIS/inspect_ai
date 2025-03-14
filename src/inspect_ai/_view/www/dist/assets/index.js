@@ -75131,22 +75131,31 @@ ${events}
         listHandle,
         `transcript-${id}`
       );
-      const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-        defaultValue: running2
-      });
+      const [followOutput, setFollowOutput] = useProperty(
+        id,
+        "follow",
+        {
+          defaultValue: null
+        }
+      );
       const isAutoScrollingRef = reactExports.useRef(false);
+      reactExports.useEffect(() => {
+        if (followOutput === null) {
+          setFollowOutput(!!running2);
+        }
+      }, []);
       const prevRunningRef = reactExports.useRef(running2);
       reactExports.useEffect(() => {
-        if (!running2 && prevRunningRef.current && followOutput && listHandle.current) {
+        if (!running2 && prevRunningRef.current && followOutput && (scrollRef == null ? void 0 : scrollRef.current)) {
           setFollowOutput(false);
           setTimeout(() => {
-            if (listHandle.current) {
-              listHandle.current.scrollTo({ top: 0, behavior: "instant" });
+            if (scrollRef.current) {
+              scrollRef.current.scrollTo({ top: 0, behavior: "instant" });
             }
           }, 100);
         }
         prevRunningRef.current = running2;
-      }, [running2, followOutput, listHandle]);
+      }, [running2, followOutput]);
       const handleScroll = useRafThrottle(() => {
         if (isAutoScrollingRef.current) return;
         if (!running2) return;
@@ -75196,11 +75205,11 @@ ${events}
         const eventId = `${id}-event${index}`;
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$n.node, paddingClass), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) }, void 0, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-          lineNumber: 128,
+          lineNumber: 140,
           columnNumber: 9
         }, void 0) }, eventId, false, {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-          lineNumber: 127,
+          lineNumber: 139,
           columnNumber: 7
         }, void 0);
       }, []);
@@ -75224,7 +75233,7 @@ ${events}
         false,
         {
           fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/transcript/TranscriptVirtualListComponent.tsx",
-          lineNumber: 134,
+          lineNumber: 146,
           columnNumber: 5
         },
         void 0

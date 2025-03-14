@@ -29,10 +29,22 @@ export const TranscriptVirtualListComponent: FC<
   );
 
   // Track whether we're following output
-  const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-    defaultValue: running,
-  });
+  const [followOutput, setFollowOutput] = useProperty<boolean | null>(
+    id,
+    "follow",
+    {
+      defaultValue: null,
+    },
+  );
   const isAutoScrollingRef = useRef(false);
+
+  // Only we first load set the defaul value for following
+  // based upon whether or not the transcript is 'live'
+  useEffect(() => {
+    if (followOutput === null) {
+      setFollowOutput(!!running);
+    }
+  }, []);
 
   // Track whether we were previously running so we can
   // decide whether to pop up to the top
@@ -45,17 +57,17 @@ export const TranscriptVirtualListComponent: FC<
       !running &&
       prevRunningRef.current &&
       followOutput &&
-      listHandle.current
+      scrollRef?.current
     ) {
       setFollowOutput(false);
       setTimeout(() => {
-        if (listHandle.current) {
-          listHandle.current.scrollTo({ top: 0, behavior: "instant" });
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({ top: 0, behavior: "instant" });
         }
       }, 100);
     }
     prevRunningRef.current = running;
-  }, [running, followOutput, listHandle]);
+  }, [running, followOutput]);
 
   const handleScroll = useRafThrottle(() => {
     // Skip processing if auto-scrolling is in progress
