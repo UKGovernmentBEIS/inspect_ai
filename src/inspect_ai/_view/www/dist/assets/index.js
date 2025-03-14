@@ -64164,22 +64164,31 @@ ${events}
         listHandle,
         `transcript-${id}`
       );
-      const [followOutput, setFollowOutput] = useProperty(id, "follow", {
-        defaultValue: running2
-      });
+      const [followOutput, setFollowOutput] = useProperty(
+        id,
+        "follow",
+        {
+          defaultValue: null
+        }
+      );
       const isAutoScrollingRef = reactExports.useRef(false);
+      reactExports.useEffect(() => {
+        if (followOutput === null) {
+          setFollowOutput(!!running2);
+        }
+      }, []);
       const prevRunningRef = reactExports.useRef(running2);
       reactExports.useEffect(() => {
-        if (!running2 && prevRunningRef.current && followOutput && listHandle.current) {
+        if (!running2 && prevRunningRef.current && followOutput && (scrollRef == null ? void 0 : scrollRef.current)) {
           setFollowOutput(false);
           setTimeout(() => {
-            if (listHandle.current) {
-              listHandle.current.scrollTo({ top: 0, behavior: "instant" });
+            if (scrollRef.current) {
+              scrollRef.current.scrollTo({ top: 0, behavior: "instant" });
             }
           }, 100);
         }
         prevRunningRef.current = running2;
-      }, [running2, followOutput, listHandle]);
+      }, [running2, followOutput]);
       const handleScroll = useRafThrottle(() => {
         if (isAutoScrollingRef.current) return;
         if (!running2) return;
