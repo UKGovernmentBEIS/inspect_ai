@@ -34,9 +34,36 @@ export const TranscriptVirtualListComponent: FC<
   });
   const isAutoScrollingRef = useRef(false);
 
+
+  // Track whether we were previously running so we can
+  // decide whether to pop up to the top
+  const prevRunningRef = useRef(running);
+
+  useEffect(() => {
+    // When we finish running, if we are following output
+    // then scroll up to the top
+    if (
+      !running &&
+      prevRunningRef.current &&
+      followOutput &&
+      listHandle.current
+    ) {
+      setFollowOutput(false);
+      setTimeout(() => {
+        if (listHandle.current) {
+          listHandle.current.scrollTo({ top: 0, behavior: "instant" });
+        }
+      }, 100);
+    }
+    prevRunningRef.current = running;
+  }, [running, followOutput, listHandle]);
+
   const handleScroll = useRafThrottle(() => {
     // Skip processing if auto-scrolling is in progress
     if (isAutoScrollingRef.current) return;
+
+    // If we're not running, don't mess with auto scrolling
+    if (!running) return;
 
     // Make the bottom start following
     if (scrollRef?.current && listHandle.current) {
@@ -50,12 +77,12 @@ export const TranscriptVirtualListComponent: FC<
         setFollowOutput(false);
       }
     }
-  }, [setFollowOutput, followOutput]);
+  }, [setFollowOutput, followOutput, running]);
 
   const heightChanged = useCallback(
     (height: number) => {
       requestAnimationFrame(() => {
-        if (followOutput) {
+        if (followOutput && running) {
           isAutoScrollingRef.current = true;
           listHandle.current?.scrollTo({ top: height });
           requestAnimationFrame(() => {
@@ -64,7 +91,7 @@ export const TranscriptVirtualListComponent: FC<
         }
       });
     },
-    [scrollRef, followOutput],
+    [scrollRef, followOutput, running],
   );
 
   useEffect(() => {
