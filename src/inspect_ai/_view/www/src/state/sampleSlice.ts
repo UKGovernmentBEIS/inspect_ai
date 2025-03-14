@@ -2,9 +2,9 @@ import { SampleSummary } from "../api/types";
 import { kSampleMessagesTabId } from "../constants";
 import { SampleState, SampleStatus } from "../types";
 import { EvalSample } from "../types/log";
-import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createSamplePolling } from "./samplePolling";
+import { resolveSample } from "./sampleUtils"; // Import the shared utility
 import { StoreState } from "./store";
 
 const log = createLogger("sampleSlice");
@@ -40,22 +40,6 @@ export const createSampleSlice = (
   get: () => StoreState,
   _store: any,
 ): [SampleSlice, () => void] => {
-  const resolveSample = (sample: any) => {
-    sample = { ...sample };
-
-    // Migrates old versions of samples to the new structure
-    if (sample.transcript) {
-      sample.events = sample.transcript.events;
-      sample.attachments = sample.transcript.content;
-    }
-    sample.attachments = sample.attachments || {};
-    sample.input = resolveAttachments(sample.input, sample.attachments);
-    sample.messages = resolveAttachments(sample.messages, sample.attachments);
-    sample.events = resolveAttachments(sample.events, sample.attachments);
-    sample.attachments = {};
-    return sample;
-  };
-
   // The sample poller
   const samplePolling = createSamplePolling(get, set);
 
