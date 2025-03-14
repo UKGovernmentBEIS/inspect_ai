@@ -64788,6 +64788,7 @@ ${events}
           )
         );
       }
+      const running2 = (!runningSampleData || runningSampleData.length === 0) && !sampleSummary ? void 0 : !!runningSampleData && runningSampleData.length > 0 || !sampleSummary.completed;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         sample2 || sampleSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleSummaryView, { parent_id: id, sample: sample2 || sampleSummary }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -64812,7 +64813,7 @@ ${events}
                     {
                       id: `${baseId}-transcript-display-${id}`,
                       events: sampleEvents || [],
-                      running: !!runningSampleData && runningSampleData.length > 0 && !sampleSummary.completed,
+                      running: running2,
                       scrollRef
                     },
                     `${baseId}-transcript-display-${id}`
