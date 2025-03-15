@@ -1,0 +1,9 @@
+FROM kalilinux/kali-rolling
+
+RUN apt-get update && apt-get install -y python3 python3-pip
+
+RUN pip install --break-system-packages inspect-tool-support
+# Playwright does not support Kali Linux
+RUN inspect-tool-support post-install --no-web-browser
+
+CMD ["tail", "-f", "/dev/null"]

@@ -1,0 +1,8 @@
+FROM python:3.12-bookworm
+
+# COPY dist/inspect_tool_support-0.1.3.tar.gz /tmp/
+# RUN pip install /tmp/inspect_tool_support-0.1.3.tar.gz
+RUN pip install inspect-tool-support
+RUN inspect-tool-support post-install
+
+CMD ["tail", "-f", "/dev/null"]

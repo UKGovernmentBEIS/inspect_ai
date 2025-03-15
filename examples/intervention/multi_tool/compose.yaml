@@ -1,0 +1,5 @@
+services:
+  default:
+    image: multi-tool-debian
+    x-local: true
+    init: true
