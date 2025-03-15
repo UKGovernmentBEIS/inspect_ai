@@ -4,6 +4,7 @@
 - Tasks can now directly specify a `model`, and model is no longer a required axis for parallel tasks.
 - Eval Set: Improved parallelisation in scheduler (all pending tasks are now run together rather than in model groups).
 - Don't generate `id` for `ChatMessage` when deserialising (`id` is now `str | None` and is only populated when messages are directly created).
+- Anthropic: Provide `reasoning_tokens` for standard thinking blocks (redacted thinking not counted).
 - Google: Improve checking of `APIError` status codes for retry.
 - Bugfix: Properly handle nested Pydantic models when reading typed store (`store_as()`) from log.
 - Bugfix: Enable passing `solver` list to `eval()` (decorate `chain` function with `@solver`).
