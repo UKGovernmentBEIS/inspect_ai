@@ -2,10 +2,11 @@ from typing import Sequence, overload
 
 from typing_extensions import override
 
-from ._solver import Generate, Solver
+from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
 
 
+@solver
 def chain(*solvers: Solver | list[Solver]) -> Solver:
     """Compose a solver from multiple other solvers.
 
@@ -22,8 +23,8 @@ def chain(*solvers: Solver | list[Solver]) -> Solver:
     """
     # flatten lists and chains
     all_solvers: list[Solver] = []
-    for solver in solvers:
-        all_solvers.extend(unroll(solver))
+    for s in solvers:
+        all_solvers.extend(unroll(s))
 
     return Chain(all_solvers)
 
@@ -72,9 +73,9 @@ class Chain(Sequence[Solver], Solver):
     ) -> TaskState:
         from ._transcript import solver_transcript
 
-        for solver in self._solvers:
-            with solver_transcript(solver, state) as st:
-                state = await solver(state, generate)
+        for slv in self._solvers:
+            with solver_transcript(slv, state) as st:
+                state = await slv(state, generate)
                 st.complete(state)
             if state.completed:
                 break
