@@ -227,7 +227,9 @@ class AnthropicAPI(ModelAPI):
 
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
-            if any(tool["name"] == NATIVE_COMPUTER_TOOL_NAME for tool in tools_param):
+            if any(
+                tool.get("type", None) == "computer_20250124" for tool in tools_param
+            ):
                 # From: https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#claude-3-7-sonnet-beta-flag
                 # Note: The Bash (bash_20250124) and Text Editor (text_editor_20250124)
                 # tools are generally available for Claude 3.5 Sonnet (new) as well and
