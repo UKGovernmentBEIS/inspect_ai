@@ -250,6 +250,13 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
+@modelapi(name="none")
+def none() -> type[ModelAPI]:
+    from .none import NoModel
+
+    return NoModel
+
+
 @modelapi("goodfire")
 def goodfire() -> type[ModelAPI]:
     """Get the Goodfire API provider."""

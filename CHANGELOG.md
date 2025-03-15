@@ -1,3 +1,9 @@
+## Unreleased
+
+- Model API: Specifying a default model (e.g. `--model`) is no longer required (as some evals have no model or use `get_model()` for model access).
+- Tasks can now directly specify a `model`, and model is no longer a required axis for parallel tasks.
+- Eval Set: Improved parallelisation in scheduler (all pending tasks are now run together rather than in model groups).
+
 ## v0.3.74 (15 March 2025)
 
 - Bugfix: Exclude chat message `id` from cache key (fixes regression in model output caching).

@@ -8,6 +8,7 @@ import { SolversDetailView } from "./SolverDetailView";
 
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
+import { kModelNone } from "../constants";
 import styles from "./PlanDetailView.module.css";
 
 interface PlanDetailViewProps {
@@ -71,7 +72,7 @@ export const PlanDetailView: FC<PlanDetailViewProps> = ({
     taskInformation["Tags"] = evaluation.tags.join(", ");
   }
 
-  if (evaluation?.model) {
+  if (evaluation?.model && evaluation.model !== kModelNone) {
     config["model"] = evaluation.model;
   }
 

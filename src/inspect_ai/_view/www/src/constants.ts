@@ -1,3 +1,6 @@
+// Model constants
+export const kModelNone = "none/none";
+
 // Workspace tab constants
 export const kEvalWorkspaceTabId = "eval-tab";
 export const kJsonWorkspaceTabId = "json-tab";

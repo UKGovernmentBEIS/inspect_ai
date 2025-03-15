@@ -245,6 +245,14 @@ def sleep_for_solver(seconds: int):
     return solve
 
 
+@solver
+def identity_solver():
+    async def solve(state: TaskState, generate: Generate):
+        return state
+
+    return solve
+
+
 def ensure_test_package_installed():
     try:
         import inspect_package  # type: ignore # noqa: F401
