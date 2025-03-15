@@ -13,6 +13,7 @@ from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_c
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import GenerateConfig
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
@@ -50,6 +51,7 @@ class Task:
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
+        model: str | Model | None = None,
         config: GenerateConfig = GenerateConfig(),
         sandbox: SandboxEnvironmentType | None = None,
         approval: str | list[ApprovalPolicy] | None = None,
@@ -67,42 +69,38 @@ class Task:
         """Create a task.
 
         Args:
-            dataset (Dataset | Sequence[Sample]): Dataset to evaluate
-            setup: (Solver | list[Solver] | None): Setup step (always run
-                even when the main `solver` is replaced).
-            solver: (Solver | list[Solver]): Solver or list of solvers.
-                Defaults to generate(), a normal call to the model.
+            dataset: Dataset to evaluate
+            setup: Setup step (always run even when the main `solver` is replaced).
+            solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
             cleanup: Optional cleanup function for task. Called after
                 all solvers have run for each sample (including if an
                 exception occurs during the run)
-            scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
-            metrics (list[Metric] | dict[str, list[Metric]] | None):
-                Alternative metrics (overrides the metrics provided by the specified scorer).
-            config (GenerateConfig): Model generation config.
-            sandbox (SandboxEnvironmentType | None): Sandbox environment type
-                (or optionally a str or tuple with a shorthand spec)
-            approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
-                Either a path to an approval policy config file or a list of approval policies.
-                Defaults to no approval policy.
-            epochs (int | Epochs | None): Epochs to repeat samples for and optional score
+            scorer: Scorer used to evaluate model output.
+            metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
+            model: Default model for task (Optional, defaults to eval model).
+            config: Model generation config.
+            sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+            approval: Tool use approval policies.
+                Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.
+            epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
-            fail_on_error (bool | float | None): `True` to fail on first sample error
+            fail_on_error: `True` to fail on first sample error
                 (default); `False` to never fail on sample errors; Value between 0 and 1
                 to fail if a proportion of total samples fails. Value greater than 1 to fail
                 eval if a count of samples fails.
-            message_limit (int | None): Limit on total messages used for each sample.
-            token_limit (int | None): Limit on total tokens used for each sample.
+            message_limit: Limit on total messages used for each sample.
+            token_limit: Limit on total tokens used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
-            name: (str | None): Task name. If not specified is automatically
+            name: Task name. If not specified is automatically
                 determined based on the name of the task directory (or "task")
                 if its anonymous task (e.g. created in a notebook and passed to
                 eval() directly)
-            version: (int): Version of task (to distinguish evolutions
+            version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
-            metadata: (dict[str, Any] | None): Additional metadata to associate with the task.
+            metadata:  Additional metadata to associate with the task.
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -135,6 +133,7 @@ class Task:
         self.cleanup = cleanup
         self.scorer = resolve_scorer(scorer)
         self.metrics = metrics
+        self.model = resolve_model(model)
         self.config = config
         self.sandbox = resolve_sandbox_environment(sandbox)
         self.approval = resolve_approval(approval)
@@ -176,6 +175,7 @@ def task_with(
     cleanup: Callable[[TaskState], Awaitable[None]] | None | NotGiven = NOT_GIVEN,
     scorer: Scorer | list[Scorer] | None | NotGiven = NOT_GIVEN,
     metrics: list[Metric] | dict[str, list[Metric]] | None | NotGiven = NOT_GIVEN,
+    model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     approval: str | list[ApprovalPolicy] | None | NotGiven = NOT_GIVEN,
@@ -192,43 +192,39 @@ def task_with(
     """Task adapted with alternate values for one or more options.
 
     Args:
-        task (Task): Task to adapt (it is deep copied prior to mutating options)
-        dataset (Dataset | Sequence[Sample]): Dataset to evaluate
-        setup: (Solver | list[Solver] | None): Setup step (always run
-            even when the main `solver` is replaced).
-        solver: (Solver | list[Solver]): Solver or list of solvers.
-            Defaults to generate(), a normal call to the model.
+        task: Task to adapt (it is deep copied prior to mutating options)
+        dataset: Dataset to evaluate
+        setup: Setup step (always run even when the main `solver` is replaced).
+        solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
         cleanup: Optional cleanup function for task. Called after
             all solvers have run for each sample (including if an
             exception occurs during the run)
-        scorer: (Scorer | list[Scorer] | None): Scorer used to evaluate model output.
-        metrics (list[Metric] | dict[str, list[Metric]] | None):
-            Alternative metrics (overrides the metrics provided by the specified scorer).
-        config (GenerateConfig): Model generation config.
-        sandbox (SandboxEnvironmentType | None): Sandbox environment type
-            (or optionally a str or tuple with a shorthand spec)
-        approval: (str | list[ApprovalPolicy] | None): Tool use approval policies.
-            Either a path to an approval policy config file or a list of approval policies.
-            Defaults to no approval policy.
-        epochs (int | Epochs | None): Epochs to repeat samples for and optional score
+        scorer: Scorer used to evaluate model output.
+        metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
+        model: Default model for task (Optional, defaults to eval model).
+        config: Model generation config.
+        sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+        approval: Tool use approval policies.
+            Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.
+        epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
-        fail_on_error (bool | float | None): `True` to fail on first sample error
+        fail_on_error: `True` to fail on first sample error
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
-        message_limit (int | None): Limit on total messages used for each sample.
-        token_limit (int | None): Limit on total tokens used for each sample.
+        message_limit: Limit on total messages used for each sample.
+        token_limit: Limit on total tokens used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
-        working_limit: Limit on execution time (in seconds) for sample. Execution
+        working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
-        name: (str | None): Task name. If not specified is automatically
+        name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
             if its anonymous task (e.g. created in a notebook and passed to
             eval() directly)
-        version: (int): Version of task (to distinguish evolutions
+        version: Version of task (to distinguish evolutions
             of the task spec or breaking changes to it)
-        metadata: (dict[str, Any] | None): Additional metadata to associate with the task.
+        metadata:  Additional metadata to associate with the task.
 
     Returns:
         Task: Task adapted with alternate options.
@@ -248,6 +244,8 @@ def task_with(
         task.scorer = resolve_scorer(scorer)
     if not isinstance(metrics, NotGiven):
         task.metrics = metrics
+    if not isinstance(model, NotGiven):
+        task.model = resolve_model(model)
     if not isinstance(config, NotGiven):
         task.config = config
     if not isinstance(sandbox, NotGiven):
@@ -307,32 +305,8 @@ class PreviousTask:
     id: str
     task: str | Task
     task_args: dict[str, Any]
+    model: Model | None
     log: EvalLog
-
-
-Tasks = (
-    str
-    | PreviousTask
-    | TaskInfo
-    | Task
-    | Callable[..., Task]
-    | type[Task]
-    | list[str]
-    | list[PreviousTask]
-    | list[TaskInfo]
-    | list[Task]
-    | list[Callable[..., Task]]
-    | list[type[Task]]
-    | None
-)
-r"""One or more tasks.
-
-Tasks to be evaluated. Many forms of task specification are
-supported including directory names, task functions, task
-classes, and task instances (a single task or list of tasks
-can be specified). None is a request to read a task out
-of the current working directory.
-"""
 
 
 def resolve_approval(
@@ -368,6 +342,13 @@ def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:
 
 def resolve_solver(solver: Solver | list[Solver]) -> Solver:
     return chain(solver) if isinstance(solver, list) else solver
+
+
+def resolve_model(model: str | Model | None) -> Model | None:
+    if isinstance(model, str):
+        return get_model(model)
+    else:
+        return model
 
 
 def resolve_scorer(scorer: Scorer | list[Scorer] | None) -> list[Scorer] | None:

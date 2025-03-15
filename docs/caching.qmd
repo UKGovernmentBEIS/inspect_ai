@@ -6,7 +6,7 @@ title: Caching
 
 Caching enables you to cache model output to reduce the number of API calls made, saving both time and expense. Caching is also often useful during development---for example, when you are iterating on a scorer you may want the model outputs served from a cache to both save time as well as for increased determinism.
 
-There are two types of caching available: Inspect local caching and provider level caching. We'll first describe local caching (which works for all models) then cover [provider caching](sec-provider-caching) which currently works only for Anthropic models.
+There are two types of caching available: Inspect local caching and provider level caching. We'll first describe local caching (which works for all models) then cover [provider caching](#sec-provider-caching) which currently works only for Anthropic models.
 
 ## Caching Basics
 
