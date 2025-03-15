@@ -73,9 +73,9 @@ class Chain(Sequence[Solver], Solver):
     ) -> TaskState:
         from ._transcript import solver_transcript
 
-        for solver in self._solvers:
-            with solver_transcript(solver, state) as st:
-                state = await solver(state, generate)
+        for slv in self._solvers:
+            with solver_transcript(slv, state) as st:
+                state = await slv(state, generate)
                 st.complete(state)
             if state.completed:
                 break
