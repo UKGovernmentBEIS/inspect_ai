@@ -265,6 +265,7 @@ def eval_set(
     retry_connections = retry_connections or 0.5
     retry_cleanup = retry_cleanup is not False
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
+    max_tasks = max_tasks if max_tasks is not None else len(models)
 
     # prepare console/status
     console = rich.get_console()

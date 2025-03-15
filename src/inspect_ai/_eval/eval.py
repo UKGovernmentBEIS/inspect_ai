@@ -358,7 +358,7 @@ async def eval_async(
         # if there is no max tasks then base it on unique model names
         if max_tasks is None:
             model_count = len(resolved_model_names(resolved_tasks))
-            if model_count > 0:
+            if model_count > 1:
                 max_tasks = model_count
 
         # apply conversation display constraints
