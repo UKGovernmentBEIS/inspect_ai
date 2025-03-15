@@ -3,6 +3,7 @@
 - Model API: Specifying a default model (e.g. `--model`) is no longer required (as some evals have no model or use `get_model()` for model access).
 - Tasks can now directly specify a `model`, and model is no longer a required axis for parallel tasks.
 - Eval Set: Improved parallelisation in scheduler (all pending tasks are now run together rather than in model groups).
+- Bugfix: Enable passing `solver` list to `eval()` (decorate `chain` function with `@solver`).
 
 ## v0.3.74 (15 March 2025)
 
