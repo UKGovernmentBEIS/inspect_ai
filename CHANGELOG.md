@@ -6,6 +6,7 @@
 - Don't generate `id` for `ChatMessage` when deserialising (`id` is now `str | None` and is only populated when messages are directly created).
 - Anthropic: Provide `reasoning_tokens` for standard thinking blocks (redacted thinking not counted).
 - Google: Improve checking of `APIError` status codes for retry.
+- CLI: Added `--env` option for defining environment variables for the duration of the `inspect` process.
 - Bugfix: Properly handle nested Pydantic models when reading typed store (`store_as()`) from log.
 - Bugfix: Enable passing `solver` list to `eval()` (decorate `chain` function with `@solver`).
 
