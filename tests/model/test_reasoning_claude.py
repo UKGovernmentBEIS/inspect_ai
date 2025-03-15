@@ -84,3 +84,17 @@ def test_reasoning_claude_redacted():
     assert isinstance(content, list)
     assert isinstance(content[0], ContentReasoning)
     assert content[0].redacted
+
+
+@skip_if_no_anthropic
+def test_reasoning_claude_token_count():
+    task = Task(dataset=[Sample(input="Please say 'hello, world'")])
+    log = eval(
+        task,
+        model="anthropic/claude-3-7-sonnet-20250219",
+        reasoning_tokens=1024,
+    )[0]
+
+    assert log.samples
+    output = log.samples[0].output
+    assert output.usage.reasoning_tokens > 0

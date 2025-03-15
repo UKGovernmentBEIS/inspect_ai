@@ -240,7 +240,9 @@ class AnthropicAPI(ModelAPI):
             response = message.model_dump()
 
             # extract output
-            output = model_output_from_message(message, tools)
+            output = await model_output_from_message(
+                self.client, self.model_name, message, tools
+            )
 
             # return output and call
             return output, model_call()
@@ -724,9 +726,15 @@ async def message_param(message: ChatMessage) -> MessageParam:
         )
 
 
-def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelOutput:
+async def model_output_from_message(
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
+    model: str,
+    message: Message,
+    tools: list[ToolInfo],
+) -> ModelOutput:
     # extract content and tool calls
     content: list[Content] = []
+    reasoning_tokens = 0
     tool_calls: list[ToolCall] | None = None
 
     for content_block in message.content:
@@ -754,6 +762,9 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
                 ContentReasoning(reasoning=content_block.data, redacted=True)
             )
         elif isinstance(content_block, ThinkingBlock):
+            reasoning_tokens += await count_tokens(
+                client, model, content_block.thinking
+            )
             content.append(
                 ContentReasoning(
                     reasoning=content_block.thinking, signature=content_block.signature
@@ -787,6 +798,7 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
             total_tokens=total_tokens,
             input_tokens_cache_write=input_tokens_cache_write,
             input_tokens_cache_read=input_tokens_cache_read,
+            reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
         ),
     )
 
@@ -850,6 +862,26 @@ async def message_param_content(
         raise RuntimeError(
             "Anthropic models do not currently support audio or video inputs."
         )
+
+
+async def count_tokens(
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
+    model: str,
+    text: str,
+) -> int:
+    try:
+        response = await client.messages.count_tokens(
+            model=model,
+            messages=[{"role": "user", "content": text}],
+        )
+        return response.input_tokens
+    except Exception as e:
+        logger.warning(
+            f"Error counting tokens (falling back to estimated tokens): {str(e)}"
+        )
+        words = text.split()
+        estimated_tokens = int(len(words) * 1.3)
+        return estimated_tokens
 
 
 def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
