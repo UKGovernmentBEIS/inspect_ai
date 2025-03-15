@@ -155,7 +155,9 @@ def _cache_key(entry: CacheEntry) -> str:
                 exclude=set(["max_retries", "timeout", "max_connections"])
             )
         ),
-        ",".join([str(message.model_dump()) for message in entry.input]),
+        ",".join(
+            [str(message.model_dump(exclude=set(["id"]))) for message in entry.input]
+        ),
         entry.base_url,
         entry.tool_choice,
         entry.tools,

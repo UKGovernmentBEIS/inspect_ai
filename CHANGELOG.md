@@ -1,3 +1,7 @@
+## v0.3.74 (15 March 2025)
+
+- Bugfix: Exclude chat message `id` from cache key (fixes regression in model output caching).
+
 ## v0.3.73 (14 March 2025)
 
 - Constrain model output to a particular JSON schema using [Structured Output](https://inspect.ai-safety-institute.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).
