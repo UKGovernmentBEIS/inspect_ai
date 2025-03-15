@@ -496,7 +496,7 @@ class AnthropicAPI(ModelAPI):
 
     def maybe_native_tool_param(
         self, tool: ToolInfo, config: GenerateConfig
-    ) -> "ToolParamDef" | None:
+    ) -> Optional["ToolParamDef"]:
         return (
             (
                 self.computer_use_tool_param(tool)

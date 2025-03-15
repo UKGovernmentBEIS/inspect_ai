@@ -79,6 +79,10 @@ async def create(path_str: str, file_text: str) -> str:
 
 
 async def str_replace(path_str: str, old_str: str, new_str: str | None = None) -> str:
+    if not old_str:
+        raise ToolException(
+            "str_replace: The `old_str` parameter cannot be empty. Consider using the `insert` command instead."
+        )
     path = _validated_path(path_str, "str_replace")
     # Read the file content
     file_content = _read_file(path).expandtabs()

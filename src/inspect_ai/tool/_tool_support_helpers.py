@@ -89,11 +89,12 @@ async def exec_sandbox_rpc(
         )
 
     match _parse_json_rpc_response(exec_result.stdout, result_cls):
-        case JSONRPCError(-32601, message=message) | JSONRPCError(
-            -32602, message=message
+        case (
+            JSONRPCError(code=-32601, message=message)
+            | JSONRPCError(code=-32602, message=message)
         ):
             raise ToolParsingError(message)
-        case JSONRPCError(-32000, message=message):
+        case JSONRPCError(code=-32000, message=message):
             raise ToolError(message)
         case JSONRPCError(code=code, message=message):
             raise RuntimeError(
