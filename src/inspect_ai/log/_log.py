@@ -215,7 +215,6 @@ class EvalSample(BaseModel):
         Returns:
           StoreModel: Instance of model_cls bound to sample store data.
         """
-
         # un-namespace names for creation
         data = {
             k.replace(f"{model_cls.__name__}:", "", 1): v for k, v in self.store.items()
