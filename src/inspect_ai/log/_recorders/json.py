@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from pydantic_core import from_json
 from typing_extensions import override
 
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import absolute_file_path, file
 from inspect_ai._util.trace import trace_action
@@ -143,7 +143,7 @@ class JSONRecorder(FileRecorder):
         with file(location, "r") as f:
             # parse w/ pydantic
             raw_data = from_json(f.read())
-            log = EvalLog(**raw_data)
+            log = EvalLog.model_validate(raw_data, context=DESERIALIZING_CONTEXT)
             log.location = location
 
             # fail for unknown version
