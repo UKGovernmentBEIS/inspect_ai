@@ -192,7 +192,8 @@ async def copy_sandbox_environment_files(
             target_env = environments.get(envname, None)
             if not target_env:
                 raise RuntimeError(
-                    f"Environment referenced in sample file not found: '{envname}:{file}'"
+                    f"Environment referenced in sample file not found: '{envname}:{file}'. "
+                    + "Note that ':' can be optionally used to specify an explicit environment name for sample files (e.g. 'envname:file') so cannot be used as a character within filenames."
                 )
         else:
             target_env = default_environment
