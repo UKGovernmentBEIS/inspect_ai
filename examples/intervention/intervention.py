@@ -48,7 +48,6 @@ def intervention(mode: Mode = "shell", approval: bool = False) -> Task:
 
 @solver
 def intervention_agent(mode: Mode) -> Solver:
-    print(f"XXXXX intervention_agent: {mode=}")
     return chain(
         system_message(
             SHELL_PROMPT
