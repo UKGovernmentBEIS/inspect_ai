@@ -4,6 +4,7 @@
 - Tasks can now directly specify a `model`, and model is no longer a required axis for parallel tasks.
 - Eval Set: Improved parallelisation in scheduler (all pending tasks are now run together rather than in model groups).
 - Don't generate `id` for `ChatMessage` when deserialising (`id` is now `str | None` and is only populated when messages are directly created).
+- Log: Support for zip64 extensions required to read some log files that are larger than 4GB.
 - Anthropic: Provide `reasoning_tokens` for standard thinking blocks (redacted thinking not counted).
 - Google: Improve checking of `APIError` status codes for retry.
 - CLI: Added `--env` option for defining environment variables for the duration of the `inspect` process.
