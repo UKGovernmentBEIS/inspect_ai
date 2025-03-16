@@ -56765,7 +56765,7 @@ self.onmessage = function (e) {
             });
             return results;
           } else {
-            throw new Error(`Unsupported compressionMethod for file ${file}`);
+            throw new Error(`Unsupported compression method for file ${file}`);
           }
         }
       };
@@ -56810,14 +56810,37 @@ self.onmessage = function (e) {
       offset += 4;
       const crc32 = view.getUint32(offset, true);
       offset += 4;
-      const compressedSize = view.getUint32(offset, true);
+      let compressedSize = view.getUint32(offset, true);
       offset += 4;
-      const uncompressedSize = view.getUint32(offset, true);
+      let uncompressedSize = view.getUint32(offset, true);
       offset += 4;
       const filenameLength = view.getUint16(offset, true);
       offset += 2;
       const extraFieldLength = view.getUint16(offset, true);
       offset += 2;
+      const headerOffset = offset;
+      const needsZip64 = compressedSize === 4294967295 || uncompressedSize === 4294967295;
+      if (needsZip64) {
+        offset += filenameLength;
+        const extraFieldEnd = offset + extraFieldLength;
+        while (offset < extraFieldEnd) {
+          const tag = view.getUint16(offset, true);
+          const size = view.getUint16(offset + 2, true);
+          if (tag === 1) {
+            let zip64Offset = offset + 4;
+            if (uncompressedSize === 4294967295 && zip64Offset + 8 <= extraFieldEnd) {
+              uncompressedSize = Number(view.getBigUint64(zip64Offset, true));
+              zip64Offset += 8;
+            }
+            if (compressedSize === 4294967295 && zip64Offset + 8 <= extraFieldEnd) {
+              compressedSize = Number(view.getBigUint64(zip64Offset, true));
+            }
+            break;
+          }
+          offset += 4 + size;
+        }
+        offset = headerOffset;
+      }
       offset += filenameLength + extraFieldLength;
       const data = rawData.subarray(offset, offset + compressedSize);
       return {
@@ -56842,20 +56865,35 @@ self.onmessage = function (e) {
         const filenameLength = view.getUint16(offset + 28, true);
         const extraFieldLength = view.getUint16(offset + 30, true);
         const fileCommentLength = view.getUint16(offset + 32, true);
+        let compressedSize = view.getUint32(offset + 20, true);
+        let uncompressedSize = view.getUint32(offset + 24, true);
+        let fileOffset = view.getUint32(offset + 42, true);
         const filename2 = new TextDecoder().decode(
           buffer2.subarray(
             offset + kFileHeaderSize,
             offset + kFileHeaderSize + filenameLength
           )
         );
-        let fileOffset = view.getUint32(offset + 42, true);
-        if (fileOffset === 4294967295) {
+        const needsZip64 = fileOffset === 4294967295 || compressedSize === 4294967295 || uncompressedSize === 4294967295;
+        if (needsZip64) {
           let extraOffset = offset + kFileHeaderSize + filenameLength;
-          while (extraOffset < offset + kFileHeaderSize + filenameLength + extraFieldLength) {
+          const extraEnd = extraOffset + extraFieldLength;
+          while (extraOffset < extraEnd) {
             const tag = view.getUint16(extraOffset, true);
             const size = view.getUint16(extraOffset + 2, true);
             if (tag === 1) {
-              fileOffset = Number(view.getBigUint64(extraOffset + 4, true));
+              let zip64Offset = extraOffset + 4;
+              if (uncompressedSize === 4294967295 && zip64Offset + 8 <= extraEnd) {
+                uncompressedSize = Number(view.getBigUint64(zip64Offset, true));
+                zip64Offset += 8;
+              }
+              if (compressedSize === 4294967295 && zip64Offset + 8 <= extraEnd) {
+                compressedSize = Number(view.getBigUint64(zip64Offset, true));
+                zip64Offset += 8;
+              }
+              if (fileOffset === 4294967295 && zip64Offset + 8 <= extraEnd) {
+                fileOffset = Number(view.getBigUint64(zip64Offset, true));
+              }
               break;
             }
             extraOffset += 4 + size;
@@ -56864,8 +56902,8 @@ self.onmessage = function (e) {
         const entry2 = {
           filename: filename2,
           compressionMethod: view.getUint16(offset + 10, true),
-          compressedSize: view.getUint32(offset + 20, true),
-          uncompressedSize: view.getUint32(offset + 24, true),
+          compressedSize,
+          uncompressedSize,
           fileOffset
         };
         entries.set(filename2, entry2);
