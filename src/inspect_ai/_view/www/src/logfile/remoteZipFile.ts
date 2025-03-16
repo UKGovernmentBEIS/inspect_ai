@@ -65,8 +65,54 @@ export const openRemoteZipFile = async (
   );
   const eocdrView = new DataView(eocdrBuffer.buffer);
 
-  const centralDirOffset = eocdrView.getUint32(16, true);
-  const centralDirSize = eocdrView.getUint32(12, true);
+  // Check signature to make sure we found the EOCD record
+  if (eocdrView.getUint32(0, true) !== 0x06054b50) {
+    throw new Error("End of central directory record not found");
+  }
+
+  let centralDirOffset = eocdrView.getUint32(16, true);
+  let centralDirSize = eocdrView.getUint32(12, true);
+
+  // Check if we need to use ZIP64 format
+  const needsZip64 =
+    centralDirOffset === 0xffffffff || centralDirSize === 0xffffffff;
+
+  if (needsZip64) {
+    // We need to locate and read the ZIP64 EOCD record and locator
+    // First, read the ZIP64 EOCD locator which is just before the standard EOCD
+    // Standard EOCD (22 bytes) + Locator (20 bytes)
+    const locatorBuffer = await fetchBytes(
+      url,
+      contentLength - 22 - 20,
+      contentLength - 23,
+    );
+    const locatorView = new DataView(locatorBuffer.buffer);
+
+    // Verify the ZIP64 EOCD locator signature
+    if (locatorView.getUint32(0, true) !== 0x07064b50) {
+      throw new Error("ZIP64 End of central directory locator not found");
+    }
+
+    // Get the offset to the ZIP64 EOCD record
+    const zip64EOCDOffset = Number(locatorView.getBigUint64(8, true));
+
+    // Now read the ZIP64 EOCD record
+    const zip64EOCDBuffer = await fetchBytes(
+      url,
+      zip64EOCDOffset,
+      zip64EOCDOffset + 56,
+    );
+    const zip64EOCDView = new DataView(zip64EOCDBuffer.buffer);
+
+    // Verify the ZIP64 EOCD signature
+    if (zip64EOCDView.getUint32(0, true) !== 0x06064b50) {
+      throw new Error("ZIP64 End of central directory record not found");
+    }
+
+    // Get the 64-bit central directory size and offset
+    centralDirSize = Number(zip64EOCDView.getBigUint64(40, true));
+    centralDirOffset = Number(zip64EOCDView.getBigUint64(48, true));
+  }
 
   // Fetch and parse the central directory
   const centralDirBuffer = await fetchBytes(
@@ -75,6 +121,7 @@ export const openRemoteZipFile = async (
     centralDirOffset + centralDirSize - 1,
   );
   const centralDirectory = parseCentralDirectory(centralDirBuffer);
+
   return {
     centralDirectory: centralDirectory,
     readFile: async (file, maxBytes): Promise<Uint8Array> => {
