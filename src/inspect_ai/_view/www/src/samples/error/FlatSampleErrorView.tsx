@@ -15,7 +15,9 @@ export const FlatSampleError: FC<FlatSampleErrorViewProps> = ({ message }) => {
   return (
     <div className={clsx(styles.flatBody)}>
       <i className={clsx(ApplicationIcons.error, styles.iconSmall)} />
-      <div className={clsx(styles.lineBase)}>{errorType(message)}</div>
+      <div className={clsx(styles.lineBase, "text-truncate")}>
+        {errorType(message)}
+      </div>
     </div>
   );
 };

@@ -146,7 +146,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       // TODO: Cleanup once the PR lands which makes sample / sample summary share common interface
       sampleDescriptor?.selectedScore(sample)?.render() || ""
     ),
-    size: "minmax(2em, auto)",
+    size: "minmax(2em, 30em)",
     center: true,
   });
 
