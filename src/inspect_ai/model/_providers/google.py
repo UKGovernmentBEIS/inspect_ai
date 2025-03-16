@@ -267,8 +267,12 @@ class GoogleGenAIAPI(ModelAPI):
         import requests  # type: ignore
 
         # standard http errors
-        if isinstance(ex, APIError):
-            return is_retryable_http_status(ex.status)
+        if (
+            isinstance(ex, APIError)
+            and isinstance(ex.status, str)
+            and ex.status.isdigit()
+        ):
+            return is_retryable_http_status(int(ex.status))
 
         # low-level requests exceptions
         elif isinstance(ex, requests.exceptions.RequestException):

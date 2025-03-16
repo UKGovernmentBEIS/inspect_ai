@@ -217,7 +217,20 @@ class EvalSample(BaseModel):
         Returns:
           StoreModel: model_cls bound to sample store data.
         """
-        return model_cls(store=Store(self.store), instance=instance)
+        # un-namespace names for creation
+        data = {
+            k.replace(f"{model_cls.__name__}:", "", 1): v for k, v in self.store.items()
+        }
+
+        # since we are reading from the log provide a fully detached store
+        data["store"] = Store()
+
+        # provide instance if specified
+        if instance is not None:
+            data["instance"] = instance
+
+        # create the model
+        return model_cls.model_validate(data)
 
     events: list[Event] = Field(default_factory=list)
     """Events that occurred during sample execution."""

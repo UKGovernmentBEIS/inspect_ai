@@ -10,7 +10,10 @@ from inspect_ai._util.constants import (
     DEFAULT_DISPLAY,
     DEFAULT_LOG_LEVEL,
 )
+from inspect_ai._util.dotenv import init_cli_env
 from inspect_ai.util._display import init_display_type
+
+from .util import parse_cli_args
 
 
 class CommonOptions(TypedDict):
@@ -18,6 +21,7 @@ class CommonOptions(TypedDict):
     log_dir: str
     display: Literal["full", "conversation", "rich", "plain", "none"]
     no_ansi: bool | None
+    env: tuple[str] | None
     debug: bool
     debug_port: int
     debug_errors: bool
@@ -69,6 +73,13 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_NO_ANSI",
     )
     @click.option(
+        "--env",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_ENV",
+        help="Define an environment variable e.g. --env NAME=value (--env can be specified multiple times)",
+    )
+    @click.option(
         "--debug", is_flag=True, envvar="INSPECT_DEBUG", help="Wait to attach debugger"
     )
     @click.option(
@@ -92,6 +103,10 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def process_common_options(options: CommonOptions) -> None:
+    # set environment variables
+    env_args = parse_cli_args(options["env"])
+    init_cli_env(env_args)
+
     # propagate display
     if options["no_ansi"]:
         display = "rich"

@@ -33,20 +33,23 @@ but your own script might want to customise these further:
 import sys
 
 import click
+from popularity import popularity
 from security_guide import security_guide
-from theory_of_mind import theory_of_mind
 
 from inspect_ai import eval_set
 
 
 @click.command()
 @click.option("--log-dir", type=str, required=True)
+@click.option("--max-tasks", type=int)
 @click.option("--retry-attempts", default=10)
-def run(log_dir: str, retry_attempts: int):
+def run(log_dir: str, max_tasks: int | None, retry_attempts: int):
     """Run 2 tasks on 2 models, retrying as required if errors occur.
 
     Args:
        log_dir: Log directory for eval set (required).
+       max_tasks: Maximum number of tasks to run in parallel
+         (defaults to number of models)
        retry_attempts: Number of retry attempts (defaults to 10)
 
     Returns:
@@ -54,9 +57,10 @@ def run(log_dir: str, retry_attempts: int):
     """
     # run eval_set
     return eval_set(
-        tasks=[security_guide(), theory_of_mind()],
-        model=["openai/gpt-4o", "anthropic/claude-3-5-sonnet-20240620"],
+        tasks=[security_guide(), popularity()],
+        model=["openai/gpt-4o-mini", "anthropic/claude-3-5-haiku-latest"],
         log_dir=log_dir,
+        max_tasks=max_tasks,
         retry_attempts=retry_attempts,
     )
 

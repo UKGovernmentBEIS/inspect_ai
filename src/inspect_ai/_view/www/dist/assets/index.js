@@ -14207,6 +14207,7 @@ var require_assets = __commonJS({
         )
       ] });
     };
+    const kModelNone = "none/none";
     const kEvalWorkspaceTabId = "eval-tab";
     const kJsonWorkspaceTabId = "json-tab";
     const kInfoWorkspaceTabId = "plan-tab";
@@ -15769,9 +15770,9 @@ var require_assets = __commonJS({
       const ansiOutput2 = new ansiOutputExports.ANSIOutput();
       ansiOutput2.processOutput(output2);
       let firstOutput = false;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("ansi-display", className2), style: { ...style2 }, children: ansiOutput2.outputLines.map((line2) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("ansi-display", className2), style: { ...style2 }, children: ansiOutput2.outputLines.map((line2, index2) => {
         firstOutput = firstOutput || !!line2.outputRuns.length;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "ansi-display-line", children: !line2.outputRuns.length ? firstOutput ? /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}) : null : line2.outputRuns.map((outputRun) => /* @__PURE__ */ jsxRuntimeExports.jsx(OutputRun, { run: outputRun }, outputRun.id)) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "ansi-display-line", children: !line2.outputRuns.length ? firstOutput ? /* @__PURE__ */ jsxRuntimeExports.jsx("br", {}) : null : line2.outputRuns.map((outputRun) => /* @__PURE__ */ jsxRuntimeExports.jsx(OutputRun, { run: outputRun }, outputRun.id)) }, index2);
       }) });
     };
     const kForeground = 0;
@@ -21531,7 +21532,7 @@ var require_assets = __commonJS({
     };
     const extractInput = (args, inputKey) => {
       const formatArg = (key2, value2) => {
-        const quotedValue = typeof value2 === "string" ? `"${value2}"` : typeof value2 === "object" || Array.isArray(value2) ? JSON.stringify(value2, void 0, 2) : String(value2);
+        const quotedValue = value2 === null ? "None" : typeof value2 === "string" ? `"${value2}"` : typeof value2 === "object" || Array.isArray(value2) ? JSON.stringify(value2, void 0, 2) : String(value2);
         return `${key2}: ${quotedValue}`;
       };
       if (args) {
@@ -25864,7 +25865,7 @@ categories: ${categories.join(" ")}`;
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$P.title, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$P.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
-            model2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
+            model2 && model2 !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
         ] }),
@@ -47286,8 +47287,35 @@ self.onmessage = function (e) {
         contentLength - 1
       );
       const eocdrView = new DataView(eocdrBuffer.buffer);
-      const centralDirOffset = eocdrView.getUint32(16, true);
-      const centralDirSize = eocdrView.getUint32(12, true);
+      if (eocdrView.getUint32(0, true) !== 101010256) {
+        throw new Error("End of central directory record not found");
+      }
+      let centralDirOffset = eocdrView.getUint32(16, true);
+      let centralDirSize = eocdrView.getUint32(12, true);
+      const needsZip64 = centralDirOffset === 4294967295 || centralDirSize === 4294967295;
+      if (needsZip64) {
+        const locatorBuffer = await fetchBytes(
+          url,
+          contentLength - 22 - 20,
+          contentLength - 23
+        );
+        const locatorView = new DataView(locatorBuffer.buffer);
+        if (locatorView.getUint32(0, true) !== 117853008) {
+          throw new Error("ZIP64 End of central directory locator not found");
+        }
+        const zip64EOCDOffset = Number(locatorView.getBigUint64(8, true));
+        const zip64EOCDBuffer = await fetchBytes(
+          url,
+          zip64EOCDOffset,
+          zip64EOCDOffset + 56
+        );
+        const zip64EOCDView = new DataView(zip64EOCDBuffer.buffer);
+        if (zip64EOCDView.getUint32(0, true) !== 101075792) {
+          throw new Error("ZIP64 End of central directory record not found");
+        }
+        centralDirSize = Number(zip64EOCDView.getBigUint64(40, true));
+        centralDirOffset = Number(zip64EOCDView.getBigUint64(48, true));
+      }
       const centralDirBuffer = await fetchBytes(
         url,
         centralDirOffset,
@@ -47327,7 +47355,7 @@ self.onmessage = function (e) {
             });
             return results;
           } else {
-            throw new Error(`Unsupported compressionMethod for file ${file}`);
+            throw new Error(`Unsupported compression method for file ${file}`);
           }
         }
       };
@@ -47372,14 +47400,37 @@ self.onmessage = function (e) {
       offset += 4;
       const crc32 = view.getUint32(offset, true);
       offset += 4;
-      const compressedSize = view.getUint32(offset, true);
+      let compressedSize = view.getUint32(offset, true);
       offset += 4;
-      const uncompressedSize = view.getUint32(offset, true);
+      let uncompressedSize = view.getUint32(offset, true);
       offset += 4;
       const filenameLength = view.getUint16(offset, true);
       offset += 2;
       const extraFieldLength = view.getUint16(offset, true);
       offset += 2;
+      const headerOffset = offset;
+      const needsZip64 = compressedSize === 4294967295 || uncompressedSize === 4294967295;
+      if (needsZip64) {
+        offset += filenameLength;
+        const extraFieldEnd = offset + extraFieldLength;
+        while (offset < extraFieldEnd) {
+          const tag = view.getUint16(offset, true);
+          const size = view.getUint16(offset + 2, true);
+          if (tag === 1) {
+            let zip64Offset = offset + 4;
+            if (uncompressedSize === 4294967295 && zip64Offset + 8 <= extraFieldEnd) {
+              uncompressedSize = Number(view.getBigUint64(zip64Offset, true));
+              zip64Offset += 8;
+            }
+            if (compressedSize === 4294967295 && zip64Offset + 8 <= extraFieldEnd) {
+              compressedSize = Number(view.getBigUint64(zip64Offset, true));
+            }
+            break;
+          }
+          offset += 4 + size;
+        }
+        offset = headerOffset;
+      }
       offset += filenameLength + extraFieldLength;
       const data = rawData.subarray(offset, offset + compressedSize);
       return {
@@ -47404,20 +47455,35 @@ self.onmessage = function (e) {
         const filenameLength = view.getUint16(offset + 28, true);
         const extraFieldLength = view.getUint16(offset + 30, true);
         const fileCommentLength = view.getUint16(offset + 32, true);
+        let compressedSize = view.getUint32(offset + 20, true);
+        let uncompressedSize = view.getUint32(offset + 24, true);
+        let fileOffset = view.getUint32(offset + 42, true);
         const filename2 = new TextDecoder().decode(
           buffer2.subarray(
             offset + kFileHeaderSize,
             offset + kFileHeaderSize + filenameLength
           )
         );
-        let fileOffset = view.getUint32(offset + 42, true);
-        if (fileOffset === 4294967295) {
+        const needsZip64 = fileOffset === 4294967295 || compressedSize === 4294967295 || uncompressedSize === 4294967295;
+        if (needsZip64) {
           let extraOffset = offset + kFileHeaderSize + filenameLength;
-          while (extraOffset < offset + kFileHeaderSize + filenameLength + extraFieldLength) {
+          const extraEnd = extraOffset + extraFieldLength;
+          while (extraOffset < extraEnd) {
             const tag = view.getUint16(extraOffset, true);
             const size = view.getUint16(extraOffset + 2, true);
             if (tag === 1) {
-              fileOffset = Number(view.getBigUint64(extraOffset + 4, true));
+              let zip64Offset = extraOffset + 4;
+              if (uncompressedSize === 4294967295 && zip64Offset + 8 <= extraEnd) {
+                uncompressedSize = Number(view.getBigUint64(zip64Offset, true));
+                zip64Offset += 8;
+              }
+              if (compressedSize === 4294967295 && zip64Offset + 8 <= extraEnd) {
+                compressedSize = Number(view.getBigUint64(zip64Offset, true));
+                zip64Offset += 8;
+              }
+              if (fileOffset === 4294967295 && zip64Offset + 8 <= extraEnd) {
+                fileOffset = Number(view.getBigUint64(zip64Offset, true));
+              }
               break;
             }
             extraOffset += 4 + size;
@@ -47426,8 +47492,8 @@ self.onmessage = function (e) {
         const entry2 = {
           filename: filename2,
           compressionMethod: view.getUint16(offset + 10, true),
-          compressedSize: view.getUint32(offset + 20, true),
-          uncompressedSize: view.getUint32(offset + 24, true),
+          compressedSize,
+          uncompressedSize,
           fileOffset
         };
         entries.set(filename2, entry2);
@@ -53030,9 +53096,9 @@ self.onmessage = function (e) {
       noTop,
       timePanel
     };
-    const flatBody = "_flatBody_gk2ju_1";
-    const iconSmall$1 = "_iconSmall_gk2ju_9";
-    const lineBase = "_lineBase_gk2ju_15";
+    const flatBody = "_flatBody_1uw6w_1";
+    const iconSmall$1 = "_iconSmall_1uw6w_9";
+    const lineBase = "_lineBase_1uw6w_15";
     const styles$D = {
       flatBody,
       iconSmall: iconSmall$1,
@@ -53050,7 +53116,7 @@ self.onmessage = function (e) {
     const FlatSampleError = ({ message: message2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$D.flatBody), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.error, styles$D.iconSmall) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.lineBase), children: errorType(message2) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.lineBase, "text-truncate"), children: errorType(message2) })
       ] });
     };
     const target = "_target_9qy4e_1";
@@ -53161,7 +53227,7 @@ self.onmessage = function (e) {
           // TODO: Cleanup once the PR lands which makes sample / sample summary share common interface
           ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.selectedScore(sample2)) == null ? void 0 : _a2.render()) || ""
         ),
-        size: "minmax(2em, auto)",
+        size: "minmax(2em, 30em)",
         center: true
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -61133,11 +61199,10 @@ ${events}
             setEventState({ ...eventState, collapsed });
           },
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            TranscriptVirtualListComponent,
+            TranscriptComponent,
             {
               id: `step-${event.name}-transcript`,
               eventNodes: children2,
-              scrollRef,
               transcriptState,
               setTranscriptState: onTranscriptState
             }
@@ -62534,15 +62599,15 @@ ${events}
       },
       threeLineClamp: {
         display: "-webkit-box",
-        "-webkit-line-clamp": "3",
-        "-webkit-box-orient": "vertical",
+        WebkitLineClamp: "3",
+        WebkitBoxOrient: "vertical",
         overflow: "hidden"
       },
       lineClamp: (len) => {
         return {
           display: "-webkit-box",
-          "-webkit-line-clamp": `${len}`,
-          "-webkit-box-orient": "vertical",
+          WebkitLineClamp: `${len}`,
+          WebkitBoxOrient: "vertical",
           overflow: "hidden"
         };
       },
@@ -63344,7 +63409,7 @@ ${events}
       if (evaluation.tags) {
         taskInformation["Tags"] = evaluation.tags.join(", ");
       }
-      if (evaluation == null ? void 0 : evaluation.model) {
+      if ((evaluation == null ? void 0 : evaluation.model) && evaluation.model !== kModelNone) {
         config2["model"] = evaluation.model;
       }
       if (evaluation == null ? void 0 : evaluation.model_base_url) {
@@ -64038,7 +64103,7 @@ ${events}
                       children: evalSpec == null ? void 0 : evalSpec.task
                     }
                   ),
-                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  (evalSpec == null ? void 0 : evalSpec.model) && evalSpec.model !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
                       id: "task-model",
@@ -64051,7 +64116,7 @@ ${events}
                       title: evalSpec == null ? void 0 : evalSpec.model,
                       children: evalSpec == null ? void 0 : evalSpec.model
                     }
-                  )
+                  ) : ""
                 ] }),
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$4.secondaryContainer), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),

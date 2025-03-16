@@ -4,6 +4,7 @@ from typing import Any, Literal, Type, Union
 from pydantic import BaseModel, Field, model_validator
 from shortuuid import uuid
 
+from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
 from inspect_ai.tool import ToolCall
 from inspect_ai.tool._tool_call import ToolCallError
@@ -16,7 +17,7 @@ logger = getLogger(__name__)
 class ChatMessageBase(BaseModel):
     """Base class for chat messages."""
 
-    id: str = Field(default_factory=uuid)
+    id: str | None = Field(default=None)
     """Unique identifer for message."""
 
     content: str | list[Content]
@@ -24,6 +25,16 @@ class ChatMessageBase(BaseModel):
 
     source: Literal["input", "generate"] | None = Field(default=None)
     """Source of message."""
+
+    def model_post_init(self, __context: Any) -> None:
+        # check if deserializing
+        is_deserializing = isinstance(__context, dict) and __context.get(
+            DESERIALIZING, False
+        )
+
+        # Generate ID if needed and not deserializing
+        if self.id is None and not is_deserializing:
+            self.id = uuid()
 
     @property
     def text(self) -> str:
