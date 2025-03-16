@@ -8,12 +8,12 @@
 - Anthropic: Provide `reasoning_tokens` for standard thinking blocks (redacted thinking not counted).
 - Google: Improve checking of `APIError` status codes for retry.
 - CLI: Added `--env` option for defining environment variables for the duration of the `inspect` process.
-- Bugfix: Properly handle nested Pydantic models when reading typed store (`store_as()`) from log.
-- Bugfix: Enable passing `solver` list to `eval()` (decorate `chain` function with `@solver`).
 - Inspect View: Fix issue generating diffs for nested arrays.
 - Inspect View: Fix layout issue with sample error display in sample detail summary.
 - Inspect View: Better support large eval files (in excess of 4GB).
 - Inspect View: Correctly display 'None' when passed in tool calls.
+- Bugfix: Properly handle nested Pydantic models when reading typed store (`store_as()`) from log.
+- Bugfix: Enable passing `solver` list to `eval()` (decorate `chain` function with `@solver`).
 
 ## v0.3.74 (15 March 2025)
 
