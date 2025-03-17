@@ -1,5 +1,6 @@
 from typing import Any
 
+from inspect_ai.agent._execute import agent_execute
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._solver import Generate, Solver, solver
@@ -27,10 +28,18 @@ def as_solver(agent: Agent) -> Solver:
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        agent_state = AgentState(messages=state.messages, output=state.output)
-        agent_state = await agent(agent_state)
-        state.messages = agent_state.messages
-        state.output = agent_state.output
+        # run agent
+        agent_state = await agent_execute(agent, None, state.messages)
+
+        # append new messages
+        message_ids = [message.id for message in state.messages]
+        for message in agent_state.messages:
+            if message.id not in message_ids:
+                state.messages.append(message)
+
+        # update output if its not empty
+        if not agent_state.output.empty:
+            state.output = agent_state.output
         return state
 
     return solve
