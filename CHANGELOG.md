@@ -14,6 +14,7 @@
 - Inspect View: Correctly display 'None' when passed in tool calls.
 - Bugfix: Properly handle nested Pydantic models when reading typed store (`store_as()`) from log.
 - Bugfix: Enable passing `solver` list to `eval()` (decorate `chain` function with `@solver`).
+- Bugfix: Support deserializing custom sandbox configuration objects when said sandbox plugin is not installed.
 
 ## v0.3.74 (15 March 2025)
 
