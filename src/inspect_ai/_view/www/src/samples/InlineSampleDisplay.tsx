@@ -4,7 +4,7 @@ import { SampleDisplay } from "./SampleDisplay";
 
 import clsx from "clsx";
 import { ProgressBar } from "../components/ProgressBar";
-import { useLogSelection, useSampleData } from "../state/hooks";
+import { useLogSelection, usePrevious, useSampleData } from "../state/hooks";
 import { useStore } from "../state/store";
 import styles from "./InlineSampleDisplay.module.css";
 
@@ -22,21 +22,21 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   selectedTab,
   setSelectedTab,
 }) => {
+  // Sample hooks
   const sampleData = useSampleData();
   const loadSample = useStore((state) => state.sampleActions.loadSample);
   const logSelection = useLogSelection();
 
-  const sampleCompleteRef = useRef(true);
-  useEffect(() => {
-    sampleCompleteRef.current = !!logSelection.sample?.completed;
-  }, [logSelection.sample?.completed]);
-
+  // Sample Loading
+  const prevCompleted = usePrevious(!!logSelection.sample?.completed);
+  const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
       if (
+        prevLogFile !== logSelection.logFile ||
         sampleData.sample?.id !== logSelection.sample.id ||
         sampleData.sample.epoch !== logSelection.sample.epoch ||
-        logSelection.sample.completed !== sampleCompleteRef.current
+        logSelection.sample.completed !== prevCompleted
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
@@ -49,8 +49,9 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
     sampleData.sample?.id,
     sampleData.sample?.epoch,
   ]);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Scroll ref
+  const scrollRef = useRef<HTMLDivElement>(null);
   return (
     <div className={styles.container}>
       <ProgressBar

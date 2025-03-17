@@ -3,7 +3,7 @@ import { LargeModal, ModalTool, ModalTools } from "../components/LargeModal";
 
 import { FC, Ref, useCallback, useEffect, useMemo, useRef } from "react";
 import { ErrorPanel } from "../components/ErrorPanel";
-import { useLogSelection, useSampleData } from "../state/hooks";
+import { useLogSelection, usePrevious, useSampleData } from "../state/hooks";
 import { useStatefulScrollPosition } from "../state/scrolling";
 import { useStore } from "../state/store";
 import { SampleDisplay } from "./SampleDisplay";
@@ -32,19 +32,25 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   selectedTab,
   setSelectedTab,
 }) => {
+  // Scroll referernce (attach stateful trackign)
   const scrollRef: Ref<HTMLDivElement> = useRef(null);
   useStatefulScrollPosition(scrollRef, "sample-dialog");
 
+  // Sample hooks
   const sampleData = useSampleData();
   const loadSample = useStore((state) => state.sampleActions.loadSample);
-
   const logSelection = useLogSelection();
 
+  // Load sample
+  const prevCompleted = usePrevious(!!logSelection.sample?.completed);
+  const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
       if (
+        prevLogFile !== logSelection.logFile ||
         sampleData.sample?.id !== logSelection.sample.id ||
-        sampleData.sample.epoch !== logSelection.sample.epoch
+        sampleData.sample.epoch !== logSelection.sample.epoch ||
+        logSelection.sample.completed !== prevCompleted
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
@@ -53,10 +59,12 @@ export const SampleDialog: FC<SampleDialogProps> = ({
     logSelection.logFile,
     logSelection.sample?.id,
     logSelection.sample?.epoch,
+    logSelection.sample?.completed,
     sampleData.sample?.id,
     sampleData.sample?.epoch,
   ]);
 
+  // Tools
   const tools = useMemo<ModalTools>(() => {
     const nextTool: ModalTool = {
       label: "Next Sample",

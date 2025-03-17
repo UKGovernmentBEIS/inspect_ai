@@ -63,7 +63,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   const sampleSummary = sampleSummaries[selectedSampleIndex];
   const sampleEvents = sample?.events || runningSampleData;
-  const sampleMessages = sample?.messages;
+  const sampleMessages = sample?.messages || [];
 
   // TODO: Synthesize a message stream by using the last model call in the running
   // sample data, parsing the JSON, and using that to make the message stream.
