@@ -7,8 +7,11 @@ from ._react import react
 
 __all__ = [
     "Agent",
+    "AgentInput",
+    "AgentResult",
     "agent",
     "as_tool",
+    "as_solver",
     "handoff",
     "react",
     "human",

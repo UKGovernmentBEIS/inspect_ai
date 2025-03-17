@@ -11,7 +11,13 @@ title: "inspect_ai.agent"
 ## Protocol
 
 ### Agent
+### AgentInput
+### AgentResult
 ### agent
+
+## Adapters
+
 ### handoff
 ### as_tool
+### as_solver
 
