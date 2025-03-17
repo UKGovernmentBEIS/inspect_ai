@@ -17918,7 +17918,7 @@ self.onmessage = function (e) {
     };
     const immer = immerImpl;
     const getEnabledNamespaces = () => {
-      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
+      return __LOGGING_FILTER__.split(",").map((ns) => ns.trim()).filter(Boolean);
     };
     const ENABLED_NAMESPACES = new Set(getEnabledNamespaces());
     const filterNameSpace = (namespace) => {
@@ -31187,6 +31187,13 @@ categories: ${categories.join(" ")}`;
       }, [id, propertyName2, removePropertyValue]);
       return [propertyValue, setValue, removeValue];
     }
+    const usePrevious = (value2) => {
+      const ref = reactExports.useRef(void 0);
+      reactExports.useEffect(() => {
+        ref.current = value2;
+      }, [value2]);
+      return ref.current;
+    };
     const container$c = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
     const styles$T = {
@@ -64783,7 +64790,7 @@ ${events}
       );
       const sampleSummary = sampleSummaries[selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || runningSampleData;
-      const sampleMessages = sample2 == null ? void 0 : sample2.messages;
+      const sampleMessages = (sample2 == null ? void 0 : sample2.messages) || [];
       const onSelectedTab = (e) => {
         const el = e.currentTarget;
         const id2 = el.id;
@@ -65091,15 +65098,12 @@ ${events}
       const sampleData = useSampleData();
       const loadSample = useStore((state) => state.sampleActions.loadSample);
       const logSelection = useLogSelection();
-      const sampleCompleteRef = reactExports.useRef(true);
-      reactExports.useEffect(() => {
-        var _a3;
-        sampleCompleteRef.current = !!((_a3 = logSelection.sample) == null ? void 0 : _a3.completed);
-      }, [(_a2 = logSelection.sample) == null ? void 0 : _a2.completed]);
+      const prevCompleted = usePrevious(!!((_a2 = logSelection.sample) == null ? void 0 : _a2.completed));
+      const prevLogFile = usePrevious(logSelection.logFile);
       reactExports.useEffect(() => {
         var _a3;
         if (logSelection.logFile && logSelection.sample) {
-          if (((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch || logSelection.sample.completed !== sampleCompleteRef.current) {
+          if (prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch || logSelection.sample.completed !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
@@ -65269,25 +65273,28 @@ ${events}
       selectedTab,
       setSelectedTab
     }) => {
-      var _a2, _b2, _c, _d;
+      var _a2, _b2, _c, _d, _e2, _f;
       const scrollRef = reactExports.useRef(null);
       useStatefulScrollPosition(scrollRef, "sample-dialog");
       const sampleData = useSampleData();
       const loadSample = useStore((state) => state.sampleActions.loadSample);
       const logSelection = useLogSelection();
+      const prevCompleted = usePrevious(!!((_a2 = logSelection.sample) == null ? void 0 : _a2.completed));
+      const prevLogFile = usePrevious(logSelection.logFile);
       reactExports.useEffect(() => {
         var _a3;
         if (logSelection.logFile && logSelection.sample) {
-          if (((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch) {
+          if (prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch || logSelection.sample.completed !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
       }, [
         logSelection.logFile,
-        (_a2 = logSelection.sample) == null ? void 0 : _a2.id,
-        (_b2 = logSelection.sample) == null ? void 0 : _b2.epoch,
-        (_c = sampleData.sample) == null ? void 0 : _c.id,
-        (_d = sampleData.sample) == null ? void 0 : _d.epoch
+        (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
+        (_c = logSelection.sample) == null ? void 0 : _c.epoch,
+        (_d = logSelection.sample) == null ? void 0 : _d.completed,
+        (_e2 = sampleData.sample) == null ? void 0 : _e2.id,
+        (_f = sampleData.sample) == null ? void 0 : _f.epoch
       ]);
       const tools2 = reactExports.useMemo(() => {
         const nextTool = {

@@ -331,3 +331,13 @@ export function useProperty<T>(
 
   return [propertyValue, setValue, removeValue];
 }
+
+export const usePrevious = <T>(value: T) => {
+  const ref = useRef<T | undefined>(undefined);
+
+  useEffect(() => {
+    ref.current = value;
+  }, [value]);
+
+  return ref.current;
+};
