@@ -64611,79 +64611,6 @@ ${events}
       first
     };
     const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2 }) => {
-      const listHandle = reactExports.useRef(null);
-      const { getRestoreState, isScrolling } = useVirtuosoState(
-        listHandle,
-        `transcript-${id}`
-      );
-      const [followOutput, setFollowOutput] = useProperty(
-        id,
-        "follow",
-        {
-          defaultValue: null
-        }
-      );
-      const isAutoScrollingRef = reactExports.useRef(false);
-      reactExports.useEffect(() => {
-        if (followOutput === null) {
-          setFollowOutput(!!running2);
-        }
-      }, []);
-      const prevRunningRef = reactExports.useRef(running2);
-      reactExports.useEffect(() => {
-        if (!running2 && prevRunningRef.current && followOutput && (scrollRef == null ? void 0 : scrollRef.current)) {
-          setFollowOutput(false);
-          setTimeout(() => {
-            if (scrollRef.current) {
-              scrollRef.current.scrollTo({ top: 0, behavior: "instant" });
-            }
-          }, 100);
-        }
-        prevRunningRef.current = running2;
-      }, [running2, followOutput]);
-      const handleScroll = useRafThrottle(() => {
-        if (isAutoScrollingRef.current) return;
-        if (!running2) return;
-        if ((scrollRef == null ? void 0 : scrollRef.current) && listHandle.current) {
-          const parent = scrollRef.current;
-          const isAtBottom = parent.scrollHeight - parent.scrollTop <= parent.clientHeight + 30;
-          if (isAtBottom && !followOutput) {
-            setFollowOutput(true);
-          } else if (!isAtBottom && followOutput) {
-            setFollowOutput(false);
-          }
-        }
-      }, [setFollowOutput, followOutput, running2]);
-      const heightChanged = reactExports.useCallback(
-        (height) => {
-          requestAnimationFrame(() => {
-            var _a2;
-            if (followOutput && running2) {
-              isAutoScrollingRef.current = true;
-              (_a2 = listHandle.current) == null ? void 0 : _a2.scrollTo({ top: height });
-              requestAnimationFrame(() => {
-                isAutoScrollingRef.current = false;
-              });
-            }
-          });
-        },
-        [scrollRef, followOutput, running2]
-      );
-      reactExports.useEffect(() => {
-        const timer = setTimeout(() => {
-          forceUpdate();
-        }, 0);
-        return () => clearTimeout(timer);
-      }, []);
-      const [, forceRender] = reactExports.useState({});
-      const forceUpdate = reactExports.useCallback(() => forceRender({}), []);
-      reactExports.useEffect(() => {
-        const parent = scrollRef == null ? void 0 : scrollRef.current;
-        if (parent) {
-          parent.addEventListener("scroll", handleScroll);
-          return () => parent.removeEventListener("scroll", handleScroll);
-        }
-      }, [scrollRef, handleScroll]);
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$m.darkenedBg : styles$m.normalBg;
         const paddingClass = index2 === 0 ? styles$m.first : void 0;
@@ -64691,20 +64618,13 @@ ${events}
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$m.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) }) }, eventId);
       }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        $r,
+        LiveVirtualList,
         {
-          ref: listHandle,
-          customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
-          style: { height: "100%", width: "100%" },
+          id,
+          scrollRef,
           data: eventNodes,
-          defaultItemHeight: 250,
-          itemContent: renderRow,
-          increaseViewportBy: { top: 1e3, bottom: 1e3 },
-          overscan: { main: 2, reverse: 2 },
-          className: clsx("transcript"),
-          isScrolling,
-          restoreStateFrom: getRestoreState(),
-          totalListHeightChanged: heightChanged
+          renderRow,
+          live: running2
         }
       );
     };
