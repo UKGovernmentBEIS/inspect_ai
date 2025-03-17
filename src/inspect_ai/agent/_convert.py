@@ -28,7 +28,7 @@ def as_solver(agent: Agent) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         result = await agent(AgentInput(messages=state.messages))
         state.messages = result.messages
-        if result.output is not None:
+        if not result.output.empty:
             state.output = result.output
         return state
 
@@ -50,7 +50,9 @@ def as_tool(agent: Agent) -> Tool:
         result = await agent(
             AgentInput(messages=[ChatMessageUser(content=input)]), *args, **kwargs
         )
-        if isinstance(result.messages[-1], ChatMessageAssistant):
+        if len(result.messages) > 0 and isinstance(
+            result.messages[-1], ChatMessageAssistant
+        ):
             return result.messages[-1].content
         else:
             return ""

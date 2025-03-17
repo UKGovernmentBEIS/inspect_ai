@@ -124,6 +124,10 @@ class ModelOutput(BaseModel):
     """Error message in the case of content moderation refusals."""
 
     @property
+    def empty(self) -> bool:
+        return len(self.choices) > 0
+
+    @property
     def stop_reason(self) -> StopReason:
         """First message stop reason."""
         return self.choices[0].stop_reason
