@@ -17951,7 +17951,7 @@ self.onmessage = function (e) {
     };
     const immer = immerImpl;
     const getEnabledNamespaces = () => {
-      return __LOGGING_FILTER__.split(",").map((ns) => ns.trim()).filter(Boolean);
+      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
     };
     new Set(getEnabledNamespaces());
     const createLogger = (namespace) => {
@@ -64498,6 +64498,7 @@ ${events}
       );
       const sampleSummary = sampleSummaries[selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || runningSampleData;
+      const sampleMessages = sample2 == null ? void 0 : sample2.messages;
       const onSelectedTab = (e) => {
         const el = e.currentTarget;
         const id2 = el.id;
@@ -64525,7 +64526,7 @@ ${events}
           )
         );
       }
-      const running2 = (!runningSampleData || runningSampleData.length === 0) && !sampleSummary ? void 0 : !!runningSampleData && runningSampleData.length > 0 || !sampleSummary.completed;
+      const running2 = isRunning(sampleSummary, runningSampleData);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         sample2 || sampleSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleSummaryView, { parent_id: id, sample: sample2 || sampleSummary }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -64571,7 +64572,7 @@ ${events}
                     ChatViewVirtualList,
                     {
                       id: `${baseId}-chat-${id}`,
-                      messages: sample2.messages,
+                      messages: sampleMessages,
                       indented: true,
                       scrollRef,
                       toolCallStyle: "complete"
@@ -64775,6 +64776,18 @@ ${events}
           );
         }
       }
+    };
+    const isRunning = (sampleSummary, runningSampleData) => {
+      if (sampleSummary && sampleSummary.completed === false) {
+        return true;
+      }
+      if (!sampleSummary && (!runningSampleData || runningSampleData.length === 0)) {
+        return true;
+      }
+      if (runningSampleData && runningSampleData.length > 0) {
+        return true;
+      }
+      return false;
     };
     const container$7 = "_container_kgsc6_1";
     const body$2 = "_body_kgsc6_7";
