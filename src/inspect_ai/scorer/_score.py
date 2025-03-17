@@ -26,12 +26,12 @@ class Conversation(Protocol):
 async def score(conversation: Conversation) -> list[Score]:
     """Score a TaskState.
 
-    Score a conversation (you may pass `TaskState` or `AgentResult`
+    Score a conversation (you may pass `TaskState` or `AgentState`
     as the value for `conversation`)
 
     Args:
       conversation (Conversation): Conversation to submit for scoring.
-        Note that both `TaskState` and `AgentResult` can be passed
+        Note that both `TaskState` and `AgentState` can be passed
         as the `conversation` parameter.
 
     Returns:

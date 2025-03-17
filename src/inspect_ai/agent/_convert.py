@@ -1,6 +1,7 @@
 from typing import Any
 
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool import Tool, ToolResult, tool
@@ -8,7 +9,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
 
-from ._agent import Agent, AgentInput
+from ._agent import Agent, AgentState
 
 
 @solver
@@ -26,10 +27,10 @@ def as_solver(agent: Agent) -> Solver:
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        result = await agent(AgentInput(state.messages))
-        state.messages = result.messages
-        if not result.output.empty:
-            state.output = result.output
+        agent_state = AgentState(messages=state.messages, output=state.output)
+        agent_state = await agent(agent_state)
+        state.messages = agent_state.messages
+        state.output = agent_state.output
         return state
 
     return solve
@@ -47,18 +48,19 @@ def as_tool(agent: Agent) -> Tool:
     """
 
     async def execute(input: str, *args: Any, **kwargs: Any) -> ToolResult:
-        result = await agent(
-            AgentInput(messages=[ChatMessageUser(content=input)]), *args, **kwargs
+        state = AgentState(
+            messages=[ChatMessageUser(content=input)], output=ModelOutput()
         )
-        if len(result.messages) > 0 and isinstance(
-            result.messages[-1], ChatMessageAssistant
+        state = await agent(state, *args, **kwargs)
+        if len(state.messages) > 0 and isinstance(
+            state.messages[-1], ChatMessageAssistant
         ):
-            return result.messages[-1].content
+            return state.messages[-1].content
         else:
             return ""
 
     tool_info = parse_tool_info(agent)
-    del tool_info.parameters.properties["input"]
+    del tool_info.parameters.properties["state"]
     tool_info.parameters.properties["input"] = ToolParam(
         type="string", description="Input message."
     )

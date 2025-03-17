@@ -11,8 +11,7 @@ title: "inspect_ai.agent"
 ## Protocol
 
 ### Agent
-### AgentInput
-### AgentResult
+### AgentState
 ### agent
 
 ## Adapters
