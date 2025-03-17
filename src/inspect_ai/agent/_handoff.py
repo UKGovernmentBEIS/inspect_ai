@@ -7,7 +7,7 @@ from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
 
-def handoff(
+def as_handoff(
     agent: Agent,
     tool_name: str | None = None,
     tool_description: str | None = None,
