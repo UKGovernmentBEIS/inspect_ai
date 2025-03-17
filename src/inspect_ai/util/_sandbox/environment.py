@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import logging
 from dataclasses import dataclass, field
 from typing import (
     Annotated,
@@ -17,7 +18,11 @@ from typing import (
 
 from pydantic import BaseModel, Field, model_validator
 
+from inspect_ai._util.logger import warn_once
+
 from .._subprocess import ExecResult
+
+logger = logging.getLogger(__name__)
 
 ST = TypeVar("ST", bound="SandboxEnvironment")
 
@@ -381,11 +386,21 @@ def resolve_sandbox_environment(
         return None
 
 
-def deserialize_sandbox_specific_config(type: str, config: dict[str, Any]) -> BaseModel:
+def deserialize_sandbox_specific_config(
+    type: str, config: dict[str, Any]
+) -> BaseModel | dict[str, Any]:
     # Avoid circular import
     from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
-    sandboxenv_type = registry_find_sandboxenv(type)
+    try:
+        sandboxenv_type = registry_find_sandboxenv(type)
+    except ValueError:
+        warn_once(
+            logger,
+            f"Could not find sandbox environment plugin for type '{type}'. "
+            "Ensure the plugin is installed in your environment.",
+        )
+        return config
     config_deserialize = cast(
         ConfigDeserialize, getattr(sandboxenv_type, "config_deserialize")
     )
