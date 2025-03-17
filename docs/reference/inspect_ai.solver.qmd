@@ -21,6 +21,7 @@ title: "inspect_ai.solver"
 
 ### chain
 ### fork
+### run
 
 ## Types
 

@@ -5,6 +5,7 @@ from ._bridge import bridge
 from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
+from ._human_agent import human_agent
 from ._limit import SampleLimitExceededError
 from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
 from ._plan import Plan, plan
@@ -23,6 +24,7 @@ from ._use_tools import use_tools
 __all__ = [
     "basic_agent",
     "bridge",
+    "human_agent",
     "chain",
     "fork",
     "run",
@@ -137,9 +139,4 @@ relocated_module_attribute(
     "inspect_ai.util.subtask",
     _SUBTASKS_MODULE_VERSION,
     _REMOVED_IN,
-)
-
-
-relocated_module_attribute(
-    "human", "inspect_ai.agent.human", _AGENTS_MODULE_VERSION, _REMOVED_IN
 )
