@@ -16,7 +16,7 @@ title: "inspect_ai.agent"
 
 ## Adapters
 
-### as_handoff
+### handoff
 ### as_tool
 ### as_solver
 
