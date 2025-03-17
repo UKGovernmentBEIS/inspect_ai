@@ -26,7 +26,7 @@ def as_solver(agent: Agent) -> Solver:
     """
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        result = await agent(AgentInput(messages=state.messages))
+        result = await agent(AgentInput(state.messages))
         state.messages = result.messages
         if not result.output.empty:
             state.output = result.output
@@ -58,7 +58,7 @@ def as_tool(agent: Agent) -> Tool:
             return ""
 
     tool_info = parse_tool_info(agent)
-    del tool_info.parameters.properties["messages"]
+    del tool_info.parameters.properties["input"]
     tool_info.parameters.properties["input"] = ToolParam(
         type="string", description="Input message."
     )
