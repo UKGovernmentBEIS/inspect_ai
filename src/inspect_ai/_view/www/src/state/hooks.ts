@@ -19,6 +19,11 @@ import { mergeSampleSummaries } from "./utils";
 
 const log = createLogger("hooks");
 
+export const useEvalSpec = () => {
+  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  return selectedLogSummary?.eval;
+};
+
 // Fetches all samples summaries (both completed and incomplete)
 // without applying any filtering
 export const useSampleSummaries = () => {
