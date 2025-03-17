@@ -10,7 +10,14 @@ import { ToolButton } from "../components/ToolButton";
 import { SampleScoreView } from "./scores/SampleScoreView";
 
 import clsx from "clsx";
-import { FC, Fragment, MouseEvent, RefObject, useCallback } from "react";
+import {
+  FC,
+  Fragment,
+  MouseEvent,
+  RefObject,
+  useCallback,
+  useMemo,
+} from "react";
 import { SampleSummary } from "../api/types";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { JSONPanel } from "../components/JsonPanel";
@@ -30,6 +37,7 @@ import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { formatTime } from "../utils/format";
 import { printHeadingHtml, printHtml } from "../utils/print";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
+import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 import { TranscriptVirtualList } from "./transcript/TranscriptView";
@@ -62,12 +70,19 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   );
 
   const sampleSummary = sampleSummaries[selectedSampleIndex];
-  const sampleEvents = sample?.events || runningSampleData;
-  const sampleMessages = sample?.messages || [];
 
-  // TODO: Synthesize a message stream by using the last model call in the running
-  // sample data, parsing the JSON, and using that to make the message stream.
-  // Hopefully this isn't too slow (time it)
+  // Consolidate the events and messages into the proper list
+  // whether running or not
+  const sampleEvents = sample?.events || runningSampleData;
+  const sampleMessages = useMemo(() => {
+    if (sample?.messages) {
+      return sample.messages;
+    } else if (runningSampleData) {
+      return messagesFromEvents(runningSampleData);
+    } else {
+      return [];
+    }
+  }, [sample?.messages, runningSampleData]);
 
   // Tab selection
   const onSelectedTab = (e: MouseEvent<HTMLElement>) => {
@@ -135,24 +150,21 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         <TabPanel
           key={kSampleMessagesTabId}
           id={kSampleMessagesTabId}
-          className={clsx("sample-tab", styles.fullWidth)}
+          className={clsx("sample-tab", styles.fullWidth, styles.chat)}
           title="Messages"
           onSelected={onSelectedTab}
           selected={selectedTab === kSampleMessagesTabId}
           scrollable={false}
         >
-          {sample?.messages ? (
-            <ChatViewVirtualList
-              key={`${baseId}-chat-${id}`}
-              id={`${baseId}-chat-${id}`}
-              messages={sampleMessages}
-              indented={true}
-              scrollRef={scrollRef}
-              toolCallStyle="complete"
-            />
-          ) : (
-            <NoContentsPanel text="No messages" />
-          )}
+          <ChatViewVirtualList
+            key={`${baseId}-chat-${id}`}
+            id={`${baseId}-chat-${id}`}
+            messages={sampleMessages}
+            indented={true}
+            scrollRef={scrollRef}
+            toolCallStyle="complete"
+            running={running}
+          />
         </TabPanel>
         {sample && scorerNames.length === 1 ? (
           <TabPanel
