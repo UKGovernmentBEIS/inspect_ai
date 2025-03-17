@@ -1,6 +1,6 @@
-from ._agent import Agent, agent
+from ._agent import Agent, AgentInput, AgentResult, agent
 from ._bridge.bridge import bridge
-from ._convert import as_tool
+from ._convert import as_solver, as_tool
 from ._handoff import handoff
 from ._human.agent import human
 from ._react import react
