@@ -11,6 +11,7 @@ import { SampleScoreView } from "./scores/SampleScoreView";
 
 import clsx from "clsx";
 import { FC, Fragment, MouseEvent, RefObject, useCallback } from "react";
+import { SampleSummary } from "../api/types";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { JSONPanel } from "../components/JsonPanel";
 import { NoContentsPanel } from "../components/NoContentsPanel";
@@ -62,6 +63,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
 
   const sampleSummary = sampleSummaries[selectedSampleIndex];
   const sampleEvents = sample?.events || runningSampleData;
+  const sampleMessages = sample?.messages;
 
   // TODO: Synthesize a message stream by using the last model call in the running
   // sample data, parsing the JSON, and using that to make the message stream.
@@ -97,11 +99,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     );
   }
 
-  const running =
-    (!runningSampleData || runningSampleData.length === 0) && !sampleSummary
-      ? undefined
-      : (!!runningSampleData && runningSampleData.length > 0) ||
-        !sampleSummary.completed;
+  // Is the sample running?
+  const running = isRunning(sampleSummary, runningSampleData);
 
   return (
     <Fragment>
@@ -146,7 +145,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             <ChatViewVirtualList
               key={`${baseId}-chat-${id}`}
               id={`${baseId}-chat-${id}`}
-              messages={sample.messages}
+              messages={sampleMessages}
               indented={true}
               scrollRef={scrollRef}
               toolCallStyle="complete"
@@ -377,4 +376,29 @@ const printSample = (id: string, targetId: string) => {
       );
     }
   }
+};
+
+const isRunning = (
+  sampleSummary?: SampleSummary,
+  runningSampleData?: Events,
+): boolean => {
+  if (sampleSummary && sampleSummary.completed === false) {
+    // An explicitly incomplete sample summary
+    return true;
+  }
+
+  if (
+    !sampleSummary &&
+    (!runningSampleData || runningSampleData.length === 0)
+  ) {
+    // No sample summary yet and no running samples, must've just started
+    return true;
+  }
+
+  if (runningSampleData && runningSampleData.length > 0) {
+    // There are running samples
+    return true;
+  }
+
+  return false;
 };
