@@ -1,6 +1,7 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._basic_agent import basic_agent
+from ._bridge import bridge
 from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
@@ -21,6 +22,7 @@ from ._use_tools import use_tools
 
 __all__ = [
     "basic_agent",
+    "bridge",
     "chain",
     "fork",
     "run",
@@ -137,9 +139,6 @@ relocated_module_attribute(
     _REMOVED_IN,
 )
 
-relocated_module_attribute(
-    "bridge", "inspect_ai.agent.bridge", _AGENTS_MODULE_VERSION, _REMOVED_IN
-)
 
 relocated_module_attribute(
     "human", "inspect_ai.agent.human", _AGENTS_MODULE_VERSION, _REMOVED_IN
