@@ -1,30 +1,64 @@
 from contextvars import ContextVar
+from copy import copy
+from typing import Protocol
 
-from inspect_ai.solver._task_state import TaskState
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.solver._task_state import TaskState, sample_state
 
 from ._metric import Score
 from ._scorer import Scorer
 from ._target import Target
 
 
-async def score(state: TaskState) -> list[Score]:
+class Conversation(Protocol):
+    @property
+    def messages(self) -> list[ChatMessage]:
+        """Conversation history."""
+        ...
+
+    @property
+    def output(self) -> ModelOutput:
+        """Model output."""
+        ...
+
+
+async def score(conversation: Conversation) -> list[Score]:
     """Score a TaskState.
 
-    Score a task state from within a solver.
+    Score a conversation (you may pass `TaskState` or `AgentResult`
+    as the value for `conversation`)
 
     Args:
-      state (TaskState): `TaskState` to submit for scoring
+      conversation (Conversation): Conversation to submit for scoring.
+        Note that both `TaskState` and `AgentResult` can be passed
+        as the `conversation` parameter.
 
     Returns:
       List of scores (one for each task scorer)
 
     Raises:
-      RuntimerError: If called from outside a task or within
+      RuntimeError: If called from outside a task or within
         a task that does not have a scorer.
 
     """
     from inspect_ai.log._transcript import ScoreEvent, transcript
 
+    # get TaskState (if the `conversation` is a `TaskState` use it directly,
+    # otherwise synthesize one)
+    if isinstance(conversation, TaskState):
+        state = conversation
+    else:
+        current_state = sample_state()
+        if current_state is None:
+            raise RuntimeError(
+                "The score() function can only be called while executing a task"
+            )
+        state = copy(current_state)
+        state.messages = conversation.messages
+        state.output = conversation.output
+
+    # get current scorers and target
     scorers = _scorers.get(None)
     target = _target.get(None)
     if scorers is None or target is None:
