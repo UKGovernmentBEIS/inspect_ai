@@ -5,7 +5,12 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import execute_tools
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
@@ -66,7 +71,7 @@ def react(
     alternate conversion scheme as required via `score_value`.
 
     Args:
-       system_message: Agent initialisation (defaults to basic ReAct prompt)
+       system_message: Agent system message (defaults to basic ReAct prompt)
        tools: Tools available for the agent.
        cache: Caching behaviour for generate responses (defaults to no caching).
        max_attempts: Maximum number of submissions to accept before terminating.
@@ -135,13 +140,16 @@ def react(
             None,
         )
 
+    # resolve init_messages
+    init_messages = (
+        [ChatMessageSystem(content=system_message)]
+        if system_message is not None
+        else []
+    )
+
     # resolve tools
     tools = tools or []
     tools.append(tool_with(submit(), submit_name, submit_description))
-
-    ## TODO: system messages
-    ## TODO: handle with_state business (with_state should take agent state, agent needs to not know about solver except in as_solver (or perhaps move that function to solver))
-    ## TODO: limit would have to move into util inspect_ai.util [limit stuff]
 
     async def execute(state: AgentState) -> AgentState:
         # track attempts
@@ -152,7 +160,7 @@ def react(
         while True:
             # generate output and append assistant message
             state.output = await get_model().generate(
-                input=state.messages, tools=tools, cache=cache
+                input=init_messages + state.messages, tools=tools, cache=cache
             )
             state.messages.append(state.output.message)
 
