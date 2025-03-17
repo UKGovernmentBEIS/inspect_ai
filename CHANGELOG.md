@@ -15,6 +15,7 @@
 - Bugfix: Properly handle nested Pydantic models when reading typed store (`store_as()`) from log.
 - Bugfix: Enable passing `solver` list to `eval()` (decorate `chain` function with `@solver`).
 - Bugfix: Support deserializing custom sandbox configuration objects when said sandbox plugin is not installed.
+- Bugfix: Fix error in sample filtering autocomplete (could cause autocomplete to fail and show an error in js console).
 
 ## v0.3.74 (15 March 2025)
 
