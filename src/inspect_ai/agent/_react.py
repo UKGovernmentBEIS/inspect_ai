@@ -9,14 +9,10 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMes
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
-from inspect_ai.solver._chain import chain
-from inspect_ai.solver._limit import SampleLimitExceededError
-from inspect_ai.solver._prompt import system_message
-from inspect_ai.solver._solver import Generate, Solver, solver
-from inspect_ai.solver._task_state import TaskState
-from inspect_ai.solver._use_tools import use_tools
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_with import tool_with
+
+from ._agent import Agent, AgentState, agent
 
 logger = getLogger(__name__)
 
@@ -41,31 +37,28 @@ DEFAULT_SUBMIT_NAME = "submit"
 DEFAULT_SUBMIT_DESCRIPTION = "Submit an answer for evaluation."
 
 
-@solver
+@agent
 def react(
     *,
-    init: Solver | list[Solver] | None = None,
-    tools: list[Tool] | Solver | None = None,
+    system_message: str | None | NotGiven = NOT_GIVEN,
+    tools: list[Tool] | None = None,
     cache: bool | CachePolicy = False,
     max_attempts: int = 1,
-    message_limit: int | None = None,
-    token_limit: int | None = None,
     max_tool_output: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str
-    | Callable[[TaskState, list[Score]], str | Awaitable[str]]
+    | Callable[[AgentState, list[Score]], str | Awaitable[str]]
     | NotGiven = NOT_GIVEN,
     continue_message: str | NotGiven = NOT_GIVEN,
     submit_name: str | NotGiven = NOT_GIVEN,
     submit_description: str | NotGiven = NOT_GIVEN,
-) -> Solver:
+) -> Agent:
     """ReAct agent.
 
     Agent that runs a tool use loop until the model submits an answer using the
-    `submit()` tool. Tailor the model's instructions by passing a `system_message()`
-    and/or other steps to `init` (if no `init` is specified then a default system
-    message will be used). Use `max_attempts` to support additional submissions if
-    the initial submission(s) are incorrect.
+    `submit()` tool. Tailor the model's instructions by passing a `system_message`
+    (the default `system_message` provides a basic ReAct prompt). Use `max_attempts`
+    to support additional submissions if the initial submission(s) are incorrect.
 
     Submissions are evaluated using the task's main scorer, with value of 1.0
     indicating a correct answer. Scorer values are converted to float (e.g.
@@ -73,9 +66,8 @@ def react(
     alternate conversion scheme as required via `score_value`.
 
     Args:
-       init: Agent initialisation (defaults to system_message with basic ReAct prompt)
-       tools: Tools available for the agent. Either a list of tools or a Solver that
-          can yield dynamic tools per-sample.
+       system_message: Agent initialisation (defaults to basic ReAct prompt)
+       tools: Tools available for the agent.
        cache: Caching behaviour for generate responses (defaults to no caching).
        max_attempts: Maximum number of submissions to accept before terminating.
        message_limit: Limit on messages in sample before terminating agent.
@@ -98,15 +90,12 @@ def react(
     Returns:
         Solver that impements the ReAct agent.
     """
-    # resolve init
-    if init is None:
-        init = system_message(DEFAULT_SYSTEM_MESSAGE, submit=submit_name)
-    init = init if isinstance(init, list) else [init]
-
-    # resolve tools
-    if tools is None:
-        tools = []
-    tools = tools if isinstance(tools, Solver) else use_tools(tools, append=True)
+    # resolve system message
+    system_message = (
+        DEFAULT_SYSTEM_MESSAGE
+        if isinstance(system_message, NotGiven)
+        else system_message
+    )
 
     # resolve score_value function
     score_value_fn = score_value or value_to_float()
@@ -134,15 +123,6 @@ def react(
 
         return execute
 
-    # solver that adds submission tool
-    @solver
-    def submit_tool() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            state.tools.append(tool_with(submit(), submit_name, submit_description))
-            return state
-
-        return solve
-
     # helper to extract a submitted answer
     def submission(tool_results: list[ChatMessage]) -> str | None:
         return next(
@@ -155,101 +135,81 @@ def react(
             None,
         )
 
-    # main agent loop
-    @solver
-    def react_loop() -> Solver:
-        async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # resolve message_limit -- prefer parameter then fall back to task
-            # (if there is no message_limit then default to 50)
-            state.message_limit = message_limit or state.message_limit or 50
+    # resolve tools
+    tools = tools or []
+    tools.append(tool_with(submit(), submit_name, submit_description))
 
-            # resolve token limit
-            state.token_limit = token_limit or state.token_limit
+    ## TODO: system messages
+    ## TODO: handle with_state business (with_state should take agent state, agent needs to not know about solver except in as_solver (or perhaps move that function to solver))
+    ## TODO: limit would have to move into util inspect_ai.util [limit stuff]
 
-            # track attempts
-            attempts = 0
+    async def execute(state: AgentState) -> AgentState:
+        # track attempts
+        attempts = 0
 
-            try:
-                # main loop (state.completed checks message_limit and token_limit)
-                while not state.completed:
-                    # generate output and append assistant message
-                    state.output = await get_model().generate(
-                        input=state.messages, tools=state.tools, cache=cache
-                    )
-                    state.messages.append(state.output.message)
+        # main loop = will terminate after submit (subject to max_attempts)
+        # or if a message or token limit is hit
+        while True:
+            # generate output and append assistant message
+            state.output = await get_model().generate(
+                input=state.messages, tools=tools, cache=cache
+            )
+            state.messages.append(state.output.message)
 
-                    # check for context window overflow
-                    if state.output.stop_reason == "model_length":
-                        from inspect_ai.log._transcript import transcript
+            # check for context window overflow
+            if state.output.stop_reason == "model_length":
+                from inspect_ai.log._transcript import transcript
 
-                        transcript().info(
-                            "Agent terminated: model context window exceeded"
-                        )
+                transcript().info("Agent terminated: model context window exceeded")
+                break
+
+            # resolve tools calls (if any)
+            if state.output.message.tool_calls:
+                # call tool functions
+                messages, output = await execute_tools(
+                    state.messages,
+                    tools,
+                    max_output=max_tool_output,
+                )
+                state.messages.extend(messages)
+                if output:
+                    state.output = output
+
+                # was an answer submitted?
+                answer = submission(messages)
+                if answer:
+                    # set the output to the answer for scoring
+                    state.output.completion = answer
+
+                    # exit if we are at max_attempts
+                    attempts += 1
+                    if attempts >= max_attempts:
                         break
 
-                    # resolve tools calls (if any)
-                    if state.output.message.tool_calls:
-                        # call tool functions
-                        messages, output = await execute_tools(
-                            state.messages,
-                            state.tools,
-                            max_output=max_tool_output,
-                        )
-                        state.messages.extend(messages)
-                        if output:
-                            state.output = output
+                    # exit if the submission is successful
+                    answer_scores = await score(state)
+                    if score_value_fn(answer_scores[0].value) == 1.0:
+                        break
 
-                        # was an answer submitted?
-                        answer = submission(messages)
-                        if answer:
-                            # set the output to the answer for scoring
-                            state.output.completion = answer
-
-                            # exit if we are at max_attempts
-                            attempts += 1
-                            if attempts >= max_attempts:
-                                break
-
-                            # exit if the submission is successful
-                            answer_scores = await score(state)
-                            if score_value_fn(answer_scores[0].value) == 1.0:
-                                break
-
-                            # otherwise notify the model that it was incorrect and continue
-                            else:
-                                if is_callable_coroutine(incorrect_message):
-                                    response_message: str = await incorrect_message(
-                                        state, answer_scores
-                                    )  # type: ignore[misc,operator]
-                                elif callable(incorrect_message):
-                                    response_message = cast(
-                                        str, incorrect_message(state, answer_scores)
-                                    )
-                                else:
-                                    response_message = incorrect_message
-
-                                state.messages.append(
-                                    ChatMessageUser(content=response_message)
-                                )
-
-                    # no tool calls, urge the model to continue
+                    # otherwise notify the model that it was incorrect and continue
                     else:
-                        state.messages.append(ChatMessageUser(content=continue_message))
+                        if is_callable_coroutine(incorrect_message):
+                            response_message: str = await incorrect_message(
+                                state, answer_scores
+                            )  # type: ignore[misc,operator]
+                        elif callable(incorrect_message):
+                            response_message = cast(
+                                str, incorrect_message(state, answer_scores)
+                            )
+                        else:
+                            response_message = incorrect_message
 
-            # propagate current state along with sample limit exceeded
-            except SampleLimitExceededError as ex:
-                raise ex.with_state(state)
+                        state.messages.append(ChatMessageUser(content=response_message))
 
-            return state
+            # no tool calls, urge the model to continue
+            else:
+                state.messages.append(ChatMessageUser(content=continue_message))
 
-        return solve
+        return state
 
-    # return chain
-    return chain(
-        init
-        + [
-            tools,
-            submit_tool(),
-            react_loop(),
-        ]
-    )
+    return execute
