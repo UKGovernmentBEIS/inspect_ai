@@ -27,6 +27,7 @@ title: "inspect_ai.solver"
 
 ### Solver
 ### SolverSpec
+### as_solver
 ### TaskState
 ### Generate
 

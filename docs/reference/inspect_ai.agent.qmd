@@ -18,5 +18,5 @@ title: "inspect_ai.agent"
 
 ### handoff
 ### as_tool
-### as_solver
+
 

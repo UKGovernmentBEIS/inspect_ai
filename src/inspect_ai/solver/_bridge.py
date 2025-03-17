@@ -1,8 +1,8 @@
 from typing import Any, Awaitable, Callable
 
 from inspect_ai.agent._bridge.bridge import bridge as agent_bridge
-from inspect_ai.agent._convert import as_solver
 
+from ._as_solver import as_solver
 from ._solver import Solver, solver
 
 

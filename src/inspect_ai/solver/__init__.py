@@ -1,5 +1,6 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
 
+from ._as_solver import as_solver
 from ._basic_agent import basic_agent
 from ._bridge import bridge
 from ._chain import chain
@@ -29,6 +30,7 @@ __all__ = [
     "fork",
     "run",
     "generate",
+    "as_solver",
     "prompt_template",
     "chain_of_thought",
     "multiple_choice",

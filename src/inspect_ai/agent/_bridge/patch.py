@@ -23,7 +23,6 @@ from inspect_ai.model._openai import (
     openai_chat_choices,
     openai_completion_usage,
 )
-from inspect_ai.solver._task_state import sample_state
 from inspect_ai.tool._tool_choice import ToolChoice, ToolFunction
 from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.tool._tool_params import ToolParams
@@ -98,6 +97,8 @@ def init_openai_request_patch() -> None:
 async def inspect_model_request(
     model_name: str, options: FinalRequestOptions
 ) -> ChatCompletion:
+    from inspect_ai.solver._task_state import sample_state
+
     # convert openai messages to inspect messages
     json_data = cast(dict[str, Any], options.json_data)
     messages: list[ChatCompletionMessageParam] = json_data["messages"]

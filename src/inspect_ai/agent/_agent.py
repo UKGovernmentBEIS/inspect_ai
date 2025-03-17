@@ -84,8 +84,7 @@ class Agent(Protocol):
         your agent using the `handoff()` function.
 
         You can create a simple tool (that receives a string as
-        input) from an agent using `agent_as_tool()` and create
-        a solver from an agent using `agent_as_solver()`.
+        input) from an agent using `as_tool()`.
 
         Args:
             state: Agent state (conversation history and last model output)
