@@ -2,13 +2,18 @@ from typing import Sequence, overload
 
 from typing_extensions import override
 
+from inspect_ai.agent._agent import Agent
+
+from ._as_solver import as_solver
 from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
 
 
 @solver
-def chain(*solvers: Solver | list[Solver]) -> Solver:
-    """Compose a solver from multiple other solvers.
+def chain(
+    *solvers: Solver | Agent | Sequence[Solver | Agent],
+) -> Solver:
+    """Compose a solver from multiple other solvers and/or agents.
 
     Solvers are executed in turn, and a solver step event
     is added to the transcript for each. If a solver returns
@@ -16,10 +21,10 @@ def chain(*solvers: Solver | list[Solver]) -> Solver:
     early.
 
     Args:
-      *solvers: One or more solvers or lists of solvers to chain together.
+      *solvers: One or more solvers or agents to chain together.
 
     Returns:
-      Solver that executes the passed solvers as a chain.
+      Solver that executes the passed solvers and agents as a chain.
     """
     # flatten lists and chains
     all_solvers: list[Solver] = []
@@ -29,16 +34,23 @@ def chain(*solvers: Solver | list[Solver]) -> Solver:
     return Chain(all_solvers)
 
 
-def unroll(solver: Solver | list[Solver]) -> list[Solver]:
+def unroll(
+    solver: Solver | Agent | Sequence[Solver | Agent],
+) -> list[Solver]:
     if isinstance(solver, Solver):
         if isinstance(solver, Chain):
             return unroll(solver._solvers)
         else:
             return [solver]
+    elif isinstance(solver, Agent):
+        return [as_solver(solver)]
     else:
         unrolled: list[Solver] = []
         for s in solver:
-            unrolled.extend(unroll(s))
+            if isinstance(s, Solver):
+                unrolled.extend(unroll(s))
+            else:
+                unrolled.append(as_solver(s))
         return unrolled
 
 
