@@ -52,7 +52,7 @@ def web_search(
     A web search is conducted using the specified provider, the results are parsed for relevance
     using the specified model, and the top 'num_results' relevant pages are returned.
 
-    See further documentation at <https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search>.
+    See further documentation at <https://inspect.aisi.org.uk/tools.html#sec-web-search>.
 
     Args:
       provider: Search provider (defaults to "google", currently
@@ -190,7 +190,7 @@ def google_search_provider(client: httpx.AsyncClient) -> SearchProvider:
     google_cse_id = os.environ.get("GOOGLE_CSE_ID", None)
     if not google_api_key or not google_cse_id:
         raise PrerequisiteError(
-            "GOOGLE_CSE_ID and/or GOOGLE_CSE_API_KEY not set in the environment. Please ensure these variables are defined to use Google Custom Search with the web_search tool.\n\nLearn more about the Google web search provider at https://inspect.ai-safety-institute.org.uk/tools.html#google-provider"
+            "GOOGLE_CSE_ID and/or GOOGLE_CSE_API_KEY not set in the environment. Please ensure these variables are defined to use Google Custom Search with the web_search tool.\n\nLearn more about the Google web search provider at https://inspect.aisi.org.uk/tools.html#google-provider"
         )
 
     async def search(query: str, start_idx: int) -> list[SearchLink]:

@@ -17,7 +17,7 @@ from inspect_ai.util._store_model import StoreModel, store_as
 def web_browser(interactive: bool = True) -> list[Tool]:
     """Tools used for web browser navigation.
 
-     See documentation at <https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser>.
+     See documentation at <https://inspect.aisi.org.uk/tools.html#sec-web-browser>.
 
     Args:
        interactive: Provide interactive tools (enable

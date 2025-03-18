@@ -41,7 +41,7 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
     """Inspect log viewer.
 
-    Learn more about using the log viewer at https://inspect.ai-safety-institute.org.uk/log-viewer.html.
+    Learn more about using the log viewer at https://inspect.aisi.org.uk/log-viewer.html.
     """
     if ctx.invoked_subcommand is None:
         ctx.invoke(start, **kwargs)
