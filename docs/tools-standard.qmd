@@ -51,7 +51,7 @@ The `bash_session()` tool provides a bash shell that retains its state across ca
 
 ### Configuration
 
-Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code. In addition, you'll need some prerequisites installed in the sandbox container. You can do this by adding the following commands to your `Dockerfile`:
+Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code. In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
 
 {{< include _tools-configuration.md >}}
 
@@ -99,7 +99,7 @@ The `text_editor()` tool enables viewing, creating and editing text files. The t
 
 ### Configuration
 
-To use the `text_editor()` tool you need some prerequisites installed in the sandbox container. You can do this by adding the following commands to your `Dockerfile`:
+The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
 
 {{< include _tools-configuration.md >}}
 
@@ -143,9 +143,22 @@ The web browser tools provides models with the ability to browse the web using a
 
 ### Configuration
 
-Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.qmd). To use the web browser tool, you'll need some prerequisites installed in the sandbox container. You can do this by adding the following commands to your `Dockerfile`:
+Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
 
-{{< include _tools-configuration.md >}}
+Note that Playwright (used for the `web_browser()` tool) does not support some versions of Linux (e.g. Kali Linux). 
+
+
+::: {.callout-note appearance="simple" collapse="true"}
+### Sandbox Dependencies
+
+
+{{< include _sandbox-dockerfile.md >}}
+
+
+{{< include _sandbox-image.md >}}
+
+:::
+
 
 ### Task Setup
 

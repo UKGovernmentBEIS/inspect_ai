@@ -7,16 +7,14 @@ FROM python:3.12-bookworm
 # if based on an image without Python
 # RUN apt-get update && apt-get install -y python3 python3-pip python3-venv
 
-# create and install into a venv as a best practice
+# create and install into a venv
 RUN python -m venv /opt/inspect_tool_support
 ENV PATH="/opt/inspect_tool_support/bin:$PATH"
 
-# COPY dist/inspect_tool_support-0.1.6.tar.gz /tmp/
-# RUN pip install /tmp/inspect_tool_support-0.1.6.tar.gz
+# install inspect-tool-support
+# (on platforms where Playwright is not supported, add --no-web-browser to the post-install command)
 RUN pip install inspect-tool-support
-
-# On platforms where Playwright is not supported, add --no-web-browser to the command below
 RUN inspect-tool-support post-install
 
-
+# run forever
 CMD ["tail", "-f", "/dev/null"]
