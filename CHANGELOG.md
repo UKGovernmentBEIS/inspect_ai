@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.75 (18 March 2025)
 
 - Model API: Specifying a default model (e.g. `--model`) is no longer required (as some evals have no model or use `get_model()` for model access).
 - Tasks can now directly specify a `model`, and model is no longer a required axis for parallel tasks.
