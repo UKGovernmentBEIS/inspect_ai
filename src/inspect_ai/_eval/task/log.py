@@ -1,4 +1,3 @@
-import time
 from importlib import metadata as importlib_metadata
 from inspect import isgenerator
 from typing import Any, Iterator, Literal, cast
