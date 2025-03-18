@@ -17,7 +17,7 @@ import {
   StoreSpecificRenderableTypes,
 } from "./StateEventRenderers";
 
-import { useMemo, FC } from "react";
+import { FC, useMemo } from "react";
 import styles from "./StateEventView.module.css";
 
 interface StateEventViewProps {
@@ -246,6 +246,10 @@ const synthesizeComparable = (changes: Changes) => {
         setPath(before, change.path, change.value);
         break;
       case "replace":
+        // 'Fill in' arrays with empty strings to ensure there is no unnecessary diff
+        initializeArrays(before, change.path);
+        initializeArrays(after, change.path);
+
         setPath(before, change.path, change.replaced);
         setPath(after, change.path, change.value);
         break;

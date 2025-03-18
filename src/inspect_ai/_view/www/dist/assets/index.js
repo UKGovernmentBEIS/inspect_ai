@@ -46260,8 +46260,11 @@ Supported expressions:
       if (!filterError) return [];
       return [
         {
-          from: filterError.from || 0,
-          to: filterError.to || view.state.doc.length,
+          from: Math.min(filterError.from || 0, view.state.doc.length),
+          to: Math.min(
+            filterError.to || view.state.doc.length,
+            view.state.doc.length
+          ),
           severity: filterError.severity,
           message: filterError.message
         }
@@ -61101,6 +61104,8 @@ ${events}
             setPath(before, change.path, change.value);
             break;
           case "replace":
+            initializeArrays(before, change.path);
+            initializeArrays(after, change.path);
             setPath(before, change.path, change.replaced);
             setPath(after, change.path, change.value);
             break;

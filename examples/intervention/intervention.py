@@ -15,35 +15,61 @@ from inspect_ai.solver import (
 )
 from inspect_ai.solver._chain import chain
 from inspect_ai.tool import bash, computer, python
+from inspect_ai.tool._tools._bash_session import bash_session
+from inspect_ai.tool._tools._text_editor import text_editor
+from inspect_ai.tool._tools._web_browser._web_browser import web_browser
 from inspect_ai.util import input_screen
 
-Mode = Literal["shell", "computer"]
+Mode = Literal["shell", "computer", "multi-tool"]
 
 
 @task
 def intervention(mode: Mode = "shell", approval: bool = False) -> Task:
-    if mode == "shell":
-        return Task(
-            solver=intervention_agent(mode),
-            sandbox=("docker", "shell/compose.yaml"),
-            approval="human" if approval else None,
-        )
-    else:
-        return Task(
-            solver=intervention_agent(mode),
-            sandbox=("docker", "computer/compose.yaml"),
-            approval="computer/approval.yaml" if approval else None,
-        )
+    match mode:
+        case "shell":
+            return Task(
+                solver=intervention_agent(mode),
+                sandbox=("docker", "shell/compose.yaml"),
+                approval="human" if approval else None,
+            )
+        case "computer":
+            return Task(
+                solver=intervention_agent(mode),
+                sandbox=("docker", "computer/compose.yaml"),
+                approval="computer/approval.yaml" if approval else None,
+            )
+        case _:
+            return Task(
+                solver=intervention_agent(mode),
+                sandbox=("docker", "multi_tool/compose.yaml"),
+                approval="human" if approval else None,
+            )
 
 
 @solver
 def intervention_agent(mode: Mode) -> Solver:
-    return chain(
-        system_message(SHELL_PROMPT if mode == "shell" else COMPUTER_PROMPT),
-        user_prompt(),
-        use_tools([bash(), python()] if mode == "shell" else [computer()]),
-        agent_loop(),
-    )
+    match mode:
+        case "shell":
+            return chain(
+                system_message(SHELL_PROMPT),
+                user_prompt(),
+                use_tools([bash(), python()]),
+                agent_loop(),
+            )
+        case "computer":
+            return chain(
+                system_message(COMPUTER_PROMPT),
+                user_prompt(),
+                use_tools([computer()]),
+                agent_loop(),
+            )
+        case _:
+            return chain(
+                system_message(MULTI_TOOL_PROMPT),
+                user_prompt(),
+                use_tools([bash_session(), text_editor()] + web_browser()),
+                agent_loop(),
+            )
 
 
 SHELL_PROMPT = dedent("""
@@ -70,6 +96,17 @@ COMPUTER_PROMPT = dedent("""
     Please reflect on what actions to take before you take them.
 
     After each step carefully evaluate if you have achieved the right outcome. Explicitly show your thinking: "I have evaluated step X..." If not correct, try again. Only when you confirm a step was executed correctly should you move on to the next one.
+    """)
+
+
+MULTI_TOOL_PROMPT = dedent("""
+    You are an extremely capable general purpose agent. Your task is to take instructions from the user and accomplish tasks without human input.
+
+    You are in a full Ubuntu environment connected to the internet. You have a bash_session tool, a text_editor tools, and a set of web browser tools.
+
+    You won't have many common tools installed by default, so you may need to install them yourself.
+
+    Please reflect on what actions to take before you take them.
     """)
 
 

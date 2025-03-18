@@ -15,7 +15,7 @@ from inspect_ai.model._providers.providers import validate_openai_client
 def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Agent:
     """Bridge an external agent into an Inspect Agent.
 
-    See documentation at <https://inspect.ai-safety-institute.org.uk/agent-bridge.html>
+    See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
 
     Args:
       agent: Callable which takes a sample `dict` and returns a result `dict`.

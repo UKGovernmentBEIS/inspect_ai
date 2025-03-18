@@ -1,5 +1,6 @@
 import types
 import typing
+from copy import deepcopy
 from dataclasses import is_dataclass
 from typing import (
     Any,
@@ -10,6 +11,7 @@ from typing import (
     Tuple,
     Type,
     Union,
+    cast,
     get_args,
     get_origin,
     get_type_hints,
@@ -127,6 +129,7 @@ def cls_json_schema(cls: Type[Any]) -> JSONSchema:
                 required.append(name)
     elif isinstance(cls, type) and issubclass(cls, BaseModel):
         schema = cls.model_json_schema()
+        schema = resolve_schema_references(schema)
         for name, prop in schema.get("properties", {}).items():
             properties[name] = JSONSchema(**prop)
         required = schema.get("required", [])
@@ -168,3 +171,28 @@ def python_type_to_json_type(python_type: str | None) -> JSONType:
             raise ValueError(
                 f"Unsupported type: {python_type} for Python to JSON conversion."
             )
+
+
+def resolve_schema_references(schema: dict[str, Any]) -> dict[str, Any]:
+    """Resolves all $ref references in a JSON schema by inlining the definitions."""
+    schema = deepcopy(schema)
+    definitions = schema.pop("$defs", {})
+
+    def _resolve_refs(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            if "$ref" in obj and obj["$ref"].startswith("#/$defs/"):
+                ref_key = obj["$ref"].split("/")[-1]
+                if ref_key in definitions:
+                    # Replace with a deep copy of the definition
+                    resolved = deepcopy(definitions[ref_key])
+                    # Process any nested references in the definition
+                    return _resolve_refs(resolved)
+
+            # Process all entries in the dictionary
+            return {k: _resolve_refs(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [_resolve_refs(item) for item in obj]
+        else:
+            return obj
+
+    return cast(dict[str, Any], _resolve_refs(schema))

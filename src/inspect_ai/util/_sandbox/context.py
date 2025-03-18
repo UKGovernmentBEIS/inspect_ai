@@ -49,11 +49,14 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
         return environment
 
 
-async def sandbox_with(file: str) -> SandboxEnvironment | None:
+async def sandbox_with(file: str, on_path: bool = False) -> SandboxEnvironment | None:
     """Get the SandboxEnvironment for the current sample that has the specified file.
 
     Args:
-      file (str): Path to file to check for.
+      file (str): Path to file to check for if on_path is False. If on_path is
+        True, file should be a filename that exists on the system path.
+      on_path (bool): If True, file is a filename to be verified using "which".
+        If False, file is a path to be checked within the sandbox environments.
 
     Return:
       SandboxEnvironment instance or None if no sandboxes had the file.
@@ -66,19 +69,25 @@ async def sandbox_with(file: str) -> SandboxEnvironment | None:
     if environments_with is None:
         raise_no_sandbox()
 
-    # if we've already disovered the sandbox for this file then return it
-    environment = environments_with.get(file, None)
+    # if we've already discovered the sandbox for this file then return it
+    environment_with_key = f"{file}:{on_path}"
+    environment = environments_with.get(environment_with_key, None)
     if environment is not None:
         return environment
 
     # look in each sandbox
     for _, environment in environments.items():
         try:
-            # can we read the file?
-            await environment.read_file(file)
+            if on_path:
+                # can we find the file on the path?
+                if not (await environment.exec(["which", file])).success:
+                    continue
+            else:
+                # can we read the file?
+                await environment.read_file(file)
 
             # if so this is our environment, cache and return it
-            environments_with[file] = environment
+            environments_with[environment_with_key] = environment
             return environment
 
         # allow exception types known to be raised from read_file

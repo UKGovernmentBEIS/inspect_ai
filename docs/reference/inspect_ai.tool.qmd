@@ -6,9 +6,11 @@ title: "inspect_ai.tool"
 
 ### bash
 ### python
-### web_search
+### bash_session
+### text_editor
 ### web_browser
 ### computer
+### web_search
 
 ## Dynamic 
 

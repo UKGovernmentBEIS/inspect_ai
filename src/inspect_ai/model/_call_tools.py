@@ -28,7 +28,6 @@ from inspect_ai.model._model_output import ModelOutput
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
-
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
