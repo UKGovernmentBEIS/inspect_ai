@@ -1,3 +1,4 @@
+from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._execute import agent_execute
 from inspect_ai.solver._solver import Generate, Solver, solver
@@ -33,4 +34,13 @@ def as_solver(agent: Agent) -> Solver:
             state.output = agent_state.output
         return state
 
+    # propagate the agent's name to the solver
+    name = (
+        registry_info(agent).name
+        if is_registry_object(agent)
+        else getattr(agent, "__name__", "agent")
+    )
+    solve.__name__ = name
+
+    # return solver
     return solve
