@@ -102,7 +102,7 @@ classifiers = [
 ]
 
 [project.urls]
-Documentation = "https://inspect.ai-safety-institute.org.uk/"
+Documentation = "https://inspect.aisi.org.uk/"
 "Source Code" = "https://github.com/UKGovernmentBEIS/inspect_ai"
 "Issue Tracker" = "https://github.com/UKGovernmentBEIS/inspect_ai/issues"
 

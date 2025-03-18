@@ -9,7 +9,7 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 def sandbox_command() -> None:
     """Manage Sandbox Environments.
 
-    Learn more about sandboxing at https://inspect.ai-safety-institute.org.uk/sandboxing.html.
+    Learn more about sandboxing at https://inspect.aisi.org.uk/sandboxing.html.
     """
     return None
 
