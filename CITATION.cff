@@ -8,6 +8,6 @@ authors:
   - name: UK AI Security Institute
     website: "https://www.aisi.gov.uk/"
 repository-code: "https://github.com/UKGovernmentBEIS/inspect_ai"
-url: "https://inspect.ai-safety-institute.org.uk/"
+url: "https://inspect.aisi.org.uk/"
 license: MIT
 date-released: "2024-05-10"

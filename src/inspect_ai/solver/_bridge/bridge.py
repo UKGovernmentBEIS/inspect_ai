@@ -17,7 +17,7 @@ from .._task_state import TaskState
 def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solver:
     """Bridge an external agent into an Inspect Solver.
 
-    See documentation at <https://inspect.ai-safety-institute.org.uk/agent-bridge.html>
+    See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
 
     Args:
       agent: Callable which takes a sample `dict` and returns a result `dict`.

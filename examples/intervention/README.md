@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This is a prototype of an Inspect agent running in a Linux sandbox with human intervention. It utilises Inspect's [Interactivity features](https://inspect.ai-safety-institute.org.uk/interactivity.html). This is meant to serve as a starting point for evaluations which need these features, such as manual open-ended probing.
+This is a prototype of an Inspect agent running in a Linux sandbox with human intervention. It utilises Inspect's [Interactivity features](https://inspect.aisi.org.uk/interactivity.html). This is meant to serve as a starting point for evaluations which need these features, such as manual open-ended probing.
 
 ## Usage Modes
 
@@ -20,7 +20,7 @@ inspect eval examples/intervention.py -T mode=computer --display conversation
 inspect eval examples/intervention.py -T mode=multi-tool --display conversation
 ```
 
-See the documentation on the [Computer Tool](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-computer) for additional details on Inspect comptuer use.
+See the documentation on the [Computer Tool](https://inspect.aisi.org.uk/tools-standard.html#sec-computer) for additional details on Inspect comptuer use.
 
 ## Approval
 
@@ -45,4 +45,4 @@ approvers:
     tools: "*"
 ```
 
-See the [Approval](https://inspect.ai-safety-institute.org.uk/approval.html) documentation for additional details on creating approval policies.
+See the [Approval](https://inspect.aisi.org.uk/approval.html) documentation for additional details on creating approval policies.

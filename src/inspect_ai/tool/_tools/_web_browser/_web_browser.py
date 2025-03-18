@@ -34,7 +34,7 @@ class CrawlerResult(BaseModel):
 def web_browser(interactive: bool = True) -> list[Tool]:
     """Tools used for web browser navigation.
 
-     See documentation at <https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-web-browser>.
+     See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
 
     Args:
        interactive: Provide interactive tools (enable
