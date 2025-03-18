@@ -20,7 +20,7 @@ website:
    bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
-   site-url: https://inspect.ai-safety-institute.org.uk/
+   site-url: https://inspect.aisi.org.uk/
    repo-actions: [issue]
    twitter-card:
       title: "Inspect"

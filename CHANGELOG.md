@@ -23,13 +23,13 @@
 
 ## v0.3.73 (14 March 2025)
 
-- Constrain model output to a particular JSON schema using [Structured Output](https://inspect.ai-safety-institute.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).
+- Constrain model output to a particular JSON schema using [Structured Output](https://inspect.aisi.org.uk/structured.html) (supported for OpenAI, Google, and Mistral).
 - New "HTTP Retries" display (replacing the "HTTP Rate Limits" display) which counts all retries and does so much more consistently and accurately across providers.
 - The `ModelAPI` class now has a `should_retry()` method that replaces the deprecated `is_rate_limit()` method.
 - The "Generate..." progress message in the Running Samples view now shows the number of retries for the active call to `generate()`.
 - New `inspect trace http` command which will show all HTTP requests for a run.
 - More consistent use of `max_retries` and `timeout` configuration options. These options now exclusively control Inspect's outer retry handler; model providers use their default behaviour for the inner request, which is typically 2-4 retries and a service-appropriate timeout.
-- Improved async implementation using AnyIO (can now optionally run Trio rather than asyncio as the [async backend](https://inspect.ai-safety-institute.org.uk/parallelism.html#async-backends)).
+- Improved async implementation using AnyIO (can now optionally run Trio rather than asyncio as the [async backend](https://inspect.aisi.org.uk/parallelism.html#async-backends)).
 - Agent Bridge: Correct handling for `tool_choice` option.
 - Model API: `ChatMessage` now includes an `id` field (defaults to auto-generated uuid).
 - OpenAI: More flexible parsing of content parts (some providers omit the "type" field); support for "reasoning" content parts.
@@ -46,7 +46,7 @@
 
 ## v0.3.71 (01 March 2025)
 
-- Anthropic: Support for [extended thinking](https://inspect.ai-safety-institute.org.uk/reasoning.html#claude-3.7-sonnet) features of Claude Sonnet 3.7 (minimum version of `anthropic` package bumped to 0.47.1).
+- Anthropic: Support for [extended thinking](https://inspect.aisi.org.uk/reasoning.html#claude-3.7-sonnet) features of Claude Sonnet 3.7 (minimum version of `anthropic` package bumped to 0.47.1).
 - Reasoning: `ContentReasoning` type for representing model reasoning blocks.
 - Reasoning: `reasoning_tokens` for setting maximum reasoning tokens (currently only supported by Claude Sonnet 3.7)
 - Reasoning: `reasoning_history` can now be specified as "none", "all", "last", or "auto" (which yields a provider specific recommended default).
@@ -74,7 +74,7 @@
 
 ## v0.3.70 (25 February 2025)
 
-- [working_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
+- [working_limit](https://inspect.aisi.org.uk/errors_and_limits.html#working-limit) option for specifying a maximum working time (e.g. model generation, tool calls, etc.) for samples.
 - Added `SandboxEvent` to transcript for recording sandbox execution and I/O.
 - Sandboxes: `as_type()` function for checked downcasting of `SandboxEnvironment`
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
@@ -135,9 +135,9 @@
 
 ## v0.3.64 (14 February 2025)
 
-- [Reference documentation](https://inspect.ai-safety-institute.org.uk/reference/) for Python API and CLI commands.
-- Add support for [clustered standard errors](https://inspect.ai-safety-institute.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
-- Improvements to [scoring workflow](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-scorer-workflow) (`inspect score` command and `score()` function).
+- [Reference documentation](https://inspect.aisi.org.uk/reference/) for Python API and CLI commands.
+- Add support for [clustered standard errors](https://inspect.aisi.org.uk/scorers.html#clustered-standard-errors) via a new `cluster` parameter for the `stderr()` metric.
+- Improvements to [scoring workflow](https://inspect.aisi.org.uk/scorers.html#sec-scorer-workflow) (`inspect score` command and `score()` function).
 - Metrics now take `list[SampleScore]` rather than `list[Score]` (previous signature is deprecated but still works with a warning).
 - Use a sample adjustment for the `var()` metric.
 - Google: Speculative fix for completion candidates not being returned as a list.
@@ -154,7 +154,7 @@
 
 ## v0.3.63 (07 February 2025)
 
-- Add [OpenRouter](https://inspect.ai-safety-institute.org.uk/providers.html#openrouter) model provider.
+- Add [OpenRouter](https://inspect.aisi.org.uk/providers.html#openrouter) model provider.
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
 - Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
@@ -190,8 +190,8 @@
 
 ## v0.3.60 (29 January 2025)
 
-- [Agent Bridge](https://inspect.ai-safety-institute.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
-- [Goodfire](https://inspect.ai-safety-institute.org.uk/models.html#goodfire) model provider.
+- [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html) for integrating external agent frameworks with Inspect.
+- [Goodfire](https://inspect.aisi.org.uk/models.html#goodfire) model provider.
 - Add `@wraps` to functions wrapped by Inspect decorators to preserve type information.
 - Hugging Face: Add support for stop sequences for HF models.
 - Docker: More robust parsing of version strings (handle development versions).
@@ -209,12 +209,12 @@
 
 ## v0.3.59 (24 January 2025)
 
-- Beta version of [computer()](https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer) tool which models with a computer desktop environment.
+- Beta version of [computer()](https://inspect.aisi.org.uk/tools.html#sec-computer) tool which models with a computer desktop environment.
 - `user_message()` solver for appending parameterised user messages.
 - `prompt_template()`, `system_message()` and `user_message()` solver now also include the sample `store` in substitution parameters.
 - Limits: Enforce token and message limit at lower level (not longer required to check `state.completed` for limit enforcement).
-- Limits: Enforce [custom limits](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#custom-limit) for samples by raising `SampleLimitExceededError`.
-- Tasks: Optional ability for solvers to [yield scores](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) for a task.
+- Limits: Enforce [custom limits](https://inspect.aisi.org.uk/errors-and-limits.html#custom-limit) for samples by raising `SampleLimitExceededError`.
+- Tasks: Optional ability for solvers to [yield scores](https://inspect.aisi.org.uk/solvers.html#sec-scoring-in-solvers) for a task.
 - Model API: Log model calls that result in bad request errors.
 - Tools: `model_input` option that determines how tool call result content is played back to the model.
 - Tools: Don't attempt to marshall arguments of dynamic `ToolDef` with `**kwargs: Any` (just pass them through).
@@ -227,7 +227,7 @@
 
 ## v0.3.58 (16 January 2025)
 
-- Support for [audio and video](https://inspect.ai-safety-institute.org.uk/multimodal.html) inputs for Open AI and Google Gemini models.
+- Support for [audio and video](https://inspect.aisi.org.uk/multimodal.html) inputs for Open AI and Google Gemini models.
 - Task display: Added Timeout Tool button for manually timing out a tool call.
 - Task display: Automatically switch to "plain" mode when running in a background thread
 - Sandboxes: Setup and initialisation errors are now handled at the sample level.
@@ -245,7 +245,7 @@
 
 ## v0.3.57 (09 January 2025)
 
-- [Tracing API](https://inspect.ai-safety-institute.org.uk/tracing.html#tracing-api) for custom trace logging.
+- [Tracing API](https://inspect.aisi.org.uk/tracing.html#tracing-api) for custom trace logging.
 - Inspect View: never truncate tool result images and display at default width of 800px.
 - Inspect View: display tool error messages in transcript when tool errors occur.
 - Inspect View: display any completed samples even if the task fails because of an error
@@ -264,9 +264,9 @@
 
 ## v0.3.56 (01 January 2025)
 
-- [Human Agent](https://inspect.ai-safety-institute.org.uk/human-agent.html) solver for human baselining of computing tasks.
-- [Typed interfaces](https://inspect.ai-safety-institute.org.uk/typing.html) to `Sample` store and metadata using Pydantic models.
-- [Approval policies](https://inspect.ai-safety-institute.org.uk/approval.html#task-approvers) can now be defined at the `Task` level (`eval` level approval policies take precedence).
+- [Human Agent](https://inspect.aisi.org.uk/human-agent.html) solver for human baselining of computing tasks.
+- [Typed interfaces](https://inspect.aisi.org.uk/typing.html) to `Sample` store and metadata using Pydantic models.
+- [Approval policies](https://inspect.aisi.org.uk/approval.html#task-approvers) can now be defined at the `Task` level (`eval` level approval policies take precedence).
 - Tools can now return `ContentText` and `ContentImage`.
 - Move tool result images into subsequent user messages for models that don't support tools returning images.
 - `SandboxConnection` that contains login information from sandboxes.
@@ -283,7 +283,7 @@
 
 ## v0.3.54 (26 December 2024)
 
-- [Tracing](https://inspect.ai-safety-institute.org.uk/tracing.html) for diagnosing runs with unterminated action (e.g. model calls, docker commands, etc.).
+- [Tracing](https://inspect.aisi.org.uk/tracing.html) for diagnosing runs with unterminated action (e.g. model calls, docker commands, etc.).
 - Provide default timeout/retry for docker compose commands to mitigate unreliability in some configurations.
 - Switch to sync S3 writes to overcome unreliability observed when using async interface.
 - Task display: Added `--no-score-display` option to disable realtime scoring metrics.
@@ -366,9 +366,9 @@
 ## v0.3.48 (01 December 2024)
 
 - [Realtime display](https://github.com/UKGovernmentBEIS/inspect_ai/pull/865) of sample transcripts (including ability to cancel running samples).
-- Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) for more information.
+- Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.aisi.org.uk/scorers.html#sec-multiple-scorers) for more information.
 - `EvalLog` now includes a [location](https://github.com/UKGovernmentBEIS/inspect_ai/pull/872) property indicating where it was read from.
-- Use [tool views](https://inspect.ai-safety-institute.org.uk/approval.html#tool-views) when rendering tool calls in Inspect View.
+- Use [tool views](https://inspect.aisi.org.uk/approval.html#tool-views) when rendering tool calls in Inspect View.
 - Consistent behavior for `max_samples` across sandbox and non-sandbox evals (both now apply `max_samples` per task, formerly evals with sandboxes applied `max_samples` globally).
 - Log files now properly deal with scores that produce Nan. (fixes [#834](https://github.com/UKGovernmentBEIS/inspect_ai/issues/834))
 - Bash tool: add `--login` option so that e.g. .bashrc is read before executing the command.
@@ -395,12 +395,12 @@
 - Google: Combine consecutive tool messages into single content part; ensure no empty text content parts.
 - AzureAI: Create and close client with each call to generate (fixes issue w/ using azureai on multiple passes of eval).
 - Bedrock: Migrate to the [Converse API](https://docs.aws.amazon.com/bedrock/latest/userguide/conversation-inference-supported-models-features.html), which supports many more features including tool calling and multimodal models.
-- Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) for more information.
+- Scoring: When using a dictionary to map metrics to score value dictionaries, you may now use globs as keys. See our [scorer documentation](https://inspect.aisi.org.uk/scorers.html#sec-multiple-scorers) for more information.
 - Sample limit events will now appear in the transcript if a limit (e.g. message, token, or time limit) halt a sample. The sample list and sample detail also display the limit, if applicable.
 
 ## v0.3.46 (12 November 2024)
 
-- [eval](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
+- [eval](https://inspect.aisi.org.uk/eval-logs.html#sec-log-format) is now the default log format (use `--log-format=json` to use old format).
 - Base 64 images are now logged by default for all log formats (disable with `--no-log-images`).
 - The log viewer now properly displays sample errors in the sample list for `eval` format log files.
 - Improve path handling when using `inspect log convert` to convert a single log file.
@@ -410,8 +410,8 @@
 
 ## v0.3.45 (11 November 2024)
 
-- [time_limit](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sample-limits) option for specifying a maximum execution time for samples.
-- [read_eval_log_samples()](https://inspect.ai-safety-institute.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
+- [time_limit](https://inspect.aisi.org.uk/errors_and_limits.html#sample-limits) option for specifying a maximum execution time for samples.
+- [read_eval_log_samples()](https://inspect.aisi.org.uk/eval-logs.html#streaming) function for streaming reads of `.eval` log files.
 - Mistral: Support for multi-modal models (requires v1.2 of mistralai package).
 - Groq: Support for multi-modal models (requires v0.11.0 of groq package).
 - AzureAI: Use Model Inference API (preview) for implementation of model client.
@@ -431,7 +431,7 @@
 
 ## v0.3.43 (04 November 2024)
 
-- New binary [log format](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
+- New binary [log format](https://inspect.aisi.org.uk/eval-logs.html#sec-log-format) which yields substantial size and speed improvements (JSON format log files are still fully supported and utilities for converting between the formats are provided).
 - [Grok](https://docs.x.ai/) model provider.
 - [llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/) local model provider.
 - Extensions: correctly load extensions in packages where package name differs from dist name.
@@ -453,7 +453,7 @@
 
 ## v0.3.42 (23 October 2024)
 
-- [ToolDef](https://inspect.ai-safety-institute.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
+- [ToolDef](https://inspect.aisi.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
 - Added `--tags` option to eval for tagging evaluation runs.
 - Added APIs for accessing sample event transcripts and for creating and resolving attachments for larger content items.
 - Cleanup Docker Containers immediately for samples with errors.
@@ -483,10 +483,10 @@
 
 ## v0.3.41 (11 October 2024)
 
-- [Approval mode](https://inspect.ai-safety-institute.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
-- [Trace mode](https://inspect.ai-safety-institute.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
+- [Approval mode](https://inspect.aisi.org.uk/approval.html) for extensible approvals of tool calls (human and auto-approvers built in,  arbitrary other approval schemes via extensions).
+- [Trace mode](https://inspect.aisi.org.uk/interactivity.html#sec-trace-mode) for printing model interactions to the terminal.
 - Add `as_dict()` utility method to `Score`
-- [Sample limits](https://inspect.ai-safety-institute.org.uk/errors_and_limits.html#sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
+- [Sample limits](https://inspect.aisi.org.uk/errors_and_limits.html#sample-limits) (`token_limit` and `message_limit`) for capping the number of tokens or messages used per sample ( `message_limit` replaces deprecated `max_messages`).
 - Add `metadata` field to `Task` and record in log `EvalSpec`.
 - Include datetime and level in file logger.
 - Correct llama3 and o1 tool calling when empty arguments passed.
@@ -535,7 +535,7 @@
 
 ## v0.3.36 (2 October 2024)
 
-- [Web Browser](https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromium browser that supports navigation, history, and mouse/keyboard interactions.
+- [Web Browser](https://inspect.aisi.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromium browser that supports navigation, history, and mouse/keyboard interactions.
 - `auto_id` option for dataset readers to assign an auto-incrementing ID to records.
 - Task args: don't attempt to serialise registry objects that don't have captured parameters.
 
@@ -600,7 +600,7 @@
 
 ## v0.3.30 (18 September 2024)
 
-- Added [fork()](https://inspect.ai-safety-institute.org.uk/agents-api.html#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
+- Added [fork()](https://inspect.aisi.org.uk/agents-api.html#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
 - Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
 - Fix error when running `inspect info log-types`
 - Improve scorer names imported from modules by not including the the module names.
@@ -624,9 +624,9 @@
 
 ## v0.3.28 (14 September 2024)
 
-- [basic_agent()](https://inspect.ai-safety-institute.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
-- [score()](https://inspect.ai-safety-institute.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
-- Ability to [publish](https://inspect.ai-safety-institute.org.uk/log-viewer.html#sec-publishing) a static standalone Inspect View website for a log directory.
+- [basic_agent()](https://inspect.aisi.org.uk/agents.html#sec-basic-agent) that provides a ReAct tool loop with support for retries and encouraging the model to continue if its gives up or gets stuck.
+- [score()](https://inspect.aisi.org.uk/solvers.html#sec-scoring-in-solvers) function for accessing scoring logic from within solvers.
+- Ability to [publish](https://inspect.aisi.org.uk/log-viewer.html#sec-publishing) a static standalone Inspect View website for a log directory.
 - `system_message()` now supports custom parameters and interpolation of `metadata` values from `Sample`.
 - `generate()` solver now accepts arbitrary generation config params.
 - `use_tools()` now accepts a variadic list of `Tool` in addition to literal `list[Tool]`.
@@ -654,9 +654,9 @@
 
 ## v0.3.26 (6 September 2024)
 
-- [Eval Sets](https://inspect.ai-safety-institute.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
-- [Per-sample](https://inspect.ai-safety-institute.org.uk/sandboxing.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
-- [input_screen()](https://inspect.ai-safety-institute.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
+- [Eval Sets](https://inspect.aisi.org.uk/eval-sets.html) for running groups of tasks with automatic retries.
+- [Per-sample](https://inspect.aisi.org.uk/sandboxing.html#sec-per-sample-sandbox) Sandbox environments can now be specified (e.g. allowing for a distinct Dockerfile or Docker compose file for each sample).
+- [input_screen()](https://inspect.aisi.org.uk/interactivity.html) context manager to temporarily clear task display for user input.
 - Introduce two new scorers, `f1()` (precision and recall in text matching) and `exact()` (whether normalized text matches exactly).
 - Task `metrics` now override built in scorer metrics (previously they were merged). This enables improved re-use of existing scorers where they only change required is a different set of metrics.
 - `write_log_dir_manifest()` to write a log header manifest for a log directory.
@@ -675,11 +675,11 @@
 
 ## v0.3.25 (25 August 2024)
 
-- [Store](https://inspect.ai-safety-institute.org.uk/agents-api.html#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
-- [Transcript](https://inspect.ai-safety-institute.org.uk/agents-api.html#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
-- [Subtasks](https://inspect.ai-safety-institute.org.uk/agents-api.html#sec-subtasks) for delegating work to helper models, sub-agents, etc.
-- Integration with Anthropic [prompt caching](https://inspect.ai-safety-institute.org.uk/caching.html#sec-provider-caching).
-- [fail_on_error](https://inspect.ai-safety-institute.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
+- [Store](https://inspect.aisi.org.uk/agents-api.html#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
+- [Transcript](https://inspect.aisi.org.uk/agents-api.html#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
+- [Subtasks](https://inspect.aisi.org.uk/agents-api.html#sec-subtasks) for delegating work to helper models, sub-agents, etc.
+- Integration with Anthropic [prompt caching](https://inspect.aisi.org.uk/caching.html#sec-provider-caching).
+- [fail_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
 - Add `function` field to `ChatMessageTool` to indicate the name of the function called.
 - Added [RACE](https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/race-h/) benchmark.
@@ -733,12 +733,12 @@
 
 ## v0.3.19 (02 August 2024)
 
-- [vLLM](https://inspect.ai-safety-institute.org.uk/models.html#sec-vllm) model provider.
+- [vLLM](https://inspect.aisi.org.uk/models.html#sec-vllm) model provider.
 - [Groq](https://groq.com/) model provider.
-- [Google Vertex](https://inspect.ai-safety-institute.org.uk/models.html#google-vertex) model provider.
-- [Reduce scores](https://inspect.ai-safety-institute.org.uk/scorers.html##sec-reducing-epoch) in multi-epoch tasks before computing metrics (defaults to averaging sample values).
-- Replace the use of the `bootstrap_std` metric with `stderr` for built in scorers (see [rationale](https://inspect.ai-safety-institute.org.uk/scorers.html#stderr-note) for details).
-- Option to write Python logger entries to an [external file](https://inspect.ai-safety-institute.org.uk/log-viewer.html#sec-external-file).
+- [Google Vertex](https://inspect.aisi.org.uk/models.html#google-vertex) model provider.
+- [Reduce scores](https://inspect.aisi.org.uk/scorers.html##sec-reducing-epoch) in multi-epoch tasks before computing metrics (defaults to averaging sample values).
+- Replace the use of the `bootstrap_std` metric with `stderr` for built in scorers (see [rationale](https://inspect.aisi.org.uk/scorers.html#stderr-note) for details).
+- Option to write Python logger entries to an [external file](https://inspect.aisi.org.uk/log-viewer.html#sec-external-file).
 - Rename `ToolEnvironment` to `SandboxEnvironment` and `tool_environment()` to `sandbox()` (moving the renamed types from `inspect_ai.tool` to `inspect_ai.util`). Existing symbols will continue to work but will print deprecation errors.
 - Moved the `bash()`, `python()`, and `web_search()` functions from `inspect_ai.solver` to `inspect_ai.tool`.  Existing symbols will continue to work but will print deprecation errors.
 - Enable parallel execution of tasks that share a working directory.
@@ -776,8 +776,8 @@
 
 ## v0.3.18 (14 July 2024)
 
-- [Multiple Scorers](https://inspect.ai-safety-institute.org.uk/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
-- [Multiple Models](https://inspect.ai-safety-institute.org.uk/parallelism.html#sec-multiple-models) can now be evaluated in parallel by passing a list of models to `eval()`.
+- [Multiple Scorers](https://inspect.aisi.org.uk/scorers.html#sec-multiple-scorers) are now supported for evaluation tasks.
+- [Multiple Models](https://inspect.aisi.org.uk/parallelism.html#sec-multiple-models) can now be evaluated in parallel by passing a list of models to `eval()`.
 - Add `api_key` to `get_model()` for explicitly specifying an API key for a model.
 - Improved handling of very large (> 100MB) log files in Inspect View.
 - Use `network_mode: none` for disabling networking by default in Docker tool environments.
@@ -807,8 +807,8 @@
 
 ## v0.3.15 (15 June 2024)
 
--   [Sandbox Environments](https://inspect.ai-safety-institute.org.uk/sandboxing.html) for executing tool code in a sandbox.
--   [Caching](https://inspect.ai-safety-institute.org.uk/caching.html) to reduce the number of model API calls made.
+-   [Sandbox Environments](https://inspect.aisi.org.uk/sandboxing.html) for executing tool code in a sandbox.
+-   [Caching](https://inspect.aisi.org.uk/caching.html) to reduce the number of model API calls made.
 -   The `multiple_choice()` solver now has support for questions with multiple correct answers.
 -   More fine grained handling of Claude `BadRequestError` (400) errors (which were formerly all treated as content moderation errors).
 -   Filter out empty TextBlockParam when playing messages back to Claude.
