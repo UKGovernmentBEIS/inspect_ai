@@ -2,6 +2,7 @@
 
 - [bash_session()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-bash-session) tool for creating a stateful bash shell that retains its state across calls from the model.
 - [text_editor()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-text-editor) tool which enables viewing, creating and editing text files.
+- Structured Output: Properly handle Pydantic BaseModel that contains other BaseModel definitions in its schema.
 
 ## v0.3.75 (18 March 2025)
 
