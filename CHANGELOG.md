@@ -12,6 +12,7 @@
 - Inspect View: Fix layout issue with sample error display in sample detail summary.
 - Inspect View: Better support large eval files (in excess of 4GB).
 - Inspect View: Correctly display 'None' when passed in tool calls.
+- Inspect View: Fix 'Access Denied' error when using `inspect view` and viewing the log in a browser.
 - Bugfix: Properly handle nested Pydantic models when reading typed store (`store_as()`) from log.
 - Bugfix: Enable passing `solver` list to `eval()` (decorate `chain` function with `@solver`).
 - Bugfix: Support deserializing custom sandbox configuration objects when said sandbox plugin is not installed.
