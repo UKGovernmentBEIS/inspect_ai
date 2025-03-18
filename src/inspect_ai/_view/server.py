@@ -57,8 +57,7 @@ def view_server(
     @routes.get("/api/logs/{log}")
     async def api_log(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
-        file = urllib.parse.unquote(file)
+        file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
 
         # header_only is based on a size threshold
@@ -68,8 +67,7 @@ def view_server(
     @routes.get("/api/log-size/{log}")
     async def api_log_size(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
-        file = urllib.parse.unquote(file)
+        file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
 
         return await log_size_response(file)
@@ -77,8 +75,7 @@ def view_server(
     @routes.get("/api/log-delete/{log}")
     async def api_log_delete(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
-        file = urllib.parse.unquote(file)
+        file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
 
         return await log_delete_response(file)
@@ -86,8 +83,7 @@ def view_server(
     @routes.get("/api/log-bytes/{log}")
     async def api_log_bytes(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
-        file = urllib.parse.unquote(file)
+        file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
 
         # header_only is based on a size threshold
@@ -106,7 +102,7 @@ def view_server(
         if authorization:
             request_log_dir = request.query.getone("log_dir", None)
             if request_log_dir:
-                request_log_dir = urllib.parse.unquote(request_log_dir)
+                request_log_dir = normalize_uri(request_log_dir)
             else:
                 request_log_dir = log_dir
         else:
@@ -121,7 +117,7 @@ def view_server(
     @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:
         files = request.query.getall("file", [])
-        files = [urllib.parse.unquote(file) for file in files]
+        files = [normalize_uri(file) for file in files]
         map(validate_log_file_request, files)
         return await log_headers_response(files)
 
@@ -164,6 +160,28 @@ def view_server(
         access_log_format='%a %t "%r" %s %b (%Tf)',
         shutdown_timeout=1,
     )
+
+
+def normalize_uri(uri: str) -> str:
+    """Normalize incoming URIs to a consistent format."""
+    # Decode any URL-encoded characters
+    parsed = urllib.parse.urlparse(urllib.parse.unquote(uri))
+
+    if parsed.scheme != "file":
+        # If this isn't a file uri, just unquote it
+        return urllib.parse.unquote(uri)
+
+    else:
+        # If this is a file uri, see whether we should process triple slashes
+        # down to double slashes
+        path = parsed.path
+
+        # Detect and normalize Windows-style file URIs
+        if path.startswith("/") and len(path) > 3 and path[2] == ":":
+            # Strip leading `/` before drive letter
+            path = path[1:]
+
+        return f"file://{path}"
 
 
 def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
