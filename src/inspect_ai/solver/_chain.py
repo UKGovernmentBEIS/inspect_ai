@@ -1,8 +1,8 @@
-from typing import Sequence, overload
+from typing import Sequence, cast, overload
 
 from typing_extensions import override
 
-from inspect_ai.agent._agent import Agent
+from inspect_ai.agent._agent import Agent, is_agent
 
 from ._as_solver import as_solver
 from ._solver import Generate, Solver, solver
@@ -11,7 +11,7 @@ from ._task_state import TaskState
 
 @solver
 def chain(
-    *solvers: Solver | Agent | Sequence[Solver | Agent],
+    *solvers: Solver | Agent | list[Solver] | list[Solver | Agent],
 ) -> Solver:
     """Compose a solver from multiple other solvers and/or agents.
 
@@ -35,23 +35,19 @@ def chain(
 
 
 def unroll(
-    solver: Solver | Agent | Sequence[Solver | Agent],
+    solver: Solver | Agent | list[Solver] | list[Solver | Agent],
 ) -> list[Solver]:
-    if isinstance(solver, Solver):
-        if isinstance(solver, Chain):
-            return unroll(solver._solvers)
-        else:
-            return [solver]
-    elif isinstance(solver, Agent):
-        return [as_solver(solver)]
-    else:
+    if isinstance(solver, list):
         unrolled: list[Solver] = []
         for s in solver:
-            if isinstance(s, Solver):
-                unrolled.extend(unroll(s))
-            else:
-                unrolled.append(as_solver(s))
+            unrolled.extend(unroll(s))
         return unrolled
+    elif is_agent(solver):
+        return [as_solver(solver)]
+    elif isinstance(solver, Chain):
+        return unroll(solver._solvers)
+    else:
+        return [cast(Solver, solver)]
 
 
 class Chain(Sequence[Solver], Solver):

@@ -2,9 +2,11 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai.agent._agent import Agent, is_agent
+from inspect_ai.solver._as_solver import as_solver
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -66,7 +68,7 @@ def eval(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    solver: Solver | list[Solver] | SolverSpec | None = None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
@@ -233,7 +235,7 @@ async def eval_async(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    solver: Solver | list[Solver] | SolverSpec | None = None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
@@ -386,7 +388,12 @@ async def eval_async(
             )
 
         # resolve solver
-        solver = chain(solver) if isinstance(solver, list) else solver
+        if isinstance(solver, list):
+            solver = chain(solver)
+        elif is_agent(solver):
+            solver = as_solver(solver)
+        else:
+            solver = cast(Solver | SolverSpec | None, solver)
 
         # ensure consistency of limit and sample_id
         if sample_id is not None and limit is not None:

@@ -6,6 +6,7 @@ from typing import (
     ParamSpec,
     Protocol,
     Type,
+    TypeGuard,
     cast,
     overload,
     runtime_checkable,
@@ -13,6 +14,7 @@ from typing import (
 
 from inspect_ai._util.registry import (
     RegistryInfo,
+    is_registry_object,
     registry_add,
     registry_name,
     registry_tag,
@@ -178,3 +180,7 @@ def agent_register(agent: Callable[P, Agent], name: str) -> Callable[P, Agent]:
         RegistryInfo(type="agent", name=name),
     )
     return agent
+
+
+def is_agent(obj: Any) -> TypeGuard[Agent]:
+    return is_registry_object(obj, type="agent")
