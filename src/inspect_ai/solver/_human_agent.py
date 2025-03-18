@@ -1,5 +1,3 @@
-from inspect_ai.agent._human.agent import human
-
 from ._as_solver import as_solver
 from ._solver import Solver, solver
 
@@ -32,6 +30,8 @@ def human_agent(
     Returns:
        Solver: Human agent solver.
     """
+    from inspect_ai.agent._human.agent import human
+
     return as_solver(
         human(
             answer=answer,
