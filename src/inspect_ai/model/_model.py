@@ -78,7 +78,7 @@ class ModelAPI(abc.ABC):
     by the user. You can then pass these on to the approriate place in
     your model initialisation code (for example, here is what many
     of the built-in providers do with the `model_args` passed to them:
-    https://inspect.ai-safety-institute.org.uk/models.html#model-args)
+    https://inspect.aisi.org.uk/models.html#model-args)
     """
 
     def __init__(
