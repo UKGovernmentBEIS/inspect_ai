@@ -248,14 +248,26 @@ evaluations.
   the example above). Here we cover using the built-in solvers and
   creating your own more sophisticated ones.
 
-- [Tools](tools.qmd) provide a means of extending the capabilities of
-  models by registering Python functions for them to call. This section
-  describes how to create custom tools and use them in evaluations.
-
 - [Scorers](scorers.qmd) evaluate the work of solvers and aggregate
   scores into metrics. Sophisticated evals often require custom scorers
   that use models to evaluate output. This section covers how to create
   them.
+
+These sections cover defining custom tools as well as Inspect’s standard
+built-in tools:
+
+- [Tool Basics](tools.qmd): Tools provide a means of extending the
+  capabilities of models by registering Python functions for them to
+  call. This section describes how to create custom tools and use them
+  in evaluations.
+
+- [Custom Tools](tools-custom.qmd) provides details on more advanced
+  custom tool features including sandboxing, error handling, and dynamic
+  tool definitions.
+
+- [Standard Tools](tools-standard.qmd) describes Inspect’s built-in
+  tools for code execution, text editing, computer use, web search, and
+  web browsing.
 
 These sections cover how to use varoius language models with Inspect:
 
@@ -3188,956 +3200,6 @@ option and the conversation exceeds that limit:
 eval(my_task, message_limit = 10)
 ```
 
-# Tools
-
-
-## Overview
-
-Many models now have the ability to interact with client-side Python
-functions in order to expand their capabilities. This enables you to
-equip models with your own set of custom tools so they can perform a
-wider variety of tasks.
-
-Inspect natively supports registering Python functions as tools and
-providing these tools to models that support them (currently OpenAI,
-Claude 3, Google Gemini, and Mistral). Inspect also includes several
-built-in tools ([bash](#sec-bash-and-python),
-[python](#sec-bash-and-python), [computer](#sec-computer), [web
-browser](#sec-web-browser), and [web_search](#sec-web-search)).
-
-> [!NOTE]
->
-> ### Tools and Agents
->
-> One application of tools is to run them within an agent scaffold that
-> pursues an objective over multiple interactions with a model. The
-> scaffold uses the model to help make decisions about which tools to
-> use and when, and orchestrates calls to the model to use the tools.
-> This is covered in more depth in the [Agents](agents.qmd) section.
-
-## Built-In Tools
-
-Inspect has several built-in tools, including:
-
-- [Bash and Python](#sec-bash-and-python) for executing arbitrary shell
-  and Python code.
-
-- [Web Browser](#sec-web-browser), which provides the model with a
-  headless Chromium web browser that supports navigation, history, and
-  mouse/keyboard interactions.
-
-- [Computer](#sec-computer), which provides the model with a desktop
-  computer (viewed through screenshots) that supports mouse and keyboard
-  interaction.
-
-- [Web Search](#sec-web-search), which uses the Google Search API to
-  execute and summarise web searches.
-
-If you are only interested in using the built-in tools, check out their
-respective documentation links above. To learn more about creating your
-own tools read on immediately below.
-
-## Tool Basics
-
-To demonstrate the use of tools, we’ll define a simple tool that adds
-two numbers, using the `@tool` decorator to register it with the system.
-
-``` python
-@tool
-def add():
-    async def execute(x: int, y: int):
-        """
-        Add two numbers.
-
-        Args:
-            x: First number to add.
-            y: Second number to add.
-
-        Returns:
-            The sum of the two numbers.
-        """
-        return x + y
-
-    return execute
-```
-
-### Annotations
-
-Note that we provide type annotations for both arguments:
-
-``` python
-async def execute(x: int, y: int)
-```
-
-Further, we provide descriptions for each parameter in the documention
-comment:
-
-``` python
-Args:
-    x: First number to add.
-    y: Second number to add.
-```
-
-Type annotations and descriptions are *required* for tool declarations
-so that the model can be informed which types to pass back to the tool
-function and what the purpose of each parameter is.
-
-Note that you while you are required to provide default descriptions for
-tools and their parameters within doc comments, you can also make these
-dynamically customisable by users of your tool (see the section below on
-[Tool Descriptions](#sec-tool-descriptions) for details on how to do
-this).
-
-### Using Tools
-
-We can use this tool in an evaluation by passing it to the `use_tools()`
-Solver:
-
-``` python
-@task
-def addition_problem():
-    return Task(
-        dataset=[Sample(input="What is 1 + 1?", target=["2"])],
-        solver=[
-            use_tools(add()), 
-            generate()
-        ],
-        scorer=match(numeric=True),
-    )
-```
-
-Note that this tool doesn’t make network requests or do heavy
-computation, so is fine to run as inline Python code. If your tool does
-do more elaborate things, you’ll want to make sure it plays well with
-Inspect’s concurrency scheme. For network requests, this amounts to
-using `async` HTTP calls with `httpx`. For heavier computation, tools
-should use subprocesses as described in the next section.
-
-> [!NOTE]
->
-> Note that when using tools with models, the models do not call the
-> Python function directly. Rather, the model generates a structured
-> request which includes function parameters, and then Inspect calls the
-> function and returns the result to the model.
-
-## Tool Errors
-
-Various errors can occur during tool execution, especially when
-interacting with the file system or network or when using [Sandbox
-Environments](sandboxing.qmd) to execute code in a container sandbox. As
-a tool writer you need to decide how you’d like to handle error
-conditions. A number of approaches are possible:
-
-1.  Notify the model that an error occurred to see whether it can
-    recover.
-
-2.  Catch and handle the error internally (trying another code path,
-    etc.).
-
-3.  Allow the error to propagate, resulting in the current `Sample`
-    failing with an error state.
-
-There are no universally correct approaches as tool usage and semantics
-can vary widely—some rough guidelines are provided below.
-
-### Default Handling
-
-If you do not explicitly handle errors, then Inspect provides some
-default error handling behaviour. Specifically, if any of the following
-errors are raised they will be handled and reported to the model:
-
-- `TimeoutError` — Occurs when a call to `subprocess()` or
-  `sandbox().exec()` times out.
-
-- `PermissionError` — Occurs when there are inadequate permissions to
-  read or write a file.
-
-- `UnicodeDecodeError` — Occurs when the output from executing a process
-  or reading a file is binary rather than text.
-
-- `OutputLimitExceededError` - Occurs when one or both of the output
-  streams from `sandbox().exec()` exceed 10 MiB or when attempting to
-  read a file over 100 MiB in size.
-
-- `ToolError` — Special error thrown by tools to indicate they’d like to
-  report an error to the model.
-
-These are all errors that are *expected* (in fact the
-`SandboxEnvironment` interface documents them as such) and possibly
-recoverable by the model (try a different command, read a different
-file, etc.). Unexpected errors (e.g. a network error communicating with
-a remote service or container runtime) on the other hand are not
-automatically handled and result in the `Sample` failing with an error.
-
-Many tools can simply rely on the default handling to provide reasonable
-behaviour around both expected and unexpected errors.
-
-> [!NOTE]
->
-> When we say that the errors are reported directly to the model, this
-> refers to the behaviour when using the default `generate()`. If on the
-> other hand, you are have created custom scaffolding for an agent, you
-> can intercept tool errors and apply additional filtering and logic.
-
-### Explicit Handling
-
-In some cases a tool can implement a recovery strategy for error
-conditions. For example, an HTTP request might fail due to transient
-network issues, and retrying the request (perhaps after a delay) may
-resolve the problem. Explicit error handling strategies are generally
-applied when there are *expected* errors that are not already handled by
-Inspect’s [Default Handling](#default-handling).
-
-Another type of explicit handling is re-raising an error to bypass
-Inspect’s default handling. For example, here we catch at re-raise
-`TimeoutError` so that it fails the `Sample`:
-
-``` python
-try:
-  result = await sandbox().exec(
-    cmd=["decode", file], 
-    timeout=timeout
-  )
-except TimeoutError:
-  raise RuntimeError("Decode operation timed out.")
-  
-```
-
-## Sandboxing
-
-Tools may have a need to interact with a sandboxed environment (e.g. to
-provide models with the ability to execute arbitrary bash or python
-commands). The active sandbox environment can be obtained via the
-`sandbox()` function. For example:
-
-``` python
-from inspect_ai.tool import ToolError, tool
-from inspect_ai.util import sandbox
-
-@tool
-def list_files():
-    async def execute(dir: str):
-        """List the files in a directory.
-
-        Args:
-            dir (str): Directory
-
-        Returns:
-            File listing of the directory
-        """
-        result = await sandbox().exec(["ls", dir])
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(result.stderr)
-
-    return execute
-```
-
-The following instance methods are available to tools that need to
-interact with a `SandboxEnvironment`:
-
-``` python
-class SandboxEnvironment:
-   
-    async def exec(
-        self,
-        cmd: list[str],
-        input: str | bytes | None = None,
-        cwd: str | None = None,
-        env: dict[str, str] = {},
-        user: str | None = None,
-        timeout: int | None = None,
-        timeout_retry: bool = True
-    ) -> ExecResult[str]:
-        """
-        Raises:
-          TimeoutError: If the specified `timeout` expires.
-          UnicodeDecodeError: If an error occurs while
-            decoding the command output.
-          PermissionError: If the user does not have
-            permission to execute the command.
-          OutputLimitExceededError: If an output stream
-            exceeds the 10 MiB limit.
-        """
-        ...
-
-    async def write_file(
-        self, file: str, contents: str | bytes
-    ) -> None:
-        """
-        Raises:
-          PermissionError: If the user does not have
-            permission to write to the specified path.
-          IsADirectoryError: If the file exists already and 
-            is a directory.
-        """
-        ...
-
-    async def read_file(
-        self, file: str, text: bool = True
-    ) -> Union[str | bytes]:
-        """
-        Raises:
-          FileNotFoundError: If the file does not exist.
-          UnicodeDecodeError: If an encoding error occurs 
-            while reading the file.
-            (only applicable when `text = True`)
-          PermissionError: If the user does not have
-            permission to read from the specified path.
-          IsADirectoryError: If the file is a directory.
-          OutputLimitExceededError: If the file size
-            exceeds the 100 MiB limit.
-        """
-        ...
-
-    async def connection(self) -> SandboxConnection:
-        """
-        Raises:
-           NotImplementedError: For sandboxes that don't provide connections
-           ConnectionError: If sandbox is not currently running.
-        """
-```
-
-The `read_file()` method should preserve newline constructs (e.g. crlf
-should be preserved not converted to lf). This is equivalent to
-specifying `newline=""` in a call to the Python `open()` function. Note
-that `write_file()` automatically creates parent directories as required
-if they don’t exist.
-
-The `connection()` method is optional, and provides commands that can be
-used to login to the sandbox container from a terminal or IDE.
-
-Note that to deal with potential unreliability of container services,
-the `exec()` method includes a `timeout_retry` parameter that defaults
-to `True`. For sandbox implementations this parameter is *advisory*
-(they should only use it if potential unreliablity exists in their
-runtime). No more than 2 retries should be attempted and both with
-timeouts less than 60 seconds. If you are executing commands that are
-not idempotent (i.e. the side effects of a failed first attempt may
-affect the results of subsequent attempts) then you can specify
-`timeout_retry=False` to override this behavior.
-
-For each method there is a documented set of errors that are raised:
-these are *expected* errors and can either be caught by tools or allowed
-to propagate in which case they will be reported to the model for
-potential recovery. In addition, *unexpected* errors may occur (e.g. a
-networking error connecting to a remote container): these errors are not
-reported to the model and fail the `Sample` with an error state.
-
-See the documentation on [Sandbox Environments](sandboxing.qmd) for
-additional details.
-
-## Tool Choice
-
-By default models will use a tool if they think it’s appropriate for the
-given task. You can override this behaviour using the `tool_choice`
-parameter of the `use_tools()` Solver. For example:
-
-``` python
-# let the model decide whether to use the tool
-use_tools(addition(), tool_choice="auto")
-
-# force the use of a tool
-use_tools(addition(), tool_choice=ToolFunction(name="addition"))
-
-# prevent use of tools
-use_tools(addition(), tool_choice="none")
-```
-
-The last form (`tool_choice="none"`) would typically be used to turn off
-tool usage after an initial generation where the tool used. For example:
-
-``` python
-solver = [
-  use_tools(addition(), tool_choice=ToolFunction(name="addition")),
-  generate(),
-  follow_up_prompt(),
-  use_tools(tool_choice="none"),
-  generate()
-]
-```
-
-## Tool Descriptions
-
-Well crafted tools should include descriptions that provide models with
-the context required to use them correctly and productively. If you will
-be developing custom tools it’s worth taking some time to learn how to
-provide good tool definitions. Here are some resources you may find
-helpful:
-
-- [Best Practices for Tool
-  Definitions](https://docs.anthropic.com/claude/docs/tool-use#best-practices-for-tool-definitions)
-- [Function Calling with
-  LLMs](https://www.promptingguide.ai/applications/function_calling)
-
-In some cases you may want to change the default descriptions created by
-a tool author—for example you might want to provide better
-disambiguation between multiple similar tools that are used together.
-You also might have need to do this during development of tools (to
-explore what descriptions are most useful to models).
-
-The `tool_with()` function enables you to take any tool and adapt its
-name and/or descriptions. For example:
-
-``` python
-from inspect_ai.tool import tool_with
-
-my_add = tool_with(
-  tool=add(), 
-  name="my_add",
-  description="a tool to add numbers", 
-  parameters={
-    "x": "the x argument",
-    "y": "the y argument"
-  })
-```
-
-You need not provide all of the parameters shown above, for example here
-are some examples where we modify just the main tool description or only
-a single parameter:
-
-``` python
-my_add = tool_with(add(), description="a tool to add numbers")
-my_add = tool_with(add(), parameters={"x": "the x argument"})
-```
-
-Note that the `tool_with()` function returns a copy of the passed tool
-with modified descriptions (the passed tool retains its original
-descriptions).
-
-## Dynamic Tools
-
-As described above, normally tools are defined using `@tool` decorators
-and documentation comments. It’s also possible to create a tool
-dynamically from any function by creating a `ToolDef`. For example:
-
-``` python
-from inspect_ai.solver import use_tools
-from inspect_ai.tool import ToolDef
-
-async def addition(x: int, y: int):
-    return x + y
-
-add = ToolDef(
-    tool=addition,
-    name="add",
-    description="A tool to add numbers", 
-    parameters={
-        "x": "the x argument",
-        "y": "the y argument"
-    })
-)
-
-use_tools([add])
-```
-
-This is effectively what happens under the hood when you use the `@tool`
-decorator. There is one critical requirement for functions that are
-bound to tools using `ToolDef`: type annotations must be provided in the
-function signature (e.g. `x: int, y: int`).
-
-For Inspect APIs, `ToolDef` can generally be used anywhere that `Tool`
-can be used (`use_tools()`, setting `state.tools`, etc.). If you are
-using a 3rd party API that does not take `Tool` in its interface, use
-the `ToolDef.as_tool()` method to adapt it. For example:
-
-``` python
-from inspect_agents import my_agent
-agent = my_agent(tools=[add.as_tool()])
-```
-
-If on the other hand you want to get the `ToolDef` for an existing tool
-(e.g. to discover its name, description, and parameters) you can just
-pass the `Tool` to the `ToolDef` constructor (including whatever
-overrides for `name`, etc. you want):
-
-``` python
-from inspect_ai.tool import ToolDef, bash
-bash_def = ToolDef(bash())
-```
-
-## Parallel Tool Calls
-
-Models will often provide multiple tool calls to evaluate. By default,
-Inspect executes these tool calls in parallel. While this can provide a
-performance improvement, it might not be compatible with semantics of
-some tools (for example, if they manage some global state between
-calls).
-
-You can opt-out of parallel tool calling by adding `parallel=False` to
-the `@tool` decorator. For example, the built in web browsing tools do
-this as follows:
-
-``` python
-@tool(parallel=False)
-def web_browser_go() -> Tool:
-    ...
-```
-
-Specifying `parallel=False` results in two behaviours:
-
-1.  Models that support turning off parallel tool calling (currently
-    OpenAI and Grok) will have it disabled when tools with
-    `parallel=False` are passed to `generate()`.
-
-2.  Inspect will execute tool calls serially (so that even for models
-    that don’t let you disable parallel tool calling, you can still be
-    assured they will not ever run in parallel).
-
-## Bash and Python
-
-The `bash()` and `python()` tools enable execution of arbitrary shell
-commands and Python code, respectively. These tools require the use of a
-[Sandbox Environment](sandboxing.qmd) for the execution of untrusted
-code. For example, here is how you might use them in an evaluation where
-the model is asked to write code in order to solve capture the flag
-(CTF) challenges:
-
-``` python
-from inspect_ai.tool import bash, python
-
-CMD_TIMEOUT = 180
-
-@task
-def intercode_ctf():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            system_message("system.txt"),
-            use_tools([
-                bash(CMD_TIMEOUT), 
-                python(CMD_TIMEOUT)
-            ]),
-            generate(),
-        ],
-        scorer=includes(),
-        message_limit=30,
-        sandbox="docker",
-    )
-```
-
-We specify a 3-minute timeout for execution of the bash and python tools
-to ensure that they don’t perform extremely long running operations.
-
-See the [Agents](#sec-agents) section for more details on how to build
-evaluations that allow models to take arbitrary actions over a longer
-time horizon.
-
-## Web Browser
-
-The web browser tools provides models with the ability to browse the web
-using a headless Chromium browser. Navigation, history, and
-mouse/keyboard interactions are all supported.
-
-### Configuration
-
-Under the hood, the web browser is an instance of
-[Chromium](https://www.chromium.org/chromium-projects/) orchestrated by
-[Playwright](https://playwright.dev/), and runs in its own dedicated
-Docker container. Therefore, to use the web_browser tool you should
-reference the `aisiuk/inspect-web-browser-tool` Docker image in your
-`compose.yaml`. For example, here we use it as our default image:
-
-**compose.yaml**
-
-``` yaml
-services:
-  default:
-    image: aisiuk/inspect-web-browser-tool
-    init: true
-```
-
-Here, we add a dedicated `web_browser` service:
-
-**compose.yaml**
-
-``` yaml
-services:
-  default:
-    image: "python:3.12-bookworm"
-    init: true
-    command: "tail -f /dev/null"
-  web_browser:
-    image: aisiuk/inspect-web-browser-tool
-    init: true
-```
-
-Rather than using the `aisiuk/inspect-web-browser-tool` image, you can
-also just include the web browser service components in a custom image
-(see [Custom Images](#sec-custom-images) below for details).
-
-### Task Setup
-
-A task configured to use the web browser tools might look like this:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.scorer import match
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import bash, python, web_browser
-
-@task
-def browser_task():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            use_tools([bash(), python()] + web_browser()),
-            generate(),
-        ],
-        scorer=match(),
-        sandbox=("docker", "compose.yaml"),
-    )
-```
-
-Note that unlike some other tool functions like `bash()`, the
-`web_browser()` function returns a list of tools. Therefore, we
-concatenate it with a list of the other tools we are using in the call
-to `use_tools()`.
-
-### Browsing
-
-If you review the transcripts of a sample with access to the web browser
-tool, you’ll notice that there are several distinct tools made available
-for control of the web browser. These tools include:
-
-| Tool | Description |
-|----|----|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
-| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
-
-The return value of each of these tools is a [web accessibility
-tree](https://web.dev/articles/the-accessibility-tree) for the page,
-which provides a clean view of the content, links, and form fields
-available on the page (you can look at the accessibility tree for any
-web page using [Chrome Developer
-Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
-
-### Disabling Interactions
-
-You can use the web browser tools with page interactions disabled by
-specifying `interactive=False`, for example:
-
-``` python
-use_tools(web_browser(interactive=False))
-```
-
-In this mode, the interactive tools (`web_browser_click()`,
-`web_browser_type()`, and `web_browser_type_submit()`) are not made
-available to the model.
-
-### Custom Images
-
-Above we demonstrated how to use the pre-configured Inspect web browser
-container. If you prefer to incorporate the headless web browser and its
-dependencies into another container that is also supported.
-
-To do this, reference the
-[Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/Dockerfile)
-used in the built-in web browser container and ensure that the
-dependencies, application files, and server run command it uses are also
-in your container definition:
-
-``` dockerfile
-# Install playwright
-RUN pip install playwright 
-RUN playwright install
-RUN playwright install-deps 
-
-# Install other dependencies
-RUN pip install dm-env-rpc pillow bs4 lxml
-
-# Copy Python files alongside the Dockerfile
-COPY *.py ./
-
-# Run the server
-CMD ["python3", "/app/web_browser/web_server.py"]
-```
-
-Note that all of the Python files in the
-[\_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/)
-directory alongside the `Dockerfile` need to be available for copying
-when building the container.
-
-## Computer
-
-The `computer()` tool provides models with a computer desktop
-environment along with the ability to view the screen and perform mouse
-and keyboard gestures. The computer tool is based on the Anthropic
-[Computer Use
-Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use)
-reference implementation and works with any model that supports image
-input.
-
-### Configuration
-
-The `computer()` tool runs within a Docker container. To use it with a
-task you need to reference the `aisiuk/inspect-computer-tool:latest`
-image in your Docker compose file. For example:
-
-**compose.yaml**
-
-``` yaml
-services:
-  default:
-    image: aisiuk/inspect-computer-tool:latest
-```
-
-You can configure the container to not have Internet access as follows:
-
-**compose.yaml**
-
-``` yaml
-services:
-  default:
-    image: aisiuk/inspect-computer-tool:latest
-    network_mode: none
-```
-
-Note that if you’d like to be able to view the model’s interactions with
-the computer desktop in realtime, you will need to also do some port
-mapping to enable a VNC connection with the container. See the [VNC
-Client](#vnc-client) section below for details on how to do this.
-
-The `aisiuk/inspect-computer-tool:latest` image is based on the
-[ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore)
-image and includes the following additional applications pre-installed:
-
-- Firefox
-- VS Code
-- Xpdf
-- Xpaint
-- galculator
-
-### Task Setup
-
-A task configured to use the computer tool might look like this:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.scorer import match
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.tool import computer
-
-@task
-def computer_task():
-    return Task(
-        dataset=read_dataset(),
-        solver=[
-            use_tools([computer()]),
-            generate(),
-        ],
-        scorer=match(),
-        sandbox=("docker", "compose.yaml"),
-    )
-```
-
-#### Options
-
-The computer tool supports the following options:
-
-| Option | Description |
-|----|----|
-| `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
-| `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
-
-For example:
-
-``` python
-solver=[
-    use_tools([computer(max_screenshots=2, timeout=300)]),
-    generate()
-]
-```
-
-#### Examples
-
-Two of the Inspect examples demonstrate basic computer use:
-
-- [computer](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/computer/computer.py)
-  — Three simple computing tasks as a minimal demonstration of computer
-  use.
-
-  ``` bash
-  inspect eval examples/computer
-  ```
-
-- [intervention](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention/intervention.py)
-  — Computer task driven interactively by a human operator.
-
-  ``` bash
-  inspect eval examples/intervention -T mode=computer --display conversation
-  ```
-
-### VNC Client
-
-You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the
-container to watch computer use in real-time. This requires some
-additional port-mapping in the Docker compose file. You can define
-dynamic port ranges for VNC (5900) and a browser based noVNC client
-(6080) with the following `ports` entries:
-
-**compose.yaml**
-
-``` yaml
-services:
-  default:
-    image: aisiuk/inspect-computer-tool:latest
-    ports:
-      - "5900"
-      - "6080"
-```
-
-To connect to the container for a given sample, locate the sample in the
-**Running Samples** UI and expand the sample info panel at the top:
-
-![](images/vnc-port-info.png)
-
-Click on the link for the noVNC browser client, or use a native VNC
-client to connect to the VNC port. Note that the VNC server will take a
-few seconds to start up so you should give it some time and attempt to
-reconnect as required if the first connection fails.
-
-The browser based client provides a view-only interface. If you use a
-native VNC client you should also set it to “view only” so as to not
-interfere with the model’s use of the computer. For example, for Real
-VNC Viewer:
-
-![](images/vnc-view-only.png)
-
-### Approval
-
-If the container you are using is connected to the Internet, you may
-want to configure human approval for a subset of computer tool actions.
-Here are the possible actions (specified using the `action` parameter to
-the `computer` tool):
-
-- `key`: Press a key or key-combination on the keyboard.
-- `type`: Type a string of text on the keyboard.
-- `cursor_position`: Get the current (x, y) pixel coordinate of the
-  cursor on the screen.
-- `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate
-  on the screen.
-- Example: execute(action=“mouse_move”, coordinate=(100, 200))
-- `left_click`: Click the left mouse button.
-- `left_click_drag`: Click and drag the cursor to a specified (x, y)
-  pixel coordinate on the screen.
-- `right_click`: Click the right mouse button.
-- `middle_click`: Click the middle mouse button.
-- `double_click`: Double-click the left mouse button.
-- `screenshot`: Take a screenshot.
-
-Here is an approval policy that requires approval for key combos
-(e.g. `Enter` or a shortcut) and mouse clicks:
-
-**approval.yaml**
-
-``` yaml
-approvers:
-  - name: human
-    tools:
-      - computer(action='key'
-      - computer(action='left_click'
-      - computer(action='middle_click'
-      - computer(action='double_click'
-
-  - name: auto
-    tools: "*"
-```
-
-Note that since this is a prefix match and there could be other
-arguments, we don’t end the tool match pattern with a parentheses.
-
-You can apply this policy using the `--approval` commmand line option:
-
-``` bash
-inspect eval computer.py --approval approval.yaml
-```
-
-### Tool Binding
-
-The computer tool’s schema is based on the standard Anthropoic [computer
-tool-type](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool).
-When using Claude 3.5 the coputer tool will automatically bind to the
-native Claude computer tool definition. This presumably provides
-improved performance due to fine tuning on the use of the tool but we
-have not verified this.
-
-If you want to experiement with bypassing the native Claude computer
-tool type and just register the computer tool as a normal function based
-tool then specify the `--no-internal-tools` generation option as
-follows:
-
-``` bash
-inspect eval computer.py --no-internal-tools
-```
-
-## Web Search
-
-The `web_search()` tool provides models the ability to enhance their
-context window by performing a search. By default web searches retrieve
-10 results from a provider, uses a model to determine if the contents is
-relevant then returns the top 3 relevant search results to the main
-model. Here is the definition of the `web_search()` function:
-
-``` python
-def web_search(
-    provider: Literal["google"] = "google",
-    num_results: int = 3,
-    max_provider_calls: int = 3,
-    max_connections: int = 10,
-    model: str | Model | None = None,
-) -> Tool:
-    ...
-```
-
-You can use the `web_search()` tool like this:
-
-``` python
-from inspect_ai.tool import web_search
-
-solver=[
-    use_tools(web_search()), 
-    generate()
-],
-```
-
-Web search options include:
-
-- `provider`—Web search provider (currently only Google is supported,
-  see below for instructions on setup and configuration for Google).
-
-- `num_results`—How many search results to return to the main model
-  (defaults to 5).
-
-- `max_provider_calls`—Number of times to retrieve more links from the
-  search provider in case previous ones were irrelevant (defaults to 3).
-
-- `max_connections`—Maximum number of concurrent connections to the
-  search API provider (defaults to 10).
-
-- `model`—Model to use to determine if search results are relevant
-  (defaults to the model currently being evaluated).
-
-#### Google Provider
-
-The `web_search()` tool uses [Google Programmable Search
-Engine](https://programmablesearchengine.google.com/about/). To use it
-you will therefore need to setup your own Google Programmable Search
-Engine and also enable the [Programmable Search Element Paid
-API](https://developers.google.com/custom-search/docs/paid_element).
-Then, ensure that the following environment variables are defined:
-
-- `GOOGLE_CSE_ID` — Google Custom Search Engine ID
-
-- `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
-
 # Scorers
 
 
@@ -5137,6 +4199,1254 @@ for model, scored_log in zip(grader_models, scoring_logs):
     output_file = f"{base}_{model.replace('/', '_')}{ext}"
     write_eval_log(scored_log, output_file)
 ```
+
+# Tool Basics
+
+
+## Overview
+
+Many models now have the ability to interact with client-side Python
+functions in order to expand their capabilities. This enables you to
+equip models with your own set of custom tools so they can perform a
+wider variety of tasks.
+
+Inspect natively supports registering Python functions as tools and
+providing these tools to models that support them. Inspect also includes
+several standard tools for code execution, text editing, computer use,
+web search, and web browsing.
+
+> [!NOTE]
+>
+> ### Tools and Agents
+>
+> One application of tools is to run them within an agent scaffold that
+> pursues an objective over multiple interactions with a model. The
+> scaffold uses the model to help make decisions about which tools to
+> use and when, and orchestrates calls to the model to use the tools.
+> This is covered in more depth in the [Agents](agents.qmd) section.
+
+## Standard Tools
+
+Inspect has several standard tools built-in, including:
+
+- [Bash and Python](tools-standard.qmd#sec-bash-and-python) for
+  executing arbitrary shell and Python code.
+
+- [Bash Session](tools-standard.qmd#sec-bash-session) for creating a
+  stateful bash shell that retains its state across calls from the
+  model.
+
+- [Text Editor](tools-standard.qmd#sec-text-editor) which enables
+  viewing, creating and editing text files.
+
+- [Web Browser](tools-standard.qmd#sec-web-browser), which provides the
+  model with a headless Chromium web browser that supports navigation,
+  history, and mouse/keyboard interactions.
+
+- [Computer](tools-standard.qmd#sec-computer), which provides the model
+  with a desktop computer (viewed through screenshots) that supports
+  mouse and keyboard interaction.
+
+- [Web Search](tools-standard.qmd#sec-web-search), which uses the Google
+  Search API to execute and summarise web searches.
+
+If you are only interested in using the standard tools, check out their
+respective documentation links above. To learn more about creating your
+own tools read on below.
+
+## Defining Tools
+
+Here we’ll describe the basics of defining and using a custom tool. See
+the [Custom Tools](tools-custom.qmd) article for details on more
+advanced custom tool features including sandboxing, error handling, and
+dynamic tool definitions.
+
+Here’s a simple tool that adds two numbers. The `@tool` decorator is
+used to register it with the system:
+
+``` python
+from inspect_ai.tool import tool
+
+@tool
+def add():
+    async def execute(x: int, y: int):
+        """
+        Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+
+        Returns:
+            The sum of the two numbers.
+        """
+        return x + y
+
+    return execute
+```
+
+### Annotations
+
+Note that we provide type annotations for both arguments:
+
+``` python
+async def execute(x: int, y: int)
+```
+
+Further, we provide descriptions for each parameter in the documention
+comment:
+
+``` python
+Args:
+    x: First number to add.
+    y: Second number to add.
+```
+
+Type annotations and descriptions are *required* for tool declarations
+so that the model can be informed which types to pass back to the tool
+function and what the purpose of each parameter is.
+
+Note that you while you are required to provide default descriptions for
+tools and their parameters within doc comments, you can also make these
+dynamically customisable by users of your tool (see the section on [Tool
+Descriptions](tools-custom.qmd#sec-tool-descriptions) for details on how
+to do this).
+
+## Using Tools
+
+We can use the `addition()` tool in an evaluation by passing it to the
+`use_tools()` Solver:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset ipmort Sample
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.scorer import match
+
+@task
+def addition_problem():
+    return Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2"])],
+        solver=[
+            use_tools(add()), 
+            generate()
+        ],
+        scorer=match(numeric=True),
+    )
+```
+
+Note that this tool doesn’t make network requests or do heavy
+computation, so is fine to run as inline Python code. If your tool does
+do more elaborate things, you’ll want to make sure it plays well with
+Inspect’s concurrency scheme. For network requests, this amounts to
+using `async` HTTP calls with `httpx`. For heavier computation, tools
+should use subprocesses as described in the next section.
+
+> [!NOTE]
+>
+> Note that when using tools with models, the models do not call the
+> Python function directly. Rather, the model generates a structured
+> request which includes function parameters, and then Inspect calls the
+> function and returns the result to the model.
+
+## Learning More
+
+- [Custom Tools](tools-custom.qmd) provides details on more advanced
+  custom tool features including sandboxing, error handling, and dynamic
+  tool definitions.
+
+- [Standard Tools](tools-standard.qmd) describes Inspect’s built-in
+  tools for code execution, text editing computer use, web search, and
+  web browsing.
+
+# Custom Tools
+
+
+## Overview
+
+Inspect natively supports registering Python functions as tools and
+providing these tools to models that support them. Inspect also supports
+secure sandboxes for running abritrary code produced by models, flexible
+error handling, as well as dynamic tool definitions.
+
+We’ll cover all of these features below, but we’ll start with a very
+simple example to cover the basic mechanics of tool use.
+
+## Defining Tools
+
+Here’s a simple tool that adds two numbers. The `@tool` decorator is
+used to register it with the system:
+
+``` python
+from inspect_ai.tool import tool
+
+@tool
+def add():
+    async def execute(x: int, y: int):
+        """
+        Add two numbers.
+
+        Args:
+            x: First number to add.
+            y: Second number to add.
+
+        Returns:
+            The sum of the two numbers.
+        """
+        return x + y
+
+    return execute
+```
+
+### Annotations
+
+Note that we provide type annotations for both arguments:
+
+``` python
+async def execute(x: int, y: int)
+```
+
+Further, we provide descriptions for each parameter in the documention
+comment:
+
+``` python
+Args:
+    x: First number to add.
+    y: Second number to add.
+```
+
+Type annotations and descriptions are *required* for tool declarations
+so that the model can be informed which types to pass back to the tool
+function and what the purpose of each parameter is.
+
+Note that you while you are required to provide default descriptions for
+tools and their parameters within doc comments, you can also make these
+dynamically customisable by users of your tool (see the section on [Tool
+Descriptions](tools-custom.qmd#sec-tool-descriptions) for details on how
+to do this).
+
+## Using Tools
+
+We can use the `addition()` tool in an evaluation by passing it to the
+`use_tools()` Solver:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset ipmort Sample
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.scorer import match
+
+@task
+def addition_problem():
+    return Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2"])],
+        solver=[
+            use_tools(add()), 
+            generate()
+        ],
+        scorer=match(numeric=True),
+    )
+```
+
+Note that this tool doesn’t make network requests or do heavy
+computation, so is fine to run as inline Python code. If your tool does
+do more elaborate things, you’ll want to make sure it plays well with
+Inspect’s concurrency scheme. For network requests, this amounts to
+using `async` HTTP calls with `httpx`. For heavier computation, tools
+should use subprocesses as described in the next section.
+
+> [!NOTE]
+>
+> Note that when using tools with models, the models do not call the
+> Python function directly. Rather, the model generates a structured
+> request which includes function parameters, and then Inspect calls the
+> function and returns the result to the model.
+
+## Tool Errors
+
+Various errors can occur during tool execution, especially when
+interacting with the file system or network or when using [Sandbox
+Environments](sandboxing.qmd) to execute code in a container sandbox. As
+a tool writer you need to decide how you’d like to handle error
+conditions. A number of approaches are possible:
+
+1.  Notify the model that an error occurred to see whether it can
+    recover.
+
+2.  Catch and handle the error internally (trying another code path,
+    etc.).
+
+3.  Allow the error to propagate, resulting in the current `Sample`
+    failing with an error state.
+
+There are no universally correct approaches as tool usage and semantics
+can vary widely—some rough guidelines are provided below.
+
+### Default Handling
+
+If you do not explicitly handle errors, then Inspect provides some
+default error handling behaviour. Specifically, if any of the following
+errors are raised they will be handled and reported to the model:
+
+- `TimeoutError` — Occurs when a call to `subprocess()` or
+  `sandbox().exec()` times out.
+
+- `PermissionError` — Occurs when there are inadequate permissions to
+  read or write a file.
+
+- `UnicodeDecodeError` — Occurs when the output from executing a process
+  or reading a file is binary rather than text.
+
+- `OutputLimitExceededError` - Occurs when one or both of the output
+  streams from `sandbox().exec()` exceed 10 MiB or when attempting to
+  read a file over 100 MiB in size.
+
+- `ToolError` — Special error thrown by tools to indicate they’d like to
+  report an error to the model.
+
+These are all errors that are *expected* (in fact the
+`SandboxEnvironment` interface documents them as such) and possibly
+recoverable by the model (try a different command, read a different
+file, etc.). Unexpected errors (e.g. a network error communicating with
+a remote service or container runtime) on the other hand are not
+automatically handled and result in the `Sample` failing with an error.
+
+Many tools can simply rely on the default handling to provide reasonable
+behaviour around both expected and unexpected errors.
+
+> [!NOTE]
+>
+> When we say that the errors are reported directly to the model, this
+> refers to the behaviour when using the default `generate()`. If on the
+> other hand, you are have created custom scaffolding for an agent, you
+> can intercept tool errors and apply additional filtering and logic.
+
+### Explicit Handling
+
+In some cases a tool can implement a recovery strategy for error
+conditions. For example, an HTTP request might fail due to transient
+network issues, and retrying the request (perhaps after a delay) may
+resolve the problem. Explicit error handling strategies are generally
+applied when there are *expected* errors that are not already handled by
+Inspect’s [Default Handling](#default-handling).
+
+Another type of explicit handling is re-raising an error to bypass
+Inspect’s default handling. For example, here we catch at re-raise
+`TimeoutError` so that it fails the `Sample`:
+
+``` python
+try:
+  result = await sandbox().exec(
+    cmd=["decode", file], 
+    timeout=timeout
+  )
+except TimeoutError:
+  raise RuntimeError("Decode operation timed out.")
+  
+```
+
+## Sandboxing
+
+Tools may have a need to interact with a sandboxed environment (e.g. to
+provide models with the ability to execute arbitrary bash or python
+commands). The active sandbox environment can be obtained via the
+`sandbox()` function. For example:
+
+``` python
+from inspect_ai.tool import ToolError, tool
+from inspect_ai.util import sandbox
+
+@tool
+def list_files():
+    async def execute(dir: str):
+        """List the files in a directory.
+
+        Args:
+            dir (str): Directory
+
+        Returns:
+            File listing of the directory
+        """
+        result = await sandbox().exec(["ls", dir])
+        if result.success:
+            return result.stdout
+        else:
+            raise ToolError(result.stderr)
+
+    return execute
+```
+
+The following instance methods are available to tools that need to
+interact with a `SandboxEnvironment`:
+
+``` python
+class SandboxEnvironment:
+   
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] = {},
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True
+    ) -> ExecResult[str]:
+        """
+        Raises:
+          TimeoutError: If the specified `timeout` expires.
+          UnicodeDecodeError: If an error occurs while
+            decoding the command output.
+          PermissionError: If the user does not have
+            permission to execute the command.
+          OutputLimitExceededError: If an output stream
+            exceeds the 10 MiB limit.
+        """
+        ...
+
+    async def write_file(
+        self, file: str, contents: str | bytes
+    ) -> None:
+        """
+        Raises:
+          PermissionError: If the user does not have
+            permission to write to the specified path.
+          IsADirectoryError: If the file exists already and 
+            is a directory.
+        """
+        ...
+
+    async def read_file(
+        self, file: str, text: bool = True
+    ) -> Union[str | bytes]:
+        """
+        Raises:
+          FileNotFoundError: If the file does not exist.
+          UnicodeDecodeError: If an encoding error occurs 
+            while reading the file.
+            (only applicable when `text = True`)
+          PermissionError: If the user does not have
+            permission to read from the specified path.
+          IsADirectoryError: If the file is a directory.
+          OutputLimitExceededError: If the file size
+            exceeds the 100 MiB limit.
+        """
+        ...
+
+    async def connection(self) -> SandboxConnection:
+        """
+        Raises:
+           NotImplementedError: For sandboxes that don't provide connections
+           ConnectionError: If sandbox is not currently running.
+        """
+```
+
+The `read_file()` method should preserve newline constructs (e.g. crlf
+should be preserved not converted to lf). This is equivalent to
+specifying `newline=""` in a call to the Python `open()` function. Note
+that `write_file()` automatically creates parent directories as required
+if they don’t exist.
+
+The `connection()` method is optional, and provides commands that can be
+used to login to the sandbox container from a terminal or IDE.
+
+Note that to deal with potential unreliability of container services,
+the `exec()` method includes a `timeout_retry` parameter that defaults
+to `True`. For sandbox implementations this parameter is *advisory*
+(they should only use it if potential unreliablity exists in their
+runtime). No more than 2 retries should be attempted and both with
+timeouts less than 60 seconds. If you are executing commands that are
+not idempotent (i.e. the side effects of a failed first attempt may
+affect the results of subsequent attempts) then you can specify
+`timeout_retry=False` to override this behavior.
+
+For each method there is a documented set of errors that are raised:
+these are *expected* errors and can either be caught by tools or allowed
+to propagate in which case they will be reported to the model for
+potential recovery. In addition, *unexpected* errors may occur (e.g. a
+networking error connecting to a remote container): these errors are not
+reported to the model and fail the `Sample` with an error state.
+
+See the documentation on [Sandbox Environments](sandboxing.qmd) for
+additional details.
+
+## Tool Choice
+
+By default models will use a tool if they think it’s appropriate for the
+given task. You can override this behaviour using the `tool_choice`
+parameter of the `use_tools()` Solver. For example:
+
+``` python
+# let the model decide whether to use the tool
+use_tools(addition(), tool_choice="auto")
+
+# force the use of a tool
+use_tools(addition(), tool_choice=ToolFunction(name="addition"))
+
+# prevent use of tools
+use_tools(addition(), tool_choice="none")
+```
+
+The last form (`tool_choice="none"`) would typically be used to turn off
+tool usage after an initial generation where the tool used. For example:
+
+``` python
+solver = [
+  use_tools(addition(), tool_choice=ToolFunction(name="addition")),
+  generate(),
+  follow_up_prompt(),
+  use_tools(tool_choice="none"),
+  generate()
+]
+```
+
+## Tool Descriptions
+
+Well crafted tools should include descriptions that provide models with
+the context required to use them correctly and productively. If you will
+be developing custom tools it’s worth taking some time to learn how to
+provide good tool definitions. Here are some resources you may find
+helpful:
+
+- [Best Practices for Tool
+  Definitions](https://docs.anthropic.com/claude/docs/tool-use#best-practices-for-tool-definitions)
+- [Function Calling with
+  LLMs](https://www.promptingguide.ai/applications/function_calling)
+
+In some cases you may want to change the default descriptions created by
+a tool author—for example you might want to provide better
+disambiguation between multiple similar tools that are used together.
+You also might have need to do this during development of tools (to
+explore what descriptions are most useful to models).
+
+The `tool_with()` function enables you to take any tool and adapt its
+name and/or descriptions. For example:
+
+``` python
+from inspect_ai.tool import tool_with
+
+my_add = tool_with(
+  tool=add(), 
+  name="my_add",
+  description="a tool to add numbers", 
+  parameters={
+    "x": "the x argument",
+    "y": "the y argument"
+  })
+```
+
+You need not provide all of the parameters shown above, for example here
+are some examples where we modify just the main tool description or only
+a single parameter:
+
+``` python
+my_add = tool_with(add(), description="a tool to add numbers")
+my_add = tool_with(add(), parameters={"x": "the x argument"})
+```
+
+Note that the `tool_with()` function returns a copy of the passed tool
+with modified descriptions (the passed tool retains its original
+descriptions).
+
+## Dynamic Tools
+
+As described above, normally tools are defined using `@tool` decorators
+and documentation comments. It’s also possible to create a tool
+dynamically from any function by creating a `ToolDef`. For example:
+
+``` python
+from inspect_ai.solver import use_tools
+from inspect_ai.tool import ToolDef
+
+async def addition(x: int, y: int):
+    return x + y
+
+add = ToolDef(
+    tool=addition,
+    name="add",
+    description="A tool to add numbers", 
+    parameters={
+        "x": "the x argument",
+        "y": "the y argument"
+    })
+)
+
+use_tools([add])
+```
+
+This is effectively what happens under the hood when you use the `@tool`
+decorator. There is one critical requirement for functions that are
+bound to tools using `ToolDef`: type annotations must be provided in the
+function signature (e.g. `x: int, y: int`).
+
+For Inspect APIs, `ToolDef` can generally be used anywhere that `Tool`
+can be used (`use_tools()`, setting `state.tools`, etc.). If you are
+using a 3rd party API that does not take `Tool` in its interface, use
+the `ToolDef.as_tool()` method to adapt it. For example:
+
+``` python
+from inspect_agents import my_agent
+agent = my_agent(tools=[add.as_tool()])
+```
+
+If on the other hand you want to get the `ToolDef` for an existing tool
+(e.g. to discover its name, description, and parameters) you can just
+pass the `Tool` to the `ToolDef` constructor (including whatever
+overrides for `name`, etc. you want):
+
+``` python
+from inspect_ai.tool import ToolDef, bash
+bash_def = ToolDef(bash())
+```
+
+# Standard Tools
+
+
+## Overview
+
+Inspect has several standard tools built-in, including:
+
+- [Bash and Python](tools-standard.qmd#sec-bash-and-python) for
+  executing arbitrary shell and Python code.
+
+- [Bash Session](tools-standard.qmd#sec-bash-session) for creating a
+  stateful bash shell that retains its state across calls from the
+  model.
+
+- [Text Editor](tools-standard.qmd#sec-text-editor) which enables
+  viewing, creating and editing text files.
+
+- [Web Browser](tools-standard.qmd#sec-web-browser), which provides the
+  model with a headless Chromium web browser that supports navigation,
+  history, and mouse/keyboard interactions.
+
+- [Computer](tools-standard.qmd#sec-computer), which provides the model
+  with a desktop computer (viewed through screenshots) that supports
+  mouse and keyboard interaction.
+
+- [Web Search](tools-standard.qmd#sec-web-search), which uses the Google
+  Search API to execute and summarise web searches.
+
+## Bash and Python
+
+The `bash()` and `python()` tools enable execution of arbitrary shell
+commands and Python code, respectively. These tools require the use of a
+[Sandbox Environment](sandboxing.qmd) for the execution of untrusted
+code. For example, here is how you might use them in an evaluation where
+the model is asked to write code in order to solve capture the flag
+(CTF) challenges:
+
+``` python
+from inspect_ai.tool import bash, python
+
+CMD_TIMEOUT = 180
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([
+                bash(CMD_TIMEOUT), 
+                python(CMD_TIMEOUT)
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        message_limit=30,
+        sandbox="docker",
+    )
+```
+
+We specify a 3-minute timeout for execution of the bash and python tools
+to ensure that they don’t perform extremely long running operations.
+
+See the [Agents](#sec-agents) section for more details on how to build
+evaluations that allow models to take arbitrary actions over a longer
+time horizon.
+
+## Bash Session
+
+> [!NOTE]
+>
+> Note that the bash session tool is currently available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `bash_session()` tool provides a bash shell that retains its state
+across calls from the model (as distinct from the `bash()` tool which
+executes each command in a fresh session). The prompt, working
+directory, and environment variables are all retained across calls. The
+tool also supports a `restart` action that enables the model to reset
+its state and work in a fresh session.
+
+### Configuration
+
+Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd)
+for the execution of untrusted code. In addition, you’ll need some
+dependencies installed in the sandbox container. Please see **Sandbox
+Dependencies** below for additional instructions.
+
+> [!NOTE]
+>
+> ### Sandbox Dependencies
+>
+> You should add the following to your sandbox `Dockerfile` in order to
+> use this tool:
+>
+> ``` dockerfile
+> RUN python -m venv /opt/inspect_tool_support
+> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
+>
+> RUN pip install inspect-tool-support
+> RUN inspect-tool-support post-install
+> ```
+>
+> Note that Playwright (used for the `web_browser()` tool) does not
+> support some versions of Linux (e.g. Kali Linux). If this is the case
+> for your Linux distribution, you should add the `--no-web-browser`
+> option to the `post-install`:
+>
+> ``` dockerfile
+> RUN inspect-tool-support post-install --no-web-browser
+> ```
+>
+> If you don’t have a custom Dockerfile, you can alternatively use the
+> pre-built `aisiuk/inspect-tool-support` image:
+>
+> **compose.yaml**
+>
+> ``` yaml
+> services:
+>   default:
+>     image: aisiuk/inspect-tool-support:latest
+>     init: true
+> ```
+
+### Task Setup
+
+A task configured to use the bash session tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash_session(timeout=180)]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that we provide a `timeout` for bash session commands (this is a
+best practice to guard against extremely long running commands).
+
+### Tool Binding
+
+The schema for the `bash_session()` tool is based on the standard
+Anthropic [bash tool
+type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#bash-tool).
+The `bash_session()` works with all models that support tool calling,
+but when using Claude, the bash session tool will automatically bind to
+the native Claude tool definition.
+
+## Text Editor
+
+> [!NOTE]
+>
+> Note that the text editor tool is currently available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `text_editor()` tool enables viewing, creating and editing text
+files. The tool supports editing files within a protected [Sandbox
+Environment](sandboxing.qmd) so tasks that use the text editor should
+have a sandbox defined and configured as described below.
+
+### Configuration
+
+The text editor tools requires the use of a [Sandbox
+Environment](sandboxing.qmd). In addition, you’ll need some dependencies
+installed in the sandbox container. Please see **Sandbox Dependencies**
+below for additional instructions.
+
+> [!NOTE]
+>
+> ### Sandbox Dependencies
+>
+> You should add the following to your sandbox `Dockerfile` in order to
+> use this tool:
+>
+> ``` dockerfile
+> RUN python -m venv /opt/inspect_tool_support
+> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
+>
+> RUN pip install inspect-tool-support
+> RUN inspect-tool-support post-install
+> ```
+>
+> Note that Playwright (used for the `web_browser()` tool) does not
+> support some versions of Linux (e.g. Kali Linux). If this is the case
+> for your Linux distribution, you should add the `--no-web-browser`
+> option to the `post-install`:
+>
+> ``` dockerfile
+> RUN inspect-tool-support post-install --no-web-browser
+> ```
+>
+> If you don’t have a custom Dockerfile, you can alternatively use the
+> pre-built `aisiuk/inspect-tool-support` image:
+>
+> **compose.yaml**
+>
+> ``` yaml
+> services:
+>   default:
+>     image: aisiuk/inspect-tool-support:latest
+>     init: true
+> ```
+
+### Task Setup
+
+A task configured to use the text editor tool might look like this (note
+that this task is also configured to use the `bash_session()` tool):
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([
+                bash_session(timeout=180),
+                text_editor(timeout=180)
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that we provide a `timeout` for the bash session and text editor
+tools (this is a best practice to guard against extremely long running
+commands).
+
+### Tool Binding
+
+The schema for the `text_editor()` tool is based on the standard
+Anthropic [text editor tool
+type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#text-editor-tool).
+The `text_editor()` works with all models that support tool calling, but
+when using Claude, the text editor tool will automatically bind to the
+native Claude tool definition.
+
+## Web Browser
+
+The web browser tools provides models with the ability to browse the web
+using a headless Chromium browser. Navigation, history, and
+mouse/keyboard interactions are all supported.
+
+### Configuration
+
+Under the hood, the web browser is an instance of
+[Chromium](https://www.chromium.org/chromium-projects/) orchestrated by
+[Playwright](https://playwright.dev/), and runs in a [Sandbox
+Environment](sandboxing.qmd). In addition, you’ll need some dependencies
+installed in the sandbox container. Please see **Sandbox Dependencies**
+below for additional instructions.
+
+Note that Playwright (used for the `web_browser()` tool) does not
+support some versions of Linux (e.g. Kali Linux).
+
+> [!NOTE]
+>
+> ### Sandbox Dependencies
+>
+> You should add the following to your sandbox `Dockerfile` in order to
+> use this tool:
+>
+> ``` dockerfile
+> RUN python -m venv /opt/inspect_tool_support
+> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
+>
+> RUN pip install inspect-tool-support
+> RUN inspect-tool-support post-install
+> ```
+>
+> If you don’t have a custom Dockerfile, you can alternatively use the
+> pre-built `aisiuk/inspect-tool-support` image:
+>
+> **compose.yaml**
+>
+> ``` yaml
+> services:
+>   default:
+>     image: aisiuk/inspect-tool-support:latest
+>     init: true
+> ```
+
+### Task Setup
+
+A task configured to use the web browser tools might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import bash, python, web_browser
+
+@task
+def browser_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([bash(), python()] + web_browser()),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+Note that unlike some other tool functions like `bash()`, the
+`web_browser()` function returns a list of tools. Therefore, we
+concatenate it with a list of the other tools we are using in the call
+to `use_tools()`.
+
+### Browsing
+
+If you review the transcripts of a sample with access to the web browser
+tool, you’ll notice that there are several distinct tools made available
+for control of the web browser. These tools include:
+
+| Tool | Description |
+|----|----|
+| `web_browser_go(url)` | Navigate the web browser to a URL. |
+| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
+| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
+| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
+| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
+| `web_browser_back()` | Navigate the web browser back in the browser history. |
+| `web_browser_refresh()` | Refresh the current page of the web browser. |
+
+The return value of each of these tools is a [web accessibility
+tree](https://web.dev/articles/the-accessibility-tree) for the page,
+which provides a clean view of the content, links, and form fields
+available on the page (you can look at the accessibility tree for any
+web page using [Chrome Developer
+Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
+
+### Disabling Interactions
+
+You can use the web browser tools with page interactions disabled by
+specifying `interactive=False`, for example:
+
+``` python
+use_tools(web_browser(interactive=False))
+```
+
+In this mode, the interactive tools (`web_browser_click()`,
+`web_browser_type()`, and `web_browser_type_submit()`) are not made
+available to the model.
+
+## Computer
+
+The `computer()` tool provides models with a computer desktop
+environment along with the ability to view the screen and perform mouse
+and keyboard gestures. The computer tool is based on the Anthropic
+[Computer Use
+Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use)
+reference implementation and works with any model that supports image
+input.
+
+### Configuration
+
+The `computer()` tool runs within a Docker container. To use it with a
+task you need to reference the `aisiuk/inspect-computer-tool:latest`
+image in your Docker compose file. For example:
+
+**compose.yaml**
+
+``` yaml
+services:
+  default:
+    image: aisiuk/inspect-computer-tool:latest
+```
+
+You can configure the container to not have Internet access as follows:
+
+**compose.yaml**
+
+``` yaml
+services:
+  default:
+    image: aisiuk/inspect-computer-tool:latest
+    network_mode: none
+```
+
+Note that if you’d like to be able to view the model’s interactions with
+the computer desktop in realtime, you will need to also do some port
+mapping to enable a VNC connection with the container. See the [VNC
+Client](#vnc-client) section below for details on how to do this.
+
+The `aisiuk/inspect-computer-tool:latest` image is based on the
+[ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore)
+image and includes the following additional applications pre-installed:
+
+- Firefox
+- VS Code
+- Xpdf
+- Xpaint
+- galculator
+
+### Task Setup
+
+A task configured to use the computer tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import computer
+
+@task
+def computer_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([computer()]),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+#### Options
+
+The computer tool supports the following options:
+
+| Option | Description |
+|----|----|
+| `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
+| `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
+
+For example:
+
+``` python
+solver=[
+    use_tools([computer(max_screenshots=2, timeout=300)]),
+    generate()
+]
+```
+
+#### Examples
+
+Two of the Inspect examples demonstrate basic computer use:
+
+- [computer](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/computer/computer.py)
+  — Three simple computing tasks as a minimal demonstration of computer
+  use.
+
+  ``` bash
+  inspect eval examples/computer
+  ```
+
+- [intervention](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention/intervention.py)
+  — Computer task driven interactively by a human operator.
+
+  ``` bash
+  inspect eval examples/intervention -T mode=computer --display conversation
+  ```
+
+### VNC Client
+
+You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the
+container to watch computer use in real-time. This requires some
+additional port-mapping in the Docker compose file. You can define
+dynamic port ranges for VNC (5900) and a browser based noVNC client
+(6080) with the following `ports` entries:
+
+**compose.yaml**
+
+``` yaml
+services:
+  default:
+    image: aisiuk/inspect-computer-tool:latest
+    ports:
+      - "5900"
+      - "6080"
+```
+
+To connect to the container for a given sample, locate the sample in the
+**Running Samples** UI and expand the sample info panel at the top:
+
+![](images/vnc-port-info.png)
+
+Click on the link for the noVNC browser client, or use a native VNC
+client to connect to the VNC port. Note that the VNC server will take a
+few seconds to start up so you should give it some time and attempt to
+reconnect as required if the first connection fails.
+
+The browser based client provides a view-only interface. If you use a
+native VNC client you should also set it to “view only” so as to not
+interfere with the model’s use of the computer. For example, for Real
+VNC Viewer:
+
+![](images/vnc-view-only.png)
+
+### Approval
+
+If the container you are using is connected to the Internet, you may
+want to configure human approval for a subset of computer tool actions.
+Here are the possible actions (specified using the `action` parameter to
+the `computer` tool):
+
+- `key`: Press a key or key-combination on the keyboard.
+- `type`: Type a string of text on the keyboard.
+- `cursor_position`: Get the current (x, y) pixel coordinate of the
+  cursor on the screen.
+- `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate
+  on the screen.
+- Example: execute(action=“mouse_move”, coordinate=(100, 200))
+- `left_click`: Click the left mouse button.
+- `left_click_drag`: Click and drag the cursor to a specified (x, y)
+  pixel coordinate on the screen.
+- `right_click`: Click the right mouse button.
+- `middle_click`: Click the middle mouse button.
+- `double_click`: Double-click the left mouse button.
+- `screenshot`: Take a screenshot.
+
+Here is an approval policy that requires approval for key combos
+(e.g. `Enter` or a shortcut) and mouse clicks:
+
+**approval.yaml**
+
+``` yaml
+approvers:
+  - name: human
+    tools:
+      - computer(action='key'
+      - computer(action='left_click'
+      - computer(action='middle_click'
+      - computer(action='double_click'
+
+  - name: auto
+    tools: "*"
+```
+
+Note that since this is a prefix match and there could be other
+arguments, we don’t end the tool match pattern with a parentheses.
+
+You can apply this policy using the `--approval` commmand line option:
+
+``` bash
+inspect eval computer.py --approval approval.yaml
+```
+
+### Tool Binding
+
+The computer tool’s schema is based on the standard Anthropoic [computer
+tool-type](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool).
+When using Claude, the computer tool will automatically bind to the
+native Claude computer tool definition. This presumably provides
+improved performance due to fine tuning on the use of the tool but we
+have not verified this.
+
+If you want to experiement with bypassing the native Claude computer
+tool type and just register the computer tool as a normal function based
+tool then specify the `--no-internal-tools` generation option as
+follows:
+
+``` bash
+inspect eval computer.py --no-internal-tools
+```
+
+## Web Search
+
+The `web_search()` tool provides models the ability to enhance their
+context window by performing a search. By default web searches retrieve
+10 results from a provider, uses a model to determine if the contents is
+relevant then returns the top 3 relevant search results to the main
+model. Here is the definition of the `web_search()` function:
+
+``` python
+def web_search(
+    provider: Literal["google"] = "google",
+    num_results: int = 3,
+    max_provider_calls: int = 3,
+    max_connections: int = 10,
+    model: str | Model | None = None,
+) -> Tool:
+    ...
+```
+
+You can use the `web_search()` tool like this:
+
+``` python
+from inspect_ai.tool import web_search
+
+solver=[
+    use_tools(web_search()), 
+    generate()
+],
+```
+
+Web search options include:
+
+- `provider`—Web search provider (currently only Google is supported,
+  see below for instructions on setup and configuration for Google).
+
+- `num_results`—How many search results to return to the main model
+  (defaults to 5).
+
+- `max_provider_calls`—Number of times to retrieve more links from the
+  search provider in case previous ones were irrelevant (defaults to 3).
+
+- `max_connections`—Maximum number of concurrent connections to the
+  search API provider (defaults to 10).
+
+- `model`—Model to use to determine if search results are relevant
+  (defaults to the model currently being evaluated).
+
+#### Google Provider
+
+The `web_search()` tool uses [Google Programmable Search
+Engine](https://programmablesearchengine.google.com/about/). To use it
+you will therefore need to setup your own Google Programmable Search
+Engine and also enable the [Programmable Search Element Paid
+API](https://developers.google.com/custom-search/docs/paid_element).
+Then, ensure that the following environment variables are defined:
+
+- `GOOGLE_CSE_ID` — Google Custom Search Engine ID
+
+- `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
 
 # Using Models
 
@@ -8902,8 +9212,8 @@ inspect eval browser.py --approval human
 ```
 
 This example provides the model with the built-in [web
-browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a
-web and perform a search.
+browser](tools-standard.qmd#sec-web-browser) tool and asks it to
+navigate to a web and perform a search.
 
 ## Auto Approver
 
@@ -8942,8 +9252,9 @@ inspect eval browser.py --approval approval.yaml
 
 You can also match on tool arguments (for tools that dispatch many
 action types). For example, here is an approval policy for the [Computer
-Tool](tools.qmd#sec-computer) which allows typing and mouse movement but
-requires approval for key combos (e.g. Enter or a shortcut) and typing:
+Tool](tools-standard.qmd#sec-computer) which allows typing and mouse
+movement but requires approval for key combos (e.g. Enter or a shortcut)
+and typing:
 
 **approval.yaml**
 
@@ -12189,7 +12500,7 @@ Inspect without any further registration.
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/eval.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/eval.py#L61)
 
 ``` python
 def eval(
@@ -12363,7 +12674,7 @@ Model generation options.
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/eval.py#L488)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/eval.py#L488)
 
 ``` python
 def eval_retry(
@@ -12476,7 +12787,7 @@ Model API)
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/evalset.py#L56)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/evalset.py#L56)
 
 ``` python
 def eval_set(
@@ -12674,7 +12985,7 @@ Model generation options.
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/score.py#L34)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/score.py#L34)
 
 ``` python
 def score(
@@ -12706,7 +13017,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/task/task.py#L40)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/task/task.py#L40)
 
 ``` python
 class Task
@@ -12717,7 +13028,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/task/task.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/task/task.py#L46)
 
 ``` python
 def __init__(
@@ -12823,7 +13134,7 @@ Deprecated arguments.
 
 Task adapted with alternate values for one or more options.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/task/task.py#L169)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/task/task.py#L169)
 
 ``` python
 def task_with(
@@ -12933,7 +13244,7 @@ Number of epochs to repeat samples over and optionally one or more
 reducers used to combine scores from samples across epochs. If not
 specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -12944,7 +13255,7 @@ class Epochs
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -12961,7 +13272,7 @@ One or more reducers used to combine scores from samples across epochs
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/task/task.py#L280)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/task/task.py#L280)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -12987,7 +13298,7 @@ including directory names, task functions, task classes, and task
 instances (a single task or list of tasks can be specified). None is a
 request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -13015,7 +13326,7 @@ Tasks: TypeAlias = (
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_eval/registry.py#L98)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_eval/registry.py#L98)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any
@@ -13043,7 +13354,7 @@ Generate output from the model and append it to task message history.
 
 generate() is the default solver if none is specified for a given task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_solver.py#L254)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_solver.py#L254)
 
 ``` python
 @solver
@@ -13073,7 +13384,7 @@ Optional generation config arguments.
 
 Inject tools into the task state to be used in generate().
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_use_tools.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_use_tools.py#L8)
 
 ``` python
 @solver
@@ -13107,7 +13418,7 @@ Prompt template containing a `{prompt}` placeholder and any number of
 additional `params`. All values contained in sample `metadata` and
 `store` are also automatically included in the `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_prompt.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_prompt.py#L17)
 
 ``` python
 @solver
@@ -13132,7 +13443,7 @@ sample `metadata` and `store` are also automatically included in the
 The new message will go after other system messages (if there are none
 it will be inserted at the beginning of the conversation).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_prompt.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_prompt.py#L45)
 
 ``` python
 @solver
@@ -13154,7 +13465,7 @@ substitution using the `str.format()` method. All values contained in
 sample `metadata` and `store` are also automatically included in the
 `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_prompt.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_prompt.py#L77)
 
 ``` python
 @solver
@@ -13176,7 +13487,7 @@ for substitution using the `str.format()` method. All values contained
 in sample `metadata` and `store` are also automatically included in the
 `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_prompt.py#L104)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_prompt.py#L104)
 
 ``` python
 @solver
@@ -13193,7 +13504,7 @@ Parameters to fill into the template.
 
 Solver which modifies the user prompt to encourage chain of thought.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_prompt.py#L140)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_prompt.py#L140)
 
 ``` python
 @solver
@@ -13213,7 +13524,7 @@ The `critique_template` is used to generate a critique and the
 for an improved response. Note that you can specify an alternate `model`
 for critique (you don’t need to use the model being evaluated).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_critique.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_critique.py#L13)
 
 ``` python
 @solver
@@ -13248,7 +13559,7 @@ Note that due to the way this solver works, it has some constraints:
 2.  The only built-in compatible scorer is the `choice` scorer.
 3.  It calls `generate()` internally, so you don’t need to call it again
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_multiple_choice.py#L214)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_multiple_choice.py#L214)
 
 ``` python
 @solver
@@ -13308,7 +13619,7 @@ Submissions are evaluated using the task’s main scorer, with value of
 (e.g. “C” becomes 1.0) using the standard value_to_float() function.
 Provide an alternate conversion scheme as required via `score_value`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_basic_agent.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_basic_agent.py#L50)
 
 ``` python
 @solver
@@ -13396,7 +13707,7 @@ If the user is running in VS Code with the Inspect extension, they will
 also be presented with links to login to the sandbox using a VS Code
 Window or Terminal.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_human_agent/agent.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_human_agent/agent.py#L17)
 
 ``` python
 @solver
@@ -13424,7 +13735,7 @@ Bridge an external agent into an Inspect Solver.
 
 See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_bridge/bridge.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_bridge/bridge.py#L16)
 
 ``` python
 @solver
@@ -13444,7 +13755,7 @@ Solvers are executed in turn, and a solver step event is added to the
 transcript for each. If a solver returns a state with `completed=True`,
 the chain is terminated early.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_chain.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_chain.py#L9)
 
 ``` python
 @solver
@@ -13463,7 +13774,7 @@ Solver gets its own copy of the TaskState and is run (in parallel) in an
 independent Subtask (meaning that is also has its own independent Store
 that doesn’t affect the Store of other subtasks or the parent).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_fork.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_fork.py#L25)
 
 ``` python
 async def fork(
@@ -13489,7 +13800,7 @@ call the `generate()` function to create a new state resulting from
 model generation. Solvers may also do prompt engineering or other types
 of elicitation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_solver.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_solver.py#L74)
 
 ``` python
 class Solver(Protocol):
@@ -13522,7 +13833,7 @@ def prompt_cot(template: str) -> Solver:
 
 Solver specification used to (re-)create solvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_solver.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_solver.py#L61)
 
 ``` python
 @dataclass(frozen=True)
@@ -13547,7 +13858,7 @@ sample’s evaluation. It allows us to manipulated the message history,
 the tools available to the model, the final output of the model, and
 whether the task is completed or has hit a limit.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_task_state.py#L131)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_task_state.py#L131)
 
 ``` python
 class TaskState
@@ -13637,7 +13948,7 @@ Globally unique identifier for sample run.
 metadata_as  
 Pydantic model interface to metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_task_state.py#L383)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_task_state.py#L383)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -13649,7 +13960,7 @@ Pydantic model type
 store_as  
 Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_task_state.py#L397)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_task_state.py#L397)
 
 ``` python
 def store_as(self, model_cls: Type[SMT]) -> SMT
@@ -13663,7 +13974,7 @@ Pydantic model type (must derive from StoreModel)
 Generate using the model and add the assistant message to the task
 state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_solver.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_solver.py#L33)
 
 ``` python
 class Generate(Protocol):
@@ -13701,7 +14012,7 @@ Optional generation config arguments.
 
 Decorator for registering solvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/solver/_solver.py#L147)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/solver/_solver.py#L147)
 
 ``` python
 def solver(
@@ -13737,7 +14048,7 @@ Bash shell command execution tool.
 
 Execute bash shell commands using a sandbox environment (e.g. “docker”).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_execute.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tools/_execute.py#L22)
 
 ``` python
 @tool(viewer=code_viewer("bash", "cmd"))
@@ -13761,7 +14072,7 @@ Python code execution tool.
 
 Execute Python code using a sandbox environment (e.g. “docker”).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_execute.py#L62)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tools/_execute.py#L62)
 
 ``` python
 @tool(viewer=code_viewer("python", "code"))
@@ -13779,6 +14090,86 @@ User to execute commands as.
 `sandbox` str \| None  
 Optional sandbox environmnent name.
 
+### bash_session
+
+Bash shell session command execution tool.
+
+Execute bash shell commands in a long running session using a sandbox
+environment (e.g. “docker”).
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tools/_bash_session.py#L54)
+
+``` python
+@tool(viewer=code_viewer("bash", "command"))
+def bash_session(timeout: int | None = None) -> Tool
+```
+
+`timeout` int \| None  
+Timeout (in seconds) for command.
+
+### text_editor
+
+Custom editing tool for viewing, creating and editing files.
+
+Perform text editor operations using a sandbox environment
+(e.g. “docker”).
+
+IMPORTANT: This tool does not currently support Subtask isolation. This
+means that a change made to a file by on Subtask will be visible to
+another Subtask.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tools/_text_editor.py#L63)
+
+``` python
+@tool()
+def text_editor(timeout: int | None = None, user: str | None = None) -> Tool
+```
+
+`timeout` int \| None  
+Timeout (in seconds) for command.
+
+`user` str \| None  
+User to execute commands as.
+
+### web_browser
+
+Tools used for web browser navigation.
+
+See documentation at
+<https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L34)
+
+``` python
+def web_browser(interactive: bool = True) -> list[Tool]
+```
+
+`interactive` bool  
+Provide interactive tools (enable clicking, typing, and submitting
+forms). Defaults to True.
+
+### computer
+
+Desktop computer tool.
+
+See documentation at
+<https://inspect.aisi.org.uk/tools-standard.html#sec-computer>.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tools/_computer/_computer.py#L14)
+
+``` python
+@tool
+def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
+```
+
+`max_screenshots` int \| None  
+The maximum number of screenshots to play back to the model as input.
+Defaults to 1 (set to `None` to have no limit).
+
+`timeout` int \| None  
+Timeout in seconds for computer tool actions. Defaults to 180 (set to
+`None` for no timeout).
+
 ### web_search
 
 Web search tool.
@@ -13792,9 +14183,9 @@ parsed for relevance using the specified model, and the top
 ‘num_results’ relevant pages are returned.
 
 See further documentation at
-<https://inspect.aisi.org.uk/tools.html#sec-web-search>.
+<https://inspect.aisi.org.uk/tools-standard.html#sec-web-search>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_web_search.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tools/_web_search.py#L39)
 
 ``` python
 @tool
@@ -13824,52 +14215,13 @@ provider.
 `model` str \| None  
 Model used to parse web pages for relevance.
 
-### web_browser
-
-Tools used for web browser navigation.
-
-See documentation at
-<https://inspect.aisi.org.uk/tools.html#sec-web-browser>.
-
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L17)
-
-``` python
-def web_browser(interactive: bool = True) -> list[Tool]
-```
-
-`interactive` bool  
-Provide interactive tools (enable clicking, typing, and submitting
-forms). Defaults to True.
-
-### computer
-
-Desktop computer tool.
-
-See documentation at
-<https://inspect.aisi.org.uk/tools.html#sec-computer>.
-
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_computer/_computer.py#L14)
-
-``` python
-@tool
-def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
-```
-
-`max_screenshots` int \| None  
-The maximum number of screenshots to play back to the model as input.
-Defaults to 1 (set to `None` to have no limit).
-
-`timeout` int \| None  
-Timeout in seconds for computer tool actions. Defaults to 180 (set to
-`None` for no timeout).
-
 ## Dynamic
 
 ### tool_with
 
 Tool with modifications to name and descriptions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_with.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_with.py#L16)
 
 ``` python
 def tool_with(
@@ -13910,7 +14262,7 @@ as model input.
 
 Tool definition.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_def.py#L27)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_def.py#L27)
 
 ``` python
 class ToolDef
@@ -13944,7 +14296,7 @@ Custom model input presenter for tool calls.
 \_\_init\_\_  
 Create a tool definition.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_def.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_def.py#L30)
 
 ``` python
 def __init__(
@@ -13987,7 +14339,7 @@ as model input.
 as_tool  
 Convert a ToolDef to a Tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_def.py#L129)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_def.py#L129)
 
 ``` python
 def as_tool(self) -> Tool
@@ -13999,7 +14351,7 @@ def as_tool(self) -> Tool
 
 Additional tool that an agent can use to solve a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool.py#L80)
 
 ``` python
 class Tool(Protocol):
@@ -14031,7 +14383,7 @@ def add() -> Tool:
 
 Valid types for results from tool calls.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool.py#L33)
 
 ``` python
 ToolResult = (
@@ -14058,7 +14410,7 @@ sample). If you want to raise a fatal error from a tool call use an
 appropriate standard exception type (e.g. `RuntimeError`, `ValueError`,
 etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L48)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool.py#L48)
 
 ``` python
 class ToolError(Exception)
@@ -14069,7 +14421,7 @@ class ToolError(Exception)
 \_\_init\_\_  
 Create a ToolError.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool.py#L58)
 
 ``` python
 def __init__(self, message: str) -> None
@@ -14082,7 +14434,7 @@ Error message to report to the model.
 
 Error raised by a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_call.py#L57)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_call.py#L57)
 
 ``` python
 @dataclass
@@ -14105,7 +14457,7 @@ Specify which tool to call.
 “none” means never call a tool; ToolFunction instructs the model to call
 a specific function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_choice.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_choice.py#L13)
 
 ``` python
 ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
@@ -14115,7 +14467,7 @@ ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
 
 Indicate that a specific tool function should be called.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_choice.py#L5)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_choice.py#L5)
 
 ``` python
 @dataclass
@@ -14154,7 +14506,7 @@ ToolParam(
 )
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_info.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_info.py#L19)
 
 ``` python
 class ToolInfo(BaseModel)
@@ -14175,7 +14527,7 @@ JSON Schema of tool parameters object.
 
 Description of tool parameters object in JSON Schema format.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_params.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_params.py#L14)
 
 ``` python
 class ToolParams(BaseModel)
@@ -14199,7 +14551,7 @@ Are additional object properties allowed? (always `False`)
 
 Description of tool parameter in JSON Schema format.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_params.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool_params.py#L10)
 
 ``` python
 ToolParam: TypeAlias = JSONSchema
@@ -14211,7 +14563,7 @@ ToolParam: TypeAlias = JSONSchema
 
 Decorator for registering tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L148)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/tool/_tool.py#L148)
 
 ``` python
 def tool(
@@ -14265,7 +14617,7 @@ def add() -> Tool:
 
 Scorer which matches text or a number.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_match.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_match.py#L8)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -14293,7 +14645,7 @@ rules are used and numbers are normalized before comparison).
 
 Check whether the specified text is included in the model output.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_match.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_match.py#L39)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -14314,7 +14666,7 @@ The regex can have a single capture group or multiple groups. In the
 case of multiple groups, the scorer can be configured to match either
 one or all of the extracted groups
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_pattern.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_pattern.py#L46)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -14342,7 +14694,7 @@ comparison with the target.
 
 Note that you must specify a `type` for the answer scorer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_answer.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_answer.py#L35)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -14376,7 +14728,7 @@ correct answer, e.g. the `Target` would be `"A"` for the above question.
 If multiple choices are correct, the `Target` can be an array of these
 letters.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_choice.py#L41)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_choice.py#L41)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -14390,7 +14742,7 @@ Scorer which produces an F1 score
 Computes the `F1` score for the answer (which balances recall precision
 by taking the harmonic mean between recall and precision).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_classification.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_classification.py#L13)
 
 ``` python
 @scorer(metrics=[mean(), stderr()])
@@ -14414,7 +14766,7 @@ Normalizes the text of the answer and target(s) and performs an exact
 matching comparison of the text. This scorer will return `CORRECT` when
 the answer is an exact match to one or more targets.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_classification.py#L42)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_classification.py#L42)
 
 ``` python
 @scorer(metrics=[mean(), stderr()])
@@ -14425,7 +14777,7 @@ def exact() -> Scorer
 
 Score a question/answer task using a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_model.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_model.py#L74)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -14477,7 +14829,7 @@ being evaluated is used.
 
 Score a question/answer task with a fact response using a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_model.py#L26)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_model.py#L26)
 
 ``` python
 @scorer(metrics=[accuracy(), stderr()])
@@ -14530,7 +14882,7 @@ being evaluated is used.
 Returns a Scorer that runs multiple Scorers in parallel and aggregates
 their results into a single Score using the provided reducer function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_multi.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_multi.py#L13)
 
 ``` python
 def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer
@@ -14548,7 +14900,7 @@ a function which takes in a list of Scores and returns a single Score.
 
 Compute proportion of total answers which are correct.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metrics/accuracy.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metrics/accuracy.py#L14)
 
 ``` python
 @metric
@@ -14566,7 +14918,7 @@ complex object (list or dict).
 
 Compute mean of all scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metrics/mean.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metrics/mean.py#L6)
 
 ``` python
 @metric
@@ -14577,7 +14929,7 @@ def mean() -> Metric
 
 Calculates the sample standard deviation of a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metrics/std.py#L137)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metrics/std.py#L137)
 
 ``` python
 @metric
@@ -14595,7 +14947,7 @@ complex object (list or dict).
 
 Standard error of the mean using Central Limit Theorem.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metrics/std.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metrics/std.py#L50)
 
 ``` python
 @metric
@@ -14620,7 +14972,7 @@ errors](https://en.wikipedia.org/wiki/Clustered_standard_errors).
 
 Standard error of the mean using bootstrap.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metrics/std.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metrics/std.py#L17)
 
 ``` python
 @metric
@@ -14646,7 +14998,7 @@ complex object (list or dict).
 Score correct if there are at least k score values greater than or equal
 to the value.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_reducer/reducer.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_reducer/reducer.py#L77)
 
 ``` python
 @score_reducer
@@ -14669,7 +15021,7 @@ Function to convert score values to float.
 Probability of at least 1 correct sample given `k` epochs
 (<https://arxiv.org/pdf/2107.03374>).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_reducer/reducer.py#L109)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_reducer/reducer.py#L109)
 
 ``` python
 @score_reducer
@@ -14691,7 +15043,7 @@ Function to convert score values to float.
 
 Take the maximum value from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_reducer/reducer.py#L144)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_reducer/reducer.py#L144)
 
 ``` python
 @score_reducer(name="max")
@@ -14705,7 +15057,7 @@ Function to convert the value to a float
 
 Take the mean of a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_reducer/reducer.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_reducer/reducer.py#L39)
 
 ``` python
 @score_reducer(name="mean")
@@ -14719,7 +15071,7 @@ Function to convert the value to a float
 
 Take the median value from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_reducer/reducer.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_reducer/reducer.py#L58)
 
 ``` python
 @score_reducer(name="median")
@@ -14733,7 +15085,7 @@ Function to convert the value to a float
 
 Take the mode from a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_reducer/reducer.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_reducer/reducer.py#L13)
 
 ``` python
 @score_reducer(name="mode")
@@ -14749,7 +15101,7 @@ Score model outputs.
 Evaluate the passed outputs and targets and return a dictionary with
 scoring outcomes and context.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_scorer.py#L34)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_scorer.py#L34)
 
 ``` python
 class Scorer(Protocol):
@@ -14786,7 +15138,7 @@ Target for scoring against the current TaskState.
 Target is a sequence of one or more strings. Use the `text` property to
 access the value as a single string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_target.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_target.py#L4)
 
 ``` python
 class Target(Sequence[str])
@@ -14796,7 +15148,7 @@ class Target(Sequence[str])
 
 Score generated by a scorer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L55)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L55)
 
 ``` python
 class Score(BaseModel)
@@ -14824,7 +15176,7 @@ Read the score as text.
 as_str  
 Read the score as a string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L75)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L75)
 
 ``` python
 def as_str(self) -> str
@@ -14833,7 +15185,7 @@ def as_str(self) -> str
 as_int  
 Read the score as an integer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L79)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L79)
 
 ``` python
 def as_int(self) -> int
@@ -14842,7 +15194,7 @@ def as_int(self) -> int
 as_float  
 Read the score as a float.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L83)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L83)
 
 ``` python
 def as_float(self) -> float
@@ -14851,7 +15203,7 @@ def as_float(self) -> float
 as_bool  
 Read the score as a boolean.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L87)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L87)
 
 ``` python
 def as_bool(self) -> bool
@@ -14860,7 +15212,7 @@ def as_bool(self) -> bool
 as_list  
 Read the score as a list.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L91)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L91)
 
 ``` python
 def as_list(self) -> list[str | int | float | bool]
@@ -14869,7 +15221,7 @@ def as_list(self) -> list[str | int | float | bool]
 as_dict  
 Read the score as a dictionary.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L98)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L98)
 
 ``` python
 def as_dict(self) -> dict[str, str | int | float | bool | None]
@@ -14882,7 +15234,7 @@ Value provided by a score.
 Use the methods of `Score` to easily treat the `Value` as a simple
 scalar of various types.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L43)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L43)
 
 ``` python
 Value = Union[
@@ -14896,7 +15248,7 @@ Value = Union[
 
 Reduce a set of scores to a single score.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_reducer/types.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_reducer/types.py#L8)
 
 ``` python
 class ScoreReducer(Protocol):
@@ -14914,7 +15266,7 @@ The Metric signature changed in release v0.3.64. Both the previous and
 new signatures are supported – you should use `MetricProtocol` for new
 code as the depreacated signature will eventually be removed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L214)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L214)
 
 ``` python
 Metric = MetricProtocol | MetricDeprecated
@@ -14924,7 +15276,7 @@ Metric = MetricProtocol | MetricDeprecated
 
 Compute a metric on a list of scores.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L193)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L193)
 
 ``` python
 class MetricProtocol(Protocol):
@@ -14948,7 +15300,7 @@ def mean() -> Metric:
 
 Score for a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L112)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L112)
 
 ``` python
 class SampleScore(BaseModel)
@@ -14974,7 +15326,7 @@ Registry name of scorer that created this score.
 
 Decorator for registering scorers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_scorer.py#L123)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_scorer.py#L123)
 
 ``` python
 def scorer(
@@ -15012,7 +15364,7 @@ def custom_scorer() -> Scorer:
 
 Decorator for registering metrics.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_metric.py#L300)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_metric.py#L300)
 
 ``` python
 def metric(
@@ -15035,7 +15387,7 @@ for score in scores\]).item() return metric
 
 Decorator for registering Score Reducers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/scorer/_reducer/registry.py#L37)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/scorer/_reducer/registry.py#L37)
 
 ``` python
 def score_reducer(
@@ -15076,7 +15428,7 @@ async with get_model("openai/gpt-4o") as model:
 In this case, the model client will be closed at the end of the context
 manager and will not be available in the get_model() cache.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L733)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L733)
 
 ``` python
 def get_model(
@@ -15123,7 +15475,7 @@ async with get_model("openai/gpt-4o") as model:
     response = await model.generate("Say hello")
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L217)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L217)
 
 ``` python
 class Model
@@ -15145,7 +15497,7 @@ Model name.
 \_\_init\_\_  
 Create a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L236)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L236)
 
 ``` python
 def __init__(
@@ -15165,7 +15517,7 @@ Optional model args
 generate  
 Generate output from the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L280)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L280)
 
 ``` python
 async def generate(
@@ -15201,7 +15553,7 @@ Caching behavior for generate responses (defaults to no caching).
 
 Model generation options.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_generate_config.py#L107)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_generate_config.py#L107)
 
 ``` python
 class GenerateConfig(BaseModel)
@@ -15315,7 +15667,7 @@ validated). OpenAI, Google, and Mistral only.
 merge  
 Merge another model configuration into this one.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_generate_config.py#L200)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_generate_config.py#L200)
 
 ``` python
 def merge(
@@ -15330,7 +15682,7 @@ Configuration to merge.
 
 Type for kwargs that selectively override GenerateConfig.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_generate_config.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_generate_config.py#L28)
 
 ``` python
 class GenerateConfigArgs(TypedDict, total=False)
@@ -15443,7 +15795,7 @@ validated). OpenAI, Google, and Mistral only.
 
 Schema for model response when using Structured Output.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_generate_config.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_generate_config.py#L11)
 
 ``` python
 class ResponseSchema(BaseModel)
@@ -15471,7 +15823,7 @@ the schema field. OpenAI and Mistral only.
 
 Output from model generation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L105)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L105)
 
 ``` python
 class ModelOutput(BaseModel)
@@ -15511,7 +15863,7 @@ Text of first message choice text.
 from_content  
 Create ModelOutput from simple text content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L160)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L160)
 
 ``` python
 @staticmethod
@@ -15538,7 +15890,7 @@ Error message.
 for_tool_call  
 Returns a ModelOutput for requesting a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L186)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L186)
 
 ``` python
 @staticmethod
@@ -15571,7 +15923,7 @@ tool {tool_name}”.
 
 Token usage for completion.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L11)
 
 ``` python
 class ModelUsage(BaseModel)
@@ -15601,7 +15953,7 @@ Number of tokens used for reasoning.
 
 Reason that the model stopped or failed to generate.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L33)
 
 ``` python
 StopReason = Literal[
@@ -15618,7 +15970,7 @@ StopReason = Literal[
 
 Choice generated for completion.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L80)
 
 ``` python
 class ChatCompletionChoice(BaseModel)
@@ -15641,7 +15993,7 @@ Logprobs.
 
 Message in a chat conversation
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_chat_message.py#L189)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_chat_message.py#L189)
 
 ``` python
 ChatMessage = Union[
@@ -15653,7 +16005,7 @@ ChatMessage = Union[
 
 Base class for chat messages.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_chat_message.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_chat_message.py#L17)
 
 ``` python
 class ChatMessageBase(BaseModel)
@@ -15685,7 +16037,7 @@ together (separated by newline)
 
 System chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_chat_message.py#L82)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_chat_message.py#L82)
 
 ``` python
 class ChatMessageSystem(ChatMessageBase)
@@ -15700,7 +16052,7 @@ Conversation role.
 
 User chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_chat_message.py#L89)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_chat_message.py#L89)
 
 ``` python
 class ChatMessageUser(ChatMessageBase)
@@ -15718,7 +16070,7 @@ ID(s) of tool call(s) this message has the content payload for.
 
 Assistant chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_chat_message.py#L99)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_chat_message.py#L99)
 
 ``` python
 class ChatMessageAssistant(ChatMessageBase)
@@ -15736,7 +16088,7 @@ Tool calls made by the model.
 
 Tool chat message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_chat_message.py#L149)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_chat_message.py#L149)
 
 ``` python
 class ChatMessageTool(ChatMessageBase)
@@ -15762,7 +16114,7 @@ Error which occurred during tool call.
 
 Content sent to or received from a model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/content.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/content.py#L77)
 
 ``` python
 Content = Union[ContentText, ContentReasoning, ContentImage, ContentAudio, ContentVideo]
@@ -15772,7 +16124,7 @@ Content = Union[ContentText, ContentReasoning, ContentImage, ContentAudio, Conte
 
 Text content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/content.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/content.py#L6)
 
 ``` python
 class ContentText(BaseModel)
@@ -15794,7 +16146,7 @@ See the specification for [thinking
 blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks)
 for Claude models.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/content.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/content.py#L16)
 
 ``` python
 class ContentReasoning(BaseModel)
@@ -15820,7 +16172,7 @@ redacted.
 
 Image content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/content.py#L35)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/content.py#L35)
 
 ``` python
 class ContentImage(BaseModel)
@@ -15844,7 +16196,7 @@ guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image
 
 Audio content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/content.py#L51)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/content.py#L51)
 
 ``` python
 class ContentAudio(BaseModel)
@@ -15865,7 +16217,7 @@ Format of audio data (‘mp3’ or ‘wav’)
 
 Video content.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/content.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/content.py#L64)
 
 ``` python
 class ContentVideo(BaseModel)
@@ -15888,7 +16240,7 @@ Format of video data (‘mp4’, ‘mpeg’, or ‘mov’)
 
 Log probability for a token.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L57)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L57)
 
 ``` python
 class Logprob(BaseModel)
@@ -15914,7 +16266,7 @@ probabilities.
 
 Log probability information for a completion choice.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L73)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L73)
 
 ``` python
 class Logprobs(BaseModel)
@@ -15931,7 +16283,7 @@ probabilities for each generated token.
 List of the most likely tokens and their log probability, at this token
 position.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model_output.py#L44)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model_output.py#L44)
 
 ``` python
 class TopLogprob(BaseModel)
@@ -15972,7 +16324,7 @@ cache independently of the epoch.
 the cache key. This allows for more fine-grained control over the cache
 key generation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_cache.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_cache.py#L58)
 
 ``` python
 class CachePolicy
@@ -15983,7 +16335,7 @@ class CachePolicy
 \_\_init\_\_  
 Create a CachePolicy.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_cache.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_cache.py#L80)
 
 ``` python
 def __init__(
@@ -16010,7 +16362,7 @@ Calculate the size of various cached directories and files
 If neither `subdirs` nor `files` are provided, the entire cache
 directory will be calculated.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_cache.py#L334)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_cache.py#L334)
 
 ``` python
 def cache_size(
@@ -16030,7 +16382,7 @@ these up by their parent directory
 
 Clear the cache directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_cache.py#L249)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_cache.py#L249)
 
 ``` python
 def cache_clear(model: str = "") -> bool
@@ -16044,7 +16396,7 @@ Model to clear cache for.
 Returns a list of all the cached files that have passed their expiry
 time.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_cache.py#L363)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_cache.py#L363)
 
 ``` python
 def cache_list_expired(filter_by: list[str] = []) -> list[Path]
@@ -16058,7 +16410,7 @@ will search the entire cache.
 
 Delete all expired cache entries.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_cache.py#L403)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_cache.py#L403)
 
 ``` python
 def cache_prune(files: list[Path] = []) -> None
@@ -16071,7 +16423,7 @@ List of files to prune. If empty, this will search the entire cache.
 
 Path to cache directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_cache.py#L269)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_cache.py#L269)
 
 ``` python
 def cache_path(model: str = "") -> Path
@@ -16086,7 +16438,7 @@ Path to cache directory for specific model.
 
 Decorator for registering model APIs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_registry.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_registry.py#L30)
 
 ``` python
 def modelapi(name: str) -> Callable[..., type[ModelAPI]]
@@ -16107,7 +16459,7 @@ initialisation code (for example, here is what many of the built-in
 providers do with the `model_args` passed to them:
 <https://inspect.aisi.org.uk/models.html#model-args>)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L72)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L72)
 
 ``` python
 class ModelAPI(abc.ABC)
@@ -16118,7 +16470,7 @@ class ModelAPI(abc.ABC)
 \_\_init\_\_  
 Create a model API provider.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L84)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L84)
 
 ``` python
 def __init__(
@@ -16150,7 +16502,7 @@ Model configuration.
 close  
 Close method for closing any client allocated for the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L126)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L126)
 
 ``` python
 async def close(self) -> None
@@ -16159,7 +16511,7 @@ async def close(self) -> None
 generate  
 Generate output from the model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L130)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L130)
 
 ``` python
 @abc.abstractmethod
@@ -16188,7 +16540,7 @@ Model configuration.
 max_tokens  
 Default max_tokens.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L157)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L157)
 
 ``` python
 def max_tokens(self) -> int | None
@@ -16197,7 +16549,7 @@ def max_tokens(self) -> int | None
 max_tokens_for_config  
 Default max_tokens for a given config.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L161)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L161)
 
 ``` python
 def max_tokens_for_config(self, config: GenerateConfig) -> int | None
@@ -16209,7 +16561,7 @@ Generation config.
 max_connections  
 Default max_connections.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L172)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L172)
 
 ``` python
 def max_connections(self) -> int
@@ -16218,7 +16570,7 @@ def max_connections(self) -> int
 connection_key  
 Scope for enforcement of max_connections.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L176)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L176)
 
 ``` python
 def connection_key(self) -> str
@@ -16227,7 +16579,7 @@ def connection_key(self) -> str
 should_retry  
 Should this exception be retried?
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L180)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L180)
 
 ``` python
 def should_retry(self, ex: Exception) -> bool
@@ -16239,7 +16591,7 @@ Exception to check for retry
 collapse_user_messages  
 Collapse consecutive user messages into a single message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L188)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L188)
 
 ``` python
 def collapse_user_messages(self) -> bool
@@ -16248,7 +16600,7 @@ def collapse_user_messages(self) -> bool
 collapse_assistant_messages  
 Collapse consecutive assistant messages into a single message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L192)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L192)
 
 ``` python
 def collapse_assistant_messages(self) -> bool
@@ -16257,7 +16609,7 @@ def collapse_assistant_messages(self) -> bool
 tools_required  
 Any tool use in a message stream means that tools must be passed.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L196)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L196)
 
 ``` python
 def tools_required(self) -> bool
@@ -16266,7 +16618,7 @@ def tools_required(self) -> bool
 tool_result_images  
 Tool results can contain images
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L200)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L200)
 
 ``` python
 def tool_result_images(self) -> bool
@@ -16276,7 +16628,7 @@ emulate_reasoning_history
 Chat message assistant messages with reasoning should playback reasoning
 with emulation (.e.g. tags)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L204)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L204)
 
 ``` python
 def emulate_reasoning_history(self) -> bool
@@ -16285,7 +16637,7 @@ def emulate_reasoning_history(self) -> bool
 force_reasoning_history  
 Force a specific reasoning history behavior for this provider.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L208)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L208)
 
 ``` python
 def force_reasoning_history(self) -> Literal["none", "all", "last"] | None
@@ -16294,7 +16646,7 @@ def force_reasoning_history(self) -> Literal["none", "all", "last"] | None
 auto_reasoning_history  
 Behavior to use for reasoning_history=‘auto’
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/model/_model.py#L212)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/model/_model.py#L212)
 
 ``` python
 def auto_reasoning_history(self) -> Literal["none", "all", "last"]
@@ -16309,7 +16661,7 @@ def auto_reasoning_history(self) -> Literal["none", "all", "last"]
 
 Read dataset from CSV file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_sources/csv.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_sources/csv.py#L20)
 
 ``` python
 def csv_dataset(
@@ -16391,7 +16743,7 @@ a JSON Lines file containing one object per line. These objects may
 already be formatted as `Sample` instances, or may require some mapping
 using the `sample_fields` argument.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_sources/json.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_sources/json.py#L22)
 
 ``` python
 def json_dataset(
@@ -16455,7 +16807,7 @@ Datasets read using the Hugging Face `datasets` package.
 The `hf_dataset` function supports reading datasets using the Hugging
 Face `datasets` package, including remote datasets on Hugging Face Hub.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_sources/hf.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_sources/hf.py#L22)
 
 ``` python
 def hf_dataset(
@@ -16540,7 +16892,7 @@ the `datasets` package.
 
 Sample for an evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L29)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L29)
 
 ``` python
 class Sample(BaseModel)
@@ -16578,7 +16930,7 @@ Setup script to run for sample (run within default SandboxEnvironment).
 \_\_init\_\_  
 Create a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L32)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L32)
 
 ``` python
 def __init__(
@@ -16628,7 +16980,7 @@ SandboxEnvironment).
 metadata_as  
 Metadata as a Pydantic model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L86)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L86)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -16641,7 +16993,7 @@ BaseModel derived class.
 
 Specification for mapping data source fields to sample fields.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L209)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L209)
 
 ``` python
 @dataclass
@@ -16678,7 +17030,7 @@ Setup script to run for sample (run within default SandboxEnvironment).
 
 Callable that maps raw dictionary record to a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L238)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L238)
 
 ``` python
 RecordToSample = Callable[[DatasetRecord], Sample | list[Sample]]
@@ -16691,7 +17043,7 @@ A sequence of Sample objects.
 Datasets provide sequential access (via conventional indexes or slicing)
 to a collection of Sample objects.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L130)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L130)
 
 ``` python
 class Dataset(Sequence[Sample], abc.ABC)
@@ -16708,7 +17060,7 @@ them, ascending or descending, according to their function values.
 The key function defaults to measuring the length of the sample’s input
 field.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L161)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L161)
 
 ``` python
 @abc.abstractmethod
@@ -16729,7 +17081,7 @@ sample_input_len).
 filter  
 Filter the dataset using a predicate.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L178)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L178)
 
 ``` python
 @abc.abstractmethod
@@ -16747,7 +17099,7 @@ Name for filtered dataset (optional).
 shuffle  
 Shuffle the order of the dataset (in place).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L192)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L192)
 
 ``` python
 @abc.abstractmethod
@@ -16760,7 +17112,7 @@ Random seed for shuffling (optional).
 shuffle_choices  
 Shuffle the order of the choices with each sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L200)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L200)
 
 ``` python
 @abc.abstractmethod
@@ -16774,7 +17126,7 @@ Random seed for shuffling (optional).
 
 A Dataset stored in memory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L242)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L242)
 
 ``` python
 class MemoryDataset(Dataset)
@@ -16800,7 +17152,7 @@ Datasets provide sequential access (via conventional indexes or slicing)
 to a collection of Sample objects. The ListDataset is explicitly
 initialized with a list that is held in memory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/dataset/_dataset.py#L245)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/dataset/_dataset.py#L245)
 
 ``` python
 def __init__(
@@ -16833,7 +17185,7 @@ Was the dataset shuffled after reading.
 
 Automatically apply a decision to tool calls.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/approval/_auto.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/approval/_auto.py#L9)
 
 ``` python
 @approver(name="auto")
@@ -16847,7 +17199,7 @@ Decision to apply.
 
 Interactive human approver.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/approval/_human/approver.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/approval/_human/approver.py#L11)
 
 ``` python
 @approver(name="human")
@@ -16865,7 +17217,7 @@ Choices to present to human.
 
 Approve or reject a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/approval/_approver.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/approval/_approver.py#L12)
 
 ``` python
 class Approver(Protocol):
@@ -16894,7 +17246,7 @@ The current task state, if available.
 
 Approval details (decision, explanation, etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/approval/_approval.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/approval/_approval.py#L19)
 
 ``` python
 class Approval(BaseModel)
@@ -16915,7 +17267,7 @@ Explanation for decision.
 
 Represents the possible decisions in an approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/approval/_approval.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/approval/_approval.py#L7)
 
 ``` python
 ApprovalDecision = Literal["approve", "modify", "reject", "terminate", "escalate"]
@@ -16925,7 +17277,7 @@ ApprovalDecision = Literal["approve", "modify", "reject", "terminate", "escalate
 
 Policy mapping approvers to tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/approval/_policy.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/approval/_policy.py#L21)
 
 ``` python
 @dataclass
@@ -16946,7 +17298,7 @@ Tools to use this approver for (can be full tool names or globs).
 
 Decorator for registering approvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/approval/_registry.py#L28)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/approval/_registry.py#L28)
 
 ``` python
 def approver(*args: Any, name: str | None = None, **attribs: Any) -> Any
@@ -16972,7 +17324,7 @@ Additional approver attributes.
 
 List all eval logs in a directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L50)
 
 ``` python
 def list_eval_logs(
@@ -17010,7 +17362,7 @@ provider (e.g. `S3FileSystem`).
 
 Write an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L98)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L98)
 
 ``` python
 def write_eval_log(
@@ -17033,7 +17385,7 @@ Write to format (defaults to ‘auto’ based on `log_file` extension)
 
 Write an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L122)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L122)
 
 ``` python
 async def write_eval_log_async(
@@ -17056,7 +17408,7 @@ Write to format (defaults to ‘auto’ based on `log_file` extension)
 
 Read an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L199)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L199)
 
 ``` python
 def read_eval_log(
@@ -17084,7 +17436,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L237)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L237)
 
 ``` python
 async def read_eval_log_async(
@@ -17112,7 +17464,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read a sample from an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L301)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L301)
 
 ``` python
 def read_eval_log_sample(
@@ -17146,7 +17498,7 @@ Read all samples from an evaluation log incrementally.
 Generator for samples in a log file. Only one sample at a time will be
 read into memory and yielded to the caller.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L377)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L377)
 
 ``` python
 def read_eval_log_samples(
@@ -17176,7 +17528,7 @@ Convert between log file formats.
 Convert log file(s) to a target format. If a file is already in the
 target format it will just be copied to the output dir.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_convert.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_convert.py#L13)
 
 ``` python
 def convert_eval_logs(
@@ -17203,7 +17555,7 @@ the output file path already exists).
 
 Bundle a log_dir into a statically deployable viewer
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_bundle.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_bundle.py#L23)
 
 ``` python
 def bundle_log_dir(
@@ -17238,7 +17590,7 @@ A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o
 samples) keyed by log file names (names are relative to the log
 directory)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L157)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L157)
 
 ``` python
 def write_log_dir_manifest(
@@ -17271,7 +17623,7 @@ Retryable logs are logs with status “error” or “cancelled” that do not
 have a corresponding log with status “success” (indicating they were
 subsequently retried and completed)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_retry.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_retry.py#L10)
 
 ``` python
 def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]
@@ -17284,7 +17636,7 @@ List of logs to examine.
 
 File info and task identifiers for eval log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_file.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_file.py#L25)
 
 ``` python
 class EvalLogInfo(BaseModel)
@@ -17319,7 +17671,7 @@ Log file suffix (e.g. “-scored”)
 
 Evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L737)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L737)
 
 ``` python
 class EvalLog(BaseModel)
@@ -17361,7 +17713,7 @@ Location that the log file was read from.
 
 Eval target and configuration.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L545)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L545)
 
 ``` python
 class EvalSpec(BaseModel)
@@ -17439,7 +17791,7 @@ metrics and args for this eval
 
 Dataset used for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L489)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L489)
 
 ``` python
 class EvalDataset(BaseModel)
@@ -17466,7 +17818,7 @@ Was the dataset shuffled after reading.
 
 Configuration used for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L61)
 
 ``` python
 class EvalConfig(BaseModel)
@@ -17540,7 +17892,7 @@ Display scoring metrics realtime.
 
 Git revision for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L532)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L532)
 
 ``` python
 class EvalRevision(BaseModel)
@@ -17561,7 +17913,7 @@ Revision commit.
 
 Plan (solvers) used in evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L331)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L331)
 
 ``` python
 class EvalPlan(BaseModel)
@@ -17585,7 +17937,7 @@ Generation config.
 
 Solver step.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L321)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L321)
 
 ``` python
 class EvalPlanStep(BaseModel)
@@ -17603,7 +17955,7 @@ Parameters used to instantiate solver.
 
 Scoring results from evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L405)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L405)
 
 ``` python
 class EvalResults(BaseModel)
@@ -17632,7 +17984,7 @@ List of per sample scores reduced across epochs
 
 Score for evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L363)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L363)
 
 ``` python
 class EvalScore(BaseModel)
@@ -17662,7 +18014,7 @@ Additional scorer metadata.
 
 Metric for evaluation score.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L347)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L347)
 
 ``` python
 class EvalMetric(BaseModel)
@@ -17686,7 +18038,7 @@ Additional metadata associated with metric.
 
 Score reductions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L392)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L392)
 
 ``` python
 class EvalSampleReductions(BaseModel)
@@ -17707,7 +18059,7 @@ List of reduced scores
 
 Timing and usage statistics.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L721)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L721)
 
 ``` python
 class EvalStats(BaseModel)
@@ -17728,7 +18080,7 @@ Model token usage for evaluation.
 
 Eval error details.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/error.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/error.py#L11)
 
 ``` python
 class EvalError(BaseModel)
@@ -17749,7 +18101,7 @@ Error traceback with ANSI color codes.
 
 Sample from evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L156)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L156)
 
 ``` python
 class EvalSample(BaseModel)
@@ -17830,7 +18182,7 @@ The limit that halted the sample
 metadata_as  
 Pydantic model interface to metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L195)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L195)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -17842,7 +18194,7 @@ Pydantic model type
 store_as  
 Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L209)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L209)
 
 ``` python
 def store_as(self, model_cls: Type[SMT]) -> SMT
@@ -17855,7 +18207,7 @@ Pydantic model type (must derive from StoreModel)
 
 Limit encontered by sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L144)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L144)
 
 ``` python
 class EvalSampleLimit(BaseModel)
@@ -17873,7 +18225,7 @@ The limit value
 
 Score reductions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L392)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L392)
 
 ``` python
 class EvalSampleReductions(BaseModel)
@@ -17894,7 +18246,7 @@ List of reduced scores
 
 Score and sample_id scored.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_log.py#L385)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_log.py#L385)
 
 ``` python
 class EvalSampleScore(Score)
@@ -17911,7 +18263,7 @@ Sample ID.
 
 Get the current `Transcript`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L490)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L490)
 
 ``` python
 def transcript() -> Transcript
@@ -17921,7 +18273,7 @@ def transcript() -> Transcript
 
 Transcript of events.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L442)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L442)
 
 ``` python
 class Transcript
@@ -17932,7 +18284,7 @@ class Transcript
 info  
 Add an `InfoEvent` to the transcript.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L449)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L449)
 
 ``` python
 def info(self, data: JsonValue, *, source: str | None = None) -> None
@@ -17947,7 +18299,7 @@ Optional event source.
 step  
 Context manager for recording StepEvent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L458)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L458)
 
 ``` python
 @contextlib.contextmanager
@@ -17964,7 +18316,7 @@ Optional step type.
 
 Event in a transcript.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L419)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L419)
 
 ``` python
 Event: TypeAlias = Union[
@@ -17991,7 +18343,7 @@ Event: TypeAlias = Union[
 
 Beginning of processing a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L60)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L60)
 
 ``` python
 class SampleInitEvent(BaseEvent)
@@ -18012,7 +18364,7 @@ Initial state.
 
 The sample was unable to finish processing due to a limit
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L73)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L73)
 
 ``` python
 class SampleLimitEvent(BaseEvent)
@@ -18036,7 +18388,7 @@ The limit value (if any)
 
 Change to the current `TaskState`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L99)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L99)
 
 ``` python
 class StateEvent(BaseEvent)
@@ -18054,7 +18406,7 @@ List of changes to the `TaskState`
 
 Change to data within the current `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L89)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L89)
 
 ``` python
 class StoreEvent(BaseEvent)
@@ -18072,7 +18424,7 @@ List of changes to the `Store`.
 
 Call to a language model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L109)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L109)
 
 ``` python
 class ModelEvent(BaseEvent)
@@ -18120,7 +18472,7 @@ working time for model call that succeeded (i.e. was not retried).
 
 Call to a tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L155)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L155)
 
 ``` python
 class ToolEvent(BaseEvent)
@@ -18171,7 +18523,7 @@ Was the task cancelled?
 
 Sandbox execution or I/O
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L242)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L242)
 
 ``` python
 class SandboxEvent(BaseEvent)
@@ -18210,7 +18562,7 @@ Time that sandbox action completed (see `timestamp` for started)
 
 Tool approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L277)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L277)
 
 ``` python
 class ApprovalEvent(BaseEvent)
@@ -18246,7 +18598,7 @@ Explanation for decision.
 
 Input screen interaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L305)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L305)
 
 ``` python
 class InputEvent(BaseEvent)
@@ -18267,7 +18619,7 @@ Input interaction (ANSI).
 
 Change to data within the current `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L89)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L89)
 
 ``` python
 class StoreEvent(BaseEvent)
@@ -18285,7 +18637,7 @@ List of changes to the `Store`.
 
 Event with sample error.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L341)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L341)
 
 ``` python
 class ErrorEvent(BaseEvent)
@@ -18303,7 +18655,7 @@ Sample error
 
 Log message recorded with Python logger.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L318)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L318)
 
 ``` python
 class LoggerEvent(BaseEvent)
@@ -18321,7 +18673,7 @@ Logging message
 
 Logging level.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_message.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_message.py#L7)
 
 ``` python
 LoggingLevel = Literal[
@@ -18333,7 +18685,7 @@ LoggingLevel = Literal[
 
 Message written to Python log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_message.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_message.py#L13)
 
 ``` python
 class LoggingMessage(BaseModel)
@@ -18366,7 +18718,7 @@ Logged from line number.
 
 Event with custom info/data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L328)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L328)
 
 ``` python
 class InfoEvent(BaseEvent)
@@ -18387,7 +18739,7 @@ Data provided with event.
 
 Step within current sample or subtask.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L371)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L371)
 
 ``` python
 class StepEvent(BaseEvent)
@@ -18411,7 +18763,7 @@ Event name.
 
 Subtask spawned.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/log/_transcript.py#L387)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/log/_transcript.py#L387)
 
 ``` python
 class SubtaskEvent(BaseEvent)
@@ -18464,7 +18816,7 @@ transcript, values and objects must be JSON serialisable (you can make
 objects with several fields serialisable using the `@dataclass`
 decorator or by inheriting from Pydantic `BaseModel`)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store.py#L20)
 
 ``` python
 class Store
@@ -18478,7 +18830,7 @@ Get a value from the store.
 Provide a `default` to automatically initialise a named store value with
 the default when it does not yet exist.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store.py#L46)
 
 ``` python
 def get(self, key: str, default: VT | None = None) -> VT | Any
@@ -18493,7 +18845,7 @@ Default value (defaults to `None`)
 set  
 Set a value into the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store.py#L64)
 
 ``` python
 def set(self, key: str, value: Any) -> None
@@ -18508,7 +18860,7 @@ Value to set
 delete  
 Remove a value from the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store.py#L73)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store.py#L73)
 
 ``` python
 def delete(self, key: str) -> None
@@ -18520,7 +18872,7 @@ Name of value to remove
 keys  
 View of keys within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store.py#L81)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store.py#L81)
 
 ``` python
 def keys(self) -> KeysView[str]
@@ -18529,7 +18881,7 @@ def keys(self) -> KeysView[str]
 values  
 View of values within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store.py#L85)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store.py#L85)
 
 ``` python
 def values(self) -> ValuesView[Any]
@@ -18538,7 +18890,7 @@ def values(self) -> ValuesView[Any]
 items  
 View of items within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store.py#L89)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store.py#L89)
 
 ``` python
 def items(self) -> ItemsView[str, Any]
@@ -18548,7 +18900,7 @@ def items(self) -> ItemsView[str, Any]
 
 Get the currently active `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store.py#L103)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store.py#L103)
 
 ``` python
 def store() -> Store
@@ -18558,7 +18910,7 @@ def store() -> Store
 
 Get a Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store_model.py#L101)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store_model.py#L101)
 
 ``` python
 def store_as(model_cls: Type[SMT]) -> SMT
@@ -18576,7 +18928,7 @@ already satisfy the validation constraints of the model OR you should
 provide Field(default=) annotations for all of your model fields (the
 latter approach is recommended).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_store_model.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_store_model.py#L8)
 
 ``` python
 class StoreModel(BaseModel)
@@ -18601,7 +18953,7 @@ Note that concurrency for model API access is handled internally via the
 `max_connections` generation config option. Concurrency for launching
 subprocesses is handled via the `subprocess` function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_concurrency.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_concurrency.py#L11)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -18634,7 +18986,7 @@ subprocesses. Automatically enforces a limit on concurrent subprocesses
 (defaulting to os.cpu_count() but controllable via the
 `max_subprocesses` eval config option).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_subprocess.py#L71)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_subprocess.py#L71)
 
 ``` python
 async def subprocess(
@@ -18678,7 +19030,7 @@ Timeout. If the timeout expires then a `TimeoutError` will be raised.
 
 Execution result from call to `subprocess()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_subprocess.py#L27)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_subprocess.py#L27)
 
 ``` python
 @dataclass
@@ -18705,7 +19057,7 @@ Contents of stderr.
 
 Display a counter in the UI.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_display.py#L65)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_display.py#L65)
 
 ``` python
 def display_counter(caption: str, value: str) -> None
@@ -18721,7 +19073,7 @@ The counter’s value e.g. “42”.
 
 Get the current console display type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_display.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_display.py#L47)
 
 ``` python
 def display_type() -> DisplayType
@@ -18731,7 +19083,7 @@ def display_type() -> DisplayType
 
 Console display type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_display.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_display.py#L11)
 
 ``` python
 DisplayType = Literal["full", "conversation", "rich", "plain", "none"]
@@ -18744,7 +19096,7 @@ Input screen for receiving user input.
 Context manager that clears the task display and provides a screen for
 receiving console input.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_console.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_console.py#L13)
 
 ``` python
 @contextmanager
@@ -18772,7 +19124,7 @@ Input screen width in characters (defaults to full width)
 
 Decorator for subtasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_subtask.py#L66)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_subtask.py#L66)
 
 ``` python
 def subtask(
@@ -18799,7 +19151,7 @@ Input to log for subtask
 
 Subtask with distinct `Store` and `Transcript`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_subtask.py#L31)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_subtask.py#L31)
 
 ``` python
 class Subtask(Protocol):
@@ -18839,7 +19191,7 @@ If you want to ensure that only local or remote files are consumed,
 specify `type="file"`. For example:
 `resource("templates/prompt.txt", type="file")`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_resource.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_resource.py#L9)
 
 ``` python
 def resource(
@@ -18866,7 +19218,7 @@ are accessing a public S3 bucket with no credentials.
 
 Throttle a function to ensure it is called no more than every n seconds.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_throttle.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_throttle.py#L6)
 
 ``` python
 def throttle(seconds: float) -> Callable[..., Any]
@@ -18886,7 +19238,7 @@ Traces are written to the `TRACE` log level (which is just below `HTTP`
 and `INFO`). List and read trace logs with `inspect trace list` and
 related commands (see `inspect trace --help` for details).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/trace.py#L32)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/trace.py#L32)
 
 ``` python
 @contextmanager
@@ -18918,7 +19270,7 @@ The `TRACE` log level is just below `HTTP` and `INFO`). List and read
 trace logs with `inspect trace list` and related commands (see
 `inspect trace --help` for details).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/_util/trace.py#L133)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/_util/trace.py#L133)
 
 ``` python
 def trace_message(
@@ -18947,7 +19299,7 @@ Named args for `message` format string.
 
 Get the SandboxEnvironment for the current sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/context.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/context.py#L22)
 
 ``` python
 def sandbox(name: str | None = None) -> SandboxEnvironment
@@ -18961,14 +19313,19 @@ Optional sandbox environmnent name.
 Get the SandboxEnvironment for the current sample that has the specified
 file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/context.py#L52)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/context.py#L52)
 
 ``` python
-async def sandbox_with(file: str) -> SandboxEnvironment | None
+async def sandbox_with(file: str, on_path: bool = False) -> SandboxEnvironment | None
 ```
 
 `file` str  
-Path to file to check for.
+Path to file to check for if on_path is False. If on_path is True, file
+should be a filename that exists on the system path.
+
+`on_path` bool  
+If True, file is a filename to be verified using “which”. If False, file
+is a path to be checked within the sandbox environments.
 
 ### SandboxEnvironment
 
@@ -18978,7 +19335,7 @@ Sandbox environments provide both an execution environment as well as a
 per-sample filesystem context to copy samples files into and resolve
 relative paths to.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L80)
 
 ``` python
 class SandboxEnvironment(abc.ABC)
@@ -18995,7 +19352,7 @@ filesystem context.
 Each output stream (stdout and stderr) is limited to 10 MiB. If
 exceeded, an `OutputLimitExceededError` will be raised.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L87)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L87)
 
 ``` python
 @abc.abstractmethod
@@ -19041,7 +19398,7 @@ Write a file into the sandbox environment.
 If the parent directories of the file path do not exist they should be
 automatically created.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L133)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L133)
 
 ``` python
 @abc.abstractmethod
@@ -19065,7 +19422,7 @@ constructs (e.g. crlf should be preserved not converted to lf). This is
 equivalent to specifying `newline=""` in a call to the Python `open()`
 function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L159)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L159)
 
 ``` python
 @abc.abstractmethod
@@ -19082,7 +19439,7 @@ Read as a utf-8 encoded text file.
 connection  
 Information required to connect to sandbox environment.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L190)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L190)
 
 ``` python
 async def connection(self) -> SandboxConnection
@@ -19091,7 +19448,7 @@ async def connection(self) -> SandboxConnection
 as_type  
 Verify and return a reference to a subclass of SandboxEnvironment.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L202)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L202)
 
 ``` python
 def as_type(self, sandbox_cls: Type[ST]) -> ST
@@ -19103,7 +19460,7 @@ Class of sandbox (subclass of SandboxEnvironment)
 default_concurrency  
 Default max_sandboxes for this provider (`None` means no maximum)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L221)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L221)
 
 ``` python
 @classmethod
@@ -19113,7 +19470,7 @@ def default_concurrency(cls) -> int | None
 task_init  
 Called at task startup initialize resources.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L226)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L226)
 
 ``` python
 @classmethod
@@ -19131,7 +19488,7 @@ Implementation defined configuration (optional).
 sample_init  
 Initialize sandbox environments for a sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L238)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L238)
 
 ``` python
 @classmethod
@@ -19155,7 +19512,7 @@ Sample `metadata` field
 sample_cleanup  
 Cleanup sandbox environments.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L259)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L259)
 
 ``` python
 @classmethod
@@ -19184,7 +19541,7 @@ Was the task interrupted by an error or cancellation
 task_cleanup  
 Called at task exit as a last chance to cleanup resources.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L278)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L278)
 
 ``` python
 @classmethod
@@ -19206,7 +19563,7 @@ Whether to actually cleanup environment resources (False if
 cli_cleanup  
 Handle a cleanup invoked from the CLI (e.g. inspect sandbox cleanup).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L292)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L292)
 
 ``` python
 @classmethod
@@ -19219,7 +19576,7 @@ Optional ID to limit scope of cleanup.
 config_files  
 Standard config files for this provider (used for automatic discovery)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L301)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L301)
 
 ``` python
 @classmethod
@@ -19234,7 +19591,7 @@ Override this method if you support a custom configuration model.
 A basic implementation would be:
 `return MySandboxEnvironmentConfig(**config)`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L306)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L306)
 
 ``` python
 @classmethod
@@ -19249,7 +19606,7 @@ model.
 
 Information required to connect to sandbox.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/environment.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/environment.py#L61)
 
 ``` python
 class SandboxConnection(BaseModel)
@@ -19276,7 +19633,7 @@ Optional container name (does not apply to all sandboxes).
 
 Decorator for registering sandbox environments.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_sandbox/registry.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_sandbox/registry.py#L16)
 
 ``` python
 def sandboxenv(name: str) -> Callable[..., Type[T]]
@@ -19291,7 +19648,7 @@ Name of SandboxEnvironment type
 
 Valid types within JSON schema.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_json.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_json.py#L21)
 
 ``` python
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
@@ -19301,7 +19658,7 @@ JSONType = Literal["string", "integer", "number", "boolean", "array", "object", 
 
 JSON Schema for type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_json.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_json.py#L25)
 
 ``` python
 class JSONSchema(BaseModel)
@@ -19343,7 +19700,7 @@ Provide a JSON Schema for the specified type.
 Schemas can be automatically inferred for a wide variety of Python class
 types including Pydantic BaseModel, dataclasses, and typed dicts.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/util/_json.py#L56)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1f6162992c01b0d258377527c2b8473821c56352/src/inspect_ai/util/_json.py#L56)
 
 ``` python
 def json_schema(t: Type[Any]) -> JSONSchema

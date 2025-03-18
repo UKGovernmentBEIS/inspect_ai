@@ -8,6 +8,13 @@ Inspect has several standard tools built-in, including:
 - [Bash and Python](tools-standard.qmd#sec-bash-and-python) for
   executing arbitrary shell and Python code.
 
+- [Bash Session](tools-standard.qmd#sec-bash-session) for creating a
+  stateful bash shell that retains its state across calls from the
+  model.
+
+- [Text Editor](tools-standard.qmd#sec-text-editor) which enables
+  viewing, creating and editing text files.
+
 - [Web Browser](tools-standard.qmd#sec-web-browser), which provides the
   model with a headless Chromium web browser that supports navigation,
   history, and mouse/keyboard interactions.
@@ -58,6 +65,205 @@ See the [Agents](#sec-agents) section for more details on how to build
 evaluations that allow models to take arbitrary actions over a longer
 time horizon.
 
+## Bash Session
+
+> [!NOTE]
+>
+> Note that the bash session tool is currently available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `bash_session()` tool provides a bash shell that retains its state
+across calls from the model (as distinct from the `bash()` tool which
+executes each command in a fresh session). The prompt, working
+directory, and environment variables are all retained across calls. The
+tool also supports a `restart` action that enables the model to reset
+its state and work in a fresh session.
+
+### Configuration
+
+Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd)
+for the execution of untrusted code. In addition, you’ll need some
+dependencies installed in the sandbox container. Please see **Sandbox
+Dependencies** below for additional instructions.
+
+> [!NOTE]
+>
+> ### Sandbox Dependencies
+>
+> You should add the following to your sandbox `Dockerfile` in order to
+> use this tool:
+>
+> ``` dockerfile
+> RUN python -m venv /opt/inspect_tool_support
+> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
+>
+> RUN pip install inspect-tool-support
+> RUN inspect-tool-support post-install
+> ```
+>
+> Note that Playwright (used for the `web_browser()` tool) does not
+> support some versions of Linux (e.g. Kali Linux). If this is the case
+> for your Linux distribution, you should add the `--no-web-browser`
+> option to the `post-install`:
+>
+> ``` dockerfile
+> RUN inspect-tool-support post-install --no-web-browser
+> ```
+>
+> If you don’t have a custom Dockerfile, you can alternatively use the
+> pre-built `aisiuk/inspect-tool-support` image:
+>
+> **compose.yaml**
+>
+> ``` yaml
+> services:
+>   default:
+>     image: aisiuk/inspect-tool-support:latest
+>     init: true
+> ```
+
+### Task Setup
+
+A task configured to use the bash session tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash_session(timeout=180)]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that we provide a `timeout` for bash session commands (this is a
+best practice to guard against extremely long running commands).
+
+### Tool Binding
+
+The schema for the `bash_session()` tool is based on the standard
+Anthropic [bash tool
+type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#bash-tool).
+The `bash_session()` works with all models that support tool calling,
+but when using Claude, the bash session tool will automatically bind to
+the native Claude tool definition.
+
+## Text Editor
+
+> [!NOTE]
+>
+> Note that the text editor tool is currently available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `text_editor()` tool enables viewing, creating and editing text
+files. The tool supports editing files within a protected [Sandbox
+Environment](sandboxing.qmd) so tasks that use the text editor should
+have a sandbox defined and configured as described below.
+
+### Configuration
+
+The text editor tools requires the use of a [Sandbox
+Environment](sandboxing.qmd). In addition, you’ll need some dependencies
+installed in the sandbox container. Please see **Sandbox Dependencies**
+below for additional instructions.
+
+> [!NOTE]
+>
+> ### Sandbox Dependencies
+>
+> You should add the following to your sandbox `Dockerfile` in order to
+> use this tool:
+>
+> ``` dockerfile
+> RUN python -m venv /opt/inspect_tool_support
+> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
+>
+> RUN pip install inspect-tool-support
+> RUN inspect-tool-support post-install
+> ```
+>
+> Note that Playwright (used for the `web_browser()` tool) does not
+> support some versions of Linux (e.g. Kali Linux). If this is the case
+> for your Linux distribution, you should add the `--no-web-browser`
+> option to the `post-install`:
+>
+> ``` dockerfile
+> RUN inspect-tool-support post-install --no-web-browser
+> ```
+>
+> If you don’t have a custom Dockerfile, you can alternatively use the
+> pre-built `aisiuk/inspect-tool-support` image:
+>
+> **compose.yaml**
+>
+> ``` yaml
+> services:
+>   default:
+>     image: aisiuk/inspect-tool-support:latest
+>     init: true
+> ```
+
+### Task Setup
+
+A task configured to use the text editor tool might look like this (note
+that this task is also configured to use the `bash_session()` tool):
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([
+                bash_session(timeout=180),
+                text_editor(timeout=180)
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that we provide a `timeout` for the bash session and text editor
+tools (this is a best practice to guard against extremely long running
+commands).
+
+### Tool Binding
+
+The schema for the `text_editor()` tool is based on the standard
+Anthropic [text editor tool
+type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#text-editor-tool).
+The `text_editor()` works with all models that support tool calling, but
+when using Claude, the text editor tool will automatically bind to the
+native Claude tool definition.
+
 ## Web Browser
 
 The web browser tools provides models with the ability to browse the web
@@ -68,38 +274,40 @@ mouse/keyboard interactions are all supported.
 
 Under the hood, the web browser is an instance of
 [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by
-[Playwright](https://playwright.dev/), and runs in its own dedicated
-Docker container. Therefore, to use the web_browser tool you should
-reference the `aisiuk/inspect-web-browser-tool` Docker image in your
-`compose.yaml`. For example, here we use it as our default image:
+[Playwright](https://playwright.dev/), and runs in a [Sandbox
+Environment](sandboxing.qmd). In addition, you’ll need some dependencies
+installed in the sandbox container. Please see **Sandbox Dependencies**
+below for additional instructions.
 
-**compose.yaml**
+Note that Playwright (used for the `web_browser()` tool) does not
+support some versions of Linux (e.g. Kali Linux).
 
-``` yaml
-services:
-  default:
-    image: aisiuk/inspect-web-browser-tool
-    init: true
-```
-
-Here, we add a dedicated `web_browser` service:
-
-**compose.yaml**
-
-``` yaml
-services:
-  default:
-    image: "python:3.12-bookworm"
-    init: true
-    command: "tail -f /dev/null"
-  web_browser:
-    image: aisiuk/inspect-web-browser-tool
-    init: true
-```
-
-Rather than using the `aisiuk/inspect-web-browser-tool` image, you can
-also just include the web browser service components in a custom image
-(see [Custom Images](#sec-custom-images) below for details).
+> [!NOTE]
+>
+> ### Sandbox Dependencies
+>
+> You should add the following to your sandbox `Dockerfile` in order to
+> use this tool:
+>
+> ``` dockerfile
+> RUN python -m venv /opt/inspect_tool_support
+> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
+>
+> RUN pip install inspect-tool-support
+> RUN inspect-tool-support post-install
+> ```
+>
+> If you don’t have a custom Dockerfile, you can alternatively use the
+> pre-built `aisiuk/inspect-tool-support` image:
+>
+> **compose.yaml**
+>
+> ``` yaml
+> services:
+>   default:
+>     image: aisiuk/inspect-tool-support:latest
+>     init: true
+> ```
 
 ### Task Setup
 
@@ -165,39 +373,6 @@ use_tools(web_browser(interactive=False))
 In this mode, the interactive tools (`web_browser_click()`,
 `web_browser_type()`, and `web_browser_type_submit()`) are not made
 available to the model.
-
-### Custom Images
-
-Above we demonstrated how to use the pre-configured Inspect web browser
-container. If you prefer to incorporate the headless web browser and its
-dependencies into another container that is also supported.
-
-To do this, reference the
-[Dockerfile](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/Dockerfile)
-used in the built-in web browser container and ensure that the
-dependencies, application files, and server run command it uses are also
-in your container definition:
-
-``` dockerfile
-# Install playwright
-RUN pip install playwright 
-RUN playwright install
-RUN playwright install-deps 
-
-# Install other dependencies
-RUN pip install dm-env-rpc pillow bs4 lxml
-
-# Copy Python files alongside the Dockerfile
-COPY *.py ./
-
-# Run the server
-CMD ["python3", "/app/web_browser/web_server.py"]
-```
-
-Note that all of the Python files in the
-[\_resources](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/tool/_tools/_web_browser/_resources/)
-directory alongside the `Dockerfile` need to be available for copying
-when building the container.
 
 ## Computer
 
@@ -398,7 +573,7 @@ inspect eval computer.py --approval approval.yaml
 
 The computer tool’s schema is based on the standard Anthropoic [computer
 tool-type](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool).
-When using Claude 3.5 the coputer tool will automatically bind to the
+When using Claude, the computer tool will automatically bind to the
 native Claude computer tool definition. This presumably provides
 improved performance due to fine tuning on the use of the tool but we
 have not verified this.

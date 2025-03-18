@@ -35,8 +35,8 @@ inspect eval browser.py --approval human
 ```
 
 This example provides the model with the built-in [web
-browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a
-web and perform a search.
+browser](tools-standard.qmd#sec-web-browser) tool and asks it to
+navigate to a web and perform a search.
 
 ## Auto Approver
 
@@ -75,8 +75,9 @@ inspect eval browser.py --approval approval.yaml
 
 You can also match on tool arguments (for tools that dispatch many
 action types). For example, here is an approval policy for the [Computer
-Tool](tools.qmd#sec-computer) which allows typing and mouse movement but
-requires approval for key combos (e.g. Enter or a shortcut) and typing:
+Tool](tools-standard.qmd#sec-computer) which allows typing and mouse
+movement but requires approval for key combos (e.g. Enter or a shortcut)
+and typing:
 
 **approval.yaml**
 
