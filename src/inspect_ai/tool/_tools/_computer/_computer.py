@@ -15,7 +15,7 @@ ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
 def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool:
     """Desktop computer tool.
 
-    See documentation at <https://inspect.aisi.org.uk/tools.html#sec-computer>.
+    See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-computer>.
 
     Args:
       max_screenshots: The maximum number of screenshots to play

@@ -1,23 +1,40 @@
 import re
-from textwrap import dedent
 
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.tool._tool_support_helpers import (
+    exec_sandbox_rpc,
+    tool_container_sandbox,
+)
 from inspect_ai.tool._tool_with import tool_with
-from inspect_ai.util._sandbox import SandboxEnvironment, sandbox_with
-from inspect_ai.util._sandbox.docker.internal import INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB
 from inspect_ai.util._store_model import StoreModel, store_as
+
+from ._back_compat import old_web_browser_cmd
+
+
+# These two models are cloned from the container code. If/when we decide to create
+# a package that is shared between the inspect and tool-container codebases, we'll
+# just have to live with it.
+class NewSessionResult(BaseModel):
+    session_name: str
+
+
+class CrawlerResult(BaseModel):
+    web_url: str
+    main_content: str | None = None
+    web_at: str
+    error: str | None = None
 
 
 def web_browser(interactive: bool = True) -> list[Tool]:
     """Tools used for web browser navigation.
 
-     See documentation at <https://inspect.aisi.org.uk/tools.html#sec-web-browser>.
+     See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
 
     Args:
        interactive: Provide interactive tools (enable
@@ -85,7 +102,7 @@ def web_browser_go() -> Tool:
         Returns:
           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_go", url)
+        return await _web_browser_cmd("web_go", locals())
 
     return execute
 
@@ -165,7 +182,7 @@ def web_browser_click() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_click", str(element_id))
+        return await _web_browser_cmd("web_click", locals())
 
     return execute
 
@@ -203,7 +220,7 @@ def web_browser_type_submit() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_type_submit", str(element_id), text)
+        return await _web_browser_cmd("web_type_submit", locals())
 
     return execute
 
@@ -241,7 +258,7 @@ def web_browser_type() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_type", str(element_id), text)
+        return await _web_browser_cmd("web_type", locals())
 
     return execute
 
@@ -271,7 +288,7 @@ def web_browser_scroll() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_scroll", direction)
+        return await _web_browser_cmd("web_scroll", locals())
 
     return execute
 
@@ -292,7 +309,7 @@ def web_browser_back() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_back")
+        return await _web_browser_cmd("web_back", locals())
 
     return execute
 
@@ -313,7 +330,7 @@ def web_browser_forward() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_forward")
+        return await _web_browser_cmd("web_forward", locals())
 
     return execute
 
@@ -334,133 +351,61 @@ def web_browser_refresh() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await web_browser_cmd("web_refresh")
+        return await _web_browser_cmd("web_refresh", locals())
 
     return execute
 
 
-WEB_CLIENT_REQUEST = "/app/web_browser/web_client.py"
-WEB_CLIENT_NEW_SESSION = "/app/web_browser/web_client_new_session.py"
+async def _web_browser_cmd(tool_name: str, params: dict[str, object]) -> ToolResult:
+    try:
+        sandbox_env = await tool_container_sandbox("web browser")
+    except PrerequisiteError as e:
+        # The user may have the old, incompatible, sandbox. If so, use that and
+        # execute the old compatible code.
+        try:
+            return await old_web_browser_cmd(tool_name, *params)
+        except PrerequisiteError:
+            raise e
 
+    store = store_as(WebBrowserStore)
 
-async def web_browser_cmd(cmd: str, *args: str) -> ToolResult:
-    sandbox_env = await sandbox_with(WEB_CLIENT_NEW_SESSION)
-    session_flag = ""
-    if sandbox_env:
-        store = store_as(WebBrowserStore)
-        if not store.session_id:
-            result = await sandbox_env.exec(
-                ["python3", WEB_CLIENT_NEW_SESSION], timeout=180
+    if not store.session_id:
+        store.session_id = (
+            await exec_sandbox_rpc(
+                sandbox_env,
+                "web_new_session",
+                {"headful": False},
+                NewSessionResult,
             )
+        ).session_name
 
-            if not result.success:
-                raise RuntimeError(
-                    f"Error creating new web browser session: {result.stderr}"
-                )
+    params["session_name"] = store.session_id
 
-            store.session_id = result.stdout.strip("\n")
-
-        session_flag = f"--session_name={store.session_id}"
-
-    else:
-        sandbox_env = await web_browser_sandbox()
-
-    arg_list = None
-    if session_flag:
-        arg_list = ["python3", WEB_CLIENT_REQUEST, session_flag, cmd] + list(args)
-    else:
-        arg_list = ["python3", WEB_CLIENT_REQUEST, cmd] + list(args)
-
-    result = await sandbox_env.exec(arg_list, timeout=180)
-    if not result.success:
-        raise RuntimeError(
-            f"Error executing web browser command {cmd}({', '.join(args)}): {result.stderr}"
-        )
-    else:
-        response = parse_web_browser_output(result.stdout)
-        if "error" in response and response.get("error", "").strip() != "":
-            raise ToolError(str(response.get("error")) or "(unknown error)")
-        elif "web_at" in response:
-            main_content = str(response.get("main_content")) or None
-            web_at = (
-                str(response.get("web_at")) or "(no web accessibility tree available)"
-            )
-            # Remove base64 data from images.
-            web_at_lines = web_at.split("\n")
-            web_at_lines = [
-                line.partition("data:image/png;base64")[0] for line in web_at_lines
-            ]
-
-            store_as(WebBrowserStore).main_content = (
-                main_content or "(no main text summary)"
-            )
-            store_as(WebBrowserStore).web_at = web_at
-
-            web_at = "\n".join(web_at_lines)
-            return (
-                [
-                    ContentText(text=f"main content:\n{main_content}\n\n"),
-                    ContentText(text=f"accessibility tree:\n{web_at}"),
-                ]
-                if main_content
-                else web_at
-            )
-        else:
-            raise RuntimeError(
-                f"web_browser output must contain either 'error' or 'web_at' field: {result.stdout}"
-            )
-
-
-async def web_browser_sandbox() -> SandboxEnvironment:
-    sb = await sandbox_with(WEB_CLIENT_REQUEST)
-    if sb:
-        return sb
-    else:
-        msg = dedent(f"""
-                The web browser service was not found in any of the sandboxes for this sample. Please add the web browser service to your configuration. For example, the following Docker compose file uses the {INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB} image as its default sandbox:
-
-                services:
-                  default:
-                    image: "{INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB}"
-                    init: true
-
-                Alternatively, this Docker compose file creates a dedicated image for the web browser service:
-
-                services:
-                  default:
-                    image: "python:3.12-bookworm"
-                    init: true
-                    command: "tail -f /dev/null"
-
-                  web_browser:
-                    image: "{INSPECT_WEB_BROWSER_IMAGE_DOCKERHUB}"
-                    init: true
-                """).strip()
-        raise PrerequisiteError(msg)
-
-
-def parse_web_browser_output(output: str) -> dict[str, str]:
-    response: dict[str, str] = dict(
-        web_url="", main_content="", web_at="", info="", error=""
+    crawler_result = await exec_sandbox_rpc(
+        sandbox_env, tool_name, params, CrawlerResult
     )
-    active_field: str | None = None
-    active_field_lines: list[str] = []
+    if crawler_result.error and crawler_result.error.strip() != "":
+        raise ToolError(crawler_result.error)
+    else:
+        main_content = crawler_result.main_content
+        web_at = crawler_result.web_at or "(no web accessibility tree available)"
+        # Remove base64 data from images.
+        web_at_lines = web_at.split("\n")
+        web_at_lines = [
+            line.partition("data:image/png;base64")[0] for line in web_at_lines
+        ]
 
-    def collect_active_field() -> None:
-        if active_field is not None:
-            response[active_field] = "\n".join(active_field_lines)
-        active_field_lines.clear()
-
-    for line in output.splitlines():
-        field_match = re.match(
-            r"^(error|main_content|web_at|web_url|info)\s*:\s*(.+)$", line
+        store_as(WebBrowserStore).main_content = (
+            main_content or "(no main text summary)"
         )
-        if field_match:
-            collect_active_field()
-            active_field = field_match.group(1)
-            active_field_lines.append(field_match.group(2))
-        else:
-            active_field_lines.append(line)
-    collect_active_field()
+        store_as(WebBrowserStore).web_at = web_at
 
-    return response
+        web_at = "\n".join(web_at_lines)
+        return (
+            [
+                ContentText(text=f"main content:\n{main_content}\n\n"),
+                ContentText(text=f"accessibility tree:\n{web_at}"),
+            ]
+            if main_content
+            else web_at
+        )

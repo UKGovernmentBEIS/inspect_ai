@@ -1,3 +1,8 @@
+## Unreleased
+
+- [bash_session()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-bash-session) tool for creating a stateful bash shell that retains its state across calls from the model.
+- [text_editor()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-text-editor) tool which enables viewing, creating and editing text files.
+
 ## v0.3.75 (18 March 2025)
 
 - Model API: Specifying a default model (e.g. `--model`) is no longer required (as some evals have no model or use `get_model()` for model access).
@@ -210,7 +215,7 @@
 
 ## v0.3.59 (24 January 2025)
 
-- Beta version of [computer()](https://inspect.aisi.org.uk/tools.html#sec-computer) tool which models with a computer desktop environment.
+- Beta version of [computer()](https://inspect.aisi.org.uk/tools-standard.html#sec-computer) tool which models with a computer desktop environment.
 - `user_message()` solver for appending parameterised user messages.
 - `prompt_template()`, `system_message()` and `user_message()` solver now also include the sample `store` in substitution parameters.
 - Limits: Enforce token and message limit at lower level (not longer required to check `state.completed` for limit enforcement).
@@ -454,7 +459,7 @@
 
 ## v0.3.42 (23 October 2024)
 
-- [ToolDef](https://inspect.aisi.org.uk/tools.html#sec-dynamic-tools) class for dynamically creating tool definitions.
+- [ToolDef](https://inspect.aisi.org.uk/tools-custom.html#sec-dynamic-tools) class for dynamically creating tool definitions.
 - Added `--tags` option to eval for tagging evaluation runs.
 - Added APIs for accessing sample event transcripts and for creating and resolving attachments for larger content items.
 - Cleanup Docker Containers immediately for samples with errors.
@@ -536,7 +541,7 @@
 
 ## v0.3.36 (2 October 2024)
 
-- [Web Browser](https://inspect.aisi.org.uk/tools.html#sec-web-browser) tool which provides a headless Chromium browser that supports navigation, history, and mouse/keyboard interactions.
+- [Web Browser](https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser) tool which provides a headless Chromium browser that supports navigation, history, and mouse/keyboard interactions.
 - `auto_id` option for dataset readers to assign an auto-incrementing ID to records.
 - Task args: don't attempt to serialise registry objects that don't have captured parameters.
 

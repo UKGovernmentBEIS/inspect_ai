@@ -52,7 +52,7 @@ def web_search(
     A web search is conducted using the specified provider, the results are parsed for relevance
     using the specified model, and the top 'num_results' relevant pages are returned.
 
-    See further documentation at <https://inspect.aisi.org.uk/tools.html#sec-web-search>.
+    See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-search>.
 
     Args:
       provider: Search provider (defaults to "google", currently
