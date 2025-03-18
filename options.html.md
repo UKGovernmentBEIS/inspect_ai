@@ -196,5 +196,6 @@ example:
 |----|----|
 | `--display` | Display type. Values: `full`, `conversation`, `rich`, `plain`, `none` (defaults to `full`). |
 | `--approval` | Config file for tool call approval. |
+| `--env` | Set an environment variable (multiple instances of `--env` are permitted). |
 | `--tags` | Tags to associate with this evaluation run. |
 | `--help` | Display help for command options. |

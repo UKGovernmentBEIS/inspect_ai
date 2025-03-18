@@ -4,7 +4,7 @@
 Manage Sandbox Environments.
 
 Learn more about sandboxing at
-<https://inspect.ai-safety-institute.org.uk/sandboxing.html>.
+<https://inspect.aisi.org.uk/sandboxing.html>.
 
 #### Usage
 

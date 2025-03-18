@@ -79,8 +79,7 @@ carry any custom `model_args` (or `-M` and `--model-config` arguments
 from the CLI) specified by the user. You can then pass these on to the
 appropriate place in your model initialisation code (for example, here
 is what many of the built-in providers do with `model_args` passed to
-them:
-<https://inspect.ai-safety-institute.org.uk/models.html#model-args>).
+them: <https://inspect.aisi.org.uk/models.html#model-args>).
 
 The `generate()` method handles interacting with the model, converting
 inspect messages, tools, and config into model native data structures.

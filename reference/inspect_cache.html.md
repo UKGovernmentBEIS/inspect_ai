@@ -4,7 +4,7 @@
 Manage the inspect model output cache.
 
 Learn more about model output caching at
-<https://inspect.ai-safety-institute.org.uk/caching.html>.
+<https://inspect.aisi.org.uk/caching.html>.
 
 #### Usage
 

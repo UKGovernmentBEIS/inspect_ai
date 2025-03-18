@@ -72,13 +72,13 @@ ul.task-list li input[type="checkbox"] {
 
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
-<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta property="og:image" content="https://inspect.aisi.org.uk//images/inspect.png">
 <meta property="og:site_name" content="Inspect">
 <meta property="og:image:height" content="1258">
 <meta property="og:image:width" content="2400">
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta name="twitter:image" content="https://inspect.aisi.org.uk//images/inspect.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image-height" content="1258">
 <meta name="twitter:image-width" content="2400">
@@ -1592,7 +1592,7 @@ ul.task-list li input[type="checkbox"] {
 <td><code>--model</code></td>
 <td>text</td>
 <td>Model used to evaluate tasks.</td>
-<td>_required</td>
+<td>None</td>
 </tr>
 <tr class="even">
 <td><code>--model-base-url</code></td>
@@ -1961,24 +1961,30 @@ ul.task-list li input[type="checkbox"] {
 <td><code>full</code></td>
 </tr>
 <tr class="odd">
+<td><code>--env</code></td>
+<td>text</td>
+<td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
+<td>None</td>
+</tr>
+<tr class="even">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>
@@ -2081,7 +2087,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
     var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
     var mailtoRegex = new RegExp(/^mailto:/);
-      var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
+      var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk\/");
     var isInternal = (href) => {
         return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
     }

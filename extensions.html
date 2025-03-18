@@ -105,13 +105,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
-<meta property="og:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta property="og:image" content="https://inspect.aisi.org.uk//images/inspect.png">
 <meta property="og:site_name" content="Inspect">
 <meta property="og:image:height" content="1258">
 <meta property="og:image:width" content="2400">
 <meta name="twitter:title" content="Inspect">
 <meta name="twitter:description" content="Open-source framework for large language model evaluations">
-<meta name="twitter:image" content="https://inspect.ai-safety-institute.org.uk//images/inspect.png">
+<meta name="twitter:image" content="https://inspect.aisi.org.uk//images/inspect.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image-height" content="1258">
 <meta name="twitter:image-width" content="2400">
@@ -521,7 +521,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>The layer of indirection (creating a function that returns a ModelAPI class) is done so that you can separate the registration of models from the importing of libraries they require (important for limiting dependencies). You can see this used within Inspect to make all model package dependencies optional <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_providers/providers.py">here</a>. With this scheme, pacakges required to interace with models (e.g.&nbsp;<code>openai</code>, <code>anthropic</code>, <code>vllm</code>, etc.) are only imported when their model API type is actually used.</p>
 <p>The <code>__init__()</code> method <em>must</em> call the <code>super().__init__()</code> method, and typically instantiates the model client library.</p>
-<p>The <code>__init__()</code> method receive a <code>**model_args</code> parameter that will carry any custom <code>model_args</code> (or <code>-M</code> and <code>--model-config</code> arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with <code>model_args</code> passed to them: <a href="https://inspect.ai-safety-institute.org.uk/models.html#model-args" class="uri">https://inspect.ai-safety-institute.org.uk/models.html#model-args</a>).</p>
+<p>The <code>__init__()</code> method receive a <code>**model_args</code> parameter that will carry any custom <code>model_args</code> (or <code>-M</code> and <code>--model-config</code> arguments from the CLI) specified by the user. You can then pass these on to the appropriate place in your model initialisation code (for example, here is what many of the built-in providers do with <code>model_args</code> passed to them: <a href="https://inspect.aisi.org.uk/models.html#model-args" class="uri">https://inspect.aisi.org.uk/models.html#model-args</a>).</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> method handles interacting with the model, converting inspect messages, tools, and config into model native data structures. Note that the generate method may optionally return a <code>tuple[ModelOutput,ModelCall]</code> in order to record the raw request and response to the model within the sample transcript.</p>
 <p>In addition, there are some optional properties you can override to specify various behaviours and constraints (default max tokens and connections, identifying rate limit errors, whether to collapse consecutive user and/or assistant messages, etc.). See the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_model.py">ModelAPI</a> source code for further documentation on these properties.</p>
 <p>See the implementation of the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/src/inspect_ai/model/_providers">built-in model providers</a> for additional insight on building a custom provider.</p>
@@ -1060,7 +1060,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
   }
     var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
     var mailtoRegex = new RegExp(/^mailto:/);
-      var filterRegex = new RegExp("https:\/\/inspect\.ai-safety-institute\.org\.uk\/");
+      var filterRegex = new RegExp("https:\/\/inspect\.aisi\.org\.uk\/");
     var isInternal = (href) => {
         return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
     }

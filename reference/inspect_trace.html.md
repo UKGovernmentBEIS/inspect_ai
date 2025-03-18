@@ -10,7 +10,7 @@ logs are preserved. The ‘trace’ command provides ways to list and read
 these traces.
 
 Learn more about execution traces at
-<https://inspect.ai-safety-institute.org.uk/tracing.html>.
+<https://inspect.aisi.org.uk/tracing.html>.
 
 #### Usage
 

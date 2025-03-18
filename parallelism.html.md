@@ -119,16 +119,6 @@ inspect trace http           # show all http requests
 inspect trace http --failed  # show only failed requests
 ```
 
-> [!NOTE]
->
-> Note that the `inspect trace http` command is currently available only
-> in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Multiple Models
 
 You can evaluate multiple models in parallel by passing a list of models
@@ -466,16 +456,6 @@ If a timeout occurs, then a `TimeoutError` will be thrown (which your
 code should generally handle in whatever manner is appropriate).
 
 ## Async Backends
-
-> [!NOTE]
->
-> Note that the ability to configure an alternate async backend is
-> currently available only in the development version of Inspect. To
-> install the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 Inspect asynchronous code is written using the
 [AnyIO](https://anyio.readthedocs.io/en/stable/) library, which is an

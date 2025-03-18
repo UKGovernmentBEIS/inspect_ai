@@ -1,16 +1,6 @@
 # Structured Output
 
 
-> [!NOTE]
->
-> The structured output feature described below is currently available
-> only in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 Structured output is a feature supported by some model providers to

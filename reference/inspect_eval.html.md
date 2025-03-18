@@ -13,7 +13,7 @@ inspect eval [OPTIONS] [TASKS]...
 
 | Name | Type | Description | Default |
 |----|----|----|----|
-| `--model` | text | Model used to evaluate tasks. | \_required |
+| `--model` | text | Model used to evaluate tasks. | None |
 | `--model-base-url` | text | Base URL for for model API | None |
 | `-M` | text | One or more native model arguments (e.g. -M arg=value) | None |
 | `--model-config` | text | YAML or JSON config file with model arguments. | None |
@@ -75,6 +75,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
 | `--debug` | boolean | Wait to attach debugger | `False` |
 | `--debug-port` | integer | Port number for debugger | `5678` |
 | `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |

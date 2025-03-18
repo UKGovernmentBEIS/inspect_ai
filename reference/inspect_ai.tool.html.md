@@ -9,7 +9,7 @@ Bash shell command execution tool.
 
 Execute bash shell commands using a sandbox environment (e.g. “docker”).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tools/_execute.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_execute.py#L22)
 
 ``` python
 @tool(viewer=code_viewer("bash", "cmd"))
@@ -33,7 +33,7 @@ Python code execution tool.
 
 Execute Python code using a sandbox environment (e.g. “docker”).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tools/_execute.py#L62)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_execute.py#L62)
 
 ``` python
 @tool(viewer=code_viewer("python", "code"))
@@ -64,9 +64,9 @@ parsed for relevance using the specified model, and the top
 ‘num_results’ relevant pages are returned.
 
 See further documentation at
-<https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search>.
+<https://inspect.aisi.org.uk/tools.html#sec-web-search>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tools/_web_search.py#L39)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_web_search.py#L39)
 
 ``` python
 @tool
@@ -101,9 +101,9 @@ Model used to parse web pages for relevance.
 Tools used for web browser navigation.
 
 See documentation at
-<https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-browser>.
+<https://inspect.aisi.org.uk/tools.html#sec-web-browser>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_web_browser/_web_browser.py#L17)
 
 ``` python
 def web_browser(interactive: bool = True) -> list[Tool]
@@ -118,9 +118,9 @@ forms). Defaults to True.
 Desktop computer tool.
 
 See documentation at
-<https://inspect.ai-safety-institute.org.uk/tools.html#sec-computer>.
+<https://inspect.aisi.org.uk/tools.html#sec-computer>.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tools/_computer/_computer.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tools/_computer/_computer.py#L14)
 
 ``` python
 @tool
@@ -141,7 +141,7 @@ Timeout in seconds for computer tool actions. Defaults to 180 (set to
 
 Tool with modifications to name and descriptions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_with.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_with.py#L16)
 
 ``` python
 def tool_with(
@@ -182,7 +182,7 @@ as model input.
 
 Tool definition.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_def.py#L27)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_def.py#L27)
 
 ``` python
 class ToolDef
@@ -216,7 +216,7 @@ Custom model input presenter for tool calls.
 \_\_init\_\_  
 Create a tool definition.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_def.py#L30)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_def.py#L30)
 
 ``` python
 def __init__(
@@ -259,7 +259,7 @@ as model input.
 as_tool  
 Convert a ToolDef to a Tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_def.py#L129)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_def.py#L129)
 
 ``` python
 def as_tool(self) -> Tool
@@ -271,7 +271,7 @@ def as_tool(self) -> Tool
 
 Additional tool that an agent can use to solve a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L80)
 
 ``` python
 class Tool(Protocol):
@@ -303,7 +303,7 @@ def add() -> Tool:
 
 Valid types for results from tool calls.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L33)
 
 ``` python
 ToolResult = (
@@ -330,7 +330,7 @@ sample). If you want to raise a fatal error from a tool call use an
 appropriate standard exception type (e.g. `RuntimeError`, `ValueError`,
 etc.)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool.py#L48)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L48)
 
 ``` python
 class ToolError(Exception)
@@ -341,7 +341,7 @@ class ToolError(Exception)
 \_\_init\_\_  
 Create a ToolError.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L58)
 
 ``` python
 def __init__(self, message: str) -> None
@@ -354,7 +354,7 @@ Error message to report to the model.
 
 Error raised by a tool call.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_call.py#L57)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_call.py#L57)
 
 ``` python
 @dataclass
@@ -377,7 +377,7 @@ Specify which tool to call.
 “none” means never call a tool; ToolFunction instructs the model to call
 a specific function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_choice.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_choice.py#L13)
 
 ``` python
 ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
@@ -387,7 +387,7 @@ ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]
 
 Indicate that a specific tool function should be called.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_choice.py#L5)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_choice.py#L5)
 
 ``` python
 @dataclass
@@ -426,7 +426,7 @@ ToolParam(
 )
 ```
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_info.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_info.py#L19)
 
 ``` python
 class ToolInfo(BaseModel)
@@ -447,7 +447,7 @@ JSON Schema of tool parameters object.
 
 Description of tool parameters object in JSON Schema format.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_params.py#L14)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_params.py#L14)
 
 ``` python
 class ToolParams(BaseModel)
@@ -471,7 +471,7 @@ Are additional object properties allowed? (always `False`)
 
 Description of tool parameter in JSON Schema format.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool_params.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool_params.py#L10)
 
 ``` python
 ToolParam: TypeAlias = JSONSchema
@@ -483,7 +483,7 @@ ToolParam: TypeAlias = JSONSchema
 
 Decorator for registering tools.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/bf9d846f40aa01d2658cbec7c52b1e998ca09b39/src/inspect_ai/tool/_tool.py#L148)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/16ce6d5173390c3c121afcaacd687c829da17e91/src/inspect_ai/tool/_tool.py#L148)
 
 ``` python
 def tool(

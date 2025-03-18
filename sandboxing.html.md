@@ -75,7 +75,7 @@ dataset = [
 ]
 
 @task
-def file_probe()
+def file_probe():
     return Task(
         dataset=dataset,
         solver=[
@@ -85,7 +85,6 @@ def file_probe()
         sandbox="docker",
         scorer=includes(),
     )
-)
 ```
 
 We’ve included `sandbox="docker"` to indicate that sandbox environment

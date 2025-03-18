@@ -32,6 +32,10 @@ heuristics, including responses that include a `reasoning` or
 that includes `<think></think>` tags, as well as using explicit APIs for
 models that support them (e.g. Claude 3.7).
 
+In addition, some models (currently OpenAI and Anthropic) make available
+`reasoning_tokens` which will be added to the standard `ModelUsage`
+object returned along with output.
+
 ## Reasoning Options
 
 The following reasoning options are available from the CLI and within
