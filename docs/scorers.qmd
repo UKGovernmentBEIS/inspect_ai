@@ -53,7 +53,7 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
     Have another model assess whether the model output contains a fact that is set out in `target`. This is a more narrow assessment than `model_graded_qa()`, and is used when model output is too complex to be assessed using a simple `match()` or `pattern()` scorer.
 
--   `choices()`
+-   `choice()`
 
     Specialised scorer that is used with the `multiple_choice()` solver.
 
@@ -512,6 +512,15 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 -   `accuracy()`
 
     Compute proportion of total answers which are correct. For correct/incorrect scores assigned 1 or 0, can optionally assign 0.5 for partially correct answers.
+
+
+-   `precision()`
+
+    Compute the proportion of correct answers to the total number of answered questions. Unanswered scores should be assigned -1 (the choice scorer has an option to enable this).
+
+-   `coverage()`
+
+    Compute the proportion of answered questions to the total number of questions. Unanswered scores should be assigned -1 (the choice scorer has an option to enable this).
 
 -   `mean()`
 

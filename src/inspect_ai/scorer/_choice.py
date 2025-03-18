@@ -6,7 +6,7 @@ from inspect_ai.solver._multiple_choice import (
 )
 from inspect_ai.solver._task_state import Choices, TaskState
 
-from ._metric import CORRECT, INCORRECT, Score
+from ._metric import CORRECT, INCORRECT, NOANSWER, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
@@ -39,7 +39,7 @@ def _shuffled_explanation(choices: Choices) -> str:
 
 
 @scorer(metrics=[accuracy(), stderr()])
-def choice() -> Scorer:
+def choice(no_answer: str | None = None) -> Scorer:
     """
     Scorer for multiple choice answers, required by the `multiple_choice` solver.
 
@@ -74,8 +74,22 @@ def choice() -> Scorer:
             i for i, choice in enumerate(choices) if choice.correct is True
         ]
 
-        target_matches_choices = generated_selected_choices == sorted(target_positions)
+        if no_answer is not None:
+            # Look for a no-answer choice and use that present
+            no_answer_choices = [
+                i
+                for i, choice in enumerate(choices)
+                if choice.value == no_answer and choice.correct is True
+            ]
 
+            if len(no_answer_choices) == 1:
+                return Score(
+                    value=NOANSWER,
+                    answer=", ".join(answers),
+                    explanation=explanation,
+                )
+
+        target_matches_choices = generated_selected_choices == sorted(target_positions)
         return Score(
             value=CORRECT if target_matches_choices else INCORRECT,
             answer=", ".join(answers),
