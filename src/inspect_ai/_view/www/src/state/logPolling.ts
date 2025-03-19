@@ -106,6 +106,7 @@ export function createLogPolling(
           logFileName,
           currentEtag,
         );
+        log.debug(`Received pending samples`, pendingSamples);
 
         if (abortController.signal.aborted) {
           return false;
