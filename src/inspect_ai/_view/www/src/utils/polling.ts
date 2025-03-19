@@ -67,6 +67,7 @@ export const createPolling = (
       if (!isPolling || isStopped) {
         return;
       }
+      log.debug("Polling error occurred", e);
 
       retryCount += 1;
 
