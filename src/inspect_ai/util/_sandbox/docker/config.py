@@ -82,7 +82,7 @@ COMPOSE_COMMENT = """# inspect auto-generated docker compose file
 COMPOSE_GENERIC_YAML = f"""{COMPOSE_COMMENT}
 services:
   default:
-    image: "python:3.12-bookworm"
+    image: "aisiuk/inspect-tool-support:latest"
     command: "tail -f /dev/null"
     init: true
     network_mode: none
