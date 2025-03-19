@@ -19869,7 +19869,7 @@ self.onmessage = function (e) {
       }
       return (await api$2("GET", `/api/log-headers?${params2.toString()}`)).parsed;
     }
-    async function eval_pending_samples(log_file, etag) {
+    async function eval_pending_samples$1(log_file, etag) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
       const headers = {};
@@ -19904,7 +19904,7 @@ self.onmessage = function (e) {
       )).parsed;
       return result2;
     }
-    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
+    async function eval_log_sample_data$1(log_file, id, epoch, last_event, last_attachment) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
       params2.append("id", String(id));
@@ -20038,8 +20038,8 @@ self.onmessage = function (e) {
       eval_log_headers: eval_log_headers$1,
       download_file: download_file$1,
       open_log_file: open_log_file$1,
-      eval_pending_samples,
-      eval_log_sample_data
+      eval_pending_samples: eval_pending_samples$1,
+      eval_log_sample_data: eval_log_sample_data$1
     };
     var ch2 = {};
     var wk = function(c2, id, msg, transfer, cb) {
@@ -22036,6 +22036,8 @@ self.onmessage = function (e) {
     const kMethodEvalLogSize = "eval_log_size";
     const kMethodEvalLogBytes = "eval_log_bytes";
     const kMethodEvalLogHeaders = "eval_log_headers";
+    const kMethodPendingSamples = "eval_log_pending_samples";
+    const kMethodSampleData = "eval_log_sample_data";
     const kJsonRpcVersion = "2.0";
     function webViewJsonRpcClient(vscode2) {
       const target2 = {
@@ -22103,6 +22105,8 @@ self.onmessage = function (e) {
       }
       return null;
     }
+    const kNotFoundSignal = "NotFound";
+    const kNotModifiedSignal = "NotModified";
     const vscodeClient = webViewJsonRpcClient(getVscodeApi());
     async function client_events() {
       return [];
@@ -22154,6 +22158,55 @@ self.onmessage = function (e) {
         return void 0;
       }
     }
+    async function eval_pending_samples(log_file, etag) {
+      const response = await vscodeClient(kMethodPendingSamples, [log_file, etag]);
+      if (response) {
+        console.log({ response });
+        if (response === kNotModifiedSignal) {
+          return {
+            status: "NotModified"
+          };
+        } else if (response === kNotFoundSignal) {
+          return {
+            status: "NotFound"
+          };
+        }
+        const json = lib$1.parse(response);
+        return {
+          status: "OK",
+          pendingSamples: json
+        };
+      } else {
+        throw new Error(`Unable to load pending samples ${log_file}.`);
+      }
+    }
+    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
+      const response = await vscodeClient(kMethodSampleData, [
+        log_file,
+        id,
+        epoch,
+        last_event,
+        last_attachment
+      ]);
+      if (response) {
+        if (response === kNotModifiedSignal) {
+          return {
+            status: "NotModified"
+          };
+        } else if (response === kNotFoundSignal) {
+          return {
+            status: "NotFound"
+          };
+        }
+        const json = lib$1.parse(response);
+        return {
+          status: "OK",
+          sampleData: json
+        };
+      } else {
+        throw new Error(`Unable to load live sample data ${log_file}.`);
+      }
+    }
     async function download_file() {
       throw Error("Downloading files is not supported in VS Code");
     }
@@ -22174,7 +22227,9 @@ self.onmessage = function (e) {
       eval_log_bytes,
       eval_log_headers,
       download_file,
-      open_log_file
+      open_log_file,
+      eval_pending_samples,
+      eval_log_sample_data
     };
     class AsyncQueue {
       constructor(concurrentLimit = 6) {
@@ -25890,14 +25945,24 @@ self.onmessage = function (e) {
     const getEnabledNamespaces = () => {
       return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
     };
-    new Set(getEnabledNamespaces());
+    const ENABLED_NAMESPACES = new Set(getEnabledNamespaces());
+    const filterNameSpace = (namespace) => {
+      if (ENABLED_NAMESPACES.has("*")) return true;
+      return ENABLED_NAMESPACES.has(namespace);
+    };
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
+          if (filterNameSpace(namespace))
+            console.debug(`[${namespace}] ${message2}`, ...args);
         },
         info: (message2, ...args) => {
+          if (filterNameSpace(namespace))
+            console.info(`[${namespace}] ${message2}`, ...args);
         },
         warn: (message2, ...args) => {
+          if (filterNameSpace(namespace))
+            console.warn(`[${namespace}] ${message2}`, ...args);
         },
         // Always log errors, even in production
         error: (message2, ...args) => {
@@ -25905,6 +25970,8 @@ self.onmessage = function (e) {
         },
         // Lazy evaluation for expensive logs
         debugIf: (fn2) => {
+          if (filterNameSpace(namespace))
+            console.debug(`[${namespace}] ${fn2()}`);
         }
       };
       return logger;
@@ -26118,6 +26185,7 @@ self.onmessage = function (e) {
           clearTimeout(timeoutId);
           timeoutId = null;
         }
+        log2.debug("Stop Polling");
         isPolling = false;
         isStopped = true;
       };
@@ -26141,6 +26209,7 @@ self.onmessage = function (e) {
           if (!isPolling || isStopped) {
             return;
           }
+          log2.debug("Polling error occurred", e);
           retryCount += 1;
           if (retryCount >= maxRetries) {
             stop();
@@ -26149,6 +26218,9 @@ self.onmessage = function (e) {
             );
           }
           const backoffTime = calculateBackoff(retryCount);
+          log2.debug(
+            `Retry ${retryCount}/${maxRetries}, backoff: ${backoffTime / 1e3}s`
+          );
           timeoutId = setTimeout(poll, backoffTime);
         }
       };
@@ -26156,13 +26228,14 @@ self.onmessage = function (e) {
         if (isPolling) {
           return;
         }
+        log2.debug("Start Polling");
         isPolling = true;
         isStopped = false;
         poll();
       };
       return { name: name2, start, stop };
     };
-    const log$5 = createLogger("logPolling");
+    const log$8 = createLogger("logPolling");
     const kRetries = 10;
     const kPollingInterval$1 = 2;
     function createLogPolling(get2, set2) {
@@ -26178,18 +26251,19 @@ self.onmessage = function (e) {
         if (!api2 || !selectedLogFile) {
           return false;
         }
+        log$8.debug(`refresh: ${selectedLogFile}`);
         try {
           const logContents = await api2.get_log_summary(selectedLogFile);
           set2((state2) => {
             state2.log.selectedLogSummary = logContents;
-            log$5.debug(
+            log$8.debug(
               `Setting refreshed summary ${logContents.sampleSummaries.length} samples`,
               logContents
             );
             if (clearPending) {
               const pendingSampleSummaries = state2.log.pendingSampleSummaries;
               if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
-                log$5.debug(
+                log$8.debug(
                   `Clearing pending summaries during refresh for: ${logFileName}`
                 );
                 state2.log.pendingSampleSummaries = {
@@ -26201,7 +26275,7 @@ self.onmessage = function (e) {
           });
           return true;
         } catch (error2) {
-          log$5.error("Error refreshing log:", error2);
+          log$8.error("Error refreshing log:", error2);
           return false;
         }
       };
@@ -26216,7 +26290,7 @@ self.onmessage = function (e) {
           async () => {
             var _a3;
             if (abortController.signal.aborted) {
-              log$5.debug(`Component unmounted, stopping poll for: ${logFileName}`);
+              log$8.debug(`Component unmounted, stopping poll for: ${logFileName}`);
               return false;
             }
             const state = get2();
@@ -26227,12 +26301,13 @@ self.onmessage = function (e) {
             if (abortController.signal.aborted) {
               return false;
             }
-            log$5.debug(`Polling running samples: ${logFileName}`);
+            log$8.debug(`Polling running samples: ${logFileName}`);
             const currentEtag = (_a3 = get2().log.pendingSampleSummaries) == null ? void 0 : _a3.etag;
             const pendingSamples = await api2.get_log_pending_samples(
               logFileName,
               currentEtag
             );
+            log$8.debug(`Received pending samples`, pendingSamples);
             if (abortController.signal.aborted) {
               return false;
             }
@@ -26243,7 +26318,7 @@ self.onmessage = function (e) {
               await refreshLog(logFileName, false);
               return true;
             } else if (pendingSamples.status === "NotFound") {
-              log$5.debug(`Stop polling running samples: ${logFileName}`);
+              log$8.debug(`Stop polling running samples: ${logFileName}`);
               await refreshLog(logFileName, true);
               return false;
             }
@@ -26262,6 +26337,7 @@ self.onmessage = function (e) {
         }
         const pendingSampleSummaries = get2().log.pendingSampleSummaries;
         if (((pendingSampleSummaries == null ? void 0 : pendingSampleSummaries.samples.length) || 0) > 0) {
+          log$8.debug(`Clear pending: ${logFileName}`);
           return refreshLog(logFileName, true);
         }
         return false;
@@ -26273,6 +26349,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
+        log$8.debug(`Cleanup`);
         abortController.abort();
         stopPolling();
       };
@@ -26285,7 +26362,7 @@ self.onmessage = function (e) {
         refreshLog: (clearPending = false) => refreshLog(get2().logsActions.getSelectedLogFile() || "", clearPending)
       };
     }
-    const log$4 = createLogger("logSlice");
+    const log$7 = createLogger("logSlice");
     const initialState$2 = {
       // Log state
       selectedSampleIndex: -1,
@@ -26348,6 +26425,7 @@ self.onmessage = function (e) {
               console.error("API not initialized in Store");
               return;
             }
+            log$7.debug(`Load log: ${logFileName}`);
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
@@ -26369,7 +26447,7 @@ self.onmessage = function (e) {
               }), // Start polling for pending samples
               logPolling.startPolling(logFileName);
             } catch (error2) {
-              log$4.error("Error loading log:", error2);
+              log$7.error("Error loading log:", error2);
             }
           },
           refreshLog: async () => {
@@ -26379,11 +26457,12 @@ self.onmessage = function (e) {
             if (!api2 || !selectedLogFile) {
               return;
             }
+            log$7.debug(`refresh: ${selectedLogFile}`);
             try {
               const logContents = await api2.get_log_summary(selectedLogFile);
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
-              log$4.error("Error refreshing log:", error2);
+              log$7.error("Error refreshing log:", error2);
             }
           }
         }
@@ -26400,7 +26479,7 @@ self.onmessage = function (e) {
         }
       });
     };
-    const log$3 = createLogger("logsPolling");
+    const log$6 = createLogger("logsPolling");
     function createLogsPolling(get2, _set) {
       let currentPolling = null;
       let isActive = true;
@@ -26413,6 +26492,7 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         isActive = true;
+        log$6.debug("LOADING HEADERS");
         get2().logsActions.setHeadersLoading(true);
         const chunkSize = 8;
         const fileLists = [];
@@ -26428,10 +26508,10 @@ self.onmessage = function (e) {
               get2().logsActions.setHeadersLoading(false);
               return false;
             }
-            log$3.debug(`POLL HEADERS`);
+            log$6.debug(`POLL HEADERS`);
             const currentFileList = fileLists.shift();
             if (currentFileList) {
-              log$3.debug(
+              log$6.debug(
                 `LOADING ${totalLen - fileLists.length} of ${totalLen} CHUNKS`
               );
               const headers = await api2.get_log_headers(currentFileList);
@@ -26465,6 +26545,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
+        log$6.debug(`CLEANUP`);
         isActive = false;
         stopPolling();
       };
@@ -26474,7 +26555,7 @@ self.onmessage = function (e) {
         cleanup
       };
     }
-    const log$2 = createLogger("Log Slice");
+    const log$5 = createLogger("Log Slice");
     const initialState$1 = {
       logs: { log_dir: "", files: [] },
       logHeaders: {},
@@ -26532,7 +26613,7 @@ self.onmessage = function (e) {
               return { log_dir: "", files: [] };
             }
             try {
-              log$2.debug("LOADING LOG FILES");
+              log$5.debug("LOADING LOG FILES");
               return await api2.get_log_paths();
             } catch (e) {
               console.log(e);
@@ -26541,6 +26622,7 @@ self.onmessage = function (e) {
             }
           },
           refreshLogs: async () => {
+            log$5.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
             state.logsActions.setLogs(refreshedLogs || { log_dir: "", files: [] });
@@ -26647,7 +26729,7 @@ self.onmessage = function (e) {
       sample2.attachments = {};
       return sample2;
     };
-    const log$1 = createLogger("samplePolling");
+    const log$4 = createLogger("samplePolling");
     const kNoId = -1;
     const kPollingInterval = 2;
     const kPollingMaxRetries = 10;
@@ -26663,10 +26745,13 @@ self.onmessage = function (e) {
       };
       const startPolling = (logFile, summary2) => {
         const pollingId = `${logFile}:${summary2.id}-${summary2.epoch}`;
+        log$4.debug(`Start Polling ${pollingId}`);
         if (currentPolling && currentPolling.name === pollingId) {
+          log$4.debug(`Aleady polling, ignoring start`);
           return;
         }
         if (currentPolling) {
+          log$4.debug(`Resetting existing polling`);
           currentPolling.stop();
           set2((state) => {
             state.sample.runningEvents = [];
@@ -26674,7 +26759,7 @@ self.onmessage = function (e) {
           resetPollingState(pollingState);
         }
         abortController = new AbortController();
-        log$1.debug(`Polling sample: ${summary2.id}-${summary2.epoch}`);
+        log$4.debug(`Polling sample: ${summary2.id}-${summary2.epoch}`);
         const pollCallback = async () => {
           const state = get2();
           const api2 = state.api;
@@ -26703,7 +26788,7 @@ self.onmessage = function (e) {
             stopPolling();
             if (state.sample.runningEvents.length > 0) {
               try {
-                log$1.debug(
+                log$4.debug(
                   `LOADING COMPLETED SAMPLE AFTER FLUSH: ${summary2.id}-${summary2.epoch}`
                 );
                 const sample2 = await api2.get_log_sample(
@@ -26752,6 +26837,7 @@ self.onmessage = function (e) {
                   sampleDataResponse.sampleData.attachments,
                   pollingState.attachmentId
                 );
+                log$4.debug(`New max attachment ${maxAttachment}`);
                 pollingState.attachmentId = maxAttachment;
               }
               if (sampleDataResponse.sampleData.events.length > 0) {
@@ -26759,6 +26845,7 @@ self.onmessage = function (e) {
                   sampleDataResponse.sampleData.events,
                   pollingState.eventId
                 );
+                log$4.debug(`New max event ${maxEvent}`);
                 pollingState.eventId = maxEvent;
               }
               if (processedEvents) {
@@ -26784,6 +26871,7 @@ self.onmessage = function (e) {
         }
       };
       const cleanup = () => {
+        log$4.debug(`CLEANUP`);
         abortController.abort();
         stopPolling();
       };
@@ -26801,13 +26889,13 @@ self.onmessage = function (e) {
       state.events = [];
     };
     function processAttachments(sampleData, pollingState) {
-      log$1.debug(`Processing ${sampleData.attachments.length} attachments`);
+      log$4.debug(`Processing ${sampleData.attachments.length} attachments`);
       Object.values(sampleData.attachments).forEach((v) => {
         pollingState.attachments[v.hash] = v.content;
       });
     }
     function processEvents(sampleData, pollingState) {
-      log$1.debug(`Processing ${sampleData.events.length} events`);
+      log$4.debug(`Processing ${sampleData.events.length} events`);
       if (sampleData.events.length === 0) {
         return false;
       }
@@ -26818,9 +26906,10 @@ self.onmessage = function (e) {
           pollingState.attachments
         );
         if (existingIndex) {
+          log$4.debug(`Replace event ${existingIndex}`);
           pollingState.events[existingIndex] = resolvedEvent;
         } else {
-          log$1.debug(`New event ${pollingState.events.length}`);
+          log$4.debug(`New event ${pollingState.events.length}`);
           const currentIndex = pollingState.events.length;
           pollingState.eventMapping[eventData.event_id] = currentIndex;
           pollingState.events.push(resolvedEvent);
@@ -26835,7 +26924,7 @@ self.onmessage = function (e) {
       }
       return currentMax;
     };
-    const log = createLogger("sampleSlice");
+    const log$3 = createLogger("sampleSlice");
     const initialState = {
       selectedSample: void 0,
       sampleStatus: "ok",
@@ -26873,7 +26962,7 @@ self.onmessage = function (e) {
             sampleActions.setSampleStatus("loading");
             try {
               if (sampleSummary.completed !== false) {
-                log.debug(
+                log$3.debug(
                   `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
@@ -26892,7 +26981,7 @@ self.onmessage = function (e) {
                   );
                 }
               } else {
-                log.debug(
+                log$3.debug(
                   `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 samplePolling.startPolling(logFile, sampleSummary);
@@ -26917,6 +27006,7 @@ self.onmessage = function (e) {
         }
       });
     };
+    const log$2 = createLogger("store");
     let storeImplementation = null;
     const useStore = (selector) => {
       if (!storeImplementation) {
@@ -26994,6 +27084,12 @@ self.onmessage = function (e) {
               version: 1,
               onRehydrateStorage: (state) => {
                 return (hydrationState, error2) => {
+                  log$2.debug("REHYDRATING STATE");
+                  if (error2) {
+                    log$2.debug("ERROR", { error: error2 });
+                  } else {
+                    log$2.debug("STATE", { state, hydrationState });
+                  }
                 };
               }
             }
@@ -40249,6 +40345,7 @@ categories: ${categories.join(" ")}`;
       });
       return [...logSamples, ...uniquePendingSamples];
     };
+    const log$1 = createLogger("hooks");
     const useSampleSummaries = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const pendingSampleSummaries = useStore(
@@ -40394,6 +40491,7 @@ categories: ${categories.join(" ")}`;
       const setCollapsed = useStore((state) => state.appActions.setCollapsed);
       return reactExports.useMemo(() => {
         const set2 = (value2) => {
+          log$1.debug("Set collapsed", id, value2);
           setCollapsed(id, value2);
         };
         return [collapsed, set2];
@@ -40416,6 +40514,7 @@ categories: ${categories.join(" ")}`;
           isFirstRender.current = false;
           return;
         }
+        log$1.debug("clear message (eval)", id);
         clearVisible(id);
       }, [selectedLogFile, clearVisible, id]);
       const selectedSampleIndex = useStore(
@@ -40426,11 +40525,14 @@ categories: ${categories.join(" ")}`;
           return;
         }
         if (scope === "sample") {
+          log$1.debug("clear message (sample)", id);
           clearVisible(id);
         }
       }, [selectedSampleIndex, clearVisible, id, scope]);
       return reactExports.useMemo(() => {
+        log$1.debug("visibility", id, visible2);
         const set2 = (visible22) => {
+          log$1.debug("set visiblity", id);
           setVisible(id, visible22);
         };
         return [visible2, set2];
@@ -60921,7 +61023,7 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/sample-filter/SampleFilter.tsx",
-            lineNumber: 274,
+            lineNumber: 277,
             columnNumber: 7
           },
           void 0
@@ -60939,7 +61041,7 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/sample-filter/SampleFilter.tsx",
-            lineNumber: 285,
+            lineNumber: 288,
             columnNumber: 7
           },
           void 0
@@ -60955,14 +61057,14 @@ Supported expressions:
           false,
           {
             fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/sample-filter/SampleFilter.tsx",
-            lineNumber: 292,
+            lineNumber: 295,
             columnNumber: 7
           },
           void 0
         )
       ] }, void 0, true, {
         fileName: "/Users/charlesteague/Development/ukgovernmentbeis/inspect_ai/src/inspect_ai/_view/www/src/samples/sample-tools/sample-filter/SampleFilter.tsx",
-        lineNumber: 273,
+        lineNumber: 276,
         columnNumber: 5
       }, void 0);
     };
@@ -61411,6 +61513,7 @@ Supported expressions:
         return result2;
       };
     }
+    const log = createLogger("scrolling");
     function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
       const getScrollPosition = useStore(
         (state) => state.appActions.getScrollPosition
@@ -61422,6 +61525,7 @@ Supported expressions:
         debounce$1((e) => {
           const target2 = e.target;
           const position = target2.scrollTop;
+          log.debug(`Storing scroll position`, elementKey, position);
           setScrollPosition(elementKey, position);
         }, delay),
         [elementKey, setScrollPosition, delay]
@@ -61445,8 +61549,10 @@ Supported expressions:
         if (!element || !scrollable2) {
           return;
         }
+        log.debug(`Restore Scroll Hook`, elementKey);
         const savedPosition = getScrollPosition(elementKey);
         if (savedPosition !== void 0) {
+          log.debug(`Restoring scroll position`, savedPosition);
           requestAnimationFrame(() => {
             if (element.scrollTop !== savedPosition) {
               element.scrollTop = savedPosition;
@@ -61455,10 +61561,14 @@ Supported expressions:
         }
         if (element.addEventListener) {
           element.addEventListener("scroll", handleScroll);
+        } else {
+          log.warn("Element has no way to add event listener", element);
         }
         return () => {
           if (element.removeEventListener) {
             element.removeEventListener("scroll", handleScroll);
+          } else {
+            log.warn("Element has no way to remove event listener", element);
           }
         };
       }, [elementKey, elementRef, handleScroll]);
@@ -61477,12 +61587,14 @@ Supported expressions:
       const debouncedFnRef = reactExports.useRef(null);
       const handleStateChange = reactExports.useCallback(
         (state) => {
+          log.debug(`Storing list state: [${elementKey}]`, state);
           setListPosition(elementKey, state);
         },
         [elementKey, setListPosition]
       );
       reactExports.useEffect(() => {
         debouncedFnRef.current = debounce$1((isScrolling2) => {
+          log.debug("List scroll", isScrolling2);
           const element = virtuosoRef.current;
           if (!element) {
             return;
