@@ -14314,7 +14314,6 @@ self.onmessage = function (e) {
     async function eval_pending_samples(log_file, etag) {
       const response = await vscodeClient(kMethodPendingSamples, [log_file, etag]);
       if (response) {
-        console.log({ response });
         if (response === kNotModifiedSignal) {
           return {
             status: "NotModified"
@@ -14324,7 +14323,7 @@ self.onmessage = function (e) {
             status: "NotFound"
           };
         }
-        const json = lib$1.parse(response);
+        const json = await asyncJsonParse(response);
         return {
           status: "OK",
           pendingSamples: json
@@ -14351,7 +14350,7 @@ self.onmessage = function (e) {
             status: "NotFound"
           };
         }
-        const json = lib$1.parse(response);
+        const json = await asyncJsonParse(response);
         return {
           status: "OK",
           sampleData: json
