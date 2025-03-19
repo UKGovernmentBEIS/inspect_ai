@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Awaitable, Callable, TypeAlias
 
 from inspect_ai.agent._agent import Agent
 from inspect_ai.model._chat_message import ChatMessage
@@ -6,12 +6,15 @@ from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
+HandoffFilter: TypeAlias = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
+"""Function used for filtering agent input and output messages."""
+
 
 def handoff(
     agent: Agent,
     tool_name: str | None = None,
     tool_description: str | None = None,
-    input_filter: Callable[[list[ChatMessage]], list[ChatMessage]] | None = None,
+    input_filter: HandoffFilter | None = None,
 ) -> Tool:
     """Create a tool that enables models to handoff to agents and solvers.
 
@@ -42,7 +45,7 @@ class AgentTool(Tool):
     def __init__(
         self,
         agent: Agent,
-        input_filter: Callable[[list[ChatMessage]], list[ChatMessage]] | None = None,
+        input_filter: HandoffFilter | None = None,
     ):
         self.agent = agent
         self.input_filter = input_filter
