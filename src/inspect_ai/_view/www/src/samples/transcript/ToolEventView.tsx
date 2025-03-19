@@ -6,7 +6,9 @@ import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptView } from "./TranscriptView";
 
+import clsx from "clsx";
 import { FC, useMemo } from "react";
+import { PulsingDots } from "../../components/PulsingDots";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 
@@ -45,7 +47,6 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
       className={className}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
-      running={!!event.pending}
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView
@@ -65,6 +66,11 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
         ) : (
           ""
         )}
+        {event.pending ? (
+          <div className={clsx(styles.progress)}>
+            <PulsingDots subtle={false} size="medium" />
+          </div>
+        ) : undefined}
       </div>
       {event.events.length > 0 ? (
         <TranscriptView

@@ -19322,7 +19322,7 @@ self.onmessage = function (e) {
     const sidebarOpen = "_sidebarOpen_1u82r_19";
     const header$2 = "_header_1u82r_23";
     const toggle$1 = "_toggle_1u82r_39";
-    const progress = "_progress_1u82r_46";
+    const progress$2 = "_progress_1u82r_46";
     const list$1 = "_list_1u82r_50";
     const backdrop = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
@@ -19333,7 +19333,7 @@ self.onmessage = function (e) {
       sidebarOpen,
       header: header$2,
       toggle: toggle$1,
-      progress,
+      progress: progress$2,
       list: list$1,
       backdrop,
       active,
@@ -56661,14 +56661,15 @@ Supported expressions:
         children2
       ] });
     };
-    const output = "_output_15urk_1";
-    const container$7 = "_container_15urk_5";
-    const all = "_all_15urk_10";
-    const tableSelection = "_tableSelection_15urk_16";
-    const tools$1 = "_tools_15urk_22";
-    const codePre = "_codePre_15urk_26";
-    const code$1 = "_code_15urk_26";
-    const toolConfig = "_toolConfig_15urk_38";
+    const output = "_output_1bdt9_1";
+    const container$7 = "_container_1bdt9_5";
+    const all = "_all_1bdt9_10";
+    const tableSelection = "_tableSelection_1bdt9_16";
+    const tools$1 = "_tools_1bdt9_22";
+    const codePre = "_codePre_1bdt9_26";
+    const code$1 = "_code_1bdt9_26";
+    const toolConfig = "_toolConfig_1bdt9_38";
+    const progress$1 = "_progress_1bdt9_45";
     const styles$x = {
       output,
       container: container$7,
@@ -56677,7 +56678,8 @@ Supported expressions:
       tools: tools$1,
       codePre,
       code: code$1,
-      toolConfig
+      toolConfig,
+      progress: progress$1
     };
     const wrapper$2 = "_wrapper_45f60_1";
     const col2$1 = "_col2_45f60_8";
@@ -56824,18 +56826,20 @@ Supported expressions:
           title: formatTitle(`Model Call: ${event.model}`, totalUsage, callTime),
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.model,
-          running: !!event.pending,
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: styles$x.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              ChatView,
-              {
-                id: `${id}-model-output`,
-                messages: [...userMessages, ...outputMessages || []],
-                className: clsx(styles$x.output),
-                numbered: false,
-                toolCallStyle: "compact"
-              }
-            ) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$x.container, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ChatView,
+                {
+                  id: `${id}-model-output`,
+                  messages: [...userMessages, ...outputMessages || []],
+                  className: clsx(styles$x.output),
+                  numbered: false,
+                  toolCallStyle: "compact"
+                }
+              ),
+              event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$x.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
+            ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$x.container, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$x.all, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Configuration", className: styles$x.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true }) }),
@@ -64553,7 +64557,6 @@ ${events}
           ),
           subTitle: formatTiming(event.timestamp, event.working_start),
           collapse: false,
-          running: !!event.pending,
           children: body2
         }
       );
@@ -64587,11 +64590,13 @@ ${events}
     const None = () => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", "text-style-secondary"), children: "[None]" });
     };
-    const summary = "_summary_1qkjz_1";
-    const approval = "_approval_1qkjz_6";
+    const summary = "_summary_1qsnv_1";
+    const approval = "_approval_1qsnv_6";
+    const progress = "_progress_1qsnv_12";
     const styles$o = {
       summary,
-      approval
+      approval,
+      progress
     };
     const ToolEventView = ({
       id,
@@ -64616,7 +64621,6 @@ ${events}
           className: className2,
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.solvers.use_tools,
-          running: !!event.pending,
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$o.summary, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64637,7 +64641,8 @@ ${events}
                   event: approvalEvent,
                   className: styles$o.approval
                 }
-              ) : ""
+              ) : "",
+              event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
             ] }),
             event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               TranscriptView,
