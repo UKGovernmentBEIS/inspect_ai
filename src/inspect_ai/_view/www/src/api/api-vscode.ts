@@ -93,7 +93,6 @@ async function eval_pending_samples(
   // TODO: use web worked to parse when possible
   const response = await vscodeClient(kMethodPendingSamples, [log_file, etag]);
   if (response) {
-    console.log({ response });
     if (response === kNotModifiedSignal) {
       return {
         status: "NotModified",
@@ -104,7 +103,7 @@ async function eval_pending_samples(
       };
     }
 
-    const json = JSON5.parse(response);
+    const json = await asyncJsonParse(response);
     return {
       status: "OK",
       pendingSamples: json,
@@ -138,7 +137,7 @@ async function eval_log_sample_data(
         status: "NotFound",
       };
     }
-    const json = JSON5.parse(response);
+    const json = await asyncJsonParse(response);
     return {
       status: "OK",
       sampleData: json,
