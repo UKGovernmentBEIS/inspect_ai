@@ -7,7 +7,7 @@ from inspect_ai._util.registry import (
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool, ToolResult, tool
-from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
 
@@ -47,8 +47,9 @@ def as_tool(agent: Agent) -> Tool:
         else:
             return ""
 
-    # get tool_info
+    # get tool_info and name
     tool_info = parse_tool_info(agent)
+    tool_info.name = registry_unqualified_name(agent)
 
     # remove "state" and replace with "input"
     del tool_info.parameters.properties["state"]
@@ -58,10 +59,19 @@ def as_tool(agent: Agent) -> Tool:
     tool_info.parameters.required.remove("state")
     tool_info.parameters.required.append("input")
 
+    # confirm that we have descriptions for the tool and parameters
+    if len(tool_info.description) == 0:
+        raise ValueError(
+            f"Description not provided for agent function '{tool_info.name}'"
+        )
+
+    # validate parameter descriptions and types
+    validate_tool_parameters(tool_info.name, tool_info.parameters.properties)
+
     # create tool
     tool_def = ToolDef(
         execute,
-        name=registry_unqualified_name(agent),
+        name=tool_info.name,
         description=tool_info.description,
         parameters=tool_info.parameters,
     )

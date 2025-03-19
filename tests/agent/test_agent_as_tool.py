@@ -1,3 +1,4 @@
+import pytest
 from inspect_ai.agent import Agent, AgentState, agent, as_tool
 from inspect_ai.tool import ToolDef
 
@@ -11,7 +12,31 @@ def web_surfer() -> Agent:
             state: Input state (conversation)
             max_searches: Maximum number of web searches to conduct
 
-        Retruns:
+        Returns:
+            Ouput state (additions to conversation)
+        """
+        return state
+
+    return execute
+
+
+@agent
+def web_surfer_no_docs() -> Agent:
+    async def execute(state: AgentState, max_searches: int = 3) -> AgentState:
+        return state
+
+    return execute
+
+
+@agent
+def web_surfer_no_param_docs() -> Agent:
+    async def execute(state: AgentState, max_searches: int = 3) -> AgentState:  # noqa: D417
+        """Web surfer for conducting web research into a topic.
+
+        Args:
+            state: Input state (conversation)
+
+        Returns:
             Ouput state (additions to conversation)
         """
         return state
@@ -29,3 +54,13 @@ def test_agent_as_tool():
     assert len(tool_def.parameters.properties) == 2
     assert "input" in tool_def.parameters.properties
     assert "max_searches" in tool_def.parameters.properties
+
+
+def test_agent_as_tool_no_docs_error():
+    with pytest.raises(ValueError, match="Description not provided"):
+        as_tool(web_surfer_no_docs())
+
+
+def test_agent_as_tool_no_param_docs_error():
+    with pytest.raises(ValueError, match="provided for parameter"):
+        as_tool(web_surfer_no_param_docs())
