@@ -79,7 +79,7 @@ async def with_validated_rpc_method_params(
                 # so that this info will be included in the eval log. This will still
                 # fail the eval since it represents an inspect coding error.
                 return jsonrpcserver.Error(
-                    code=-32603, message=str(e), data=traceback.format_exc()
+                    code=-32603, message=repr(e), data=traceback.format_exc()
                 )
         case _:
             return jsonrpcserver.Error(
