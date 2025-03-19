@@ -1,19 +1,17 @@
 from pydantic import BaseModel
 
-from inspect_tool_support._remote_tools._bash_session.controller import (
-    BashSessionController,
-)
-from inspect_tool_support._remote_tools._bash_session.tool_types import (
-    BashCommandResult,
+from ..._util.json_rpc_helpers import validated_json_rpc_method
+from ._controller import Controller
+from .tool_types import (
     BashParams,
     BashRestartResult,
-    CommandParams,
+    InteractParams,
+    InteractResult,
     NewSessionResult,
     RestartParams,
 )
-from inspect_tool_support._util._json_rpc_helpers import validated_json_rpc_method
 
-controller = BashSessionController()
+controller = Controller()
 
 
 # TODO: I need to refactor this code so that I can support no parameters. For now, we have a dummy model
@@ -27,9 +25,13 @@ async def bash_session_new_session(params: NoParams) -> NewSessionResult:
 
 
 @validated_json_rpc_method(BashParams)
-async def bash_session(params: BashParams) -> BashCommandResult | BashRestartResult:
+async def bash_session(
+    params: BashParams,
+) -> InteractResult | BashRestartResult:
     match params.root:
-        case CommandParams(session_name=session_name, command=command):
-            return await controller.execute_command(session_name, command)
+        case InteractParams(
+            session_name=session_name, input=input_text, wait_for_output=wait_for_output
+        ):
+            return await controller.interact(session_name, input_text, wait_for_output)
         case RestartParams(session_name=session_name):
             return await controller.restart(session_name)

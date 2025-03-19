@@ -29,7 +29,7 @@ async def exec_scalar_request(
     method: str,
     params: JSONRPCParamsType,
     result_type: Type[ScalarT],
-    timeout: int | None = None,
+    timeout: int,
     user: str | None = None,
 ) -> ScalarT:
     return await scalar_request(
@@ -45,7 +45,7 @@ async def exec_model_request(
     method: str,
     params: JSONRPCParamsType,
     result_type: Type[BaseModelT],
-    timeout: int | None = None,
+    timeout: int,
     user: str | None = None,
 ) -> BaseModelT:
     return await model_request(
@@ -60,7 +60,7 @@ async def exec_notification(
     sandbox: SandboxEnvironment,
     method: str,
     params: JSONRPCParamsType,
-    timeout: int | None = None,
+    timeout: int,
     user: str | None = None,
 ) -> None:
     return await notification_helper(
@@ -70,17 +70,17 @@ async def exec_notification(
 
 class ToolSupportSandboxTransport(JSONRPCTransport):
     """
-    A transport callable that uses a sandbox for RPC communication.
+    A transport that uses a sandbox for RPC communication.
 
-    This class implements the TransportCallable protocol and encapsulates
-    the sandbox, timeout, and user parameters needed for sandbox-based
-    RPC communication.
+    This class implements the TransportCallable protocol and encapsulates the
+    sandbox, timeout, and user parameters needed for sandbox-based RPC
+    communication.
     """
 
     def __init__(
         self,
         sandbox: SandboxEnvironment,
-        timeout: int | None = None,
+        timeout: int,
         user: str | None = None,
     ):
         """
@@ -160,7 +160,7 @@ async def tool_container_sandbox(
 
 
 def create_sandbox_transport(
-    sandbox: SandboxEnvironment, timeout: int | None = None, user: str | None = None
+    sandbox: SandboxEnvironment, timeout: int, user: str | None = None
 ) -> JSONRPCTransport:
     """
     Create a transport callable that uses a sandbox for RPC communication.

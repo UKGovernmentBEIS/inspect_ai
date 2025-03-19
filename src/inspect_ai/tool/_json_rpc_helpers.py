@@ -276,10 +276,20 @@ def create_json_rpc_request(
     is_notification: bool,
 ) -> str:
     return json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "method": method,
-            **({"params": params} if params else {}),
-            **({"id": next(id_generator)} if not is_notification else {}),
-        }
+        remove_none_values(
+            {
+                "jsonrpc": "2.0",
+                "method": method,
+                **({"params": params} if params else {}),
+                **({"id": next(id_generator)} if not is_notification else {}),
+            }
+        )
     )
+
+
+def remove_none_values(obj: object) -> object:
+    if isinstance(obj, dict):
+        return {k: remove_none_values(v) for k, v in obj.items() if v is not None}
+    elif isinstance(obj, list):
+        return [remove_none_values(item) for item in obj if item is not None]
+    return obj

@@ -70,12 +70,13 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
     that a change made to a file by on Subtask will be visible to another Subtask.
 
     Args:
-      timeout: Timeout (in seconds) for command.
+      timeout: Timeout (in seconds) for command. Defaults to 180 if not provided.
       user: User to execute commands as.
 
     Returns:
       String with command output (stdout) or command error (stderr).
     """
+    timeout = timeout or 180
 
     async def execute(
         command: Literal["view", "create", "str_replace", "insert", "undo_edit"],
