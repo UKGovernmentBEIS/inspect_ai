@@ -22,12 +22,16 @@ def as_tool(agent: Agent) -> Tool:
     """
 
     async def execute(input: str, *args: Any, **kwargs: Any) -> ToolResult:
+        # prepare state and call agent
         state = AgentState(
             messages=[ChatMessageUser(content=input)], output=ModelOutput()
         )
-        # TODO: we should read the output from ModelOutput
         state = await agent(state, *args, **kwargs)
-        if len(state.messages) > 0 and isinstance(
+
+        # find assistant message to read content from (prefer output)
+        if not state.output.empty:
+            return state.output.message.content
+        elif len(state.messages) > 0 and isinstance(
             state.messages[-1], ChatMessageAssistant
         ):
             return state.messages[-1].content
