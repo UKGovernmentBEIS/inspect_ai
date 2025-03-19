@@ -135,6 +135,18 @@ class BashProcess:
                 break
 
             line_str = line.decode("utf-8")
+
+            # TODO: Temporary bug fix hack. Another PR is changing this to no longer
+            # be line oriented
+            if stdout and self._current_marker and self._current_marker in line_str:
+                # if the process did not include a trailing \n in their output, the
+                # line with the marker will be prefixed by whatever the last process
+                # output was. This code will essentially break the line before the marker
+                parts = line_str.split(self._current_marker)
+                if len(parts) == 2:
+                    data.append(parts[0])
+                    line_str = self._current_marker
+
             data.append(line_str)
 
             # Check if line contains our marker indicating command completion
