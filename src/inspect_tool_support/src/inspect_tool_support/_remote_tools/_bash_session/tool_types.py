@@ -28,6 +28,6 @@ class BashRestartResult(BaseModel):
 
 
 class BashCommandResult(BaseModel):
-    status: int
+    status: int | None  # Technically, this is a breaking change. Think this through.
     stdout: str
     stderr: str
