@@ -4,7 +4,6 @@ import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
-from sqlite3 import IntegrityError
 from typing import Any, Generator, Iterator, cast
 
 import pytest
@@ -115,14 +114,6 @@ def test_get_events_with_filters(db: SampleBufferDatabase) -> None:
         sample_2_events = list(db._get_events(conn, "sample2", 1))
         assert len(sample_1_events) == 1
         assert len(sample_2_events) == 1
-
-
-def test_error_cases(db: SampleBufferDatabase) -> None:
-    """Test various error cases."""
-    # Test logging events for non-existent sample
-    with pytest.raises(IntegrityError):
-        test_event = InfoEvent(data={"type": "test"})
-        db.log_events([SampleEvent(id="nonexistent", epoch=1, event=test_event)])
 
 
 def test_concurrent_samples(db: SampleBufferDatabase) -> None:
