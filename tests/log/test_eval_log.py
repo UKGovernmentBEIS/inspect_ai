@@ -1,6 +1,7 @@
 import math
 import os
 import tempfile
+from datetime import UTC, datetime
 
 import pytest
 from pydantic_core import PydanticSerializationError
@@ -11,6 +12,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log
 from inspect_ai.log._file import read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import EvalLog
+from inspect_ai.log._transcript import SubtaskEvent
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -98,6 +100,20 @@ def test_log_location():
     check_log_location(json_log_file)
     eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
     check_log_location(eval_log_file)
+
+
+def test_can_round_trip_serialize_subtask_event():
+    # Note we set the timestamp to a timezone-aware datetime object because when
+    # serializing to JSON, the datetime is converted to a timezone-aware string.
+    # If we set the timestamp to a timezone-naive datetime object (default behaviour),
+    # the deserialized object will have a timezone-aware datetime object and the
+    # assert will fail.
+    original = SubtaskEvent(name="name", input={}, timestamp=datetime.now(UTC))
+
+    serialized = original.model_dump_json()
+    deserialized = SubtaskEvent.model_validate_json(serialized)
+
+    assert original == deserialized
 
 
 def check_log_location(log_file: str):
