@@ -1,4 +1,5 @@
-from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent import Agent, AgentState, agent, as_tool
+from inspect_ai.tool import ToolDef
 
 
 @agent
@@ -16,3 +17,15 @@ def web_surfer() -> Agent:
         return state
 
     return execute
+
+
+def test_agent_as_tool():
+    tool = as_tool(web_surfer())
+    tool_def = ToolDef(tool)
+    assert tool_def.name == "web_surfer"
+    assert (
+        tool_def.description == "Web surfer for conducting web research into a topic."
+    )
+    assert len(tool_def.parameters.properties) == 2
+    assert "input" in tool_def.parameters.properties
+    assert "max_searches" in tool_def.parameters.properties
