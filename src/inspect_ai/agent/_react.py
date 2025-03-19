@@ -1,7 +1,6 @@
 from logging import getLogger
-from typing import Awaitable, Callable, cast
+from typing import Awaitable, Callable
 
-from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._call_tools import execute_tools
@@ -52,7 +51,7 @@ def react(
     max_tool_output: int | None = None,
     score_value: ValueToFloat | None = None,
     incorrect_message: str
-    | Callable[[AgentState, list[Score]], str | Awaitable[str]]
+    | Callable[[AgentState, list[Score]], Awaitable[str]]
     | NotGiven = NOT_GIVEN,
     continue_message: str | NotGiven = NOT_GIVEN,
     submit_name: str | NotGiven = NOT_GIVEN,
@@ -201,13 +200,9 @@ def react(
 
                     # otherwise notify the model that it was incorrect and continue
                     else:
-                        if is_callable_coroutine(incorrect_message):
+                        if callable(incorrect_message):
                             response_message: str = await incorrect_message(
                                 state, answer_scores
-                            )  # type: ignore[misc,operator]
-                        elif callable(incorrect_message):
-                            response_message = cast(
-                                str, incorrect_message(state, answer_scores)
                             )
                         else:
                             response_message = incorrect_message
