@@ -19066,9 +19066,18 @@ self.onmessage = function (e) {
         devtools(
           persist(
             immer((set2, get2, store2) => {
-              const [appSlice, appCleanup] = createAppSlice(set2, get2);
-              const [logsSlice, logsCleanup] = createLogsSlice(set2, get2);
-              const [logSlice, logCleanup] = createLogSlice(set2, get2);
+              const [appSlice, appCleanup] = createAppSlice(
+                set2,
+                get2
+              );
+              const [logsSlice, logsCleanup] = createLogsSlice(
+                set2,
+                get2
+              );
+              const [logSlice, logCleanup] = createLogSlice(
+                set2,
+                get2
+              );
               const [sampleSlice, sampleCleanup] = createSampleSlice(
                 set2,
                 get2
@@ -19081,10 +19090,19 @@ self.onmessage = function (e) {
                   set2((state) => {
                     state.api = api22;
                   });
-                  initializeAppSlice(set2, capabilities22);
-                  initializeLogsSlice(set2);
-                  initalializeLogSlice(set2);
-                  initializeSampleSlice(set2);
+                  initializeAppSlice(
+                    set2,
+                    capabilities22
+                  );
+                  initializeLogsSlice(
+                    set2
+                  );
+                  initalializeLogSlice(
+                    set2
+                  );
+                  initializeSampleSlice(
+                    set2
+                  );
                 },
                 // Create the slices and merge them in
                 ...appSlice,

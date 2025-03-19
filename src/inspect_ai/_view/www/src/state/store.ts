@@ -72,11 +72,23 @@ export const initializeStore = (
     devtools(
       persist(
         immer((set, get, store) => {
-          const [appSlice, appCleanup] = createAppSlice(set, get, store);
-          const [logsSlice, logsCleanup] = createLogsSlice(set, get, store);
-          const [logSlice, logCleanup] = createLogSlice(set, get, store);
+          const [appSlice, appCleanup] = createAppSlice(
+            set as (fn: (state: StoreState) => void) => void,
+            get,
+            store,
+          );
+          const [logsSlice, logsCleanup] = createLogsSlice(
+            set as (fn: (state: StoreState) => void) => void,
+            get,
+            store,
+          );
+          const [logSlice, logCleanup] = createLogSlice(
+            set as (fn: (state: StoreState) => void) => void,
+            get,
+            store,
+          );
           const [sampleSlice, sampleCleanup] = createSampleSlice(
-            set,
+            set as (fn: (state: StoreState) => void) => void,
             get,
             store,
           );
@@ -92,10 +104,19 @@ export const initializeStore = (
               });
 
               // Initialize application slices
-              initializeAppSlice(set, capabilities);
-              initializeLogsSlice(set);
-              initalializeLogSlice(set);
-              initializeSampleSlice(set);
+              initializeAppSlice(
+                set as (fn: (state: StoreState) => void) => void,
+                capabilities,
+              );
+              initializeLogsSlice(
+                set as (fn: (state: StoreState) => void) => void,
+              );
+              initalializeLogSlice(
+                set as (fn: (state: StoreState) => void) => void,
+              );
+              initializeSampleSlice(
+                set as (fn: (state: StoreState) => void) => void,
+              );
             },
 
             // Create the slices and merge them in
@@ -141,6 +162,6 @@ export const initializeStore = (
   );
 
   // Set the implementation and initialize it
-  storeImplementation = store;
+  storeImplementation = store as UseBoundStore<StoreApi<StoreState>>;
   store.getState().initialize(api, capabilities);
 };
