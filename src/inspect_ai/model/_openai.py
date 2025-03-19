@@ -108,7 +108,8 @@ async def openai_chat_completion_part(
             image_url=dict(url=image_url, detail=detail),
         )
     elif content.type == "audio":
-        audio_data = await file_as_data_uri(content.audio)
+        audio_data_uri = await file_as_data_uri(content.audio)
+        audio_data = audio_data_uri.split("base64,")[1]
 
         return ChatCompletionContentPartInputAudioParam(
             type="input_audio", input_audio=dict(data=audio_data, format=content.format)
