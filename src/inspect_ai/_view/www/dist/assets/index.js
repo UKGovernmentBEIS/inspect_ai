@@ -12023,7 +12023,7 @@ self.onmessage = function (e) {
       }
       return (await api$2("GET", `/api/log-headers?${params2.toString()}`)).parsed;
     }
-    async function eval_pending_samples(log_file, etag) {
+    async function eval_pending_samples$1(log_file, etag) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
       const headers = {};
@@ -12058,7 +12058,7 @@ self.onmessage = function (e) {
       )).parsed;
       return result2;
     }
-    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
+    async function eval_log_sample_data$1(log_file, id, epoch, last_event, last_attachment) {
       const params2 = new URLSearchParams();
       params2.append("log", log_file);
       params2.append("id", String(id));
@@ -12192,8 +12192,8 @@ self.onmessage = function (e) {
       eval_log_headers: eval_log_headers$1,
       download_file: download_file$1,
       open_log_file: open_log_file$1,
-      eval_pending_samples,
-      eval_log_sample_data
+      eval_pending_samples: eval_pending_samples$1,
+      eval_log_sample_data: eval_log_sample_data$1
     };
     var ch2 = {};
     var wk = function(c2, id, msg, transfer, cb) {
@@ -14189,6 +14189,8 @@ self.onmessage = function (e) {
     const kMethodEvalLogSize = "eval_log_size";
     const kMethodEvalLogBytes = "eval_log_bytes";
     const kMethodEvalLogHeaders = "eval_log_headers";
+    const kMethodPendingSamples = "eval_log_pending_samples";
+    const kMethodSampleData = "eval_log_sample_data";
     const kJsonRpcVersion = "2.0";
     function webViewJsonRpcClient(vscode2) {
       const target2 = {
@@ -14256,6 +14258,8 @@ self.onmessage = function (e) {
       }
       return null;
     }
+    const kNotFoundSignal = "NotFound";
+    const kNotModifiedSignal = "NotModified";
     const vscodeClient = webViewJsonRpcClient(getVscodeApi());
     async function client_events() {
       return [];
@@ -14307,6 +14311,55 @@ self.onmessage = function (e) {
         return void 0;
       }
     }
+    async function eval_pending_samples(log_file, etag) {
+      const response = await vscodeClient(kMethodPendingSamples, [log_file, etag]);
+      if (response) {
+        console.log({ response });
+        if (response === kNotModifiedSignal) {
+          return {
+            status: "NotModified"
+          };
+        } else if (response === kNotFoundSignal) {
+          return {
+            status: "NotFound"
+          };
+        }
+        const json = lib$1.parse(response);
+        return {
+          status: "OK",
+          pendingSamples: json
+        };
+      } else {
+        throw new Error(`Unable to load pending samples ${log_file}.`);
+      }
+    }
+    async function eval_log_sample_data(log_file, id, epoch, last_event, last_attachment) {
+      const response = await vscodeClient(kMethodSampleData, [
+        log_file,
+        id,
+        epoch,
+        last_event,
+        last_attachment
+      ]);
+      if (response) {
+        if (response === kNotModifiedSignal) {
+          return {
+            status: "NotModified"
+          };
+        } else if (response === kNotFoundSignal) {
+          return {
+            status: "NotFound"
+          };
+        }
+        const json = lib$1.parse(response);
+        return {
+          status: "OK",
+          sampleData: json
+        };
+      } else {
+        throw new Error(`Unable to load live sample data ${log_file}.`);
+      }
+    }
     async function download_file() {
       throw Error("Downloading files is not supported in VS Code");
     }
@@ -14327,7 +14380,9 @@ self.onmessage = function (e) {
       eval_log_bytes,
       eval_log_headers,
       download_file,
-      open_log_file
+      open_log_file,
+      eval_pending_samples,
+      eval_log_sample_data
     };
     class AsyncQueue {
       constructor(concurrentLimit = 6) {
@@ -18184,6 +18239,7 @@ self.onmessage = function (e) {
           if (!isPolling || isStopped) {
             return;
           }
+          log2.debug("Polling error occurred", e);
           retryCount += 1;
           if (retryCount >= maxRetries) {
             stop();
@@ -18281,6 +18337,7 @@ self.onmessage = function (e) {
               logFileName,
               currentEtag
             );
+            log$8.debug(`Received pending samples`, pendingSamples);
             if (abortController.signal.aborted) {
               return false;
             }
