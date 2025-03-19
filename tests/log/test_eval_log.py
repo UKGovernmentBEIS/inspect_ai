@@ -1,7 +1,7 @@
 import math
 import os
 import tempfile
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import pytest
 from pydantic_core import PydanticSerializationError
@@ -108,7 +108,7 @@ def test_can_round_trip_serialize_subtask_event():
     # If we set the timestamp to a timezone-naive datetime object (default behaviour),
     # the deserialized object will have a timezone-aware datetime object and the
     # assert will fail.
-    original = SubtaskEvent(name="name", input={}, timestamp=datetime.now(UTC))
+    original = SubtaskEvent(name="name", input={}, timestamp=datetime.now(timezone.utc))
 
     serialized = original.model_dump_json()
     deserialized = SubtaskEvent.model_validate_json(serialized)
