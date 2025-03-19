@@ -19,6 +19,7 @@ import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
 import { highlightElement } from "prismjs";
+import { PulsingDots } from "../../components/PulsingDots";
 import styles from "./ModelEventView.module.css";
 import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming, formatTitle } from "./event/utils";
@@ -69,7 +70,6 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       title={formatTitle(`Model Call: ${event.model}`, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
-      running={!!event.pending}
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView
@@ -79,6 +79,11 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           numbered={false}
           toolCallStyle="compact"
         />
+        {event.pending ? (
+          <div className={clsx(styles.progress)}>
+            <PulsingDots subtle={false} size="medium" />
+          </div>
+        ) : undefined}
       </div>
       <div data-name="All" className={styles.container}>
         <div className={styles.all}>
