@@ -809,9 +809,7 @@ async def model_output_from_message(
                 ToolCall(
                     type="function",
                     id=content_block.id,
-                    function=_native_tool_name_mappings.get(
-                        content_block.name, content_block.name
-                    ),
+                    function=maybe_map_from_native_tool(content_block.name, tools),
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
@@ -859,6 +857,22 @@ async def model_output_from_message(
             reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
         ),
     )
+
+
+def maybe_map_from_native_tool(tool_called: str, tools: list[ToolInfo]) -> str:
+    # does this tool have a native tool mapping?
+    inspect_tool = _native_tool_name_mappings.get(tool_called, None)
+    if inspect_tool is not None:
+        # is the inspect tool actually in the list of available tools?
+        # (it might not be in the case where the native tool is 'bash'
+        # and we are actually targeting the original Inspect 'bash' tool
+        # rather than 'bash_session')
+        if any([tool.name == inspect_tool for tool in tools]):
+            return inspect_tool
+        else:
+            return tool_called
+    else:
+        return tool_called
 
 
 def message_stop_reason(message: Message) -> StopReason:
