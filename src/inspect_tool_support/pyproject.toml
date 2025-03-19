@@ -96,6 +96,7 @@ dependencies = [
 ]
 
 [project.urls]
+CHANGELOG="https://raw.githubusercontent.com/UKGovernmentBEIS/inspect_ai/refs/heads/feature/tool-support-fast-follow/src/inspect_tool_support/CHANGELOG.md"
 
 [project.scripts]
 inspect-tool-support = "inspect_tool_support._cli.main:main"
