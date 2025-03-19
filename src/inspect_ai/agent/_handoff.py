@@ -30,7 +30,7 @@ def handoff(
     """
     # normalise to agent
     tool_info = parse_tool_info(agent)
-    del tool_info.parameters.properties["messages"]
+    del tool_info.parameters.properties["state"]
 
     # AgentTool calls will be intercepted by execute_tools
     return tool_with(
