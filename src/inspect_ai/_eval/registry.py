@@ -75,12 +75,10 @@ def task_create(name: str, **kwargs: Any) -> Task:
     task_params: list[str] = task_info.metadata["params"]
     task_args: dict[str, Any] = {}
     for param in kwargs.keys():
-        if param in task_params:
+        if param in task_params or "kwargs" in task_params:
             task_args[param] = kwargs[param]
-            if "kwargs" in task_params:
-                task_args[param] = kwargs[param]
-            else:
-                logger.warning(f"param '{param}' not used by task '{name}'")
+        else:
+            logger.warning(f"param '{param}' not used by task '{name}'")
 
     return cast(Task, registry_create("task", name, **task_args))
 
