@@ -126,11 +126,13 @@ def test_can_round_trip_serialize_model_event():
     assert original == deserialized
 
 
-def test_can_round_trip_serialize_subtask_event():
-    original = SubtaskEvent(name="name", input={}, timestamp=datetime.now(timezone.utc))
+def test_can_round_trip_serialize_tool_event():
+    original = ToolEvent(
+        id="id", function="fn", arguments={}, timestamp=datetime.now(timezone.utc)
+    )
 
     serialized = original.model_dump_json()
-    deserialized = SubtaskEvent.model_validate_json(serialized)
+    deserialized = ToolEvent.model_validate_json(serialized)
 
     assert original == deserialized
 
@@ -144,13 +146,11 @@ def test_can_round_trip_serialize_sandbox_event():
     assert original == deserialized
 
 
-def test_can_round_trip_serialize_tool_event():
-    original = ToolEvent(
-        id="id", function="fn", arguments={}, timestamp=datetime.now(timezone.utc)
-    )
+def test_can_round_trip_serialize_subtask_event():
+    original = SubtaskEvent(name="name", input={}, timestamp=datetime.now(timezone.utc))
 
     serialized = original.model_dump_json()
-    deserialized = ToolEvent.model_validate_json(serialized)
+    deserialized = SubtaskEvent.model_validate_json(serialized)
 
     assert original == deserialized
 
