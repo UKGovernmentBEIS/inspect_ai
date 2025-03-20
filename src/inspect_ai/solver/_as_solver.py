@@ -2,7 +2,6 @@ from typing import Any
 
 from inspect_ai._util.registry import (
     is_registry_object,
-    registry_info,
     registry_unqualified_name,
 )
 from inspect_ai.agent._agent import Agent
@@ -12,7 +11,6 @@ from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_info import parse_tool_info
 
 
-@solver
 def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
     """Convert an agent to a solver.
 
@@ -45,29 +43,27 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
                 + "parameter to the as_solver() function."
             )
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # run agent
-        agent_state = await agent_execute(agent, None, state.messages, **agent_kwargs)
+    @solver(name=agent_name)
+    def agent_to_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # run agent
+            agent_state = await agent_execute(
+                agent, None, state.messages, **agent_kwargs
+            )
 
-        # append new messages
-        message_ids = [message.id for message in state.messages]
-        for message in agent_state.messages:
-            if message.id not in message_ids:
-                state.messages.append(message)
+            # append new messages
+            message_ids = [message.id for message in state.messages]
+            for message in agent_state.messages:
+                if message.id not in message_ids:
+                    state.messages.append(message)
 
-        # update output if its not empty
-        if not agent_state.output.empty:
-            state.output = agent_state.output
+            # update output if its not empty
+            if not agent_state.output.empty:
+                state.output = agent_state.output
 
-        return state
+            return state
 
-    # propagate the agent's name to the solver
-    name = (
-        registry_info(agent).name
-        if is_registry_object(agent)
-        else getattr(agent, "__name__", "agent")
-    )
-    solve.__name__ = name
+        # return solver
+        return solve
 
-    # return solver
-    return solve
+    return agent_to_solver()
