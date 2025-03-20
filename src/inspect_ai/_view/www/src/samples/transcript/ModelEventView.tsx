@@ -3,7 +3,7 @@ import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
 
 import clsx from "clsx";
-import { FC, Fragment, useEffect, useMemo, useRef } from "react";
+import { FC, Fragment, useMemo } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import {
@@ -18,8 +18,8 @@ import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
-import { highlightElement } from "prismjs";
 import { PulsingDots } from "../../components/PulsingDots";
+import { usePrismHighlight } from "../../state/hooks";
 import styles from "./ModelEventView.module.css";
 import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming, formatTitle } from "./event/utils";
@@ -163,27 +163,20 @@ interface APICodeCellProps {
 }
 
 export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
-  const codeRef = useRef<HTMLElement>(null);
   const sourceCode = useMemo(() => {
     return JSON.stringify(contents, undefined, 2);
   }, [contents]);
-
-  useEffect(() => {
-    if (codeRef.current) {
-      highlightElement(codeRef.current);
-    }
-  }, [contents]);
+  const prismParentRef = usePrismHighlight(sourceCode);
 
   if (!contents) {
     return null;
   }
 
   return (
-    <div className={clsx("model-call")}>
+    <div ref={prismParentRef} className={clsx("model-call")}>
       <pre className={clsx(styles.codePre)}>
         <code
           id={id}
-          ref={codeRef}
           className={clsx("language-json", styles.code, "text-size-small")}
         >
           {sourceCode}
