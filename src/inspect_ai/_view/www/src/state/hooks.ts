@@ -1,3 +1,4 @@
+import { highlightElement } from "prismjs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { SampleSummary } from "../api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
@@ -345,4 +346,31 @@ export const usePrevious = <T>(value: T) => {
   }, [value]);
 
   return ref.current;
+};
+
+// Syntax highlighting strings larger than this is too slow
+const kPrismRenderMaxSize = 250000;
+
+export const usePrismHighlight = (toolCallContent?: string) => {
+  const toolViewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (
+      toolCallContent &&
+      toolViewRef.current &&
+      toolCallContent.length <= kPrismRenderMaxSize
+    ) {
+      requestAnimationFrame(() => {
+        const codeBlocks = toolViewRef.current!.querySelectorAll("pre code");
+        codeBlocks.forEach((block) => {
+          if (block.className.includes("language-")) {
+            block.classList.add("sourceCode");
+            highlightElement(block as HTMLElement);
+          }
+        });
+      });
+    }
+  }, [toolCallContent]);
+
+  return toolViewRef;
 };

@@ -1,9 +1,7 @@
 import clsx from "clsx";
-import { highlightElement } from "prismjs";
-import { CSSProperties, FC, useEffect, useMemo, useRef } from "react";
+import { CSSProperties, FC, useMemo } from "react";
+import { usePrismHighlight } from "../state/hooks";
 import "./JsonPanel.css";
-
-const kPrismRenderMaxSize = 250000;
 
 interface JSONPanelProps {
   id?: string;
@@ -22,30 +20,22 @@ export const JSONPanel: FC<JSONPanelProps> = ({
   style,
   className,
 }) => {
-  const codeRef = useRef<HTMLElement>(null);
   const sourceCode = useMemo(() => {
     return json || JSON.stringify(resolveBase64(data), undefined, 2);
   }, [json, data]);
-
-  useEffect(() => {
-    if (sourceCode.length < kPrismRenderMaxSize && codeRef.current) {
-      highlightElement(codeRef.current);
-    }
-  }, [sourceCode]);
+  const prismParentRef = usePrismHighlight(sourceCode);
 
   return (
-    <pre
-      className={clsx("json-panel", simple ? "simple" : "", className)}
-      style={style}
-    >
-      <code
-        id={id}
-        ref={codeRef}
-        className={clsx("source-code", "language-javascript")}
+    <div ref={prismParentRef}>
+      <pre
+        className={clsx("json-panel", simple ? "simple" : "", className)}
+        style={style}
       >
-        {sourceCode}
-      </code>
-    </pre>
+        <code id={id} className={clsx("source-code", "language-javascript")}>
+          {sourceCode}
+        </code>
+      </pre>
+    </div>
   );
 };
 

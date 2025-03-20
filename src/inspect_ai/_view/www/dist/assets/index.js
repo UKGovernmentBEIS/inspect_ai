@@ -26972,60 +26972,40 @@ self.onmessage = function (e) {
       outputCode,
       bottomPadding
     };
-    const useCodeHighlight = (language2) => {
-      const codeRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        if (codeRef.current && language2) {
-          prismExports.highlightElement(codeRef.current);
-        }
-      }, [language2]);
-      return codeRef;
-    };
-    const ToolInput = reactExports.memo((props) => {
+    const ToolInput = (props) => {
       const { highlightLanguage, contents: contents2, toolCallView } = props;
-      const codeRef = useCodeHighlight(highlightLanguage);
-      const toolViewRef = reactExports.useRef(null);
-      reactExports.useEffect(() => {
-        if (toolCallView == null ? void 0 : toolCallView.content) {
-          requestAnimationFrame(() => {
-            if (toolViewRef.current) {
-              const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
-              codeBlocks.forEach((block2) => {
-                if (block2.className.includes("language-")) {
-                  block2.classList.add("sourceCode");
-                  prismExports.highlightElement(block2);
-                }
-              });
-            }
-          });
-        }
-      }, [toolCallView == null ? void 0 : toolCallView.content]);
+      const prismParentRef = usePrismHighlight(toolCallView == null ? void 0 : toolCallView.content);
       if (!contents2 && !(toolCallView == null ? void 0 : toolCallView.content)) return null;
       if (toolCallView) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           MarkdownDiv,
           {
             markdown: toolCallView.content,
-            ref: toolViewRef,
+            ref: prismParentRef,
             className: clsx(styles$$.bottomPadding, "text-size-small", "tool-output")
           }
         );
       }
       const formattedContent = typeof contents2 === "object" ? JSON.stringify(contents2) : contents2;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx("tool-output", styles$$.outputPre, styles$$.bottomMargin), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "code",
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "pre",
         {
-          ref: codeRef,
-          className: clsx(
-            "source-code",
-            "sourceCode",
-            `language-${highlightLanguage}`,
-            styles$$.outputCode
-          ),
-          children: formattedContent
+          className: clsx("tool-output", styles$$.outputPre, styles$$.bottomMargin),
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "code",
+            {
+              className: clsx(
+                "source-code",
+                "sourceCode",
+                `language-${highlightLanguage}`,
+                styles$$.outputCode
+              ),
+              children: formattedContent
+            }
+          )
         }
       ) });
-    });
+    };
     const styles$_ = {};
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -27490,7 +27470,6 @@ self.onmessage = function (e) {
         return entries;
       }
     };
-    const kPrismRenderMaxSize = 25e4;
     const JSONPanel = ({
       id,
       json,
@@ -27499,31 +27478,18 @@ self.onmessage = function (e) {
       style: style2,
       className: className2
     }) => {
-      const codeRef = reactExports.useRef(null);
       const sourceCode = reactExports.useMemo(() => {
         return json || JSON.stringify(resolveBase64(data), void 0, 2);
       }, [json, data]);
-      reactExports.useEffect(() => {
-        if (sourceCode.length < kPrismRenderMaxSize && codeRef.current) {
-          prismExports.highlightElement(codeRef.current);
-        }
-      }, [sourceCode]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+      const prismParentRef = usePrismHighlight(sourceCode);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "pre",
         {
           className: clsx("json-panel", simple ? "simple" : "", className2),
           style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "code",
-            {
-              id,
-              ref: codeRef,
-              className: clsx("source-code", "language-javascript"),
-              children: sourceCode
-            }
-          )
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { id, className: clsx("source-code", "language-javascript"), children: sourceCode })
         }
-      );
+      ) });
     };
     const resolveBase64 = (value2) => {
       const prefix2 = "data:image";
@@ -31257,6 +31223,23 @@ categories: ${categories.join(" ")}`;
         ref.current = value2;
       }, [value2]);
       return ref.current;
+    };
+    const usePrismHighlight = (toolCallContent) => {
+      const toolViewRef = reactExports.useRef(null);
+      reactExports.useEffect(() => {
+        if (toolCallContent && toolViewRef.current) {
+          requestAnimationFrame(() => {
+            const codeBlocks = toolViewRef.current.querySelectorAll("pre code");
+            codeBlocks.forEach((block2) => {
+              if (block2.className.includes("language-")) {
+                block2.classList.add("sourceCode");
+                prismExports.highlightElement(block2);
+              }
+            });
+          });
+        }
+      }, [toolCallContent]);
+      return toolViewRef;
     };
     const container$c = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -56866,23 +56849,17 @@ Supported expressions:
       ] });
     };
     const APICodeCell = ({ id, contents: contents2 }) => {
-      const codeRef = reactExports.useRef(null);
       const sourceCode = reactExports.useMemo(() => {
         return JSON.stringify(contents2, void 0, 2);
       }, [contents2]);
-      reactExports.useEffect(() => {
-        if (codeRef.current) {
-          prismExports.highlightElement(codeRef.current);
-        }
-      }, [contents2]);
+      const prismParentRef = usePrismHighlight(sourceCode);
       if (!contents2) {
         return null;
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("model-call"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$x.codePre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, className: clsx("model-call"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$x.codePre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "code",
         {
           id,
-          ref: codeRef,
           className: clsx("language-json", styles$x.code, "text-size-small"),
           children: sourceCode
         }
