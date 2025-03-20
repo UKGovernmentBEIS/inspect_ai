@@ -14,7 +14,7 @@ export default [
   },
   pluginJs.configs.recommended,
   {
-    ignores: ["libs/**", "preact/**", "dist/**"],
+    ignores: ["libs/**", "preact/**", "dist/**", "src/types/log.d.ts"],
   },
   // Add TypeScript support with customized rules for all files
   {
