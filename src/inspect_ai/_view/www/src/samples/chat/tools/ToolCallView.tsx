@@ -10,6 +10,7 @@ import {
   ToolCallContent,
 } from "../../../types/log";
 import { MessageContent } from "../MessageContent";
+import styles from "./ToolCallView.module.css";
 import { ToolInput } from "./ToolInput";
 import { ToolTitle } from "./ToolTitle";
 
@@ -123,6 +124,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
               collapse={collapse}
               border={true}
               lines={15}
+              className={styles.output}
             >
               <MessageContent contents={normalizedContent} />
             </ExpandablePanel>
