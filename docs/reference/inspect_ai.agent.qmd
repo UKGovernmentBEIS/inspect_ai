@@ -1,0 +1,22 @@
+---
+title: "inspect_ai.agent"
+---
+
+## Orchestration
+
+### react
+### human
+### bridge
+
+## Protocol
+
+### Agent
+### AgentState
+### agent
+
+## Adapters
+
+### handoff
+### HandoffFilter
+### as_tool
+

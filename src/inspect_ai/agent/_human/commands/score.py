@@ -8,13 +8,13 @@ from inspect_ai._util.ansi import render_text
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._score import score
 
-from ..._task_state import TaskState
+from ..._agent import AgentState
 from ..state import HumanAgentState, IntermediateScoring
 from .command import HumanAgentCommand, call_human_agent
 
 
 class ScoreCommand(HumanAgentCommand):
-    def __init__(self, state: TaskState):
+    def __init__(self, state: AgentState):
         self._state = state
 
     @property
@@ -52,9 +52,9 @@ class ScoreCommand(HumanAgentCommand):
         async def score_task(answer: str | None) -> str:
             # make a copy of TaskState, add the answer, then score
             if answer:
-                task_state = deepcopy(self._state)
-                task_state.output = ModelOutput.from_content("human_agent", answer)
-                result = await score(task_state)
+                agent_state = deepcopy(self._state)
+                agent_state.output = ModelOutput.from_content("human_agent", answer)
+                result = await score(agent_state)
             else:
                 result = await score(self._state)
 
