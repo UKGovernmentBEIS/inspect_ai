@@ -58,7 +58,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
         data={collapsedMessages}
         renderRow={renderRow}
         live={running}
-        showProgress={running ? "generating..." : undefined}
+        showProgress={running}
       />
     );
   },

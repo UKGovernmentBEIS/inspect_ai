@@ -15,7 +15,8 @@
     "prettier:write": "prettier --write src",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint 'src/**/*.{js,jsx,mjs,ts,tsx}'",
-    "lint:fix": "eslint 'src/**/*.{js,jsx,mjs,ts,tsx}' --fix"
+    "lint:fix": "eslint 'src/**/*.{js,jsx,mjs,ts,tsx}' --fix",
+    "type-check": "tsc --noEmit"
   },
   "exports": {
     ".": "./src/App.mjs"
