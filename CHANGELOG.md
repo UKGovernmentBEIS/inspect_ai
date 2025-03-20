@@ -5,6 +5,10 @@
 - Structured Output: Properly handle Pydantic BaseModel that contains other BaseModel definitions in its schema.
 - OpenAI: Support for .wav files in audio inputs for gpt-4o-audio-preview.
 - Bugfix: Resolve issue when deserialising a SubtaskEvent from a log file which does not have a completed time.
+- Bugfix: Fix unnecessary warnings about task arguments.
+- Bugfix: When a task does not take a kwargs argument, only warn if the provided argument is not valid.
+
+
 
 ## v0.3.75 (18 March 2025)
 
