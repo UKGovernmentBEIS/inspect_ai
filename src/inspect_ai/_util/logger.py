@@ -150,6 +150,9 @@ def init_logger(log_level: str | None, log_level_transcript: str | None = None) 
             transcript_levelno=transcript_levelno,
         )
 
+        # set the global log level
+        getLogger().setLevel(log_level)
+
         # set the log level for our package
         getLogger(PKG_NAME).setLevel(capture_level)
         getLogger(PKG_NAME).addHandler(_logHandler)
