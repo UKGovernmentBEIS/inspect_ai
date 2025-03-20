@@ -187,9 +187,11 @@ class ModelOutput(BaseModel):
     def for_tool_call(
         model: str,
         tool_name: str,
+        native_tool_name: str,
         tool_arguments: dict[str, Any],
         tool_call_id: str | None = None,
         content: str | None = None,
+        type: str = "function",
     ) -> "ModelOutput":
         """
         Returns a ModelOutput for requesting a tool call.
@@ -197,6 +199,8 @@ class ModelOutput(BaseModel):
         Args:
             model: model name
             tool_name: The name of the tool.
+            native_tool_name: The name of the tool.
+            type: The model's type for the tool. e.g. "function", "computer_use_preview"
             tool_arguments: The arguments passed to the tool.
             tool_call_id: Optional ID for the tool call. Defaults to a random UUID.
             content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
@@ -221,8 +225,9 @@ class ModelOutput(BaseModel):
                             ToolCall(
                                 id=tool_call_id,
                                 function=tool_name,
+                                native_name=native_tool_name,
                                 arguments=tool_arguments,
-                                type="function",
+                                type=type,
                             )
                         ],
                     ),

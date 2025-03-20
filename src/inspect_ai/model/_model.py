@@ -1114,6 +1114,7 @@ def tool_result_images_reducer(
                     id=message.id,
                     content=edited_tool_message_content,
                     tool_call_id=message.tool_call_id,
+                    # TODO: What about native_name here?
                     function=message.function,
                 )
             ],

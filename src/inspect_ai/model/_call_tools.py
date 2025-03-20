@@ -165,7 +165,7 @@ async def call_tools(
             # create event
             event = ToolEvent(
                 id=call.id,
-                function=call.function,
+                function=call.native_name or call.function,
                 arguments=call.arguments,
                 result=content,
                 truncated=truncated,
@@ -181,7 +181,7 @@ async def call_tools(
                         ChatMessageTool(
                             content=content,
                             tool_call_id=call.id,
-                            function=call.function,
+                            function=call.native_name or call.function,
                             error=tool_error,
                         ),
                         event,
@@ -222,7 +222,7 @@ async def call_tools(
             if event.cancelled:
                 tool_message = ChatMessageTool(
                     content="",
-                    function=call.function,
+                    function=call.native_name or call.function,
                     tool_call_id=call.id,
                     error=ToolCallError(
                         "timeout", "Command timed out before completing."
@@ -230,7 +230,7 @@ async def call_tools(
                 )
                 result_event = ToolEvent(
                     id=call.id,
-                    function=call.function,
+                    function=call.native_name or call.function,
                     arguments=call.arguments,
                     result=tool_message.content,
                     truncated=None,
@@ -545,6 +545,8 @@ def parse_tool_call(
     return ToolCall(
         id=id,
         function=function,
+        # TODO: ???
+        native_name=None,
         arguments=arguments_dict,
         type="function",
         parse_error=error,
