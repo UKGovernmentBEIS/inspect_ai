@@ -26,6 +26,7 @@ class SGLangAPI(OpenAIAPI):
     Additional model_args:
         model_path (str): The model path to use with SGLang (e.g., "meta-llama/Meta-Llama-3.1-8B-Instruct")
         host (str): Host to bind the server to (default: "0.0.0.0")
+        port (int): Port to bind the server to (default: None)
         grammar_backend (str): Grammar backend to use (default: "xgrammar")
         server_args (dict): Additional arguments to pass to the SGLang server
     """
@@ -34,6 +35,7 @@ class SGLangAPI(OpenAIAPI):
         self,
         model_name: str,
         base_url: str | None = None,
+        port: int | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         **server_args: Any,
@@ -43,20 +45,25 @@ class SGLangAPI(OpenAIAPI):
         self.server_args = server_args  # model_args.pop("server_args", {})
 
         # Get base_url from environment or argument
-        base_url = model_base_url(base_url, SGLANG_BASE_URL)
+        if not base_url and port:  # if port is provided assume there is a local server
+            base_url = f"http://localhost:{port}/v1"
+        else:
+            base_url = model_base_url(base_url, SGLANG_BASE_URL)
+
         self.server_process = None
-        self.port = None
+        self.port = port
         self.model_name = model_name
+
+        # Default API key if not provided
+        if not api_key:
+            api_key = os.environ.get(SGLANG_API_KEY, "local")
+        self.api_key = api_key
 
         # Start server if needed
         if not base_url:
             if "model_path" in self.server_args:
                 model_name = self.server_args.pop("model_path")
             base_url = self._start_server(model_name, host, port=None)
-
-        # Default API key if not provided
-        if not api_key:
-            api_key = os.environ.get(SGLANG_API_KEY, "local")
 
         # Initialize OpenAI API with our SGLang server
         super().__init__(
@@ -96,7 +103,7 @@ class SGLangAPI(OpenAIAPI):
             self.server_args.pop("device")
 
         # Create server command
-        cmd = f"python -m sglang.launch_server --model-path {model_path} --host {host}"
+        cmd = f"python -m sglang.launch_server --model-path {model_path} --host {host} --api-key {self.api_key}"
 
         # Add additional arguments
         for key, value in self.server_args.items():

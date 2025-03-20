@@ -56,7 +56,7 @@ class VLLMAPI(OpenAIAPI):
         self.server_args = server_args
 
         # Get base_url from environment or argument
-        if not base_url and port:
+        if not base_url and port:  # if port is provided assume there is a local server
             base_url = f"http://localhost:{port}/v1"
         else:
             base_url = model_base_url(base_url, VLLM_BASE_URL)
@@ -72,6 +72,8 @@ class VLLMAPI(OpenAIAPI):
 
         # Start server if needed
         if not base_url:
+            if "model_path" in self.server_args:
+                model_name = self.server_args.pop("model_path")
             base_url = self._start_server(model_name, host, port=None)
 
         # Initialize OpenAI API with our VLLM server
