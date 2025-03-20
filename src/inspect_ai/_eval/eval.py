@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai.log._model import model_roles_config_to_model_roles
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -713,9 +714,7 @@ async def eval_retry_async(
         model = eval_log.eval.model
         model_base_url = eval_log.eval.model_base_url
         model_args = eval_log.eval.model_args
-
-        # TODO: re-hydrate the model_roles
-
+        model_roles = model_roles_config_to_model_roles(eval_log.eval.model_roles)
         task_args = eval_log.eval.task_args
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
@@ -773,6 +772,7 @@ async def eval_retry_async(
                 model=model,
                 model_base_url=model_base_url,
                 model_args=model_args,
+                model_roles=model_roles,
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
