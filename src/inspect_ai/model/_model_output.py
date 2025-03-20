@@ -125,7 +125,7 @@ class ModelOutput(BaseModel):
 
     @property
     def empty(self) -> bool:
-        return len(self.choices) > 0
+        return len(self.choices) == 0
 
     @property
     def stop_reason(self) -> StopReason:
