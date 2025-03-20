@@ -15,11 +15,20 @@ from ._agent import Agent, AgentState
 
 
 @tool
-def as_tool(agent: Agent) -> Tool:
+def as_tool(agent: Agent, **agent_kwargs: Any) -> Tool:
     """Convert an agent to a tool.
 
+    By default the model will see all of the agent's arguments as
+    tool arguments (save for `state` which is converted to an `input`
+    arguments of type `str`). Provide optional `agent_kwargs` to mask
+    out agent parameters with default values (these parameters will
+    not be presented to the model as part of the tool interface)
+
     Args:
-        agent: Agent to convert.
+       agent: Agent to convert.
+       **agent_kwargs: Arguments to curry to Agent function (arguments
+         provided here will not be presented to the model as part
+         of the tool interface).
 
     Returns:
         Tool from agent.
@@ -35,7 +44,7 @@ def as_tool(agent: Agent) -> Tool:
         state = AgentState(
             messages=[ChatMessageUser(content=input)], output=ModelOutput()
         )
-        state = await agent(state, *args, **kwargs)
+        state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # find assistant message to read content from (prefer output)
         if not state.output.empty:
@@ -51,13 +60,29 @@ def as_tool(agent: Agent) -> Tool:
     tool_info = parse_tool_info(agent)
     tool_info.name = registry_unqualified_name(agent)
 
-    # remove "state" and replace with "input"
-    del tool_info.parameters.properties["state"]
+    # remove "state" param
+    def remove_param(param: str) -> None:
+        if param in tool_info.parameters.properties:
+            del tool_info.parameters.properties[param]
+        if param in tool_info.parameters.required:
+            tool_info.parameters.required.remove(param)
+
+    remove_param("state")
+
+    # add "input" param
     tool_info.parameters.properties = {
         "input": ToolParam(type="string", description="Input message.")
     } | tool_info.parameters.properties
-    tool_info.parameters.required.remove("state")
     tool_info.parameters.required.append("input")
+
+    # validate and remove curried params
+    for agent_param in agent_kwargs.keys():
+        if agent_param in tool_info.parameters.properties:
+            remove_param(agent_param)
+        else:
+            raise ValueError(
+                f"Agent {tool_info.name} does not have a '{agent_param}' parameter."
+            )
 
     # confirm that we have descriptions for the tool and parameters
     if len(tool_info.description) == 0:

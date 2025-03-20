@@ -80,6 +80,23 @@ def test_agent_as_tool():
     assert "max_searches" in tool_def.parameters.properties
 
 
+def test_agent_as_tool_curry():
+    tool = as_tool(web_surfer(), max_searches=3)
+    tool_def = ToolDef(tool)
+    assert tool_def.name == "web_surfer"
+    assert (
+        tool_def.description == "Web surfer for conducting web research into a topic."
+    )
+    assert len(tool_def.parameters.properties) == 1
+    assert "input" in tool_def.parameters.properties
+    assert "max_searches" not in tool_def.parameters.properties
+
+
+def test_agent_as_tool_curry_invalid_param():
+    with pytest.raises(ValueError, match="does not have a"):
+        as_tool(web_surfer(), foo=3)
+
+
 def test_agent_as_tool_no_docs_error():
     with pytest.raises(ValueError, match="Description not provided"):
         as_tool(web_surfer_no_docs())
