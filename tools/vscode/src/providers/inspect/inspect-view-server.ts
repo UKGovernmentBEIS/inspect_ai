@@ -17,6 +17,9 @@ import { InspectManager } from "./inspect-manager";
 import { activeWorkspaceFolder } from "../../core/workspace";
 
 
+const kNotFoundSignal = "NotFound";
+const kNotModifiedSignal = "NotModified";
+
 export class InspectViewServer implements Disposable {
   constructor(context: ExtensionContext, inspectManager: InspectManager) {
     // create output channel for debugging
@@ -93,7 +96,6 @@ export class InspectViewServer implements Disposable {
   }
 
   public async evalLogHeaders(files: string[]): Promise<string | undefined> {
-
     if (this.haveInspectEvalLogFormat()) {
       const params = new URLSearchParams();
       for (const file of files) {
@@ -103,7 +105,54 @@ export class InspectViewServer implements Disposable {
     } else {
       return evalLogHeaders(files);
     }
+  }
 
+  public async evalLogPendingSamples(log_file: string, etag?: string): Promise<string | undefined> {
+    const params = new URLSearchParams();
+    params.append("log", log_file);
+
+    const headers: Record<string, string> = {}
+    if (etag) {
+      headers.etag = etag;
+    }
+
+    // If the server returns 304/404, transform this into the proper
+    // rpc response
+    const handleError = (status: number) => {
+      if (status === 404) {
+        return kNotFoundSignal;
+      } else if (status === 304) {
+        return kNotModifiedSignal;
+      }
+    }
+
+    return this.api_json(`/api/pending-samples?${params.toString()}`, headers, handleError);
+  }
+
+  public async evalLogSampleData(log_file: string, id: string | number, epoch: number, last_event?: number, last_attachment?: number): Promise<string | undefined> {
+
+    // Url Params
+    const params = new URLSearchParams();
+    params.append("log", log_file);
+    params.append("id", String(id));
+    params.append("epoch", String(epoch));
+    if (last_event) {
+      params.append("last-event-id", String(last_event));
+    }
+    if (last_attachment) {
+      params.append("after-attachment-id", String(last_attachment));
+    }
+
+    // If the server returns 304/404, transform this into the proper
+    // rpc response
+    const handleError = (status: number) => {
+      if (status === 404) {
+        return kNotFoundSignal;
+      } else if (status === 304) {
+        return kNotModifiedSignal;
+      }
+    }
+    return this.api_json(`/api/pending-sample-data?${params.toString()}`, {}, handleError);
   }
 
   private async ensureRunning(): Promise<void> {
@@ -183,21 +232,22 @@ export class InspectViewServer implements Disposable {
     return hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
   }
 
-  private async api_json(path: string): Promise<string> {
-    return await this.api(path, false) as string;
+  private async api_json(path: string, headers?: Record<string, string>, handleError?: (status: number) => string | undefined): Promise<string> {
+    return await this.api(path, false, headers, handleError) as string;
   }
 
   private async api_bytes(path: string): Promise<Uint8Array> {
     return await this.api(path, true) as Uint8Array;
   }
 
-  private async api(path: string, binary: boolean = false): Promise<string | Uint8Array> {
+  private async api(path: string, binary: boolean = false, headers: Record<string, string> = {}, handleError?: (status: number) => string | undefined): Promise<string | Uint8Array> {
 
     // ensure the server is started and ready
     await this.ensureRunning();
 
     // build headers
-    const headers = {
+    headers = {
+      ...headers,
       Authorization: this.serverAuthToken_,
       Accept: binary ? "application/octet-stream" : "application/json",
       Pragma: "no-cache",
@@ -215,6 +265,12 @@ export class InspectViewServer implements Disposable {
         return await response.text();
       }
     } else if (response.status !== 200) {
+      if (handleError) {
+        const error_response = handleError(response.status);
+        if (error_response) {
+          return error_response;
+        }
+      }
       const message = (await response.text()) || response.statusText;
       const error = new Error(`Error: ${response.status}: ${message})`);
       throw error;

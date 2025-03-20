@@ -1,0 +1,16 @@
+.darkenedBg {
+  background-color: var(--bs-light-bg-subtle);
+}
+
+.normalBg {
+  background-color: var(--bs-body-bg);
+}
+
+.node.first {
+  padding-top: 0.5em;
+}
+
+.node {
+  padding-top: 0;
+  padding-bottom: 0.5em;
+}

@@ -23,7 +23,6 @@ from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.scorer._metric import Score
 
 from .._log import (
     EvalLog,
@@ -36,18 +35,9 @@ from .._log import (
     sort_samples,
 )
 from .file import FileRecorder
+from .types import SampleSummary
 
 logger = getLogger(__name__)
-
-
-class SampleSummary(BaseModel):
-    id: int | str
-    epoch: int
-    input: str | list[ChatMessage]
-    target: str | list[str]
-    scores: dict[str, Score] | None = Field(default=None)
-    error: str | None = Field(default=None)
-    limit: str | None = Field(default=None)
 
 
 class LogStart(BaseModel):
@@ -331,6 +321,7 @@ class ZipLogFile:
                         epoch=sample.epoch,
                         input=text_inputs(sample.input),
                         target=sample.target,
+                        completed=True,
                         scores=sample.scores,
                         error=sample.error.message
                         if sample.error is not None

@@ -13,12 +13,14 @@ import { ContentTool } from "../../types";
 import styles from "./MessageContents.module.css";
 
 interface MessageContentsProps {
+  id: string;
   message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
   toolMessages: ChatMessageTool[];
   toolCallStyle: "compact" | "complete";
 }
 
 export const MessageContents: FC<MessageContentsProps> = ({
+  id,
   message,
   toolMessages,
   toolCallStyle,
@@ -56,6 +58,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
       } else {
         return (
           <ToolCallView
+            id={`${id}-tool-call`}
             key={`tool-call-${idx}`}
             functionCall={functionCall}
             input={input}

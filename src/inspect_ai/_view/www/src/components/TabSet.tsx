@@ -9,11 +9,9 @@ import {
   ReactElement,
   ReactNode,
   RefObject,
-  UIEvent,
-  useCallback,
-  useEffect,
   useRef,
 } from "react";
+import { useStatefulScrollPosition } from "../state/scrolling";
 import moduleStyles from "./TabSet.module.css";
 
 interface TabSetProps {
@@ -36,8 +34,6 @@ interface TabPanelProps {
   scrollable?: boolean;
   scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string | string[];
-  scrollPosition?: number;
-  setScrollPosition?: (position: number) => void;
   children?: ReactNode;
   title: string;
   icon?: string;
@@ -107,7 +103,7 @@ const Tab: FC<{
         role="tab"
         aria-controls={tabContentsId}
         aria-selected={isActive}
-        onClick={(e) => tab.props.onSelected(e)}
+        onClick={tab.props.onSelected}
       >
         {tab.props.icon && (
           <i className={clsx(tab.props.icon, moduleStyles.tabIcon)} />
@@ -139,42 +135,14 @@ export const TabPanel: FC<TabPanelProps> = ({
   scrollable = true,
   scrollRef,
   className,
-  scrollPosition,
-  setScrollPosition,
   children,
 }) => {
   const tabContentsId = computeTabContentsId(id);
   const panelRef = useRef<HTMLDivElement>(null);
   const tabContentsRef = scrollRef || panelRef;
 
-  useEffect(() => {
-    if (!selected || scrollPosition === undefined || !tabContentsRef.current)
-      return;
-
-    const observer = new MutationObserver(() => {
-      if (tabContentsRef.current) {
-        tabContentsRef.current.scrollTop = scrollPosition;
-      }
-      observer.disconnect(); // Stop observing after first content load
-    });
-
-    observer.observe(tabContentsRef.current, {
-      childList: true,
-      subtree: true,
-    });
-
-    return () => observer.disconnect();
-  }, []);
-
-  // Handle scrolling
-  const onScroll = useCallback(
-    (e: UIEvent<HTMLDivElement>) => {
-      if (setScrollPosition) {
-        setScrollPosition(e.currentTarget.scrollTop);
-      }
-    },
-    [setScrollPosition],
-  );
+  // Attach a scroll listener to this ref to track scrolling
+  useStatefulScrollPosition(tabContentsRef, tabContentsId, 1000, scrollable);
 
   return (
     <div
@@ -188,7 +156,6 @@ export const TabPanel: FC<TabPanelProps> = ({
         scrollable && moduleStyles.scrollable,
       )}
       style={style}
-      onScroll={onScroll}
     >
       {children}
     </div>

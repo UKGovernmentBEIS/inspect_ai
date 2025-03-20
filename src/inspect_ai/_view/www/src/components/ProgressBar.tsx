@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { FC } from "react";
 import styles from "./ProgressBar.module.css";
 
@@ -7,9 +8,9 @@ interface ProgressBarProps {
 
 export const ProgressBar: FC<ProgressBarProps> = ({ animating }) => {
   return (
-    <div className={styles.wrapper}>
+    <div className={clsx(styles.wrapper)}>
       <div
-        className={styles.container}
+        className={clsx(styles.container)}
         role="progressbar"
         aria-label="Basic example"
         aria-valuenow={25}

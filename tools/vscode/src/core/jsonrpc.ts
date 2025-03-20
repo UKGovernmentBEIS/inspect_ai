@@ -4,7 +4,8 @@ export const kMethodEvalLog = "eval_log";
 export const kMethodEvalLogSize = "eval_log_size";
 export const kMethodEvalLogBytes = "eval_log_bytes";
 export const kMethodEvalLogHeaders = "eval_log_headers";
-
+export const kMethodPendingSamples = "eval_log_pending_samples";
+export const kMethodSampleData = "eval_log_sample_data";
 
 // json rpc client (talk from the webview to the extension)
 export function webViewJsonRpcClient(

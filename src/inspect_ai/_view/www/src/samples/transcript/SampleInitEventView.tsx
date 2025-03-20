@@ -7,7 +7,6 @@ import { toArray } from "../../utils/type";
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
-import { TranscriptEventState } from "./types";
 
 import { FC } from "react";
 import styles from "./SampleInitEventView.module.css";
@@ -15,8 +14,6 @@ import styles from "./SampleInitEventView.module.css";
 interface SampleInitEventViewProps {
   id: string;
   event: SampleInitEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 
@@ -26,8 +23,6 @@ interface SampleInitEventViewProps {
 export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   className,
 }) => {
   const stateObj = event.state as Record<string, unknown>;
@@ -65,14 +60,6 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
       title="Sample"
       icon={ApplicationIcons.sample}
       subTitle={formatDateTime(new Date(event.timestamp))}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <div data-name="Sample" className={styles.sample}>
         <ChatView messages={stateObj["messages"] as Messages} />

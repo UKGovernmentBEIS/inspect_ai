@@ -1,41 +1,52 @@
 import clsx from "clsx";
 import { FC, useCallback } from "react";
-import { SampleSummary } from "../../api/types";
+import { RunningMetric } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { CopyButton } from "../../components/CopyButton";
 import { kModelNone } from "../../constants";
+import { useStore } from "../../state/store";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
 import styles from "./PrimaryBar.module.css";
-import { ResultsPanel } from "./ResultsPanel";
-import { CancelledPanel, ErroredPanel, RunningPanel } from "./StatusPanel";
+import {
+  displayScorersFromRunningMetrics,
+  ResultsPanel,
+  toDisplayScorers,
+} from "./ResultsPanel";
+import { RunningStatusPanel } from "./RunningStatusPanel";
+import { CancelledPanel, ErroredPanel } from "./StatusPanel";
 
 interface PrimaryBarProps {
   showToggle: boolean;
-  offcanvas: boolean;
-  setOffcanvas: (offcanvas: boolean) => void;
   status?: Status;
   evalResults?: EvalResults;
-  samples?: SampleSummary[];
-  file?: string;
+  runningMetrics?: RunningMetric[];
   evalSpec?: EvalSpec;
+  sampleCount?: number;
 }
 
 export const PrimaryBar: FC<PrimaryBarProps> = ({
   showToggle,
-  offcanvas,
   status,
   evalResults,
-  samples,
-  file,
+  runningMetrics,
   evalSpec,
-  setOffcanvas,
+  sampleCount,
 }) => {
-  const logFileName = file ? filename(file) : "";
+  const offCanvas = useStore((state) => state.app.offcanvas);
+  const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+  const streamSamples = useStore((state) => state.capabilities.streamSamples);
+  const selectedLogFile = useStore((state) =>
+    state.logsActions.getSelectedLogFile(),
+  );
+
+  const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
 
   const handleToggle = useCallback(() => {
-    setOffcanvas(!offcanvas);
-  }, [setOffcanvas, offcanvas]);
+    setOffCanvas(!offCanvas);
+  }, [offCanvas, setOffCanvas]);
+
+  const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
 
   return (
     <div className={clsx(styles.wrapper)}>
@@ -53,7 +64,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             onClick={handleToggle}
             className={clsx(
               "btn",
-              offcanvas ? "d-md-none" : undefined,
+              offCanvas ? "d-md-none" : undefined,
               styles.toggle,
             )}
             type="button"
@@ -93,22 +104,29 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             <div className={clsx("navbar-secondary-text", "text-truncate")}>
               {logFileName}
             </div>
-            {file ? <CopyButton value={file} /> : ""}
+            {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
           </div>
         </div>
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
-        {status === "success" ? (
-          <ResultsPanel results={evalResults} />
+        {status === "success" ||
+        (status === "started" && streamSamples && hasRunningMetrics) ? (
+          <ResultsPanel
+            scorers={
+              runningMetrics
+                ? displayScorersFromRunningMetrics(runningMetrics)
+                : toDisplayScorers(evalResults?.scores)
+            }
+          />
         ) : undefined}
         {status === "cancelled" ? (
-          <CancelledPanel sampleCount={samples?.length || 0} />
+          <CancelledPanel sampleCount={sampleCount || 0} />
         ) : undefined}
-        {status === "started" ? (
-          <RunningPanel sampleCount={samples?.length || 0} />
+        {status === "started" && (!streamSamples || !hasRunningMetrics) ? (
+          <RunningStatusPanel sampleCount={sampleCount || 0} />
         ) : undefined}
         {status === "error" ? (
-          <ErroredPanel sampleCount={samples?.length || 0} />
+          <ErroredPanel sampleCount={sampleCount || 0} />
         ) : undefined}
       </div>
       <div id="task-created" style={{ display: "none" }}>

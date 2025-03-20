@@ -1,11 +1,9 @@
 import { ReactNode } from "react";
-import { BasicSampleData, SampleSummary } from "../../api/types";
+import { BasicSampleData } from "../../api/types";
 import { ScoreLabel } from "../../types";
 import { Value2 } from "../../types/log";
 
 export interface EvalDescriptor {
-  epochs: number;
-  samples: SampleSummary[];
   scores: ScoreLabel[];
   scoreDescriptor: (scoreLabel: ScoreLabel) => ScoreDescriptor;
   scorerDescriptor: (
@@ -14,9 +12,12 @@ export interface EvalDescriptor {
   ) => ScorerDescriptor;
   score: (
     sample: BasicSampleData,
-    scoreLabel: ScoreLabel,
+    scoreLabel?: ScoreLabel,
   ) => SelectedScore | undefined;
-  scoreAnswer: (sample: BasicSampleData, scorer: string) => string | undefined;
+  scoreAnswer: (
+    sample: BasicSampleData,
+    scorer: ScoreLabel,
+  ) => string | undefined;
 }
 
 export interface ScorerDescriptor {

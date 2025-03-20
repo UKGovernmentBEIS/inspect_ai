@@ -5,17 +5,16 @@ import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptView } from "./TranscriptView";
-import { TranscriptEventState } from "./types";
 
+import clsx from "clsx";
 import { FC, useMemo } from "react";
+import { PulsingDots } from "../../components/PulsingDots";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 
 interface ToolEventViewProps {
   id: string;
   event: ToolEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   depth: number;
   className?: string | string[];
 }
@@ -26,8 +25,6 @@ interface ToolEventViewProps {
 export const ToolEventView: FC<ToolEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   depth,
   className,
 }) => {
@@ -50,17 +47,10 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
       className={className}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView
+          id={`${id}-tool-call`}
           functionCall={functionCall}
           input={input}
           highlightLanguage={highlightLanguage}
@@ -76,6 +66,11 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
         ) : (
           ""
         )}
+        {event.pending ? (
+          <div className={clsx(styles.progress)}>
+            <PulsingDots subtle={false} size="medium" />
+          </div>
+        ) : undefined}
       </div>
       {event.events.length > 0 ? (
         <TranscriptView

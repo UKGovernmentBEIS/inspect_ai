@@ -17,6 +17,14 @@ interface SampleEntry {
   epoch: number;
 }
 
+export class SampleNotFoundError extends Error {
+  constructor(message?: string) {
+    super(message || "Sample not found");
+    this.name = "SampleNotFoundError";
+
+    Object.setPrototypeOf(this, SampleNotFoundError.prototype);
+  }
+}
 export interface RemoteLogFile {
   readHeader: () => Promise<EvalHeader>;
   readLogSummary: () => Promise<EvalSummary>;
@@ -101,7 +109,7 @@ export const openRemoteLogFile = async (
     if (remoteZipFile.centralDirectory.has(sampleFile)) {
       return (await readJSONFile(sampleFile, MAX_BYTES)) as EvalSample;
     } else {
-      throw new Error(
+      throw new SampleNotFoundError(
         `Unable to read sample file ${sampleFile} - it is not present in the manifest.`,
       );
     }

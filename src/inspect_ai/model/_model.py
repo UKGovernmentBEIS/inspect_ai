@@ -669,6 +669,7 @@ class Model:
 
             event.call = updated_call
             event.pending = None
+            transcript()._event_updated(event)
 
         # if we have output then complete it now
         if output:

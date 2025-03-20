@@ -14,7 +14,7 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 @dataclass
 class TaskMetric:
     name: str
-    value: float
+    value: float | int | None
 
 
 class TaskDetail(Widget):
@@ -233,9 +233,10 @@ class TaskMetrics(Widget):
         for metric in self.metrics:
             # Add the value static but keep it around
             # for future updates
-            self.value_widgets[metric.name] = Static(
-                self._metric_value(metric.value), markup=False
-            )
+            if metric.value is not None:
+                self.value_widgets[metric.name] = Static(
+                    self._metric_value(metric.value), markup=False
+                )
 
             grid.mount(Static(metric.name, markup=False))
             grid.mount(self.value_widgets[metric.name])

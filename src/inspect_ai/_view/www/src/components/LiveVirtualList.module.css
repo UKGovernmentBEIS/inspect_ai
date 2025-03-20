@@ -1,0 +1,11 @@
+.progressContainer {
+  width: 100%;
+  display: flex;
+  align-content: flex-start;
+  justify-content: flex-start;
+  margin-left: 2.5em;
+}
+
+.progressText {
+  margin-left: 0.4em;
+}

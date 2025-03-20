@@ -9,6 +9,7 @@ import {
   ContentReasoning,
   ContentText,
   ContentVideo,
+  Events,
   Messages,
 } from "../../types/log";
 
@@ -65,6 +66,7 @@ export const resolveMessages = (messages: Messages) => {
   }
 
   const systemMessage: ChatMessageSystem = {
+    id: "sys-message-6815A84B062A",
     role: "system",
     content: systemContent,
     source: "input",
@@ -122,4 +124,30 @@ const normalizeContent = (
   } else {
     return content;
   }
+};
+
+export const messagesFromEvents = (runningEvents: Events): Messages => {
+  const messages: Map<
+    string,
+    ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool
+  > = new Map();
+
+  runningEvents
+    .filter((e) => e.event === "model")
+    .forEach((e) => {
+      for (const m of e.input) {
+        const inputMessage = m as
+          | ChatMessageSystem
+          | ChatMessageUser
+          | ChatMessageAssistant
+          | ChatMessageTool;
+        if (!messages.has(inputMessage.id)) {
+          messages.set(inputMessage.id, inputMessage);
+        }
+      }
+      const outputMessage = e.output.choices[0].message;
+      messages.set(outputMessage.id, outputMessage);
+    });
+
+  return messages.values().toArray();
 };

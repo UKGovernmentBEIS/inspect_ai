@@ -10,7 +10,6 @@ import {
 } from "../../../types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "../event/EventPanel";
-import { TranscriptEventState } from "../types";
 import { StateDiffView } from "./StateDiffView";
 import {
   RenderableChangeTypes,
@@ -23,8 +22,6 @@ import styles from "./StateEventView.module.css";
 interface StateEventViewProps {
   id: string;
   event: StateEvent | StoreEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   isStore?: boolean;
   className?: string | string[];
 }
@@ -35,8 +32,6 @@ interface StateEventViewProps {
 export const StateEventView: FC<StateEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   isStore = false,
   className,
 }) => {
@@ -66,14 +61,6 @@ export const StateEventView: FC<StateEventViewProps> = ({
       subTitle={formatDateTime(new Date(event.timestamp))}
       text={!changePreview ? summary : undefined}
       collapse={changePreview === undefined ? true : undefined}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       {changePreview ? (
         <div data-name="Summary" className={clsx(styles.summary)}>

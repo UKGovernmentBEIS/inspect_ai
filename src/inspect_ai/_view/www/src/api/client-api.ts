@@ -1,4 +1,8 @@
-import { openRemoteLogFile, RemoteLogFile } from "../logfile/remoteLogFile";
+import {
+  openRemoteLogFile,
+  RemoteLogFile,
+  SampleNotFoundError,
+} from "../logfile/remoteLogFile";
 import { FileSizeLimitError } from "../logfile/remoteZipFile";
 import { EvalLog, EvalSample } from "../types/log";
 import { encodePathParts } from "./api-shared";
@@ -8,6 +12,8 @@ import {
   LogContents,
   LogFiles,
   LogViewAPI,
+  PendingSampleResponse,
+  SampleDataResponse,
 } from "./types";
 
 const isEvalFile = (file: string) => {
@@ -156,19 +162,34 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     epoch: number,
   ): Promise<EvalSample | undefined> => {
     if (isEvalFile(log_file)) {
-      const remoteLogFile = await remoteEvalFile(log_file, true);
-      try {
-        if (remoteLogFile) {
-          const sample = await remoteLogFile.readSample(String(id), epoch);
-          return sample;
-        } else {
-          throw new Error(`Unable to read remove eval file ${log_file}`);
+      async function fetchSample(useCache: boolean) {
+        const remoteLogFile = await remoteEvalFile(log_file, useCache);
+        if (!remoteLogFile) {
+          throw new Error(`Unable to read remote eval file ${log_file}`);
         }
-      } catch (error) {
+        return await remoteLogFile.readSample(String(id), epoch);
+      }
+
+      function handleError(error: unknown) {
         if (error instanceof FileSizeLimitError) {
           throw new SampleSizeLimitedExceededError(id, epoch, error.maxBytes);
+        }
+        throw error;
+      }
+
+      try {
+        // First attempt with cache
+        return await fetchSample(true);
+      } catch (error) {
+        if (error instanceof SampleNotFoundError) {
+          try {
+            // Retry without cache
+            return await fetchSample(false);
+          } catch (retryError) {
+            handleError(retryError);
+          }
         } else {
-          throw error;
+          handleError(error);
         }
       }
     } else {
@@ -263,6 +284,35 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     throw new Error("Unable to determine log paths.");
   };
 
+  const get_log_pending_samples = (
+    log_file: string,
+    etag?: string,
+  ): Promise<PendingSampleResponse> => {
+    if (!api.eval_pending_samples) {
+      throw new Error("API doesn't support streamed samples");
+    }
+    return api.eval_pending_samples(log_file, etag);
+  };
+
+  const get_log_sample_data = (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+    last_event?: number,
+    last_attachment?: number,
+  ): Promise<SampleDataResponse | undefined> => {
+    if (!api.eval_log_sample_data) {
+      throw new Error("API doesn't supported streamed sample data");
+    }
+    return api.eval_log_sample_data(
+      log_file,
+      id,
+      epoch,
+      last_event,
+      last_attachment,
+    );
+  };
+
   return {
     client_events: () => {
       return api.client_events();
@@ -284,5 +334,11 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
     ) => {
       return api.download_file(download_file, file_contents);
     },
+    get_log_pending_samples: api.eval_pending_samples
+      ? get_log_pending_samples
+      : undefined,
+    get_log_sample_data: api.eval_log_sample_data
+      ? get_log_sample_data
+      : undefined,
   };
 };

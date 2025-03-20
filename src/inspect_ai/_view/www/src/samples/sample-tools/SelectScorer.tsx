@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { ScoreLabel } from "../../types";
 
-import { FC } from "react";
+import { ChangeEvent, FC, useCallback } from "react";
 import styles from "./SelectScorer.module.css";
 
 interface SelectScorerProps {
@@ -26,6 +26,13 @@ export const SelectScorer: FC<SelectScorerProps> = ({
     return accum;
   }, [] as ScoreLabel[]);
 
+  const handleSelectScore = useCallback(
+    (index: number) => {
+      setScore(scores[index]);
+    },
+    [setScore, scores],
+  );
+
   if (scorers.length === 1) {
     // There is only a single scorer in play, just show the list of available scores
     return (
@@ -44,9 +51,7 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         <ScoreSelector
           scores={scores}
           selectedIndex={scoreIndex(scores, score)}
-          setSelectedIndex={(index: number) => {
-            setScore(scores[index]);
-          }}
+          setSelectedIndex={handleSelectScore}
         />
       </div>
     );
@@ -75,18 +80,14 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         <ScorerSelector
           scorers={scorers}
           selectedIndex={scorerIndex(scorers, score)}
-          setSelectedIndex={(index: number) => {
-            setScore(scorers[index]);
-          }}
+          setSelectedIndex={handleSelectScore}
         />
         {scorerScores.length > 1 ? (
           <ScoreSelector
             className={clsx(styles.secondSel)}
             scores={scorerScores}
             selectedIndex={scoreIndex(scorerScores, score)}
-            setSelectedIndex={(index: number) => {
-              setScore(scorerScores[index]);
-            }}
+            setSelectedIndex={handleSelectScore}
           />
         ) : undefined}
       </div>
@@ -107,6 +108,14 @@ const ScoreSelector: FC<ScoreSelectorProps> = ({
   setSelectedIndex,
   className,
 }) => {
+  const handleChange = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) => {
+      const sel = e.target as HTMLSelectElement;
+      setSelectedIndex(sel.selectedIndex);
+    },
+    [setSelectedIndex],
+  );
+
   return (
     <select
       className={clsx(
@@ -117,10 +126,7 @@ const ScoreSelector: FC<ScoreSelectorProps> = ({
       )}
       aria-label=".select-scorer-label"
       value={scores[selectedIndex].name}
-      onChange={(e) => {
-        const sel = e.target as HTMLSelectElement;
-        setSelectedIndex(sel.selectedIndex);
-      }}
+      onChange={handleChange}
     >
       {scores.map((score) => {
         return (
@@ -144,15 +150,20 @@ const ScorerSelector: FC<ScorerSelectorProps> = ({
   selectedIndex,
   setSelectedIndex,
 }) => {
+  const handleChange = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) => {
+      const sel = e.target as HTMLSelectElement;
+      setSelectedIndex(sel.selectedIndex);
+    },
+    [setSelectedIndex],
+  );
+
   return (
     <select
       className={clsx("form-select", "form-select-sm", "text-size-smaller")}
       aria-label=".epoch-filter-label"
       value={scorers[selectedIndex].scorer}
-      onChange={(e) => {
-        const sel = e.target as HTMLSelectElement;
-        setSelectedIndex(sel.selectedIndex);
-      }}
+      onChange={handleChange}
     >
       {scorers.map((scorer) => {
         return (

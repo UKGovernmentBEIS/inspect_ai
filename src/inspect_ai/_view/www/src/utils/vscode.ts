@@ -2,7 +2,7 @@
  * Type definition for the VS Code API object
  * Note: This is a minimal definition - expand based on your needs
  */
-interface VSCodeApi {
+export interface VSCodeApi {
   postMessage(message: unknown): void;
   getState(): unknown;
   setState(state: unknown): void;

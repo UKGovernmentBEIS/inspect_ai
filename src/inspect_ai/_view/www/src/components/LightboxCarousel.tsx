@@ -1,6 +1,7 @@
 import clsx from "clsx";
-import { FC, ReactNode, useCallback, useEffect, useState } from "react";
+import { FC, MouseEvent, ReactNode, useCallback, useEffect } from "react";
 import { ApplicationIcons } from "../appearance/icons";
+import { useProperty } from "../state/hooks";
 import styles from "./LightboxCarousel.module.css";
 
 interface Slide {
@@ -9,16 +10,25 @@ interface Slide {
 }
 
 interface LightboxCarouselProps {
+  id: string;
   slides: Slide[];
 }
 
 /**
  * LightboxCarousel component provides a carousel with lightbox functionality.
  */
-export const LightboxCarousel: FC<LightboxCarouselProps> = ({ slides }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [showOverlay, setShowOverlay] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
+export const LightboxCarousel: FC<LightboxCarouselProps> = ({ id, slides }) => {
+  const [isOpen, setIsOpen] = useProperty(id, "isOpen", {
+    defaultValue: false,
+  });
+
+  const [currentIndex, setCurrentIndex] = useProperty(id, "currentIndex", {
+    defaultValue: 0,
+  });
+
+  const [showOverlay, setShowOverlay] = useProperty(id, "showOverlay", {
+    defaultValue: false,
+  });
 
   const openLightbox = useCallback(
     (index: number) => {
@@ -28,7 +38,7 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ slides }) => {
       // Slight delay before setting isOpen so the fade-in starts from opacity: 0
       setTimeout(() => setIsOpen(true), 10);
     },
-    [setCurrentIndex, setShowOverlay],
+    [setIsOpen],
   );
 
   const closeLightbox = useCallback(() => {
@@ -46,13 +56,11 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ slides }) => {
   }, [isOpen, showOverlay, setShowOverlay]);
 
   const showNext = useCallback(() => {
-    setCurrentIndex((prev) => {
-      return (prev + 1) % slides.length;
-    });
+    setCurrentIndex(currentIndex + 1);
   }, [slides, setCurrentIndex]);
 
   const showPrev = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
+    setCurrentIndex((currentIndex - 1 + slides.length) % slides.length);
   }, [slides, setCurrentIndex]);
 
   // Keyboard Navigation
@@ -73,6 +81,13 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ slides }) => {
     return () => window.removeEventListener("keyup", handleKeyUp);
   }, [isOpen, showNext, showPrev]);
 
+  const handleThumbClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      const index = Number((e.currentTarget as HTMLDivElement).dataset.index);
+      openLightbox(index);
+    },
+    [openLightbox],
+  );
   return (
     <div className={clsx("lightbox-carousel-container")}>
       <div className={clsx(styles.carouselThumbs)}>
@@ -80,8 +95,9 @@ export const LightboxCarousel: FC<LightboxCarouselProps> = ({ slides }) => {
           return (
             <div
               key={index}
+              data-index={index}
               className={clsx(styles.carouselThumb)}
-              onClick={() => openLightbox(index)}
+              onClick={handleThumbClick}
             >
               <div>{slide.label}</div>
               <div>

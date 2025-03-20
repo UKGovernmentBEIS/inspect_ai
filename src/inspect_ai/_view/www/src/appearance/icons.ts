@@ -71,6 +71,7 @@ export const ApplicationIcons = {
   more: "bi bi-zoom-in",
   "multiple-choice": "bi bi-card-list",
   next: "bi bi-chevron-right",
+  noSamples: "bi bi-ban",
   play: "bi bi-play-fill",
   previous: "bi bi-chevron-left",
   refresh: "bi bi-arrow-clockwise",

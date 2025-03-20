@@ -1,73 +1,65 @@
-import { FC, RefObject, useState } from "react";
+import { FC, memo, ReactNode, RefObject, useMemo } from "react";
 import { Messages } from "../../types/log";
 
-import clsx from "clsx";
-import { Virtuoso } from "react-virtuoso";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { ResolvedMessage, resolveMessages } from "./messages";
 
-import styles from "./ChatViewVirtualList.module.css";
+import { LiveVirtualList } from "../../components/LiveVirtualList";
 
 interface ChatViewVirtualListProps {
-  id?: string;
+  id: string;
+  className?: string | string[];
   messages: Messages;
   toolCallStyle: "compact" | "complete";
-  className?: string | string[];
   indented: boolean;
   numbered?: boolean;
-  scrollRef?: RefObject<HTMLElement | null>;
+  scrollRef?: RefObject<HTMLDivElement | null>;
+  running?: boolean;
 }
 
 /**
  * Renders the ChatViewVirtualList component.
  */
-export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = ({
-  id,
-  messages,
-  toolCallStyle,
-  className,
-  indented,
-  numbered = true,
-  scrollRef,
-}) => {
-  const collapsedMessages = resolveMessages(messages);
-  const [followOutput, setFollowOutput] = useState(false);
+export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
+  ({
+    id,
+    messages,
+    className,
+    toolCallStyle,
+    indented,
+    numbered = true,
+    scrollRef,
+    running,
+  }) => {
+    const collapsedMessages = useMemo(() => {
+      return resolveMessages(messages);
+    }, [messages]);
 
-  const renderRow = (item: ResolvedMessage, index: number) => {
-    const number =
-      collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+    const renderRow = (index: number, item: ResolvedMessage): ReactNode => {
+      const number =
+        collapsedMessages.length > 1 && numbered ? index + 1 : undefined;
+
+      return (
+        <ChatMessageRow
+          parentName={id || "chat-virtual-list"}
+          number={number}
+          resolvedMessage={item}
+          indented={indented}
+          toolCallStyle={toolCallStyle}
+        />
+      );
+    };
+
     return (
-      <ChatMessageRow
-        parentName={id || "chat-virtual-list"}
-        number={number}
-        resolvedMessage={item}
-        indented={indented}
-        toolCallStyle={toolCallStyle}
+      <LiveVirtualList<ResolvedMessage>
+        id="chat-virtual-list"
+        className={className}
+        scrollRef={scrollRef}
+        data={collapsedMessages}
+        renderRow={renderRow}
+        live={running}
+        showProgress={running}
       />
     );
-  };
-
-  const result = (
-    <Virtuoso
-      customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
-      style={{ height: "100%", width: "100%" }}
-      data={collapsedMessages}
-      itemContent={(index: number, data: ResolvedMessage) => {
-        return renderRow(data, index);
-      }}
-      increaseViewportBy={{ top: 1000, bottom: 1000 }}
-      overscan={{
-        main: 10,
-        reverse: 10,
-      }}
-      followOutput={followOutput}
-      atBottomStateChange={(atBottom: boolean) => {
-        setFollowOutput(atBottom);
-      }}
-      skipAnimationFrameInResizeObserver={true}
-      className={clsx(styles.list, className)}
-    />
-  );
-
-  return result;
-};
+  },
+);

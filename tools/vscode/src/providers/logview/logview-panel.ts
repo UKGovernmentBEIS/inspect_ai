@@ -5,7 +5,7 @@ import { HostWebviewPanel } from "../../hooks";
 import { inspectViewPath } from "../../inspect/props";
 import { readFileSync } from "fs";
 import { Disposable } from "../../core/dispose";
-import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
+import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize, kMethodPendingSamples, kMethodSampleData } from "../../core/jsonrpc";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { workspacePath } from "../../core/path";
 import { LogviewState } from "./logview-state";
@@ -30,7 +30,9 @@ export class LogviewPanel extends Disposable {
       [kMethodEvalLog]: (params: unknown[]) => server.evalLog(params[0] as string, params[1] as number | boolean),
       [kMethodEvalLogSize]: (params: unknown[]) => server.evalLogSize(params[0] as string),
       [kMethodEvalLogBytes]: (params: unknown[]) => server.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
-      [kMethodEvalLogHeaders]: (params: unknown[]) => server.evalLogHeaders(params[0] as string[])
+      [kMethodEvalLogHeaders]: (params: unknown[]) => server.evalLogHeaders(params[0] as string[],),
+      [kMethodPendingSamples]: (params: unknown[]) => server.evalLogPendingSamples(params[0] as string, params[1] as string | undefined),
+      [kMethodSampleData]: (params: unknown[]) => server.evalLogSampleData(params[0] as string, params[1] as string | number, params[2] as number, params[3] as number | undefined, params[4] as number | undefined),
     });
 
     // serve post message api to webview

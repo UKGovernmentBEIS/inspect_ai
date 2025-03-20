@@ -1,14 +1,13 @@
-import React, { ReactNode } from "react";
+import { ButtonHTMLAttributes, forwardRef, ReactNode } from "react";
 import "./ToolButton.css";
 
-interface ToolButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ToolButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   label: string | ReactNode;
   classes?: string;
   icon?: string;
 }
 
-export const ToolButton = React.forwardRef<HTMLButtonElement, ToolButtonProps>(
+export const ToolButton = forwardRef<HTMLButtonElement, ToolButtonProps>(
   ({ label, classes = "", icon, className, ...rest }, ref) => {
     // Combine class names, ensuring default classes are applied first
     const combinedClasses =

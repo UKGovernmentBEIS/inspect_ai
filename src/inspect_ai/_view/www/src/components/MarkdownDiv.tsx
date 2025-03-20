@@ -1,15 +1,15 @@
 import clsx from "clsx";
 import markdownit from "markdown-it";
-import React from "react";
+import { CSSProperties, forwardRef } from "react";
 import "./MarkdownDiv.css";
 
 interface MarkdownDivProps {
   markdown: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   className?: string | string[];
 }
 
-export const MarkdownDiv = React.forwardRef<HTMLDivElement, MarkdownDivProps>(
+export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
   ({ markdown, style, className }, ref) => {
     // Escape all tags
     const escaped = markdown ? escape(markdown) : "";
