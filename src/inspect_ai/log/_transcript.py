@@ -50,6 +50,11 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
+    model_config = {
+        "json_schema_extra": lambda schema: schema.get("properties", {}).pop(
+            "id_", None
+        )
+    }
     id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
 
     timestamp: datetime = Field(default_factory=datetime.now)
