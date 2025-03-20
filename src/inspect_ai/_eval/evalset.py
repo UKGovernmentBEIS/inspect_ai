@@ -63,6 +63,7 @@ def eval_set(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
+    model_roles: dict[str, str | Model] | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -118,6 +119,7 @@ def eval_set(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
+        model_roles: Named roles for use in `get_model()`.
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -188,6 +190,7 @@ def eval_set(
             model=None,  # ResolvedTask/PreviousTask already carries its model
             model_base_url=model_base_url,
             model_args=model_args,
+            model_roles=model_roles,
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
@@ -244,6 +247,7 @@ def eval_set(
         model=model,
         model_base_url=model_base_url,
         model_args=model_args,
+        model_roles=model_roles,
         task_args=task_args,
         sandbox=sandbox,
         max_subprocesses=max_subprocesses,

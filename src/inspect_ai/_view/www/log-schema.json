@@ -200,8 +200,16 @@
       "description": "Assistant chat message.",
       "properties": {
         "id": {
-          "title": "Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
         },
         "content": {
           "anyOf": [
@@ -286,8 +294,16 @@
       "description": "System chat message.",
       "properties": {
         "id": {
-          "title": "Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
         },
         "content": {
           "anyOf": [
@@ -356,8 +372,16 @@
       "description": "Tool chat message.",
       "properties": {
         "id": {
-          "title": "Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
         },
         "content": {
           "anyOf": [
@@ -464,8 +488,16 @@
       "description": "User chat message.",
       "properties": {
         "id": {
-          "title": "Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
         },
         "content": {
           "anyOf": [
@@ -1220,6 +1252,43 @@
         "options"
       ],
       "title": "EvalMetricDefinition",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalModelConfig": {
+      "description": "Model config.",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Url"
+        },
+        "args": {
+          "title": "Args",
+          "type": "object"
+        }
+      },
+      "required": [
+        "model",
+        "config",
+        "base_url",
+        "args"
+      ],
+      "title": "EvalModelConfig",
       "type": "object",
       "additionalProperties": false
     },
@@ -2135,6 +2204,21 @@
           "title": "Model Args",
           "type": "object"
         },
+        "model_roles": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/EvalModelConfig"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Roles"
+        },
         "config": {
           "$ref": "#/$defs/EvalConfig"
         },
@@ -2225,6 +2309,7 @@
         "model",
         "model_base_url",
         "model_args",
+        "model_roles",
         "config",
         "revision",
         "packages",

@@ -732,6 +732,8 @@ class ModelName:
 
 def get_model(
     model: str | Model | None = None,
+    *,
+    role: str | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
     api_key: str | None = None,
@@ -762,6 +764,8 @@ def get_model(
           if `None` is passed then the model currently being
           evaluated is returned (or if there is no evaluation
           then the model referred to by `INSPECT_EVAL_MODEL`).
+       role: Optional named role for model (e.g. for roles specified
+          at the task or eval level)
        config: Configuration for model.
        base_url: Optional. Alternate base URL for model.
        api_key: Optional. API key for model.
@@ -781,6 +785,12 @@ def get_model(
     # next see if this is the special "none" model
     if model == "none":
         model = "none/none"
+
+    # resolve model role
+    if role is not None:
+        model_for_role = model_roles().get(role, None)
+        if model_for_role is not None:
+            return model_for_role
 
     # now try finding an 'ambient' model (active or env var)
     if model is None:
@@ -1249,10 +1259,20 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
-# shared contexts for asyncio tasks
+def init_model_roles(roles: dict[str, Model]) -> None:
+    _model_roles.set(roles)
+
+
+def model_roles() -> dict[str, Model]:
+    return _model_roles.get()
+
+
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
+_model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={})
 
+
+# shared contexts for asyncio tasks
 def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import (
         active_sample_message_limit,

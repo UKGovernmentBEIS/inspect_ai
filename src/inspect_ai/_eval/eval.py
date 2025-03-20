@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import Any, Literal
 
+from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 
 if sys.version_info < (3, 11):
@@ -63,6 +64,7 @@ def eval(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
+    model_roles: dict[str, str | Model] | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -107,6 +109,7 @@ def eval(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
+        model_roles: Named roles for use in `get_model()`.
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -181,6 +184,7 @@ def eval(
                 model=model,
                 model_base_url=model_base_url,
                 model_args=model_args,
+                model_roles=model_roles,
                 task_args=task_args,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
@@ -230,6 +234,7 @@ async def eval_async(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
+    model_roles: dict[str, str | Model] | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -269,7 +274,8 @@ async def eval_async(
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
         model_base_url: Base URL for communicating with the model API.
-        model_args: Model creation args (as a dictionary or as a path to a JSON or YAML config file)
+        model_args: Model creation args (as a dictionary or as a path to a JSON or YAML config file
+        model_roles: Named roles for use in `get_model()`.
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
@@ -341,6 +347,7 @@ async def eval_async(
             model=model,
             model_base_url=model_base_url,
             model_args=model_args,
+            model_roles=model_roles,
             task_args=task_args,
             sandbox=sandbox,
             approval=approval,
@@ -706,6 +713,9 @@ async def eval_retry_async(
         model = eval_log.eval.model
         model_base_url = eval_log.eval.model_base_url
         model_args = eval_log.eval.model_args
+
+        # TODO: re-hydrate the model_roles
+
         task_args = eval_log.eval.task_args
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
@@ -806,6 +816,7 @@ def eval_init(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
+    model_roles: dict[str, str | Model] | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -832,6 +843,9 @@ def eval_init(
     generate_config = GenerateConfig(**kwargs)
     models = resolve_models(model, model_base_url, model_args, generate_config)
 
+    # resolve model roles
+    reoslved_model_roles = resolve_model_roles(model_roles)
+
     # resolve tasks (set active model to resolve uses of the
     # 'default' model in tools, solvers, and scorers)
 
@@ -839,7 +853,9 @@ def eval_init(
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
             init_active_model(m, generate_config)
-            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
+            resolved_tasks.extend(
+                resolve_tasks(tasks, task_args, m, reoslved_model_roles, sandbox)
+            )
 
     # resolve approval
     if isinstance(approval, str | ApprovalPolicyConfig):

@@ -50,8 +50,11 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
+    model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
 ) -> list[ResolvedTask]:
+    ## TODO: how to use model_roles here?
+
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         return [
             ResolvedTask(
