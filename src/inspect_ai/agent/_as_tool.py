@@ -8,7 +8,7 @@ from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
-from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
 
 from ._agent import Agent, AgentState
@@ -56,6 +56,26 @@ def as_tool(agent: Agent, **agent_kwargs: Any) -> Tool:
         else:
             return ""
 
+    # get tool_info
+    tool_info = agent_tool_info(agent, **agent_kwargs)
+
+    # add "input" param
+    tool_info.parameters.properties = {
+        "input": ToolParam(type="string", description="Input message.")
+    } | tool_info.parameters.properties
+    tool_info.parameters.required.append("input")
+
+    # create tool
+    tool_def = ToolDef(
+        execute,
+        name=tool_info.name,
+        description=tool_info.description,
+        parameters=tool_info.parameters,
+    )
+    return tool_def.as_tool()
+
+
+def agent_tool_info(agent: Agent, **agent_kwargs: Any) -> ToolInfo:
     # get tool_info and name
     tool_info = parse_tool_info(agent)
     tool_info.name = registry_unqualified_name(agent)
@@ -68,12 +88,6 @@ def as_tool(agent: Agent, **agent_kwargs: Any) -> Tool:
             tool_info.parameters.required.remove(param)
 
     remove_param("state")
-
-    # add "input" param
-    tool_info.parameters.properties = {
-        "input": ToolParam(type="string", description="Input message.")
-    } | tool_info.parameters.properties
-    tool_info.parameters.required.append("input")
 
     # validate and remove curried params
     for agent_param in agent_kwargs.keys():
@@ -93,11 +107,4 @@ def as_tool(agent: Agent, **agent_kwargs: Any) -> Tool:
     # validate parameter descriptions and types
     validate_tool_parameters(tool_info.name, tool_info.parameters.properties)
 
-    # create tool
-    tool_def = ToolDef(
-        execute,
-        name=tool_info.name,
-        description=tool_info.description,
-        parameters=tool_info.parameters,
-    )
-    return tool_def.as_tool()
+    return tool_info

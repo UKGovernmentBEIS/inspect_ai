@@ -1,3 +1,5 @@
+from typing import Callable, TypeAlias
+
 import pytest
 
 from inspect_ai import eval
@@ -6,6 +8,7 @@ from inspect_ai.agent import Agent, AgentState, agent, as_tool
 from inspect_ai.solver._as_solver import as_solver
 from inspect_ai.solver._solver import Solver
 from inspect_ai.tool import ToolDef
+from inspect_ai.tool._tool import Tool
 
 
 @agent
@@ -68,43 +71,80 @@ def web_surfer_no_param_docs() -> Agent:
     return execute
 
 
-def test_agent_as_tool():
-    tool = as_tool(web_surfer())
+ToolConverter: TypeAlias = Callable[..., Tool]
+
+
+def check_agent_as_tool(
+    converter: ToolConverter,
+    tool_name: str = "web_surfer",
+    input_param: str | None = "input",
+):
+    tool = converter(web_surfer())
     tool_def = ToolDef(tool)
-    assert tool_def.name == "web_surfer"
+    assert tool_def.name == tool_name
     assert (
         tool_def.description == "Web surfer for conducting web research into a topic."
     )
-    assert len(tool_def.parameters.properties) == 2
-    assert "input" in tool_def.parameters.properties
+    num_params = 1
+    if input_param is not None:
+        assert input_param in tool_def.parameters.properties
+        num_params += 1
+    assert len(tool_def.parameters.properties) == num_params
     assert "max_searches" in tool_def.parameters.properties
 
 
-def test_agent_as_tool_curry():
-    tool = as_tool(web_surfer(), max_searches=3)
+def check_agent_as_tool_curry(
+    converter: ToolConverter,
+    tool_name: str = "web_surfer",
+    input_param: str | None = "input",
+):
+    tool = converter(web_surfer(), max_searches=3)
     tool_def = ToolDef(tool)
-    assert tool_def.name == "web_surfer"
+    assert tool_def.name == tool_name
     assert (
         tool_def.description == "Web surfer for conducting web research into a topic."
     )
-    assert len(tool_def.parameters.properties) == 1
-    assert "input" in tool_def.parameters.properties
+    num_params = 0
+    if input_param is not None:
+        assert input_param in tool_def.parameters.properties
+        num_params += 1
+    assert len(tool_def.parameters.properties) == num_params
     assert "max_searches" not in tool_def.parameters.properties
 
 
-def test_agent_as_tool_curry_invalid_param():
+def check_agent_as_tool_curry_invalid_param(converter: ToolConverter):
     with pytest.raises(ValueError, match="does not have a"):
-        as_tool(web_surfer(), foo=3)
+        converter(web_surfer(), foo=3)
+
+
+def check_agent_as_tool_no_docs_error(converter: ToolConverter):
+    with pytest.raises(ValueError, match="Description not provided"):
+        converter(web_surfer_no_docs())
+
+
+def check_agent_as_tool_no_param_docs_error(converter: ToolConverter):
+    with pytest.raises(ValueError, match="provided for parameter"):
+        converter(web_surfer_no_param_docs())
+
+
+def test_agent_as_tool():
+    check_agent_as_tool(as_tool)
+
+
+def test_agent_as_tool_curry():
+    check_agent_as_tool_curry(as_tool)
+
+
+def test_agent_as_tool_curry_invalid_param():
+    check_agent_as_tool_curry_invalid_param(as_tool)
 
 
 def test_agent_as_tool_no_docs_error():
-    with pytest.raises(ValueError, match="Description not provided"):
-        as_tool(web_surfer_no_docs())
+    check_agent_as_tool_no_docs_error(as_tool)
 
 
 def test_agent_as_tool_no_param_docs_error():
-    with pytest.raises(ValueError, match="provided for parameter"):
-        as_tool(web_surfer_no_param_docs())
+    check_agent_as_tool_no_docs_error(as_tool)
 
 
 def check_agent_as_solver(agent_solver: Solver):
