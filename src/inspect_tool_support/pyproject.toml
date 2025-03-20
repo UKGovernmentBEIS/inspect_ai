@@ -65,7 +65,7 @@ ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_tool_support"
-version = "0.1.6"
+version = "0.1.7"
 description = "Sandbox container tool code for inspect_ai"
 authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
@@ -96,6 +96,7 @@ dependencies = [
 ]
 
 [project.urls]
+CHANGELOG="https://raw.githubusercontent.com/UKGovernmentBEIS/inspect_ai/refs/heads/feature/tool-support-fast-follow/src/inspect_tool_support/CHANGELOG.md"
 
 [project.scripts]
 inspect-tool-support = "inspect_tool_support._cli.main:main"

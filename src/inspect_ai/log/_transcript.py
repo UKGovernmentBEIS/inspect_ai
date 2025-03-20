@@ -146,7 +146,7 @@ class ModelEvent(BaseEvent):
     """working time for model call that succeeded (i.e. was not retried)."""
 
     @field_serializer("completed")
-    def serialize_completed(self, dt: datetime) -> str:
+    def serialize_completed(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
         return dt.astimezone().isoformat()
@@ -235,7 +235,9 @@ class ToolEvent(BaseEvent):
     """Required so that we can include '_cancel_fn' as a member."""
 
     @field_serializer("completed")
-    def serialize_completed(self, dt: datetime) -> str:
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
         return dt.astimezone().isoformat()
 
 
@@ -270,7 +272,9 @@ class SandboxEvent(BaseEvent):
     """Time that sandbox action completed (see `timestamp` for started)"""
 
     @field_serializer("completed")
-    def serialize_completed(self, dt: datetime) -> str:
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
         return dt.astimezone().isoformat()
 
 
@@ -412,7 +416,9 @@ class SubtaskEvent(BaseEvent):
     """Working time for subtask (i.e. time not spent waiting on semaphores or model retries)."""
 
     @field_serializer("completed")
-    def serialize_completed(self, dt: datetime) -> str:
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
         return dt.astimezone().isoformat()
 
 
