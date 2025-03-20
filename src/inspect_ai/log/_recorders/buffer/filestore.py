@@ -61,6 +61,9 @@ class SampleBufferFilestore(SampleBuffer):
         if create:
             self._fs.mkdir(self._dir, exist_ok=True)
 
+            # place a file in the dir to force it to be created
+            self._fs.touch(f"{self._dir}.keep")
+
     def write_manifest(self, manifest: Manifest) -> None:
         with file(self._manifest_file(), "wb") as f:
             f.write(to_json_safe(manifest))
