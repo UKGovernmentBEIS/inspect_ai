@@ -56036,7 +56036,7 @@ Supported expressions:
             data: collapsedMessages,
             renderRow,
             live: running2,
-            showProgress: running2 ? "generating..." : void 0
+            showProgress: running2
           }
         );
       }
@@ -64867,8 +64867,7 @@ ${events}
         return e.event === "sample_init";
       });
       const initEvent = events[initEventIndex];
-      filterPending ? events.filter((e) => !e.pending) : events;
-      const collapsed = !filterPending ? events.reduce((acc, event) => {
+      const collapsed = filterPending ? events.filter((e) => !e.pending) : events.reduce((acc, event) => {
         if (!event.pending) {
           acc.push(event);
         } else {
@@ -64880,7 +64879,7 @@ ${events}
           }
         }
         return acc;
-      }, []) : events;
+      }, []);
       const hasInitStep = collapsed.findIndex((e) => {
         return e.event === "step" && e.name === "init";
       }) !== -1;

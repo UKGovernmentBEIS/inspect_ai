@@ -16,7 +16,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint 'src/**/*.{js,jsx,mjs,ts,tsx}'",
     "lint:fix": "eslint 'src/**/*.{js,jsx,mjs,ts,tsx}' --fix",
-    "tsc": "tsc --noEmit"
+    "tsc": "tsc --noEmit",
+    "check-all": "yarn tsc && yarn lint:fix && yarn prettier:write && yarn build"
   },
   "exports": {
     ".": "./src/App.mjs"
