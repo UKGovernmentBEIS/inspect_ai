@@ -5,6 +5,7 @@ import pytest
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai.agent import Agent, AgentState, agent, as_tool
+from inspect_ai.agent._handoff import handoff
 from inspect_ai.solver._as_solver import as_solver
 from inspect_ai.solver._solver import Solver
 from inspect_ai.tool import ToolDef
@@ -145,6 +146,28 @@ def test_agent_as_tool_no_docs_error():
 
 def test_agent_as_tool_no_param_docs_error():
     check_agent_as_tool_no_docs_error(as_tool)
+
+
+def test_agent_handoff():
+    check_agent_as_tool(handoff, tool_name="handoff_to_web_surfer", input_param=None)
+
+
+def test_agent_handoff_curry():
+    check_agent_as_tool_curry(
+        handoff, tool_name="handoff_to_web_surfer", input_param=None
+    )
+
+
+def test_agent_handoff_curry_invalid_param():
+    check_agent_as_tool_curry_invalid_param(handoff)
+
+
+def test_agent_handoff_no_docs_error():
+    check_agent_as_tool_no_docs_error(handoff)
+
+
+def test_agent_handoff_no_param_docs_error():
+    check_agent_as_tool_no_docs_error(handoff)
 
 
 def check_agent_as_solver(agent_solver: Solver):
