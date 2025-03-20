@@ -15,7 +15,7 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
     """Convert an agent to a solver.
 
     Note that agents used as solvers will only receive their first parameter
-    (`input`). Any other parameters must provide appropriate defaults
+    (`state`). Any other parameters must provide appropriate defaults
     or be explicitly specified in `agent_kwargs`
 
     Args:
