@@ -1,3 +1,5 @@
+import re
+
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
@@ -13,14 +15,17 @@ def arithmetic_prefill():
             Sample(
                 input="What is 1+1?",
                 target="2",
+                metadata={"prefill": "1+1="},
             ),
             Sample(
                 input="What is 5+7?",
                 target="12",
+                metadata={"prefill": "5+7="},
             ),
             Sample(
                 input="What is 3*4?",
                 target="12",
+                metadata={"prefill": "3*4="},
             ),
         ],
         solver=prefill_solver(),
@@ -39,7 +44,9 @@ def prefill_solver() -> Solver:
         # Create a new set of messages with a prefilled assistant message
         state.messages = [
             ChatMessageUser(content=question),
-            ChatMessageAssistant(content="The answer is: "),  # prefilled message
+            ChatMessageAssistant(
+                content=state.metadata["prefill"]
+            ),  # prefilled message
         ]
 
         # Generate the completion from the prefilled message
@@ -54,24 +61,18 @@ def score_arithmetic():
     """Simple scorer that extracts the number from the output and compares it to the target."""
 
     async def score(state: TaskState, target: Target):
-        output = state.output.completion
+        output = state.output.completion.strip()
+        # Since we're using prefill, the output should start with a number
+        # Extract the first number from the output
+        match = re.match(r"^(\d+)", output)
+        if match:
+            answer = match.group(1)
+            correct = answer == target.text
+            return Score(
+                value=1.0 if correct else 0.0,
+                answer=output,
+            )
 
-        # Extract the answer (assuming it follows "The answer is: ")
-        if "The answer is: " in output:
-            answer_part = output.split("The answer is: ")[1].strip()
-            # Extract just the first number from the answer
-            import re
-
-            numbers = re.findall(r"\d+", answer_part)
-            if numbers:
-                answer = numbers[0]
-                correct = answer == target.text
-                return Score(
-                    value=1.0 if correct else 0.0,
-                    answer=answer,
-                )
-
-        # Fallback if we can't parse properly
         return Score(
             value=0.0,
             answer=output,

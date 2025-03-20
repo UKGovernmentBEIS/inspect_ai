@@ -179,13 +179,18 @@ class VLLMAPI(OpenAIAPI):
         # check if last message is an assistant message, in this case we want to
         # continue the final message
         if input[-1].role == "assistant":
-            # Only set these config values if both are currently None
-            if (
-                config.add_generation_prompt is None
-                and config.continue_final_message is None
-            ):
-                config.add_generation_prompt = False
-                config.continue_final_message = True
+            # Create a copy of the config to avoid modifying the original
+            config = config.model_copy()
+
+            # Set these parameters in extra_body
+            if config.extra_body is None:
+                config.extra_body = {}
+
+            # Only set these values if they're not already present in extra_body
+            if "add_generation_prompt" not in config.extra_body:
+                config.extra_body["add_generation_prompt"] = False
+            if "continue_final_message" not in config.extra_body:
+                config.extra_body["continue_final_message"] = True
 
         return await super().generate(input, tools, tool_choice, config)
 
@@ -227,7 +232,8 @@ class VLLMAPI(OpenAIAPI):
                 json_schema=dict(
                     name=config.response_schema.name,
                     schema=config.response_schema.json_schema.model_dump(
-                        exclude_none=True
+                        exclude_none=True,
+                        by_alias=True,
                     ),
                     description=config.response_schema.description,
                     strict=config.response_schema.strict,
@@ -238,12 +244,6 @@ class VLLMAPI(OpenAIAPI):
         extra_body = {}
         if config.extra_body:
             extra_body.update(config.extra_body)
-
-        # Add generation prompt configuration to extra_body if present
-        if config.add_generation_prompt is not None:
-            extra_body["add_generation_prompt"] = config.add_generation_prompt
-        if config.continue_final_message is not None:
-            extra_body["continue_final_message"] = config.continue_final_message
 
         # Add guided decoding configuration to extra_body if present
         if config.guided_decoding:

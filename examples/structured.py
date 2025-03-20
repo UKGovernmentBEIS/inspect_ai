@@ -22,7 +22,7 @@ class Color(BaseModel):
     blue: int
 
 
-@task
+@task(vllm=False)
 def rgb_color():
     return Task(
         dataset=[
@@ -84,6 +84,57 @@ def rgb_color_regex():
         config=GenerateConfig(
             guided_decoding=GuidedDecodingConfig(
                 regex=r"RGB: (\d{1,3}),(\d{1,3}),(\d{1,3})"
+            )
+        ),
+    )
+
+
+@task(vllm=True)
+def rgb_color_choice():
+    return Task(
+        dataset=[
+            Sample(
+                input="What is the RGB color for white?",
+                target="255,255,255",
+            ),
+            Sample(
+                input="What is the RGB color for black?",
+                target="0,0,0",
+            ),
+        ],
+        solver=generate(),
+        scorer=score_regex(),
+        config=GenerateConfig(
+            guided_decoding=GuidedDecodingConfig(
+                choice=["RGB: 255,255,255", "RGB: 0,0,0"]
+            )
+        ),
+    )
+
+
+@task(vllm=True)
+def rgb_color_grammar():
+    return Task(
+        dataset=[
+            Sample(
+                input="What is the RGB color for white?",
+                target="255,255,255",
+            ),
+            Sample(
+                input="What is the RGB color for black?",
+                target="0,0,0",
+            ),
+        ],
+        solver=generate(),
+        scorer=score_regex(),
+        config=GenerateConfig(
+            guided_decoding=GuidedDecodingConfig(
+                grammar="""
+                    start: "RGB: " rgb_values
+                    rgb_values: number "," number "," number
+                    number: DIGIT | DIGIT DIGIT | DIGIT DIGIT DIGIT
+                    DIGIT: "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"
+                """
             )
         ),
     )

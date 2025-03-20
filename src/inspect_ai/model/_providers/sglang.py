@@ -150,3 +150,89 @@ class SGLangAPI(OpenAIAPI):
             # Clear references
             self.server_process = None
             self.port = None
+
+    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+        params: dict[str, Any] = dict(
+            model=self.model_name,
+        )
+        if config.max_tokens is not None:
+            params["max_tokens"] = config.max_tokens
+        if config.frequency_penalty is not None:
+            params["frequency_penalty"] = config.frequency_penalty
+        if config.stop_seqs is not None:
+            params["stop"] = config.stop_seqs
+        if config.presence_penalty is not None:
+            params["presence_penalty"] = config.presence_penalty
+        if config.logit_bias is not None:
+            params["logit_bias"] = config.logit_bias
+        if config.seed is not None:
+            params["seed"] = config.seed
+        if config.temperature is not None:
+            params["temperature"] = config.temperature
+        if config.top_p is not None:
+            params["top_p"] = config.top_p
+        if config.num_choices is not None:
+            params["n"] = config.num_choices
+        if config.logprobs is not None:
+            params["logprobs"] = config.logprobs
+        if config.top_logprobs is not None:
+            params["top_logprobs"] = config.top_logprobs
+
+        if config.response_schema is not None and config.guided_decoding is not None:
+            raise ValueError(
+                "response_schema and guided_decoding cannot both be set. Please set only one of them."
+            )
+
+        # Handle extra_body
+        extra_body = {}
+        if config.extra_body:
+            extra_body.update(config.extra_body)
+
+        if config.response_schema:
+            params["response_format"] = dict(
+                type="json_schema",
+                json_schema=dict(
+                    name=config.response_schema.name,
+                    schema=config.response_schema.json_schema.model_dump(
+                        exclude_none=True
+                    ),
+                    description=config.response_schema.description,
+                    strict=config.response_schema.strict,
+                ),
+            )
+        elif config.guided_decoding:
+            if config.guided_decoding.json_schema:
+                params["response_format"] = dict(
+                    type="json_schema",
+                    json_schema=dict(
+                        name=config.guided_decoding.json_schema.name,
+                        schema=config.guided_decoding.json_schema.json_schema.model_dump(
+                            exclude_none=True
+                        ),
+                        description=config.guided_decoding.json_schema.description,
+                        strict=config.guided_decoding.json_schema.strict,
+                    ),
+                )
+            elif config.guided_decoding.structural_tags:
+                params["response_format"] = dict(
+                    type="structural_tag",
+                    structures=[
+                        dict(
+                            begin=structure.begin,
+                            schema=structure.schema.model_dump(exclude_none=True),
+                            end=structure.end,
+                        )
+                        for structure in config.guided_decoding.structural_tags.structures
+                    ],
+                    triggers=config.guided_decoding.structural_tags.triggers,
+                )
+            elif config.guided_decoding.grammar:
+                extra_body["ebnf"] = config.guided_decoding.grammar
+            elif config.guided_decoding.regex:
+                extra_body["regex"] = config.guided_decoding.regex
+
+        # Add extra_body to params if it has content
+        if extra_body:
+            params["extra_body"] = extra_body
+
+        return params

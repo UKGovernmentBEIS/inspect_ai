@@ -25,10 +25,33 @@ class ResponseSchema(BaseModel):
     OpenAI and Mistral only."""
 
 
-class GuidedDecodingConfig(BaseModel):
-    """Configuration for guided decoding in VLLM."""
+class StructureDefinition(BaseModel):
+    """Definition of a structural tag format."""
 
-    json_schema: dict | None = Field(
+    begin: str
+    """The opening tag that marks the beginning of the structure."""
+
+    json_schema: JSONSchema = Field(serialization_alias="schema")
+    """The JSON schema that defines the structure's format."""
+
+    end: str
+    """The closing tag that marks the end of the structure."""
+
+
+class StructuralTagConfig(BaseModel):
+    """Configuration for structural tags."""
+
+    structures: list[StructureDefinition]
+    """List of structure definitions."""
+
+    triggers: list[str]
+    """List of trigger strings that indicate a structural tag."""
+
+
+class GuidedDecodingConfig(BaseModel):
+    """Configuration for guided decoding in vLLM."""
+
+    json_schema: ResponseSchema | None = Field(
         default=None, alias="json", serialization_alias="guided_json"
     )
     """JSON schema to guide the model's output format."""
@@ -41,6 +64,11 @@ class GuidedDecodingConfig(BaseModel):
 
     grammar: str | None = Field(default=None, serialization_alias="guided_grammar")
     """Context-free grammar in EBNF format to define the output structure."""
+
+    structural_tags: StructuralTagConfig | None = Field(
+        default=None, serialization_alias="structural_tags"
+    )
+    """Configuration for structural tags to guide the model's output format."""
 
     backend: Literal["outlines", "lm-format-enforcer", "xgrammar"] | None = Field(
         default=None, serialization_alias="guided_decoding_backend"
@@ -134,12 +162,6 @@ class GenerateConfigArgs(TypedDict, total=False):
     guided_decoding: GuidedDecodingConfig | None
     """Configuration for guided decoding to control model output format. vLLM only."""
 
-    add_generation_prompt: bool | None
-    """If true, the generation prompt will be added to the chat template. This is a parameter used by chat template in tokenizer config of the model. vLLM only."""
-
-    continue_final_message: bool | None
-    """If this is set, the chat will be formatted so that the final message in the chat is open-ended, without any EOS tokens. The model will continue this message rather than starting a new one. This allows you to "prefill" part of the model's response for it. Cannot be used at the same time as `add_generation_prompt`. vLLM only."""
-
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
@@ -222,16 +244,10 @@ class GenerateConfig(BaseModel):
     """Include reasoning in chat message history sent to generate."""
 
     response_schema: ResponseSchema | None = Field(default=None)
-    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, and vLLM only."""
 
     guided_decoding: GuidedDecodingConfig | None = Field(default=None)
     """Configuration for guided decoding to control model output format. vLLM only."""
-
-    add_generation_prompt: bool | None = Field(default=None)
-    """If true, the generation prompt will be added to the chat template. This is a parameter used by chat template in tokenizer config of the model. vLLM only."""
-
-    continue_final_message: bool | None = Field(default=None)
-    """If this is set, the chat will be formatted so that the final message in the chat is open-ended, without any EOS tokens. The model will continue this message rather than starting a new one. This allows you to "prefill" part of the model's response for it. Cannot be used at the same time as `add_generation_prompt`. vLLM only."""
 
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
