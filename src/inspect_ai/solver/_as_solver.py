@@ -13,16 +13,17 @@ from inspect_ai.tool._tool_info import parse_tool_info
 
 
 @solver
-def as_solver(agent: Agent, **kwargs: Any) -> Solver:
+def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
     """Convert an agent to a solver.
 
     Note that agents used as solvers will only receive their first parameter
     (`input`). Any other parameters must provide appropriate defaults
-    or be explicitly specified in `kwargs`
+    or be explicitly specified in `agent_kwargs`
 
     Args:
        agent: Agent to convert.
-       **kwargs: Additional arguments to
+       **agent_kwargs: Arguments to curry to Agent function (required
+         if the agent has parameters without default values).
 
     Solver:
        Solver from agent.
@@ -37,7 +38,7 @@ def as_solver(agent: Agent, **kwargs: Any) -> Solver:
     # check to make sure we have all the parameters we need to run the agent
     agent_info = parse_tool_info(agent)
     for name, param in list(agent_info.parameters.properties.items())[1:]:
-        if param.default is None and name not in kwargs:
+        if param.default is None and name not in agent_kwargs:
             raise ValueError(
                 f"To use the {agent_name} agent as a solver "
                 + f"you must pass a value for the agent's required '{name}' "
@@ -46,7 +47,7 @@ def as_solver(agent: Agent, **kwargs: Any) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         # run agent
-        agent_state = await agent_execute(agent, None, state.messages, **kwargs)
+        agent_state = await agent_execute(agent, None, state.messages, **agent_kwargs)
 
         # append new messages
         message_ids = [message.id for message in state.messages]
