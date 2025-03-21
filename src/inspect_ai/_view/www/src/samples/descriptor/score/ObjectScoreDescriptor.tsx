@@ -58,7 +58,7 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
             )}
           >
             <div className={clsx(styles.key, "text-size-smaller")}>{key}</div>
-            <div className={clsx(styles.value, "text-size-title")}>
+            <div className={clsx(styles.value, "text-size-base")}>
               {formattedValue}
             </div>
           </div>,
