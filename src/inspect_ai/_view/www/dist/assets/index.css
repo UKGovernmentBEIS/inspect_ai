@@ -16202,80 +16202,6 @@ ul.jsondiffpatch-textdiff {
   padding: 0 0.5em 0.1em 0.5em;
   font-size: var(--inspect-font-size-smaller);
 }
-._grid_ktnsp_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 1em;
-  row-gap: 0.2em;
-}
-
-._cell_ktnsp_8 {
-  font-weight: 400;
-  white-space: nowrap;
-}
-
-._value_ktnsp_13 {
-  white-space: pre-wrap;
-  word-wrap: anywhere;
-}
-._grid_3umed_1 {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: 1em;
-}
-._container_1jqar_1 {
-  margin-top: 0.5em;
-  padding-left: 0;
-}
-
-._label_1jqar_6 {
-  padding-right: 2em !important;
-  padding-left: 0 !important;
-  padding-bottom: 0 !important;
-  font-weight: 400;
-  padding-bottom: 0 !important;
-}
-
-._wordBreak_1jqar_14 {
-  word-break: break-all;
-}
-
-._scoreTable_1jqar_18 {
-  width: 100%;
-  margin-bottom: 1em;
-}
-
-._bottomBorder_1jqar_23 {
-  border-bottom-color: #00000000;
-}
-
-._headerScore_1jqar_27 {
-  padding-left: 2em;
-}
-
-._targetValue_1jqar_31 {
-  padding-right: 2em !important;
-  padding-left: 0 !important;
-  padding-top: 0 !important;
-}
-
-._answerValue_1jqar_37 {
-  padding-left: 0 !important;
-  padding-top: 0 !important;
-}
-
-._scoreValue_1jqar_42 {
-  padding-left: 2em !important;
-  padding-top: 0 !important;
-}
-
-._noLeft_1jqar_47 {
-  padding-left: 0 !important;
-}
-
-._noTop_1jqar_51 {
-  margin-top: 0 !important;
-}
 ._wrapper_sq96g_1 {
   display: grid;
   grid-template-columns: 0 auto auto;
@@ -16501,6 +16427,86 @@ ul.jsondiffpatch-textdiff {
 
 ._titled_9qy4e_26:hover {
   cursor: pointer;
+}
+._grid_ktnsp_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 1em;
+  row-gap: 0.2em;
+}
+
+._cell_ktnsp_8 {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+._value_ktnsp_13 {
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}
+._grid_3umed_1 {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 1em;
+}
+._container_ne5m5_1 {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr 1fr;
+  column-gap: 1em;
+  row-gap: 0.5em;
+}
+._container_1jqar_1 {
+  margin-top: 0.5em;
+  padding-left: 0;
+}
+
+._label_1jqar_6 {
+  padding-right: 2em !important;
+  padding-left: 0 !important;
+  padding-bottom: 0 !important;
+  font-weight: 400;
+  padding-bottom: 0 !important;
+}
+
+._wordBreak_1jqar_14 {
+  word-break: break-all;
+}
+
+._scoreTable_1jqar_18 {
+  width: 100%;
+  margin-bottom: 1em;
+}
+
+._bottomBorder_1jqar_23 {
+  border-bottom-color: #00000000;
+}
+
+._headerScore_1jqar_27 {
+  padding-left: 2em;
+}
+
+._targetValue_1jqar_31 {
+  padding-right: 2em !important;
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+}
+
+._answerValue_1jqar_37 {
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+}
+
+._scoreValue_1jqar_42 {
+  padding-left: 2em !important;
+  padding-top: 0 !important;
+}
+
+._noLeft_1jqar_47 {
+  padding-left: 0 !important;
+}
+
+._noTop_1jqar_51 {
+  margin-top: 0 !important;
 }
 ._title_19l1b_1 {
   margin-left: 0.5em;
