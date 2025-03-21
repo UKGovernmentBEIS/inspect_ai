@@ -328,7 +328,7 @@ export const createSamplesDescriptor = (
     answer: Math.min(sizes[2], 300),
     limit: Math.min(sizes[3], 50),
     id: Math.min(sizes[4], 10),
-    score: Math.min(sizes[4], 30),
+    score: Math.min(sizes[5], 30),
   };
   const base =
     maxSizes.input +
