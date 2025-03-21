@@ -35,7 +35,7 @@ from inspect_ai.model import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
-from inspect_ai.util._display import init_display_type
+from inspect_ai.util._display import display_type_initialized, init_display_type
 
 from .eval import eval, eval_init
 from .loader import resolve_task_args
@@ -234,7 +234,8 @@ def eval_set(
         return results
 
     # initialise display (otherwise eval_init will set it to full)
-    display = init_display_type(display)
+    if not display_type_initialized():
+        display = init_display_type(display)
     if display == "conversation":
         raise RuntimeError("eval_set cannot be used with conversation display.")
 
