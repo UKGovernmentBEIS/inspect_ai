@@ -187,8 +187,8 @@ class ModelOutput(BaseModel):
     def for_tool_call(
         model: str,
         tool_name: str,
-        native_tool_name: str,
         tool_arguments: dict[str, Any],
+        native_tool_name: str | None = None,
         tool_call_id: str | None = None,
         content: str | None = None,
         type: str = "function",
