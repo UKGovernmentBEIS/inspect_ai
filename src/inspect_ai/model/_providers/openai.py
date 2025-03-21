@@ -67,6 +67,14 @@ class OpenAIAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            self.service: str | None = parts[0]
+            model_name = "/".join(parts[1:])
+        else:
+            self.service = None
+
         # call super
         super().__init__(
             model_name=model_name,
@@ -75,14 +83,6 @@ class OpenAIAPI(ModelAPI):
             api_key_vars=[OPENAI_API_KEY, AZURE_OPENAI_API_KEY, AZUREAI_OPENAI_API_KEY],
             config=config,
         )
-
-        # extract any service prefix from model name
-        parts = model_name.split("/")
-        if len(parts) > 1:
-            self.service: str | None = parts[0]
-            model_name = "/".join(parts[1:])
-        else:
-            self.service = None
 
         # resolve api_key
         if not self.api_key:
@@ -322,6 +322,7 @@ class OpenAIAPI(ModelAPI):
             config.reasoning_effort is not None
             and not self.is_gpt()
             and not self.is_o1_mini()
+            and not self.is_o1_preview()
         ):
             params["reasoning_effort"] = config.reasoning_effort
         if config.response_schema is not None:

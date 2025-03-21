@@ -52,19 +52,22 @@ from ._model_output import ModelUsage, StopReason, as_stop_reason
 
 
 def is_o_series(name: str) -> bool:
-    return bool(re.match(r"(^|.*\/)o\d+", name))
+    if bool(re.match(r"^o\d+", name)):
+        return True
+    else:
+        return not is_gpt(name) and bool(re.search(r"o\d+", name))
 
 
 def is_o1_mini(name: str) -> bool:
-    return name.startswith("o1-mini")
+    return "o1-mini" in name
 
 
 def is_o1_preview(name: str) -> bool:
-    return name.startswith("o1-preview")
+    return "o1-preview" in name
 
 
 def is_gpt(name: str) -> bool:
-    return name.startswith("gpt")
+    return "gpt" in name
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
