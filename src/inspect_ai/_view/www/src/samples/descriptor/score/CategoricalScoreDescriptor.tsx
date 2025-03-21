@@ -9,7 +9,7 @@ export const categoricalScoreDescriptor = (
     scoreType: kScoreTypeCategorical,
     categories: values,
     compare: (a, b) => {
-      return String(a).localeCompare(String(b));
+      return String(a.value).localeCompare(String(b.value));
     },
     render: (score) => {
       return String(score);
