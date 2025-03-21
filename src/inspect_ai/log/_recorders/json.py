@@ -217,6 +217,11 @@ def _read_header_streaming(log_file: str) -> EvalLog:
 
         # Parse the log file, stopping before parsing samples
         status: Literal["started", "success", "cancelled", "error"] | None = None
+        eval: EvalSpec | None = None
+        plan: EvalPlan | None = None
+        results: EvalResults | None = None
+        stats: EvalStats | None = None
+        error: EvalError | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(
@@ -239,6 +244,9 @@ def _read_header_streaming(log_file: str) -> EvalLog:
                 break
 
     assert status, "Must encounter a 'status'"
+    assert eval, "Must encounter a 'eval'"
+    assert plan, "Must encounter a 'plan'"
+    assert stats, "Must encounter a 'stats'"
 
     return EvalLog(
         eval=eval,

@@ -4,6 +4,7 @@ import os
 import sys
 from typing import Awaitable, Callable, Set, cast
 
+from inspect_ai._eval.task.task import Task
 from inspect_ai._util.trace import trace_action
 
 if sys.version_info < (3, 11):
@@ -81,6 +82,7 @@ async def eval_run(
     eval_wd = os.getcwd()
 
     # ensure sample ids
+    task: Task | None = None
     for resolved_task in tasks:
         # add sample ids to dataset if they aren't there (start at 1 not 0)
         task = resolved_task.task
@@ -90,6 +92,8 @@ async def eval_run(
 
         # Ensure sample ids are unique
         ensure_unique_ids(task.dataset)
+
+    assert task, "Must encounter a task"
 
     # run startup pass for the sandbox environments
     shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
