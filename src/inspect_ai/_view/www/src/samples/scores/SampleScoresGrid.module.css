@@ -1,0 +1,6 @@
+.container {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr 1fr;
+  column-gap: 1em;
+  row-gap: 0.5em;
+}

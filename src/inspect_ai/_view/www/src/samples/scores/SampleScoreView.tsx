@@ -8,6 +8,7 @@ import { SampleScores } from "./SampleScores";
 
 import { FC } from "react";
 import { SampleSummary } from "../../api/types";
+import ExpandablePanel from "../../components/ExpandablePanel";
 import { useEvalDescriptor } from "../../state/hooks";
 import styles from "./SampleScoreView.module.css";
 
@@ -68,10 +69,15 @@ export const SampleScoreView: FC<SampleScoreViewProps> = ({
               Input
             </div>
             <div>
-              <MarkdownDiv
-                markdown={scoreInput.join("\n")}
-                className={styles.wordBreak}
-              />
+              <ExpandablePanel
+                id={`sample-score-${sample.id}-${sample.epoch}`}
+                collapse={true}
+              >
+                <MarkdownDiv
+                  markdown={scoreInput.join("\n")}
+                  className={styles.wordBreak}
+                />
+              </ExpandablePanel>
             </div>
           </div>
 
