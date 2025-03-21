@@ -20160,7 +20160,7 @@ self.onmessage = function (e) {
                   ),
                   children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.key, "text-size-smaller"), children: key2 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.value, "text-size-large"), children: formattedValue })
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.value, "text-size-base"), children: formattedValue })
                   ]
                 },
                 `score-value-${index2}`
@@ -28450,7 +28450,7 @@ self.onmessage = function (e) {
         answer: Math.min(sizes[2], 300),
         limit: Math.min(sizes[3], 50),
         id: Math.min(sizes[4], 10),
-        score: Math.min(sizes[4], 30)
+        score: Math.min(sizes[5], 30)
       };
       const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
       const messageShape = {
@@ -66124,7 +66124,7 @@ ${events}
             return null;
           }
         },
-        [showSample]
+        [showSample, gridColumnsTemplate]
       );
       const { input: input2, limit, answer: answer2, target: target2 } = gridColumns(samplesDescriptor);
       const sampleCount = items == null ? void 0 : items.reduce((prev, current2) => {
