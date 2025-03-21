@@ -15,7 +15,7 @@ from google.protobuf.json_format import MessageToDict
 from pydantic import JsonValue
 from typing_extensions import override
 from vertexai.generative_models import (  # type: ignore
-    Candidate,  # type: ignore
+    Candidate,
     FinishReason,
     FunctionDeclaration,
     GenerationConfig,
