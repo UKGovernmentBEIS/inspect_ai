@@ -215,9 +215,7 @@ async def call_tools(
                     tg.start_soon(call_tool_task, call, send_stream)
                     event._set_cancel_fn(tg.cancel_scope.cancel)
                     async with receive_stream:
-                        async for result in receive_stream:
-                            tool_message, result_event = result
-                            break
+                        tool_message, result_event = await receive_stream.receive()
             except ExceptionGroup as ex:
                 raise ex.exceptions[0]
 

@@ -454,6 +454,7 @@ class Model:
         async def generate() -> ModelOutput:
             check_sample_interrupt()
 
+            cache_entry: CacheEntry | None
             if cache:
                 if isinstance(cache, CachePolicy):
                     policy = cache
@@ -481,6 +482,8 @@ class Model:
                         call=None,
                     )
                     return existing
+            else:
+                cache_entry = None
 
             # verify that model apis are allowed
             self.verify_model_apis()
@@ -550,7 +553,7 @@ class Model:
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
                 )
 
-            if cache:
+            if cache and cache_entry:
                 cache_store(entry=cache_entry, output=output)
 
             return output
