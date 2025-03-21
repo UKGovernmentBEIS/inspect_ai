@@ -322,6 +322,7 @@ class OpenAIAPI(ModelAPI):
             config.reasoning_effort is not None
             and not self.is_gpt()
             and not self.is_o1_mini()
+            and not self.is_o1_preview()
         ):
             params["reasoning_effort"] = config.reasoning_effort
         if config.response_schema is not None:
