@@ -2,6 +2,7 @@ import json
 import re
 from typing import Literal
 
+from openai import BadRequestError
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -48,7 +49,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._model_output import ModelUsage, StopReason, as_stop_reason
+from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
 
 
 def is_o_series(name: str) -> bool:
@@ -56,6 +57,10 @@ def is_o_series(name: str) -> bool:
         return True
     else:
         return not is_gpt(name) and bool(re.search(r"o\d+", name))
+
+
+def is_o1_pro(name: str) -> bool:
+    return "o1-pro" in name
 
 
 def is_o1_mini(name: str) -> bool:
@@ -483,3 +488,31 @@ def chat_choices_from_openai(
         )
         for choice in choices
     ]
+
+
+def openai_handle_bad_request(
+    model_name: str, e: BadRequestError
+) -> ModelOutput | Exception:
+    # extract message
+    if isinstance(e.body, dict) and "message" in e.body.keys():
+        content = str(e.body.get("message"))
+    else:
+        content = e.message
+
+    # narrow stop_reason
+    stop_reason: StopReason | None = None
+    if e.code == "context_length_exceeded":
+        stop_reason = "model_length"
+    elif (
+        e.code == "invalid_prompt"  # seems to happen for o1/o3
+        or e.code == "content_policy_violation"  # seems to happen for vision
+        or e.code == "content_filter"  # seems to happen on azure
+    ):
+        stop_reason = "content_filter"
+
+    if stop_reason:
+        return ModelOutput.from_content(
+            model=model_name, content=content, stop_reason=stop_reason
+        )
+    else:
+        return e
