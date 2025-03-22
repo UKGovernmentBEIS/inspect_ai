@@ -1,17 +1,23 @@
 import json
 
 from openai.types.responses import (
+    FunctionToolParam,
     Response,
+    ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
     ResponseInputContentParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
     ResponseInputMessageContentListParam,
     ResponseInputTextParam,
+    ResponseOutputMessage,
     ResponseOutputMessageParam,
     ResponseOutputRefusalParam,
+    ResponseOutputText,
     ResponseOutputTextParam,
+    ResponseReasoningItem,
     ResponseReasoningItemParam,
+    ToolChoiceFunctionParam,
     ToolParam,
 )
 from openai.types.responses.response_create_params import (
@@ -26,13 +32,14 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai.model._model_output import ChatCompletionChoice
+from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._model_output import ChatCompletionChoice, StopReason
 from inspect_ai.model._openai import is_o_series
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
-from ._chat_message import ChatMessage
+from ._chat_message import ChatMessage, ChatMessageAssistant
 
 
 async def openai_responses_inputs(
@@ -109,7 +116,8 @@ async def openai_responses_content_param(content: Content) -> ResponseInputConte
             type="input_image", detail=content.detail, image_url=content.image
         )
     else:
-        # ResponseInputFileParam
+        # TODO: support for files (PDFs) and audio and video whenever
+        # that is supported by the responses API (was not on initial release)
         raise ValueError("Unsupported content type.")
 
 
@@ -162,14 +170,81 @@ async def openai_responses_tools_content_params(
 
 
 def openai_responses_tool_choice(tool_choice: ToolChoice) -> ResponsesToolChoice:
-    return "auto"
+    match tool_choice:
+        case "none" | "auto":
+            return tool_choice
+        case "any":
+            return "required"
+        # TODO: internal tools need to be converted to ToolChoiceTypesParam
+        case _:
+            return ToolChoiceFunctionParam(type="function", name=tool_choice.name)
 
 
 def openai_responses_tools(tools: list[ToolInfo]) -> list[ToolParam]:
-    return []
+    # TODO: return special types for internal tools
+    return [
+        FunctionToolParam(
+            type="function",
+            name=tool.name,
+            description=tool.description,
+            parameters=tool.parameters.model_dump(exclude_none=True),
+            strict=True,
+        )
+        for tool in tools
+    ]
 
 
 def openai_responses_chat_choices(
     response: Response, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
-    return []
+    # determine the StopReason
+    stop_reason: StopReason = "stop"
+    if response.incomplete_details is not None:
+        if response.incomplete_details.reason == "max_output_tokens":
+            stop_reason = "max_tokens"
+        elif response.incomplete_details.reason == "content_filter":
+            stop_reason = "content_filter"
+
+    # collect output and tool calls
+    message_content: list[Content] = []
+    tool_calls: list[ToolCall] = []
+    for output in response.output:
+        if isinstance(output, ResponseOutputMessage):
+            for content in output.content:
+                if isinstance(content, ResponseOutputText):
+                    message_content.append(ContentText(text=content.text))
+                else:
+                    message_content.append(ContentText(text=content.refusal))
+        elif isinstance(output, ResponseReasoningItem):
+            reasoning = "\n".join([summary.text for summary in output.summary])
+            message_content.append(
+                ContentReasoning(signature=output.id, reasoning=reasoning)
+            )
+        else:
+            stop_reason = "tool_calls"
+            if isinstance(output, ResponseFunctionToolCall):
+                tool_calls.append(
+                    parse_tool_call(
+                        output.call_id,
+                        output.name,
+                        output.arguments,
+                        tools,
+                    )
+                )
+                pass
+            else:
+                ## TODO: implement support for internal tools
+                raise ValueError(f"Unexpected output type: {output.__class__}")
+
+    # return choice
+    return [
+        ChatCompletionChoice(
+            message=ChatMessageAssistant(
+                id=response.id,
+                content=message_content,
+                tool_calls=tool_calls if len(tool_calls) > 0 else None,
+                source="generate",
+            ),
+            stop_reason=stop_reason,
+        )
+    ]

@@ -21,6 +21,7 @@ from .._model_output import (
     ModelUsage,
 )
 from .._openai import (
+    OpenAIResponseError,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
@@ -77,6 +78,12 @@ async def generate_responses(
     try:
         # generate response
         model_response: Response = await client.responses.create(**request)
+
+        # check for error
+        if model_response.error is not None:
+            raise OpenAIResponseError(
+                code=model_response.error.code, message=model_response.error.message
+            )
 
         # save response for model_call
         response = model_response.model_dump()

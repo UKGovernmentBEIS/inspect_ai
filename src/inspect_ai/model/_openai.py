@@ -2,7 +2,7 @@ import json
 import re
 from typing import Literal
 
-from openai import BadRequestError
+from openai import BadRequestError, OpenAIError
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -50,6 +50,15 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
+
+
+class OpenAIResponseError(OpenAIError):
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+
+    def __str__(self) -> str:
+        return f"{self.code}: {self.message}"
 
 
 def is_o_series(name: str) -> bool:

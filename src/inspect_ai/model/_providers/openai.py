@@ -33,6 +33,7 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .._openai import (
+    OpenAIResponseError,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
@@ -279,6 +280,8 @@ class OpenAIAPI(ModelAPI):
                 return True
         elif isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, OpenAIResponseError):
+            return ex.code in ["rate_limit_exceeded", "server_error"]
         elif isinstance(ex, APITimeoutError):
             return True
         else:
