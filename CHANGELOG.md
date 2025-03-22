@@ -1,3 +1,7 @@
+## Future
+
+- Added `--metadata` option to eval for associating metadata with eval runs.
+
 ## Unreleased
 
 - [bash_session()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-bash-session) tool for creating a stateful bash shell that retains its state across calls from the model.
