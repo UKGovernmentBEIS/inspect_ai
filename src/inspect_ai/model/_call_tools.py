@@ -202,6 +202,7 @@ async def call_tools(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
+                internal_name=call.internal_name,
                 view=call.view,
                 pending=True,
             )
