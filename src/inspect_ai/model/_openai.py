@@ -333,6 +333,7 @@ def chat_messages_from_openai(
                 chat_messages.append(ChatMessageUser(content=content))
         elif message["role"] == "assistant":
             # resolve content
+            refusal: Literal[True] | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
                 result = parse_content_with_reasoning(asst_content)
@@ -349,6 +350,8 @@ def chat_messages_from_openai(
                     content = asst_content
             elif asst_content is None:
                 content = message.get("refusal", None) or ""
+                if content:
+                    refusal = True
             else:
                 content = []
                 for ac in asst_content:
@@ -361,7 +364,7 @@ def chat_messages_from_openai(
             )
             if reasoning is not None:
                 if isinstance(content, str):
-                    content = [ContentText(text=content)]
+                    content = [ContentText(text=content, refusal=refusal)]
                 else:
                     content.insert(0, ContentReasoning(reasoning=str(reasoning)))
 
@@ -450,7 +453,7 @@ def content_from_openai(
             )
         ]
     elif content["type"] == "refusal":
-        return [ContentText(text=content["refusal"])]
+        return [ContentText(text=content["refusal"], refusal=True)]
     else:
         content_type = content["type"]
         raise ValueError(f"Unexpected content type '{content_type}' in message.")
@@ -468,8 +471,10 @@ def chat_message_assistant_from_openai(
     if reasoning is not None:
         content: str | list[Content] = [
             ContentReasoning(reasoning=str(reasoning)),
-            ContentText(text=msg_content),
+            ContentText(text=msg_content, refusal=True if refusal else None),
         ]
+    elif refusal is not None:
+        content = [ContentText(text=msg_content, refusal=True)]
     else:
         content = msg_content
 
