@@ -552,8 +552,7 @@ def parse_tool_call(
                 # If the yaml parser fails, we treat it as a string argument.
                 arguments_dict[param_names[0]] = arguments
 
-    # return ToolCall with error payload (if there is an internal_name the
-    # caller should ammend the ToolCall with it)
+    # return ToolCall with error payload
     return ToolCall(
         id=id,
         function=function,
