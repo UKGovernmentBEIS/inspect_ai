@@ -32,6 +32,8 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
+from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
 from inspect_ai.model._model_output import ChatCompletionChoice, StopReason
 from inspect_ai.model._openai import is_o_series
@@ -69,19 +71,17 @@ async def openai_responses_input(
             )
         ]
     elif message.role == "assistant":
-        reasoning_content = await openai_responses_reasponing_content_params(
-            message.content
-        )
+        reasoning_content = openai_responses_reasponing_content_params(message.content)
         text_content = [
             ResponseOutputMessageParam(
                 type="message",
                 role="assistant",
                 id=str(message.id),
-                content=await openai_responses_text_content_params(message.content),
+                content=openai_responses_text_content_params(message.content),
                 status="completed",
             )
         ]
-        tools_content = await openai_responses_tools_content_params(message.tool_calls)
+        tools_content = openai_responses_tools_content_params(message.tool_calls)
         return reasoning_content + text_content + tools_content
     elif message.role == "tool":
         if message.error is not None:
@@ -112,8 +112,12 @@ async def openai_responses_content_param(content: Content) -> ResponseInputConte
     if isinstance(content, ContentText):
         return ResponseInputTextParam(type="input_text", text=content.text)
     elif isinstance(content, ContentImage):
+        image_url = content.image
+        if not is_http_url(image_url):
+            image_url = await file_as_data_uri(image_url)
+
         return ResponseInputImageParam(
-            type="input_image", detail=content.detail, image_url=content.image
+            type="input_image", detail=content.detail, image_url=image_url
         )
     else:
         # TODO: support for files (PDFs) and audio and video whenever
@@ -121,7 +125,7 @@ async def openai_responses_content_param(content: Content) -> ResponseInputConte
         raise ValueError("Unsupported content type.")
 
 
-async def openai_responses_reasponing_content_params(
+def openai_responses_reasponing_content_params(
     content: str | list[Content],
 ) -> list[ResponseInputItemParam]:
     if isinstance(content, list):
@@ -138,20 +142,31 @@ async def openai_responses_reasponing_content_params(
         return []
 
 
-async def openai_responses_text_content_params(
+def openai_responses_text_content_params(
     content: str | list[Content],
 ) -> list[ResponseOutputTextParam | ResponseOutputRefusalParam]:
     if isinstance(content, str):
         content = [ContentText(text=content)]
 
-    return [
-        ResponseOutputTextParam(type="output_text", text=c.text, annotations=[])
-        for c in content
-        if c.type == "text"
-    ]
+    params: list[ResponseOutputTextParam | ResponseOutputRefusalParam] = []
+
+    for c in content:
+        if isinstance(c, ContentText):
+            if c.refusal:
+                params.append(
+                    ResponseOutputRefusalParam(type="refusal", refusal=c.text)
+                )
+            else:
+                params.append(
+                    ResponseOutputTextParam(
+                        type="output_text", text=c.text, annotations=[]
+                    )
+                )
+
+    return params
 
 
-async def openai_responses_tools_content_params(
+def openai_responses_tools_content_params(
     tool_calls: list[ToolCall] | None,
 ) -> list[ResponseInputItemParam]:
     if tool_calls is not None:
@@ -214,7 +229,9 @@ def openai_responses_chat_choices(
                 if isinstance(content, ResponseOutputText):
                     message_content.append(ContentText(text=content.text))
                 else:
-                    message_content.append(ContentText(text=content.refusal))
+                    message_content.append(
+                        ContentText(text=content.refusal, refusal=True)
+                    )
         elif isinstance(output, ResponseReasoningItem):
             reasoning = "\n".join([summary.text for summary in output.summary])
             message_content.append(
