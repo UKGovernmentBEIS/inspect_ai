@@ -512,7 +512,9 @@ def parse_tool_call(
     """Parse a tool call from a JSON payload.
 
     Note that this function doesn't know about internal tool names so the caller
-    should ammend the returned `ToolCall` with an internal name as appropriate
+    should ammend the returned `ToolCall` by mapping the parsed `function` field from
+    from an internal name to an inspect tool name and fixing up the `ToolCall` object
+    as required to reflect this change.
     """
     error: str | None = None
     arguments_dict: dict[str, Any] = {}
