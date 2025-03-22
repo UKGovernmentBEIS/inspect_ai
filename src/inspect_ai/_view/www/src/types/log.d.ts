@@ -148,7 +148,7 @@ export type Input =
       | ChatMessageAssistant
       | ChatMessageTool
     )[];
-export type Id1 = string;
+export type Id1 = string | null;
 export type Content =
   | string
   | (
@@ -175,7 +175,7 @@ export type Video = string;
 export type Format1 = "mp4" | "mpeg" | "mov";
 export type Source = ("input" | "generate") | null;
 export type Role = "system";
-export type Id2 = string;
+export type Id2 = string | null;
 export type Content1 =
   | string
   | (
@@ -188,7 +188,7 @@ export type Content1 =
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
 export type ToolCallId = string[] | null;
-export type Id3 = string;
+export type Id3 = string | null;
 export type Content2 =
   | string
   | (
@@ -208,7 +208,7 @@ export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
-export type Id5 = string;
+export type Id5 = string | null;
 export type Content4 =
   | string
   | (
