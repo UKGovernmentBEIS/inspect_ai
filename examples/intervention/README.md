@@ -10,14 +10,14 @@ Three modes are supported: `shell` mode equips the model with bash and python to
 
 
 ``` bash
-inspect eval examples/intervention.py --display conversation
+inspect eval examples/intervention --display conversation
 ```
 
 To run in computer or multi-tool modes, use the `mode` task parameter:
 
 ``` bash
-inspect eval examples/intervention.py -T mode=computer --display conversation
-inspect eval examples/intervention.py -T mode=multi-tool --display conversation
+inspect eval examples/intervention -T mode=computer --display conversation
+inspect eval examples/intervention -T mode=multi-tool --display conversation
 ```
 
 See the documentation on the [Computer Tool](https://inspect.aisi.org.uk/tools-standard.html#sec-computer) for additional details on Inspect comptuer use.
@@ -27,7 +27,7 @@ See the documentation on the [Computer Tool](https://inspect.aisi.org.uk/tools-s
 You can add human approval to either mode, by specifying the `approval` task parameter. For example:
 
 ``` bash
-inspect eval examples/intervention.py -T mode=shell -T approval=true --display conversation
+inspect eval examples/intervention -T mode=shell -T approval=true --display conversation
 ```
 
 For `shell` mode, this will result in each and every bash or python call requiring approval. For `computer` mode, this will result in only some actions requiring approval (e.g. clicks require approval, but mouse moves do not). Here is the approval.yaml file used for computer mode:
