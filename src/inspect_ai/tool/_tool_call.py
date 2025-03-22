@@ -45,10 +45,10 @@ class ToolCall:
     """Arguments to function."""
 
     type: str
-    """Type of tool call ('function' or a model specific built-in tool type)"""
+    """Type of tool call ('function' or a model specific internal tool type)"""
 
-    native_name: str | None = field(default=None)
-    """Model's native name of the tool - if any."""
+    internal_name: str | None = field(default=None)
+    """Model's internal name for the tool - if any."""
 
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""

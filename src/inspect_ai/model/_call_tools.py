@@ -165,8 +165,9 @@ async def call_tools(
             # create event
             event = ToolEvent(
                 id=call.id,
-                function=call.native_name or call.function,
+                function=call.function,
                 arguments=call.arguments,
+                internal_name=call.internal_name,
                 result=content,
                 truncated=truncated,
                 view=call.view,
@@ -181,7 +182,8 @@ async def call_tools(
                         ChatMessageTool(
                             content=content,
                             tool_call_id=call.id,
-                            function=call.native_name or call.function,
+                            function=call.function,
+                            internal_name=call.internal_name,
                             error=tool_error,
                         ),
                         event,
@@ -222,7 +224,8 @@ async def call_tools(
             if event.cancelled:
                 tool_message = ChatMessageTool(
                     content="",
-                    function=call.native_name or call.function,
+                    function=call.function,
+                    internal_name=call.internal_name,
                     tool_call_id=call.id,
                     error=ToolCallError(
                         "timeout", "Command timed out before completing."
@@ -230,8 +233,9 @@ async def call_tools(
                 )
                 result_event = ToolEvent(
                     id=call.id,
-                    function=call.native_name or call.function,
+                    function=call.function,
                     arguments=call.arguments,
+                    internal_name=call.internal_name,
                     result=tool_message.content,
                     truncated=None,
                     view=call.view,
@@ -505,6 +509,11 @@ def tool_parse_error_message(arguments: str, ex: Exception) -> str:
 def parse_tool_call(
     id: str, function: str, arguments: str, tools: list[ToolInfo] | None = None
 ) -> ToolCall:
+    """Parse a tool call from a JSON payload.
+
+    Note that this function doesn't know about internal tool names so the caller
+    should ammend the returned `ToolCall` with an internal name as appropriate
+    """
     error: str | None = None
     arguments_dict: dict[str, Any] = {}
 
@@ -541,12 +550,11 @@ def parse_tool_call(
                 # If the yaml parser fails, we treat it as a string argument.
                 arguments_dict[param_names[0]] = arguments
 
-    # return ToolCall with error payload
+    # return ToolCall with error payload (if there is an internal_name the
+    # caller should ammend the ToolCall with it)
     return ToolCall(
         id=id,
         function=function,
-        # TODO: ???
-        native_name=None,
         arguments=arguments_dict,
         type="function",
         parse_error=error,

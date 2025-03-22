@@ -66,7 +66,7 @@ logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
-NATIVE_COMPUTER_TOOL_NAME = "computer"
+INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
 
 class AnthropicAPI(ModelAPI):
@@ -727,7 +727,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 ToolUseBlockParam(
                     type="tool_use",
                     id=tool_call.id,
-                    name=tool_call.function,
+                    name=tool_call.internal_name or tool_call.function,
                     input=tool_call.arguments,
                 )
             )
@@ -777,10 +777,10 @@ async def model_output_from_message(
             info = maybe_mapped_call_info(content_block.name, tools)
             tool_calls.append(
                 ToolCall(
-                    type=info.native_type,
+                    type=info.internal_type,
                     id=content_block.id,
                     function=info.inspect_name,
-                    native_name=info.native_name,
+                    internal_name=info.internal_name,
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
@@ -831,8 +831,8 @@ async def model_output_from_message(
 
 
 class CallInfo(NamedTuple):
-    native_name: str | None
-    native_type: str
+    internal_name: str | None
+    internal_type: str
     inspect_name: str
 
 
@@ -842,11 +842,11 @@ def maybe_mapped_call_info(tool_called: str, tools: list[ToolInfo]) -> CallInfo:
 
     Anthropic prescribes names for their native tools - `computer`, `bash`, and
     `str_replace_editor`. For a variety of reasons, Inspect's tool names to not
-    necessarily conform to native names. Anthropic also provides specific tool
+    necessarily conform to internal names. Anthropic also provides specific tool
     types for these built-in tools.
     """
     mappings = (
-        (NATIVE_COMPUTER_TOOL_NAME, "computer_20250124", "computer"),
+        (INTERNAL_COMPUTER_TOOL_NAME, "computer_20250124", "computer"),
         ("str_replace_editor", "text_editor_20250124", "text_editor"),
         ("bash", "bash_20250124", "bash_session"),
     )
