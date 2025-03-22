@@ -83,12 +83,13 @@ def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
 def openai_chat_tool_call_param(
     tool_call: ToolCall,
 ) -> ChatCompletionMessageToolCallParam:
+    assert tool_call.type == "function", f"Unexpected tool call type {tool_call.type}"
     return ChatCompletionMessageToolCallParam(
         id=tool_call.id,
         function=dict(
             name=tool_call.function, arguments=json.dumps(tool_call.arguments)
         ),
-        type=tool_call.type,
+        type="function",  # Type narrowing couldn't figure it out
     )
 
 

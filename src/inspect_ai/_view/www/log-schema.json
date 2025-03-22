@@ -459,6 +459,18 @@
           "default": null,
           "title": "Function"
         },
+        "internal_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Name"
+        },
         "error": {
           "anyOf": [
             {
@@ -478,6 +490,7 @@
         "role",
         "tool_call_id",
         "function",
+        "internal_name",
         "error"
       ],
       "title": "ChatMessageTool",
@@ -4463,9 +4476,20 @@
           "type": "object"
         },
         "type": {
-          "const": "function",
           "title": "Type",
           "type": "string"
+        },
+        "internal_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Name"
         },
         "parse_error": {
           "anyOf": [
@@ -4496,6 +4520,7 @@
         "function",
         "arguments",
         "type",
+        "internal_name",
         "parse_error",
         "view"
       ],
@@ -4654,6 +4679,18 @@
           },
           "title": "Arguments",
           "type": "object"
+        },
+        "internal_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Name"
         },
         "view": {
           "anyOf": [
@@ -4841,6 +4878,7 @@
         "id",
         "function",
         "arguments",
+        "internal_name",
         "view",
         "result",
         "truncated",

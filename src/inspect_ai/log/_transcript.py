@@ -170,6 +170,9 @@ class ToolEvent(BaseEvent):
     arguments: dict[str, JsonValue]
     """Arguments to function."""
 
+    internal_name: str | None = Field(default=None)
+    """Internal name for tool (if any)."""
+
     view: ToolCallContent | None = Field(default=None)
     """Custom view of tool call input."""
 
