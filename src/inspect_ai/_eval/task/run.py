@@ -599,6 +599,10 @@ async def task_run_sample(
             )
 
             async with sandboxenv_cm:
+                timeout_cm: (
+                    contextlib._GeneratorContextManager[anyio.CancelScope, None, None]
+                    | contextlib.nullcontext[None]
+                ) = contextlib.nullcontext()
                 try:
                     # update active sample wth sandboxes now that we are initialised
                     active.sandboxes = await sandbox_connections()

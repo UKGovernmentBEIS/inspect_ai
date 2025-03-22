@@ -5,14 +5,13 @@
 - Structured Output: Properly handle Pydantic BaseModel that contains other BaseModel definitions in its schema.
 - OpenAI: Support for .wav files in audio inputs for gpt-4o-audio-preview.
 - OpenAI: Strip 'azure' prefix from model_name so that model type checks all work correctly.
-- OpenAI: Don't send `reasoning_effort` parameter to o1-preview (as it is not supported)
+- OpenAI: Don't send `reasoning_effort` parameter to o1-preview (as it is not supported
+- Inspect View: Fix error sorting numeric or categorical score results.
 - Bugfix: Only initialise display in eval_set if it wasn't initialised from the CLI
 - Bugfix: Set the global log level based on the specified Inspect log level.
 - Bugfix: Resolve issue when deserialising a SubtaskEvent from a log file which does not have a completed time.
 - Bugfix: Fix unnecessary warnings about task arguments.
 - Bugfix: When a task does not take a kwargs argument, only warn if the provided argument is not valid.
-
-
 
 ## v0.3.75 (18 March 2025)
 
