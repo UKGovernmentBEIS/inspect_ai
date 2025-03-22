@@ -64,6 +64,7 @@ class OpenAIAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        responses_api: bool | None = None,
         **model_args: Any,
     ) -> None:
         # extract any service prefix from model name
@@ -73,6 +74,9 @@ class OpenAIAPI(ModelAPI):
             model_name = "/".join(parts[1:])
         else:
             self.service = None
+
+        # note whether we are forcing the responses_api
+        self.responses_api = True if responses_api else False
 
         # call super
         super().__init__(
@@ -177,7 +181,7 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 **self.completion_params(config, False),
             )
-        elif self.is_o1_pro():
+        elif self.is_o1_pro() or self.responses_api:
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
