@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Support for the new [Responses API](https://inspect.ai-safety-institute.org.uk/providers.html#responses-api) and [o1-pro](https://platform.openai.com/docs/models/o1-pro) models.
+- OpenAI: Remove base64-encoded audio content from API call JSON in ModelEvent.
 - AzureAI: Support for use of native [OpenAI](https://inspect.ai-safety-institute.org.uk/providers.html#openai-on-azure) and [Mistral](https://inspect.ai-safety-institute.org.uk/providers.html#mistral-on-azure-ai) clients using service qualifiers (e.g. `openai/azure/gpt-4o-mini` or `mistral/azure/Mistral-Large-2411`). 
 - OpenRouter: Handle "error" field in response object and retry for empty responses.
 - Added `--metadata` option to eval for associating metadata with eval runs.
