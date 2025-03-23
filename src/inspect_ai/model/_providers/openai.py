@@ -91,22 +91,21 @@ class OpenAIAPI(ModelAPI):
 
         # resolve api_key
         if not self.api_key:
-            self.api_key = os.environ.get(
-                AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
-            )
-            # backward compatibility for when env vars determined service
-            if self.api_key and (os.environ.get(OPENAI_API_KEY, None) is None):
-                self.service = "azure"
+            if self.service == "azure":
+                self.api_key = os.environ.get(
+                    AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
+                )
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
-                if not self.api_key:
-                    raise environment_prerequisite_error(
-                        "OpenAI",
-                        [
-                            OPENAI_API_KEY,
-                            AZUREAI_OPENAI_API_KEY,
-                        ],
-                    )
+
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "OpenAI",
+                    [
+                        OPENAI_API_KEY,
+                        AZUREAI_OPENAI_API_KEY,
+                    ],
+                )
 
         # create async http client
         http_client = OpenAIAsyncHttpxClient()
@@ -128,10 +127,16 @@ class OpenAIAPI(ModelAPI):
                     + "environment variable or the --model-base-url CLI flag to set the base URL."
                 )
 
+            # resolve version
+            api_version = os.environ.get(
+                "AZUREAI_OPENAI_API_VERSION",
+                os.environ.get("OPENAI_API_VERSION", "2025-02-01-preview"),
+            )
+
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
                 api_key=self.api_key,
+                api_version=api_version,
                 azure_endpoint=base_url,
-                azure_deployment=model_name,
                 http_client=http_client,
                 **model_args,
             )
