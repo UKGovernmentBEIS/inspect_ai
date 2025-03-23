@@ -67,9 +67,11 @@ class OpenAIAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
-        # extract any service prefix from model name
+        # extract azure service prefix from model name (other providers
+        # that subclass from us like together expect to have the qualifier
+        # in the model name e.g. google/gemma-2b-it)
         parts = model_name.split("/")
-        if len(parts) > 1:
+        if parts[0] == "azure" and len(parts) > 1:
             self.service: str | None = parts[0]
             model_name = "/".join(parts[1:])
         else:

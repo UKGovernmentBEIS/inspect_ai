@@ -16461,44 +16461,44 @@ ul.jsondiffpatch-textdiff {
   font-weight: 600;
   padding-bottom: 0.3em;
 }
-._output_3axgd_1 {
+._output_15urk_1 {
   padding-top: 1em;
 }
 
-._container_3axgd_5 {
+._container_15urk_5 {
   margin: 0.5em 0;
   width: 100%;
 }
 
-._all_3axgd_10 {
+._all_15urk_10 {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   column-gap: 1em;
 }
 
-._tableSelection_3axgd_16 {
+._tableSelection_15urk_16 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._tools_3axgd_22 {
+._tools_15urk_22 {
   grid-column: -1/1;
 }
 
-._codePre_3axgd_26 {
+._codePre_15urk_26 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_3axgd_26 {
-  white-space: pre-wrap;
-  word-wrap: anywhere;
+._code_15urk_26 {
+  white-space: pre-wrap !important;
+  word-wrap: anywhere !important;
 }
 
-._toolConfig_3axgd_38 {
+._toolConfig_15urk_38 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 1em;
