@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { SampleSummary } from "../../api/types";
+import { ApplicationStyles } from "../../appearance/styles";
 import { EmptyPanel } from "../../components/EmptyPanel";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { useEvalDescriptor } from "../../state/hooks";
@@ -12,6 +13,9 @@ interface SampleScoresGridProps {
   evalSample: EvalSample;
   className?: string | string[];
 }
+
+// TODO: Make scoring section collapsible
+// TODO: Improve appearance of header
 
 export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
   evalSample,
@@ -59,15 +63,6 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
       >
         Explanation
       </div>
-      <div
-        className={clsx(
-          "text-size-smaller",
-          "text-style-label",
-          "text-style-secondary",
-        )}
-      >
-        Metadata
-      </div>
 
       {Object.keys(evalSample.scores || {}).map((scorer) => {
         const scorerDescriptor = evalDescriptor.scorerDescriptor(evalSample, {
@@ -77,24 +72,44 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
         const explanation =
           scorerDescriptor.explanation() || "(No Explanation)";
         const answer = scorerDescriptor.answer();
-        const metadata = scorerDescriptor.metadata();
+        let metadata = scorerDescriptor.metadata();
 
         return (
           <>
-            <div className={clsx("text-size-base text-style-label")}>
-              {scorer}
-            </div>
-            <div>{answer}</div>
-            <div>
+            <div className={clsx("text-size-base", styles.cell)}>{scorer}</div>
+            <div className={clsx(styles.cell, "text-size-base")}>{answer}</div>
+            <div className={clsx(styles.cell, "text-size-base")}>
               <SampleScores
                 sample={evalSample as any as SampleSummary}
                 scorer={scorer}
               />
             </div>
-            <div className={clsx("text-size-smaller")}>{explanation}</div>
-            <div>
-              <MetaDataGrid entries={metadata} />
+            <div
+              className={clsx("text-size-base", styles.cell)}
+              style={{
+                ...ApplicationStyles.lineClamp(2),
+                lineHeight: "1.2rem",
+              }}
+            >
+              {explanation}
             </div>
+            {Object.keys(metadata).length > 0 ? (
+              <>
+                <div
+                  className={clsx(
+                    "text-size-smaller",
+                    "text-style-label",
+                    "text-style-secondary",
+                    styles.fullWidth,
+                  )}
+                >
+                  Metadata
+                </div>
+                <div className={clsx(styles.fullWidth, styles.padded)}>
+                  <MetaDataGrid entries={metadata} />
+                </div>
+              </>
+            ) : undefined}
           </>
         );
       })}

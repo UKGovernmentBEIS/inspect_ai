@@ -16449,18 +16449,33 @@ ul.jsondiffpatch-textdiff {
   grid-template-columns: max-content max-content;
   column-gap: 1em;
 }
-._container_ne5m5_1 {
+._container_2tddr_1 {
   display: grid;
-  grid-template-columns: auto auto auto 1fr 1fr;
-  column-gap: 1em;
-  row-gap: 0.5em;
+  grid-template-columns: auto auto auto 1fr;
+  column-gap: 0.75em;
 }
-._container_1jqar_1 {
+
+._container_2tddr_1 ._cell_2tddr_7 {
+  margin-bottom: 0.5em;
+}
+
+._fullWidth_2tddr_11 {
+  grid-column: 1 / -1;
+}
+
+._heading_2tddr_15 {
+  font-weight: 600;
+}
+
+._padded_2tddr_19 {
+  padding-bottom: 3em;
+}
+._container_2sji1_1 {
   margin-top: 0.5em;
   padding-left: 0;
 }
 
-._label_1jqar_6 {
+._label_2sji1_6 {
   padding-right: 2em !important;
   padding-left: 0 !important;
   padding-bottom: 0 !important;
@@ -16468,45 +16483,49 @@ ul.jsondiffpatch-textdiff {
   padding-bottom: 0 !important;
 }
 
-._wordBreak_1jqar_14 {
+._wordBreak_2sji1_14 {
   word-break: break-all;
 }
 
-._scoreTable_1jqar_18 {
+._scoreTable_2sji1_18 {
   width: 100%;
   margin-bottom: 1em;
 }
 
-._bottomBorder_1jqar_23 {
+._bottomBorder_2sji1_23 {
   border-bottom-color: #00000000;
 }
 
-._headerScore_1jqar_27 {
+._headerScore_2sji1_27 {
   padding-left: 2em;
 }
 
-._targetValue_1jqar_31 {
+._targetValue_2sji1_31 {
   padding-right: 2em !important;
   padding-left: 0 !important;
   padding-top: 0 !important;
 }
 
-._answerValue_1jqar_37 {
+._answerValue_2sji1_37 {
   padding-left: 0 !important;
   padding-top: 0 !important;
 }
 
-._scoreValue_1jqar_42 {
+._scoreValue_2sji1_42 {
   padding-left: 2em !important;
   padding-top: 0 !important;
 }
 
-._noLeft_1jqar_47 {
+._noLeft_2sji1_47 {
   padding-left: 0 !important;
 }
 
-._noTop_1jqar_51 {
+._noTop_2sji1_51 {
   margin-top: 0 !important;
+}
+
+._scoreCard_2sji1_55 {
+  padding-top: 0.5em;
 }
 ._title_19l1b_1 {
   margin-left: 0.5em;
@@ -19593,16 +19612,30 @@ span.ap-marker-container:hover span.ap-marker {
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
-._container_12g3a_1 {
-  display: flex;
-  flex-direction: columns;
+._icon_59zaz_1 {
+  margin-right: 0.3rem;
 }
 
-._item_12g3a_6 {
+._container_59zaz_5 {
+  margin-left: 1.3rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.3rem;
+}
+
+._metadata_59zaz_11 {
+  margin-bottom: 0.75em;
+}
+._container_12j2k_1 {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+._item_12j2k_7 {
   margin-bottom: 0;
 }
 
-._separator_12g3a_10 {
+._separator_12j2k_11 {
   margin-left: 0.3em;
   margin-right: 0.3em;
   margin-top: 0;
