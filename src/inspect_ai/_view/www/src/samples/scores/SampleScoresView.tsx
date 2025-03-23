@@ -50,18 +50,18 @@ export const SampleScoresView: FC<SampleScoresViewProps> = ({
         <CardHeader label="Input" />
         <CardBody>
           <ExpandablePanel
+            lines={10}
             id={`sample-score-${sample.id}-${sample.epoch}`}
             collapse={true}
           >
             <MarkdownDiv
               markdown={scoreInput.join("\n")}
-              className={styles.wordBreak}
+              className={clsx(styles.wordBreak, "text-size-base")}
             />
           </ExpandablePanel>
         </CardBody>
       </Card>
-      <Card>
-        <CardHeader label="Scores" />
+      <Card className={clsx(styles.scoreCard)}>
         <CardBody>
           <SampleScoresGrid evalSample={sample} />
         </CardBody>
