@@ -1,7 +1,6 @@
-from inspect_ai.tool._tool_with import tool_with
-
 from .._tool import Tool, tool
 from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
+from .._tool_def import ToolDef
 
 
 @tool
@@ -38,13 +37,13 @@ def think(
         """
         return ""
 
-    return tool_with(
+    return ToolDef(
         execute,
         name="think",
         description=description,
         parameters=(dict(thought=thought_description) if thought_description else None),
         viewer=think_tool_viewer(),
-    )
+    ).as_tool()
 
 
 def think_tool_viewer() -> ToolCallViewer:
