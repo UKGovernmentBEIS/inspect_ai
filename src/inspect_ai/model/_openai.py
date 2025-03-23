@@ -1,5 +1,6 @@
 import json
 import re
+from copy import copy
 from typing import Literal
 
 from openai import BadRequestError, OpenAIError
@@ -27,7 +28,9 @@ from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
 from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
+from pydantic import JsonValue
 
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -531,3 +534,16 @@ def openai_handle_bad_request(
         )
     else:
         return e
+
+
+def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove images from raw api call
+    if key == "image_url" and isinstance(value, dict) and "url" in value:
+        url = str(value.get("url"))
+        if url.startswith("data:"):
+            value = copy(value)
+            value.update(url=BASE_64_DATA_REMOVED)
+    elif key == "input_audio" and isinstance(value, dict) and "data" in value:
+        value = copy(value)
+        value.update(data=BASE_64_DATA_REMOVED)
+    return value

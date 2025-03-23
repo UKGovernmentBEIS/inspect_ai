@@ -14,7 +14,6 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._image import image_url_filter
 from .._model_call import ModelCall
 from .._model_output import (
     ModelOutput,
@@ -27,6 +26,7 @@ from .._openai import (
     is_o1_preview,
     is_o_series,
     openai_handle_bad_request,
+    openai_media_filter,
 )
 from .._openai_responses import (
     openai_responses_chat_choices,
@@ -60,7 +60,7 @@ async def generate_responses(
             request=request,
             response=response,
             # TODO: is this the right filter?
-            filter=image_url_filter,
+            filter=openai_media_filter,
             time=http_hooks.end_request(request_id),
         )
 
