@@ -59,7 +59,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-To use OpenAI models on Azure AI, specify the following environment variables:
+The `openai` provider supports OpenAI models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
 
 - `AZUREAI_OPENAI_API_KEY`
 - `AZUREAI_OPENAI_BASE_URL` 
@@ -287,13 +287,15 @@ If you are using Anthropic models on Bedrock, you can alternatively use the [Ant
 
 ## Azure AI {#azure-ai}
 
-To use the [Azure AI](https://azure.microsoft.com/en-us/solutions/ai) provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify an [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) as the model name:
+The `azureai` provider supports models deployed on the [Azure AI Foundary](https://ai.azure.com/).
+
+To use the `azureai` provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify the name of the model you have deployed (e.g. `Llama-3.3-70B-Instruct`). For example:
 
 ``` bash
 pip install azure-ai-inference
 export AZUREAI_API_KEY=api-key
-export AZUREAI_BASE_URL=https://your-url-at.azure.com
-$ inspect eval --model azureai/llama-2-70b-chat-wnsnw
+export AZUREAI_BASE_URL=https://your-url-at.azure.com/models
+$ inspect eval math.py --model azureai/Llama-3.3-70B-Instruct
 ```
 
 For the `azureai` provider, custom model args (`-M`) are forwarded to the constructor of the `ChatCompletionsClient` class.
@@ -306,6 +308,7 @@ The following environment variables are supported by the Azure AI provider
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
 
 If you are using Open AI or Mistral on Azure AI, you can alternatively use the [OpenAI provider](#openai-on-azure) or [Mistral provider](#mistral-on-azure-ai) as your means of access.
+
 
 ### Tool Emulation
 
