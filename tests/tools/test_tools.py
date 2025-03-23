@@ -167,6 +167,11 @@ def test_openai_tools():
     check_tools("openai/gpt-4")
 
 
+@skip_if_no_openai
+def test_openai_responses_tools():
+    check_tools(get_model("openai/gpt-4o-mini", responses_api=True))
+
+
 @skip_if_no_anthropic
 def test_anthropic_tools():
     check_tools("anthropic/claude-3-sonnet-20240229", disable=["none"])
