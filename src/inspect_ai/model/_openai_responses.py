@@ -72,15 +72,18 @@ async def openai_responses_input(
         ]
     elif message.role == "assistant":
         reasoning_content = openai_responses_reasponing_content_params(message.content)
-        text_content = [
-            ResponseOutputMessageParam(
-                type="message",
-                role="assistant",
-                id=str(message.id),
-                content=openai_responses_text_content_params(message.content),
-                status="completed",
-            )
-        ]
+        if message.content:
+            text_content = [
+                ResponseOutputMessageParam(
+                    type="message",
+                    role="assistant",
+                    id=str(message.id).replace("resp_", "msg_", 1),
+                    content=openai_responses_text_content_params(message.content),
+                    status="completed",
+                )
+            ]
+        else:
+            text_content = []
         tools_content = openai_responses_tools_content_params(message.tool_calls)
         return reasoning_content + text_content + tools_content
     elif message.role == "tool":
@@ -93,7 +96,6 @@ async def openai_responses_input(
                 type="function_call_output",
                 call_id=message.tool_call_id or str(message.function),
                 output=output,
-                id=str(message.id),
             )
         ]
     else:
@@ -203,7 +205,7 @@ def openai_responses_tools(tools: list[ToolInfo]) -> list[ToolParam]:
             name=tool.name,
             description=tool.description,
             parameters=tool.parameters.model_dump(exclude_none=True),
-            strict=True,
+            strict=False,  # default parameters don't work in strict mode
         )
         for tool in tools
     ]
@@ -234,9 +236,10 @@ def openai_responses_chat_choices(
                     )
         elif isinstance(output, ResponseReasoningItem):
             reasoning = "\n".join([summary.text for summary in output.summary])
-            message_content.append(
-                ContentReasoning(signature=output.id, reasoning=reasoning)
-            )
+            if reasoning:
+                message_content.append(
+                    ContentReasoning(signature=output.id, reasoning=reasoning)
+                )
         else:
             stop_reason = "tool_calls"
             if isinstance(output, ResponseFunctionToolCall):
