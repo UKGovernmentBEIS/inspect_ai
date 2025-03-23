@@ -16453,33 +16453,51 @@ ul.jsondiffpatch-textdiff {
   grid-template-columns: max-content max-content;
   column-gap: 1em;
 }
-._container_2tddr_1 {
+._container_8i3m0_1 {
   display: grid;
-  grid-template-columns: auto auto auto 1fr;
+  grid-template-columns:
+    minmax(auto, 1fr) minmax(auto, 1fr) minmax(auto, 1fr)
+    2fr;
   column-gap: 0.75em;
 }
 
-._container_2tddr_1 ._cell_2tddr_7 {
+._container_8i3m0_1 ._cell_8i3m0_9 {
   margin-bottom: 0.5em;
 }
 
-._fullWidth_2tddr_11 {
+._fullWidth_8i3m0_13 {
   grid-column: 1 / -1;
 }
 
-._heading_2tddr_15 {
+._heading_8i3m0_17 {
   font-weight: 600;
 }
 
-._padded_2tddr_19 {
+._padded_8i3m0_21 {
   padding-bottom: 3em;
 }
-._container_2sji1_1 {
-  margin-top: 0.5em;
-  padding-left: 0;
+
+._separator_8i3m0_25 {
+  height: 1px;
+  background-color: var(--bs-light-border-subtle);
 }
 
-._label_2sji1_6 {
+._separatorPadded_8i3m0_30 {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+._headerSep_8i3m0_35 {
+  margin-top: 0.1em;
+  margin-bottom: 0.2em;
+}
+._container_13xu1_1 {
+  margin-top: 0.5em;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+._label_13xu1_7 {
   padding-right: 2em !important;
   padding-left: 0 !important;
   padding-bottom: 0 !important;
@@ -16487,49 +16505,53 @@ ul.jsondiffpatch-textdiff {
   padding-bottom: 0 !important;
 }
 
-._wordBreak_2sji1_14 {
+._wordBreak_13xu1_15 {
   word-break: break-all;
 }
 
-._scoreTable_2sji1_18 {
+._scoreTable_13xu1_19 {
   width: 100%;
   margin-bottom: 1em;
 }
 
-._bottomBorder_2sji1_23 {
+._bottomBorder_13xu1_24 {
   border-bottom-color: #00000000;
 }
 
-._headerScore_2sji1_27 {
+._headerScore_13xu1_28 {
   padding-left: 2em;
 }
 
-._targetValue_2sji1_31 {
+._targetValue_13xu1_32 {
   padding-right: 2em !important;
   padding-left: 0 !important;
   padding-top: 0 !important;
 }
 
-._answerValue_2sji1_37 {
+._answerValue_13xu1_38 {
   padding-left: 0 !important;
   padding-top: 0 !important;
 }
 
-._scoreValue_2sji1_42 {
+._scoreValue_13xu1_43 {
   padding-left: 2em !important;
   padding-top: 0 !important;
 }
 
-._noLeft_2sji1_47 {
+._noLeft_13xu1_48 {
   padding-left: 0 !important;
 }
 
-._noTop_2sji1_51 {
+._noTop_13xu1_52 {
   margin-top: 0 !important;
 }
 
-._scoreCard_2sji1_55 {
+._scoreCard_13xu1_56 {
   padding-top: 0.5em;
+}
+
+._scores_13xu1_60 {
+  padding-top: 1em;
 }
 ._title_19l1b_1 {
   margin-left: 0.5em;
