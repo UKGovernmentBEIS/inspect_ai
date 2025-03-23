@@ -242,6 +242,7 @@ class OpenAIAPI(ModelAPI):
 
             # save response for model_call
             response = completion.model_dump()
+            self.on_response(response)
 
             # parse out choices
             choices = self._chat_choices_from_response(completion, tools)
@@ -272,6 +273,9 @@ class OpenAIAPI(ModelAPI):
             ), model_call()
         except BadRequestError as e:
             return self.handle_bad_request(e), model_call()
+
+    def on_response(self, response: dict[str, Any]) -> None:
+        pass
 
     def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
         return openai_handle_bad_request(self.model_name, ex)
