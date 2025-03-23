@@ -1,3 +1,8 @@
+## Future
+
+- Task display: Show reasoning tokens for models that report them.
+- Anthropic: Include reasoning tokens in computation of total tokens
+
 ## Unreleased
 
 - [bash_session()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-bash-session) tool for creating a stateful bash shell that retains its state across calls from the model.
