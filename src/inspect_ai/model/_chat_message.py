@@ -158,6 +158,9 @@ class ChatMessageTool(ChatMessageBase):
     function: str | None = Field(default=None)
     """Name of function called."""
 
+    internal_name: str | None = Field(default=None)
+    """Internal name for tool (if any)."""
+
     error: ToolCallError | None = Field(default=None)
     """Error which occurred during tool call."""
 
