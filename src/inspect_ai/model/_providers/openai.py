@@ -264,7 +264,10 @@ class OpenAIAPI(ModelAPI):
                 ),
             ), model_call()
         except BadRequestError as e:
-            return openai_handle_bad_request(self.model_name, e), model_call()
+            return self.handle_bad_request(e), model_call()
+
+    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
+        return openai_handle_bad_request(self.model_name, ex)
 
     def _chat_choices_from_response(
         self, response: ChatCompletion, tools: list[ToolInfo]
