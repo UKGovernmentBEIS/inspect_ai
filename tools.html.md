@@ -48,6 +48,10 @@ Inspect has several standard tools built-in, including:
 - [Web Search](tools-standard.qmd#sec-web-search), which uses the Google
   Search API to execute and summarise web searches.
 
+- [Think](tools-standard.qmd#sec-think), which provides models the
+  ability to include an additional thinking step as part of getting to
+  its final answer.
+
 If you are only interested in using the standard tools, check out their
 respective documentation links above. To learn more about creating your
 own tools read on below.
