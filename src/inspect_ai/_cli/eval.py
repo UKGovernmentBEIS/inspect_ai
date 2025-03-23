@@ -116,6 +116,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_TAGS",
     )
     @click.option(
+        "--metadata",
+        multiple=True,
+        type=str,
+        help="Metadata to associate with this evaluation run (more than one --metadata argument can be specified).",
+        envvar="INSPECT_EVAL_METADATA",
+    )
+    @click.option(
         "--trace",
         type=bool,
         is_flag=True,
@@ -449,6 +456,7 @@ def eval_command(
     s: tuple[str] | None,
     solver_config: str | None,
     tags: str | None,
+    metadata: tuple[str] | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
@@ -525,6 +533,7 @@ def eval_command(
         s=s,
         solver_config=solver_config,
         tags=tags,
+        metadata=metadata,
         trace=trace,
         approval=approval,
         sandbox=sandbox,
@@ -616,6 +625,7 @@ def eval_set_command(
     s: tuple[str] | None,
     solver_config: str | None,
     tags: str | None,
+    metadata: tuple[str] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     epochs: int | None,
@@ -695,6 +705,7 @@ def eval_set_command(
         s=s,
         solver_config=solver_config,
         tags=tags,
+        metadata=metadata,
         trace=trace,
         approval=approval,
         sandbox=sandbox,
@@ -749,6 +760,7 @@ def eval_exec(
     s: tuple[str] | None,
     solver_config: str | None,
     tags: str | None,
+    metadata: tuple[str] | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
@@ -790,6 +802,9 @@ def eval_exec(
     # parse tags
     eval_tags = parse_comma_separated(tags)
 
+    # parse metadata
+    eval_metadata = parse_cli_args(metadata)
+
     # resolve epochs
     eval_epochs = (
         Epochs(epochs, create_reducers(parse_comma_separated(epochs_reducer)))
@@ -825,6 +840,7 @@ def eval_exec(
             task_args=task_args,
             solver=SolverSpec(solver, solver_args) if solver else None,
             tags=eval_tags,
+            metadata=eval_metadata,
             trace=trace,
             approval=approval,
             sandbox=parse_sandbox(sandbox),

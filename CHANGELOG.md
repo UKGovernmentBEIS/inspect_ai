@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Support for the new [Responses API](https://inspect.ai-safety-institute.org.uk/providers.html#responses-api) and [o1-pro](https://platform.openai.com/docs/models/o1-pro) models.
+- Added `--metadata` option to eval for associating metadata with eval runs.
 
 ## v0.3.76 (23 March 2025)
 

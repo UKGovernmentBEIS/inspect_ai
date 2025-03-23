@@ -68,6 +68,7 @@ def eval_set(
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
@@ -127,6 +128,7 @@ def eval_set(
         solver: Alternative solver(s) for
             evaluating task(s). ptional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
+        metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
@@ -193,6 +195,7 @@ def eval_set(
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
             tags=tags,
+            metadata=metadata,
             trace=trace,
             display=display,
             approval=approval,
