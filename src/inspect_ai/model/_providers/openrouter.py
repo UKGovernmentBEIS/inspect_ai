@@ -1,8 +1,8 @@
 import json
 import os
-from typing import Any, NotRequired, TypedDict
+from typing import Any, TypedDict
 
-from typing_extensions import override
+from typing_extensions import NotRequired, override
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._openai import OpenAIResponseError
