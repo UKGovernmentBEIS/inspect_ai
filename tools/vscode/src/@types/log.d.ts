@@ -203,7 +203,8 @@ export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
 export type Id4 = string;
 export type Function = string;
-export type Type8 = "function";
+export type Type8 = string;
+export type InternalName = string | null;
 export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
@@ -222,6 +223,7 @@ export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
+export type InternalName1 = string | null;
 export type Type9 =
   | "parsing"
   | "timeout"
@@ -369,6 +371,7 @@ export type Event6 = "tool";
 export type Type12 = "function";
 export type Id7 = string;
 export type Function2 = string;
+export type InternalName2 = string | null;
 export type Result1 =
   | string
   | number
@@ -911,6 +914,7 @@ export interface ToolCall {
   function: Function;
   arguments: Arguments;
   type: Type8;
+  internal_name: InternalName;
   parse_error: ParseError;
   view: ToolCallContent | null;
 }
@@ -933,6 +937,7 @@ export interface ChatMessageTool {
   role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
+  internal_name: InternalName1;
   error: ToolCallError | null;
 }
 export interface ToolCallError {
@@ -1201,6 +1206,7 @@ export interface ToolEvent {
   id: Id7;
   function: Function2;
   arguments: Arguments1;
+  internal_name: InternalName2;
   view: ToolCallContent | null;
   result: Result1;
   truncated: Truncated;
