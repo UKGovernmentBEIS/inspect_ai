@@ -32,6 +32,7 @@ inspect eval_set [OPTIONS] [TASKS]...
 | `-S` | text | One or more solver arguments (e.g. -S arg=value) | None |
 | `--solver-config` | text | YAML or JSON config file with solver arguments. | None |
 | `--tags` | text | Tags to associate with this evaluation run. | None |
+| `--metadata` | text | Metadata to associate with this evaluation run (more than one –metadata argument can be specified). | None |
 | `--approval` | text | Config file for tool call approval. | None |
 | `--sandbox` | text | Sandbox environment type (with optional config file). e.g. ‘docker’ or ‘docker:compose.yml’ | None |
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |

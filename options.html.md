@@ -198,4 +198,5 @@ example:
 | `--approval` | Config file for tool call approval. |
 | `--env` | Set an environment variable (multiple instances of `--env` are permitted). |
 | `--tags` | Tags to associate with this evaluation run. |
+| `--metadata` | Metadata to associate with this evaluation run (`key=value`) |
 | `--help` | Display help for command options. |
