@@ -1,11 +1,11 @@
-## Unreleased
+## v0.3.76 (23 March 2025)
 
 - [bash_session()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-bash-session) tool for creating a stateful bash shell that retains its state across calls from the model.
 - [text_editor()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-text-editor) tool which enables viewing, creating and editing text files.
 - Structured Output: Properly handle Pydantic BaseModel that contains other BaseModel definitions in its schema.
 - OpenAI: Support for .wav files in audio inputs for gpt-4o-audio-preview.
 - OpenAI: Strip 'azure' prefix from model_name so that model type checks all work correctly.
-- OpenAI: Don't send `reasoning_effort` parameter to o1-preview (as it is not supported
+- OpenAI: Don't send `reasoning_effort` parameter to o1-preview (as it is not supported).
 - Inspect View: Fix error sorting numeric or categorical score results.
 - Inspect View: Properly wrap model API call text in the transcript.
 - Bugfix: Only initialise display in eval_set if it wasn't initialised from the CLI
