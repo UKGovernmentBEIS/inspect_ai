@@ -17972,7 +17972,7 @@ self.onmessage = function (e) {
     };
     const immer = immerImpl;
     const getEnabledNamespaces = () => {
-      return __LOGGING_FILTER__.split(",").map((ns) => ns.trim()).filter(Boolean);
+      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
     };
     const ENABLED_NAMESPACES = new Set(getEnabledNamespaces());
     const filterNameSpace = (namespace) => {
@@ -27269,12 +27269,14 @@ self.onmessage = function (e) {
       runningEvents.filter((e) => e.event === "model").forEach((e) => {
         for (const m of e.input) {
           const inputMessage = m;
-          if (!messages.has(inputMessage.id)) {
+          if (inputMessage.id && !messages.has(inputMessage.id)) {
             messages.set(inputMessage.id, inputMessage);
           }
         }
         const outputMessage = e.output.choices[0].message;
-        messages.set(outputMessage.id, outputMessage);
+        if (outputMessage.id) {
+          messages.set(outputMessage.id, outputMessage);
+        }
       });
       return messages.values().toArray();
     };

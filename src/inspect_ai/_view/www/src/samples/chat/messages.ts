@@ -141,12 +141,14 @@ export const messagesFromEvents = (runningEvents: Events): Messages => {
           | ChatMessageUser
           | ChatMessageAssistant
           | ChatMessageTool;
-        if (!messages.has(inputMessage.id)) {
+        if (inputMessage.id && !messages.has(inputMessage.id)) {
           messages.set(inputMessage.id, inputMessage);
         }
       }
       const outputMessage = e.output.choices[0].message;
-      messages.set(outputMessage.id, outputMessage);
+      if (outputMessage.id) {
+        messages.set(outputMessage.id, outputMessage);
+      }
     });
 
   return messages.values().toArray();
