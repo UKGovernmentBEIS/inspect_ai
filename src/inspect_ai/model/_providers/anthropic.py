@@ -815,6 +815,7 @@ async def model_output_from_message(
         + (input_tokens_cache_write or 0)
         + (input_tokens_cache_read or 0)
         + message.usage.output_tokens
+        + reasoning_tokens
     )
     return ModelOutput(
         model=message.model,
