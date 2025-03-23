@@ -405,3 +405,144 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+
+## Think {#sec-think}
+
+::: {.callout-note appearance="simple"}
+Note that the `think()` tool described below currently works only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The `think()` tool provides models with the ability to include an additional thinking step as part of getting to its final answer. 
+ 
+Note that the `think()` tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios. 
+
+### Usage
+
+You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirely to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
+
+1. Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;
+2. Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and
+3. Sequential decision making. When each action builds on previous ones and mistakes are costly (often found in multi-step domains).
+
+Use the `think()` tool alongside other tools like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor, think
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([
+                bash_session(timeout=180),
+                text_editor(timeout=180),
+                think()
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+### Tool Description
+
+In the original [think tool article]((https://www.anthropic.com/engineering/claude-think-tool)) (which was based on experimenting with Claude) they found that providing clear instructions on when and how to use the `think()` tool for the particular problem domain it is being used within could sometimes be helpful. For example, here's the prompt they used with SWE-Bench:
+
+```python
+from textwrap import dedent
+
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor, think
+
+@task
+def swe_bench():
+
+    tools = [
+        bash_session(timeout=180),
+        text_editor(timeout=180),  
+        think(dedent("""
+            Use the think tool to think about something. It will not obtain
+            new information or make any changes to the repository, but just 
+            log the thought. Use it when complex reasoning or brainstorming
+            is needed. For example, if you explore the repo and discover
+            the source of a bug, call this tool to brainstorm several unique
+            ways of fixing the bug, and assess which change(s) are likely to 
+            be simplest and most effective. Alternatively, if you receive
+            some test results, call this tool to brainstorm ways to fix the
+            failing tests.
+        """))
+    ])
+
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools(tools),
+            generate(),
+        ),
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+### System Prompt
+
+In the article they also found that when tool instructions are long and/or complex, including instructions about the `think()` tool in the system prompt can be more effective than placing them in the tool description itself. 
+
+Here's an example of moving the custom `think()` prompt into the system prompt (note that this was *not* done in the article's SWE-Bench experiment, this is merely an example):
+
+```python
+from textwrap import dedent
+
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor, think
+
+@task
+def swe_bench():
+
+    think_system_message = system_message(dedent("""
+        Use the think tool to think about something. It will not obtain
+        new information or make any changes to the repository, but just 
+        log the thought. Use it when complex reasoning or brainstorming
+        is needed. For example, if you explore the repo and discover
+        the source of a bug, call this tool to brainstorm several unique
+        ways of fixing the bug, and assess which change(s) are likely to 
+        be simplest and most effective. Alternatively, if you receive
+        some test results, call this tool to brainstorm ways to fix the
+        failing tests.
+    """))
+
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            think_system_message,
+            use_tools([
+                bash_session(timeout=180),
+                text_editor(timeout=180),  
+                think(),
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.
+
