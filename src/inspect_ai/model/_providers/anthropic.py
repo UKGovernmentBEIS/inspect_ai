@@ -1,23 +1,12 @@
 import functools
 import os
 import re
-import sys
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Optional, Tuple, TypedDict, cast
+from typing import Any, Literal, NamedTuple, Optional, Tuple, cast
 
 import httpcore
 import httpx
-
-from inspect_ai._util.http import is_retryable_http_status
-
-from .util.hooks import HttpxHooks
-
-if sys.version_info >= (3, 11):
-    from typing import NotRequired
-else:
-    from typing_extensions import NotRequired
-
 from anthropic import (
     APIConnectionError,
     APIStatusError,
@@ -39,12 +28,15 @@ from anthropic.types import (
     TextBlockParam,
     ThinkingBlock,
     ThinkingBlockParam,
+    ToolBash20250124Param,
     ToolParam,
     ToolResultBlockParam,
+    ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
     message_create_params,
 )
+from anthropic.types.beta import BetaToolComputerUse20250124Param
 from pydantic import JsonValue
 from typing_extensions import override
 
@@ -56,6 +48,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.error import exception_message
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
@@ -67,25 +60,13 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .util import environment_prerequisite_error, model_base_url
+from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
 
-NATIVE_COMPUTER_TOOL_NAME = "computer"
-_native_tool_name_mappings = {
-    NATIVE_COMPUTER_TOOL_NAME: "computer",
-    "str_replace_editor": "text_editor",
-    "bash": "bash_session",
-}
-"""
-A dictionary mapping native tool names from Anthropic to Inspect tool names.
-
-Anthropic prescribes names for their native tools - `computer`, `bash`, and
-`str_replace_editor`. For a variety of reasons, Inspect's tool names to not
-necessarily conform to native names. This table enables us to map from
-Anthropic names back to Inspect names.
-"""
+INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
 
 class AnthropicAPI(ModelAPI):
@@ -511,7 +492,7 @@ class AnthropicAPI(ModelAPI):
 
     def computer_use_tool_param(
         self, tool: ToolInfo
-    ) -> Optional["ComputerUseToolParam"]:
+    ) -> Optional[BetaToolComputerUse20250124Param]:
         # check for compatible 'computer' tool
         if tool.name == "computer" and (
             sorted(tool.parameters.properties.keys())
@@ -533,7 +514,7 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            return ComputerUseToolParam(
+            return BetaToolComputerUse20250124Param(
                 type="computer_20250124",
                 name="computer",
                 # Note: The dimensions passed here for display_width_px and display_height_px should
@@ -550,7 +531,9 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
-    def text_editor_tool_param(self, tool: ToolInfo) -> Optional["TextEditorToolParam"]:
+    def text_editor_tool_param(
+        self, tool: ToolInfo
+    ) -> Optional[ToolTextEditor20250124Param]:
         # check for compatible 'text editor' tool
         if tool.name == "text_editor" and (
             sorted(tool.parameters.properties.keys())
@@ -566,54 +549,39 @@ class AnthropicAPI(ModelAPI):
                 ]
             )
         ):
-            return TextEditorToolParam(
+            return ToolTextEditor20250124Param(
                 type="text_editor_20250124", name="str_replace_editor"
             )
         # not a text_editor tool
         else:
             return None
 
-    def bash_tool_param(self, tool: ToolInfo) -> Optional["BashToolParam"]:
+    def bash_tool_param(self, tool: ToolInfo) -> Optional[ToolBash20250124Param]:
         # check for compatible 'bash' tool
         if tool.name == "bash_session" and (
             sorted(tool.parameters.properties.keys()) == sorted(["command", "restart"])
         ):
-            return BashToolParam(type="bash_20250124", name="bash")
+            return ToolBash20250124Param(type="bash_20250124", name="bash")
         # not a bash tool
         else:
             return None
 
 
-# native anthropic tool definitions for computer use beta
-# https://docs.anthropic.com/en/docs/build-with-claude/computer-use
-class ComputerUseToolParam(TypedDict):
-    type: Literal["computer_20250124"]
-    name: Literal["computer"]
-    display_width_px: NotRequired[int]
-    display_height_px: NotRequired[int]
-    display_number: NotRequired[int]
-
-
-class TextEditorToolParam(TypedDict):
-    type: Literal["text_editor_20250124"]
-    name: Literal["str_replace_editor"]
-
-
-class BashToolParam(TypedDict):
-    type: Literal["bash_20250124"]
-    name: Literal["bash"]
-
-
 # tools can be either a stock tool param or a special Anthropic native use tool param
-ToolParamDef = ToolParam | ComputerUseToolParam | TextEditorToolParam | BashToolParam
+ToolParamDef = (
+    ToolParam
+    | BetaToolComputerUse20250124Param
+    | ToolTextEditor20250124Param
+    | ToolBash20250124Param
+)
 
 
 def add_cache_control(
     param: TextBlockParam
     | ToolParam
-    | ComputerUseToolParam
-    | TextEditorToolParam
-    | BashToolParam
+    | BetaToolComputerUse20250124Param
+    | ToolTextEditor20250124Param
+    | ToolBash20250124Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -639,6 +607,7 @@ def consecutive_message_reducer(
 
 
 def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
+    # TODO: Fix this code as it currently drops interesting properties when combining
     role = a["role"]
     a_content = a["content"]
     b_content = b["content"]
@@ -758,7 +727,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 ToolUseBlockParam(
                     type="tool_use",
                     id=tool_call.id,
-                    name=tool_call.function,
+                    name=tool_call.internal_name or tool_call.function,
                     input=tool_call.arguments,
                 )
             )
@@ -805,11 +774,13 @@ async def model_output_from_message(
             content.append(ContentText(type="text", text=content_text))
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
+            info = maybe_mapped_call_info(content_block.name, tools)
             tool_calls.append(
                 ToolCall(
-                    type="function",
+                    type=info.internal_type,
                     id=content_block.id,
-                    function=maybe_map_from_native_tool(content_block.name, tools),
+                    function=info.inspect_name,
+                    internal_name=info.internal_name,
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
@@ -859,20 +830,35 @@ async def model_output_from_message(
     )
 
 
-def maybe_map_from_native_tool(tool_called: str, tools: list[ToolInfo]) -> str:
-    # does this tool have a native tool mapping?
-    inspect_tool = _native_tool_name_mappings.get(tool_called, None)
-    if inspect_tool is not None:
-        # is the inspect tool actually in the list of available tools?
-        # (it might not be in the case where the native tool is 'bash'
-        # and we are actually targeting the original Inspect 'bash' tool
-        # rather than 'bash_session')
-        if any([tool.name == inspect_tool for tool in tools]):
-            return inspect_tool
-        else:
-            return tool_called
-    else:
-        return tool_called
+class CallInfo(NamedTuple):
+    internal_name: str | None
+    internal_type: str
+    inspect_name: str
+
+
+def maybe_mapped_call_info(tool_called: str, tools: list[ToolInfo]) -> CallInfo:
+    """
+    Return call info - potentially transformed by native tool mappings.
+
+    Anthropic prescribes names for their native tools - `computer`, `bash`, and
+    `str_replace_editor`. For a variety of reasons, Inspect's tool names to not
+    necessarily conform to internal names. Anthropic also provides specific tool
+    types for these built-in tools.
+    """
+    mappings = (
+        (INTERNAL_COMPUTER_TOOL_NAME, "computer_20250124", "computer"),
+        ("str_replace_editor", "text_editor_20250124", "text_editor"),
+        ("bash", "bash_20250124", "bash_session"),
+    )
+
+    return next(
+        (
+            CallInfo(entry[0], entry[1], entry[2])
+            for entry in mappings
+            if entry[0] == tool_called and any(tool.name == entry[2] for tool in tools)
+        ),
+        CallInfo(None, "function", tool_called),
+    )
 
 
 def message_stop_reason(message: Message) -> StopReason:

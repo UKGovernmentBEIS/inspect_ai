@@ -31,8 +31,8 @@
 }
 
 .code {
-  white-space: pre-wrap;
-  word-wrap: anywhere;
+  white-space: pre-wrap !important;
+  word-wrap: anywhere !important;
 }
 
 .toolConfig {
