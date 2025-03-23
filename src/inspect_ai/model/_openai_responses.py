@@ -87,6 +87,7 @@ async def openai_responses_input(
         tools_content = openai_responses_tools_content_params(message.tool_calls)
         return reasoning_content + text_content + tools_content
     elif message.role == "tool":
+        # TODO: Return ouptut types for internal tools e.g. computer, web_search
         if message.error is not None:
             output = message.error.message
         else:
