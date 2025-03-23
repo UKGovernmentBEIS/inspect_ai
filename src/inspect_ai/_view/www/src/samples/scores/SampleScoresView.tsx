@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Card, CardBody, CardHeader } from "../../components/Card";
+import { Card, CardBody } from "../../components/Card";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { EvalSample } from "../../types/log";
 import { inputString } from "../../utils/format";
@@ -46,9 +46,17 @@ export const SampleScoresView: FC<SampleScoresViewProps> = ({
         styles.container,
       )}
     >
-      <Card>
-        <CardHeader label="Input" />
+      <Card className={clsx(styles.scoreCard)}>
         <CardBody>
+          <div
+            className={clsx(
+              "text-size-small",
+              "text-style-label",
+              "text-style-secondary",
+            )}
+          >
+            Input
+          </div>
           <ExpandablePanel
             lines={10}
             id={`sample-score-${sample.id}-${sample.epoch}`}
@@ -59,11 +67,10 @@ export const SampleScoresView: FC<SampleScoresViewProps> = ({
               className={clsx(styles.wordBreak, "text-size-base")}
             />
           </ExpandablePanel>
-        </CardBody>
-      </Card>
-      <Card className={clsx(styles.scoreCard)}>
-        <CardBody>
-          <SampleScoresGrid evalSample={sample} />
+          <SampleScoresGrid
+            evalSample={sample}
+            className={clsx(styles.scores)}
+          />
         </CardBody>
       </Card>
     </div>

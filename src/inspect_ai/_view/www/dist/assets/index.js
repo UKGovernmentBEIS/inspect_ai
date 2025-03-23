@@ -19871,13 +19871,13 @@ self.onmessage = function (e) {
     const title$3 = "_title_12m5n_7";
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
-    const scores = "_scores_12m5n_22";
+    const scores$1 = "_scores_12m5n_22";
     const styles$19 = {
       entry,
       title: title$3,
       task,
       params,
-      scores
+      scores: scores$1
     };
     const SidebarLogEntry = ({
       logHeader,
@@ -20099,12 +20099,12 @@ self.onmessage = function (e) {
       }
     };
     const container$f = "_container_w37fs_1";
-    const padded$3 = "_padded_w37fs_8";
+    const padded$2 = "_padded_w37fs_8";
     const key = "_key_w37fs_12";
     const value$2 = "_value_w37fs_16";
     const styles$17 = {
       container: container$f,
-      padded: padded$3,
+      padded: padded$2,
       key,
       value: value$2
     };
@@ -52413,22 +52413,21 @@ Supported expressions:
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card-body", className2), id: id || "", children: children2 });
     };
     const Card = ({ id, children: children2, className: className2 }) => {
-      console.log({ className: className2 });
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
     };
     const wrapper$3 = "_wrapper_sq96g_1";
     const col2$2 = "_col2_sq96g_8";
     const col1_3$1 = "_col1_3_sq96g_12";
     const col3$1 = "_col3_sq96g_16";
-    const separator$3 = "_separator_sq96g_20";
-    const padded$2 = "_padded_sq96g_26";
+    const separator$4 = "_separator_sq96g_20";
+    const padded$1 = "_padded_sq96g_26";
     const styles$Q = {
       wrapper: wrapper$3,
       col2: col2$2,
       col1_3: col1_3$1,
       col3: col3$1,
-      separator: separator$3,
-      padded: padded$2
+      separator: separator$4,
+      padded: padded$1
     };
     const ModelUsagePanel = ({ usage }) => {
       if (!usage) {
@@ -55893,7 +55892,7 @@ Supported expressions:
     const tabPanel = "_tabPanel_cjf1d_1";
     const fullWidth$1 = "_fullWidth_cjf1d_5";
     const metadataPanel = "_metadataPanel_cjf1d_9";
-    const padded$1 = "_padded_cjf1d_18";
+    const padded = "_padded_cjf1d_18";
     const ansi = "_ansi_cjf1d_23";
     const noTop = "_noTop_cjf1d_27";
     const timePanel = "_timePanel_cjf1d_31";
@@ -55902,7 +55901,7 @@ Supported expressions:
       tabPanel,
       fullWidth: fullWidth$1,
       metadataPanel,
-      padded: padded$1,
+      padded,
       ansi,
       noTop,
       timePanel,
@@ -56114,64 +56113,6 @@ Supported expressions:
         }
       );
     };
-    const kBaseFontSize = 0.9;
-    const ScaleBaseFont = (scale) => {
-      return `${kBaseFontSize + scale}rem`;
-    };
-    const FontSize = {
-      smaller: ScaleBaseFont(-0.1)
-    };
-    const TextStyle = {
-      secondary: {
-        color: "var(--bs-secondary)"
-      }
-    };
-    const ApplicationStyles = {
-      moreButton: {
-        maxHeight: "1.8em",
-        fontSize: FontSize.smaller,
-        padding: "0 0.2em 0 0.2em",
-        ...TextStyle.secondary
-      },
-      threeLineClamp: {
-        display: "-webkit-box",
-        WebkitLineClamp: "3",
-        WebkitBoxOrient: "vertical",
-        overflow: "hidden"
-      },
-      lineClamp: (len) => {
-        return {
-          display: "-webkit-box",
-          WebkitLineClamp: `${len}`,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden"
-        };
-      },
-      wrapText: () => {
-        return {
-          whiteSpace: "nowrap",
-          textOverflow: "ellipsis",
-          overflow: "hidden"
-        };
-      },
-      scoreFills: {
-        green: {
-          backgroundColor: "var(--bs-success)",
-          borderColor: "var(--bs-success)",
-          color: "var(--bs-body-bg)"
-        },
-        red: {
-          backgroundColor: "var(--bs-danger)",
-          borderColor: "var(--bs-danger)",
-          color: "var(--bs-body-bg)"
-        },
-        orange: {
-          backgroundColor: "var(--bs-orange)",
-          borderColor: "var(--bs-orange)",
-          color: "var(--bs-body-bg)"
-        }
-      }
-    };
     const EmptyPanel = ({ children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
     };
@@ -56259,15 +56200,19 @@ Supported expressions:
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.grid, children: rows });
       }
     };
-    const container$b = "_container_2tddr_1";
-    const cell$1 = "_cell_2tddr_7";
-    const fullWidth = "_fullWidth_2tddr_11";
-    const padded = "_padded_2tddr_19";
+    const container$b = "_container_8i3m0_1";
+    const cell$1 = "_cell_8i3m0_9";
+    const fullWidth = "_fullWidth_8i3m0_13";
+    const separator$3 = "_separator_8i3m0_25";
+    const separatorPadded = "_separatorPadded_8i3m0_30";
+    const headerSep = "_headerSep_8i3m0_35";
     const styles$H = {
       container: container$b,
       cell: cell$1,
       fullWidth,
-      padded
+      separator: separator$3,
+      separatorPadded,
+      headerSep
     };
     const SampleScoresGrid = ({
       evalSample,
@@ -56322,6 +56267,12 @@ Supported expressions:
             children: "Explanation"
           }
         ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(styles$H.separator, styles$H.fullWidth, styles$H.headerSep)
+          }
+        ),
         Object.keys(evalSample.scores || {}).map((scorer) => {
           const scorerDescriptor = evalDescriptor.scorerDescriptor(evalSample, {
             scorer,
@@ -56340,17 +56291,7 @@ Supported expressions:
                 scorer
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx("text-size-base", styles$H.cell),
-                style: {
-                  ...ApplicationStyles.lineClamp(2),
-                  lineHeight: "1.2rem"
-                },
-                children: explanation2
-              }
-            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$H.cell), children: explanation2 }),
             Object.keys(metadata2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
@@ -56364,19 +56305,31 @@ Supported expressions:
                   children: "Metadata"
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$H.fullWidth, styles$H.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: metadata2 }) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$H.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: metadata2 }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  className: clsx(
+                    styles$H.separator,
+                    styles$H.separatorPadded,
+                    styles$H.fullWidth
+                  )
+                }
+              )
             ] }) : void 0
           ] });
         })
       ] });
     };
-    const container$a = "_container_2sji1_1";
-    const wordBreak = "_wordBreak_2sji1_14";
-    const scoreCard = "_scoreCard_2sji1_55";
+    const container$a = "_container_13xu1_1";
+    const wordBreak = "_wordBreak_13xu1_15";
+    const scoreCard = "_scoreCard_13xu1_56";
+    const scores = "_scores_13xu1_60";
     const styles$G = {
       container: container$a,
       wordBreak,
-      scoreCard
+      scoreCard,
+      scores
     };
     const SampleScoresView = ({
       sample: sample2,
@@ -56398,7 +56351,7 @@ Supported expressions:
           })
         );
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
           className: clsx(
@@ -56407,27 +56360,41 @@ Supported expressions:
             "font-size-base",
             styles$G.container
           ),
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Input" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ExpandablePanel,
-                {
-                  lines: 10,
-                  id: `sample-score-${sample2.id}-${sample2.epoch}`,
-                  collapse: true,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    MarkdownDiv,
-                    {
-                      markdown: scoreInput.join("\n"),
-                      className: clsx(styles$G.wordBreak, "text-size-base")
-                    }
-                  )
-                }
-              ) })
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(Card, { className: clsx(styles$G.scoreCard), children: /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(SampleScoresGrid, { evalSample: sample2 }) }) })
-          ]
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(Card, { className: clsx(styles$G.scoreCard), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(CardBody, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  "text-size-small",
+                  "text-style-label",
+                  "text-style-secondary"
+                ),
+                children: "Input"
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ExpandablePanel,
+              {
+                lines: 10,
+                id: `sample-score-${sample2.id}-${sample2.epoch}`,
+                collapse: true,
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MarkdownDiv,
+                  {
+                    markdown: scoreInput.join("\n"),
+                    className: clsx(styles$G.wordBreak, "text-size-base")
+                  }
+                )
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SampleScoresGrid,
+              {
+                evalSample: sample2,
+                className: clsx(styles$G.scores)
+              }
+            )
+          ] }) })
         }
       );
     };
@@ -65719,6 +65686,64 @@ ${events}
           }
         )
       ] });
+    };
+    const kBaseFontSize = 0.9;
+    const ScaleBaseFont = (scale) => {
+      return `${kBaseFontSize + scale}rem`;
+    };
+    const FontSize = {
+      smaller: ScaleBaseFont(-0.1)
+    };
+    const TextStyle = {
+      secondary: {
+        color: "var(--bs-secondary)"
+      }
+    };
+    const ApplicationStyles = {
+      moreButton: {
+        maxHeight: "1.8em",
+        fontSize: FontSize.smaller,
+        padding: "0 0.2em 0 0.2em",
+        ...TextStyle.secondary
+      },
+      threeLineClamp: {
+        display: "-webkit-box",
+        WebkitLineClamp: "3",
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden"
+      },
+      lineClamp: (len) => {
+        return {
+          display: "-webkit-box",
+          WebkitLineClamp: `${len}`,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden"
+        };
+      },
+      wrapText: () => {
+        return {
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis",
+          overflow: "hidden"
+        };
+      },
+      scoreFills: {
+        green: {
+          backgroundColor: "var(--bs-success)",
+          borderColor: "var(--bs-success)",
+          color: "var(--bs-body-bg)"
+        },
+        red: {
+          backgroundColor: "var(--bs-danger)",
+          borderColor: "var(--bs-danger)",
+          color: "var(--bs-body-bg)"
+        },
+        orange: {
+          backgroundColor: "var(--bs-orange)",
+          borderColor: "var(--bs-orange)",
+          color: "var(--bs-body-bg)"
+        }
+      }
     };
     const body$1 = "_body_5y0hl_1";
     const iconSmall = "_iconSmall_5y0hl_9";

@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { SampleSummary } from "../../api/types";
-import { ApplicationStyles } from "../../appearance/styles";
 import { EmptyPanel } from "../../components/EmptyPanel";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { useEvalDescriptor } from "../../state/hooks";
@@ -13,9 +12,6 @@ interface SampleScoresGridProps {
   evalSample: EvalSample;
   className?: string | string[];
 }
-
-// TODO: Make scoring section collapsible
-// TODO: Improve appearance of header
 
 export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
   evalSample,
@@ -63,6 +59,9 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
       >
         Explanation
       </div>
+      <div
+        className={clsx(styles.separator, styles.fullWidth, styles.headerSep)}
+      ></div>
 
       {Object.keys(evalSample.scores || {}).map((scorer) => {
         const scorerDescriptor = evalDescriptor.scorerDescriptor(evalSample, {
@@ -84,15 +83,10 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
                 scorer={scorer}
               />
             </div>
-            <div
-              className={clsx("text-size-base", styles.cell)}
-              style={{
-                ...ApplicationStyles.lineClamp(2),
-                lineHeight: "1.2rem",
-              }}
-            >
+            <div className={clsx("text-size-base", styles.cell)}>
               {explanation}
             </div>
+
             {Object.keys(metadata).length > 0 ? (
               <>
                 <div
@@ -105,9 +99,16 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
                 >
                   Metadata
                 </div>
-                <div className={clsx(styles.fullWidth, styles.padded)}>
+                <div className={clsx(styles.fullWidth)}>
                   <MetaDataGrid entries={metadata} />
                 </div>
+                <div
+                  className={clsx(
+                    styles.separator,
+                    styles.separatorPadded,
+                    styles.fullWidth,
+                  )}
+                ></div>
               </>
             ) : undefined}
           </>
