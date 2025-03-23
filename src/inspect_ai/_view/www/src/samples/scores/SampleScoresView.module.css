@@ -51,3 +51,7 @@
 .noTop {
   margin-top: 0 !important;
 }
+
+.scoreCard {
+  padding-top: 0.5em;
+}
