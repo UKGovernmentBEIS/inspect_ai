@@ -11,3 +11,5 @@ Inspect has several standard tools built-in, including:
 -   [Computer](tools-standard.qmd#sec-computer), which provides the model with a desktop computer (viewed through screenshots) that supports mouse and keyboard interaction.
 
 -   [Web Search](tools-standard.qmd#sec-web-search), which uses the Google Search API to execute and summarise web searches.
+
+-   [Think](tools-standard.qmd#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.
