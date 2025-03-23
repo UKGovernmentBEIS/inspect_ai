@@ -21577,7 +21577,7 @@ var require_assets = __commonJS({
           className: clsx(
             "source-code",
             "sourceCode",
-            `language-${highlightLanguage}`,
+            highlightLanguage ? `language-${highlightLanguage}` : void 0,
             styles$10.outputCode
           ),
           children: formattedContent
