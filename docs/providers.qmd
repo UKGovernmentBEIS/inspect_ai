@@ -52,7 +52,7 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ### OpenAI on Azure {#openai-on-azure}
 
 ::: {.callout-note appearance="simple"}
-Note that the OpenAI on Azure feature described below currently works only in the development version of Inspect. To install the development version from GitHub:
+Note that the OpenAI on Azure AI feature described below currently works only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
@@ -65,7 +65,7 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundary]
 - `AZUREAI_OPENAI_BASE_URL` 
 - `AZUREAI_OPENAI_API_VERSION`. 
 
-You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (in this case `gpt-4o-mini`). For example:
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
 
 ``` bash
 export AZUREAI_OPENAI_API_KEY=your-api-key
@@ -229,12 +229,25 @@ The following environment variables are supported by the Mistral provider
 
 ### Mistral on Azure AI {#mistral-on-azure-ai}
 
-To use Mistral models on Azure AI, specify an `AZURE_MISTRAL_API_KEY` along with an `AZUREAI_MISTRAL_BASE_URL`. You can then use the normal `mistral` provider, but you'll need to specify a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployment model name was `mistral-large-ctwi:`
+::: {.callout-note appearance="simple"}
+Note that the Mistral on Azure AI feature described below currently works only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The `mistral` provider supports Mistral models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
+
+- `AZURE_MISTRAL_API_KEY`
+- `AZUREAI_MISTRAL_BASE_URL`
+
+You can then use the normal `mistral` provider with the `azure` qualifier and the name of your model deployment (e.g. `Mistral-Large-2411`). For example:
 
 ``` bash
 export AZUREAI_MISTRAL_API_KEY=key
-export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com
-inspect eval --model mistral/mistral-large-ctwi
+export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com/models
+inspect eval math.py --model mistral/azure/Mistral-Large-2411
 ```
 
 ## DeepSeek {#deepseek}
@@ -308,7 +321,6 @@ The following environment variables are supported by the Azure AI provider
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
 
 If you are using Open AI or Mistral on Azure AI, you can alternatively use the [OpenAI provider](#openai-on-azure) or [Mistral provider](#mistral-on-azure-ai) as your means of access.
-
 
 ### Tool Emulation
 
