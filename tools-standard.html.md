@@ -67,16 +67,6 @@ time horizon.
 
 ## Bash Session
 
-> [!NOTE]
->
-> Note that the bash session tool is currently available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `bash_session()` tool provides a bash shell that retains its state
 across calls from the model (as distinct from the `bash()` tool which
 executes each command in a fresh session). The prompt, working
@@ -164,16 +154,6 @@ but when using Claude, the bash session tool will automatically bind to
 the native Claude tool definition.
 
 ## Text Editor
-
-> [!NOTE]
->
-> Note that the text editor tool is currently available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 The `text_editor()` tool enables viewing, creating and editing text
 files. The tool supports editing files within a protected [Sandbox
