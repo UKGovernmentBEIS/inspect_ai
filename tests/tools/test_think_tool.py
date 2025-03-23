@@ -8,7 +8,7 @@ from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import think
 
 
-def check_think_tool(description: str | None):
+def check_think_tool(description: str | None = None):
     task = Task(
         dataset=[
             Sample(
