@@ -22,6 +22,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -30,20 +31,18 @@ from .._generate_config import GenerateConfig
 from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import (
-    ChatCompletionChoice,
-    ModelOutput,
-    ModelUsage,
-    StopReason,
-)
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .._openai import (
+    OpenAIResponseError,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
+    is_o1_pro,
     is_o_series,
     openai_chat_messages,
     openai_chat_tool_choice,
     openai_chat_tools,
+    openai_handle_bad_request,
 )
 from .openai_o1 import generate_o1
 from .util import (
@@ -65,6 +64,7 @@ class OpenAIAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        responses_api: bool | None = None,
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -76,6 +76,9 @@ class OpenAIAPI(ModelAPI):
             model_name = "/".join(parts[1:])
         else:
             self.service = None
+
+        # note whether we are forcing the responses_api
+        self.responses_api = True if responses_api else False
 
         # call super
         super().__init__(
@@ -149,6 +152,9 @@ class OpenAIAPI(ModelAPI):
     def is_o_series(self) -> bool:
         return is_o_series(self.model_name)
 
+    def is_o1_pro(self) -> bool:
+        return is_o1_pro(self.model_name)
+
     def is_o1_mini(self) -> bool:
         return is_o1_mini(self.model_name)
 
@@ -176,6 +182,16 @@ class OpenAIAPI(ModelAPI):
                 input=input,
                 tools=tools,
                 **self.completion_params(config, False),
+            )
+        elif self.is_o1_pro() or self.responses_api:
+            return await generate_responses(
+                client=self.client,
+                http_hooks=self._http_hooks,
+                model_name=self.model_name,
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
             )
 
         # allocate request_id (so we can see it from ModelCall)
@@ -252,6 +268,9 @@ class OpenAIAPI(ModelAPI):
         except BadRequestError as e:
             return self.handle_bad_request(e), model_call()
 
+    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
+        return openai_handle_bad_request(self.model_name, ex)
+
     def _chat_choices_from_response(
         self, response: ChatCompletion, tools: list[ToolInfo]
     ) -> list[ChatCompletionChoice]:
@@ -270,6 +289,8 @@ class OpenAIAPI(ModelAPI):
                 return True
         elif isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, OpenAIResponseError):
+            return ex.code in ["rate_limit_exceeded", "server_error"]
         elif isinstance(ex, APITimeoutError):
             return True
         else:
@@ -341,32 +362,6 @@ class OpenAIAPI(ModelAPI):
             )
 
         return params
-
-    # convert some well known bad request errors into ModelOutput
-    def handle_bad_request(self, e: BadRequestError) -> ModelOutput | Exception:
-        # extract message
-        if isinstance(e.body, dict) and "message" in e.body.keys():
-            content = str(e.body.get("message"))
-        else:
-            content = e.message
-
-        # narrow stop_reason
-        stop_reason: StopReason | None = None
-        if e.code == "context_length_exceeded":
-            stop_reason = "model_length"
-        elif (
-            e.code == "invalid_prompt"  # seems to happen for o1/o3
-            or e.code == "content_policy_violation"  # seems to happen for vision
-            or e.code == "content_filter"  # seems to happen on azure
-        ):
-            stop_reason = "content_filter"
-
-        if stop_reason:
-            return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason=stop_reason
-            )
-        else:
-            return e
 
 
 class OpenAIAsyncHttpxClient(httpx.AsyncClient):

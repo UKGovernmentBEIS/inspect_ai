@@ -29,6 +29,26 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
 
+### Responses API
+
+::: {.callout-note appearance="simple"}
+Note that support for the OpenAI Responses API is currently available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+By default, Inspect uses the standard OpenAI Chat Completions API. However, if you use features that require the new [Responses API](https://platform.openai.com/docs/api-reference/responses) Inspect will use that instead. 
+
+Currently, the only feature that requires the Responses API is [o1-pro](https://platform.openai.com/docs/models/o1-pro). In the near future, Inspect will add support for OpenAI's built-in computer and web search tools, which will also require the Responses API.
+
+If you want to manually switch to the Responses API you can use the `responses_api` model argument. For example:
+
+```bash
+inspect eval math.py --model openai/gpt-4o -M responses_api=true
+```
+
 ### OpenAI on Azure {#openai-on-azure}
 
 To use OpenAI models on Azure AI, specify an `AZUREAI_OPENAI_API_KEY` along with an `AZUREAI_OPENAI_BASE_URL`. You can then use the normal `openai` provider with the `azure` qualifier, specifying a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployed model name was `gpt4-1106-preview-ythre:`
