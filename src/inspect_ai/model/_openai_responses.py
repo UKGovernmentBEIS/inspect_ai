@@ -125,6 +125,12 @@ async def openai_responses_content_param(content: Content) -> ResponseInputConte
     else:
         # TODO: support for files (PDFs) and audio and video whenever
         # that is supported by the responses API (was not on initial release)
+
+        # TODO: note that when doing this we should ensure that the
+        # openai_media_filter is properly screening out base64 encoded
+        # audio and video (if it exists, looks like it may all be done
+        # w/ file uploads in the responses API)
+
         raise ValueError("Unsupported content type.")
 
 

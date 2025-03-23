@@ -28,7 +28,6 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
@@ -43,6 +42,7 @@ from .._openai import (
     openai_chat_tool_choice,
     openai_chat_tools,
     openai_handle_bad_request,
+    openai_media_filter,
 )
 from .openai_o1 import generate_o1
 from .util import (
@@ -210,7 +210,7 @@ class OpenAIAPI(ModelAPI):
             return ModelCall.create(
                 request=request,
                 response=response,
-                filter=image_url_filter,
+                filter=openai_media_filter,
                 time=self._http_hooks.end_request(request_id),
             )
 
