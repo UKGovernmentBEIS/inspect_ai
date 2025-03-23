@@ -1,6 +1,7 @@
 .container {
   margin-top: 0.5em;
   padding-left: 0;
+  padding-right: 0;
 }
 
 .label {
@@ -54,4 +55,8 @@
 
 .scoreCard {
   padding-top: 0.5em;
+}
+
+.scores {
+  padding-top: 1em;
 }

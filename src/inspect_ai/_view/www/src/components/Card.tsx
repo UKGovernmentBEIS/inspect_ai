@@ -62,7 +62,6 @@ export const CardBody: FC<CardBodyProps> = ({ id, children, className }) => {
 };
 
 export const Card: FC<CardProps> = ({ id, children, className }) => {
-  console.log({ className });
   return (
     <div className={clsx("card", className)} id={id}>
       {children}
