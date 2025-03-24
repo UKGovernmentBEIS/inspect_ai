@@ -149,12 +149,12 @@ def test_agent_as_tool_no_param_docs_error():
 
 
 def test_agent_handoff():
-    check_agent_as_tool(handoff, tool_name="handoff_to_web_surfer", input_param=None)
+    check_agent_as_tool(handoff, tool_name="transfer_to_web_surfer", input_param=None)
 
 
 def test_agent_handoff_curry():
     check_agent_as_tool_curry(
-        handoff, tool_name="handoff_to_web_surfer", input_param=None
+        handoff, tool_name="transfer_to_web_surfer", input_param=None
     )
 
 

@@ -48,7 +48,7 @@ def check_agent_handoff(
         model="openai/gpt-4o-mini",
     )[0]
     assert log.samples
-    tool_call = find_tool_call(log, "handoff_to_searcher")
+    tool_call = find_tool_call(log, "transfer_to_searcher")
     assert tool_call
     max_searches = max_searches or 5
     assistant_message = log.samples[0].messages[-1]

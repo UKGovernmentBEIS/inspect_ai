@@ -19,18 +19,18 @@ HandoffFilter: TypeAlias = Callable[[list[ChatMessage]], Awaitable[list[ChatMess
 
 def handoff(
     agent: Agent,
-    tool_name: str | None = None,
-    tool_description: str | None = None,
+    description: str | None = None,
     input_filter: HandoffFilter | None = None,
+    tool_name: str | None = None,
     **agent_kwargs: Any,
 ) -> Tool:
     """Create a tool that enables models to handoff to agents.
 
     Args:
         agent: Agent to hand off to.
-        tool_name: Alternate tool name (defaults to `handoff_to_{agent_name}`)
-        tool_description: Alternate tool description: defaults to agent description.
+        description: Handoff tool description (defaults to agent description)
         input_filter: Optional callable to modify the message history before calling the tool.
+        tool_name: Alternate tool name (defaults to `transfer_to_{agent_name}`)
         **agent_kwargs: Arguments to curry to Agent function (arguments provided here will not be presented to the model as part of the tool interface).
 
 
@@ -45,17 +45,17 @@ def handoff(
         )
 
     # get tool_info
-    tool_info = agent_tool_info(agent, **agent_kwargs)
+    tool_info = agent_tool_info(agent, description, **agent_kwargs)
 
     # AgentTool calls will be intercepted by execute_tools
     agent_tool = AgentTool(agent, input_filter, **agent_kwargs)
-    tool_name = tool_name or f"handoff_to_{tool_info.name}"
+    tool_name = tool_name or f"transfer_to_{tool_info.name}"
     set_registry_info(agent_tool, RegistryInfo(type="tool", name=tool_name))
     set_tool_description(
         agent_tool,
         ToolDescription(
             name=tool_name,
-            description=tool_description or tool_info.description,
+            description=tool_info.description,
             parameters=tool_info.parameters,
         ),
     )

@@ -114,6 +114,7 @@ def agent() -> Callable[[Callable[P, Agent]], Callable[P, Agent]]: ...
 def agent(
     *,
     name: str | None = None,
+    description: str | None = None,
 ) -> Callable[[Callable[P, Agent]], Callable[P, Agent]]: ...
 
 
@@ -121,6 +122,7 @@ def agent(
     func: Callable[P, Agent] | None = None,
     *,
     name: str | None = None,
+    description: str | None = None,
 ) -> Callable[P, Agent] | Callable[[Callable[P, Agent]], Callable[P, Agent]]:
     r"""Decorator for registering agents.
 
@@ -129,6 +131,8 @@ def agent(
         name: Optional name for agent. If the decorator has no name
             argument then the name of the agent creation function
             will be used as the name of the agent.
+        description: Description for the agent when used as
+            an ordinary tool or handoff tool.
 
     Returns:
         Agent with registry attributes.
@@ -150,6 +154,7 @@ def agent(
                 RegistryInfo(
                     type="agent",
                     name=agent_name,
+                    metadata={AGENT_DESCRIPTION: description},
                 ),
                 *args,
                 **kwargs,
@@ -184,3 +189,6 @@ def agent_register(agent: Callable[P, Agent], name: str) -> Callable[P, Agent]:
 
 def is_agent(obj: Any) -> TypeGuard[Agent]:
     return is_registry_object(obj, type="agent")
+
+
+AGENT_DESCRIPTION = "description"

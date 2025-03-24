@@ -2,6 +2,7 @@ from typing import Any
 
 from inspect_ai._util.registry import (
     is_registry_object,
+    registry_info,
     registry_unqualified_name,
 )
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
@@ -11,11 +12,11 @@ from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
 from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
 
-from ._agent import Agent, AgentState
+from ._agent import AGENT_DESCRIPTION, Agent, AgentState
 
 
 @tool
-def as_tool(agent: Agent, **agent_kwargs: Any) -> Tool:
+def as_tool(agent: Agent, description: str | None = None, **agent_kwargs: Any) -> Tool:
     """Convert an agent to a tool.
 
     By default the model will see all of the agent's arguments as
@@ -26,6 +27,7 @@ def as_tool(agent: Agent, **agent_kwargs: Any) -> Tool:
 
     Args:
        agent: Agent to convert.
+       description: Tool description (defaults to agent description)
        **agent_kwargs: Arguments to curry to Agent function (arguments
          provided here will not be presented to the model as part
          of the tool interface).
@@ -57,7 +59,7 @@ def as_tool(agent: Agent, **agent_kwargs: Any) -> Tool:
             return ""
 
     # get tool_info
-    tool_info = agent_tool_info(agent, **agent_kwargs)
+    tool_info = agent_tool_info(agent, description, **agent_kwargs)
 
     # add "input" param
     tool_info.parameters.properties = {
@@ -75,7 +77,9 @@ def as_tool(agent: Agent, **agent_kwargs: Any) -> Tool:
     return tool_def.as_tool()
 
 
-def agent_tool_info(agent: Agent, **agent_kwargs: Any) -> ToolInfo:
+def agent_tool_info(
+    agent: Agent, description: str | None, **agent_kwargs: Any
+) -> ToolInfo:
     # get tool_info and name
     tool_info = parse_tool_info(agent)
     tool_info.name = registry_unqualified_name(agent)
@@ -98,10 +102,21 @@ def agent_tool_info(agent: Agent, **agent_kwargs: Any) -> ToolInfo:
                 f"Agent {tool_info.name} does not have a '{agent_param}' parameter."
             )
 
-    # confirm that we have descriptions for the tool and parameters
+    # resolve and validate description. the description in the call takes
+    # precedence, then any @agent(description="<foo>"), and finally any
+    # doc comment on the agent's execute function
+    reg_info = registry_info(agent)
+    tool_info.description = (
+        description
+        or reg_info.metadata.get(AGENT_DESCRIPTION, None)
+        or tool_info.description
+    )
     if len(tool_info.description) == 0:
         raise ValueError(
-            f"Description not provided for agent function '{tool_info.name}'"
+            f"Description not provided for agent function '{tool_info.name}'. Provide a "
+            + "description either via @agent(description='<description>'), the description "
+            + "argument to as_tool() or handoff(), or via a doc comment on the agent's "
+            + "execute function."
         )
 
     # validate parameter descriptions and types
