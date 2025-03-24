@@ -5,7 +5,6 @@ from typing import (
     Callable,
     ParamSpec,
     Protocol,
-    Type,
     TypeGuard,
     cast,
     overload,
@@ -23,8 +22,6 @@ from inspect_ai.model._chat_message import (
     ChatMessage,
 )
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.util._store import store
-from inspect_ai.util._store_model import SMT
 
 
 class AgentState:
@@ -53,19 +50,6 @@ class AgentState:
     def output(self, output: ModelOutput) -> None:
         """Set the model output."""
         self._output = output
-
-    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
-        """Pydantic model interface to the store.
-
-        Args:
-            model_cls: Pydantic model type (must derive from StoreModel)
-            instance: Optional instances name for store (enables multiple instances
-              of a given StoreModel type within a single task/subtask)
-
-        Returns:
-            StoreModel: model_cls bound to store data.
-        """
-        return model_cls(store=store(), instance=instance)
 
 
 @runtime_checkable
