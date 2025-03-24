@@ -1,7 +1,7 @@
 from pydantic import Field
 
 from inspect_ai.model import ChatMessage, ChatMessageSystem, ChatMessageUser, get_model
-from inspect_ai.tool import Tool, web_browser
+from inspect_ai.tool import Tool, tool, web_browser
 from inspect_ai.util import StoreModel, store_as
 
 
@@ -9,6 +9,7 @@ class WebSurferState(StoreModel):
     messages: list[ChatMessage] = Field(default_factory=list)
 
 
+@tool
 def web_surfer() -> Tool:
     """Stateful web surfer tool for researching topics.
 
