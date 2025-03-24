@@ -21577,7 +21577,7 @@ var require_assets = __commonJS({
           className: clsx(
             "source-code",
             "sourceCode",
-            `language-${highlightLanguage}`,
+            highlightLanguage ? `language-${highlightLanguage}` : void 0,
             styles$10.outputCode
           ),
           children: formattedContent
@@ -21613,6 +21613,22 @@ var require_assets = __commonJS({
       }
       const collapse = Array.isArray(output2) ? output2.every((item2) => !isContentImage(item2)) : !isContentImage(output2);
       const normalizedContent = reactExports.useMemo(() => normalizeContent$1(output2), [output2]);
+      const hasContent = normalizedContent.find((c2) => {
+        if (c2.type === "tool") {
+          for (const t2 of c2.content) {
+            if (t2.type === "text") {
+              if (t2.text) {
+                return true;
+              }
+            } else {
+              return true;
+            }
+          }
+          return false;
+        } else {
+          return true;
+        }
+      });
       const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
         mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
@@ -21625,7 +21641,7 @@ var require_assets = __commonJS({
               toolCallView: view
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, border: true, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent }) })
+          hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { collapse, border: true, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent }) }) : void 0
         ] }) })
       ] });
     };
