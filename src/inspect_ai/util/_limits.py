@@ -12,6 +12,7 @@ from inspect_ai.model._model import (
     init_model_usage,
     init_sample_model_usage,
     sample_model_usage,
+    sample_total_tokens,
 )
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.solver._limit import SampleLimitExceededError
@@ -43,10 +44,12 @@ class TokenLimitCtx:
     """
 
     def __init__(self, budget: int) -> None:
+        if budget < 0:
+            raise ValueError("Token limit budget must be non-negative integer.")
         self.budget = budget
 
     def __enter__(self) -> None:
-        current_usage = sample_model_usage()["model"]
+        current_usage = sample_total_tokens()
         limit = _TokenLimitItem(current_usage, self.budget)
         # Note that we don't store stack as in instance variable, because the context
         # manager may be used across multiple async tasks.
@@ -71,6 +74,14 @@ class NullTokenLimitCtx(TokenLimitCtx):
         pass
 
 
+# TODO: Would we rather the user has to pass in a ModelUsage (or int) or should we
+# always just get the total token usage from the relevant context var?
+def check_token_limit() -> None:
+    """Check if the current token usage exceeds any of the token limits."""
+    usage = sample_total_tokens()
+    _TokenLimitStack.get_or_create().check(usage)
+
+
 class _TokenLimitStack:
     """A stack of token limit items."""
 
@@ -83,12 +94,8 @@ class _TokenLimitStack:
     def pop(self) -> None:
         self.stack.pop()
 
-    def check(self, usage: ModelUsage) -> None:
+    def check(self, usage: int) -> None:
         """Check if the current token usage exceeds any of the token limits."""
-        print(
-            f"Checking token limit stack: {[limit.budget for limit in self.stack]}; "
-            f"total usage: {usage.total_tokens}"
-        )
         for limit in self.stack:
             limit.check(usage)
 
@@ -103,7 +110,7 @@ class _TokenLimitStack:
 
 
 class _TokenLimitItem:
-    def __init__(self, initial_usage: ModelUsage, budget: int) -> None:
+    def __init__(self, initial_usage: int, budget: int) -> None:
         """
         Initialize a token limit item.
 
@@ -113,14 +120,15 @@ class _TokenLimitItem:
           budget: The maximum number of tokens that can be used while the context
             manager is open.
         """
-        self.initial_usage = initial_usage.total_tokens
+        self.initial_usage = initial_usage
         self.budget = budget
 
-    def check(self, usage: ModelUsage) -> None:
-        if usage.total_tokens - self.initial_usage > self.budget:
-            raise SampleLimitExceededError(
-                "token", value=usage.total_tokens, limit=self.budget
-            )
+    def check(self, usage: int) -> None:
+        if usage - self.initial_usage > self.budget:
+            raise SampleLimitExceededError("token", value=usage, limit=self.budget)
+
+
+# Mocks of Inspect functions to facilitate development and experimentation.
 
 
 async def task_run() -> str:
