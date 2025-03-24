@@ -25,9 +25,7 @@ from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.solver._limit import SampleLimitExceededError
 
 # Stores the current async context's token limit stack.
-token_limit_stack_ctx_var: ContextVar[_TokenLimitStack | None] = ContextVar(
-    "limit_ctx_var", default=None
-)
+token_limit_stack_ctx_var: ContextVar[_TokenLimitStack] = ContextVar("limit_ctx_var")
 
 
 def main() -> None:
@@ -161,8 +159,10 @@ async def task_run_sample(
 
     await asyncio.sleep(0.1)
 
+    # Demonstrates that the user can pass us a ctx manager.
     with token_limit:
         consume_tokens(1)
+        # Or, a context manager can be created in the sample (e.g. in a solver).
         with TokenLimit(10):
             consume_tokens(2)
 
