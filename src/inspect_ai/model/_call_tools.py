@@ -353,12 +353,13 @@ async def call_tool(
     ):
         # agent tools get special handling
         if type(tool_def.tool).__name__ == "AgentTool":
-            # alias agent tool
+            # alias agent tool and get agent name
             agent_tool = cast(AgentTool, tool_def.tool)
+            agent_name = registry_unqualified_name(agent_tool.agent)
 
             # ammend the conversation with a ChatMessageTool to indicate
             # to the downstream agent that we satisfied the call
-            tool_result = f"The {registry_unqualified_name(agent_tool.agent)} agent has received the handoff."
+            tool_result = f"The {agent_name} agent has received the handoff."
             agent_conversation = copy(conversation)
             agent_conversation.append(
                 ChatMessageTool(
@@ -384,13 +385,15 @@ async def call_tool(
             agent_state = AgentState(messages=agent_conversation, output=ModelOutput())
             agent_state = await agent_tool.agent(agent_state, **arguments)
 
-            # determine which messages are new and return only those
+            # determine which messages are new and return only those. also,
+            # inject the agent's name as a prefix in assistant messages
             conversation_message_ids = [message.id for message in agent_conversation]
-            agent_messages = [
-                message
-                for message in agent_state.messages
-                if message.id not in conversation_message_ids
-            ]
+            agent_messages: list[ChatMessage] = []
+            for m in agent_state.messages:
+                if m.id not in conversation_message_ids:
+                    if isinstance(m, ChatMessageAssistant):
+                        m = prepend_agent_name(m, agent_name)
+                    agent_messages.append(m)
 
             # if we end with an assistant message then add a user message
             # so that the calling agent carries on
@@ -399,7 +402,7 @@ async def call_tool(
             ):
                 agent_messages.append(
                     ChatMessageUser(
-                        content=f"The {registry_unqualified_name(agent_tool.agent)} agent has completed its work."
+                        content=f"The {agent_name} agent has completed its work."
                     )
                 )
 
@@ -413,6 +416,26 @@ async def call_tool(
             arguments = tool_params(call.arguments, tool_def.tool)
             result: ToolResult = await tool_def.tool(**arguments)
             return result, [], None
+
+
+def prepend_agent_name(
+    message: ChatMessageAssistant, agent_name: str
+) -> ChatMessageAssistant:
+    if isinstance(message.content, str):
+        return message.model_copy(
+            update=dict(content=f"[{agent_name}] {message.content}")
+        )
+    else:
+        content = copy(message.content)
+        for i in range(0, len(content)):
+            if isinstance(content[i], ContentText):
+                content[i] = content[i].model_copy(
+                    update=dict(
+                        text=f"[{agent_name}] {cast(ContentText, content[i]).text}"
+                    )
+                )
+                break
+        return message.model_copy(update=dict(content=content))
 
 
 def tools_info(

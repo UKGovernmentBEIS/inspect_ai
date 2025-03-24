@@ -9,6 +9,7 @@ from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
+    get_model,
 )
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import Tool
@@ -71,7 +72,7 @@ def test_agent_handoff_tool_curry():
 
 @agent
 def searcher2() -> Agent:
-    async def execute(state: AgentState, max_searches: int = 5) -> AgentState:
+    async def execute(state: AgentState) -> AgentState:
         """Searcher that computes max searches.
 
         Args:
@@ -106,3 +107,41 @@ def test_agent_handoff_user_message():
     check_message(messages[-1], ChatMessageAssistant)
     check_message(messages[-2], ChatMessageUser)
     check_message(messages[-3], ChatMessageTool)
+
+
+@agent
+def searcher3() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Searcher that computes max searches.
+
+        Args:
+            state: Input state (conversation)
+            max_searches: Maximum number of web searches to conduct
+
+        Returns:
+            Ouput state (additions to conversation)
+        """
+        output = await get_model().generate(state.messages)
+        state.messages.append(output.message)
+        state.output = output
+
+        return state
+
+    return execute
+
+
+def test_agent_handoff_assistant_prefix():
+    log = eval(
+        Task(
+            dataset=[
+                Sample(input="Please use the searcher3 to determine the max_searches.")
+            ]
+        ),
+        solver=[use_tools(handoff(searcher3())), generate()],
+        model="openai/gpt-4o-mini",
+    )[0]
+    assert log.samples
+    messages = log.samples[0].messages
+    assistant_message = messages[-3]
+    assert isinstance(assistant_message, ChatMessageAssistant)
+    assert assistant_message.text.startswith("[searcher3]")
