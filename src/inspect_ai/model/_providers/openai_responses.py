@@ -1,11 +1,7 @@
 from logging import getLogger
 from typing import Any
 
-from openai import (
-    AsyncAzureOpenAI,
-    AsyncOpenAI,
-    BadRequestError,
-)
+from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError
 from openai._types import NOT_GIVEN
 from openai.types.responses import Response, ResponseFormatTextJSONSchemaConfigParam
 
@@ -15,10 +11,7 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model_call import ModelCall
-from .._model_output import (
-    ModelOutput,
-    ModelUsage,
-)
+from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     is_gpt,
@@ -69,8 +62,11 @@ async def generate_responses(
         input=await openai_responses_inputs(input, model_name),
         tools=openai_responses_tools(tools) if len(tools) > 0 else NOT_GIVEN,
         tool_choice=openai_responses_tool_choice(tool_choice)
-        if len(tools) > 0
+        if len(tools) > 0 and tool_choice != "auto"
         else NOT_GIVEN,
+        # TODO: Pass the right thing - stop hard-wiring it
+        truncation="auto",
+        reasoning={"generate_summary": "concise"},
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(model_name, config, len(tools) > 0),
     )
@@ -124,7 +120,9 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    params: dict[str, Any] = dict(model=model_name, store=False)
+    # TODO: Since `store=True` is only required for computer use, I'm guessing
+    # we should leave it False in other cases.
+    params: dict[str, Any] = dict(model=model_name, store=True)
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
     if config.frequency_penalty is not None:
