@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 import functools
 from collections import deque
-from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import ContextManager, Generator
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai.model._model import (
@@ -19,18 +17,67 @@ from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.solver._limit import SampleLimitExceededError
 
 # Stores the current async context's token limit stack.
-token_limit_stack_ctx_var: ContextVar[TokenLimitStack | None] = ContextVar(
+token_limit_stack_ctx_var: ContextVar[_TokenLimitStack | None] = ContextVar(
     "limit_ctx_var", default=None
 )
 
 
-class TokenLimitStack:
-    """A stack of token limits."""
+def main() -> None:
+    result = asyncio.run(task_run())
+    print(f"Completed task with results: {result}")
+
+
+class TokenLimitCtx:
+    """Limits the total number of tokens (input + output) which can be used.
+
+    The counter starts when the context manager is opened and ends when it is closed.
+    The context manager can be opened multiple times, even in different async contexts.
+
+    These limits can be stacked.
+
+    When a limit is exceeded, a SampleLimitExceededError is raised.
+
+    Args:
+      budget: The maximum number of tokens that can be used while the context manager is
+        open. Tokens used before the context manager was opened are not counted.
+    """
+
+    def __init__(self, budget: int) -> None:
+        self.budget = budget
+
+    def __enter__(self) -> None:
+        current_usage = sample_model_usage()["model"]
+        limit = _TokenLimitItem(current_usage, self.budget)
+        # Note that we don't store stack as in instance variable, because the context
+        # manager may be used across multiple async tasks.
+        stack = _TokenLimitStack.get_or_create()
+        stack.push(limit)
+
+    def __exit__(self, exc_type: type, exc_val: Exception, exc_tb: type) -> None:
+        stack = _TokenLimitStack.get_or_create()
+        stack.pop()
+
+
+class NullTokenLimitCtx(TokenLimitCtx):
+    """A TokenLimitCtx that implements the null object pattern."""
 
     def __init__(self) -> None:
-        self.stack: deque[TokenLimit] = deque()
+        pass
 
-    def push(self, limit: TokenLimit) -> None:
+    def __enter__(self) -> None:
+        pass
+
+    def __exit__(self, exc_type: type, exc_val: Exception, exc_tb: type) -> None:
+        pass
+
+
+class _TokenLimitStack:
+    """A stack of token limit items."""
+
+    def __init__(self) -> None:
+        self.stack: deque[_TokenLimitItem] = deque()
+
+    def push(self, limit: _TokenLimitItem) -> None:
         self.stack.append(limit)
 
     def pop(self) -> None:
@@ -45,11 +92,20 @@ class TokenLimitStack:
         for limit in self.stack:
             limit.check(usage)
 
+    @classmethod
+    def get_or_create(cls) -> _TokenLimitStack:
+        """Get the async context's token limit stack, creating it if it does not exist."""
+        stack = token_limit_stack_ctx_var.get(None)
+        if stack is None:
+            stack = _TokenLimitStack()
+            token_limit_stack_ctx_var.set(stack)
+        return stack
 
-class TokenLimit:
+
+class _TokenLimitItem:
     def __init__(self, initial_usage: ModelUsage, budget: int) -> None:
         """
-        Initialize a token limit.
+        Initialize a token limit item.
 
         Args:
           initial_usage: Snapshot of the token usage at the time the context manager was
@@ -67,58 +123,22 @@ class TokenLimit:
             )
 
 
-def get_or_create_token_limit_stack() -> TokenLimitStack:
-    stack = token_limit_stack_ctx_var.get(None)
-    if stack is None:
-        stack = TokenLimitStack()
-        token_limit_stack_ctx_var.set(stack)
-    return stack
-
-
-@contextmanager
-def token_limit(budget: int) -> Generator[None, None, None]:
-    """Limits the total number of tokens (input + output) which can be used.
-
-    The counter starts when the context manager is opened and ends when it is closed.
-
-    These limits can be stacked.
-
-    When a limit is exceeded, a SampleLimitExceededError is raised.
-
-    Args:
-      budget: The maximum number of tokens that can be used while the context manager is
-        open. Tokens used before the context manager was opened are not counted.
-    """
-    try:
-        current_usage = sample_model_usage()["model"]
-        limit = TokenLimit(current_usage, budget)
-        stack = get_or_create_token_limit_stack()
-        stack.push(limit)
-        yield
-    finally:
-        stack.pop()
-
-
-def consume_tokens(count: int) -> None:
-    usage = sample_model_usage()["model"]
-    usage.total_tokens += count
-
-    get_or_create_token_limit_stack().check(usage)
-
-
 async def task_run() -> str:
     init_model_usage()
 
+    # Note that despite the fact this is initialized at the task scope, there will be
+    # a budget per sample.
+    limit = TokenLimitCtx(5)
     # Run samples.
     sample_results: list[str] = await tg_collect(
-        [functools.partial(task_run_sample, i, token_limit(5)) for i in range(3)]
+        [functools.partial(task_run_sample, i, limit) for i in range(3)]
     )
 
     return " ".join(sample_results)
 
 
 async def task_run_sample(
-    sample_id: int, sample_token_limiter: ContextManager[None]
+    sample_id: int, token_limit: TokenLimitCtx = NullTokenLimitCtx()
 ) -> str:
     print(f"Starting sample {sample_id}")
     init_sample_model_usage()
@@ -126,9 +146,9 @@ async def task_run_sample(
 
     await asyncio.sleep(0.1)
 
-    with sample_token_limiter:
+    with token_limit:
         consume_tokens(1)
-        with token_limit(10):
+        with TokenLimitCtx(10):
             consume_tokens(2)
 
     print(
@@ -137,10 +157,11 @@ async def task_run_sample(
     return f"completed-{sample_id}"
 
 
-def main() -> None:
-    result = asyncio.run(task_run())
-    print(result)
-    print("Done")
+def consume_tokens(count: int) -> None:
+    usage = sample_model_usage()["model"]
+    usage.total_tokens += count
+
+    _TokenLimitStack.get_or_create().check(usage)
 
 
 if __name__ == "__main__":
