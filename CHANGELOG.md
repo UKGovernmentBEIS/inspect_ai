@@ -8,6 +8,7 @@
 - Added `--metadata` option to eval for associating metadata with eval runs.
 - Task display: Show reasoning tokens for models that report them.
 - Anthropic: Include reasoning tokens in computation of total tokens
+- Inpsect View: Properly wrap tool input for non-code inputs like `think`.
 
 ## v0.3.76 (23 March 2025)
 

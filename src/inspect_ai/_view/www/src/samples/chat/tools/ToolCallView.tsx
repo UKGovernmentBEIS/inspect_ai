@@ -83,8 +83,24 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
     : !isContentImage(output);
   const normalizedContent = useMemo(() => normalizeContent(output), [output]);
 
-  const contents = mode !== "compact" ? input : input || functionCall;
+  const hasContent = normalizedContent.find((c) => {
+    if (c.type === "tool") {
+      for (const t of c.content) {
+        if (t.type === "text") {
+          if (t.text) {
+            return true;
+          }
+        } else {
+          return true;
+        }
+      }
+      return false;
+    } else {
+      return true;
+    }
+  });
 
+  const contents = mode !== "compact" ? input : input || functionCall;
   return (
     <div>
       {mode !== "compact" && (!view || view.title) ? (
@@ -99,9 +115,11 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
             contents={contents}
             toolCallView={view}
           />
-          <ExpandablePanel collapse={collapse} border={true} lines={15}>
-            <MessageContent contents={normalizedContent} />
-          </ExpandablePanel>
+          {hasContent ? (
+            <ExpandablePanel collapse={collapse} border={true} lines={15}>
+              <MessageContent contents={normalizedContent} />
+            </ExpandablePanel>
+          ) : undefined}
         </div>
       </div>
     </div>
