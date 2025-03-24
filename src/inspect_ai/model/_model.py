@@ -62,7 +62,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._conversation import conversation_assistant_error, conversation_assistant_message
+from ._conversation import conversation_assistant, conversation_assistant_error
 from ._generate_config import (
     GenerateConfig,
     active_generate_config,
@@ -718,7 +718,7 @@ class Model:
             # trace
             if isinstance(result, ModelOutput):
                 if result.choices:
-                    conversation_assistant_message(input, result.choices[0].message)
+                    conversation_assistant(input, result.choices[0].message)
                 event.output = result
             else:
                 conversation_assistant_error(result)

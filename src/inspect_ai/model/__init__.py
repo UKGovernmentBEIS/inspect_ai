@@ -18,7 +18,7 @@ from ._cache import (
     cache_prune,
     cache_size,
 )
-from ._call_tools import call_tools, execute_tools
+from ._call_tools import ExecuteToolsResult, call_tools, execute_tools
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -75,6 +75,7 @@ __all__ = [
     "StopReason",
     "call_tools",
     "execute_tools",
+    "ExecuteToolsResult",
     "cache_clear",
     "cache_list_expired",
     "cache_path",

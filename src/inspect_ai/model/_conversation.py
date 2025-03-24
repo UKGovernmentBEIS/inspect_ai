@@ -13,7 +13,20 @@ from ._render import messages_preceding_assistant, render_tool_calls
 MESSAGE_TITLE = "Message"
 
 
-def conversation_tool_mesage(message: ChatMessageTool) -> None:
+def conversation_message(message: ChatMessage) -> None:
+    if display_type() == "conversation":
+        if isinstance(message, ChatMessageTool):
+            conversation_tool_message(message)
+        elif isinstance(message, ChatMessageAssistant):
+            conversation_assistant_message(message)
+        else:
+            conversation_panel(
+                title=message.role.capitalize(),
+                content=transcript_markdown(message.text, escape=True),
+            )
+
+
+def conversation_tool_message(message: ChatMessageTool) -> None:
     if display_type() == "conversation":
         # truncate output to 100 lines
         output = (
@@ -28,7 +41,31 @@ def conversation_tool_mesage(message: ChatMessageTool) -> None:
             )
 
 
-def conversation_assistant_message(
+def conversation_assistant_message(message: ChatMessageAssistant) -> None:
+    # build content
+    content: list[RenderableType] = []
+
+    # deal with plain text or with content blocks
+    if isinstance(message.content, str):
+        content.extend([transcript_markdown(message.text.strip(), escape=True)])
+    else:
+        for c in message.content:
+            if isinstance(c, ContentReasoning):
+                content.extend(transcript_reasoning(c))
+            elif isinstance(c, ContentText) and c.text:
+                content.extend([transcript_markdown(c.text.strip(), escape=True)])
+
+    # print tool calls
+    if message.tool_calls:
+        if content:
+            content.append(Text())
+        content.extend(render_tool_calls(message.tool_calls))
+
+    # print the assistant message
+    conversation_panel(title="Assistant", content=content)
+
+
+def conversation_assistant(
     input: list[ChatMessage], message: ChatMessageAssistant
 ) -> None:
     if display_type() == "conversation":
@@ -39,27 +76,8 @@ def conversation_assistant_message(
                 content=transcript_markdown(m.text, escape=True),
             )
 
-        # build content
-        content: list[RenderableType] = []
-
-        # deal with plain text or with content blocks
-        if isinstance(message.content, str):
-            content.extend([transcript_markdown(message.text.strip(), escape=True)])
-        else:
-            for c in message.content:
-                if isinstance(c, ContentReasoning):
-                    content.extend(transcript_reasoning(c))
-                elif isinstance(c, ContentText) and c.text:
-                    content.extend([transcript_markdown(c.text.strip(), escape=True)])
-
-        # print tool calls
-        if message.tool_calls:
-            if content:
-                content.append(Text())
-            content.extend(render_tool_calls(message.tool_calls))
-
-        # print the assistant message
-        conversation_panel(title="Assistant", content=content)
+        # show assistant message
+        conversation_assistant_message(message)
 
 
 def conversation_assistant_error(error: Exception) -> None:
