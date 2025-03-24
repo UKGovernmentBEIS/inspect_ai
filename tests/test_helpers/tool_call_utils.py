@@ -8,6 +8,12 @@ from inspect_ai.model import (
 from inspect_ai.tool import ToolCall
 
 
+def find_tool_call(log: EvalLog, tool: str):
+    assert log.samples
+    messages = log.samples[0].messages
+    return get_tool_response(messages, get_tool_calls(messages, tool)[0])
+
+
 def get_tool_call(messages: list[ChatMessage], tool: str) -> ToolCall | None:
     tool_calls = get_tool_calls(messages, tool)
     if tool_calls:

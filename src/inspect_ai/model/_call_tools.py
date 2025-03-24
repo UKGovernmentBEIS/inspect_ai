@@ -2,6 +2,7 @@ import inspect
 import json
 import sys
 import types
+from copy import copy
 from dataclasses import is_dataclass
 from logging import getLogger
 from textwrap import dedent
@@ -24,6 +25,7 @@ from typing import (
 )
 
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.model._model_output import ModelOutput
 
 if sys.version_info < (3, 11):
@@ -55,7 +57,12 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 
-from ._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageTool
+from ._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from ._generate_config import active_generate_config
 
 logger = getLogger(__name__)
@@ -346,20 +353,64 @@ async def call_tool(
     ):
         # agent tools get special handling
         if type(tool_def.tool).__name__ == "AgentTool":
+            # alias agent tool
             agent_tool = cast(AgentTool, tool_def.tool)
-            if agent_tool.input_filter is not None:
-                conversation = await agent_tool.input_filter(conversation)
-            agent_state = AgentState(messages=conversation, output=ModelOutput())
-            agent_state = await agent_tool.agent(
-                agent_state, **(agent_tool.kwargs | arguments)
+
+            # ammend the conversation with a ChatMessageTool to indicate
+            # to the downstream agent that we satisfied the call
+            tool_result = f"The {registry_unqualified_name(agent_tool.agent)} agent has received the handoff."
+            agent_conversation = copy(conversation)
+            agent_conversation.append(
+                ChatMessageTool(
+                    content=tool_result,
+                    tool_call_id=call.id,
+                    function=call.function,
+                    internal_name=call.internal_name,
+                )
             )
+
+            # filter the messages if requested
+            if agent_tool.input_filter is not None:
+                agent_conversation = await agent_tool.input_filter(agent_conversation)
+
+            # inject curried args
+            arguments = {**call.arguments, **agent_tool.kwargs}
+
+            # parse arguments
+            arguments = tool_params(arguments, agent_tool.agent)
+            del arguments["state"]
+
+            # make the call
+            agent_state = AgentState(messages=agent_conversation, output=ModelOutput())
+            agent_state = await agent_tool.agent(agent_state, **arguments)
+
+            # determine which messages are new and return only those
+            conversation_message_ids = [message.id for message in agent_conversation]
+            agent_messages = [
+                message
+                for message in agent_state.messages
+                if message.id not in conversation_message_ids
+            ]
+
+            # if we end with an assistant message then add a user message
+            # so that the calling agent carries on
+            if len(agent_messages) == 0 or isinstance(
+                agent_messages[-1], ChatMessageAssistant
+            ):
+                agent_messages.append(
+                    ChatMessageUser(
+                        content=f"The {registry_unqualified_name(agent_tool.agent)} agent has completed its work."
+                    )
+                )
+
             return (
-                "",
-                agent_state.messages,
+                tool_result,
+                agent_messages,
                 agent_state.output if not agent_state.output.empty else None,
             )
         # normal tool call
         else:
+            arguments = tool_params(call.arguments, tool_def.tool)
             result: ToolResult = await tool_def.tool(**arguments)
             return result, [], None
 
