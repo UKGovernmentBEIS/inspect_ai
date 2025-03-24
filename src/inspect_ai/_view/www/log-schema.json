@@ -257,6 +257,16 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
         "role": {
           "const": "assistant",
           "default": "assistant",
@@ -295,6 +305,7 @@
         "id",
         "content",
         "source",
+        "internal",
         "role",
         "tool_calls",
         "model"
@@ -364,6 +375,16 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
         "role": {
           "const": "system",
           "default": "system",
@@ -375,6 +396,7 @@
         "id",
         "content",
         "source",
+        "internal",
         "role"
       ],
       "title": "ChatMessageSystem",
@@ -442,6 +464,16 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
         "role": {
           "const": "tool",
           "default": "tool",
@@ -472,18 +504,6 @@
           "default": null,
           "title": "Function"
         },
-        "internal_name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Internal Name"
-        },
         "error": {
           "anyOf": [
             {
@@ -500,10 +520,10 @@
         "id",
         "content",
         "source",
+        "internal",
         "role",
         "tool_call_id",
         "function",
-        "internal_name",
         "error"
       ],
       "title": "ChatMessageTool",
@@ -571,6 +591,16 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal"
+        },
         "role": {
           "const": "user",
           "default": "user",
@@ -597,6 +627,7 @@
         "id",
         "content",
         "source",
+        "internal",
         "role",
         "tool_call_id"
       ],
@@ -4527,21 +4558,15 @@
           "title": "Arguments",
           "type": "object"
         },
-        "type": {
-          "title": "Type",
-          "type": "string"
-        },
-        "internal_name": {
+        "internal": {
           "anyOf": [
-            {
-              "type": "string"
-            },
+            {},
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Internal Name"
+          "title": "Internal"
         },
         "parse_error": {
           "anyOf": [
@@ -4571,8 +4596,7 @@
         "id",
         "function",
         "arguments",
-        "type",
-        "internal_name",
+        "internal",
         "parse_error",
         "view"
       ],
@@ -4732,17 +4756,15 @@
           "title": "Arguments",
           "type": "object"
         },
-        "internal_name": {
+        "internal": {
           "anyOf": [
-            {
-              "type": "string"
-            },
+            {},
             {
               "type": "null"
             }
           ],
           "default": null,
-          "title": "Internal Name"
+          "title": "Internal"
         },
         "view": {
           "anyOf": [
@@ -4954,7 +4976,7 @@
         "id",
         "function",
         "arguments",
-        "internal_name",
+        "internal",
         "view",
         "result",
         "truncated",

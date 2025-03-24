@@ -83,6 +83,22 @@ async def middle_click(coordinate: list[int], timeout: int | None = None) -> Too
     )
 
 
+async def back_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["back_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
+async def forward_click(
+    coordinate: list[int], timeout: int | None = None
+) -> ToolResult:
+    return await _send_cmd(
+        ["forward_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
 async def double_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
     return await _send_cmd(
         ["double_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],

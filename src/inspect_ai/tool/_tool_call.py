@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
@@ -44,11 +44,8 @@ class ToolCall:
     arguments: dict[str, Any]
     """Arguments to function."""
 
-    type: str
-    """Type of tool call ('function' or a model specific internal tool type)"""
-
-    internal_name: str | None = field(default=None)
-    """Model's internal name for the tool - if any."""
+    internal: object | None = Field(default=None)
+    """Model provider specific payload - typically used to aid transformation back to model types."""
 
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""
@@ -82,7 +79,17 @@ ToolCallViewer = Callable[[ToolCall], ToolCallView]
 """Custom view renderer for tool calls."""
 
 
-ToolCallModelInput = Callable[[int, int, str | list[Content]], str | list[Content]]
+class ToolCallModelInputHints(TypedDict):
+    # This type is a little sketchy but it allows tools to customize their
+    # input hook behavior based on model limitations without creating a tight
+    # coupling to the model provider.
+    forbids_computer_screenshot_truncation: bool
+    """The model does not support the truncation/redaction of computer screenshots."""
+
+
+ToolCallModelInput = Callable[
+    [int, int, str | list[Content], ToolCallModelInputHints], str | list[Content]
+]
 """Determine how tool call results are played back as model input.
 
 The first argument is an index into the total number of tool results

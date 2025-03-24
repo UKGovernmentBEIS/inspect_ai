@@ -195,6 +195,7 @@ class ModelOutput(BaseModel):
         model: str,
         tool_name: str,
         tool_arguments: dict[str, Any],
+        # TODO: Update this and type as appropriate
         internal_tool_name: str | None = None,
         tool_call_id: str | None = None,
         content: str | None = None,
@@ -233,9 +234,7 @@ class ModelOutput(BaseModel):
                             ToolCall(
                                 id=tool_call_id,
                                 function=tool_name,
-                                internal_name=internal_tool_name,
                                 arguments=tool_arguments,
-                                type=type,
                             )
                         ],
                     ),

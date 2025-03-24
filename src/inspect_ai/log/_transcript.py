@@ -184,8 +184,8 @@ class ToolEvent(BaseEvent):
     arguments: dict[str, JsonValue]
     """Arguments to function."""
 
-    internal_name: str | None = Field(default=None)
-    """Internal name for tool (if any)."""
+    internal: object | None = Field(default=None)
+    """Model provider specific payload - typically used to aid transformation back to model types."""
 
     view: ToolCallContent | None = Field(default=None)
     """Custom view of tool call input."""

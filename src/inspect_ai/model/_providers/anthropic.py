@@ -3,7 +3,7 @@ import os
 import re
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, NamedTuple, Optional, Tuple, cast
+from typing import Any, Literal, Optional, Tuple, cast
 
 import httpcore
 import httpx
@@ -723,11 +723,12 @@ async def message_param(message: ChatMessage) -> MessageParam:
 
         # now add tools
         for tool_call in message.tool_calls:
+            internal_name = _internal_name_from_tool_call(tool_call)
             tools_content.append(
                 ToolUseBlockParam(
                     type="tool_use",
                     id=tool_call.id,
-                    name=tool_call.internal_name or tool_call.function,
+                    name=internal_name or tool_call.function,
                     input=tool_call.arguments,
                 )
             )
@@ -774,14 +775,13 @@ async def model_output_from_message(
             content.append(ContentText(type="text", text=content_text))
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
-            info = maybe_mapped_call_info(content_block.name, tools)
+            (tool_name, internal_name) = _names_for_tool_call(content_block.name, tools)
             tool_calls.append(
                 ToolCall(
-                    type=info.internal_type,
                     id=content_block.id,
-                    function=info.inspect_name,
-                    internal_name=info.internal_name,
+                    function=tool_name,
                     arguments=content_block.model_dump().get("input", {}),
+                    internal=internal_name,
                 )
             )
         elif isinstance(content_block, RedactedThinkingBlock):
@@ -831,15 +831,18 @@ async def model_output_from_message(
     )
 
 
-class CallInfo(NamedTuple):
-    internal_name: str | None
-    internal_type: str
-    inspect_name: str
+def _internal_name_from_tool_call(tool_call: ToolCall) -> str | None:
+    assert isinstance(tool_call.internal, str | None), (
+        f"ToolCall internal must be `str | None`: {tool_call.internal}"
+    )
+    return tool_call.internal
 
 
-def maybe_mapped_call_info(tool_called: str, tools: list[ToolInfo]) -> CallInfo:
+def _names_for_tool_call(
+    tool_called: str, tools: list[ToolInfo]
+) -> tuple[str, str | None]:
     """
-    Return call info - potentially transformed by native tool mappings.
+    Return the name of the tool to call and potentially an internal name.
 
     Anthropic prescribes names for their native tools - `computer`, `bash`, and
     `str_replace_editor`. For a variety of reasons, Inspect's tool names to not
@@ -854,11 +857,11 @@ def maybe_mapped_call_info(tool_called: str, tools: list[ToolInfo]) -> CallInfo:
 
     return next(
         (
-            CallInfo(entry[0], entry[1], entry[2])
+            (entry[2], entry[0])
             for entry in mappings
             if entry[0] == tool_called and any(tool.name == entry[2] for tool in tools)
         ),
-        CallInfo(None, "function", tool_called),
+        (tool_called, None),
     )
 
 
