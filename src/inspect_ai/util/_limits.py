@@ -1,4 +1,11 @@
 # Contains lots of experimentation code to be removed.
+# For now, very specific to token limits, but could be generalized to other limits.
+
+# Questions:
+
+# Is the model_usage_context_var only used for log files, or can it be used to enforce
+# limits?
+
 
 from __future__ import annotations
 
@@ -28,7 +35,7 @@ def main() -> None:
     print(f"Completed task with results: {result}")
 
 
-class TokenLimitCtx:
+class TokenLimit:
     """Limits the total number of tokens (input + output) which can be used.
 
     The counter starts when the context manager is opened and ends when it is closed.
@@ -45,7 +52,7 @@ class TokenLimitCtx:
 
     def __init__(self, budget: int) -> None:
         if budget < 0:
-            raise ValueError("Token limit budget must be non-negative integer.")
+            raise ValueError("Token limit budget must be a non-negative integer.")
         self.budget = budget
 
     def __enter__(self) -> None:
@@ -61,7 +68,7 @@ class TokenLimitCtx:
         stack.pop()
 
 
-class NullTokenLimitCtx(TokenLimitCtx):
+class NullTokenLimitCtx(TokenLimit):
     """A TokenLimitCtx that implements the null object pattern."""
 
     def __init__(self) -> None:
@@ -136,7 +143,7 @@ async def task_run() -> str:
 
     # Note that despite the fact this is initialized at the task scope, there will be
     # a budget per sample.
-    limit = TokenLimitCtx(5)
+    limit = TokenLimit(5)
     # Run samples.
     sample_results: list[str] = await tg_collect(
         [functools.partial(task_run_sample, i, limit) for i in range(3)]
@@ -146,7 +153,7 @@ async def task_run() -> str:
 
 
 async def task_run_sample(
-    sample_id: int, token_limit: TokenLimitCtx = NullTokenLimitCtx()
+    sample_id: int, token_limit: TokenLimit = NullTokenLimitCtx()
 ) -> str:
     print(f"Starting sample {sample_id}")
     init_sample_model_usage()
@@ -156,7 +163,7 @@ async def task_run_sample(
 
     with token_limit:
         consume_tokens(1)
-        with TokenLimitCtx(10):
+        with TokenLimit(10):
             consume_tokens(2)
 
     print(
@@ -174,14 +181,3 @@ def consume_tokens(count: int) -> None:
 
 if __name__ == "__main__":
     main()
-
-# Questions:
-# Does opening a new context manager e.g. `with token_limit(5)` mean that A) 5 _more_
-# tokens can be used, or that B) only 5 tokens can be used in total?
-# A) makes more sense with the idea of using a stack.
-
-# Unless we change how token usage is stored, our limit context managers will have to
-# snapshot what the token usage was at the time the context manager was opened.
-
-# Is the model_usage_context_var only used for log files, or can it be used to enforce
-# limits?
