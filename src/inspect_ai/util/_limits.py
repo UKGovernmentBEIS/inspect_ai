@@ -65,6 +65,12 @@ class TokenLimit:
         stack = _TokenLimitStack.get_or_create()
         stack.pop()
 
+    @classmethod
+    def create(cls, budget: int | None) -> TokenLimit:
+        if budget is None:
+            return NullTokenLimitCtx()
+        return cls(budget)
+
 
 class NullTokenLimitCtx(TokenLimit):
     """A TokenLimitCtx that implements the null object pattern."""
