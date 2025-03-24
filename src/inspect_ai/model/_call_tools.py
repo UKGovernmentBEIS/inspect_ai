@@ -186,6 +186,7 @@ async def execute_tools(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
+                internal_name=call.internal_name,
                 result=content,
                 truncated=truncated,
                 view=call.view,
@@ -201,6 +202,7 @@ async def execute_tools(
                             content=content,
                             tool_call_id=call.id,
                             function=call.function,
+                            internal_name=call.internal_name,
                             error=tool_error,
                         ),
                         event,
@@ -219,6 +221,7 @@ async def execute_tools(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
+                internal_name=call.internal_name,
                 view=call.view,
                 pending=True,
             )
@@ -234,9 +237,7 @@ async def execute_tools(
                     tg.start_soon(call_tool_task, call, send_stream)
                     event._set_cancel_fn(tg.cancel_scope.cancel)
                     async with receive_stream:
-                        async for result in receive_stream:
-                            tool_message, result_event = result
-                            break
+                        tool_message, result_event = await receive_stream.receive()
             except ExceptionGroup as ex:
                 raise ex.exceptions[0]
 
@@ -244,6 +245,7 @@ async def execute_tools(
                 tool_message = ChatMessageTool(
                     content="",
                     function=call.function,
+                    internal_name=call.internal_name,
                     tool_call_id=call.id,
                     error=ToolCallError(
                         "timeout", "Command timed out before completing."
@@ -253,6 +255,7 @@ async def execute_tools(
                     id=call.id,
                     function=call.function,
                     arguments=call.arguments,
+                    internal_name=call.internal_name,
                     result=tool_message.content,
                     truncated=None,
                     view=call.view,
@@ -526,6 +529,13 @@ def tool_parse_error_message(arguments: str, ex: Exception) -> str:
 def parse_tool_call(
     id: str, function: str, arguments: str, tools: list[ToolInfo] | None = None
 ) -> ToolCall:
+    """Parse a tool call from a JSON payload.
+
+    Note that this function doesn't know about internal tool names so the caller
+    should ammend the returned `ToolCall` by mapping the parsed `function` field from
+    from an internal name to an inspect tool name and fixing up the `ToolCall` object
+    as required to reflect this change.
+    """
     error: str | None = None
     arguments_dict: dict[str, Any] = {}
 

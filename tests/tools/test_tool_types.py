@@ -15,6 +15,7 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import ChatMessageTool
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import ToolFunction, tool
 from inspect_ai.tool._tool import Tool
@@ -146,7 +147,7 @@ def computer_action():
     return execute
 
 
-def check_point(model: str, tool: Tool, function_name: str) -> None:
+def check_point(model: str | Model, tool: Tool, function_name: str) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -165,15 +166,15 @@ def check_point(model: str, tool: Tool, function_name: str) -> None:
     verify_tool_call(log, "15")
 
 
-def check_typed_dict(model: str) -> None:
+def check_typed_dict(model: str | Model) -> None:
     check_point(model, offset(), "offset")
 
 
-def check_dataclass(model: str) -> None:
+def check_dataclass(model: str | Model) -> None:
     check_point(model, offset_dataclass(), "offset_dataclass")
 
 
-def check_list_of_numbers(model: str) -> None:
+def check_list_of_numbers(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -193,9 +194,9 @@ def check_list_of_numbers(model: str) -> None:
     verify_tool_call(log, "10")
 
 
-def check_list_of_objects(model: str) -> None:
+def check_list_of_objects(model: str | Model) -> None:
     # grok sometimes doesn't get this one (just says 'I have extracted, how would you like to proceed')
-    if "grok" in model:
+    if isinstance(model, str) and "grok" in model:
         return
 
     task = Task(
@@ -216,7 +217,7 @@ def check_list_of_objects(model: str) -> None:
     verify_tool_call(log, "quick")
 
 
-def check_optional_args(model: str) -> None:
+def check_optional_args(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -235,7 +236,7 @@ def check_optional_args(model: str) -> None:
     verify_tool_call(log, "stuff")
 
 
-def check_none_default_arg(model: str) -> None:
+def check_none_default_arg(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -254,7 +255,7 @@ def check_none_default_arg(model: str) -> None:
     verify_tool_call(log, "click")
 
 
-def check_tool_types(model: str):
+def check_tool_types(model: str | Model):
     check_typed_dict(model)
     check_dataclass(model)
     check_list_of_numbers(model)
@@ -266,6 +267,11 @@ def check_tool_types(model: str):
 @skip_if_no_openai
 def test_openai_tool_types() -> None:
     check_tool_types("openai/gpt-4o")
+
+
+@skip_if_no_openai
+def test_openai_responses_tool_types() -> None:
+    check_tool_types(get_model("openai/gpt-4o-mini", responses_api=True))
 
 
 @skip_if_no_anthropic

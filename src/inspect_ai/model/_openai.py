@@ -1,7 +1,9 @@
 import json
 import re
+from copy import copy
 from typing import Literal
 
+from openai import BadRequestError, OpenAIError
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -26,7 +28,9 @@ from openai.types.chat.chat_completion import Choice, ChoiceLogprobs
 from openai.types.chat.chat_completion_message_tool_call import Function
 from openai.types.completion_usage import CompletionUsage
 from openai.types.shared_params.function_definition import FunctionDefinition
+from pydantic import JsonValue
 
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -48,23 +52,39 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._model_output import ModelUsage, StopReason, as_stop_reason
+from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
+
+
+class OpenAIResponseError(OpenAIError):
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        self.message = message
+
+    def __str__(self) -> str:
+        return f"{self.code}: {self.message}"
 
 
 def is_o_series(name: str) -> bool:
-    return bool(re.match(r"(^|.*\/)o\d+", name))
+    if bool(re.match(r"^o\d+", name)):
+        return True
+    else:
+        return not is_gpt(name) and bool(re.search(r"o\d+", name))
+
+
+def is_o1_pro(name: str) -> bool:
+    return "o1-pro" in name
 
 
 def is_o1_mini(name: str) -> bool:
-    return name.startswith("o1-mini")
+    return "o1-mini" in name
 
 
 def is_o1_preview(name: str) -> bool:
-    return name.startswith("o1-preview")
+    return "o1-preview" in name
 
 
 def is_gpt(name: str) -> bool:
-    return name.startswith("gpt")
+    return "gpt" in name
 
 
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
@@ -80,12 +100,13 @@ def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCall:
 def openai_chat_tool_call_param(
     tool_call: ToolCall,
 ) -> ChatCompletionMessageToolCallParam:
+    assert tool_call.type == "function", f"Unexpected tool call type {tool_call.type}"
     return ChatCompletionMessageToolCallParam(
         id=tool_call.id,
         function=dict(
             name=tool_call.function, arguments=json.dumps(tool_call.arguments)
         ),
-        type=tool_call.type,
+        type="function",  # Type narrowing couldn't figure it out
     )
 
 
@@ -316,6 +337,7 @@ def chat_messages_from_openai(
                 chat_messages.append(ChatMessageUser(content=content))
         elif message["role"] == "assistant":
             # resolve content
+            refusal: Literal[True] | None = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
                 result = parse_content_with_reasoning(asst_content)
@@ -332,6 +354,8 @@ def chat_messages_from_openai(
                     content = asst_content
             elif asst_content is None:
                 content = message.get("refusal", None) or ""
+                if content:
+                    refusal = True
             else:
                 content = []
                 for ac in asst_content:
@@ -344,7 +368,7 @@ def chat_messages_from_openai(
             )
             if reasoning is not None:
                 if isinstance(content, str):
-                    content = [ContentText(text=content)]
+                    content = [ContentText(text=content, refusal=refusal)]
                 else:
                     content.insert(0, ContentReasoning(reasoning=str(reasoning)))
 
@@ -433,7 +457,7 @@ def content_from_openai(
             )
         ]
     elif content["type"] == "refusal":
-        return [ContentText(text=content["refusal"])]
+        return [ContentText(text=content["refusal"], refusal=True)]
     else:
         content_type = content["type"]
         raise ValueError(f"Unexpected content type '{content_type}' in message.")
@@ -451,8 +475,10 @@ def chat_message_assistant_from_openai(
     if reasoning is not None:
         content: str | list[Content] = [
             ContentReasoning(reasoning=str(reasoning)),
-            ContentText(text=msg_content),
+            ContentText(text=msg_content, refusal=True if refusal else None),
         ]
+    elif refusal is not None:
+        content = [ContentText(text=msg_content, refusal=True)]
     else:
         content = msg_content
 
@@ -480,3 +506,44 @@ def chat_choices_from_openai(
         )
         for choice in choices
     ]
+
+
+def openai_handle_bad_request(
+    model_name: str, e: BadRequestError
+) -> ModelOutput | Exception:
+    # extract message
+    if isinstance(e.body, dict) and "message" in e.body.keys():
+        content = str(e.body.get("message"))
+    else:
+        content = e.message
+
+    # narrow stop_reason
+    stop_reason: StopReason | None = None
+    if e.code == "context_length_exceeded":
+        stop_reason = "model_length"
+    elif (
+        e.code == "invalid_prompt"  # seems to happen for o1/o3
+        or e.code == "content_policy_violation"  # seems to happen for vision
+        or e.code == "content_filter"  # seems to happen on azure
+    ):
+        stop_reason = "content_filter"
+
+    if stop_reason:
+        return ModelOutput.from_content(
+            model=model_name, content=content, stop_reason=stop_reason
+        )
+    else:
+        return e
+
+
+def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove images from raw api call
+    if key == "image_url" and isinstance(value, dict) and "url" in value:
+        url = str(value.get("url"))
+        if url.startswith("data:"):
+            value = copy(value)
+            value.update(url=BASE_64_DATA_REMOVED)
+    elif key == "input_audio" and isinstance(value, dict) and "data" in value:
+        value = copy(value)
+        value.update(data=BASE_64_DATA_REMOVED)
+    return value

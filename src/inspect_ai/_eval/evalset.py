@@ -36,7 +36,7 @@ from inspect_ai.model import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
-from inspect_ai.util._display import init_display_type
+from inspect_ai.util._display import display_type_initialized, init_display_type
 
 from .eval import eval, eval_init
 from .loader import resolve_task_args
@@ -69,6 +69,7 @@ def eval_set(
     sandbox_cleanup: bool | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
@@ -128,6 +129,7 @@ def eval_set(
         solver: Alternative solver(s) for
             evaluating task(s). ptional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
+        metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
@@ -194,6 +196,7 @@ def eval_set(
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
             tags=tags,
+            metadata=metadata,
             trace=trace,
             display=display,
             approval=approval,
@@ -235,7 +238,8 @@ def eval_set(
         return results
 
     # initialise display (otherwise eval_init will set it to full)
-    display = init_display_type(display)
+    if not display_type_initialized():
+        display = init_display_type(display)
     if display == "conversation":
         raise RuntimeError("eval_set cannot be used with conversation display.")
 

@@ -508,6 +508,7 @@ class Model:
         async def generate() -> ModelOutput:
             check_sample_interrupt()
 
+            cache_entry: CacheEntry | None
             if cache:
                 if isinstance(cache, CachePolicy):
                     policy = cache
@@ -535,6 +536,8 @@ class Model:
                         call=None,
                     )
                     return existing
+            else:
+                cache_entry = None
 
             # verify that model apis are allowed
             self.verify_model_apis()
@@ -604,7 +607,7 @@ class Model:
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
                 )
 
-            if cache:
+            if cache and cache_entry:
                 cache_store(entry=cache_entry, output=output)
 
             return output
@@ -1166,6 +1169,7 @@ def tool_result_images_reducer(
                     content=edited_tool_message_content,
                     tool_call_id=message.tool_call_id,
                     function=message.function,
+                    internal_name=message.internal_name,
                 )
             ],
             pending_content + new_user_message_content,
