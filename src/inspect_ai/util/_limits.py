@@ -1,3 +1,5 @@
+# Contains lots of experimentation code to be removed.
+
 from __future__ import annotations
 
 import asyncio
@@ -23,6 +25,8 @@ token_limit_stack_ctx_var: ContextVar[TokenLimitStack | None] = ContextVar(
 
 
 class TokenLimitStack:
+    """A stack of token limits."""
+
     def __init__(self) -> None:
         self.stack: deque[TokenLimit] = deque()
 
@@ -33,33 +37,37 @@ class TokenLimitStack:
         self.stack.pop()
 
     def check(self, usage: ModelUsage) -> None:
+        """Check if the current token usage exceeds any of the token limits."""
         print(
-            f"Checking token limit stack: {[l.budget for l in self.stack]}; usage: {usage.total_tokens}"
+            f"Checking token limit stack: {[limit.budget for limit in self.stack]}; "
+            f"total usage: {usage.total_tokens}"
         )
         for limit in self.stack:
-            if limit.has_been_exceeded(usage):
-                raise SampleLimitExceededError(
-                    "token",
-                    value=limit.usage_since_start(usage),
-                    limit=limit.budget,
-                )
+            limit.check(usage)
 
 
 class TokenLimit:
     def __init__(self, initial_usage: ModelUsage, budget: int) -> None:
-        # Snapshot of the token usage at the time the context manager was opened.
+        """
+        Initialize a token limit.
+
+        Args:
+          initial_usage: Snapshot of the token usage at the time the context manager was
+            opened.
+          budget: The maximum number of tokens that can be used while the context
+            manager is open.
+        """
         self.initial_usage = initial_usage.total_tokens
-        # The maximum number of tokens that can be used while the context manager is open.
         self.budget = budget
 
-    def has_been_exceeded(self, usage: ModelUsage) -> bool:
-        return self.usage_since_start(usage) > self.budget
+    def check(self, usage: ModelUsage) -> None:
+        if usage.total_tokens - self.initial_usage > self.budget:
+            raise SampleLimitExceededError(
+                "token", value=usage.total_tokens, limit=self.budget
+            )
 
-    def usage_since_start(self, usage: ModelUsage) -> int:
-        return usage.total_tokens - self.initial_usage
 
-
-def get_token_limit_stack() -> TokenLimitStack:
+def get_or_create_token_limit_stack() -> TokenLimitStack:
     stack = token_limit_stack_ctx_var.get(None)
     if stack is None:
         stack = TokenLimitStack()
@@ -71,12 +79,20 @@ def get_token_limit_stack() -> TokenLimitStack:
 def token_limit(budget: int) -> Generator[None, None, None]:
     """Limits the total number of tokens (input + output) which can be used.
 
-    Can be stacked.
+    The counter starts when the context manager is opened and ends when it is closed.
+
+    These limits can be stacked.
+
+    When a limit is exceeded, a SampleLimitExceededError is raised.
+
+    Args:
+      budget: The maximum number of tokens that can be used while the context manager is
+        open. Tokens used before the context manager was opened are not counted.
     """
     try:
         current_usage = sample_model_usage()["model"]
         limit = TokenLimit(current_usage, budget)
-        stack = get_token_limit_stack()
+        stack = get_or_create_token_limit_stack()
         stack.push(limit)
         yield
     finally:
@@ -87,7 +103,7 @@ def consume_tokens(count: int) -> None:
     usage = sample_model_usage()["model"]
     usage.total_tokens += count
 
-    get_token_limit_stack().check(usage)
+    get_or_create_token_limit_stack().check(usage)
 
 
 async def task_run() -> str:
