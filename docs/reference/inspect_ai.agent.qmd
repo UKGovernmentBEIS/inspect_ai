@@ -14,9 +14,10 @@ title: "inspect_ai.agent"
 ### AgentState
 ### agent
 
-## Adapters
+## Handoffs
 
 ### handoff
+### handoff_prompt
 ### HandoffFilter
 ### as_tool
 
