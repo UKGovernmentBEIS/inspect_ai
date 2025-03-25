@@ -18,7 +18,7 @@ async def run(
 
     Returns:
         Tuple of `list[ChatMessage], ModelOutput | None` (returns
-           [], None if no generates were done by the solver)
+        [], None if no generates were done by the solver)
     """
     from inspect_ai.log._samples import sample_active
 

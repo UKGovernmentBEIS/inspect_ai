@@ -3,20 +3,21 @@ from ._as_tool import as_tool
 from ._bridge.bridge import bridge
 from ._handoff import HandoffFilter, handoff
 from ._human.agent import human
-from ._react import ReactAttempts, ReactSubmit, react
+from ._react import react
+from ._types import AgentAttempts, AgentContinue, AgentPrompt, AgentSubmit
 
 __all__ = [
     "Agent",
     "AgentState",
+    "AgentPrompt",
+    "AgentAttempts",
+    "AgentContinue",
+    "AgentSubmit",
     "agent",
-    "as_tool",
     "handoff",
     "HandoffFilter",
+    "as_tool",
     "react",
-    "ReactPrompt",
-    "ReactAttempts",
-    "ReactContinue",
-    "ReactSubmit",
     "human",
     "bridge",
 ]

@@ -2,18 +2,11 @@
 title: "inspect_ai.agent"
 ---
 
-## React Agent
+## Agents
 
 ### react
-### ReactPrompt
-### ReactAttempts
-### ReactContinue
-### ReactSubmit
-
-## Other Agents
-
-### human
 ### bridge
+### human
 
 ## Handoffs
 
@@ -26,3 +19,11 @@ title: "inspect_ai.agent"
 ### Agent
 ### AgentState
 ### agent
+
+## Types
+
+### AgentPrompt
+### AgentAttempts
+### AgentContinue
+### AgentSubmit
+

@@ -29,8 +29,8 @@ def as_tool(agent: Agent, description: str | None = None, **agent_kwargs: Any) -
        agent: Agent to convert.
        description: Tool description (defaults to agent description)
        **agent_kwargs: Arguments to curry to Agent function (arguments
-         provided here will not be presented to the model as part
-         of the tool interface).
+          provided here will not be presented to the model as part
+          of the tool interface).
 
     Returns:
         Tool from agent.

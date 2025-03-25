@@ -1,6 +1,7 @@
 from inspect_ai import Task, eval
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.agent._react import ReactAttempts, ReactPrompt, ReactSubmit, react
+from inspect_ai.agent._react import react
+from inspect_ai.agent._types import AgentAttempts, AgentPrompt, AgentSubmit
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
@@ -44,9 +45,9 @@ def run_react_agent(tools: list[Tool], message_limit: int | None = 30) -> EvalLo
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         solver=react(
-            prompt=ReactPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE),
+            prompt=AgentPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE),
             tools=tools,
-            submit=ReactSubmit(
+            submit=AgentSubmit(
                 name=AGENT_SUBMIT_TOOL_NAME, description=AGENT_SUBMIT_TOOL_DESCRIPTION
             ),
         ),
@@ -155,7 +156,7 @@ def test_react_agent_retries_with_custom_incorrect_message():
             dataset=[Sample(input="What is 1 + 1?", target="2")],
             solver=react(
                 tools=[addition()],
-                attempts=ReactAttempts(
+                attempts=AgentAttempts(
                     attempts=3,
                     incorrect_message=incorrect_message,
                 ),
