@@ -1,6 +1,7 @@
 import logging
 import os
 import random
+import shlex
 import socket
 import subprocess
 import time
@@ -114,13 +115,15 @@ class VLLMAPI(OpenAIAPI):
             self.server_args.pop("device")
 
         # Create server command using vllm serve CLI
-        cmd = f"vllm serve {model_path} --host {host} --api-key {self.api_key}"
+        cmd = f"vllm serve {shlex.quote(model_path)} --host {shlex.quote(host)} --api-key {shlex.quote(self.api_key)}"
 
         # Add additional arguments
         for key, value in self.server_args.items():
             # Convert Python style args (underscore) to CLI style (dash)
             cli_key = key.replace("_", "-")
-            cmd += f" --{cli_key} {value}"
+            # Properly escape the value using shlex
+            escaped_value = shlex.quote(str(value))
+            cmd += f" --{cli_key} {escaped_value}"
 
         try:
             # Launch server

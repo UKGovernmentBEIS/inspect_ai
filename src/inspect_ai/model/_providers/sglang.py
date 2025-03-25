@@ -1,4 +1,5 @@
 import os
+import shlex
 from typing import Any
 
 from sglang.utils import launch_server_cmd, terminate_process, wait_for_server
@@ -103,11 +104,13 @@ class SGLangAPI(OpenAIAPI):
             self.server_args.pop("device")
 
         # Create server command
-        cmd = f"python -m sglang.launch_server --model-path {model_path} --host {host} --api-key {self.api_key}"
+        cmd = f"python -m sglang.launch_server --model-path {shlex.quote(model_path)} --host {shlex.quote(host)} --api-key {shlex.quote(self.api_key)}"
 
         # Add additional arguments
         for key, value in self.server_args.items():
-            cmd += f" --{key} {value}"
+            # Properly escape the value using shlex
+            escaped_value = shlex.quote(str(value))
+            cmd += f" --{key} {escaped_value}"
 
         try:
             # Launch server
