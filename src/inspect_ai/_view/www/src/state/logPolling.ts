@@ -77,6 +77,9 @@ export function createLogPolling(
     // note that we're active
     abortController = new AbortController();
 
+    // Track whether we ever polled
+    let loadedPendingSamples = false;
+
     // Create a new polling instance
     currentPolling = createPolling(
       `PendingSamples-${logFileName}`,
@@ -113,6 +116,8 @@ export function createLogPolling(
         }
 
         if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+          loadedPendingSamples = true;
+
           // Update state with new pending samples
           set((state) => {
             state.log.pendingSampleSummaries = pendingSamples.pendingSamples;
@@ -128,7 +133,9 @@ export function createLogPolling(
           log.debug(`Stop polling running samples: ${logFileName}`);
 
           // Clear pending summaries and refresh in one transaction
-          await refreshLog(logFileName, true);
+          if (loadedPendingSamples) {
+            await refreshLog(logFileName, true);
+          }
 
           // Stop polling
           return false;
