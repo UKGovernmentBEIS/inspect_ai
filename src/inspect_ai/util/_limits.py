@@ -41,6 +41,9 @@ class TokenLimit:
 
     These limits can be stacked.
 
+    This relies on "cooperative" checking - consumers must call check_token_limit()
+    themselves whenever tokens are consumed.
+
     When a limit is exceeded, a SampleLimitExceededError is raised.
 
     Args:
@@ -67,6 +70,7 @@ class TokenLimit:
 
     @classmethod
     def create(cls, budget: int | None) -> TokenLimit:
+        """Create a TokenLimit context manager, or a null context if budget is None."""
         if budget is None:
             return _NullTokenLimit()
         return cls(budget)
@@ -81,7 +85,7 @@ def check_token_limit() -> None:
 
 
 class _NullTokenLimit(TokenLimit):
-    """A TokenLimitCtx that implements the null object pattern."""
+    """A TokenLimit that implements the null object pattern."""
 
     def __init__(self) -> None:
         pass
@@ -135,6 +139,13 @@ class _TokenLimitItem:
         self.budget = budget
 
     def check(self, usage: int) -> None:
+        """Check if the current token usage exceeds the token limit.
+
+        Args:
+          usage: The current total token usage. The initial usage is subtracted from
+            this value to get the number of tokens used while the context manager was
+            open.
+        """
         if usage - self.initial_usage > self.budget:
             raise SampleLimitExceededError("token", value=usage, limit=self.budget)
 
@@ -182,7 +193,7 @@ def consume_tokens(count: int) -> None:
     usage = sample_model_usage()["model"]
     usage.total_tokens += count
 
-    _TokenLimitStack.get_or_create().check(usage)
+    _TokenLimitStack.get_or_create().check(usage.total_tokens)
 
 
 if __name__ == "__main__":
