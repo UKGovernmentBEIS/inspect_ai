@@ -6,17 +6,29 @@ from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.util._limits import TokenLimit, check_token_limit
 
 
+@pytest.fixture
+def model_usage() -> ModelUsage:
+    # Initialize the model usage context variable and create an empty fictitious "model"
+    # usage object.
+    usage_dict = sample_model_usage()
+    model_usage = ModelUsage()
+    usage_dict["model"] = model_usage
+    return model_usage
+
+
 def test_validates_budget() -> None:
     with pytest.raises(ValueError):
         TokenLimit(-1)
 
 
-def test_raises_error_when_limit_exceeded() -> None:
-    usage_dict = sample_model_usage()
-    usage_dict["model"] = ModelUsage()
+def test_can_create_with_none_budget() -> None:
+    with TokenLimit.create(None):
+        pass
 
+
+def test_raises_error_when_limit_exceeded(model_usage: ModelUsage) -> None:
     with TokenLimit(10):
-        usage_dict["model"].total_tokens = 11
+        model_usage.total_tokens = 11
         with pytest.raises(SampleLimitExceededError) as exc_info:
             check_token_limit()
 
@@ -25,37 +37,34 @@ def test_raises_error_when_limit_exceeded() -> None:
     assert exc_info.value.limit == 10
 
 
-def test_raises_error_when_limit_exceeded_incrementally() -> None:
-    usage_dict = sample_model_usage()
-    usage_dict["model"] = ModelUsage()
-
+def test_raises_error_when_limit_exceeded_incrementally(
+    model_usage: ModelUsage,
+) -> None:
     with TokenLimit(10):
-        usage_dict["model"].total_tokens += 8
+        model_usage.total_tokens += 8
         check_token_limit()
         with pytest.raises(SampleLimitExceededError):
-            usage_dict["model"].total_tokens += 8
+            model_usage.total_tokens += 8
             check_token_limit()
 
 
-def test_does_not_raise_error_when_limit_not_exceeded() -> None:
-    usage_dict = sample_model_usage()
-    usage_dict["model"] = ModelUsage(total_tokens=10)
+def test_does_not_raise_error_when_limit_not_exceeded(model_usage: ModelUsage) -> None:
+    model_usage.total_tokens = 10
 
     with TokenLimit(10):
-        usage_dict["model"].total_tokens += 10
+        model_usage.total_tokens += 10
         check_token_limit()
 
 
-def test_stack_can_trigger_outer_limit() -> None:
-    usage_dict = sample_model_usage()
-    usage_dict["model"] = ModelUsage(total_tokens=8)
+def test_stack_can_trigger_outer_limit(model_usage: ModelUsage) -> None:
+    model_usage.total_tokens = 8
 
     with TokenLimit(10):
-        usage_dict["model"].total_tokens += 8
+        model_usage.total_tokens += 8
         check_token_limit()
 
         with TokenLimit(11):
-            usage_dict["model"].total_tokens += 8
+            model_usage.total_tokens += 8
             # Should trigger outer limit.
             with pytest.raises(SampleLimitExceededError) as exc_info:
                 check_token_limit()
@@ -63,16 +72,15 @@ def test_stack_can_trigger_outer_limit() -> None:
     assert exc_info.value.limit == 10
 
 
-def test_stack_can_trigger_inner_limit() -> None:
-    usage_dict = sample_model_usage()
-    usage_dict["model"] = ModelUsage(total_tokens=8)
+def test_stack_can_trigger_inner_limit(model_usage: ModelUsage) -> None:
+    model_usage.total_tokens = 8
 
     with TokenLimit(10):
-        usage_dict["model"].total_tokens += 1
+        model_usage.total_tokens += 1
         check_token_limit()
 
         with TokenLimit(5):
-            usage_dict["model"].total_tokens += 6
+            model_usage.total_tokens += 6
             # Should trigger inner limit.
             with pytest.raises(SampleLimitExceededError) as exc_info:
                 check_token_limit()
@@ -80,15 +88,12 @@ def test_stack_can_trigger_inner_limit() -> None:
     assert exc_info.value.limit == 5
 
 
-def test_out_of_scope_limits_are_not_checked() -> None:
-    usage_dict = sample_model_usage()
-    usage_dict["model"] = ModelUsage()
-
+def test_out_of_scope_limits_are_not_checked(model_usage: ModelUsage) -> None:
     with TokenLimit(10):
-        usage_dict["model"].total_tokens += 5
+        model_usage.total_tokens += 5
         check_token_limit()
 
-    usage_dict["model"].total_tokens += 100
+    model_usage.total_tokens += 100
     check_token_limit()
 
 

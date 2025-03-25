@@ -1281,11 +1281,8 @@ def init_sample_model_usage() -> None:
 
 
 def record_model_usage(model: str, usage: ModelUsage) -> None:
-    from inspect_ai.log._samples import (
-        active_sample_token_limit,
-        set_active_sample_total_tokens,
-    )
-    from inspect_ai.solver._limit import SampleLimitExceededError
+    from inspect_ai.log._samples import set_active_sample_total_tokens
+    from inspect_ai.solver._limit import check_token_limit
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
@@ -1297,13 +1294,7 @@ def record_model_usage(model: str, usage: ModelUsage) -> None:
     # update active sample
     set_active_sample_total_tokens(total_tokens)
 
-    # check for token limit overflow and raise
-    token_limit = active_sample_token_limit()
-    if token_limit is not None:
-        if total_tokens > token_limit:
-            raise SampleLimitExceededError(
-                "token", value=total_tokens, limit=token_limit
-            )
+    check_token_limit()
 
 
 def set_model_usage(
