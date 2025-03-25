@@ -19912,12 +19912,12 @@ self.onmessage = function (e) {
     const container$d = "_container_w37fs_1";
     const padded$2 = "_padded_w37fs_8";
     const key = "_key_w37fs_12";
-    const value$1 = "_value_w37fs_16";
+    const value$2 = "_value_w37fs_16";
     const styles$15 = {
       container: container$d,
       padded: padded$2,
       key,
-      value: value$1
+      value: value$2
     };
     const objectScoreDescriptor = (values) => {
       const buckets = values.map((val) => {
@@ -19965,7 +19965,7 @@ self.onmessage = function (e) {
                   ),
                   children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.key, "text-size-smaller"), children: key2 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.value, "text-size-title"), children: formattedValue })
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.value, "text-size-large"), children: formattedValue })
                   ]
                 },
                 `score-value-${index2}`
@@ -52374,11 +52374,11 @@ Supported expressions:
     };
     const grid$5 = "_grid_ktnsp_1";
     const cell$1 = "_cell_ktnsp_8";
-    const value = "_value_ktnsp_13";
+    const value$1 = "_value_ktnsp_13";
     const styles$O = {
       grid: grid$5,
       cell: cell$1,
-      value
+      value: value$1
     };
     const MetaDataGrid = ({
       id,
@@ -56143,19 +56143,21 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$G.lineBase, "text-truncate"), children: errorType(message2) })
       ] });
     };
-    const target = "_target_9qy4e_1";
-    const answer = "_answer_9qy4e_5";
-    const grid$3 = "_grid_9qy4e_9";
-    const centerLabel = "_centerLabel_9qy4e_17";
-    const wrap = "_wrap_9qy4e_22";
-    const titled = "_titled_9qy4e_26";
+    const target = "_target_112n8_1";
+    const answer = "_answer_112n8_5";
+    const grid$3 = "_grid_112n8_9";
+    const centerLabel = "_centerLabel_112n8_17";
+    const wrap = "_wrap_112n8_22";
+    const titled = "_titled_112n8_26";
+    const value = "_value_112n8_30";
     const styles$F = {
       target,
       answer,
       grid: grid$3,
       centerLabel,
       wrap,
-      titled
+      titled,
+      value
     };
     function isEvalSample(sample2) {
       return "choices" in sample2 && Array.isArray(sample2.choices);
@@ -56310,6 +56312,7 @@ Supported expressions:
                 "div",
                 {
                   className: clsx(
+                    styles$F.value,
                     styles$F.wrap,
                     col.clamp ? "three-line-clamp" : void 0,
                     col.center ? styles$F.centerLabel : void 0

@@ -16474,15 +16474,15 @@ ul.jsondiffpatch-textdiff {
   height: var(--inspect-font-size-base);
   max-width: 30em;
 }
-._target_9qy4e_1 {
+._target_112n8_1 {
   padding-left: 0;
 }
 
-._answer_9qy4e_5 {
+._answer_112n8_5 {
   padding-left: 0;
 }
 
-._grid_9qy4e_9 {
+._grid_112n8_9 {
   display: grid;
   grid-column-gap: 0.5em;
   border-bottom: solid var(--bs-border-color) 1px;
@@ -16490,17 +16490,21 @@ ul.jsondiffpatch-textdiff {
   padding: 0em 1em 1em 1em;
 }
 
-._centerLabel_9qy4e_17 {
+._centerLabel_112n8_17 {
   display: flex;
   justify-content: center;
 }
 
-._wrap_9qy4e_22 {
+._wrap_112n8_22 {
   word-wrap: anywhere;
 }
 
-._titled_9qy4e_26:hover {
+._titled_112n8_26:hover {
   cursor: pointer;
+}
+
+._value_112n8_30 {
+  flex-direction: column;
 }
 ._title_19l1b_1 {
   margin-left: 0.5em;

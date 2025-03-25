@@ -230,6 +230,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
           <div
             key={`sample-summ-val-${idx}`}
             className={clsx(
+              styles.value,
               styles.wrap,
               col.clamp ? "three-line-clamp" : undefined,
               col.center ? styles.centerLabel : undefined,
