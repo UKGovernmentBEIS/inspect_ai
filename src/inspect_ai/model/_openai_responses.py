@@ -74,7 +74,7 @@ async def openai_responses_input(
         reasoning_content = openai_responses_reasponing_content_params(message.content)
         if message.content:
             formatted_id = str(message.id).replace("resp_", "msg_", 1)
-            if not formatted_id.startswith("resp_"):
+            if not formatted_id.startswith("msg_"):
                 # These messages MUST start with `msg_`.
                 # As `store=False` for this provider, OpenAI doesn't validate the IDs.
                 # This will keep them consistent across calls though.
