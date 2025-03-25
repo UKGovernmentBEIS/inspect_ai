@@ -409,14 +409,6 @@ The `web_search()` tool uses [Google Programmable Search Engine](https://program
 
 ## Think {#sec-think}
 
-::: {.callout-note appearance="simple"}
-Note that the `think()` tool described below currently works only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The `think()` tool provides models with the ability to include an additional thinking step as part of getting to its final answer. 
  
 Note that the `think()` tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios. 

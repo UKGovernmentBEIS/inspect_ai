@@ -10,14 +10,6 @@ def think(
 ) -> Tool:
     """Think tool for extra thinking.
 
-    ::: {.callout-note appearance="simple"}
-    Note that the `think()` tool described below currently works only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Tool that provides models with the ability to include an additional thinking step as part of getting to its final answer.
 
     Note that the `think()` tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios. Please see the documentation on using the [think tool](https://inspect.aisi.org.uk/tools-standard.html#sec-think) before using it in your evaluations.

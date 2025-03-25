@@ -1,4 +1,8 @@
-## Unreleased
+## v0.3.78 (25 March 2025)
+
+- OpenAI: Ensure that assistant messages always have the `msg_` prefix in responses API.
+
+## v0.3.77 (25 March 2025)
 
 - New [think()](https://inspect.aisi.org.uk/tools-standard.html#sec-think) tool that provides models with the ability to include an additional thinking step.
 - OpenAI: Support for the new [Responses API](https://inspect.ai-safety-institute.org.uk/providers.html#responses-api) and [o1-pro](https://platform.openai.com/docs/models/o1-pro) models.
@@ -8,7 +12,7 @@
 - Added `--metadata` option to eval for associating metadata with eval runs.
 - Task display: Show reasoning tokens for models that report them.
 - Anthropic: Include reasoning tokens in computation of total tokens
-- Inpsect View: Properly wrap tool input for non-code inputs like `think`.
+- Inspect View: Properly wrap tool input for non-code inputs like `think`.
 
 ## v0.3.76 (23 March 2025)
 
