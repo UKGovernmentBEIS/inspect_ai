@@ -31,14 +31,6 @@ The following environment variables are supported by the OpenAI provider
 
 ### Responses API
 
-::: {.callout-note appearance="simple"}
-Note that support for the OpenAI Responses API is currently available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 By default, Inspect uses the standard OpenAI Chat Completions API. However, if you use features that require the new [Responses API](https://platform.openai.com/docs/api-reference/responses) Inspect will use that instead. 
 
 Currently, the only feature that requires the Responses API is [o1-pro](https://platform.openai.com/docs/models/o1-pro). In the near future, Inspect will add support for OpenAI's built-in computer and web search tools, which will also require the Responses API.
@@ -50,14 +42,6 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
 ### OpenAI on Azure {#openai-on-azure}
-
-::: {.callout-note appearance="simple"}
-Note that the OpenAI on Azure AI feature described below currently works only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 The `openai` provider supports OpenAI models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
 
@@ -228,14 +212,6 @@ The following environment variables are supported by the Mistral provider
 | `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
 
 ### Mistral on Azure AI {#mistral-on-azure-ai}
-
-::: {.callout-note appearance="simple"}
-Note that the Mistral on Azure AI feature described below currently works only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 The `mistral` provider supports Mistral models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
 
