@@ -1,6 +1,6 @@
 from inspect_ai import Task, eval
 from inspect_ai.agent._agent import AgentState
-from inspect_ai.agent._react import react
+from inspect_ai.agent._react import ReactAttempts, ReactPrompt, ReactSubmit, react
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
@@ -44,10 +44,11 @@ def run_react_agent(tools: list[Tool], message_limit: int | None = 30) -> EvalLo
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         solver=react(
-            system_message=AGENT_SYSTEM_MESSAGE,
+            prompt=ReactPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE),
             tools=tools,
-            submit_name=AGENT_SUBMIT_TOOL_NAME,
-            submit_description=AGENT_SUBMIT_TOOL_DESCRIPTION,
+            submit=ReactSubmit(
+                name=AGENT_SUBMIT_TOOL_NAME, description=AGENT_SUBMIT_TOOL_DESCRIPTION
+            ),
         ),
         scorer=includes(),
         message_limit=message_limit,
@@ -91,7 +92,7 @@ def test_react_agent_custom_text() -> None:
     assert tool_event
     assert tool_event.function == AGENT_SUBMIT_TOOL_NAME
     model_event = next(
-        (event for event in log.samples[0].transcript.events if event.event == "model")
+        (event for event in log.samples[0].events if event.event == "model")
     )
     assert model_event
     assert model_event.tools[1].name == AGENT_SUBMIT_TOOL_NAME
@@ -99,10 +100,10 @@ def test_react_agent_custom_text() -> None:
 
 
 def test_react_agent_retries() -> None:
-    def addition_task(max_attempts):
+    def addition_task(max_attempts: int) -> Task:
         return Task(
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
-            solver=react(tools=[addition()], max_attempts=max_attempts),
+            solver=react(tools=[addition()], attempts=max_attempts),
             scorer=includes(),
             message_limit=30,
         )
@@ -154,8 +155,10 @@ def test_react_agent_retries_with_custom_incorrect_message():
             dataset=[Sample(input="What is 1 + 1?", target="2")],
             solver=react(
                 tools=[addition()],
-                max_attempts=3,
-                incorrect_message=incorrect_message,
+                attempts=ReactAttempts(
+                    attempts=3,
+                    incorrect_message=incorrect_message,
+                ),
             ),
             scorer=compare_quantities(),
             message_limit=30,
