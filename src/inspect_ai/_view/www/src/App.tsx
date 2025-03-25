@@ -60,6 +60,9 @@ export const App: FC<AppProps> = ({ api }) => {
   const setSelectedLogIndex = useStore(
     (state) => state.logsActions.setSelectedLogIndex,
   );
+  const clearSelectedSample = useStore(
+    (state) => state.sampleActions.clearSelectedSample,
+  );
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
 
@@ -214,6 +217,7 @@ export const App: FC<AppProps> = ({ api }) => {
 
   const handleSelectedIndexChanged = useCallback(
     (index: number) => {
+      clearSelectedSample();
       setSelectedLogIndex(index);
       setOffCanvas(false);
       resetFiltering();
@@ -222,6 +226,7 @@ export const App: FC<AppProps> = ({ api }) => {
       selectSample(0);
     },
     [
+      clearSelectedSample,
       setSelectedLogIndex,
       setOffCanvas,
       resetFiltering,

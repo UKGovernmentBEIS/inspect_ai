@@ -68494,6 +68494,9 @@ ${events}
       const setSelectedLogIndex = useStore(
         (state) => state.logsActions.setSelectedLogIndex
       );
+      const clearSelectedSample = useStore(
+        (state) => state.sampleActions.clearSelectedSample
+      );
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
@@ -68613,6 +68616,7 @@ ${events}
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       const handleSelectedIndexChanged = reactExports.useCallback(
         (index2) => {
+          clearSelectedSample();
           setSelectedLogIndex(index2);
           setOffCanvas(false);
           resetFiltering();
@@ -68621,6 +68625,7 @@ ${events}
           selectSample(0);
         },
         [
+          clearSelectedSample,
           setSelectedLogIndex,
           setOffCanvas,
           resetFiltering,
