@@ -42,15 +42,24 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   const logSelection = useLogSelection();
 
   // Load sample
-  const prevCompleted = usePrevious(!!logSelection.sample?.completed);
+  const prevCompleted = usePrevious(
+    logSelection.sample?.completed !== undefined
+      ? logSelection.sample.completed
+      : true,
+  );
   const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
+      const currentSampleCompleted =
+        logSelection.sample.completed !== undefined
+          ? logSelection.sample.completed
+          : true;
+
       if (
         prevLogFile !== logSelection.logFile ||
         sampleData.sample?.id !== logSelection.sample.id ||
         sampleData.sample.epoch !== logSelection.sample.epoch ||
-        logSelection.sample.completed !== prevCompleted
+        currentSampleCompleted !== prevCompleted
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }

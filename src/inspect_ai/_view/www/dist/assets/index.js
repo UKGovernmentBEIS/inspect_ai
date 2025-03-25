@@ -18321,6 +18321,7 @@ self.onmessage = function (e) {
           currentPolling.stop();
         }
         abortController = new AbortController();
+        let loadedPendingSamples = false;
         currentPolling = createPolling(
           `PendingSamples-${logFileName}`,
           async () => {
@@ -18348,6 +18349,7 @@ self.onmessage = function (e) {
               return false;
             }
             if (pendingSamples.status === "OK" && pendingSamples.pendingSamples) {
+              loadedPendingSamples = true;
               set2((state2) => {
                 state2.log.pendingSampleSummaries = pendingSamples.pendingSamples;
               });
@@ -18355,7 +18357,9 @@ self.onmessage = function (e) {
               return true;
             } else if (pendingSamples.status === "NotFound") {
               log$8.debug(`Stop polling running samples: ${logFileName}`);
-              await refreshLog(logFileName, true);
+              if (loadedPendingSamples) {
+                await refreshLog(logFileName, true);
+              }
               return false;
             }
             return true;
@@ -65504,12 +65508,15 @@ ${events}
       const sampleData = useSampleData();
       const loadSample = useStore((state) => state.sampleActions.loadSample);
       const logSelection = useLogSelection();
-      const prevCompleted = usePrevious(!!((_a2 = logSelection.sample) == null ? void 0 : _a2.completed));
+      const prevCompleted = usePrevious(
+        ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
+      );
       const prevLogFile = usePrevious(logSelection.logFile);
       reactExports.useEffect(() => {
         var _a3;
         if (logSelection.logFile && logSelection.sample) {
-          if (prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch || logSelection.sample.completed !== prevCompleted) {
+          const currentSampleCompleted = logSelection.sample.completed !== void 0 ? logSelection.sample.completed : true;
+          if (prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch || currentSampleCompleted !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
