@@ -11,6 +11,7 @@ import {
   initializeSampleSlice,
   SampleSlice,
 } from "./sampleSlice";
+import { filterState } from "./store_filter";
 
 const log = createLogger("store");
 
@@ -137,12 +138,12 @@ export const initializeStore = (
           name: "app-storage",
           storage: storageImplementation,
           partialize: (state) => {
-            const persisted: PersistedState = {
+            const persisted: PersistedState = filterState({
               app: state.app,
               log: state.log,
               logs: state.logs,
               sample: state.sample,
-            };
+            });
             return persisted as unknown as StoreState;
           },
           version: 1,

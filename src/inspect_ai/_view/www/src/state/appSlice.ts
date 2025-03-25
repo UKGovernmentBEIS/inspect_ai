@@ -161,7 +161,16 @@ export const createAppSlice = (
       },
       clearListPosition: (name: string) => {
         set((state) => {
-          delete state.app.listPositions[name];
+          // Remove the key
+          const newListPositions = { ...state.app.listPositions };
+          delete newListPositions[name];
+
+          return {
+            app: {
+              ...state.app,
+              listPositions: newListPositions,
+            },
+          };
         });
       },
       getCollapsed: (name: string, defaultValue?: boolean) => {

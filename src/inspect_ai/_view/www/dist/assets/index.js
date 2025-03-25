@@ -17972,7 +17972,7 @@ self.onmessage = function (e) {
     };
     const immer = immerImpl;
     const getEnabledNamespaces = () => {
-      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
+      return __LOGGING_FILTER__.split(",").map((ns) => ns.trim()).filter(Boolean);
     };
     const ENABLED_NAMESPACES = new Set(getEnabledNamespaces());
     const filterNameSpace = (namespace) => {
@@ -18140,7 +18140,14 @@ self.onmessage = function (e) {
           },
           clearListPosition: (name2) => {
             set2((state) => {
-              delete state.app.listPositions[name2];
+              const newListPositions = { ...state.app.listPositions };
+              delete newListPositions[name2];
+              return {
+                app: {
+                  ...state.app,
+                  listPositions: newListPositions
+                }
+              };
             });
           },
           getCollapsed: (name2, defaultValue) => {
@@ -19035,6 +19042,68 @@ self.onmessage = function (e) {
         }
       });
     };
+    function filterState(state) {
+      if (!state) {
+        return state;
+      }
+      const filters = [filterLargeSample, filterLargeLogSummary];
+      return filters.reduce(
+        (filteredState, filter) => filter(filteredState),
+        state
+      );
+    }
+    function filterLargeSample(state) {
+      if (!state || !state.sample || !state.sample.selectedSample) {
+        return state;
+      }
+      const estimatedTotalSize = estimateSize(state.sample.selectedSample.messages);
+      if (estimatedTotalSize > 25e4) {
+        return {
+          ...state,
+          sample: {
+            ...state.sample,
+            selectedSample: void 0
+          }
+        };
+      } else {
+        return state;
+      }
+    }
+    function filterLargeLogSummary(state) {
+      if (!state || !state.log || !state.log.selectedLogSummary) {
+        return state;
+      }
+      const estimatedSize = estimateSize(
+        state.log.selectedLogSummary.sampleSummaries
+      );
+      if (estimatedSize > 25e4) {
+        return {
+          ...state,
+          log: {
+            ...state.log,
+            selectedLogSummary: void 0
+          }
+        };
+      } else {
+        return state;
+      }
+    }
+    function estimateSize(list2, frequency = 0.2) {
+      if (!list2 || list2.length === 0) {
+        return 0;
+      }
+      const sampleSize = Math.ceil(list2.length * frequency);
+      const messageIndices = /* @__PURE__ */ new Set();
+      while (messageIndices.size < sampleSize && messageIndices.size < list2.length) {
+        const randomIndex = Math.floor(Math.random() * list2.length);
+        messageIndices.add(randomIndex);
+      }
+      const totalSize = Array.from(messageIndices).reduce((size, index2) => {
+        return size + JSON.stringify(list2[index2]).length;
+      }, 0);
+      const estimatedTotalSize = totalSize / sampleSize * list2.length;
+      return estimatedTotalSize;
+    }
     const log$2 = createLogger("store");
     let storeImplementation = null;
     const useStore = (selector) => {
@@ -19120,12 +19189,12 @@ self.onmessage = function (e) {
               name: "app-storage",
               storage: storageImplementation,
               partialize: (state) => {
-                const persisted = {
+                const persisted = filterState({
                   app: state.app,
                   log: state.log,
                   logs: state.logs,
                   sample: state.sample
-                };
+                });
                 return persisted;
               },
               version: 1,
@@ -68666,11 +68735,10 @@ ${events}
         return {
           getItem: (_name) => {
             const state = vscodeApi2.getState();
-            return filterState(state);
+            return state;
           },
           setItem: (_name, value2) => {
             const valObj = value2;
-            valObj.state = filterState(valObj.state);
             vscodeApi2.setState(valObj);
           },
           removeItem: (_name) => {
@@ -68680,68 +68748,6 @@ ${events}
       }
       return void 0;
     };
-    function filterState(state) {
-      if (!state) {
-        return state;
-      }
-      const filters = [filterLargeSample, filterLargeLogSummary];
-      return filters.reduce(
-        (filteredState, filter) => filter(filteredState),
-        state
-      );
-    }
-    function filterLargeSample(state) {
-      if (!state || !state.sample || !state.sample.selectedSample) {
-        return state;
-      }
-      const estimatedTotalSize = estimateSize(state.sample.selectedSample.messages);
-      if (estimatedTotalSize > 25e4) {
-        return {
-          ...state,
-          sample: {
-            ...state.sample,
-            selectedSample: void 0
-          }
-        };
-      } else {
-        return state;
-      }
-    }
-    function filterLargeLogSummary(state) {
-      if (!state || !state.log || !state.log.selectedLogSummary) {
-        return state;
-      }
-      const estimatedSize = estimateSize(
-        state.log.selectedLogSummary.sampleSummaries
-      );
-      if (estimatedSize > 25e4) {
-        return {
-          ...state,
-          log: {
-            ...state.log,
-            selectedLogSummary: void 0
-          }
-        };
-      } else {
-        return state;
-      }
-    }
-    function estimateSize(list2, frequency = 0.2) {
-      if (!list2 || list2.length === 0) {
-        return 0;
-      }
-      const sampleSize = Math.ceil(list2.length * frequency);
-      const messageIndices = /* @__PURE__ */ new Set();
-      while (messageIndices.size < sampleSize && messageIndices.size < list2.length) {
-        const randomIndex = Math.floor(Math.random() * list2.length);
-        messageIndices.add(randomIndex);
-      }
-      const totalSize = Array.from(messageIndices).reduce((size, index2) => {
-        return size + JSON.stringify(list2[index2]).length;
-      }, 0);
-      const estimatedTotalSize = totalSize / sampleSize * list2.length;
-      return estimatedTotalSize;
-    }
     const storage = resolveStorage();
     const applicationApi = api;
     const applicationStorage = storage;
