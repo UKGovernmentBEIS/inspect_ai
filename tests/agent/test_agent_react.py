@@ -1,10 +1,12 @@
 from inspect_ai import Task, eval
-from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._react import react
 from inspect_ai.agent._types import AgentAttempts, AgentPrompt, AgentSubmit
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageSystem
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool import Tool, tool
@@ -28,6 +30,27 @@ def addition():
     return execute
 
 
+@agent
+def searcher() -> Agent:
+    async def execute(state: AgentState, max_searches: int = 5) -> AgentState:
+        """Searcher that computes max searches.
+
+        Args:
+            state: Input state (conversation)
+            max_searches: Maximum number of web searches to conduct
+
+        Returns:
+            Ouput state (additions to conversation)
+        """
+        state.messages.append(
+            ChatMessageUser(content=f"The maximum searches is {max_searches}")
+        )
+
+        return state
+
+    return execute
+
+
 AGENT_SYSTEM_MESSAGE = """
 You are a helpful assistant attempting to submit the correct answer. When you have completed the task and have a result, call the agent_submit() function to communicate it.
 """
@@ -41,11 +64,16 @@ AGENT_SUBMIT_TOOL_NAME = "agent_submit"
 AGENT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer."
 
 
-def run_react_agent(tools: list[Tool], message_limit: int | None = 30) -> EvalLog:
+def run_react_agent(
+    *,
+    prompt: str | AgentPrompt | None = AgentPrompt(),
+    tools: list[Tool],
+    message_limit: int | None = 30,
+) -> EvalLog:
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
         solver=react(
-            prompt=AgentPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE),
+            prompt=prompt,
             tools=tools,
             submit=AgentSubmit(
                 name=AGENT_SUBMIT_TOOL_NAME, description=AGENT_SUBMIT_TOOL_DESCRIPTION
@@ -83,8 +111,67 @@ def mockllm_model(answers: list[str]):
     )
 
 
-def test_react_agent_custom_text() -> None:
-    log = run_react_agent([addition()])
+def test_react_agent_custom_prompt() -> None:
+    def has_system_message(
+        messages: list[ChatMessage], match: str | list[str] | None = None
+    ) -> bool:
+        message = next(
+            (message for message in messages if isinstance(message, ChatMessageSystem)),
+            None,
+        )
+        if message:
+            if match:
+                match = [match] if isinstance(match, str) else match
+                for m in match:
+                    if m not in message.text:
+                        return False
+                return True
+            else:
+                return True
+        else:
+            return False
+
+    def check_react_agent(
+        prompt: str | AgentPrompt | None,
+        *,
+        tools: list[Tool] = [addition()],
+        system_match: str | list[str] | None = None,
+    ) -> None:
+        log = run_react_agent(prompt=prompt, tools=tools)
+        assert log.samples
+        messages = log.samples[0].messages
+        if system_match:
+            assert has_system_message(messages, system_match)
+        else:
+            assert not has_system_message(messages)
+
+    # no prompt at all
+    check_react_agent(None)
+
+    # custom instructions
+    check_react_agent(
+        AgentPrompt("You are a ninja"),
+        system_match=["ninja", "best possible answer"],
+    )
+
+    # custom assistant prompt
+    check_react_agent(
+        AgentPrompt(assistant_prompt="Try to do your best"),
+        system_match=["do your best"],
+    )
+
+    # custom handoff prompt
+    check_react_agent(
+        AgentPrompt(handoff_prompt="Make the handoff right!"),
+        tools=[handoff(searcher())],
+        system_match=["best possible answer", "handoff right!"],
+    )
+
+
+def test_react_agent_custom_submit() -> None:
+    log = run_react_agent(
+        prompt=AgentPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE), tools=[addition()]
+    )
     assert log.status == "success"
     assert log.samples
     tool_event = next(
