@@ -52,6 +52,7 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
             : String(value);
         scores.push(
           <div
+            key={`score-value-${index}`}
             className={clsx(
               styles.container,
               index + 1 < keys.length ? styles.padded : undefined,

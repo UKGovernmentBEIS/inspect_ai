@@ -19967,7 +19967,8 @@ self.onmessage = function (e) {
                     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.key, "text-size-smaller"), children: key2 }),
                     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.value, "text-size-title"), children: formattedValue })
                   ]
-                }
+                },
+                `score-value-${index2}`
               )
             );
           });
