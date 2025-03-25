@@ -68,11 +68,19 @@ class TokenLimit:
     @classmethod
     def create(cls, budget: int | None) -> TokenLimit:
         if budget is None:
-            return NullTokenLimitCtx()
+            return _NullTokenLimit()
         return cls(budget)
 
 
-class NullTokenLimitCtx(TokenLimit):
+# TODO: Would we rather the user has to pass in a ModelUsage (or int) or should we
+# always just get the total token usage from the relevant context var?
+def check_token_limit() -> None:
+    """Check if the current token usage exceeds any of the token limits."""
+    usage = sample_total_tokens()
+    _TokenLimitStack.get_or_create().check(usage)
+
+
+class _NullTokenLimit(TokenLimit):
     """A TokenLimitCtx that implements the null object pattern."""
 
     def __init__(self) -> None:
@@ -83,14 +91,6 @@ class NullTokenLimitCtx(TokenLimit):
 
     def __exit__(self, exc_type: type, exc_val: Exception, exc_tb: type) -> None:
         pass
-
-
-# TODO: Would we rather the user has to pass in a ModelUsage (or int) or should we
-# always just get the total token usage from the relevant context var?
-def check_token_limit() -> None:
-    """Check if the current token usage exceeds any of the token limits."""
-    usage = sample_total_tokens()
-    _TokenLimitStack.get_or_create().check(usage)
 
 
 class _TokenLimitStack:
@@ -157,7 +157,7 @@ async def task_run() -> str:
 
 
 async def task_run_sample(
-    sample_id: int, token_limit: TokenLimit = NullTokenLimitCtx()
+    sample_id: int, token_limit: TokenLimit = _NullTokenLimit()
 ) -> str:
     print(f"Starting sample {sample_id}")
     init_sample_model_usage()
