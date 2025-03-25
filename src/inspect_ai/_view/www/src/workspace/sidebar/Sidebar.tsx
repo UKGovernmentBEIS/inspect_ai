@@ -1,9 +1,10 @@
 import clsx from "clsx";
-import { FC, MouseEvent, useCallback } from "react";
+import { FC, MouseEvent, useCallback, useRef } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { EvalLogHeader, LogFiles } from "../../api/types";
 import { ApplicationIcons } from "../../appearance/icons";
 import { ProgressBar } from "../../components/ProgressBar";
+import { useStatefulScrollPosition } from "../../state/scrolling";
 import { useStore } from "../../state/store";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";
 import styles from "./Sidebar.module.css";
@@ -29,6 +30,9 @@ export const Sidebar: FC<SidebarProps> = ({
   const handleToggle = useCallback(() => {
     setOffCanvas(!offCanvas);
   }, [offCanvas, setOffCanvas]);
+
+  const sidebarContentsRef = useRef(null);
+  useStatefulScrollPosition(sidebarContentsRef, "sidebar-contents", 1000);
 
   const handleClick = useCallback(
     (e: MouseEvent<HTMLLIElement>) => {
@@ -65,7 +69,10 @@ export const Sidebar: FC<SidebarProps> = ({
           <ProgressBar animating={loading} />
         </div>
 
-        <ul className={clsx("list-group", styles.list)}>
+        <ul
+          ref={sidebarContentsRef}
+          className={clsx("list-group", styles.list)}
+        >
           {logs.files.map((file, index) => {
             const logHeader = logHeaders[file.name];
             return (

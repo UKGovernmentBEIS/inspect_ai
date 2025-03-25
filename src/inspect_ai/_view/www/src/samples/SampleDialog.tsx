@@ -58,7 +58,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       if (
         prevLogFile !== logSelection.logFile ||
         sampleData.sample?.id !== logSelection.sample.id ||
-        sampleData.sample.epoch !== logSelection.sample.epoch ||
+        sampleData.sample?.epoch !== logSelection.sample.epoch ||
         currentSampleCompleted !== prevCompleted
       ) {
         loadSample(logSelection.logFile, logSelection.sample);

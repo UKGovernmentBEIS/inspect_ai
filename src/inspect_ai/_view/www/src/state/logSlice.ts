@@ -16,6 +16,9 @@ export interface LogSlice {
     // Set the selected log summary
     setSelectedLogSummary: (summary: EvalSummary) => void;
 
+    // Clear the selected log summary
+    clearSelectedLogSummary: () => void;
+
     // Update pending sample information
     setPendingSampleSummaries: (samples: PendingSamples) => void;
 
@@ -92,6 +95,12 @@ export const createLogSlice = (
           // If there are no samples, use the workspace tab id by default
           get().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
         }
+      },
+
+      clearSelectedLogSummary: () => {
+        set((state) => {
+          state.log.selectedLogSummary = undefined;
+        });
       },
       setPendingSampleSummaries: (pendingSampleSummaries: PendingSamples) =>
         set((state) => {

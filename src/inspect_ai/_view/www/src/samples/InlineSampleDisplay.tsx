@@ -28,16 +28,33 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   const logSelection = useLogSelection();
 
   // Sample Loading
-  const prevCompleted = usePrevious(!!logSelection.sample?.completed);
+  const prevCompleted = usePrevious(
+    logSelection.sample?.completed !== undefined
+      ? logSelection.sample.completed
+      : true,
+  );
   const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
+      const currentSampleCompleted =
+        logSelection.sample?.completed !== undefined
+          ? logSelection.sample.completed
+          : true;
+
       if (
         prevLogFile !== logSelection.logFile ||
         sampleData.sample?.id !== logSelection.sample.id ||
-        sampleData.sample.epoch !== logSelection.sample.epoch ||
-        logSelection.sample.completed !== prevCompleted
+        sampleData.sample?.epoch !== logSelection.sample.epoch ||
+        currentSampleCompleted !== prevCompleted
       ) {
+        console.log({
+          a: prevLogFile !== logSelection.logFile,
+          b: sampleData.sample?.id !== logSelection.sample.id,
+          c: sampleData.sample?.epoch !== logSelection.sample.epoch,
+          d: currentSampleCompleted !== prevCompleted,
+          sampleData,
+          logSelection,
+        });
         loadSample(logSelection.logFile, logSelection.sample);
       }
     }

@@ -18434,6 +18434,11 @@ self.onmessage = function (e) {
               get2().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
             }
           },
+          clearSelectedLogSummary: () => {
+            set2((state) => {
+              state.log.selectedLogSummary = void 0;
+            });
+          },
           setPendingSampleSummaries: (pendingSampleSummaries) => set2((state) => {
             state.log.pendingSampleSummaries = pendingSampleSummaries;
           }),
@@ -19342,6 +19347,175 @@ self.onmessage = function (e) {
         )
       ] });
     };
+    function debounce$1(func, wait, options2 = {}) {
+      let timeout = null;
+      let context;
+      let args;
+      let result2;
+      let lastCallTime = null;
+      const later = () => {
+        const last = Date.now() - (lastCallTime || 0);
+        if (last < wait && last >= 0) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!options2.leading) {
+            result2 = func.apply(context, args);
+            if (!timeout) {
+              context = null;
+              args = null;
+            }
+          }
+        }
+      };
+      return function(...callArgs) {
+        context = this;
+        args = callArgs;
+        lastCallTime = Date.now();
+        const callNow = options2.leading && !timeout;
+        if (!timeout) {
+          timeout = setTimeout(later, wait);
+        }
+        if (callNow) {
+          result2 = func.apply(context, args);
+          context = null;
+          args = null;
+        }
+        return result2;
+      };
+    }
+    const log$1 = createLogger("scrolling");
+    function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
+      const getScrollPosition = useStore(
+        (state) => state.appActions.getScrollPosition
+      );
+      const setScrollPosition = useStore(
+        (state) => state.appActions.setScrollPosition
+      );
+      const handleScroll = reactExports.useCallback(
+        debounce$1((e) => {
+          const target2 = e.target;
+          const position = target2.scrollTop;
+          log$1.debug(`Storing scroll position`, elementKey, position);
+          setScrollPosition(elementKey, position);
+        }, delay),
+        [elementKey, setScrollPosition, delay]
+      );
+      const restoreScrollPosition = reactExports.useCallback(() => {
+        const element = elementRef.current;
+        const savedPosition = getScrollPosition(elementKey);
+        if (element && savedPosition !== void 0) {
+          requestAnimationFrame(() => {
+            element.scrollTop = savedPosition;
+            requestAnimationFrame(() => {
+              if (element.scrollTop !== savedPosition) {
+                element.scrollTop = savedPosition;
+              }
+            });
+          });
+        }
+      }, [elementKey, getScrollPosition, elementRef]);
+      reactExports.useEffect(() => {
+        const element = elementRef.current;
+        if (!element || !scrollable2) {
+          return;
+        }
+        log$1.debug(`Restore Scroll Hook`, elementKey);
+        const savedPosition = getScrollPosition(elementKey);
+        if (savedPosition !== void 0) {
+          log$1.debug(`Restoring scroll position`, savedPosition);
+          requestAnimationFrame(() => {
+            if (element.scrollTop !== savedPosition) {
+              element.scrollTop = savedPosition;
+            }
+          });
+        }
+        if (element.addEventListener) {
+          element.addEventListener("scroll", handleScroll);
+        } else {
+          log$1.warn("Element has no way to add event listener", element);
+        }
+        return () => {
+          if (element.removeEventListener) {
+            element.removeEventListener("scroll", handleScroll);
+          } else {
+            log$1.warn("Element has no way to remove event listener", element);
+          }
+        };
+      }, [elementKey, elementRef, handleScroll]);
+      return { restoreScrollPosition };
+    }
+    const useVirtuosoState = (virtuosoRef, elementKey, delay = 1e3) => {
+      const restoreState = useStore(
+        reactExports.useCallback((state) => state.app.listPositions[elementKey], [elementKey])
+      );
+      const setListPosition = useStore(
+        reactExports.useCallback((state) => state.appActions.setListPosition, [])
+      );
+      const clearListPosition = useStore(
+        reactExports.useCallback((state) => state.appActions.clearListPosition, [])
+      );
+      const debouncedFnRef = reactExports.useRef(null);
+      const handleStateChange = reactExports.useCallback(
+        (state) => {
+          log$1.debug(`Storing list state: [${elementKey}]`, state);
+          setListPosition(elementKey, state);
+        },
+        [elementKey, setListPosition]
+      );
+      reactExports.useEffect(() => {
+        debouncedFnRef.current = debounce$1((isScrolling2) => {
+          log$1.debug("List scroll", isScrolling2);
+          const element = virtuosoRef.current;
+          if (!element) {
+            return;
+          }
+          element.getState(handleStateChange);
+        }, delay);
+        return () => {
+          clearListPosition(elementKey);
+        };
+      }, [delay, elementKey, handleStateChange, clearListPosition, virtuosoRef]);
+      const isScrolling = reactExports.useCallback((scrolling) => {
+        if (!scrolling) {
+          return;
+        }
+        if (debouncedFnRef.current) {
+          debouncedFnRef.current(scrolling);
+        }
+      }, []);
+      const stateRef = reactExports.useRef(restoreState);
+      reactExports.useEffect(() => {
+        stateRef.current = restoreState;
+      }, [restoreState]);
+      const getRestoreState = reactExports.useCallback(() => stateRef.current, []);
+      return { getRestoreState, isScrolling };
+    };
+    function useRafThrottle(callback, dependencies = []) {
+      const rafRef = reactExports.useRef(null);
+      const callbackRef = reactExports.useRef(callback);
+      reactExports.useEffect(() => {
+        callbackRef.current = callback;
+      }, [callback, ...dependencies]);
+      const throttledCallback = reactExports.useCallback((...args) => {
+        if (rafRef.current) {
+          return;
+        }
+        rafRef.current = requestAnimationFrame(() => {
+          callbackRef.current(...args);
+          rafRef.current = null;
+        });
+      }, []);
+      reactExports.useEffect(() => {
+        return () => {
+          if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+          }
+        };
+      }, []);
+      return throttledCallback;
+    }
     const dirname = "_dirname_16ra5_1";
     const styles$1c = {
       dirname
@@ -19775,6 +19949,8 @@ self.onmessage = function (e) {
       const handleToggle = reactExports.useCallback(() => {
         setOffCanvas(!offCanvas);
       }, [offCanvas, setOffCanvas]);
+      const sidebarContentsRef = reactExports.useRef(null);
+      useStatefulScrollPosition(sidebarContentsRef, "sidebar-contents", 1e3);
       const handleClick = reactExports.useCallback(
         (e) => {
           const index2 = Number(e.currentTarget.dataset.index);
@@ -19806,30 +19982,37 @@ self.onmessage = function (e) {
                 )
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: clsx("list-group", styles$1b.list), children: logs.files.map((file, index2) => {
-                const logHeader = logHeaders[file.name];
-                return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "li",
-                  {
-                    className: clsx(
-                      "list-group-item",
-                      "list-group-item-action",
-                      styles$1b.item,
-                      selectedIndex === index2 ? styles$1b.active : void 0
-                    ),
-                    "data-index": index2,
-                    onClick: handleClick,
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      SidebarLogEntry,
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "ul",
+                {
+                  ref: sidebarContentsRef,
+                  className: clsx("list-group", styles$1b.list),
+                  children: logs.files.map((file, index2) => {
+                    const logHeader = logHeaders[file.name];
+                    return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "li",
                       {
-                        logHeader,
-                        task: file.task || "unknown task"
-                      }
-                    )
-                  },
-                  file.name
-                );
-              }) })
+                        className: clsx(
+                          "list-group-item",
+                          "list-group-item-action",
+                          styles$1b.item,
+                          selectedIndex === index2 ? styles$1b.active : void 0
+                        ),
+                        "data-index": index2,
+                        onClick: handleClick,
+                        children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                          SidebarLogEntry,
+                          {
+                            logHeader,
+                            task: file.task || "unknown task"
+                          }
+                        )
+                      },
+                      file.name
+                    );
+                  })
+                }
+              )
             ]
           }
         )
@@ -31098,7 +31281,7 @@ categories: ${categories.join(" ")}`;
       });
       return [...logSamples, ...uniquePendingSamples];
     };
-    const log$1 = createLogger("hooks");
+    const log = createLogger("hooks");
     const useSampleSummaries = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const pendingSampleSummaries = useStore(
@@ -31244,7 +31427,7 @@ categories: ${categories.join(" ")}`;
       const setCollapsed = useStore((state) => state.appActions.setCollapsed);
       return reactExports.useMemo(() => {
         const set2 = (value2) => {
-          log$1.debug("Set collapsed", id, value2);
+          log.debug("Set collapsed", id, value2);
           setCollapsed(id, value2);
         };
         return [collapsed, set2];
@@ -31267,7 +31450,7 @@ categories: ${categories.join(" ")}`;
           isFirstRender.current = false;
           return;
         }
-        log$1.debug("clear message (eval)", id);
+        log.debug("clear message (eval)", id);
         clearVisible(id);
       }, [selectedLogFile, clearVisible, id]);
       const selectedSampleIndex = useStore(
@@ -31278,14 +31461,14 @@ categories: ${categories.join(" ")}`;
           return;
         }
         if (scope === "sample") {
-          log$1.debug("clear message (sample)", id);
+          log.debug("clear message (sample)", id);
           clearVisible(id);
         }
       }, [selectedSampleIndex, clearVisible, id, scope]);
       return reactExports.useMemo(() => {
-        log$1.debug("visibility", id, visible2);
+        log.debug("visibility", id, visible2);
         const set2 = (visible22) => {
-          log$1.debug("set visiblity", id);
+          log.debug("set visiblity", id);
           setVisible(id, visible22);
         };
         return [visible2, set2];
@@ -31351,6 +31534,25 @@ categories: ${categories.join(" ")}`;
         }
       }, [toolCallContent]);
       return toolViewRef;
+    };
+    const useSetSelectedLogIndex = () => {
+      const setSelectedLogIndex = useStore(
+        (state) => state.logsActions.setSelectedLogIndex
+      );
+      const clearSelectedSample = useStore(
+        (state) => state.sampleActions.clearSelectedSample
+      );
+      const clearSelectedLogSummary = useStore(
+        (state) => state.logActions.clearSelectedLogSummary
+      );
+      return reactExports.useCallback(
+        (index2) => {
+          clearSelectedSample();
+          clearSelectedLogSummary();
+          setSelectedLogIndex(index2);
+        },
+        [setSelectedLogIndex, clearSelectedLogSummary, clearSelectedSample]
+      );
     };
     const container$c = "_container_15b4r_1";
     const label$5 = "_label_15b4r_5";
@@ -52054,175 +52256,6 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: text2 })
       ] }) });
     };
-    function debounce$1(func, wait, options2 = {}) {
-      let timeout = null;
-      let context;
-      let args;
-      let result2;
-      let lastCallTime = null;
-      const later = () => {
-        const last = Date.now() - (lastCallTime || 0);
-        if (last < wait && last >= 0) {
-          timeout = setTimeout(later, wait - last);
-        } else {
-          timeout = null;
-          if (!options2.leading) {
-            result2 = func.apply(context, args);
-            if (!timeout) {
-              context = null;
-              args = null;
-            }
-          }
-        }
-      };
-      return function(...callArgs) {
-        context = this;
-        args = callArgs;
-        lastCallTime = Date.now();
-        const callNow = options2.leading && !timeout;
-        if (!timeout) {
-          timeout = setTimeout(later, wait);
-        }
-        if (callNow) {
-          result2 = func.apply(context, args);
-          context = null;
-          args = null;
-        }
-        return result2;
-      };
-    }
-    const log = createLogger("scrolling");
-    function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
-      const getScrollPosition = useStore(
-        (state) => state.appActions.getScrollPosition
-      );
-      const setScrollPosition = useStore(
-        (state) => state.appActions.setScrollPosition
-      );
-      const handleScroll = reactExports.useCallback(
-        debounce$1((e) => {
-          const target2 = e.target;
-          const position = target2.scrollTop;
-          log.debug(`Storing scroll position`, elementKey, position);
-          setScrollPosition(elementKey, position);
-        }, delay),
-        [elementKey, setScrollPosition, delay]
-      );
-      const restoreScrollPosition = reactExports.useCallback(() => {
-        const element = elementRef.current;
-        const savedPosition = getScrollPosition(elementKey);
-        if (element && savedPosition !== void 0) {
-          requestAnimationFrame(() => {
-            element.scrollTop = savedPosition;
-            requestAnimationFrame(() => {
-              if (element.scrollTop !== savedPosition) {
-                element.scrollTop = savedPosition;
-              }
-            });
-          });
-        }
-      }, [elementKey, getScrollPosition, elementRef]);
-      reactExports.useEffect(() => {
-        const element = elementRef.current;
-        if (!element || !scrollable2) {
-          return;
-        }
-        log.debug(`Restore Scroll Hook`, elementKey);
-        const savedPosition = getScrollPosition(elementKey);
-        if (savedPosition !== void 0) {
-          log.debug(`Restoring scroll position`, savedPosition);
-          requestAnimationFrame(() => {
-            if (element.scrollTop !== savedPosition) {
-              element.scrollTop = savedPosition;
-            }
-          });
-        }
-        if (element.addEventListener) {
-          element.addEventListener("scroll", handleScroll);
-        } else {
-          log.warn("Element has no way to add event listener", element);
-        }
-        return () => {
-          if (element.removeEventListener) {
-            element.removeEventListener("scroll", handleScroll);
-          } else {
-            log.warn("Element has no way to remove event listener", element);
-          }
-        };
-      }, [elementKey, elementRef, handleScroll]);
-      return { restoreScrollPosition };
-    }
-    const useVirtuosoState = (virtuosoRef, elementKey, delay = 1e3) => {
-      const restoreState = useStore(
-        reactExports.useCallback((state) => state.app.listPositions[elementKey], [elementKey])
-      );
-      const setListPosition = useStore(
-        reactExports.useCallback((state) => state.appActions.setListPosition, [])
-      );
-      const clearListPosition = useStore(
-        reactExports.useCallback((state) => state.appActions.clearListPosition, [])
-      );
-      const debouncedFnRef = reactExports.useRef(null);
-      const handleStateChange = reactExports.useCallback(
-        (state) => {
-          log.debug(`Storing list state: [${elementKey}]`, state);
-          setListPosition(elementKey, state);
-        },
-        [elementKey, setListPosition]
-      );
-      reactExports.useEffect(() => {
-        debouncedFnRef.current = debounce$1((isScrolling2) => {
-          log.debug("List scroll", isScrolling2);
-          const element = virtuosoRef.current;
-          if (!element) {
-            return;
-          }
-          element.getState(handleStateChange);
-        }, delay);
-        return () => {
-          clearListPosition(elementKey);
-        };
-      }, [delay, elementKey, handleStateChange, clearListPosition, virtuosoRef]);
-      const isScrolling = reactExports.useCallback((scrolling) => {
-        if (!scrolling) {
-          return;
-        }
-        if (debouncedFnRef.current) {
-          debouncedFnRef.current(scrolling);
-        }
-      }, []);
-      const stateRef = reactExports.useRef(restoreState);
-      reactExports.useEffect(() => {
-        stateRef.current = restoreState;
-      }, [restoreState]);
-      const getRestoreState = reactExports.useCallback(() => stateRef.current, []);
-      return { getRestoreState, isScrolling };
-    };
-    function useRafThrottle(callback, dependencies = []) {
-      const rafRef = reactExports.useRef(null);
-      const callbackRef = reactExports.useRef(callback);
-      reactExports.useEffect(() => {
-        callbackRef.current = callback;
-      }, [callback, ...dependencies]);
-      const throttledCallback = reactExports.useCallback((...args) => {
-        if (rafRef.current) {
-          return;
-        }
-        rafRef.current = requestAnimationFrame(() => {
-          callbackRef.current(...args);
-          rafRef.current = null;
-        });
-      }, []);
-      reactExports.useEffect(() => {
-        return () => {
-          if (rafRef.current) {
-            cancelAnimationFrame(rafRef.current);
-            rafRef.current = null;
-          }
-        };
-      }, []);
-      return throttledCallback;
-    }
     const tabs$1 = "_tabs_1qj7d_1";
     const tabContents = "_tabContents_1qj7d_5";
     const scrollable = "_scrollable_1qj7d_10";
@@ -65331,12 +65364,23 @@ ${events}
       const sampleData = useSampleData();
       const loadSample = useStore((state) => state.sampleActions.loadSample);
       const logSelection = useLogSelection();
-      const prevCompleted = usePrevious(!!((_a2 = logSelection.sample) == null ? void 0 : _a2.completed));
+      const prevCompleted = usePrevious(
+        ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
+      );
       const prevLogFile = usePrevious(logSelection.logFile);
       reactExports.useEffect(() => {
-        var _a3;
+        var _a3, _b3, _c2, _d2, _e3;
         if (logSelection.logFile && logSelection.sample) {
-          if (prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch || logSelection.sample.completed !== prevCompleted) {
+          const currentSampleCompleted = ((_a3 = logSelection.sample) == null ? void 0 : _a3.completed) !== void 0 ? logSelection.sample.completed : true;
+          if (prevLogFile !== logSelection.logFile || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || currentSampleCompleted !== prevCompleted) {
+            console.log({
+              a: prevLogFile !== logSelection.logFile,
+              b: ((_d2 = sampleData.sample) == null ? void 0 : _d2.id) !== logSelection.sample.id,
+              c: ((_e3 = sampleData.sample) == null ? void 0 : _e3.epoch) !== logSelection.sample.epoch,
+              d: currentSampleCompleted !== prevCompleted,
+              sampleData,
+              logSelection
+            });
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
@@ -65517,10 +65561,10 @@ ${events}
       );
       const prevLogFile = usePrevious(logSelection.logFile);
       reactExports.useEffect(() => {
-        var _a3;
+        var _a3, _b3;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = logSelection.sample.completed !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || sampleData.sample.epoch !== logSelection.sample.epoch || currentSampleCompleted !== prevCompleted) {
+          if (prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.sample) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || currentSampleCompleted !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
@@ -68506,12 +68550,7 @@ ${events}
       const selectedLogFile = useStore(
         (state) => state.logsActions.getSelectedLogFile()
       );
-      const setSelectedLogIndex = useStore(
-        (state) => state.logsActions.setSelectedLogIndex
-      );
-      const clearSelectedSample = useStore(
-        (state) => state.sampleActions.clearSelectedSample
-      );
+      const setSelectedLogIndex = useSetSelectedLogIndex();
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
@@ -68631,7 +68670,6 @@ ${events}
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       const handleSelectedIndexChanged = reactExports.useCallback(
         (index2) => {
-          clearSelectedSample();
           setSelectedLogIndex(index2);
           setOffCanvas(false);
           resetFiltering();
@@ -68640,7 +68678,6 @@ ${events}
           selectSample(0);
         },
         [
-          clearSelectedSample,
           setSelectedLogIndex,
           setOffCanvas,
           resetFiltering,

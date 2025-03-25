@@ -374,3 +374,24 @@ export const usePrismHighlight = (toolCallContent?: string) => {
 
   return toolViewRef;
 };
+
+export const useSetSelectedLogIndex = () => {
+  const setSelectedLogIndex = useStore(
+    (state) => state.logsActions.setSelectedLogIndex,
+  );
+  const clearSelectedSample = useStore(
+    (state) => state.sampleActions.clearSelectedSample,
+  );
+  const clearSelectedLogSummary = useStore(
+    (state) => state.logActions.clearSelectedLogSummary,
+  );
+
+  return useCallback(
+    (index: number) => {
+      clearSelectedSample();
+      clearSelectedLogSummary();
+      setSelectedLogIndex(index);
+    },
+    [setSelectedLogIndex, clearSelectedLogSummary, clearSelectedSample],
+  );
+};
