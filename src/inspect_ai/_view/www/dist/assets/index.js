@@ -27352,7 +27352,11 @@ self.onmessage = function (e) {
           messages.set(outputMessage.id, outputMessage);
         }
       });
-      return messages.values().toArray();
+      if (messages.entries.length > 0) {
+        return messages.values().toArray();
+      } else {
+        return [];
+      }
     };
     const ChatMessage = ({
       id,

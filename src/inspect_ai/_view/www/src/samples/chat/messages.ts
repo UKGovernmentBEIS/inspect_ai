@@ -151,5 +151,9 @@ export const messagesFromEvents = (runningEvents: Events): Messages => {
       }
     });
 
-  return messages.values().toArray();
+  if (messages.entries.length > 0) {
+    return messages.values().toArray();
+  } else {
+    return [];
+  }
 };
