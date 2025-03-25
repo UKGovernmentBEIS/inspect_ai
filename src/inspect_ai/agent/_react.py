@@ -124,9 +124,9 @@ def react(
     tools.append(tool_with(submit_tool(), submit.name, submit.description))
 
     async def execute(state: AgentState) -> AgentState:
-        # append system message if we have one
+        # prepend system message if we have one
         if system_message:
-            state.messages.append(system_message)
+            state.messages.insert(0, system_message)
 
         # track attempts
         attempt_count = 0
