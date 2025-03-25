@@ -213,28 +213,6 @@ def test_react_agent_retries() -> None:
 
 
 def test_react_agent_retries_with_custom_incorrect_message():
-    @scorer(metrics=[accuracy()])
-    def compare_quantities():
-        async def score(state: TaskState, target: Target) -> Score:
-            answer = float(state.output.completion)
-            target_value = float(target.text)
-            if answer == target_value:
-                return Score(value=1.0, answer=state.output.completion)
-            elif answer > target_value:
-                return Score(
-                    value=0.0,
-                    answer=state.output.completion,
-                    explanation="Answer is too high",
-                )
-            else:
-                return Score(
-                    value=0.0,
-                    answer=state.output.completion,
-                    explanation="Answer is too low",
-                )
-
-        return score
-
     async def async_custom_incorrect_message(state: AgentState, scores: list[Score]):
         return f"Your response to the input was incorrect: {scores[0].explanation}"
 
@@ -251,7 +229,7 @@ def test_react_agent_retries_with_custom_incorrect_message():
             scorer=compare_quantities(),
             message_limit=30,
         )
-        log = eval(addition_task, mockllm_model(["5", "1", "2"]), display="plain")[0]
+        log = eval(addition_task, mockllm_model(["5", "1", "2"]))[0]
         assert log.results.scores[0].metrics["accuracy"].value == 1
         user_msgs = [
             m.content for m in log.samples[0].messages if isinstance(m, ChatMessageUser)
@@ -263,3 +241,51 @@ def test_react_agent_retries_with_custom_incorrect_message():
         ]
 
     check_task(async_custom_incorrect_message)
+
+
+def test_react_agent_on_continue():
+    async def on_continue(state: AgentState) -> bool | str:
+        if state.output.completion == "5":
+            return "You should definitely continue!"
+        elif state.output.completion == "1":
+            return False
+        else:
+            return True
+
+    addition_task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(tools=[addition()], attempts=3, on_continue=on_continue),
+        scorer=compare_quantities(),
+        message_limit=30,
+    )
+    log = eval(addition_task, mockllm_model(["5", "1", "2"]))[0]
+    assert log.samples
+    messages = log.samples[0].messages
+    assert (
+        next((m for m in messages if m.text == "You should definitely continue!"), None)
+        is not None
+    )
+    assert "Your submission was incorrect" in messages[-1].text
+
+
+@scorer(metrics=[accuracy()])
+def compare_quantities():
+    async def score(state: TaskState, target: Target) -> Score:
+        answer = float(state.output.completion)
+        target_value = float(target.text)
+        if answer == target_value:
+            return Score(value=1.0, answer=state.output.completion)
+        elif answer > target_value:
+            return Score(
+                value=0.0,
+                answer=state.output.completion,
+                explanation="Answer is too high",
+            )
+        else:
+            return Score(
+                value=0.0,
+                answer=state.output.completion,
+                explanation="Answer is too low",
+            )
+
+    return score
