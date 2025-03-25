@@ -60,6 +60,7 @@ from inspect_ai.util import OutputLimitExceededError
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
+    ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
 )
@@ -385,15 +386,17 @@ async def call_tool(
             agent_state = AgentState(messages=agent_conversation, output=ModelOutput())
             agent_state = await agent_tool.agent(agent_state, **arguments)
 
-            # determine which messages are new and return only those. also,
-            # inject the agent's name as a prefix in assistant messages
+            # determine which messages are new and return only those (but exclude new
+            # system messages as they an internal matter for the handed off to agent.
+            # also, inject the agent's name as a prefix in assistant messages
             conversation_message_ids = [message.id for message in agent_conversation]
             agent_messages: list[ChatMessage] = []
             for m in agent_state.messages:
                 if m.id not in conversation_message_ids:
                     if isinstance(m, ChatMessageAssistant):
                         m = prepend_agent_name(m, agent_name)
-                    agent_messages.append(m)
+                    if not isinstance(m, ChatMessageSystem):
+                        agent_messages.append(m)
 
             # if we end with an assistant message then add a user message
             # so that the calling agent carries on

@@ -82,24 +82,8 @@ class AgentTool(Tool):
         raise RuntimeError("AgentTool should not be called directly")
 
 
-# based on https://github.com/openai/openai-agents-python/blob/main/src/agents/extensions/handoff_prompt.py
-# in the OpenAI Agents SDK.
-def handoff_prompt(prompt: str) -> str:
-    """Add recommended instructions to the prompt for agents that use handoffs.
-
-    Args:
-       prompt: Main prompt for agent (handoff prompt will be pre-pended to it).
-    """
-    return f"{RECOMMENDED_PROMPT_PREFIX}\n\n{prompt}"
-
-
-RECOMMENDED_PROMPT_PREFIX = (
-    "# System context\n"
-    "You are part of a multi-agent system designed to make agent "
-    "coordination and execution easy. Agents uses two primary abstraction: **Agents** and "
-    "**Handoffs**. An agent encompasses instructions and tools and can hand off a "
-    "conversation to another agent when appropriate. "
-    "Handoffs are achieved by calling a handoff function, generally named "
-    "`transfer_to_<agent_name>`. Transfers between agents are handled seamlessly in the background;"
-    " do not mention or draw attention to these transfers in your conversation with the user.\n"
-)
+def has_handoff(tools: list[Tool] | None) -> bool:
+    if tools:
+        return any([type(tool).__name__ == "AgentTool" for tool in tools])
+    else:
+        return False

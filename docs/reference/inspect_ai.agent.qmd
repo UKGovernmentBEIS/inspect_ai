@@ -2,22 +2,27 @@
 title: "inspect_ai.agent"
 ---
 
-## Orchestration
+## React Agent
 
 ### react
+### ReactPrompt
+### ReactAttempts
+### ReactContinue
+### ReactSubmit
+
+## Other Agents
+
 ### human
 ### bridge
+
+## Handoffs
+
+### handoff
+### HandoffFilter
+### as_tool
 
 ## Protocol
 
 ### Agent
 ### AgentState
 ### agent
-
-## Handoffs
-
-### handoff
-### handoff_prompt
-### HandoffFilter
-### as_tool
-
