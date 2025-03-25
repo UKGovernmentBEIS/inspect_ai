@@ -1,3 +1,7 @@
+## v0.3.78 (25 March 2025)
+
+- OpenAI: Ensure that assistant messages always have the `msg_` prefix in responses API.
+
 ## v0.3.77 (25 March 2025)
 
 - New [think()](https://inspect.aisi.org.uk/tools-standard.html#sec-think) tool that provides models with the ability to include an additional thinking step.
