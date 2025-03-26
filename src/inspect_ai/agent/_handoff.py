@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, TypeAlias
+from typing import Any
 
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -6,21 +6,18 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
     set_registry_info,
 )
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.agent._types import AgentFilter
 from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_description import ToolDescription, set_tool_description
 
 from ._agent import Agent
 from ._as_tool import agent_tool_info
 
-HandoffFilter: TypeAlias = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
-"""Function used for filtering agent input and output messages."""
-
 
 def handoff(
     agent: Agent,
     description: str | None = None,
-    input_filter: HandoffFilter | None = None,
+    input_filter: AgentFilter | None = None,
     tool_name: str | None = None,
     **agent_kwargs: Any,
 ) -> Tool:
@@ -66,7 +63,7 @@ class AgentTool(Tool):
     def __init__(
         self,
         agent: Agent,
-        input_filter: HandoffFilter | None = None,
+        input_filter: AgentFilter | None = None,
         **kwargs: Any,
     ):
         self.agent = agent
