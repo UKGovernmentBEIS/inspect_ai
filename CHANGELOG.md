@@ -1,6 +1,7 @@
 ## v0.3.79 (26 March 2025)
 
 - Google: Compatibility with v1.7 of google-genai package (create client per-generate request)
+- Bugfix: Properly record scorer and metrics when there are multiple tasks run in an eval.
 
 ## v0.3.78 (25 March 2025)
 
