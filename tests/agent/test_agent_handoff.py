@@ -1,4 +1,5 @@
 from test_helpers.tool_call_utils import find_tool_call
+from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
@@ -194,3 +195,47 @@ def test_agent_handoff_tool_event():
     model_event = next((event for event in tool_event.events if event.event == "model"))
     assert model_event
     assert model_event.input[0].text == "What time is it?"
+
+
+@agent
+def tool_checker() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Tool checker that checks if tool messages are present.
+
+        Args:
+            state: Input state (conversation)
+
+        Returns:
+            Ouput state (additions to conversation)
+        """
+        tool_messages = sum(
+            [
+                1
+                for m in state.messages
+                if isinstance(m, ChatMessageTool)
+                or (isinstance(m, ChatMessageAssistant) and m.tool_calls is not None)
+            ]
+        )
+        state.messages.append(ChatMessageAssistant(content=str(tool_messages)))
+        state.output.completion = str(tool_messages)
+
+        return state
+
+    return execute
+
+
+@skip_if_no_openai
+def test_agent_handoff_input_filter():
+    log = eval(
+        Task(
+            dataset=[
+                Sample(
+                    input="Please use the addition tool to add 1+1. Then, handoff to the tool_checker."
+                )
+            ]
+        ),
+        solver=[use_tools(addition(), handoff(tool_checker())), generate()],
+        model="openai/gpt-4o-mini",
+        log_format="json",
+    )[0]
+    assert log.samples

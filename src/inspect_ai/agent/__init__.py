@@ -2,7 +2,7 @@ from ._agent import Agent, AgentState, agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
 from ._bridge.bridge import bridge
-from ._handoff import handoff
+from ._handoff import HandoffFilter, handoff
 from ._human.agent import human
 from ._react import react
 from ._run import run
@@ -19,6 +19,7 @@ __all__ = [
     "bridge",
     "run",
     "handoff",
+    "HandoffFilter",
     "as_tool",
     "as_solver",
     "Agent",

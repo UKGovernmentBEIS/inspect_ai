@@ -11,9 +11,10 @@ title: "inspect_ai.agent"
 ## Execution
 
 ### run
-### handoff
 ### as_tool
 ### as_solver
+### handoff
+### HandoffFilter
 
 ## Protocol
 
