@@ -5,12 +5,12 @@ from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageSystem,
-    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._tool import Tool, ToolResult, tool
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_with import tool_with
 
 from ._agent import Agent, AgentState, agent
@@ -75,9 +75,8 @@ def react(
             prompt_lines.append(prompt.handoff_prompt)
         if prompt.assistant_prompt:
             prompt_lines.append(prompt.assistant_prompt)
-        system_message: ChatMessage | None = ChatMessageSystem(
-            content="\n\n".join(prompt_lines)
-        )
+        prompt_content = "\n\n".join(prompt_lines).format(submit=submit.name)
+        system_message: ChatMessage | None = ChatMessageSystem(content=prompt_content)
     else:
         system_message = None
 
@@ -113,17 +112,12 @@ def react(
 
         return execute
 
-    # helper to extract a submitted answer
-    def submission(tool_results: list[ChatMessage]) -> str | None:
-        return next(
-            (
-                result.text
-                for result in tool_results
-                if isinstance(result, ChatMessageTool)
-                and result.function == submit.name
-            ),
-            None,
-        )
+    # helper to see if there is a submit tool call
+    def submitted_answer(tool_calls: list[ToolCall] | None) -> str | None:
+        for tool_call in tool_calls or []:
+            if tool_call.function == submit.name and tool_call.parse_error is None:
+                return str(tool_call.arguments["answer"])
+        return None
 
     # resolve tools
     tools = tools or []
@@ -150,51 +144,53 @@ def react(
                 transcript().info("Agent terminated: model context window exceeded")
                 break
 
-            # resolve tools calls (if any)
-            if state.output.message.tool_calls:
-                # call tool functions
-                messages, output = await execute_tools(state.messages, tools)
-                state.messages.extend(messages)
-                if output:
-                    state.output = output
+            # check for a submission
+            answer = submitted_answer(state.output.message.tool_calls)
+            if answer is not None:
+                # remove the tool call and set the output to the answer for scoring
+                state.output.message.tool_calls = None
+                state.output.completion = answer
 
-                # was an answer submitted?
-                answer = submission(messages)
-                if answer:
-                    # set the output to the answer for scoring
-                    state.output.completion = answer
+                # exit if we are at max_attempts
+                attempt_count += 1
+                if attempt_count >= attempts.attempts:
+                    break
 
-                    # exit if we are at max_attempts
-                    attempt_count += 1
-                    if attempt_count >= attempts.attempts:
-                        break
+                # exit if the submission is successful
+                answer_scores = await score(state)
+                if attempts.score_value(answer_scores[0].value) == 1.0:
+                    break
 
-                    # exit if the submission is successful
-                    answer_scores = await score(state)
-                    if attempts.score_value(answer_scores[0].value) == 1.0:
-                        break
-
-                    # otherwise notify the model that it was incorrect and continue
-                    else:
-                        if callable(attempts.incorrect_message):
-                            if not is_callable_coroutine(attempts.incorrect_message):
-                                raise ValueError(
-                                    "The incorrect_message function must be async."
-                                )
-                            response_message: str = await attempts.incorrect_message(
-                                state, answer_scores
+                # otherwise notify the model that it was incorrect and continue
+                else:
+                    if callable(attempts.incorrect_message):
+                        if not is_callable_coroutine(attempts.incorrect_message):
+                            raise ValueError(
+                                "The incorrect_message function must be async."
                             )
-                        else:
-                            response_message = attempts.incorrect_message
+                        response_message: str = await attempts.incorrect_message(
+                            state, answer_scores
+                        )
+                    else:
+                        response_message = attempts.incorrect_message
 
-                        state.messages.append(ChatMessageUser(content=response_message))
+                    state.messages.append(ChatMessageUser(content=response_message))
 
-            # check if we should continue....
-            do_continue = await on_continue(state)
-            if isinstance(do_continue, str):
-                state.messages.append(ChatMessageUser(content=do_continue))
-            elif do_continue is False:
-                break
+            # no submitted answer, call tools and evaluate whether we should continue
+            else:
+                if state.output.message.tool_calls:
+                    # call tool functions
+                    messages, output = await execute_tools(state.messages, tools)
+                    state.messages.extend(messages)
+                    if output:
+                        state.output = output
+
+                # check if we should continue....
+                do_continue = await on_continue(state)
+                if isinstance(do_continue, str):
+                    state.messages.append(ChatMessageUser(content=do_continue))
+                elif do_continue is False:
+                    break
 
         return state
 

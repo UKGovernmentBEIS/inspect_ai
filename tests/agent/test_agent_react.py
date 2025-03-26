@@ -97,7 +97,7 @@ def run_react_agent(
     return eval(task, model=model)[0]
 
 
-def mockllm_model(answers: list[str]):
+def mockllm_model_with_submissions(answers: list[str]):
     return get_model(
         "mockllm/model",
         custom_outputs=[
@@ -107,6 +107,16 @@ def mockllm_model(answers: list[str]):
                 tool_arguments={"answer": answer},
             )
             for answer in answers
+        ],
+    )
+
+
+def mockllm_model_with_outputs(outputs: list[str]):
+    return get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(model="mockllm/model", content=output)
+            for output in outputs
         ],
     )
 
@@ -174,11 +184,6 @@ def test_react_agent_custom_submit() -> None:
     )
     assert log.status == "success"
     assert log.samples
-    tool_event = next(
-        (event for event in log.samples[0].transcript.events if event.event == "tool")
-    )
-    assert tool_event
-    assert tool_event.function == AGENT_SUBMIT_TOOL_NAME
     model_event = next(
         (event for event in log.samples[0].events if event.event == "model")
     )
@@ -197,12 +202,12 @@ def test_react_agent_retries() -> None:
         )
 
     # incorrect answer with no retries
-    log = eval(addition_task(1), mockllm_model(["5"]))[0]
+    log = eval(addition_task(1), mockllm_model_with_submissions(["5"]))[0]
     assert log.results
     assert log.results.scores[0].metrics["accuracy"].value == 0
 
     # correct answer on the third try
-    log = eval(addition_task(3), mockllm_model(["5", "4", "2"]))[0]
+    log = eval(addition_task(3), mockllm_model_with_submissions(["5", "4", "2"]))[0]
     assert log.results
     assert log.samples
     assert log.results.scores[0].metrics["accuracy"].value == 1
@@ -229,7 +234,7 @@ def test_react_agent_retries_with_custom_incorrect_message():
             scorer=compare_quantities(),
             message_limit=30,
         )
-        log = eval(addition_task, mockllm_model(["5", "1", "2"]))[0]
+        log = eval(addition_task, mockllm_model_with_submissions(["5", "1", "2"]))[0]
         assert log.results.scores[0].metrics["accuracy"].value == 1
         user_msgs = [
             m.content for m in log.samples[0].messages if isinstance(m, ChatMessageUser)
@@ -258,14 +263,14 @@ def test_react_agent_on_continue():
         scorer=compare_quantities(),
         message_limit=30,
     )
-    log = eval(addition_task, mockllm_model(["5", "1", "2"]))[0]
+    log = eval(addition_task, mockllm_model_with_outputs(["5", "1", "2"]))[0]
     assert log.samples
     messages = log.samples[0].messages
     assert (
         next((m for m in messages if m.text == "You should definitely continue!"), None)
         is not None
     )
-    assert "Your submission was incorrect" in messages[-1].text
+    assert messages[-1].text == "1"
 
 
 @scorer(metrics=[accuracy()])
