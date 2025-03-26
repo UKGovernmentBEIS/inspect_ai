@@ -1,7 +1,8 @@
 from random import randint
+from typing import Generator
 
 import anyio
-from test_helpers.utils import skip_if_no_openai, sleep_for_solver
+from test_helpers.utils import sleep_for_solver
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -126,8 +127,11 @@ def test_message_limit_overwrite():
     check_message_limit(overwriting_solver(10))
 
 
-@skip_if_no_openai
 def test_token_limit():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=repeat_forever(mock_model_output(tokens=7)),
+    )
     token_limit = 10
     task = Task(
         dataset=[Sample(input="Say Hello", target="Hello")],
@@ -135,12 +139,10 @@ def test_token_limit():
         scorer=match(),
         token_limit=token_limit,
     )
-    model = "openai/gpt-4o-mini"
 
     log = eval(task, model=model)[0]
-    total_tokens = log.stats.model_usage[model].total_tokens
-    assert total_tokens > token_limit
-    assert total_tokens < (token_limit * 3)
+    total_tokens = sum(usage.total_tokens for usage in log.stats.model_usage.values())
+    assert total_tokens == 14
     check_limit_event(log, "token")
 
 
@@ -272,3 +274,14 @@ def find_limit_event(log: EvalLog) -> SampleLimitEvent | None:
         )
     else:
         return None
+
+
+def mock_model_output(tokens: int) -> ModelOutput:
+    output = ModelOutput.from_content(model="mockllm", content="Hello")
+    output.usage = ModelUsage(total_tokens=tokens)
+    return output
+
+
+def repeat_forever(output: ModelOutput) -> Generator[ModelOutput, None, None]:
+    while True:
+        yield output
