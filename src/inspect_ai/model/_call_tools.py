@@ -1,6 +1,5 @@
 import inspect
 import json
-import sys
 import types
 from copy import copy
 from dataclasses import is_dataclass
@@ -24,13 +23,6 @@ from typing import (
     is_typeddict,
 )
 
-from inspect_ai._util.logger import warn_once
-from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai.model._model_output import ModelOutput
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
-
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
@@ -45,10 +37,13 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.logger import warn_once
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
 from inspect_ai.model._conversation import conversation_message
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
@@ -118,7 +113,9 @@ async def execute_tools(
         async def call_tool_task(
             call: ToolCall,
             conversation: list[ChatMessage],
-            send_stream: MemoryObjectSendStream[tuple[ExecuteToolsResult, ToolEvent]],
+            send_stream: MemoryObjectSendStream[
+                tuple[ExecuteToolsResult, ToolEvent, Exception | None]
+            ],
         ) -> None:
             # create a transript for this call
             init_transcript(Transcript(name=call.function))
@@ -127,6 +124,7 @@ async def execute_tools(
             messages: list[ChatMessage] = []
             output: ModelOutput | None = None
             tool_error: ToolCallError | None = None
+            tool_exception: Exception | None = None
             try:
                 with track_store_changes():
                     result, messages, output = await call_tool(
@@ -168,6 +166,8 @@ async def execute_tools(
                 tool_error = ToolCallError("approval", ex.message)
             except ToolError as ex:
                 tool_error = ToolCallError("unknown", ex.message)
+            except Exception as ex:
+                tool_exception = ex
 
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
@@ -228,6 +228,7 @@ async def execute_tools(
                             output=output,
                         ),
                         event,
+                        tool_exception,
                     )
                 )
 
@@ -253,18 +254,20 @@ async def execute_tools(
             # execute the tool call. if the operator cancels the
             # tool call then synthesize the appropriate message/event
             send_stream, receive_stream = anyio.create_memory_object_stream[
-                tuple[ExecuteToolsResult, ToolEvent]
+                tuple[ExecuteToolsResult, ToolEvent, Exception | None]
             ]()
-            try:
-                async with anyio.create_task_group() as tg:
-                    tg.start_soon(
-                        call_tool_task, call, messages + result_messages, send_stream
-                    )
-                    event._set_cancel_fn(tg.cancel_scope.cancel)
-                    async with receive_stream:
-                        result, result_event = await receive_stream.receive()
-            except ExceptionGroup as ex:
-                raise ex.exceptions[0]
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(
+                    call_tool_task, call, messages + result_messages, send_stream
+                )
+                event._set_cancel_fn(tg.cancel_scope.cancel)
+                async with receive_stream:
+                    (
+                        result,
+                        result_event,
+                        result_exception,
+                    ) = await receive_stream.receive()
 
             if event.cancelled:
                 tool_message = ChatMessageTool(
@@ -309,6 +312,12 @@ async def execute_tools(
                 waiting_time=waiting_time_end - waiting_time_start,
             )
             transcript()._event_updated(event)
+
+            # if there was an exception then re-raise it -- we do this
+            # after updating the event so that we flush the transcript
+            # for the event
+            if result_exception is not None:
+                raise result_exception
 
         # return tool messages
         return ExecuteToolsResult(result_messages, result_output)

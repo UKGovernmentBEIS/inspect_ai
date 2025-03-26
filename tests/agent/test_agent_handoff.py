@@ -145,3 +145,52 @@ def test_agent_handoff_assistant_prefix():
     assistant_message = messages[-3]
     assert isinstance(assistant_message, ChatMessageAssistant)
     assert assistant_message.text.startswith("[searcher3]")
+
+
+@agent
+def eventsource() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Agent that yields events
+
+        Args:
+            state: Input state (conversation)
+            max_searches: Maximum number of web searches to conduct
+
+        Returns:
+            Ouput state (additions to conversation)
+        """
+        from inspect_ai.log._transcript import transcript
+
+        # this creates a model event
+        model = get_model("mockllm/model")
+        await model.generate("What time is it?")
+
+        # this creates an info event
+        transcript().info("This is an InfoEvent")
+
+        # raise an error
+        raise RuntimeError("Boom!")
+
+    return execute
+
+
+@skip_if_no_openai
+def test_agent_handoff_tool_event():
+    log = eval(
+        Task(
+            dataset=[Sample(input="Please use the eventsource to source some events.")]
+        ),
+        solver=[use_tools(handoff(eventsource())), generate()],
+        model="openai/gpt-4o-mini",
+        log_format="json",
+    )[0]
+    assert log.samples
+
+    # ensure that we have a tool event with the embedded model event
+    tool_event = next(
+        (event for event in log.samples[0].events if event.event == "tool")
+    )
+    assert tool_event
+    model_event = next((event for event in tool_event.events if event.event == "model"))
+    assert model_event
+    assert model_event.input[0].text == "What time is it?"
