@@ -26,3 +26,7 @@
 .titled:hover {
   cursor: pointer;
 }
+
+.value {
+  flex-direction: column;
+}

@@ -1,15 +1,14 @@
 import {
   FC,
   KeyboardEvent,
+  memo,
   RefObject,
   useCallback,
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
-import { EmptyPanel } from "../../components/EmptyPanel";
 import { MessageBand } from "../../components/MessageBand";
 import { formatNoDecimal } from "../../utils/format";
 import { ListItem } from "../../workspace/tabs/types";
@@ -18,6 +17,9 @@ import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";
 
 import clsx from "clsx";
+import { useProperty, useSampleDescriptor } from "../../state/hooks";
+import { useVirtuosoState } from "../../state/scrolling";
+import { useStore } from "../../state/store";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
@@ -27,8 +29,7 @@ const kSeparatorHeight = 24;
 
 interface SampleListProps {
   items: ListItem[];
-  sampleDescriptor: SamplesDescriptor;
-  selectedIndex: number;
+  running: boolean;
   nextSample: () => void;
   prevSample: () => void;
   showSample: (index: number) => void;
@@ -36,11 +37,10 @@ interface SampleListProps {
   listHandle: RefObject<VirtuosoHandle | null>;
 }
 
-export const SampleList: FC<SampleListProps> = (props) => {
+export const SampleList: FC<SampleListProps> = memo((props) => {
   const {
     items,
-    sampleDescriptor,
-    selectedIndex,
+    running,
     nextSample,
     prevSample,
     showSample,
@@ -48,37 +48,50 @@ export const SampleList: FC<SampleListProps> = (props) => {
     listHandle,
   } = props;
 
-  const [followOutput, setFollowOutput] = useState(false);
+  const { getRestoreState, isScrolling } = useVirtuosoState(
+    listHandle,
+    "sample-list",
+  );
 
-  const [hidden, setHidden] = useState(false);
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
+  const samplesDescriptor = useSampleDescriptor();
+  const [followOutput, setFollowOutput] = useProperty("sample-list", "follow", {
+    defaultValue: false,
+  });
+
+  // Track whether we were previously running so we can
+  // decide whether to pop up to the top
+  const prevRunningRef = useRef(running);
+
   useEffect(() => {
-    setHidden(false);
-  }, [items]);
-
-  // Keep a mapping of the indexes to items (skipping separators)
-  const itemRowMapping = useMemo(() => {
-    const rowIndexes: number[] = [];
-    items.forEach((item, index) => {
-      if (item.type === "sample") {
-        rowIndexes.push(index);
-      }
-    });
-    return rowIndexes;
-  }, [items]);
-
-  const prevSelectedIndexRef = useRef<number>(null);
-  useEffect(() => {
-    const listEl = listHandle.current;
-    if (listEl) {
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          const actualRowIndex = itemRowMapping[selectedIndex];
-          listEl.scrollToIndex(actualRowIndex);
-          prevSelectedIndexRef.current = actualRowIndex;
-        }, 10);
-      });
+    // When we finish running, if we are following output
+    // then scroll up to the top
+    if (
+      !running &&
+      prevRunningRef.current &&
+      followOutput &&
+      listHandle.current
+    ) {
+      setFollowOutput(false);
+      setTimeout(() => {
+        if (listHandle.current) {
+          listHandle.current.scrollTo({ top: 0, behavior: "instant" });
+        }
+      }, 100);
     }
-  }, [selectedIndex, listHandle, itemRowMapping]);
+    prevRunningRef.current = running;
+  }, [running, followOutput, listHandle]);
+
+  const handleAtBottomStateChange = useCallback(
+    (atBottom: boolean) => {
+      if (running) {
+        setFollowOutput(atBottom);
+      }
+    },
+    [running, setFollowOutput],
+  );
 
   const onkeydown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -94,48 +107,51 @@ export const SampleList: FC<SampleListProps> = (props) => {
           e.stopPropagation();
           break;
         case "Enter":
-          showSample(selectedIndex);
+          showSample(selectedSampleIndex);
           e.preventDefault();
           e.stopPropagation();
           break;
       }
     },
-    [selectedIndex, nextSample, prevSample, showSample],
+    [selectedSampleIndex, nextSample, prevSample, showSample],
   );
 
-  // If there are no samples, just display an empty state
-  if (items.length === 0) {
-    return <EmptyPanel>No Samples</EmptyPanel>;
-  }
+  const gridColumnsTemplate = useMemo(() => {
+    return gridColumnsValue(samplesDescriptor);
+  }, [samplesDescriptor]);
 
-  const renderRow = (item: ListItem) => {
-    if (item.type === "sample") {
-      return (
-        <SampleRow
-          id={`${item.number}`}
-          index={item.index}
-          sample={item.data}
-          height={kSampleHeight}
-          sampleDescriptor={sampleDescriptor}
-          gridColumnsTemplate={gridColumnsValue(sampleDescriptor)}
-          selected={selectedIndex === item.index}
-          showSample={showSample}
-        />
-      );
-    } else if (item.type === "separator") {
-      return (
-        <SampleSeparator
-          id={`sample-group${item.number}`}
-          title={item.data}
-          height={kSeparatorHeight}
-        />
-      );
-    } else {
-      return null;
-    }
-  };
+  const renderRow = useCallback(
+    (_index: number, item: ListItem) => {
+      if (item.type === "sample") {
+        return (
+          <SampleRow
+            id={`${item.number}`}
+            index={item.index}
+            sample={item.data}
+            height={kSampleHeight}
+            answer={item.answer}
+            completed={item.completed}
+            scoreRendered={item.scoreRendered}
+            gridColumnsTemplate={gridColumnsTemplate}
+            showSample={showSample}
+          />
+        );
+      } else if (item.type === "separator") {
+        return (
+          <SampleSeparator
+            id={`sample-group${item.number}`}
+            title={item.data}
+            height={kSeparatorHeight}
+          />
+        );
+      } else {
+        return null;
+      }
+    },
+    [showSample],
+  );
 
-  const { input, limit, answer, target } = gridColumns(sampleDescriptor);
+  const { input, limit, answer, target } = gridColumns(samplesDescriptor);
 
   const sampleCount = items?.reduce((prev, current) => {
     if (current.type === "sample") {
@@ -176,68 +192,72 @@ export const SampleList: FC<SampleListProps> = (props) => {
     <div className={styles.mainLayout}>
       {warningMessage ? (
         <MessageBand
+          id={"sample-warning-message"}
           message={warningMessage}
-          hidden={hidden}
-          setHidden={setHidden}
           type="info"
         />
       ) : undefined}
-
       <SampleHeader
         input={input !== "0"}
         target={target !== "0"}
         answer={answer !== "0"}
         limit={limit !== "0"}
-        gridColumnsTemplate={gridColumnsValue(sampleDescriptor)}
+        gridColumnsTemplate={gridColumnsTemplate}
       />
       <Virtuoso
         ref={listHandle}
         style={{ height: "100%" }}
         data={items}
         defaultItemHeight={50}
-        itemContent={(_index: number, data: ListItem) => {
-          return renderRow(data);
-        }}
+        itemContent={renderRow}
         followOutput={followOutput}
-        atBottomStateChange={(atBottom: boolean) => {
-          setFollowOutput(atBottom);
+        atBottomStateChange={handleAtBottomStateChange}
+        increaseViewportBy={{ top: 300, bottom: 300 }}
+        overscan={{
+          main: 10,
+          reverse: 10,
         }}
         className={clsx(className)}
         onKeyDown={onkeydown}
         skipAnimationFrameInResizeObserver={true}
+        isScrolling={isScrolling}
+        restoreStateFrom={getRestoreState()}
       />
-      <SampleFooter sampleCount={sampleCount} />
+      <SampleFooter sampleCount={sampleCount} running={running} />
     </div>
   );
-};
+});
 
-const gridColumnsValue = (sampleDescriptor: SamplesDescriptor) => {
+const gridColumnsValue = (sampleDescriptor?: SamplesDescriptor) => {
   const { input, target, answer, limit, id, score } =
     gridColumns(sampleDescriptor);
   return `${id} ${input} ${target} ${answer} ${limit} ${score}`;
 };
 
-const gridColumns = (sampleDescriptor: SamplesDescriptor) => {
+const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
   const input =
-    sampleDescriptor?.messageShape.normalized.input > 0
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
       : 0;
   const target =
-    sampleDescriptor?.messageShape.normalized.target > 0
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.target > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
       : 0;
   const answer =
-    sampleDescriptor?.messageShape.normalized.answer > 0
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.answer > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
       : 0;
   const limit =
-    sampleDescriptor?.messageShape.normalized.limit > 0
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.limit > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
-  const id = Math.max(2, Math.min(10, sampleDescriptor?.messageShape.raw.id));
+  const id = Math.max(
+    2,
+    Math.min(10, sampleDescriptor?.messageShape.raw.id || 0),
+  );
   const score = Math.max(
     3,
-    Math.min(10, sampleDescriptor?.messageShape.raw.score),
+    Math.min(10, sampleDescriptor?.messageShape.raw.score || 0),
   );
 
   const frSize = (val: number) => {

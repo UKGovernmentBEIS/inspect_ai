@@ -1,47 +1,40 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
-import { ScoreFilter, ScoreLabel } from "../types";
-import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
+import { SampleSummary } from "../api/types";
+import { useScore, useScores } from "../state/hooks";
+import { useStore } from "../state/store";
 import { EpochFilter } from "./sample-tools/EpochFilter";
 import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
 import { SelectScorer } from "./sample-tools/SelectScorer";
 import { SortFilter } from "./sample-tools/SortFilter";
 
 interface SampleToolsProps {
-  epoch: string;
-  setEpoch: (epoch: string) => void;
-  epochs: number;
-  scoreFilter: ScoreFilter;
-  setScoreFilter: (filter: ScoreFilter) => void;
-  sort: string;
-  setSort: (sort: string) => void;
-  score?: ScoreLabel;
-  setScore: (score: ScoreLabel) => void;
-  scores: ScoreLabel[];
-  sampleDescriptor: SamplesDescriptor;
+  samples: SampleSummary[];
 }
 
-export const SampleTools: FC<SampleToolsProps> = ({
-  epoch,
-  setEpoch,
-  epochs,
-  scoreFilter,
-  setScoreFilter,
-  sort,
-  setSort,
-  score,
-  setScore,
-  scores,
-  sampleDescriptor,
-}) => {
+export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
+  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+
+  const filter = useStore((state) => state.log.filter);
+  const setFilter = useStore((state) => state.logActions.setFilter);
+
+  const scores = useScores();
+  const score = useScore();
+  const setScore = useStore((state) => state.logActions.setScore);
+  const epoch = useStore((state) => state.log.epoch);
+  const setEpoch = useStore((state) => state.logActions.setEpoch);
+  const sort = useStore((state) => state.log.sort);
+  const setSort = useStore((state) => state.logActions.setSort);
+
+  const epochs = selectedLogSummary?.eval.config.epochs || 1;
   return (
     <Fragment>
       <SampleFilter
-        evalDescriptor={sampleDescriptor.evalDescriptor}
-        scoreFilter={scoreFilter}
-        setScoreFilter={setScoreFilter}
+        samples={samples}
+        scoreFilter={filter}
+        setScoreFilter={setFilter}
       />
-      {scores.length > 1 ? (
+      {scores?.length > 1 ? (
         <SelectScorer scores={scores} score={score} setScore={setScore} />
       ) : undefined}
       {epochs > 1 ? (

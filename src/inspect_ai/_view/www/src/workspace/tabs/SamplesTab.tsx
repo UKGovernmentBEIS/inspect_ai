@@ -1,135 +1,136 @@
 import {
   FC,
   Fragment,
-  RefObject,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
-import { SampleSummary } from "../../api/types.ts";
-import { EmptyPanel } from "../../components/EmptyPanel.tsx";
-import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay";
-import { SampleDialog } from "../../samples/SampleDialog";
-import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor.tsx";
-import { SampleList } from "../../samples/list/SampleList";
-import { SampleMode, ScoreFilter } from "../../types.ts";
-import { EvalSample } from "../../types/log";
+import { NoContentsPanel } from "../../components/NoContentsPanel.tsx";
+import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay.tsx";
+import { SampleDialog } from "../../samples/SampleDialog.tsx";
+import { SampleList } from "../../samples/list/SampleList.tsx";
+import {
+  useFilteredSamples,
+  useGroupBy,
+  useGroupByOrder,
+  useSampleDescriptor,
+  useScore,
+  useTotalSampleCount,
+} from "../../state/hooks.ts";
+import { useStore } from "../../state/store.ts";
+import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
 
 interface SamplesTabProps {
-  // Optional props
-  sample?: EvalSample;
-  samples?: SampleSummary[];
-  sampleDescriptor?: SamplesDescriptor;
-  sampleError?: Error;
-
   // Required props
-  sampleMode: SampleMode;
-  groupBy: "epoch" | "sample" | "none";
-  groupByOrder: "asc" | "desc";
-  sampleStatus: string;
-  selectedSampleIndex: number;
-  setSelectedSampleIndex: (index: number) => void;
-  showingSampleDialog: boolean;
-  setShowingSampleDialog: (showing: boolean) => void;
-  selectedSampleTab?: string;
-  setSelectedSampleTab: (tab: string) => void;
-  epoch: string;
-  filter: ScoreFilter;
-  sampleScrollPositionRef: RefObject<number>;
-  setSampleScrollPosition: (position: number) => void;
-  sampleTabScrollRef: RefObject<HTMLDivElement | null>;
+  running: boolean;
 }
 
-export const SamplesTab: FC<SamplesTabProps> = ({
-  sample,
-  samples,
-  sampleMode,
-  groupBy,
-  groupByOrder,
-  sampleDescriptor,
-  sampleStatus,
-  sampleError,
-  selectedSampleIndex,
-  setSelectedSampleIndex,
-  showingSampleDialog,
-  setShowingSampleDialog,
-  selectedSampleTab,
-  setSelectedSampleTab,
-  sampleScrollPositionRef,
-  setSampleScrollPosition,
-  sampleTabScrollRef,
-}) => {
+export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
+  const selectSample = useStore((state) => state.logActions.selectSample);
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
+
+  const sampleSummaries = useFilteredSamples();
+  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const totalSampleCount = useTotalSampleCount();
+
+  const samplesDescriptor = useSampleDescriptor();
+  const groupBy = useGroupBy();
+  const groupByOrder = useGroupByOrder();
+  const currentScore = useScore();
+
+  const selectedSample = useStore((state) => state.sample.selectedSample);
+
   const [items, setItems] = useState<ListItem[]>([]);
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
 
   const sampleListHandle = useRef<VirtuosoHandle | null>(null);
   const sampleDialogRef = useRef<HTMLDivElement>(null);
 
+  const selectedSampleTab = useStore((state) => state.app.tabs.sample);
+  const setSelectedSampleTab = useStore(
+    (state) => state.appActions.setSampleTab,
+  );
+  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
+  const setShowingSampleDialog = useStore(
+    (state) => state.appActions.setShowingSampleDialog,
+  );
+
   // Shows the sample dialog
   const showSample = useCallback(
     (index: number) => {
-      setSelectedSampleIndex(index);
+      selectSample(index);
       setShowingSampleDialog(true);
     },
-    [setSelectedSampleIndex, setShowingSampleDialog],
+    [selectSample, setShowingSampleDialog],
   );
 
+  // Keep the selected item scrolled into view
+  useEffect(() => {
+    setTimeout(() => {
+      if (sampleListHandle.current) {
+        sampleListHandle.current.scrollIntoView({ index: selectedSampleIndex });
+      }
+    }, 0);
+  }, [selectedSampleIndex]);
+
+  // Focus the dialog when it is shown
   useEffect(() => {
     if (showingSampleDialog) {
       setTimeout(() => {
         sampleDialogRef.current?.focus();
       }, 0);
-    } else {
-      setTimeout(() => {
-        if (sampleListHandle.current) {
-          sampleListHandle.current.scrollToIndex(0);
-        }
-      }, 0);
     }
   }, [showingSampleDialog]);
 
-  useEffect(() => {
-    const sampleProcessor = sampleDescriptor
-      ? getSampleProcessor(
-          samples || [],
-          groupBy,
-          groupByOrder,
-          sampleDescriptor,
-        )
-      : undefined;
+  const sampleProcessor = useMemo(() => {
+    if (!samplesDescriptor) return undefined;
 
-    // Process the samples into the proper data structure
-    const items = samples?.flatMap((sample, index) => {
+    return getSampleProcessor(
+      sampleSummaries || [],
+      selectedLogSummary?.eval?.config?.epochs || 1,
+      groupBy,
+      groupByOrder,
+      samplesDescriptor,
+      currentScore,
+    );
+  }, [
+    samplesDescriptor,
+    sampleSummaries,
+    selectedLogSummary?.eval?.config?.epochs,
+    groupBy,
+    groupByOrder,
+    currentScore,
+  ]);
+
+  useEffect(() => {
+    const resolvedSamples = sampleSummaries?.flatMap((sample, index) => {
       const results: ListItem[] = [];
-      const previousSample = index !== 0 ? samples[index - 1] : undefined;
+      const previousSample =
+        index !== 0 ? sampleSummaries[index - 1] : undefined;
       const items = sampleProcessor
         ? sampleProcessor(sample, index, previousSample)
         : [];
+
       results.push(...items);
       return results;
     });
 
-    setItems(items || []);
+    setItems(resolvedSamples || []);
     setSampleItems(
-      items
-        ? items.filter((item) => {
+      resolvedSamples
+        ? resolvedSamples.filter((item) => {
             return item.type === "sample";
           })
         : [],
     );
-  }, [samples, groupBy, groupByOrder, sampleDescriptor]);
-
-  const nextSampleIndex = useCallback(() => {
-    if (selectedSampleIndex < sampleItems.length - 1) {
-      return selectedSampleIndex + 1;
-    } else {
-      return -1;
-    }
-  }, [selectedSampleIndex, sampleItems.length]);
+  }, [sampleSummaries, sampleProcessor]);
 
   const previousSampleIndex = useCallback(() => {
     return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
@@ -137,68 +138,62 @@ export const SamplesTab: FC<SamplesTabProps> = ({
 
   // Manage the next / previous state the selected sample
   const nextSample = useCallback(() => {
-    const next = nextSampleIndex();
-    if (sampleStatus !== "loading" && next > -1) {
-      setSelectedSampleIndex(next);
+    const next = Math.min(selectedSampleIndex + 1, sampleItems.length - 1);
+    if (next > -1) {
+      selectSample(next);
     }
-  }, [nextSampleIndex, sampleStatus, setSelectedSampleIndex]);
+  }, [selectedSampleIndex, sampleItems, selectSample]);
 
   const previousSample = useCallback(() => {
     const prev = previousSampleIndex();
-    if (sampleStatus !== "loading" && prev > -1) {
-      setSelectedSampleIndex(prev);
+    if (prev > -1) {
+      selectSample(prev);
     }
-  }, [previousSampleIndex, sampleStatus, setSelectedSampleIndex]);
+  }, [previousSampleIndex, selectSample]);
 
   const title =
     selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
       ? sampleItems[selectedSampleIndex].label
       : "";
 
-  if (!sampleDescriptor) {
-    return <EmptyPanel />;
+  if (totalSampleCount === 0) {
+    if (running) {
+      return <RunningNoSamples />;
+    } else {
+      return <NoContentsPanel text="No samples" />;
+    }
   } else {
     return (
       <Fragment>
-        {sampleDescriptor && sampleMode === "single" ? (
+        {samplesDescriptor && totalSampleCount === 1 ? (
           <InlineSampleDisplay
             id="sample-display"
-            sample={sample}
-            sampleStatus={sampleStatus}
-            sampleError={sampleError}
-            sampleDescriptor={sampleDescriptor}
             selectedTab={selectedSampleTab}
             setSelectedTab={setSelectedSampleTab}
-            scrollRef={sampleTabScrollRef}
           />
         ) : undefined}
-        {sampleDescriptor && sampleMode === "many" ? (
+        {samplesDescriptor && totalSampleCount > 1 ? (
           <SampleList
             listHandle={sampleListHandle}
             items={items}
-            sampleDescriptor={sampleDescriptor}
-            selectedIndex={selectedSampleIndex}
+            running={running}
             nextSample={nextSample}
             prevSample={previousSample}
             showSample={showSample}
           />
         ) : undefined}
-        <SampleDialog
-          id={String(sample?.id || "")}
-          title={title}
-          sample={sample}
-          sampleStatus={sampleStatus}
-          sampleError={sampleError}
-          sampleDescriptor={sampleDescriptor}
-          showingSampleDialog={showingSampleDialog}
-          setShowingSampleDialog={setShowingSampleDialog}
-          selectedTab={selectedSampleTab}
-          setSelectedTab={setSelectedSampleTab}
-          nextSample={nextSample}
-          prevSample={previousSample}
-          sampleScrollPositionRef={sampleScrollPositionRef}
-          setSampleScrollPosition={setSampleScrollPosition}
-        />
+        {showingSampleDialog ? (
+          <SampleDialog
+            id={String(selectedSample?.id || "")}
+            title={title}
+            showingSampleDialog={showingSampleDialog}
+            setShowingSampleDialog={setShowingSampleDialog}
+            selectedTab={selectedSampleTab}
+            setSelectedTab={setSelectedSampleTab}
+            nextSample={nextSample}
+            prevSample={previousSample}
+          />
+        ) : undefined}
       </Fragment>
     );
   }

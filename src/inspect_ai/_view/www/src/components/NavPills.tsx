@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
-import { FC, ReactElement, ReactNode, useState } from "react";
+import { FC, MouseEvent, ReactElement, ReactNode, useCallback } from "react";
+import { useProperty } from "../state/hooks";
 import styles from "./NavPills.module.css";
 
 interface NavPillChildProps {
@@ -8,13 +9,16 @@ interface NavPillChildProps {
 }
 
 interface NavPillsProps {
+  id: string;
   children?: ReactElement<NavPillChildProps>[];
 }
 
-export const NavPills: FC<NavPillsProps> = ({ children }) => {
-  const [activeItem, setActiveItem] = useState(
-    children ? children[0].props["title"] : null,
-  );
+export const NavPills: FC<NavPillsProps> = ({ id, children }) => {
+  const defaultNav = children ? children[0].props["title"] : "";
+  const [activeItem, setActiveItem] = useProperty(id, "active", {
+    defaultValue: defaultNav,
+  });
+
   if (!activeItem || !children) {
     return undefined;
   }
@@ -77,6 +81,15 @@ const NavPill: FC<NavPillProps> = ({
   children,
 }) => {
   const active = activeItem === title;
+  const handleClick = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      const target = (e.currentTarget as HTMLButtonElement).dataset.target;
+      if (target) {
+        setActiveItem(target);
+      }
+    },
+    [setActiveItem],
+  );
 
   return (
     <li className={"nav-item"}>
@@ -90,9 +103,8 @@ const NavPill: FC<NavPillProps> = ({
           active ? "active " : "",
           styles.pill,
         )}
-        onClick={() => {
-          setActiveItem(title);
-        }}
+        data-target={title}
+        onClick={handleClick}
       >
         {title}
       </button>
