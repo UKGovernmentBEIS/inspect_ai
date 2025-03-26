@@ -8,6 +8,8 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import SampleLimitEvent
 from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.scorer import match
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._metrics import mean
@@ -77,6 +79,16 @@ def overwriting_solver(messages: int):
 
 
 @scorer(metrics=[mean()])
+def token_consuming_scorer(model: Model, min_tokens: int) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        while state.token_usage < min_tokens:
+            await model.generate("Hello")
+        return Score(value=1)
+
+    return score
+
+
+@scorer(metrics=[mean()])
 def slow_scorer(seconds: int | None = 10) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         if seconds is not None:
@@ -130,6 +142,28 @@ def test_token_limit():
     assert total_tokens > token_limit
     assert total_tokens < (token_limit * 3)
     check_limit_event(log, "token")
+
+
+def test_token_limit_does_not_apply_to_scorer():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput(usage=ModelUsage(total_tokens=20))],
+    )
+    token_limit = 10
+    task = Task(
+        dataset=[Sample(input="Say Hello only.", target="Hello")],
+        solver=[],  # No solvers; straight to scorer.
+        scorer=token_consuming_scorer(model=model, min_tokens=token_limit),
+        # The token limit should only apply to the solvers, not the scorer.
+        token_limit=token_limit,
+    )
+
+    log = eval(task, model=model)[0]
+    total_tokens = sum(usage.total_tokens for usage in log.stats.model_usage.values())
+    assert total_tokens > token_limit
+    # Total tokens exceed the limit, but there are no limit events because it was only
+    # exceeded by the scorer.
+    assert find_limit_event(log) is None
 
 
 def test_time_limit():
