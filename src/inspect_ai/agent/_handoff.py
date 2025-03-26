@@ -7,7 +7,7 @@ from inspect_ai._util.registry import (
     set_registry_info,
 )
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.tool._tool import Tool, ToolResult, tool
+from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_description import ToolDescription, set_tool_description
 
 from ._agent import Agent
@@ -62,7 +62,6 @@ def handoff(
     return agent_tool
 
 
-@tool
 class AgentTool(Tool):
     def __init__(
         self,
@@ -84,6 +83,6 @@ class AgentTool(Tool):
 
 def has_handoff(tools: list[Tool] | None) -> bool:
     if tools:
-        return any([type(tool).__name__ == "AgentTool" for tool in tools])
+        return any([isinstance(tool, AgentTool) for tool in tools])
     else:
         return False

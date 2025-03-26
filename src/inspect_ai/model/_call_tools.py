@@ -353,9 +353,9 @@ async def call_tool(
         logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
     ):
         # agent tools get special handling
-        if type(tool_def.tool).__name__ == "AgentTool":
+        if isinstance(tool_def.tool, AgentTool):
             # alias agent tool and get agent name
-            agent_tool = cast(AgentTool, tool_def.tool)
+            agent_tool = tool_def.tool
             agent_name = registry_unqualified_name(agent_tool.agent)
 
             # ammend the conversation with a ChatMessageTool to indicate
