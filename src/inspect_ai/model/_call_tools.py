@@ -381,7 +381,7 @@ async def call_tool(
                 )
             )
 
-            # filter the messages if requested
+            # run input filter if we have one
             if agent_tool.input_filter is not None:
                 agent_conversation = await agent_tool.input_filter(agent_conversation)
 
@@ -407,6 +407,10 @@ async def call_tool(
                         m = prepend_agent_name(m, agent_name)
                     if not isinstance(m, ChatMessageSystem):
                         agent_messages.append(m)
+
+            # run output filter if we have one
+            if agent_tool.output_filter is not None:
+                agent_messages = await agent_tool.output_filter(agent_messages)
 
             # if we end with an assistant message then add a user message
             # so that the calling agent carries on

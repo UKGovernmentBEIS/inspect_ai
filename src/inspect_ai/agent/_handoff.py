@@ -19,7 +19,8 @@ HandoffFilter: TypeAlias = Callable[[list[ChatMessage]], Awaitable[list[ChatMess
 def handoff(
     agent: Agent,
     description: str | None = None,
-    input_filter: HandoffFilter | None = None,
+    input_filter: HandoffFilter | list[HandoffFilter] | None = None,
+    output_filter: HandoffFilter | list[HandoffFilter] | None = None,
     tool_name: str | None = None,
     **agent_kwargs: Any,
 ) -> Tool:
@@ -28,7 +29,8 @@ def handoff(
     Args:
         agent: Agent to hand off to.
         description: Handoff tool description (defaults to agent description)
-        input_filter: Optional callable to modify the message history before calling the tool.
+        input_filter: Filter(s) to modify the message history before calling the tool.
+        output_filter: Filter(s) to modify the message history after calling the tool.
         tool_name: Alternate tool name (defaults to `transfer_to_{agent_name}`)
         **agent_kwargs: Arguments to curry to Agent function (arguments provided here will not be presented to the model as part of the tool interface).
 
@@ -47,7 +49,7 @@ def handoff(
     tool_info = agent_tool_info(agent, description, **agent_kwargs)
 
     # AgentTool calls will be intercepted by execute_tools
-    agent_tool = AgentTool(agent, input_filter, **agent_kwargs)
+    agent_tool = AgentTool(agent, input_filter, output_filter, **agent_kwargs)
     tool_name = tool_name or f"transfer_to_{tool_info.name}"
     set_registry_info(agent_tool, RegistryInfo(type="tool", name=tool_name))
     set_tool_description(
@@ -65,11 +67,13 @@ class AgentTool(Tool):
     def __init__(
         self,
         agent: Agent,
-        input_filter: HandoffFilter | None = None,
+        input_filter: HandoffFilter | list[HandoffFilter] | None = None,
+        output_filter: HandoffFilter | list[HandoffFilter] | None = None,
         **kwargs: Any,
     ):
         self.agent = agent
-        self.input_filter = input_filter
+        self.input_filter = resolve_filter(input_filter)
+        self.output_filter = resolve_filter(output_filter)
         self.kwargs = kwargs
 
     @property
@@ -85,3 +89,18 @@ def has_handoff(tools: list[Tool] | None) -> bool:
         return any([isinstance(tool, AgentTool) for tool in tools])
     else:
         return False
+
+
+def resolve_filter(
+    filter: HandoffFilter | list[HandoffFilter] | None,
+) -> HandoffFilter | None:
+    if filter is None or not isinstance(filter, list):
+        return filter
+    else:
+
+        async def filter_chain(messages: list[ChatMessage]) -> list[ChatMessage]:
+            for f in filter:
+                messages = await f(messages)
+            return messages
+
+        return filter_chain

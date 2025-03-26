@@ -25,7 +25,7 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
     Args:
        agent: Agent to convert.
        **agent_kwargs: Arguments to curry to Agent function (required
-         if the agent has parameters without default values).
+          if the agent has parameters without default values).
 
     Solver:
        Solver from agent.
