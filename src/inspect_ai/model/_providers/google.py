@@ -177,15 +177,10 @@ class GoogleGenAIAPI(ModelAPI):
                 self.api_key = os.environ.get(GOOGLE_API_KEY, None)
 
             # custom base_url
-            base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
+            self.base_url = model_base_url(self.base_url, "GOOGLE_BASE_URL")
 
-        # create client
-        self.client = Client(
-            vertexai=self.is_vertex(),
-            api_key=self.api_key,
-            http_options={"base_url": base_url},
-            **model_args,
-        )
+        # save model args
+        self.model_args = model_args
 
     @override
     async def close(self) -> None:
@@ -202,11 +197,19 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # create client
+        client = Client(
+            vertexai=self.is_vertex(),
+            api_key=self.api_key,
+            http_options={"base_url": self.base_url},
+            **self.model_args,
+        )
+
         # generate request_id
         request_id = urllib3_hooks().start_request()
 
         # Create google-genai types.
-        gemini_contents = await as_chat_messages(self.client, input)
+        gemini_contents = await as_chat_messages(client, input)
         gemini_tools = chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
         parameters = GenerateContentConfig(
@@ -222,9 +225,7 @@ class GoogleGenAIAPI(ModelAPI):
             safety_settings=safety_settings_to_list(self.safety_settings),
             tools=gemini_tools,
             tool_config=gemini_tool_config,
-            system_instruction=await extract_system_message_as_parts(
-                self.client, input
-            ),
+            system_instruction=await extract_system_message_as_parts(client, input),
         )
         if config.response_schema is not None:
             parameters.response_mime_type = "application/json"
@@ -246,7 +247,7 @@ class GoogleGenAIAPI(ModelAPI):
             )
 
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await client.aio.models.generate_content(
                 model=self.model_name,
                 contents=gemini_contents,
                 config=parameters,
