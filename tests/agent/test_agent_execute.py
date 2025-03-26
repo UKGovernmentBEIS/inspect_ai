@@ -6,6 +6,7 @@ from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
 from inspect_ai.agent import Agent, AgentState, agent, as_tool
 from inspect_ai.agent._handoff import handoff
+from inspect_ai.agent._run import run
 from inspect_ai.solver._as_solver import as_solver
 from inspect_ai.solver._solver import Solver
 from inspect_ai.tool import ToolDef
@@ -190,3 +191,9 @@ def test_agent_as_solver_no_param():
     with pytest.raises(ValueError, match="as a solver"):
         agent_solver = as_solver(web_surfer_no_default())
         eval(Task(solver=agent_solver))[0]
+
+
+@pytest.mark.anyio
+async def test_agent_run():
+    state = await run(web_surfer(), "This is the input", max_searches=22)
+    assert state.output.completion == "22"

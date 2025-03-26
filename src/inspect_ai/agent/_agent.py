@@ -27,7 +27,9 @@ from inspect_ai.model._model_output import ModelOutput
 class AgentState:
     """Agent state."""
 
-    def __init__(self, *, messages: list[ChatMessage], output: ModelOutput) -> None:
+    def __init__(
+        self, *, messages: list[ChatMessage], output: ModelOutput = ModelOutput()
+    ) -> None:
         self._messages = copy(messages)
         self._output = output
 

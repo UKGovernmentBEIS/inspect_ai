@@ -24,6 +24,7 @@ __all__ = [
     "handoff",
     "HandoffFilter",
     "as_tool",
+    "run",
     "react",
     "human",
     "bridge",

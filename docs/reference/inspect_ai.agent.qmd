@@ -8,11 +8,11 @@ title: "inspect_ai.agent"
 ### bridge
 ### human
 
-## Handoffs
+## Execution
 
 ### handoff
-### HandoffFilter
 ### as_tool
+### run
 
 ## Protocol
 
@@ -27,4 +27,5 @@ title: "inspect_ai.agent"
 ### AgentContinue
 ### AgentGenerate
 ### AgentSubmit
+### HandoffFilter
 
