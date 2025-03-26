@@ -321,6 +321,7 @@ class TaskState:
     @token_limit.setter
     def token_limit(self, tokens: int | None) -> None:
         """Set limit on total tokens allowed per conversation."""
+        # TODO: Point user to docs / new way of doing this?
         raise RuntimeError("Setting the token limit on a TaskState is not supported")
 
     @property

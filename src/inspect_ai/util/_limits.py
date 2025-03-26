@@ -6,7 +6,7 @@
 # Is the model_usage_context_var only used for log files, or can it be used to enforce
 # limits?
 
-
+# TODO: Should this module be part of `inspect_ai.solver.limit`?
 from __future__ import annotations
 
 import asyncio
@@ -28,13 +28,8 @@ from inspect_ai.solver._limit import SampleLimitExceededError
 token_limit_stack_ctx_var: ContextVar[_TokenLimitStack] = ContextVar("limit_ctx_var")
 
 
-def main() -> None:
-    result = asyncio.run(task_run())
-    print(f"Completed task with results: {result}")
-
-
 class TokenLimit:
-    """Limits the total number of tokens (input + output) which can be used.
+    """Limits the total number of tokens which can be used.
 
     The counter starts when the context manager is opened and ends when it is closed.
     The context manager can be opened multiple times, even in different async contexts.
@@ -54,11 +49,11 @@ class TokenLimit:
     def __init__(self, budget: int) -> None:
         if budget < 0:
             raise ValueError("Token limit budget must be a non-negative integer.")
-        self.budget = budget
+        self._budget = budget
 
     def __enter__(self) -> None:
         current_usage = sample_total_tokens()
-        limit = _TokenLimitItem(current_usage, self.budget)
+        limit = _TokenLimitItem(current_usage, self._budget)
         # Note that we don't store stack as in instance variable, because the context
         # manager may be used across multiple async tasks.
         stack = _TokenLimitStack.get_or_create()
@@ -101,17 +96,17 @@ class _TokenLimitStack:
     """A stack of token limit items."""
 
     def __init__(self) -> None:
-        self.stack: deque[_TokenLimitItem] = deque()
+        self._stack: deque[_TokenLimitItem] = deque()
 
     def push(self, limit: _TokenLimitItem) -> None:
-        self.stack.append(limit)
+        self._stack.append(limit)
 
     def pop(self) -> None:
-        self.stack.pop()
+        self._stack.pop()
 
     def check(self, usage: int) -> None:
         """Check if the current token usage exceeds any of the token limits."""
-        for limit in self.stack:
+        for limit in self._stack:
             limit.check(usage)
 
     @classmethod
@@ -135,8 +130,8 @@ class _TokenLimitItem:
           budget: The maximum number of tokens that can be used while the context
             manager is open.
         """
-        self.initial_usage = initial_usage
-        self.budget = budget
+        self._initial_usage = initial_usage
+        self._budget = budget
 
     def check(self, usage: int) -> None:
         """Check if the current token usage exceeds the token limit.
@@ -146,11 +141,16 @@ class _TokenLimitItem:
             this value to get the number of tokens used while the context manager was
             open.
         """
-        if usage - self.initial_usage > self.budget:
-            raise SampleLimitExceededError("token", value=usage, limit=self.budget)
+        if usage - self._initial_usage > self._budget:
+            raise SampleLimitExceededError("token", value=usage, limit=self._budget)
 
 
 # Mocks of Inspect functions to facilitate development and experimentation.
+
+
+def main() -> None:
+    result = asyncio.run(task_run())
+    print(f"Completed task with results: {result}")
 
 
 async def task_run() -> str:

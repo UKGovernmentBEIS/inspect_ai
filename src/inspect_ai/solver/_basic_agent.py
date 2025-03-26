@@ -169,7 +169,8 @@ def basic_agent(
 
             try:
                 # TODO: We're no longer setting TaskState.token_limit. Is that a problem?
-                # TODO: If tokens have already been used, we're disregarding them now.
+                # TODO: If tokens have already been used (e.g. in a previous solver),
+                # we're disregarding them now.
                 with TokenLimit.create(token_limit):
                     # main loop (state.completed checks message_limit and token_limit)
                     while not state.completed:

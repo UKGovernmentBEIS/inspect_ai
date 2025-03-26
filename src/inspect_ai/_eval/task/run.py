@@ -701,7 +701,9 @@ async def task_run_sample(
 
                 # turn off message and token limits
                 state.message_limit = None
-                # TODO:
+                # TODO: We've removed the setter from TaskState.token_limit.
+                # The limit checking is now scoped with a context manager, so presumably
+                # this is redundant?
                 # state.token_limit = None
                 set_sample_state(state)
 

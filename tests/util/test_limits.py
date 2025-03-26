@@ -8,7 +8,7 @@ from inspect_ai.util._limits import TokenLimit, check_token_limit
 
 @pytest.fixture
 def model_usage() -> ModelUsage:
-    # Initialize the model usage context variable and create an empty fictitious "model"
+    # Initialize the model usage context var and create an empty fictitious "model"
     # usage object.
     usage_dict = sample_model_usage()
     model_usage = ModelUsage()
@@ -16,14 +16,14 @@ def model_usage() -> ModelUsage:
     return model_usage
 
 
-def test_validates_budget() -> None:
+def test_validates_budget_parameter() -> None:
     with pytest.raises(ValueError):
         TokenLimit(-1)
 
 
 def test_can_create_with_none_budget() -> None:
     with TokenLimit.create(None):
-        pass
+        check_token_limit()
 
 
 def test_raises_error_when_limit_exceeded(model_usage: ModelUsage) -> None:
@@ -41,10 +41,10 @@ def test_raises_error_when_limit_exceeded_incrementally(
     model_usage: ModelUsage,
 ) -> None:
     with TokenLimit(10):
-        model_usage.total_tokens += 8
+        model_usage.total_tokens += 5
         check_token_limit()
         with pytest.raises(SampleLimitExceededError):
-            model_usage.total_tokens += 8
+            model_usage.total_tokens += 6
             check_token_limit()
 
 
@@ -57,15 +57,15 @@ def test_does_not_raise_error_when_limit_not_exceeded(model_usage: ModelUsage) -
 
 
 def test_stack_can_trigger_outer_limit(model_usage: ModelUsage) -> None:
-    model_usage.total_tokens = 8
+    model_usage.total_tokens = 5
 
     with TokenLimit(10):
-        model_usage.total_tokens += 8
+        model_usage.total_tokens += 6
         check_token_limit()
 
         with TokenLimit(11):
-            model_usage.total_tokens += 8
-            # Should trigger outer limit.
+            model_usage.total_tokens += 5
+            # Should trigger outer limit (10).
             with pytest.raises(SampleLimitExceededError) as exc_info:
                 check_token_limit()
 
@@ -73,7 +73,7 @@ def test_stack_can_trigger_outer_limit(model_usage: ModelUsage) -> None:
 
 
 def test_stack_can_trigger_inner_limit(model_usage: ModelUsage) -> None:
-    model_usage.total_tokens = 8
+    model_usage.total_tokens = 5
 
     with TokenLimit(10):
         model_usage.total_tokens += 1
@@ -81,7 +81,7 @@ def test_stack_can_trigger_inner_limit(model_usage: ModelUsage) -> None:
 
         with TokenLimit(5):
             model_usage.total_tokens += 6
-            # Should trigger inner limit.
+            # Should trigger inner limit (5).
             with pytest.raises(SampleLimitExceededError) as exc_info:
                 check_token_limit()
 
