@@ -1,4 +1,5 @@
-from ._as_solver import as_solver
+from inspect_ai.agent._as_solver import as_solver
+
 from ._solver import Solver, solver
 
 

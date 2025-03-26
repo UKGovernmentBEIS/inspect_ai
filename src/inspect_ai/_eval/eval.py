@@ -6,7 +6,7 @@ from typing import Any, Literal, cast
 
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
-from inspect_ai.solver._as_solver import as_solver
+from inspect_ai.agent._as_solver import as_solver
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup

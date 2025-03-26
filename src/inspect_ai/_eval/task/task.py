@@ -10,6 +10,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import is_registry_object, registry_info
 from inspect_ai.agent._agent import Agent, is_agent
+from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_config
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
@@ -18,7 +19,6 @@ from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer import Metric, Scorer
 from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
-from inspect_ai.solver._as_solver import as_solver
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._sandbox.environment import (

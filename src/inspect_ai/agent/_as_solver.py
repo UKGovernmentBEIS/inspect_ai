@@ -1,14 +1,18 @@
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from inspect_ai.solver._solver import Solver
 
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_unqualified_name,
 )
-from inspect_ai.agent._agent import Agent
-from inspect_ai.agent._execute import agent_execute
-from inspect_ai.solver._solver import Generate, Solver, solver
-from inspect_ai.solver._task_state import TaskState
 from inspect_ai.tool._tool_info import parse_tool_info
+
+from ._agent import Agent
+from ._execute import agent_execute
 
 
 def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
@@ -26,6 +30,9 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
     Solver:
        Solver from agent.
     """
+    from inspect_ai.solver._solver import Generate, solver
+    from inspect_ai.solver._task_state import TaskState
+
     # agent must be registered (so we can get its name)
     if not is_registry_object(agent):
         raise RuntimeError(

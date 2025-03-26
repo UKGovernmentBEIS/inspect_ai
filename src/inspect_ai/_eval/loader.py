@@ -27,9 +27,9 @@ from inspect_ai._util.registry import (
     registry_params,
 )
 from inspect_ai.agent._agent import Agent
+from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model import Model
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
-from inspect_ai.solver._as_solver import as_solver
 from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType

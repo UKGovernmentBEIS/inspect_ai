@@ -3,8 +3,8 @@ from typing import Sequence, cast, overload
 from typing_extensions import override
 
 from inspect_ai.agent._agent import Agent, is_agent
+from inspect_ai.agent._as_solver import as_solver
 
-from ._as_solver import as_solver
 from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
 

@@ -4,10 +4,9 @@ import pytest
 
 from inspect_ai import eval
 from inspect_ai._eval.task.task import Task
-from inspect_ai.agent import Agent, AgentState, agent, as_tool
+from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._run import run
-from inspect_ai.solver._as_solver import as_solver
 from inspect_ai.solver._solver import Solver
 from inspect_ai.tool import ToolDef
 from inspect_ai.tool._tool import Tool
