@@ -115,16 +115,6 @@ async def eval_run(
         eval_solver = None
         eval_solver_spec = None
 
-    # resolve the task scorers
-    eval_scorer_specs = (
-        [as_scorer_spec(scorer) for scorer in task.scorer]
-        if task.scorer is not None
-        else None
-    )
-
-    # resolve task metrics
-    eval_metrics = to_metric_specs(task.metrics) if task.metrics is not None else None
-
     try:
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
@@ -136,6 +126,18 @@ async def eval_run(
                 # value specified from eval() or the CLI)
                 task = resolved_task.task
                 task_eval_config = eval_config.model_copy()
+
+                # resolve the task scorers
+                eval_scorer_specs = (
+                    [as_scorer_spec(scorer) for scorer in task.scorer]
+                    if task.scorer is not None
+                    else None
+                )
+
+                # resolve task metrics
+                eval_metrics = (
+                    to_metric_specs(task.metrics) if task.metrics is not None else None
+                )
 
                 # epochs
                 if task_eval_config.epochs is None:
