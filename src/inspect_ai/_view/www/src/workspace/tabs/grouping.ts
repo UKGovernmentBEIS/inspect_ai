@@ -1,12 +1,16 @@
 import { SampleSummary } from "../../api/types";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor";
+import { ScoreLabel } from "../../types";
+import { Epochs } from "../../types/log";
 import { ListItem, SampleListItem, SeparatorListItem } from "./types";
 
 export const getSampleProcessor = (
   samples: SampleSummary[],
+  epochs: Epochs,
   groupBy: "sample" | "epoch" | "none",
   groupByOrder: "asc" | "desc",
   sampleDescriptor: SamplesDescriptor,
+  score?: ScoreLabel,
 ): ((
   sample: SampleSummary,
   index: number,
@@ -14,11 +18,17 @@ export const getSampleProcessor = (
 ) => ListItem[]) => {
   // Perform grouping if there are epochs
   if (groupBy == "epoch") {
-    return groupByEpoch(samples, sampleDescriptor, groupByOrder);
+    return groupByEpoch(samples, epochs, sampleDescriptor, groupByOrder, score);
   } else if (groupBy === "sample") {
-    return groupBySample(samples, sampleDescriptor, groupByOrder);
+    return groupBySample(
+      samples,
+      epochs,
+      sampleDescriptor,
+      groupByOrder,
+      score,
+    );
   } else {
-    return noGrouping(samples, groupByOrder);
+    return noGrouping(samples, groupByOrder, sampleDescriptor, score);
   }
 };
 
@@ -28,6 +38,8 @@ export const getSampleProcessor = (
 const noGrouping = (
   samples: SampleSummary[],
   order: "asc" | "desc",
+  sampleDescriptor: SamplesDescriptor,
+  score?: ScoreLabel,
 ): ((sample: SampleSummary, index: number) => ListItem[]) => {
   const counter = getCounter(samples.length, 1, order);
   return (sample: SampleSummary, index: number) => {
@@ -40,6 +52,12 @@ const noGrouping = (
         index: index,
         data: sample,
         type: "sample",
+        answer:
+          sampleDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+        scoreRendered: sampleDescriptor.evalDescriptor
+          .score(sample, score)
+          ?.render(),
+        completed: sample.completed !== undefined ? sample.completed : true,
       },
     ];
   };
@@ -50,8 +68,10 @@ const noGrouping = (
  */
 const groupBySample = (
   samples: SampleSummary[],
+  epochs: Epochs,
   sampleDescriptor: SamplesDescriptor,
   order: "asc" | "desc",
+  score?: ScoreLabel,
 ): ((
   sample: SampleSummary,
   index: number,
@@ -73,7 +93,7 @@ const groupBySample = (
       }
     }
   });
-  const groupCount = samples.length / sampleDescriptor.evalDescriptor.epochs;
+  const groupCount = samples.length / (epochs || 1);
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order);
   return (
@@ -103,6 +123,11 @@ const groupBySample = (
       index: index,
       data: sample,
       type: "sample",
+      answer: sampleDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+      scoreRendered: sampleDescriptor.evalDescriptor
+        .score(sample, score)
+        ?.render(),
+      completed: sample.completed !== undefined ? sample.completed : true,
     } as SampleListItem);
 
     return results;
@@ -114,14 +139,16 @@ const groupBySample = (
  */
 const groupByEpoch = (
   samples: SampleSummary[],
+  epochs: Epochs,
   sampleDescriptor: SamplesDescriptor,
   order: "asc" | "desc",
+  score?: ScoreLabel,
 ): ((
   sample: SampleSummary,
   index: number,
   previousSample?: SampleSummary,
 ) => ListItem[]) => {
-  const groupCount = sampleDescriptor.evalDescriptor.epochs;
+  const groupCount = epochs || 1;
   const itemCount = samples.length / groupCount;
   const counter = getCounter(itemCount, groupCount, order);
 
@@ -153,6 +180,11 @@ const groupByEpoch = (
       index: index,
       data: sample,
       type: "sample",
+      answer: sampleDescriptor.selectedScorerDescriptor(sample)?.answer() || "",
+      scoreRendered: sampleDescriptor.evalDescriptor
+        .score(sample, score)
+        ?.render(),
+      completed: sample.completed !== undefined ? sample.completed : true,
     } as SampleListItem);
 
     return results;
