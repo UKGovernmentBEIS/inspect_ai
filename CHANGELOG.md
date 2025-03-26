@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Inspect View: Live updates to running evaluation logs.
+- Google: Compatibility with v1.7 of google-genai package (create client per-generate request)
 
 ## v0.3.78 (25 March 2025)
 
