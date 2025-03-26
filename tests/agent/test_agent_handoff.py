@@ -1,3 +1,5 @@
+from typing import Literal
+
 from test_helpers.tool_call_utils import find_tool_call
 from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_openai
@@ -224,8 +226,9 @@ def tool_checker() -> Agent:
     return execute
 
 
-@skip_if_no_openai
-def test_agent_handoff_input_filter():
+def check_agent_handoff_input_filter(
+    input_filter: Literal["remove_tools"] | None, tool_count: int
+):
     log = eval(
         Task(
             dataset=[
@@ -234,8 +237,32 @@ def test_agent_handoff_input_filter():
                 )
             ]
         ),
-        solver=[use_tools(addition(), handoff(tool_checker())), generate()],
+        solver=[
+            use_tools(addition(), handoff(tool_checker(), input_filter=input_filter)),
+            generate(),
+        ],
         model="openai/gpt-4o-mini",
         log_format="json",
     )[0]
     assert log.samples
+    assert (
+        next(
+            (
+                message
+                for message in log.samples[0].messages
+                if message.text == f"[tool_checker] {tool_count}"
+            ),
+            None,
+        )
+        is not None
+    )
+
+
+@skip_if_no_openai
+def test_agent_handoff_no_input_filter():
+    check_agent_handoff_input_filter(None, 3)
+
+
+@skip_if_no_openai
+def test_agent_handoff_remove_tools_input_filter():
+    check_agent_handoff_input_filter("remove_tools", 0)

@@ -113,7 +113,7 @@ async def remove_tools(messages: list[ChatMessage]) -> list[ChatMessage]:
             message = message.model_copy(update=dict(tool_calls=None))
         filtered.append(message)
 
-    return messages
+    return filtered
 
 
 async def last_message(messages: list[ChatMessage]) -> list[ChatMessage]:
