@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from inspect_ai.model._model import sample_model_usage
@@ -8,12 +10,7 @@ from inspect_ai.util._limits import TokenLimit, check_token_limit
 
 @pytest.fixture
 def model_usage() -> ModelUsage:
-    # Initialize the model usage context var and create an empty fictitious "model"
-    # usage object.
-    usage_dict = sample_model_usage()
-    model_usage = ModelUsage()
-    usage_dict["model"] = model_usage
-    return model_usage
+    return _init_model_usage()
 
 
 def test_validates_budget_parameter() -> None:
@@ -97,4 +94,78 @@ def test_out_of_scope_limits_are_not_checked(model_usage: ModelUsage) -> None:
     check_token_limit()
 
 
-# TODO: Test across different async contexts.
+def test_can_reuse_context_manager(model_usage: ModelUsage) -> None:
+    limit = TokenLimit(10)
+
+    with limit:
+        model_usage.total_tokens += 10
+        check_token_limit()
+
+    with limit:
+        model_usage.total_tokens += 10
+        check_token_limit()
+
+    with limit:
+        model_usage.total_tokens += 11
+        with pytest.raises(SampleLimitExceededError):
+            check_token_limit()
+
+    with limit:
+        model_usage.total_tokens += 10
+        check_token_limit()
+
+
+def test_can_open_same_context_manager_multiple_times(model_usage: ModelUsage) -> None:
+    limit = TokenLimit(10)
+
+    with limit:
+        model_usage.total_tokens += 10
+        check_token_limit()
+
+        with limit:
+            model_usage.total_tokens += 10
+            with pytest.raises(SampleLimitExceededError) as exc_info:
+                check_token_limit()
+
+    assert exc_info.value.value == 20
+
+
+async def test_across_async_contexts():
+    async def async_task():
+        model_usage = _init_model_usage()
+        model_usage.total_tokens = 5
+
+        with TokenLimit(10):
+            for _ in range(10):
+                model_usage.total_tokens += 1
+                check_token_limit()
+                # Yield to the event loop to allow other tasks to run.
+                await asyncio.sleep(0)
+
+    await asyncio.gather(*(async_task() for _ in range(3)))
+
+
+async def test_same_context_manager_across_async_contexts():
+    async def async_task(limit: TokenLimit):
+        model_usage = _init_model_usage()
+        model_usage.total_tokens = 5
+
+        with limit:
+            for _ in range(10):
+                model_usage.total_tokens += 1
+                check_token_limit()
+                # Yield to the event loop to allow other tasks to run.
+                await asyncio.sleep(0)
+
+    # The same TokenLimit instance is reused across different async contexts.
+    reused_context_manager = TokenLimit(10)
+    await asyncio.gather(*(async_task(reused_context_manager) for _ in range(3)))
+
+
+def _init_model_usage() -> ModelUsage:
+    # Initialize the model usage context var and create an empty fictitious "model"
+    # usage object.
+    usage_dict = sample_model_usage()
+    model_usage = ModelUsage()
+    usage_dict["model"] = model_usage
+    return model_usage
