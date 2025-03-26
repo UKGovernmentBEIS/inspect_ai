@@ -165,8 +165,8 @@ export const sortSamples = (
         }
 
         return samplesDescriptor.selectedScoreDescriptor.compare(
-          aScore,
           bScore,
+          aScore,
         );
       }
       default:

@@ -11,6 +11,7 @@ title: "inspect_ai.tool"
 ### web_browser
 ### computer
 ### web_search
+### think
 
 ## Dynamic 
 

@@ -51,7 +51,6 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import (
@@ -60,6 +59,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
+from .._openai import openai_media_filter
 from .util import (
     environment_prerequisite_error,
     model_base_url,
@@ -182,7 +182,7 @@ class AzureAIAPI(ModelAPI):
                     else None,
                 ),
                 response=response.as_dict() if response else {},
-                filter=image_url_filter,
+                filter=openai_media_filter,
             )
 
         # make call

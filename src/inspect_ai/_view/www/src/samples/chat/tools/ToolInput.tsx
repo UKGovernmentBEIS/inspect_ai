@@ -64,7 +64,7 @@ export const ToolInput: FC<ToolInputProps> = memo((props) => {
         className={clsx(
           "source-code",
           "sourceCode",
-          `language-${highlightLanguage}`,
+          highlightLanguage ? `language-${highlightLanguage}` : undefined,
           styles.outputCode,
         )}
       >

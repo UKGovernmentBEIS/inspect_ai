@@ -82,6 +82,14 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            self.service: str | None = parts[0]
+            model_name = "/".join(parts[1:])
+        else:
+            self.service = None
+
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -94,30 +102,38 @@ class MistralAPI(ModelAPI):
             config=config,
         )
 
-        # resolve api_key -- look for mistral then azure
+        # resolve api_key
         if not self.api_key:
-            self.api_key = os.environ.get(MISTRAL_API_KEY, None)
-            if self.api_key:
-                base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
-            else:
+            if self.is_azure():
                 self.api_key = os.environ.get(
                     AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
                 )
-                if not self.api_key:
-                    raise environment_prerequisite_error(
-                        "Mistral", [MISTRAL_API_KEY, AZUREAI_MISTRAL_API_KEY]
-                    )
-                base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
-                if not base_url:
+            else:
+                self.api_key = os.environ.get(MISTRAL_API_KEY, None)
+
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "Mistral", [MISTRAL_API_KEY, AZUREAI_MISTRAL_API_KEY]
+                )
+
+        if not self.base_url:
+            if self.is_azure():
+                self.base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
+                if not self.base_url:
                     raise ValueError(
                         "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
                         + " environment variable or the --model-base-url CLI flag to set the base URL."
                     )
+            else:
+                self.base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
 
-        if base_url:
-            model_args["server_url"] = base_url
+        if self.base_url:
+            model_args["server_url"] = self.base_url
 
         self.model_args = model_args
+
+    def is_azure(self) -> bool:
+        return self.service == "azure"
 
     @override
     async def close(self) -> None:

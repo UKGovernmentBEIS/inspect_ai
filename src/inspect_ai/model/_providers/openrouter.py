@@ -1,9 +1,11 @@
+import json
 import os
-from typing import Any
+from typing import Any, TypedDict
 
-from typing_extensions import override
+from typing_extensions import NotRequired, override
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.model._openai import OpenAIResponseError
 from inspect_ai.model._providers.util import model_base_url
 from inspect_ai.model._providers.util.util import environment_prerequisite_error
 
@@ -11,6 +13,28 @@ from .._generate_config import GenerateConfig
 from .openai import OpenAIAPI
 
 OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
+
+
+class ErrorResponse(TypedDict):
+    code: int
+    message: str
+    metadata: NotRequired[dict[str, Any]]
+
+
+class OpenRouterError(Exception):
+    def __init__(self, response: ErrorResponse) -> None:
+        self.response = response
+
+    @property
+    def message(self) -> str:
+        return f"Error {self.response['code']} - {self.response['message']}"
+
+    def __str__(self) -> str:
+        return (
+            self.message + ("\n" + json.dumps(self.response["metadata"], indent=2))
+            if "metadata" in self.response
+            else ""
+        )
 
 
 class OpenRouterAPI(OpenAIAPI):
@@ -66,6 +90,32 @@ class OpenRouterAPI(OpenAIAPI):
             config=config,
             **model_args,
         )
+
+    @override
+    def on_response(self, response: dict[str, Any]) -> None:
+        """Handle documented OpenRouter error conditions.
+
+        https://openrouter.ai/docs/api-reference/errors
+        """
+        # check if open-router yielded an error (raise explicit
+        # OpenAIResponseError for cases where we should retry)
+        error: ErrorResponse | None = response.get("error", None)
+        if error is not None:
+            if error["code"] == 429:
+                raise OpenAIResponseError("rate_limit_exceeded", error["message"])
+            elif error["code"] in [408, 502]:
+                raise OpenAIResponseError("server_error", error["message"])
+            else:
+                raise OpenRouterError(error)
+
+        # check for an empty response (which they document can occur on
+        # startup). for this we'll return a "server_error" which will
+        # trigger a retry w/ exponential backoff
+        elif response.get("choices", None) is None:
+            raise OpenAIResponseError(
+                "server_error",
+                "Model is warming up, please retry again after waiting for warmup.",
+            )
 
     @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:

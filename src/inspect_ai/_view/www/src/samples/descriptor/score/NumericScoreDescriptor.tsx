@@ -13,8 +13,8 @@ export const numericScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
     min: Math.min(...onlyNumeric),
     max: Math.max(...onlyNumeric),
     compare: (a, b) => {
-      if (typeof a === "number" && typeof b === "number") {
-        return a - b;
+      if (typeof a.value === "number" && typeof b.value === "number") {
+        return a.value - b.value;
       } else {
         console.warn("Comparing non-numerics using a numeric score descriptor");
         return 0;

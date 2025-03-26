@@ -68,6 +68,7 @@ def eval(
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
@@ -116,6 +117,7 @@ def eval(
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
+        metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
@@ -186,6 +188,7 @@ def eval(
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
                 tags=tags,
+                metadata=metadata,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -235,6 +238,7 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     solver: Solver | list[Solver] | SolverSpec | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -274,7 +278,8 @@ async def eval_async(
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
-        tags (list[str] | None): Tags to associate with this evaluation run.
+        tags: Tags to associate with this evaluation run.
+        metadata: Metadata to associate with this evaluation run.
         approval: Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
@@ -449,6 +454,7 @@ async def eval_async(
                         epochs_reducer=epochs_reducer,
                         solver=solver,
                         tags=tags,
+                        metadata=metadata,
                         score=score,
                         debug_errors=debug_errors is True,
                         **kwargs,
@@ -473,6 +479,7 @@ async def eval_async(
                 epochs_reducer=epochs_reducer,
                 solver=solver,
                 tags=tags,
+                metadata=metadata,
                 score=score,
                 **kwargs,
             )

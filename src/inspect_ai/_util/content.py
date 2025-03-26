@@ -12,6 +12,9 @@ class ContentText(BaseModel):
     text: str
     """Text content."""
 
+    refusal: bool | None = Field(default=None)
+    """Was this a refusal message?"""
+
 
 class ContentReasoning(BaseModel):
     """Reasoning content.

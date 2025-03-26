@@ -2,8 +2,9 @@ import functools
 import logging
 import os
 import sys
-from typing import Awaitable, Callable, Set, cast
+from typing import Any, Awaitable, Callable, Set, cast
 
+from inspect_ai._eval.task.task import Task
 from inspect_ai._util.trace import trace_action
 
 if sys.version_info < (3, 11):
@@ -67,6 +68,7 @@ async def eval_run(
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     debug_errors: bool = False,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -81,6 +83,7 @@ async def eval_run(
     eval_wd = os.getcwd()
 
     # ensure sample ids
+    task: Task | None = None
     for resolved_task in tasks:
         # add sample ids to dataset if they aren't there (start at 1 not 0)
         task = resolved_task.task
@@ -90,6 +93,8 @@ async def eval_run(
 
         # Ensure sample ids are unique
         ensure_unique_ids(task.dataset)
+
+    assert task, "Must encounter a task"
 
     # run startup pass for the sandbox environments
     shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
@@ -201,7 +206,7 @@ async def eval_run(
                     task_args=resolved_task.task_args,
                     model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,
-                    metadata=task.metadata,
+                    metadata=((metadata or {}) | (task.metadata or {})) or None,
                     recorder=recorder,
                 )
                 await logger.init()

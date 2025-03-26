@@ -34,8 +34,8 @@ from inspect_ai._util.content import (
     Content,
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
-    ContentVideo,
 )
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
@@ -336,10 +336,13 @@ async def content_part(content: Content | str) -> Part:
     elif isinstance(content, ContentImage):
         image_bytes, mime_type = await file_as_data(content.image)
         return Part.from_image(image=Image.from_bytes(data=image_bytes))
+    elif isinstance(content, ContentReasoning):
+        return Part.from_text(content.reasoning or NO_CONTENT)
     else:
         if isinstance(content, ContentAudio):
             file = content.audio
-        elif isinstance(content, ContentVideo):
+        else:
+            # it's ContentVideo
             file = content.video
         file_bytes, mime_type = await file_as_data(file)
         return Part.from_data(file_bytes, mime_type)

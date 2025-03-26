@@ -44,8 +44,11 @@ class ToolCall:
     arguments: dict[str, Any]
     """Arguments to function."""
 
-    type: Literal["function"]
-    """Type of tool call (currently only 'function')"""
+    type: str
+    """Type of tool call ('function' or a model specific internal tool type)"""
+
+    internal_name: str | None = field(default=None)
+    """Model's internal name for the tool - if any."""
 
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""

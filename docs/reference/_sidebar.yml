@@ -89,6 +89,8 @@ website:
           href: reference/inspect_ai.tool.qmd#computer
         - text: web_search
           href: reference/inspect_ai.tool.qmd#web_search
+        - text: think
+          href: reference/inspect_ai.tool.qmd#think
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef

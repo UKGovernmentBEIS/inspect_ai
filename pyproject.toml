@@ -53,6 +53,7 @@ exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
+enable_error_code = "possibly-undefined"
 warn_redundant_casts = true
 warn_unused_configs = true
 # This mypy_path config is a bit odd, it's included to get mypy to resolve

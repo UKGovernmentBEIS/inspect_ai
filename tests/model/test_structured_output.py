@@ -9,6 +9,7 @@ from test_helpers.utils import (
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.model import GenerateConfig, ResponseSchema
+from inspect_ai.model._model import get_model
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -137,6 +138,13 @@ def check_nested_pydantic_output(model):
 def test_openai_structured_output():
     check_color_structured_output("openai/gpt-4o-mini")
     check_nested_pydantic_output("openai/gpt-4o-mini")
+
+
+@skip_if_no_openai
+def test_openai_responses_structured_output():
+    model = get_model("openai/gpt-4o-mini", responses_api=True)
+    check_color_structured_output(model)
+    check_nested_pydantic_output(model)
 
 
 @skip_if_no_google
