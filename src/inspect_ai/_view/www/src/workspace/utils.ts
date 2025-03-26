@@ -1,6 +1,6 @@
-import { EvalMetric } from "../types/log";
+import { ResultsMetric } from "./navbar/ResultsPanel";
 
-export const metricDisplayName = (metric: EvalMetric): string => {
+export const metricDisplayName = (metric: ResultsMetric): string => {
   let modifier = undefined;
   for (const metricModifier of metricModifiers) {
     modifier = metricModifier(metric);
@@ -13,10 +13,10 @@ export const metricDisplayName = (metric: EvalMetric): string => {
   return metricName;
 };
 
-type MetricModifier = (metric: EvalMetric) => string | undefined;
+type MetricModifier = (metric: ResultsMetric) => string | undefined;
 
 const clusterMetricModifier: MetricModifier = (
-  metric: EvalMetric,
+  metric: ResultsMetric,
 ): string | undefined => {
   if (metric.name !== "stderr") {
     return undefined;

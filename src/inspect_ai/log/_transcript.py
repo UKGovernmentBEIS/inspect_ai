@@ -14,7 +14,14 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_serializer,
+)
+from shortuuid import uuid
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
@@ -43,6 +50,13 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
+    model_config = {
+        "json_schema_extra": lambda schema: schema.get("properties", {}).pop(
+            "id_", None
+        )
+    }
+    id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
+
     timestamp: datetime = Field(default_factory=datetime.now)
     """Clock time at which event occurred."""
 
@@ -451,8 +465,11 @@ ET = TypeVar("ET", bound=BaseEvent)
 class Transcript:
     """Transcript of events."""
 
+    _event_logger: Callable[[Event], None] | None
+
     def __init__(self, name: str = "") -> None:
         self.name = name
+        self._event_logger = None
         self._events: list[Event] = []
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
@@ -493,7 +510,16 @@ class Transcript:
         return None
 
     def _event(self, event: Event) -> None:
+        if self._event_logger:
+            self._event_logger(event)
         self._events.append(event)
+
+    def _event_updated(self, event: Event) -> None:
+        if self._event_logger:
+            self._event_logger(event)
+
+    def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
+        self._event_logger = event_logger
 
 
 def transcript() -> Transcript:

@@ -1,15 +1,7 @@
 import clsx from "clsx";
 import { ProgressBar } from "./ProgressBar";
 
-import {
-  FC,
-  ReactNode,
-  RefObject,
-  UIEvent,
-  useCallback,
-  useEffect,
-  useRef,
-} from "react";
+import { FC, ReactNode, RefObject, useRef } from "react";
 import styles from "./LargeModal.module.css";
 
 export interface ModalTool {
@@ -35,8 +27,6 @@ interface LargeModalProps {
   onkeyup: (e: any) => void;
   onHide: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
-  initialScrollPositionRef: RefObject<number>;
-  setInitialScrollPosition: (position: number) => void;
   children: ReactNode;
 }
 
@@ -51,8 +41,6 @@ export const LargeModal: FC<LargeModalProps> = ({
   visible,
   onHide,
   showProgress,
-  initialScrollPositionRef,
-  setInitialScrollPosition,
   scrollRef,
 }) => {
   // The footer
@@ -66,27 +54,6 @@ export const LargeModal: FC<LargeModalProps> = ({
   // but only do this for the first time that the children are set
   const modalRef = useRef(null);
   scrollRef = scrollRef || modalRef;
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      setTimeout(() => {
-        if (
-          scrollRef.current &&
-          initialScrollPositionRef.current &&
-          scrollRef.current.scrollTop !== initialScrollPositionRef?.current
-        ) {
-          scrollRef.current.scrollTop = initialScrollPositionRef.current;
-        }
-      }, 0);
-    }
-  }, []);
-
-  const onScroll = useCallback(
-    (e: UIEvent<HTMLDivElement>) => {
-      setInitialScrollPosition(e.currentTarget.scrollTop);
-    },
-    [setInitialScrollPosition],
-  );
 
   return (
     <div
@@ -149,7 +116,7 @@ export const LargeModal: FC<LargeModalProps> = ({
             </button>
           </div>
           <ProgressBar animating={showProgress} />
-          <div className={"modal-body"} ref={scrollRef} onScroll={onScroll}>
+          <div className={"modal-body"} ref={scrollRef}>
             {children}
           </div>
           {modalFooter}

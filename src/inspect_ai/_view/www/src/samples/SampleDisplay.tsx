@@ -10,10 +10,18 @@ import { ToolButton } from "../components/ToolButton";
 import { SampleScoreView } from "./scores/SampleScoreView";
 
 import clsx from "clsx";
-import { FC, Fragment, MouseEvent, RefObject } from "react";
+import {
+  FC,
+  Fragment,
+  MouseEvent,
+  RefObject,
+  useCallback,
+  useMemo,
+} from "react";
+import { SampleSummary } from "../api/types";
 import { Card, CardBody, CardHeader } from "../components/Card";
-import { EmptyPanel } from "../components/EmptyPanel";
 import { JSONPanel } from "../components/JsonPanel";
+import { NoContentsPanel } from "../components/NoContentsPanel";
 import {
   kSampleErrorTabId,
   kSampleJsonTabId,
@@ -22,23 +30,25 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../constants";
-import { EvalSample } from "../types/log";
+import { useSampleSummaries } from "../state/hooks";
+import { useStore } from "../state/store";
+import { EvalSample, Events } from "../types/log";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { formatTime } from "../utils/format";
 import { printHeadingHtml, printHtml } from "../utils/print";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
-import { SamplesDescriptor } from "./descriptor/samplesDescriptor";
+import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
-import { SampleTranscript } from "./transcript/SampleTranscript";
+import { TranscriptVirtualList } from "./transcript/TranscriptView";
 
 interface SampleDisplayProps {
   id: string;
   sample?: EvalSample;
-  sampleDescriptor: SamplesDescriptor;
   selectedTab?: string;
   setSelectedTab: (tab: string) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
+  runningEvents?: Events;
 }
 
 /**
@@ -47,18 +57,32 @@ interface SampleDisplayProps {
 export const SampleDisplay: FC<SampleDisplayProps> = ({
   id,
   sample,
-  sampleDescriptor,
   selectedTab,
   setSelectedTab,
   scrollRef,
+  runningEvents: runningSampleData,
 }) => {
   // Tab ids
   const baseId = `sample-dialog`;
+  const sampleSummaries = useSampleSummaries();
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
 
-  if (!sample) {
-    // Placeholder
-    return <EmptyPanel />;
-  }
+  const sampleSummary = sampleSummaries[selectedSampleIndex];
+
+  // Consolidate the events and messages into the proper list
+  // whether running or not
+  const sampleEvents = sample?.events || runningSampleData;
+  const sampleMessages = useMemo(() => {
+    if (sample?.messages) {
+      return sample.messages;
+    } else if (runningSampleData) {
+      return messagesFromEvents(runningSampleData);
+    } else {
+      return [];
+    }
+  }, [sample?.messages, runningSampleData]);
 
   // Tab selection
   const onSelectedTab = (e: MouseEvent<HTMLElement>) => {
@@ -68,11 +92,15 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     return false;
   };
 
-  const scorerNames = Object.keys(sample.scores || {});
+  const scorerNames = Object.keys(sample?.scores || {});
   const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
 
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
+
+  const handlePrintClick = useCallback(() => {
+    printSample(id, targetId);
+  }, [printSample, id, targetId]);
 
   const tools = [];
   if (!isVscode()) {
@@ -81,51 +109,48 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
         key="sample-print-tool"
         label="Print"
         icon={ApplicationIcons.copy}
-        onClick={() => {
-          printSample(id, targetId);
-        }}
+        onClick={handlePrintClick}
       />,
     );
   }
 
+  // Is the sample running?
+  const running = isRunning(sampleSummary, runningSampleData);
+
   return (
     <Fragment>
-      <SampleSummaryView
-        parent_id={id}
-        sample={sample}
-        sampleDescriptor={sampleDescriptor}
-      />
+      {sample || sampleSummary ? (
+        <SampleSummaryView parent_id={id} sample={sample || sampleSummary} />
+      ) : undefined}
       <TabSet
         id={tabsetId}
         tabControlsClassName={clsx("text-size-base")}
         tabPanelsClassName={clsx(styles.tabPanel)}
         tools={tools}
       >
-        {sample.events && sample.events.length > 0 ? (
-          <TabPanel
-            key={kSampleTranscriptTabId}
-            id={kSampleTranscriptTabId}
-            className="sample-tab"
-            title="Transcript"
-            onSelected={onSelectedTab}
-            selected={
-              selectedTab === kSampleTranscriptTabId ||
-              selectedTab === undefined
-            }
-            scrollable={false}
-          >
-            <SampleTranscript
-              key={`${baseId}-transcript-display-${id}`}
-              id={`${baseId}-transcript-display-${id}`}
-              evalEvents={sample.events}
-              scrollRef={scrollRef}
-            />
-          </TabPanel>
-        ) : null}
+        <TabPanel
+          key={kSampleTranscriptTabId}
+          id={kSampleTranscriptTabId}
+          className="sample-tab"
+          title="Transcript"
+          onSelected={onSelectedTab}
+          selected={
+            selectedTab === kSampleTranscriptTabId || selectedTab === undefined
+          }
+          scrollable={false}
+        >
+          <TranscriptVirtualList
+            key={`${baseId}-transcript-display-${id}`}
+            id={`${baseId}-transcript-display-${id}`}
+            events={sampleEvents || []}
+            running={running}
+            scrollRef={scrollRef}
+          />
+        </TabPanel>
         <TabPanel
           key={kSampleMessagesTabId}
           id={kSampleMessagesTabId}
-          className={clsx("sample-tab", styles.fullWidth)}
+          className={clsx("sample-tab", styles.fullWidth, styles.chat)}
           title="Messages"
           onSelected={onSelectedTab}
           selected={selectedTab === kSampleMessagesTabId}
@@ -134,13 +159,14 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
           <ChatViewVirtualList
             key={`${baseId}-chat-${id}`}
             id={`${baseId}-chat-${id}`}
-            messages={sample.messages}
+            messages={sampleMessages}
             indented={true}
             scrollRef={scrollRef}
             toolCallStyle="complete"
+            running={running}
           />
         </TabPanel>
-        {scorerNames.length === 1 ? (
+        {sample && scorerNames.length === 1 ? (
           <TabPanel
             key={kSampleScoringTabId}
             id={kSampleScoringTabId}
@@ -149,47 +175,43 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             onSelected={onSelectedTab}
             selected={selectedTab === kSampleScoringTabId}
           >
-            <SampleScoreView
-              sample={sample}
-              sampleDescriptor={sampleDescriptor}
-              scorer={scorerNames[0]}
-            />
+            <SampleScoreView sample={sample} scorer={scorerNames[0]} />
           </TabPanel>
         ) : (
           <>
-            {Object.keys(sample.scores || {}).map((scorer) => {
-              const tabId = `score-${scorer}`;
-              return (
-                <TabPanel
-                  key={tabId}
-                  id={tabId}
-                  className="sample-tab"
-                  title={scorer}
-                  onSelected={onSelectedTab}
-                  selected={selectedTab === tabId}
-                >
-                  <SampleScoreView
-                    sample={sample}
-                    sampleDescriptor={sampleDescriptor}
-                    scorer={scorer}
-                  />
-                </TabPanel>
-              );
-            })}
+            {sample
+              ? Object.keys(sample?.scores || {}).map((scorer) => {
+                  const tabId = `score-${scorer}`;
+                  return (
+                    <TabPanel
+                      key={tabId}
+                      id={tabId}
+                      className="sample-tab"
+                      title={scorer}
+                      onSelected={onSelectedTab}
+                      selected={selectedTab === tabId}
+                    >
+                      <SampleScoreView sample={sample} scorer={scorer} />
+                    </TabPanel>
+                  );
+                })
+              : undefined}
           </>
         )}
-        {sampleMetadatas.length > 0 ? (
-          <TabPanel
-            id={kSampleMetdataTabId}
-            className={clsx("sample-tab")}
-            title="Metadata"
-            onSelected={onSelectedTab}
-            selected={selectedTab === kSampleMetdataTabId}
-          >
+        <TabPanel
+          id={kSampleMetdataTabId}
+          className={clsx("sample-tab")}
+          title="Metadata"
+          onSelected={onSelectedTab}
+          selected={selectedTab === kSampleMetdataTabId}
+        >
+          {sampleMetadatas.length > 0 ? (
             <div className={clsx(styles.metadataPanel)}>{sampleMetadatas}</div>
-          </TabPanel>
-        ) : null}
-        {sample.error ? (
+          ) : (
+            <NoContentsPanel text="No metadata" />
+          )}
+        </TabPanel>
+        {sample?.error ? (
           <TabPanel
             id={kSampleErrorTabId}
             className="sample-tab"
@@ -205,14 +227,18 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             </div>
           </TabPanel>
         ) : null}
-        {sample.messages.length < 100 ? (
-          <TabPanel
-            id={kSampleJsonTabId}
-            className={"sample-tab"}
-            title="JSON"
-            onSelected={onSelectedTab}
-            selected={selectedTab === kSampleJsonTabId}
-          >
+        <TabPanel
+          id={kSampleJsonTabId}
+          className={"sample-tab"}
+          title="JSON"
+          onSelected={onSelectedTab}
+          selected={selectedTab === kSampleJsonTabId}
+        >
+          {!sample ? (
+            <NoContentsPanel text="JSON not available" />
+          ) : sample.messages.length > 100 ? (
+            <NoContentsPanel text="JSON too large too display" />
+          ) : (
             <div className={clsx(styles.padded, styles.fullWidth)}>
               <JSONPanel
                 data={sample}
@@ -220,14 +246,17 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
                 className={clsx("text-size-small")}
               />
             </div>
-          </TabPanel>
-        ) : null}
+          )}
+        </TabPanel>
       </TabSet>
     </Fragment>
   );
 };
 
-const metadataViewsForSample = (id: string, sample: EvalSample) => {
+const metadataViewsForSample = (id: string, sample?: EvalSample) => {
+  if (!sample) {
+    return [];
+  }
   const sampleMetadatas = [];
 
   if (sample.model_usage && Object.keys(sample.model_usage).length > 0) {
@@ -359,4 +388,29 @@ const printSample = (id: string, targetId: string) => {
       );
     }
   }
+};
+
+const isRunning = (
+  sampleSummary?: SampleSummary,
+  runningSampleData?: Events,
+): boolean => {
+  if (sampleSummary && sampleSummary.completed === false) {
+    // An explicitly incomplete sample summary
+    return true;
+  }
+
+  if (
+    !sampleSummary &&
+    (!runningSampleData || runningSampleData.length === 0)
+  ) {
+    // No sample summary yet and no running samples, must've just started
+    return true;
+  }
+
+  if (runningSampleData && runningSampleData.length > 0) {
+    // There are running samples
+    return true;
+  }
+
+  return false;
 };

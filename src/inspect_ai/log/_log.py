@@ -121,6 +121,9 @@ class EvalConfig(BaseModel):
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
 
+    log_shared: int | None = Field(default=None)
+    """Interval (in seconds) for syncing sample events to log directory."""
+
     score_display: bool | None = Field(default=None)
     """Display scoring metrics realtime."""
 
@@ -180,16 +183,16 @@ class EvalSample(BaseModel):
     setup: str | None = Field(default=None)
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
-    messages: list[ChatMessage]
+    messages: list[ChatMessage] = Field(default_factory=list)
     """Chat conversation history for sample."""
 
-    output: ModelOutput
+    output: ModelOutput = Field(default_factory=ModelOutput)
     """Model output from sample."""
 
     scores: dict[str, Score] | None = Field(default=None)
     """Scores for sample."""
 
-    metadata: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
     """Additional sample metadata."""
 
     def metadata_as(self, metadata_cls: Type[MT]) -> MT:

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: Live updates to running evaluation logs.
+
 ## v0.3.78 (25 March 2025)
 
 - OpenAI: Ensure that assistant messages always have the `msg_` prefix in responses API.
