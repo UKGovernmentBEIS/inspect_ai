@@ -9,7 +9,6 @@ from ._run import run
 from ._types import (
     AgentAttempts,
     AgentContinue,
-    AgentFilter,
     AgentGenerate,
     AgentPrompt,
     AgentSubmit,
@@ -31,5 +30,4 @@ __all__ = [
     "AgentContinue",
     "AgentGenerate",
     "AgentSubmit",
-    "AgentFilter",
 ]

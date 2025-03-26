@@ -28,5 +28,4 @@ title: "inspect_ai.agent"
 ### AgentContinue
 ### AgentGenerate
 ### AgentSubmit
-### HandoffFilter
 
