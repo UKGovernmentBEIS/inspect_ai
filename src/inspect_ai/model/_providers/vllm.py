@@ -27,6 +27,7 @@ from .openai import OpenAIAPI
 # Environment variable names
 VLLM_BASE_URL = "VLLM_BASE_URL"
 VLLM_API_KEY = "VLLM_API_KEY"
+VLLM_CONFIGURE_LOGGING = "VLLM_CONFIGURE_LOGGING"
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class VLLMAPI(OpenAIAPI):
         dtype (str): Data type for model weights (default: "auto")
         quantization (str): Quantization method
         max_model_len (int): Maximum sequence length
+        configure_logging (bool): Enable fine-grained VLLM logging (default: False)
     """
 
     def __init__(
@@ -58,6 +60,12 @@ class VLLMAPI(OpenAIAPI):
         **server_args: Any,
     ) -> None:
         host = server_args.pop("host", "0.0.0.0")
+
+        # Extract and handle the configure_logging parameter
+        configure_logging = server_args.pop("configure_logging", False)
+        # Set the environment variable for VLLM logging configuration
+        os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
+
         self.server_args = server_args
 
         # Get base_url from environment or argument

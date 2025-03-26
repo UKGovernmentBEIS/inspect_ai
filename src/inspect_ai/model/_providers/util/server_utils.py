@@ -83,6 +83,7 @@ def execute_shell_command(command: list[str]) -> subprocess.Popen:
             if line:
                 logger.info(line.strip())
         process.stdout.close()
+        raise RuntimeError("Server process crashed unexpectedly")
 
     # Set up background thread to read and log stderr
     def log_error():
@@ -90,6 +91,7 @@ def execute_shell_command(command: list[str]) -> subprocess.Popen:
             if line:
                 logger.warning(line.strip())
         process.stderr.close()
+        raise RuntimeError("Server process crashed unexpectedly")
 
     # Start background threads to handle output
     import threading
