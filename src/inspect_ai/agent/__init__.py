@@ -4,7 +4,13 @@ from ._bridge.bridge import bridge
 from ._handoff import HandoffFilter, handoff
 from ._human.agent import human
 from ._react import react
-from ._types import AgentAttempts, AgentContinue, AgentPrompt, AgentSubmit
+from ._types import (
+    AgentAttempts,
+    AgentContinue,
+    AgentGenerate,
+    AgentPrompt,
+    AgentSubmit,
+)
 
 __all__ = [
     "Agent",
@@ -12,6 +18,7 @@ __all__ = [
     "AgentPrompt",
     "AgentAttempts",
     "AgentContinue",
+    "AgentGenerate",
     "AgentSubmit",
     "agent",
     "handoff",

@@ -140,6 +140,8 @@ website:
           href: reference/inspect_ai.agent.qmd#agentattempts
         - text: AgentContinue
           href: reference/inspect_ai.agent.qmd#agentcontinue
+        - text: AgentGenerate
+          href: reference/inspect_ai.agent.qmd#agentgenerate
         - text: AgentSubmit
           href: reference/inspect_ai.agent.qmd#agentsubmit
       - section: inspect_ai.scorer

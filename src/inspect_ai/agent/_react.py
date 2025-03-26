@@ -15,7 +15,13 @@ from inspect_ai.tool._tool_with import tool_with
 
 from ._agent import Agent, AgentState, agent
 from ._handoff import has_handoff
-from ._types import AgentAttempts, AgentContinue, AgentPrompt, AgentSubmit
+from ._types import (
+    AgentAttempts,
+    AgentContinue,
+    AgentGenerate,
+    AgentPrompt,
+    AgentSubmit,
+)
 
 logger = getLogger(__name__)
 
@@ -25,7 +31,7 @@ def react(
     *,
     prompt: str | AgentPrompt | None = AgentPrompt(),
     tools: list[Tool] | None = None,
-    model: str | Model | None = None,
+    model: str | Model | AgentGenerate | None = None,
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit = AgentSubmit(),
     on_continue: AgentContinue | None = None,
@@ -49,7 +55,7 @@ def react(
           customized). Pass `str` to specify the instructions and use the defaults
           for handoff and prompt messages.
        tools: Tools available for the agent.
-       model: Model to use for agent (defaults to currently evaluated model)
+       model: Model to use for agent (defaults to currently evaluated model).
        attempts: Configure agent to make multiple attempts.
        submit: Configure submit tool used by agent.
        on_continue: Optional async function to call to determine whether the loop
@@ -135,10 +141,7 @@ def react(
         # or if a message or token limit is hit
         while True:
             # generate output and append assistant message
-            state.output = await get_model(model).generate(
-                input=state.messages, tools=tools
-            )
-            state.messages.append(state.output.message)
+            state = await _agent_generate(model, state, tools)
 
             # check for context window overflow
             if state.output.stop_reason == "model_length":
@@ -196,3 +199,20 @@ def react(
         return state
 
     return execute
+
+
+async def _agent_generate(
+    model: str | Model | AgentGenerate | None, state: AgentState, tools: list[Tool]
+) -> AgentState:
+    if isinstance(model, str | Model) or model is None:
+        model = _model_generate(model)
+    return await model(state, tools)
+
+
+def _model_generate(model: str | Model | None) -> AgentGenerate:
+    async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
+        state.output = await get_model(model).generate(state.messages, tools)
+        state.messages.append(state.output.message)
+        return state
+
+    return generate

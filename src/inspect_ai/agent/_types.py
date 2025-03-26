@@ -2,6 +2,7 @@ from typing import Awaitable, Callable, NamedTuple, TypeAlias
 
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
+from inspect_ai.tool._tool import Tool
 
 DEFAULT_HANDOFF_PROMPT = """
 You are part of a multi-agent system designed to make agent coordination and
@@ -46,6 +47,11 @@ AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
 Returns `True` to continue (with no additional messages inserted),
 return `False` to stop. Returns `str` to continue with an additional
 custom user message inserted.
+"""
+
+
+AgentGenerate: TypeAlias = Callable[[AgentState, list[Tool]], Awaitable[AgentState]]
+"""Function called to generate message(s) and output within an agent.
 """
 
 
