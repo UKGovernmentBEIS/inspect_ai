@@ -17972,16 +17972,26 @@ self.onmessage = function (e) {
     };
     const immer = immerImpl;
     const getEnabledNamespaces = () => {
-      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
+      return __LOGGING_FILTER__.split(",").map((ns) => ns.trim()).filter(Boolean);
     };
-    new Set(getEnabledNamespaces());
+    const ENABLED_NAMESPACES = new Set(getEnabledNamespaces());
+    const filterNameSpace = (namespace) => {
+      if (ENABLED_NAMESPACES.has("*")) return true;
+      return ENABLED_NAMESPACES.has(namespace);
+    };
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
+          if (__DEV_WATCH__ && filterNameSpace(namespace))
+            console.debug(`[${namespace}] ${message2}`, ...args);
         },
         info: (message2, ...args) => {
+          if (__DEV_WATCH__ && filterNameSpace(namespace))
+            console.info(`[${namespace}] ${message2}`, ...args);
         },
         warn: (message2, ...args) => {
+          if (__DEV_WATCH__ && filterNameSpace(namespace))
+            console.warn(`[${namespace}] ${message2}`, ...args);
         },
         // Always log errors, even in production
         error: (message2, ...args) => {
@@ -17989,6 +17999,8 @@ self.onmessage = function (e) {
         },
         // Lazy evaluation for expensive logs
         debugIf: (fn2) => {
+          if (__DEV_WATCH__ && filterNameSpace(namespace))
+            console.debug(`[${namespace}] ${fn2()}`);
         }
       };
       return logger;
@@ -64695,9 +64707,15 @@ ${events}
         () => resolveToolInput(event.function, event.arguments),
         [event.function, event.arguments]
       );
-      const approvalEvent = event.events.find((e) => {
-        return e.event === "approval";
-      });
+      const { approvalEvent, lastModelEvent } = reactExports.useMemo(() => {
+        const approvalEvent2 = event.events.find((e) => {
+          return e.event === "approval";
+        });
+        const lastModelEvent2 = event.events.reverse().find((e) => {
+          return e.event === "model";
+        });
+        return { approvalEvent: approvalEvent2, lastModelEvent: lastModelEvent2 };
+      }, [event.events]);
       const title2 = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
@@ -64721,6 +64739,15 @@ ${events}
                   view: event.view ? event.view : void 0
                 }
               ),
+              lastModelEvent && lastModelEvent.event === "model" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ChatView,
+                {
+                  id: `${id}-toolcall-chatmessage`,
+                  messages: lastModelEvent.output.choices.map((m) => m.message),
+                  numbered: false,
+                  toolCallStyle: "compact"
+                }
+              ) : void 0,
               approvalEvent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ApprovalEventView,
                 {
