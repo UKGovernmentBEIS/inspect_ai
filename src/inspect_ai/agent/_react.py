@@ -11,6 +11,7 @@ from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
 from ._agent import Agent, AgentState, agent
@@ -18,7 +19,6 @@ from ._handoff import has_handoff
 from ._types import (
     AgentAttempts,
     AgentContinue,
-    AgentGenerate,
     AgentPrompt,
     AgentSubmit,
 )
@@ -31,7 +31,7 @@ def react(
     *,
     prompt: str | AgentPrompt | None = AgentPrompt(),
     tools: list[Tool] | None = None,
-    model: str | Model | AgentGenerate | None = None,
+    model: str | Model | Agent | None = None,
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit = AgentSubmit(),
     on_continue: AgentContinue | None = None,
@@ -198,14 +198,24 @@ def react(
 
 
 async def _agent_generate(
-    model: str | Model | AgentGenerate | None, state: AgentState, tools: list[Tool]
+    model: str | Model | Agent | None, state: AgentState, tools: list[Tool]
 ) -> AgentState:
+    # convert model to agent
     if isinstance(model, str | Model) or model is None:
         model = _model_generate(model)
+
+    # confirm we have a tools param
+    agent_tool_info = parse_tool_info(model)
+    if "tools" not in agent_tool_info.parameters.properties:
+        raise ValueError(
+            "Agent passed as model for react agent must have a tools parameter."
+        )
+
+    # call the agent
     return await model(state, tools)
 
 
-def _model_generate(model: str | Model | None) -> AgentGenerate:
+def _model_generate(model: str | Model | None) -> Agent:
     async def generate(state: AgentState, tools: list[Tool]) -> AgentState:
         state.output = await get_model(model).generate(state.messages, tools)
         state.messages.append(state.output.message)

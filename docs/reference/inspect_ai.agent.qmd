@@ -26,6 +26,5 @@ title: "inspect_ai.agent"
 ### AgentPrompt
 ### AgentAttempts
 ### AgentContinue
-### AgentGenerate
 ### AgentSubmit
 
