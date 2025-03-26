@@ -77,9 +77,12 @@ class VLLMAPI(OpenAIAPI):
 
         # Start server if needed
         if not base_url:
+            logger.info("Starting new VLLM server...")
             if "model_path" in self.server_args:
                 model_name = self.server_args.pop("model_path")
             base_url = self._start_server(model_name, host, port=None)
+        else:
+            logger.info(f"Using existing VLLM server at {base_url}")
 
         # Initialize OpenAI API with our VLLM server
         super().__init__(
