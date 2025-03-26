@@ -266,3 +266,50 @@ def test_agent_handoff_no_input_filter():
 @skip_if_no_openai
 def test_agent_handoff_remove_tools_input_filter():
     check_agent_handoff_input_filter("remove_tools", 0)
+
+
+@agent
+def oracle() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Tool checker that checks if tool messages are present.
+
+        Args:
+            state: Input state (conversation)
+
+        Returns:
+            Ouput state (additions to conversation)
+        """
+        state.output = await get_model().generate(state.messages)
+        state.messages.append(state.output.message)
+        state.messages.append(
+            ChatMessageUser(content="That's great, can you give me another answer?")
+        )
+        state.output = await get_model().generate(state.messages)
+        state.messages.append(state.output.message)
+
+        return state
+
+    return execute
+
+
+def check_agent_handoff_output_filter(
+    output_filter: Literal["last_message"] | None, messages_len: int
+):
+    log = eval(
+        Task(dataset=[Sample(input="Please ask the oracle a question?")]),
+        solver=[use_tools(handoff(oracle(), output_filter=output_filter)), generate()],
+        model="openai/gpt-4o-mini",
+        log_format="json",
+    )[0]
+    assert log.samples
+    assert len(log.samples[0].messages) == messages_len
+
+
+@skip_if_no_openai
+def test_agent_handoff_no_output_filter():
+    check_agent_handoff_output_filter(None, 8)
+
+
+@skip_if_no_openai
+def test_agent_handoff_last_message_output_filter():
+    check_agent_handoff_output_filter("last_message", 6)
