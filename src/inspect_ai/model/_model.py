@@ -1282,7 +1282,7 @@ def init_sample_model_usage() -> None:
 
 def record_model_usage(model: str, usage: ModelUsage) -> None:
     from inspect_ai.log._samples import set_active_sample_total_tokens
-    from inspect_ai.solver._limit import check_token_limit
+    from inspect_ai.util._limits import check_token_limit
 
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
