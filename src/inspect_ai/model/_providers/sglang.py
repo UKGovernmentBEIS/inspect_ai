@@ -1,12 +1,15 @@
 import os
-import shlex
 from typing import Any
 
-from sglang.utils import launch_server_cmd, terminate_process, wait_for_server
+from inspect_ai.model._providers.util import model_base_url
+from inspect_ai.model._providers.util.server_utils import (
+    launch_server_cmd,
+    terminate_process,
+    wait_for_server,
+)
 from typing_extensions import override
 
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._providers.util import model_base_url
 
 from .openai import OpenAIAPI
 
@@ -103,28 +106,29 @@ class SGLangAPI(OpenAIAPI):
 
             self.server_args.pop("device")
 
-        # Create server command
-        cmd = f"python -m sglang.launch_server --model-path {shlex.quote(model_path)} --host {shlex.quote(host)} --api-key {shlex.quote(self.api_key)}"
+        # Create server command as a list instead of a string
+        cmd = [
+            "python", "-m", "sglang.launch_server",
+            "--model-path", model_path,
+            "--host", host,
+            "--api-key", self.api_key,
+        ]  # fmt: skip
 
         # Add additional arguments
         for key, value in self.server_args.items():
-            # Properly escape the value using shlex
-            escaped_value = shlex.quote(str(value))
-            cmd += f" --{key} {escaped_value}"
+            cmd.extend([f"--{key}", str(value)])
 
         try:
             # Launch server
-            self.server_process, self.port = launch_server_cmd(cmd, port=port)
+            self.server_process, self.port = launch_server_cmd(
+                cmd, host=host, port=port
+            )
             base_url = f"http://localhost:{self.port}/v1"
-            wait_for_server(f"http://localhost:{self.port}")
+            wait_for_server(f"http://localhost:{self.port}", api_key=self.api_key)
         except Exception as e:
             # Cleanup any partially started server
             if self.server_process:
-                try:
-                    terminate_process(self.server_process)
-                except Exception:
-                    if hasattr(self.server_process, "terminate"):
-                        self.server_process.terminate()
+                terminate_process(self.server_process)
 
             # Re-raise with more context
             raise RuntimeError(f"Failed to start SGLang server: {str(e)}") from e
@@ -229,7 +233,7 @@ class SGLangAPI(OpenAIAPI):
                     structures=[
                         dict(
                             begin=structure.begin,
-                            schema=structure.schema.model_dump(exclude_none=True),
+                            schema=structure.json_schema.model_dump(exclude_none=True),
                             end=structure.end,
                         )
                         for structure in config.guided_decoding.structural_tags.structures

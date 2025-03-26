@@ -1,7 +1,6 @@
 import logging
 import os
 import random
-import shlex
 import socket
 import subprocess
 import time
@@ -15,6 +14,11 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util import model_base_url
+from inspect_ai.model._providers.util.server_utils import (
+    launch_server_cmd,
+    terminate_process,
+    wait_for_server,
+)
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -114,30 +118,26 @@ class VLLMAPI(OpenAIAPI):
 
             self.server_args.pop("device")
 
-        # Create server command using vllm serve CLI
-        cmd = f"vllm serve {shlex.quote(model_path)} --host {shlex.quote(host)} --api-key {shlex.quote(self.api_key)}"
+        # Build command as a list
+        cmd = ["vllm", "serve", model_path, "--host", host, "--api-key", self.api_key]
 
         # Add additional arguments
         for key, value in self.server_args.items():
             # Convert Python style args (underscore) to CLI style (dash)
             cli_key = key.replace("_", "-")
-            # Properly escape the value using shlex
-            escaped_value = shlex.quote(str(value))
-            cmd += f" --{cli_key} {escaped_value}"
+            cmd.extend([f"--{cli_key}", str(value)])
 
         try:
             # Launch server
-            self.server_process, self.port = launch_server_cmd(cmd, port=port)
+            self.server_process, self.port = launch_server_cmd(
+                cmd, host=host, port=port
+            )
             base_url = f"http://localhost:{self.port}/v1"
             wait_for_server(f"http://localhost:{self.port}", api_key=self.api_key)
         except Exception as e:
             # Cleanup any partially started server
             if self.server_process:
-                try:
-                    terminate_process(self.server_process)
-                except Exception:
-                    if hasattr(self.server_process, "terminate"):
-                        self.server_process.terminate()
+                terminate_process(self.server_process)
 
             # Re-raise with more context
             raise RuntimeError(f"Failed to start VLLM server: {str(e)}") from e
@@ -264,153 +264,3 @@ class VLLMAPI(OpenAIAPI):
             params["extra_body"] = extra_body
 
         return params
-
-
-# Global dictionary to keep track of process and port mappings
-process_socket_map = {}
-
-
-def reserve_port(host, start=30000, end=40000):
-    """
-    Reserve an available port by trying to bind a socket.
-
-    Returns a tuple (port, lock_socket) where `lock_socket` is kept open to hold the lock.
-    """
-    candidates = list(range(start, end))
-    random.shuffle(candidates)
-
-    for port in candidates:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            # Attempt to bind to the port on localhost
-            sock.bind((host, port))
-            return port, sock
-        except socket.error:
-            sock.close()  # Failed to bind, try next port
-            continue
-    raise RuntimeError("No free port available.")
-
-
-def release_port(lock_socket):
-    """Release the reserved port by closing the lock socket."""
-    try:
-        lock_socket.close()
-    except Exception as e:
-        print(f"Error closing socket: {e}")
-
-
-def execute_shell_command(command: str) -> subprocess.Popen:
-    """Execute a shell command and return its process handle."""
-    command = command.replace("\\\n", " ").replace("\\", " ")
-    parts = command.split()
-
-    # Create a process that redirects output to pipes so we can capture it
-    process = subprocess.Popen(
-        parts,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        bufsize=1,  # Line buffered
-    )
-
-    # Set up background thread to read and log stdout
-    def log_output():
-        for line in iter(process.stdout.readline, ""):
-            if line:
-                logger.info(line.strip())
-        process.stdout.close()
-
-    # Set up background thread to read and log stderr
-    def log_error():
-        for line in iter(process.stderr.readline, ""):
-            if line:
-                logger.warning(line.strip())
-        process.stderr.close()
-
-    # Start background threads to handle output
-    import threading
-
-    threading.Thread(target=log_output, daemon=True).start()
-    threading.Thread(target=log_error, daemon=True).start()
-
-    logger.info(f"Started VLLM server with command: {command}")
-    return process
-
-
-def kill_process_tree(pid):
-    """Kill a process and all its children."""
-    try:
-        # Send SIGTERM
-        subprocess.run(["pkill", "-TERM", "-P", str(pid)], check=False)
-        subprocess.run(["kill", "-TERM", str(pid)], check=False)
-        time.sleep(0.5)
-
-        # If process still exists, send SIGKILL
-        try:
-            os.kill(pid, 0)  # Check if process exists
-            subprocess.run(["pkill", "-KILL", "-P", str(pid)], check=False)
-            subprocess.run(["kill", "-KILL", str(pid)], check=False)
-        except OSError:
-            pass  # Process already terminated
-    except Exception as e:
-        print(f"Error killing process tree: {e}")
-
-
-def launch_server_cmd(command: str, host: str = "0.0.0.0", port: int | None = None):
-    """
-    Launch the server using the given command.
-
-    If no port is specified, a free port is reserved.
-    """
-    if port is None:
-        port, lock_socket = reserve_port(host)
-    else:
-        lock_socket = None
-
-    full_command = f"{command} --port {port}"
-    logger.info(f"Launching VLLM server on port {port}")
-    process = execute_shell_command(full_command)
-
-    if lock_socket is not None:
-        process_socket_map[process] = lock_socket
-
-    return process, port
-
-
-def terminate_process(process):
-    """Terminate the process and automatically release the reserved port."""
-    kill_process_tree(process.pid)
-
-    lock_socket = process_socket_map.pop(process, None)
-    if lock_socket is not None:
-        release_port(lock_socket)
-
-
-def wait_for_server(base_url: str, timeout: int = None, api_key: str = None) -> None:
-    """Wait for the server to be ready by polling the /v1/models endpoint.
-
-    Args:
-        base_url: The base URL of the server
-        timeout: Maximum time to wait in seconds. None means wait forever.
-        api_key: The API key to use for the request
-    """
-    logger.info(f"Waiting for VLLM server at {base_url} to become ready...")
-    start_time = time.time()
-    while True:
-        try:
-            response = requests.get(
-                f"{base_url}/v1/models",
-                headers={"Authorization": f"Bearer {api_key}"},
-            )
-            if response.status_code == 200:
-                logger.info("VLLM server is ready.")
-                break
-
-            if timeout and time.time() - start_time > timeout:
-                error_msg = "Server did not become ready within timeout period"
-                logger.error(error_msg)
-                raise TimeoutError(error_msg)
-        except requests.exceptions.RequestException as e:
-            logger.debug(f"Server not ready yet: {str(e)}")
-            time.sleep(1)
