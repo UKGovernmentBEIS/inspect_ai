@@ -189,8 +189,11 @@ export const fetchSize = async (url: string): Promise<number> => {
   }
 
   // If Content-Length is not present, use a GET with an 1 byte range request:
-  const getResponse = await fetch(`${url}`, { method: "GET", headers: { Range: "bytes=0-0" } });
-  const contentRange = getResponse.headers.get('Content-Range');
+  const getResponse = await fetch(`${url}`, {
+    method: "GET",
+    headers: { Range: "bytes=0-0" },
+  });
+  const contentRange = getResponse.headers.get("Content-Range");
   if (contentRange !== null) {
     const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
     if (rangeMatch !== null) {
