@@ -12818,9 +12818,23 @@ self.onmessage = function (e) {
       };
     };
     const fetchSize = async (url) => {
-      const response = await fetch(`${url}`, { method: "HEAD" });
-      const contentLength = Number(response.headers.get("Content-Length"));
-      return contentLength;
+      const headResponse = await fetch(`${url}`, { method: "HEAD" });
+      const contentLength = headResponse.headers.get("Content-Length");
+      if (contentLength !== null) {
+        return Number(contentLength);
+      }
+      const getResponse = await fetch(`${url}`, {
+        method: "GET",
+        headers: { Range: "bytes=0-0" }
+      });
+      const contentRange = getResponse.headers.get("Content-Range");
+      if (contentRange !== null) {
+        const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
+        if (rangeMatch !== null) {
+          return Number(rangeMatch[3]);
+        }
+      }
+      throw new Error("Could not determine content length");
     };
     const fetchRange = async (url, start, end) => {
       const response = await fetch(`${url}`, {
