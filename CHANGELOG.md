@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Inspect View: Live updates to running evaluation logs.
+- Inspect View: Fallback to content range request if inital HEAD request fails.
 
 ## v0.3.79 (26 March 2025)
 
