@@ -329,7 +329,6 @@ async def execute_tools(
 async def call_tool(
     tools: list[ToolDef], message: str, call: ToolCall, conversation: list[ChatMessage]
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None]:
-    from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._handoff import AgentTool
 
     # if there was an error parsing the ToolCall, raise that
@@ -364,75 +363,81 @@ async def call_tool(
     ):
         # agent tools get special handling
         if isinstance(tool_def.tool, AgentTool):
-            # alias agent tool and get agent name
-            agent_tool = tool_def.tool
-            agent_name = registry_unqualified_name(agent_tool.agent)
+            return await agent_handoff(tool_def, call, conversation)
 
-            # ammend the conversation with a ChatMessageTool to indicate
-            # to the downstream agent that we satisfied the call
-            tool_result = f"The {agent_name} agent has received the handoff."
-            agent_conversation = copy(conversation)
-            agent_conversation.append(
-                ChatMessageTool(
-                    content=tool_result,
-                    tool_call_id=call.id,
-                    function=call.function,
-                    internal_name=call.internal_name,
-                )
-            )
-
-            # run input filter if we have one
-            if agent_tool.input_filter is not None:
-                agent_conversation = await agent_tool.input_filter(agent_conversation)
-
-            # inject curried args
-            arguments = {**call.arguments, **agent_tool.kwargs}
-
-            # parse arguments
-            arguments = tool_params(arguments, agent_tool.agent)
-            del arguments["state"]
-
-            # make the call
-            agent_state = AgentState(messages=agent_conversation, output=ModelOutput())
-            agent_state = await agent_tool.agent(agent_state, **arguments)
-
-            # determine which messages are new and return only those (but exclude new
-            # system messages as they an internal matter for the handed off to agent.
-            # also, inject the agent's name as a prefix in assistant messages
-            conversation_message_ids = [message.id for message in agent_conversation]
-            agent_messages: list[ChatMessage] = []
-            for m in agent_state.messages:
-                if m.id not in conversation_message_ids:
-                    if isinstance(m, ChatMessageAssistant):
-                        m = prepend_agent_name(m, agent_name)
-                    if not isinstance(m, ChatMessageSystem):
-                        agent_messages.append(m)
-
-            # run output filter if we have one
-            if agent_tool.output_filter is not None:
-                agent_messages = await agent_tool.output_filter(agent_messages)
-
-            # if we end with an assistant message then add a user message
-            # so that the calling agent carries on
-            if len(agent_messages) == 0 or isinstance(
-                agent_messages[-1], ChatMessageAssistant
-            ):
-                agent_messages.append(
-                    ChatMessageUser(
-                        content=f"The {agent_name} agent has completed its work."
-                    )
-                )
-
-            return (
-                tool_result,
-                agent_messages,
-                agent_state.output if not agent_state.output.empty else None,
-            )
         # normal tool call
         else:
             arguments = tool_params(call.arguments, tool_def.tool)
             result: ToolResult = await tool_def.tool(**arguments)
             return result, [], None
+
+
+async def agent_handoff(
+    tool_def: ToolDef, call: ToolCall, conversation: list[ChatMessage]
+) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None]:
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._handoff import AgentTool
+
+    # alias agent tool and get agent name
+    agent_tool = cast(AgentTool, tool_def.tool)
+    agent_name = registry_unqualified_name(agent_tool.agent)
+
+    # ammend the conversation with a ChatMessageTool to indicate
+    # to the downstream agent that we satisfied the call
+    tool_result = f"The {agent_name} agent has received the handoff."
+    agent_conversation = copy(conversation)
+    agent_conversation.append(
+        ChatMessageTool(
+            content=tool_result,
+            tool_call_id=call.id,
+            function=call.function,
+            internal_name=call.internal_name,
+        )
+    )
+
+    # run input filter if we have one
+    if agent_tool.input_filter is not None:
+        agent_conversation = await agent_tool.input_filter(agent_conversation)
+
+    # inject curried args
+    arguments = {**call.arguments, **agent_tool.kwargs}
+
+    # parse arguments
+    arguments = tool_params(arguments, agent_tool.agent)
+    del arguments["state"]
+
+    # make the call
+    agent_state = AgentState(messages=agent_conversation, output=ModelOutput())
+    agent_state = await agent_tool.agent(agent_state, **arguments)
+
+    # determine which messages are new and return only those (but exclude new
+    # system messages as they an internal matter for the handed off to agent.
+    # also, inject the agent's name as a prefix in assistant messages
+    conversation_message_ids = [message.id for message in agent_conversation]
+    agent_messages: list[ChatMessage] = []
+    for m in agent_state.messages:
+        if m.id not in conversation_message_ids:
+            if isinstance(m, ChatMessageAssistant):
+                m = prepend_agent_name(m, agent_name)
+            if not isinstance(m, ChatMessageSystem):
+                agent_messages.append(m)
+
+    # run output filter if we have one
+    if agent_tool.output_filter is not None:
+        agent_messages = await agent_tool.output_filter(agent_messages)
+
+    # if we end with an assistant message then add a user message
+    # so that the calling agent carries on
+    if len(agent_messages) == 0 or isinstance(agent_messages[-1], ChatMessageAssistant):
+        agent_messages.append(
+            ChatMessageUser(content=f"The {agent_name} agent has completed its work.")
+        )
+
+    return (
+        tool_result,
+        agent_messages,
+        agent_state.output if not agent_state.output.empty else None,
+    )
 
 
 def prepend_agent_name(
