@@ -81,17 +81,15 @@ def execute_shell_command(command: list[str]) -> subprocess.Popen:
     def log_output():
         for line in iter(process.stdout.readline, ""):
             if line:
-                logger.info(line.strip())
+                logger.debug(line.strip())
         process.stdout.close()
-        raise RuntimeError("Server process crashed unexpectedly")
 
     # Set up background thread to read and log stderr
     def log_error():
         for line in iter(process.stderr.readline, ""):
             if line:
-                logger.warning(line.strip())
+                logger.info(line.strip())
         process.stderr.close()
-        raise RuntimeError("Server process crashed unexpectedly")
 
     # Start background threads to handle output
     import threading
@@ -171,13 +169,17 @@ def terminate_process(process: subprocess.Popen) -> None:
 
 
 def wait_for_server(
-    base_url: str, timeout: Optional[int] = None, api_key: Optional[str] = None
+    base_url: str,
+    process: subprocess.Popen,
+    timeout: Optional[int] = None,
+    api_key: Optional[str] = None,
 ) -> None:
     """
     Wait for the server to be ready by polling the /v1/models endpoint.
 
     Args:
         base_url: The base URL of the server
+        process: The subprocess running the server
         timeout: Maximum time to wait in seconds. None means wait forever.
         api_key: The API key to use for the request
     """
@@ -185,6 +187,13 @@ def wait_for_server(
     start_time = time.time()
 
     while True:
+        # Check if the process is still alive
+        if process.poll() is not None:
+            exit_code = process.poll()
+            error_msg = f"Server process exited unexpectedly with code {exit_code}. Try rerunning with '--log-level debug' to see the full traceback."
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
         try:
             response = requests.get(
                 f"{base_url}/v1/models",

@@ -1,12 +1,8 @@
+import atexit
 import logging
 import os
-import random
-import socket
-import subprocess
-import time
 from typing import Any
 
-import requests
 from typing_extensions import override
 
 from inspect_ai.model._chat_message import ChatMessage
@@ -14,7 +10,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util import model_base_url
-from inspect_ai.model._providers.util.server_utils import (
+from inspect_ai.model._providers.util.local_server_utils import (
     launch_server_cmd,
     terminate_process,
     wait_for_server,
@@ -85,10 +81,17 @@ class VLLMAPI(OpenAIAPI):
 
         # Start server if needed
         if not base_url:
-            logger.info("Starting new VLLM server...")
+            logger.warning(
+                f"Existing vLLM server not found. Starting new server for {model_name}."
+            )
             if "model_path" in self.server_args:
                 model_name = self.server_args.pop("model_path")
             base_url = self._start_server(model_name, host, port=None)
+
+            # Register cleanup handler with atexit
+            atexit.register(self._cleanup_server)
+
+            logger.warning(f"VLLM server started at {base_url}")
         else:
             logger.info(f"Using existing VLLM server at {base_url}")
 
@@ -144,7 +147,11 @@ class VLLMAPI(OpenAIAPI):
                 cmd, host=host, port=port
             )
             base_url = f"http://localhost:{self.port}/v1"
-            wait_for_server(f"http://localhost:{self.port}", api_key=self.api_key)
+            wait_for_server(
+                f"http://localhost:{self.port}",
+                self.server_process,
+                api_key=self.api_key,
+            )
         except Exception as e:
             # Cleanup any partially started server
             if self.server_process:
@@ -172,18 +179,24 @@ class VLLMAPI(OpenAIAPI):
     def collapse_assistant_messages(self) -> bool:
         return True
 
+    def _cleanup_server(self) -> None:
+        """Cleanup method to terminate server process when Python exits."""
+        if self.server_is_running and self.server_process is not None:
+            logger.info("Cleaning up VLLM server on exit")
+            terminate_process(self.server_process)
+            self.server_process = None
+            self.port = None
+
     async def close(self) -> None:
         """Close the client and terminate the server if we started it."""
+        logger.info("Closing VLLM server")
         # Close the OpenAI client
         await super().close()
 
-        # Terminate the server if we started it
-        if self.server_is_running:
-            terminate_process(self.server_process)
+        self._cleanup_server()
 
-            # Clear references
-            self.server_process = None
-            self.port = None
+        # Deregister the atexit handler since we've manually cleaned up
+        atexit.unregister(self._cleanup_server)
 
     async def generate(
         self,

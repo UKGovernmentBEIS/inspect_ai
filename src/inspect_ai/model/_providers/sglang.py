@@ -1,22 +1,25 @@
+import atexit
 import os
+from logging import getLogger
 from typing import Any
 
+from typing_extensions import override
+
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.util import model_base_url
-from inspect_ai.model._providers.util.server_utils import (
+from inspect_ai.model._providers.util.local_server_utils import (
     launch_server_cmd,
     terminate_process,
     wait_for_server,
 )
-from typing_extensions import override
-
-from inspect_ai.model._generate_config import GenerateConfig
 
 from .openai import OpenAIAPI
 
 # Environment variable names
 SGLANG_BASE_URL = "SGLANG_BASE_URL"
 SGLANG_API_KEY = "SGLANG_API_KEY"
-SGLANG_MODEL_PATH = "SGLANG_MODEL_PATH"
+
+logger = getLogger(__name__)
 
 
 class SGLangAPI(OpenAIAPI):
@@ -31,7 +34,6 @@ class SGLangAPI(OpenAIAPI):
         model_path (str): The model path to use with SGLang (e.g., "meta-llama/Meta-Llama-3.1-8B-Instruct")
         host (str): Host to bind the server to (default: "0.0.0.0")
         port (int): Port to bind the server to (default: None)
-        grammar_backend (str): Grammar backend to use (default: "xgrammar")
         server_args (dict): Additional arguments to pass to the SGLang server
     """
 
@@ -45,8 +47,7 @@ class SGLangAPI(OpenAIAPI):
         **server_args: Any,
     ) -> None:
         host = server_args.pop("host", "0.0.0.0")
-        # grammar_backend = model_args.pop("grammar_backend", "xgrammar")
-        self.server_args = server_args  # model_args.pop("server_args", {})
+        self.server_args = server_args
 
         # Get base_url from environment or argument
         if not base_url and port:  # if port is provided assume there is a local server
@@ -65,9 +66,19 @@ class SGLangAPI(OpenAIAPI):
 
         # Start server if needed
         if not base_url:
+            logger.warning(
+                f"Existing SGLang server not found. Starting new server for {model_name}."
+            )
             if "model_path" in self.server_args:
                 model_name = self.server_args.pop("model_path")
             base_url = self._start_server(model_name, host, port=None)
+
+            # Register cleanup handler with atexit
+            atexit.register(self._cleanup_server)
+
+            logger.warning(f"SGLang server started at {base_url}")
+        else:
+            logger.info(f"Using existing SGLang server at {base_url}")
 
         # Initialize OpenAI API with our SGLang server
         super().__init__(
@@ -91,7 +102,7 @@ class SGLangAPI(OpenAIAPI):
         # Verify we have a model path
         if not model_path:
             raise ValueError(
-                "No model_path provided for SGLang. Please specify a model_path argument or set the SGLANG_MODEL_PATH environment variable."
+                "No model_path provided for SGLang. Please specify a model_path argument."
             )
 
         if "device" in self.server_args:
@@ -112,6 +123,9 @@ class SGLangAPI(OpenAIAPI):
             "--model-path", model_path,
             "--host", host,
             "--api-key", self.api_key,
+            # while the default backend is supposed to be xgrammar, for some reason leaving this
+            # unspecified causes the server to fail when using ebnf grammars
+            "--grammar-backend", self.server_args.pop("grammar_backend", "xgrammar"),
         ]  # fmt: skip
 
         # Add additional arguments
@@ -124,7 +138,11 @@ class SGLangAPI(OpenAIAPI):
                 cmd, host=host, port=port
             )
             base_url = f"http://localhost:{self.port}/v1"
-            wait_for_server(f"http://localhost:{self.port}", api_key=self.api_key)
+            wait_for_server(
+                f"http://localhost:{self.port}",
+                self.server_process,
+                api_key=self.api_key,
+            )
         except Exception as e:
             # Cleanup any partially started server
             if self.server_process:
@@ -152,18 +170,22 @@ class SGLangAPI(OpenAIAPI):
     def collapse_assistant_messages(self) -> bool:
         return True
 
+    def _cleanup_server(self) -> None:
+        """Cleanup method to terminate server process when Python exits."""
+        if self.server_is_running and self.server_process is not None:
+            terminate_process(self.server_process)
+            self.server_process = None
+            self.port = None
+
     async def close(self) -> None:
         """Close the client and terminate the server if we started it."""
         # Close the OpenAI client
         await super().close()
 
-        # Terminate the server if we started it
-        if self.server_is_running:
-            terminate_process(self.server_process)
+        self._cleanup_server()
 
-            # Clear references
-            self.server_process = None
-            self.port = None
+        # Deregister the atexit handler since we've manually cleaned up
+        atexit.unregister(self._cleanup_server)
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params: dict[str, Any] = dict(
@@ -244,6 +266,10 @@ class SGLangAPI(OpenAIAPI):
                 extra_body["ebnf"] = config.guided_decoding.grammar
             elif config.guided_decoding.regex:
                 extra_body["regex"] = config.guided_decoding.regex
+            elif config.guided_decoding.choice:
+                # choice is not natively supported by SGLang, so we need to convert it to a regex format
+                regex = "|".join(config.guided_decoding.choice)
+                extra_body["regex"] = regex
 
         # Add extra_body to params if it has content
         if extra_body:

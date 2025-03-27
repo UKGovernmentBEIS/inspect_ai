@@ -1,8 +1,15 @@
+from logging import getLogger
+
 from pydantic import BaseModel, ValidationError
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig, GuidedDecodingConfig, ResponseSchema
+from inspect_ai.model import (
+    GenerateConfig,
+    GuidedDecodingConfig,
+    ResponseSchema,
+    get_model,
+)
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -14,6 +21,8 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState, generate
 from inspect_ai.util import json_schema
+
+logger = getLogger(__name__)
 
 
 class Color(BaseModel):
@@ -114,6 +123,14 @@ def rgb_color_choice():
 
 @task(vllm=True)
 def rgb_color_grammar():
+    grammar = """
+root ::= rgb_color
+rgb_color ::= "RGB: " rgb_values
+rgb_values ::= number "," number "," number
+number ::= digit | digit digit | digit digit digit
+digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+"""
+
     return Task(
         dataset=[
             Sample(
@@ -127,16 +144,7 @@ def rgb_color_grammar():
         ],
         solver=generate(),
         scorer=score_regex(),
-        config=GenerateConfig(
-            guided_decoding=GuidedDecodingConfig(
-                grammar="""
-                    start: "RGB: " rgb_values
-                    rgb_values: number "," number "," number
-                    number: DIGIT | DIGIT DIGIT | DIGIT DIGIT DIGIT
-                    DIGIT: "0"|"1"|"2"|"3"|"4"|"5"|"6"|"7"|"8"|"9"
-                """
-            )
-        ),
+        config=GenerateConfig(guided_decoding=GuidedDecodingConfig(grammar=grammar)),
     )
 
 
