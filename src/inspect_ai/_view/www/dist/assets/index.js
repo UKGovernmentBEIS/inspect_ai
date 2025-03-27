@@ -27110,6 +27110,9 @@ self.onmessage = function (e) {
       reasoning: {
         render: (key2, content2, isLast) => {
           const r2 = content2;
+          if (!r2.reasoning && !r2.redacted) {
+            return void 0;
+          }
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
