@@ -1,6 +1,10 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { RunningMetric } from "../../api/types";
+import { ApplicationIcons } from "../../appearance/icons";
+import { LinkButton } from "../../components/LinkButton";
+import { Modal } from "../../components/Modal";
+import { useProperty } from "../../state/hooks";
 import { Scores } from "../../types/log";
 import { formatPrettyDecimal } from "../../utils/format";
 import { metricDisplayName } from "../utils";
@@ -82,6 +86,14 @@ interface ResultsPanelProps {
 }
 
 export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
+  const [showing, setShowing] = useProperty(
+    "results-panel-metrics",
+    "modal-showing",
+    {
+      defaultValue: false,
+    },
+  );
+
   if (!scorers || scorers.length === 0) {
     return undefined;
   }
@@ -107,21 +119,99 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
     );
   } else {
     const showReducer = scorers.findIndex((score) => !!score.reducer) !== -1;
+    const grouped = groupMetrics(scorers);
+
     return (
-      <div className={styles.multiMetricsRows}>
-        {scorers.map((scorer, index) => {
-          return (
-            <MultiScorerMetric
-              key={`multi-metric-${index}`}
-              scorer={scorer}
-              isFirst={index === 0}
-              showReducer={showReducer}
-            />
-          );
-        })}
+      <div className={clsx(styles.metricsSummary)}>
+        <ScoreGrid scorers={grouped[0]} showReducer={showReducer} />
+        {grouped.length > 1 ? (
+          <>
+            <Modal
+              id="results-metrics"
+              showing={showing}
+              setShowing={setShowing}
+              title={"Scoring Detail"}
+            >
+              {grouped.map((g) => {
+                return <ScoreGrid scorers={g} showReducer={showReducer} />;
+              })}
+            </Modal>
+          </>
+        ) : undefined}
+        <LinkButton
+          className={styles.moreButton}
+          text={"Additional metrics"}
+          icon={ApplicationIcons.metrics}
+          onClick={() => {
+            setShowing(true);
+          }}
+        />
       </div>
     );
   }
+};
+
+const metricsKey = (metrics: ResultsMetric[]): string => {
+  const metricKey = metrics.map((m) => m.name).join("");
+  return metricKey;
+};
+
+const groupMetrics = (scorers: ResultsScorer[]): ResultsScorer[][] => {
+  const results: Record<string, ResultsScorer[]> = {};
+  scorers.forEach((scorer) => {
+    const key = metricsKey(scorer.metrics);
+    results[key] = results[key] || [];
+    results[key].push(scorer);
+  });
+  return Object.values(results);
+};
+
+interface ScoreGridProps {
+  scorers: ResultsScorer[];
+  showReducer?: boolean;
+}
+
+const ScoreGrid: FC<ScoreGridProps> = ({ scorers, showReducer }) => {
+  const metricCount = scorers[0].metrics.length;
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${metricCount + 1}, max-content)`,
+        columnGap: "0.5em",
+        marginRight: "1em",
+      }}
+      className={clsx("text-size-small")}
+    >
+      <div></div>
+      {scorers[0].metrics.map((m) => {
+        return (
+          <div className={clsx("text-style-label", "text-style-secondary")}>
+            {m.name}
+          </div>
+        );
+      })}
+
+      {scorers.map((scorer) => {
+        const results = [
+          <div>
+            {scorer.scorer}{" "}
+            {showReducer && scorer.reducer ? `(${scorer.reducer})` : undefined}
+          </div>,
+        ];
+        const metrics = scorer.metrics;
+        metrics.forEach((m) => {
+          results.push(
+            <div style={{ justifySelf: "center", fontWeight: "600" }}>
+              {formatPrettyDecimal(m.value)}
+            </div>,
+          );
+        });
+        return results;
+      })}
+    </div>
+  );
 };
 
 interface VerticalMetricProps {
@@ -189,7 +279,7 @@ const MultiScorerMetric: FC<MultiScorerMetricProps> = ({
   isFirst,
   showReducer,
 }) => {
-  const titleFontClz = "text-size-base";
+  const titleFontClz = "text-size-small";
   const reducerFontClz = "text-size-smaller";
   const valueFontClz = "text-size-base";
 
@@ -209,20 +299,8 @@ const MultiScorerMetric: FC<MultiScorerMetricProps> = ({
           styles.multiScorerLabel,
         )}
       >
-        {scorer.scorer}
+        {scorer.scorer} {showReducer ? `(${scorer.reducer || "default"})` : ""}
       </div>
-      {showReducer ? (
-        <div
-          className={clsx(
-            reducerFontClz,
-            "text-style-label",
-            "text-style-secondary",
-            styles.multiScorerReducer,
-          )}
-        >
-          {scorer.reducer || "default"}
-        </div>
-      ) : undefined}
       <div className={clsx(valueFontClz, styles.multiScorerValue)}>
         {scorer.metrics.map((metric) => {
           return (

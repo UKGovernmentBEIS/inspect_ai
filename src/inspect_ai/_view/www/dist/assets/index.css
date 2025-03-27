@@ -19857,7 +19857,41 @@ span.ap-marker-container:hover span.ap-marker {
   display: grid;
   grid-template-columns: minmax(0, max-content) max-content;
 }
-._simpleMetricsRows_qy19p_1 {
+._button_oq9i2_1 {
+  display: flex;
+  border: none;
+  flex-direction: row;
+  background-color: unset;
+}
+
+._button_oq9i2_1:hover {
+  color: var(--bs-link-hover-color);
+  cursor: pointer;
+}
+
+._label_oq9i2_13 {
+  margin-left: 0.4em;
+}
+._modal_5cjvj_1 {
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  max-width: 90vw;
+  margin-top: 3rem;
+  border-radius: var(--bs-border-radius);
+}
+
+._modalTitle_5cjvj_12 {
+  font-weight: 600;
+}
+
+._btnClose_5cjvj_16 {
+  height: 0.8em;
+  width: 0.8em;
+}
+._simpleMetricsRows_1ldk2_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19868,7 +19902,7 @@ span.ap-marker-container:hover span.ap-marker {
   overflow: scroll;
 }
 
-._multiMetricsRows_qy19p_12 {
+._multiMetricsRows_1ldk2_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19882,14 +19916,14 @@ span.ap-marker-container:hover span.ap-marker {
   align-items: baseline;
 }
 
-._verticalMetricReducer_qy19p_26 {
+._verticalMetricReducer_1ldk2_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_qy19p_33 {
+._verticalMetricName_1ldk2_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -19897,35 +19931,35 @@ span.ap-marker-container:hover span.ap-marker {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_qy19p_41 {
+._verticalMetricValue_1ldk2_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_qy19p_46 {
+._multiScorer_1ldk2_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_qy19p_53 {
+._multiScorerIndent_1ldk2_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_qy19p_57 {
+._multiScorerReducer_1ldk2_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_qy19p_63 {
+._multiScorerLabel_1ldk2_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_qy19p_69 {
+._multiScorerValue_1ldk2_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -19934,17 +19968,28 @@ span.ap-marker-container:hover span.ap-marker {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_qy19p_78 {
+._multiScorerValueContent_1ldk2_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_qy19p_83 {
+._multiScoreMetricGrid_1ldk2_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
   padding: 0 0.2em;
   justify-content: center;
+}
+
+._moreButton_1ldk2_91 {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+._metricsSummary_1ldk2_96 {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 ._statusContainer_1sckj_1 {
   display: inline-block;
