@@ -42,7 +42,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
     });
 
     // Find a model message to render, if there is one
-    const lastModelEvent = event.events.reverse().find((e) => {
+    const lastModelEvent = [...event.events].reverse().find((e) => {
       return e.event === "model";
     });
 

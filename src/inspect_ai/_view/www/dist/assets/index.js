@@ -64725,7 +64725,7 @@ ${events}
         const approvalEvent2 = event.events.find((e) => {
           return e.event === "approval";
         });
-        const lastModelEvent2 = event.events.reverse().find((e) => {
+        const lastModelEvent2 = [...event.events].reverse().find((e) => {
           return e.event === "model";
         });
         return { approvalEvent: approvalEvent2, lastModelEvent: lastModelEvent2 };
