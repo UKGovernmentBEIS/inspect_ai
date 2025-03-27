@@ -13,13 +13,13 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai@feature/agent-pro
 ```
 :::
 
-The Inspect `Agent` protocol enables you to create highly versitile components that can be used in a wide variety of contexts within evaluations. Agents are similar to solvers, but use a narrower interface that makes them considerably more versitile.
+The Inspect `Agent` protocol enables you to create flexible components that can be used in a wide variety of contexts within evaluations. Agents are similar to solvers, but use a narrower interface that makes them considerably more versatile.
 
 Below is a simple example of building and using an agent. See the [inspect_ai.agent](reference/inspect_ai.agent.qmd) reference for more in-depth details on using the agent protocol.
 
 ## Example
 
-For example, you might create a `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research:
+The following is a simple `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research:
 
 ```python
 from inspect_ai.agent import Agent, AgentState, agent
