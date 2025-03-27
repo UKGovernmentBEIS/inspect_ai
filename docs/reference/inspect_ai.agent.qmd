@@ -3,12 +3,13 @@ title: "inspect_ai.agent"
 ---
 
 ::: {.callout-note}
-The `inspect_ai.agent` module is currently in beta testing, and is available by installing directly from the following GitHub branch:
+The **inspect_ai.agent** module is currently in beta testing. Learn more about using the agent protocol at <https://github.com/UKGovernmentBEIS/inspect_ai/pull/1553>. Install the `feature/agent-protocol` development branch with:
 
 ```bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai@feature/agent-protocol
 ```
 :::
+
 
 ## Agents
 

@@ -1,0 +1,106 @@
+---
+title: Agent Protocol (Beta)
+---
+
+## Overview
+
+::: {.callout-note appearance="simple"}
+
+The **inspect_ai.agent** module is currently in development. Install the `feature/agent-protocol` development branch with:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai@feature/agent-protocol
+```
+:::
+
+The Inspect `Agent` protocol enables you to create highly versitile components that can be used in a wide variety of contexts within evaluations. Agents are similar to solvers, but use a narrower interface that makes them considerably more versitile.
+
+Below is a simple example of building and using an agent. See the [inspect_ai.agent](reference/inspect_ai.agent.qmd) reference for more in-depth details on using the agent protocol.
+
+## Example
+
+For example, you might create a `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research:
+
+```python
+from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.model import get_model
+from inspect_ai.tool import web_browser
+
+@agent
+def web_surfer() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        messages, state.output = await get_model().generate_loop(
+            state.messages, tools=[web_browser()]
+        )
+        state.messages.extend(messages)
+        return state
+
+    return execute
+```
+
+This agent can be used in the following ways:
+
+1.  It can be passed as a `Solver` to any Inspect interface that takes a solver:
+
+    ```python
+    from inspect_ai import eval
+
+    eval(task, solver=web_surfer())
+    ```
+
+2.  It can be run directly using the `run()` function (you might do this in a multi-step workflow):
+
+    ```python
+    from inspect_ai.agent import run
+
+    state = await run(
+        web_surfer(), "What are the 3 most popular movies of 2024?"
+    )
+    print(f"The most popular movies are: {state.output.completion}")
+    ```
+
+3.  It can be used as a standard Inspect [Tool](tools.qmd) using the `as_tool()` function:
+
+    ```python
+    from inspect_ai.agent import as_tool
+    from inspect_ai.model import get_model
+    
+    output = await get_model("openai/gpt-4o").generate(
+        "What are the 3 most popular movies of 2024?", 
+        tools=[as_tool(web_surfer())]
+    )
+    print(f"The most popular movies are: {state.output.completion}")
+    ```
+
+4.  It can participate in a multi-agent system where the conversation history is shared accross agents. Use the `handoff()` function to create a tool that enables handing off the conversation from one agent to another:
+
+    ```python
+    from inspect_ai.agent import handoff
+    from inspect_ai.model import get_model
+    from math_tools import addition
+   
+    output = await get_model("openai/gpt-4o").generate_loop(
+        "I'd like to know the answer to 1+1 and would also like " +
+        "to know what the 3 most popular movies of 2024 were?", 
+        tools=[
+            addition(),
+            handoff(web_surfer())
+        ]
+    )
+    ```
+
+    The difference between `handoff()` and `as_tool()` is that `handoff()` forwards the entire conversation history to the agent (and enables the agent to add entries to it) whereas `as_tool()` provides a simple string in, string out interface to the agent.
+
+## Learning More
+
+See the [inspect_ai.agent](reference/inspect_ai.agent.qmd) reference for additional details on using the agent protocol.
+
+
+    
+
+
+
+
+
+
+
