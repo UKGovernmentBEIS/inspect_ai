@@ -246,6 +246,7 @@ class Model:
         self.api = api
         self.config = config
         self.model_args = model_args
+        self._role: str | None
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -273,6 +274,11 @@ class Model:
     def name(self) -> str:
         """Model name."""
         return self.api.model_name
+
+    @property
+    def role(self) -> str | None:
+        """Model role."""
+        return self._role
 
     def __str__(self) -> str:
         return f"{ModelName(self)}"
@@ -372,6 +378,9 @@ class Model:
 
             # return output
             return output
+
+    def _set_role(self, role: str) -> None:
+        self._role = role
 
     async def _generate(
         self,

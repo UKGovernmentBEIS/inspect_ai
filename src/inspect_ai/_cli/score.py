@@ -116,6 +116,8 @@ async def score(
         **eval_log.eval.model_args,
     )
 
+    # TODO: reconstruct the roles and pass to init_task_context
+
     # initialize active model
     init_task_context(model)
 
