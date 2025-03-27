@@ -20,18 +20,17 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
 )
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 
 
 class AgentState:
     """Agent state."""
 
-    def __init__(
-        self, *, messages: list[ChatMessage], output: ModelOutput = ModelOutput()
-    ) -> None:
+    def __init__(self, *, messages: list[ChatMessage]) -> None:
         self._messages = copy(messages)
-        self._output = output
+        self._output: ModelOutput | None = None
 
     @property
     def messages(self) -> list[ChatMessage]:
@@ -46,6 +45,25 @@ class AgentState:
     @property
     def output(self) -> ModelOutput:
         """Model output."""
+        # if there is no output yet then synthesize it from the last assistant message
+        if self._output is None:
+            # look for the last assistant message
+            for message in reversed(self.messages):
+                if isinstance(message, ChatMessageAssistant):
+                    self._output = ModelOutput(
+                        model=message.model or "",
+                        choices=[
+                            ChatCompletionChoice(
+                                message=message.model_copy(),
+                                stop_reason="stop",
+                            )
+                        ],
+                    )
+
+            # no assistant message, so generate an empty model output
+            if self._output is None:
+                self._output = ModelOutput()
+
         return self._output
 
     @output.setter

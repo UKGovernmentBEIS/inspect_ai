@@ -65,7 +65,7 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
                     state.messages.append(message)
 
             # update output if its not empty
-            if not agent_state.output.empty:
+            if agent_state.output:
                 state.output = agent_state.output
 
             return state

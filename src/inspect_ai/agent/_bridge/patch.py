@@ -99,10 +99,16 @@ async def inspect_model_request(
 ) -> ChatCompletion:
     from inspect_ai.solver._task_state import sample_state
 
+    # resolve model
+    if model_name == "inspect":
+        model = get_model()
+    else:
+        model = get_model(model_name.removeprefix("inspect/"))
+
     # convert openai messages to inspect messages
     json_data = cast(dict[str, Any], options.json_data)
     messages: list[ChatCompletionMessageParam] = json_data["messages"]
-    input = chat_messages_from_openai(messages)
+    input = chat_messages_from_openai(model.api.model_name, messages)
 
     # convert openai tools to inspect tools
     tools: list[ChatCompletionToolParam] = json_data.get("tools", [])
@@ -130,12 +136,6 @@ async def inspect_model_request(
                 inspect_tool_choice = "any"
             case _:
                 inspect_tool_choice = ToolFunction(name=tool_choice["function"]["name"])
-
-    # resolve model
-    if model_name == "inspect":
-        model = get_model()
-    else:
-        model = get_model(model_name.removeprefix("inspect/"))
 
     output = await model.generate(
         input=input,

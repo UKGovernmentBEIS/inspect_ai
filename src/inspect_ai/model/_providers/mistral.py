@@ -455,7 +455,7 @@ def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCal
 
 
 def completion_choice(
-    choice: MistralChatCompletionChoice, tools: list[ToolInfo]
+    model: str, choice: MistralChatCompletionChoice, tools: list[ToolInfo]
 ) -> ChatCompletionChoice:
     message = choice.message
     if message:
@@ -466,6 +466,7 @@ def completion_choice(
                 tool_calls=chat_tool_calls(message.tool_calls, tools)
                 if message.tool_calls
                 else None,
+                model=model,
                 source="generate",
             ),
             stop_reason=(
@@ -512,7 +513,10 @@ def completion_choices_from_response(
     if response.choices is None:
         return []
     else:
-        return [completion_choice(choice, tools) for choice in response.choices]
+        return [
+            completion_choice(response.model, choice, tools)
+            for choice in response.choices
+        ]
 
 
 def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:

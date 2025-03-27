@@ -6,7 +6,6 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
-from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
 from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
@@ -43,9 +42,7 @@ def as_tool(agent: Agent, description: str | None = None, **agent_kwargs: Any) -
 
     async def execute(input: str, *args: Any, **kwargs: Any) -> ToolResult:
         # prepare state and call agent
-        state = AgentState(
-            messages=[ChatMessageUser(content=input)], output=ModelOutput()
-        )
+        state = AgentState(messages=[ChatMessageUser(content=input)])
         state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # find assistant message to read content from (prefer output)

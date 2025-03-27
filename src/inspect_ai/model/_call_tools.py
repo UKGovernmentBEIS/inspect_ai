@@ -416,7 +416,7 @@ async def agent_handoff(
     del arguments["state"]
 
     # make the call
-    agent_state = AgentState(messages=agent_conversation, output=ModelOutput())
+    agent_state = AgentState(messages=agent_conversation)
     agent_state = await agent_tool.agent(agent_state, **arguments)
 
     # determine which messages are new and return only those (but exclude new
@@ -442,11 +442,7 @@ async def agent_handoff(
             ChatMessageUser(content=f"The {agent_name} agent has completed its work.")
         )
 
-    return (
-        tool_result,
-        agent_messages,
-        agent_state.output if not agent_state.output.empty else None,
-    )
+    return (tool_result, agent_messages, agent_state.output)
 
 
 def prepend_agent_name(

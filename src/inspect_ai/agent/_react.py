@@ -85,7 +85,7 @@ def react(
         # by default, always continue (inserting an encouragement message
         # if the model failed to call a tool)
         async def no_tools_continue(state: AgentState) -> bool | str:
-            if not state.output.message.tool_calls:
+            if state.output is None or not state.output.message.tool_calls:
                 return "Please proceed to the next step using your best judgement."
             else:
                 return True

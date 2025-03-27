@@ -2,7 +2,6 @@ from copy import copy
 from typing import Any, Callable
 
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._model_output import ModelOutput
 
 from ._agent import Agent, AgentState
 
@@ -19,7 +18,7 @@ async def agent_execute(
     # filter input messages and create state
     messages = copy(messages)
     input_messages = filter(messages) if filter is not None else messages
-    state = AgentState(messages=input_messages, output=ModelOutput())
+    state = AgentState(messages=input_messages)
 
     # run the agent
     try:

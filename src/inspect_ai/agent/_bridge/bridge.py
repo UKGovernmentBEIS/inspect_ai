@@ -77,7 +77,9 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Agen
             model=get_model().name, content=result.output
         )
         if result.messages is not None:
-            state.messages = chat_messages_from_openai(result.messages)
+            state.messages = chat_messages_from_openai(
+                state.output.model, result.messages
+            )
 
         return state
 

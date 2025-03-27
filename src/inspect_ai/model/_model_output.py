@@ -157,7 +157,8 @@ class ModelOutput(BaseModel):
         else:
             self.choices.append(
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=completion), stop_reason="stop"
+                    message=ChatMessageAssistant(content=completion, model=self.model),
+                    stop_reason="stop",
                 )
             )
 
@@ -180,7 +181,9 @@ class ModelOutput(BaseModel):
             model=model,
             choices=[
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=content, source="generate"),
+                    message=ChatMessageAssistant(
+                        content=content, model=model, source="generate"
+                    ),
                     stop_reason=stop_reason,
                 )
             ],
@@ -224,6 +227,7 @@ class ModelOutput(BaseModel):
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
                         content=content,
+                        model=model,
                         source="generate",
                         tool_calls=[
                             ToolCall(

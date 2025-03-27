@@ -155,7 +155,9 @@ class VertexAPI(ModelAPI):
         # capture output
         output = ModelOutput(
             model=self.model_name,
-            choices=completion_choices_from_candidates(response.candidates),
+            choices=completion_choices_from_candidates(
+                self.model_name, response.candidates
+            ),
             usage=ModelUsage(
                 input_tokens=response.usage_metadata.prompt_token_count,
                 output_tokens=response.usage_metadata.candidates_token_count,
@@ -377,7 +379,9 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
     return [Tool(function_declarations=declarations)]
 
 
-def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
+def completion_choice_from_candidate(
+    model: str, candidate: Candidate
+) -> ChatCompletionChoice:
     # check for completion text
     content = " ".join(
         [
@@ -408,6 +412,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
+            model=model,
             source="generate",
         ),
         stop_reason=stop_reason,
@@ -435,11 +440,14 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
 
 
 def completion_choices_from_candidates(
+    model: str,
     candidates: list[Candidate],
 ) -> list[ChatCompletionChoice]:
     candidates = copy(candidates)
     candidates.sort(key=lambda c: c.index)
-    return [completion_choice_from_candidate(candidate) for candidate in candidates]
+    return [
+        completion_choice_from_candidate(model, candidate) for candidate in candidates
+    ]
 
 
 def candidate_stop_reason(finish_reason: FinishReason) -> StopReason:

@@ -219,7 +219,6 @@ def tool_checker() -> Agent:
             ]
         )
         state.messages.append(ChatMessageAssistant(content=str(tool_messages)))
-        state.output.completion = str(tool_messages)
 
         return state
 
