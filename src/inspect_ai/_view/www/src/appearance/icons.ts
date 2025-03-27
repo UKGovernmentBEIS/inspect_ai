@@ -66,6 +66,7 @@ export const ApplicationIcons = {
   menu: "bi bi-list",
   messages: "bi bi-chat-right-text",
   metadata: "bi bi-table",
+  metrics: "bi bi-clipboard-data",
   model: "bi bi-grid-3x3-gap",
   "toggle-right": "bi bi-chevron-right",
   more: "bi bi-zoom-in",

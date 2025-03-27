@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
+import styles from "./Modal.module.css";
 
 interface ModalProps {
   id: string;
@@ -25,13 +26,25 @@ export const Modal: FC<ModalProps> = ({
       tabIndex={-1}
       style={{ display: showing ? "block" : "none" }}
     >
-      <div className="modal-dialog">
+      <div className={clsx("modal-dialog", styles.modal)}>
         <div className="modal-content">
           <div className="modal-header">
-            <h5 className="modal-title">{title}</h5>
+            <div
+              className={clsx(
+                "modal-title",
+                "text-size-base",
+                styles.modalTitle,
+              )}
+            >
+              {title}
+            </div>
             <button
               type="button"
-              className="btn-close"
+              className={clsx(
+                "btn-close",
+                "text-size-smaller",
+                styles.btnClose,
+              )}
               data-bs-dismiss="modal"
               aria-label="Close"
               onClick={() => {
