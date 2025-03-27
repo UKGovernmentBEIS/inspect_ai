@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.59
+
+- Minor changes to support future features
+
 ## 0.3.58
 
 - Re-use viewers when using the open log file command.
