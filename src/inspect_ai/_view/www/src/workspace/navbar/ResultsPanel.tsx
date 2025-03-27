@@ -144,7 +144,13 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
               title={"Scoring Detail"}
             >
               {grouped.map((g) => {
-                return <ScoreGrid scorers={g} showReducer={showReducer} />;
+                return (
+                  <ScoreGrid
+                    scorers={g}
+                    showReducer={showReducer}
+                    className={styles.modalScores}
+                  />
+                );
               })}
             </Modal>
             <LinkButton
@@ -183,9 +189,10 @@ const groupMetrics = (scorers: ResultsScorer[]): ResultsScorer[][] => {
 interface ScoreGridProps {
   scorers: ResultsScorer[];
   showReducer?: boolean;
+  className?: string | string[];
 }
 
-const ScoreGrid: FC<ScoreGridProps> = ({ scorers, showReducer }) => {
+const ScoreGrid: FC<ScoreGridProps> = ({ scorers, showReducer, className }) => {
   const metricCount = scorers[0].metrics.length;
 
   return (
@@ -193,12 +200,12 @@ const ScoreGrid: FC<ScoreGridProps> = ({ scorers, showReducer }) => {
       style={{
         display: "grid",
         gridTemplateColumns: `repeat(${metricCount + 1}, max-content)`,
-        columnGap: "0.5em",
+        columnGap: "1.5em",
         marginRight: "1em",
       }}
-      className={clsx("text-size-small")}
+      className={clsx("text-size-small", className)}
     >
-      <div></div>
+      <div className={clsx("text-style-label")}>Scorer</div>
       {scorers[0].metrics.map((m) => {
         return (
           <div className={clsx("text-style-label", "text-style-secondary")}>

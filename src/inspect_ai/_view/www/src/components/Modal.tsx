@@ -20,53 +20,58 @@ export const Modal: FC<ModalProps> = ({
   className,
 }) => {
   return (
-    <div
-      id={id}
-      className={clsx("modal", "fade", showing ? "show" : "", className)}
-      tabIndex={-1}
-      style={{ display: showing ? "block" : "none" }}
-    >
-      <div className={clsx("modal-dialog", styles.modal)}>
-        <div className="modal-content">
-          <div className="modal-header">
-            <div
-              className={clsx(
-                "modal-title",
-                "text-size-base",
-                styles.modalTitle,
-              )}
-            >
-              {title}
+    <>
+      {showing && (
+        <div className={styles.backdrop} onClick={() => setShowing(false)} />
+      )}
+      <div
+        id={id}
+        className={clsx("modal", "fade", showing ? "show" : "", className)}
+        tabIndex={-1}
+        style={{ display: showing ? "block" : "none" }}
+      >
+        <div className={clsx("modal-dialog", styles.modal)}>
+          <div className="modal-content">
+            <div className={clsx("modal-header", styles.header)}>
+              <div
+                className={clsx(
+                  "modal-title",
+                  "text-size-base",
+                  styles.modalTitle,
+                )}
+              >
+                {title}
+              </div>
+              <button
+                type="button"
+                className={clsx(
+                  "btn-close",
+                  "text-size-smaller",
+                  styles.btnClose,
+                )}
+                data-bs-dismiss="modal"
+                aria-label="Close"
+                onClick={() => {
+                  setShowing(!showing);
+                }}
+              ></button>
             </div>
-            <button
-              type="button"
-              className={clsx(
-                "btn-close",
-                "text-size-smaller",
-                styles.btnClose,
-              )}
-              data-bs-dismiss="modal"
-              aria-label="Close"
-              onClick={() => {
-                setShowing(!showing);
-              }}
-            ></button>
-          </div>
-          <div className="modal-body">{children}</div>
-          <div className="modal-footer">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              data-bs-dismiss="modal"
-              onClick={() => {
-                setShowing(!showing);
-              }}
-            >
-              Close
-            </button>
+            <div className="modal-body">{children}</div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                data-bs-dismiss="modal"
+                onClick={() => {
+                  setShowing(!showing);
+                }}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
