@@ -11,8 +11,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.tool._tool_info import parse_tool_info
 
-from ._agent import Agent
-from ._execute import agent_execute
+from ._agent import Agent, AgentState
 
 
 def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
@@ -54,15 +53,12 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
     def agent_to_solver() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # run agent
-            agent_state = await agent_execute(
-                agent, None, state.messages, **agent_kwargs
+            agent_state = await agent(
+                AgentState(messages=state.messages), **agent_kwargs
             )
 
-            # append new messages
-            message_ids = [message.id for message in state.messages]
-            for message in agent_state.messages:
-                if message.id not in message_ids:
-                    state.messages.append(message)
+            # update messages
+            state.messages = agent_state.messages
 
             # update output if its not empty
             if agent_state.output:
