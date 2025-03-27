@@ -1,0 +1,15 @@
+.button {
+  display: flex;
+  border: none;
+  flex-direction: row;
+  background-color: unset;
+}
+
+.button:hover {
+  color: var(--bs-link-hover-color);
+  cursor: pointer;
+}
+
+.label {
+  margin-left: 0.4em;
+}
