@@ -258,9 +258,7 @@ async def execute_tools(
             ]()
 
             async with anyio.create_task_group() as tg:
-                tg.start_soon(
-                    call_tool_task, call, messages + result_messages, send_stream
-                )
+                tg.start_soon(call_tool_task, call, messages, send_stream)
                 event._set_cancel_fn(tg.cancel_scope.cancel)
                 async with receive_stream:
                     (
@@ -382,9 +380,20 @@ async def agent_handoff(
     agent_tool = cast(AgentTool, tool_def.tool)
     agent_name = registry_unqualified_name(agent_tool.agent)
 
+    # remove other tool calls from the assistant message so the
+    # conversation remains valid (the model may have called multiple
+    # tools in parallel and we won't be handling the other calls)
+    last_message = conversation[-1].model_copy()
+    if isinstance(last_message, ChatMessageAssistant) and last_message.tool_calls:
+        last_message.tool_calls = [
+            tool_call
+            for tool_call in last_message.tool_calls
+            if tool_call.id == call.id
+        ]
+
     # ammend the conversation with a ChatMessageTool to indicate
     # to the downstream agent that we satisfied the call
-    tool_result = f"The {agent_name} agent has received the handoff."
+    tool_result = f"Successfully transferred to {agent_name}."
     agent_conversation = copy(conversation)
     agent_conversation.append(
         ChatMessageTool(

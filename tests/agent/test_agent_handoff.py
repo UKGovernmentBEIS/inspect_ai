@@ -260,7 +260,7 @@ def check_agent_handoff_input_filter(
 
 @skip_if_no_openai
 def test_agent_handoff_no_input_filter():
-    check_agent_handoff_input_filter(None, 3)
+    check_agent_handoff_input_filter(None, 2)
 
 
 @skip_if_no_openai
