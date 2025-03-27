@@ -17972,26 +17972,16 @@ self.onmessage = function (e) {
     };
     const immer = immerImpl;
     const getEnabledNamespaces = () => {
-      return __LOGGING_FILTER__.split(",").map((ns) => ns.trim()).filter(Boolean);
+      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
     };
-    const ENABLED_NAMESPACES = new Set(getEnabledNamespaces());
-    const filterNameSpace = (namespace) => {
-      if (ENABLED_NAMESPACES.has("*")) return true;
-      return ENABLED_NAMESPACES.has(namespace);
-    };
+    new Set(getEnabledNamespaces());
     const createLogger = (namespace) => {
       const logger = {
         debug: (message2, ...args) => {
-          if (__DEV_WATCH__ && filterNameSpace(namespace))
-            console.debug(`[${namespace}] ${message2}`, ...args);
         },
         info: (message2, ...args) => {
-          if (__DEV_WATCH__ && filterNameSpace(namespace))
-            console.info(`[${namespace}] ${message2}`, ...args);
         },
         warn: (message2, ...args) => {
-          if (__DEV_WATCH__ && filterNameSpace(namespace))
-            console.warn(`[${namespace}] ${message2}`, ...args);
         },
         // Always log errors, even in production
         error: (message2, ...args) => {
@@ -17999,8 +17989,6 @@ self.onmessage = function (e) {
         },
         // Lazy evaluation for expensive logs
         debugIf: (fn2) => {
-          if (__DEV_WATCH__ && filterNameSpace(namespace))
-            console.debug(`[${namespace}] ${fn2()}`);
         }
       };
       return logger;
