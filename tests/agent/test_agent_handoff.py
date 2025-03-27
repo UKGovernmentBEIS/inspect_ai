@@ -90,6 +90,7 @@ def searcher2() -> Agent:
     return execute
 
 
+@skip_if_no_openai
 def test_agent_handoff_user_message():
     log = eval(
         Task(
@@ -133,6 +134,7 @@ def searcher3() -> Agent:
     return execute
 
 
+@skip_if_no_openai
 def test_agent_handoff_assistant_prefix():
     log = eval(
         Task(
