@@ -27062,7 +27062,8 @@ self.onmessage = function (e) {
               `text-content-${index2}`,
               {
                 type: "text",
-                text: content2
+                text: content2,
+                refusal: null
               },
               index2 === contents2.length - 1
             );
@@ -27084,7 +27085,8 @@ self.onmessage = function (e) {
       } else {
         const contentText = {
           type: "text",
-          text: contents2
+          text: contents2,
+          refusal: null
         };
         return messageRenderers["text"].render(
           "text-message-content",
@@ -27359,7 +27361,8 @@ self.onmessage = function (e) {
             content: [
               {
                 type: "text",
-                text: String(output2)
+                text: String(output2),
+                refusal: null
               }
             ]
           }
@@ -27430,7 +27433,8 @@ self.onmessage = function (e) {
             content: [
               {
                 type: "text",
-                text: content2
+                text: content2,
+                refusal: null
               }
             ]
           }
@@ -27443,7 +27447,8 @@ self.onmessage = function (e) {
               content: [
                 {
                   type: "text",
-                  text: con
+                  text: con,
+                  refusal: null
                 }
               ]
             };
@@ -27517,7 +27522,8 @@ self.onmessage = function (e) {
       if (typeof content2 === "string") {
         return {
           type: "text",
-          text: content2
+          text: content2,
+          refusal: null
         };
       } else {
         return content2;
