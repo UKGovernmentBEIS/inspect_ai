@@ -104,6 +104,9 @@ const messageRenderers: Record<string, MessageRenderer> = {
   reasoning: {
     render: (key, content, isLast) => {
       const r = content as ContentReasoning;
+      if (!r.reasoning && !r.redacted) {
+        return undefined;
+      }
       return (
         <Fragment key={key}>
           <div
