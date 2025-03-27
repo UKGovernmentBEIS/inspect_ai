@@ -380,21 +380,27 @@ async def agent_handoff(
     agent_tool = cast(AgentTool, tool_def.tool)
     agent_name = registry_unqualified_name(agent_tool.agent)
 
+    # copy list
+    agent_conversation = copy(conversation)
+
     # remove other tool calls from the assistant message so the
     # conversation remains valid (the model may have called multiple
     # tools in parallel and we won't be handling the other calls)
-    last_message = conversation[-1].model_copy()
+    last_message = agent_conversation[-1]
     if isinstance(last_message, ChatMessageAssistant) and last_message.tool_calls:
-        last_message.tool_calls = [
-            tool_call
-            for tool_call in last_message.tool_calls
-            if tool_call.id == call.id
-        ]
+        agent_conversation[-1] = agent_conversation[-1].model_copy(
+            update=dict(
+                tool_calls=[
+                    tool_call
+                    for tool_call in last_message.tool_calls
+                    if tool_call.id == call.id
+                ]
+            )
+        )
 
     # ammend the conversation with a ChatMessageTool to indicate
     # to the downstream agent that we satisfied the call
     tool_result = f"Successfully transferred to {agent_name}."
-    agent_conversation = copy(conversation)
     agent_conversation.append(
         ChatMessageTool(
             content=tool_result,
