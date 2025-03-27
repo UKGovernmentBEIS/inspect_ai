@@ -23,6 +23,7 @@ inspect eval_retry [OPTIONS] LOG_FILES...
 | `--no-log-samples` | boolean | Do not include samples in the log file. | `False` |
 | `--log-images` / `--no-log-images` | boolean | Include base64 encoded versions of filename or URL based images in the log file. | `True` |
 | `--log-buffer` | integer | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems). | None |
+| `--log-shared` | text | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds). | None |
 | `--no-score` | boolean | Do not score model output (use the inspect score command to score output later) | `False` |
 | `--no-score-display` | boolean | Do not score model output (use the inspect score command to score output later) | `False` |
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |

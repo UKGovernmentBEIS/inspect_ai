@@ -269,7 +269,7 @@ built-in tools:
   tools for code execution, text editing, computer use, web search, and
   web browsing.
 
-These sections cover how to use varoius language models with Inspect:
+These sections cover how to use various language models with Inspect:
 
 - [Models](models.qmd) describe various ways to specify and provide
   options to models in Inspect evaluations.
@@ -311,7 +311,7 @@ These sections describe how to create agent evaluations with Inspect:
 - [Approval](approval.qmd) enable you to create fine-grained policies
   for approving tool calls made by model agents.
 
-These sections discuss more advanced features and workflow. You don’t
+These sections discuss more advanced features and workflows. You don’t
 need to review them at the outset, but be sure to revisit them as you
 get more comfortable with the basics.
 
@@ -328,7 +328,7 @@ get more comfortable with the basics.
 - [Multimodal](multimodal.qmd) documents the APIs available for creating
   multimodal evaluations (including images, audio, and video).
 
-- [Typing](typing.qmd): provides guideance on using static type checking
+- [Typing](typing.qmd): provides guidance on using static type checking
   with Inspect, including creating typed interfaces to untyped storage
   (i.e. sample metadata and store).
 

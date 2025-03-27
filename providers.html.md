@@ -54,16 +54,6 @@ The following environment variables are supported by the OpenAI provider
 
 ### Responses API
 
-> [!NOTE]
->
-> Note that support for the OpenAI Responses API is currently available
-> only in the development version of Inspect. To install the development
-> version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 By default, Inspect uses the standard OpenAI Chat Completions API.
 However, if you use features that require the new [Responses
 API](https://platform.openai.com/docs/api-reference/responses) Inspect
@@ -82,16 +72,6 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
 ### OpenAI on Azure
-
-> [!NOTE]
->
-> Note that the OpenAI on Azure AI feature described below currently
-> works only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 The `openai` provider supports OpenAI models deployed on the [Azure AI
 Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI,
@@ -298,16 +278,6 @@ provider
 | `MISTRAL_BASE_URL` | Base URL for requests (optional, defaults to `https://api.mistral.ai`) |
 
 ### Mistral on Azure AI
-
-> [!NOTE]
->
-> Note that the Mistral on Azure AI feature described below currently
-> works only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 The `mistral` provider supports Mistral models deployed on the [Azure AI
 Foundary](https://ai.azure.com/). To use Mistral models on Azure AI,

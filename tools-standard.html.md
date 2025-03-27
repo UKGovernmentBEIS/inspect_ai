@@ -633,16 +633,6 @@ Then, ensure that the following environment variables are defined:
 
 ## Think
 
-> [!NOTE]
->
-> Note that the `think()` tool described below currently works only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The `think()` tool provides models with the ability to include an
 additional thinking step as part of getting to its final answer.
 

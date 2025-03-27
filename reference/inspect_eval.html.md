@@ -47,6 +47,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--no-log-samples` | boolean | Do not include samples in the log file. | `False` |
 | `--log-images` / `--no-log-images` | boolean | Include base64 encoded versions of filename or URL based images in the log file. | `True` |
 | `--log-buffer` | integer | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems). | None |
+| `--log-shared` | text | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds). | None |
 | `--no-score` | boolean | Do not score model output (use the inspect score command to score output later) | `False` |
 | `--no-score-display` | boolean | Do not score model output (use the inspect score command to score output later) | `False` |
 | `--max-tokens` | integer | The maximum number of tokens that can be generated in the completion (default is model specific) | None |
@@ -67,7 +68,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--internal-tools` / `--no-internal-tools` | boolean | Whether to automatically map tools to model internal implementations (e.g. ‘computer’ for anthropic). | `True` |
 | `--max-tool-output` | integer | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. | None |
 | `--cache-prompt` | choice (`auto` \| `true` \| `false`) | Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools. | None |
-| `--reasoning-effort` | choice (`low` \| `medium` \| `high`) | Constrains effort on reasoning for reasoning models. Open AI o-series models only. | None |
+| `--reasoning-effort` | choice (`low` \| `medium` \| `high`) | Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series models only. | None |
 | `--reasoning-tokens` | integer | Maximum number of tokens to use for reasoning. Anthropic Claude models only. | None |
 | `--reasoning-history` | choice (`none` \| `all` \| `last` \| `auto`) | Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider) | None |
 | `--response-schema` | text | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. | None |

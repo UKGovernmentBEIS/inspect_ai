@@ -1,0 +1,346 @@
+# inspect_ai.agent
+
+
+## Agents
+
+### react
+
+ReAct agent.
+
+Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning
+and Acting in Language Models](https://arxiv.org/abs/2210.03629).
+
+The agent runs a tool use loop until the model submits an answer using
+the `submit()` tool. Use `instructions` to tailor the agent’s system
+message (the default `instructions` provides a basic ReAct prompt).
+
+Use the `attempts` option to enable additional submissions if the
+initial submission(s) are incorrect (by default, no additional attempts
+are permitted).
+
+By default, the model will be urged to continue if it fails to call a
+tool. Customise this behavior using the `on_continue` option.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_react.py#L23)
+
+``` python
+@agent
+def react(
+    *,
+    prompt: str | AgentPrompt | None = AgentPrompt(),
+    tools: list[Tool] | None = None,
+    model: str | Model | None = None,
+    attempts: int | AgentAttempts = 1,
+    submit: AgentSubmit = AgentSubmit(),
+    on_continue: AgentContinue | None = None,
+) -> Agent
+```
+
+`prompt` str \| [AgentPrompt](inspect_ai.agent.qmd#agentprompt) \| None  
+Prompt for agent. Includes agent-specific contextual `instructions` as
+well as an optional `assistant_prompt` and `handoff_prompt` (for agents
+that use handoffs). both are provided by default but can be removed or
+customized). Pass `str` to specify the instructions and use the defaults
+for handoff and prompt messages.
+
+`tools` list\[[Tool](inspect_ai.tool.qmd#tool)\] \| None  
+Tools available for the agent.
+
+`model` str \| [Model](inspect_ai.model.qmd#model) \| None  
+Model to use for agent (defaults to currently evaluated model)
+
+`attempts` int \| [AgentAttempts](inspect_ai.agent.qmd#agentattempts)  
+Configure agent to make multiple attempts.
+
+`submit` [AgentSubmit](inspect_ai.agent.qmd#agentsubmit)  
+Configure submit tool used by agent.
+
+`on_continue` [AgentContinue](inspect_ai.agent.qmd#agentcontinue) \| None  
+Optional async function to call to determine whether the loop should
+continue (executed on every turn). By default, urges the model to
+continue when it doesn’t make a tool call.
+
+### human
+
+Human agent for agentic tasks that run in a Linux environment.
+
+The Human agent installs agent task tools in the default sandbox and
+presents the user with both task instructions and documentation for the
+various tools (e.g. `task submit`, `task start`, `task stop`
+`task instructions`, etc.). A human agent panel is displayed with
+instructions for logging in to the sandbox.
+
+If the user is running in VS Code with the Inspect extension, they will
+also be presented with links to login to the sandbox using a VS Code
+Window or Terminal.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_human/agent.py#L16)
+
+``` python
+@agent
+def human(
+    answer: bool | str = True,
+    intermediate_scoring: bool = False,
+    record_session: bool = True,
+) -> Agent
+```
+
+`answer` bool \| str  
+Is an explicit answer required for this task or is it scored based on
+files in the container? Pass a `str` with a regex to validate that the
+answer matches the expected format.
+
+`intermediate_scoring` bool  
+Allow the human agent to check their score while working.
+
+`record_session` bool  
+Record all user commands and outputs in the sandbox bash session.
+
+### bridge
+
+Bridge an external agent into an Inspect Agent.
+
+See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_bridge/bridge.py#L14)
+
+``` python
+@agent
+def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Agent
+```
+
+`agent` Callable\[\[dict\[str, Any\]\], Awaitable\[dict\[str, Any\]\]\]  
+Callable which takes a sample `dict` and returns a result `dict`.
+
+## Handoffs
+
+### handoff
+
+Create a tool that enables models to handoff to agents.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_handoff.py#L20)
+
+``` python
+def handoff(
+    agent: Agent,
+    description: str | None = None,
+    input_filter: HandoffFilter | None = None,
+    tool_name: str | None = None,
+    **agent_kwargs: Any,
+) -> Tool
+```
+
+`agent` [Agent](inspect_ai.agent.qmd#agent)  
+Agent to hand off to.
+
+`description` str \| None  
+Handoff tool description (defaults to agent description)
+
+`input_filter` [HandoffFilter](inspect_ai.agent.qmd#handofffilter) \| None  
+Optional callable to modify the message history before calling the tool.
+
+`tool_name` str \| None  
+Alternate tool name (defaults to `transfer_to_{agent_name}`)
+
+`**agent_kwargs` Any  
+Arguments to curry to Agent function (arguments provided here will not
+be presented to the model as part of the tool interface).
+
+### HandoffFilter
+
+Function used for filtering agent input and output messages.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_handoff.py#L16)
+
+``` python
+HandoffFilter: TypeAlias = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
+```
+
+### as_tool
+
+Convert an agent to a tool.
+
+By default the model will see all of the agent’s arguments as tool
+arguments (save for `state` which is converted to an `input` arguments
+of type `str`). Provide optional `agent_kwargs` to mask out agent
+parameters with default values (these parameters will not be presented
+to the model as part of the tool interface)
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_as_tool.py#L18)
+
+``` python
+@tool
+def as_tool(agent: Agent, description: str | None = None, **agent_kwargs: Any) -> Tool
+```
+
+`agent` [Agent](inspect_ai.agent.qmd#agent)  
+Agent to convert.
+
+`description` str \| None  
+Tool description (defaults to agent description)
+
+`**agent_kwargs` Any  
+Arguments to curry to Agent function (arguments provided here will not
+be presented to the model as part of the tool interface).
+
+## Types
+
+### Agent
+
+Agents perform tasks and participate in conversations.
+
+Agents are similar to tools however they are participants in
+conversation history and can optionally append messages and model output
+to the current conversation state.
+
+You can give the model a tool that enables handoff to your agent using
+the `handoff()` function.
+
+You can create a simple tool (that receives a string as input) from an
+agent using `as_tool()`.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_agent.py#L57)
+
+``` python
+class Agent(Protocol):
+    async def __call__(
+        self,
+        state: AgentState,
+        *args: Any,
+        **kwargs: Any,
+    ) -> AgentState
+```
+
+`state` [AgentState](inspect_ai.agent.qmd#agentstate)  
+Agent state (conversation history and last model output)
+
+`*args` Any  
+Arguments for the agent.
+
+`**kwargs` Any  
+Keyword arguments for the agent.
+
+### AgentState
+
+Agent state.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_agent.py#L27)
+
+``` python
+class AgentState
+```
+
+#### Attributes
+
+`messages` list\[[ChatMessage](inspect_ai.model.qmd#chatmessage)\]  
+Conversation history.
+
+`output` [ModelOutput](inspect_ai.model.qmd#modeloutput)  
+Model output.
+
+### AgentPrompt
+
+Prompt for agent.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_types.py#L30)
+
+``` python
+class AgentPrompt(NamedTuple)
+```
+
+#### Attributes
+
+`instructions` str \| None  
+Agent-specific contextual instructions.
+
+`handoff_prompt` str \| None  
+Prompt used when there are additional handoff agents active.
+
+`assistant_prompt` str \| None  
+Prompt for assistant (covers tool use, submit tool, CoT, etc.).
+
+### AgentAttempts
+
+Configure a react agent to make multiple attempts.
+
+Submissions are evaluated using the task’s main scorer, with value of
+1.0 indicating a correct answer. Scorer values are converted to float
+(e.g. “C” becomes 1.0) using the standard value_to_float() function.
+Provide an alternate conversion scheme as required via `score_value`.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_types.py#L52)
+
+``` python
+class AgentAttempts(NamedTuple)
+```
+
+#### Attributes
+
+`attempts` int  
+Maximum number of attempts.
+
+`incorrect_message` str \| Callable\[\[[AgentState](inspect_ai.agent.qmd#agentstate), list\[[Score](inspect_ai.scorer.qmd#score)\]\], Awaitable\[str\]\]  
+User message reply for an incorrect submission from the model.
+Alternatively, an async function which returns a message.
+
+`score_value` ValueToFloat  
+Function used to extract float from scores (defaults to standard
+value_to_float())
+
+### AgentContinue
+
+Function called to determine whether the agent should continue.
+
+Returns `True` to continue (with no additional messages inserted),
+return `False` to stop. Returns `str` to continue with an additional
+custom user message inserted.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_types.py#L43)
+
+``` python
+AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
+```
+
+### AgentSubmit
+
+Configure the submit tool of a react agent.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_types.py#L74)
+
+``` python
+class AgentSubmit(NamedTuple)
+```
+
+#### Attributes
+
+`name` str  
+Name for submit tool.
+
+`description` str  
+Description of submit tool.
+
+### agent
+
+Decorator for registering agents.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e0f7e0707007a3c4740243eb3ec589fbf6a9256a/src/inspect_ai/agent/_agent.py#L105)
+
+``` python
+def agent(
+    func: Callable[P, Agent] | None = None,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+) -> Callable[P, Agent] | Callable[[Callable[P, Agent]], Callable[P, Agent]]
+```
+
+`func` Callable\[P, [Agent](inspect_ai.agent.qmd#agent)\] \| None  
+Agent function
+
+`name` str \| None  
+Optional name for agent. If the decorator has no name argument then the
+name of the agent creation function will be used as the name of the
+agent.
+
+`description` str \| None  
+Description for the agent when used as an ordinary tool or handoff tool.
