@@ -121,9 +121,20 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
     const showReducer = scorers.findIndex((score) => !!score.reducer) !== -1;
     const grouped = groupMetrics(scorers);
 
+    // Try to select metrics with a group size 5 or less, if possible
+    let primaryResults = grouped[0];
+    if (primaryResults.length > 5) {
+      const shorterResults = grouped.find((g) => {
+        return g.length <= 5;
+      });
+      if (shorterResults) {
+        primaryResults = shorterResults;
+      }
+    }
+
     return (
       <div className={clsx(styles.metricsSummary)}>
-        <ScoreGrid scorers={grouped[0]} showReducer={showReducer} />
+        <ScoreGrid scorers={primaryResults} showReducer={showReducer} />
         {grouped.length > 1 ? (
           <>
             <Modal
@@ -136,16 +147,16 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
                 return <ScoreGrid scorers={g} showReducer={showReducer} />;
               })}
             </Modal>
+            <LinkButton
+              className={styles.moreButton}
+              text={"Additional metrics"}
+              icon={ApplicationIcons.metrics}
+              onClick={() => {
+                setShowing(true);
+              }}
+            />
           </>
         ) : undefined}
-        <LinkButton
-          className={styles.moreButton}
-          text={"Additional metrics"}
-          icon={ApplicationIcons.metrics}
-          onClick={() => {
-            setShowing(true);
-          }}
-        />
       </div>
     );
   }
@@ -159,9 +170,12 @@ const metricsKey = (metrics: ResultsMetric[]): string => {
 const groupMetrics = (scorers: ResultsScorer[]): ResultsScorer[][] => {
   const results: Record<string, ResultsScorer[]> = {};
   scorers.forEach((scorer) => {
-    const key = metricsKey(scorer.metrics);
-    results[key] = results[key] || [];
-    results[key].push(scorer);
+    if (scorer.metrics.length > 0) {
+      const key = metricsKey(scorer.metrics);
+      results[key] = results[key] || [];
+
+      results[key].push(scorer);
+    }
   });
   return Object.values(results);
 };

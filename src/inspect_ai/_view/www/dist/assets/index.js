@@ -67299,31 +67299,43 @@ ${events}
       } else {
         const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
         const grouped = groupMetrics(scorers);
+        console.log({ grouped });
+        let primaryResults = grouped[0];
+        if (primaryResults.length > 5) {
+          const shorterResults = grouped.find((g) => {
+            return g.length <= 5;
+          });
+          if (shorterResults) {
+            primaryResults = shorterResults;
+          }
+        }
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.metricsSummary), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scorers: grouped[0], showReducer }),
-          grouped.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            Modal,
-            {
-              id: "results-metrics",
-              showing,
-              setShowing,
-              title: "Scoring Detail",
-              children: grouped.map((g) => {
-                return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scorers: g, showReducer });
-              })
-            }
-          ) }) : void 0,
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            LinkButton,
-            {
-              className: styles$4.moreButton,
-              text: "Additional metrics",
-              icon: ApplicationIcons.metrics,
-              onClick: () => {
-                setShowing(true);
+          /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scorers: primaryResults, showReducer }),
+          grouped.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              Modal,
+              {
+                id: "results-metrics",
+                showing,
+                setShowing,
+                title: "Scoring Detail",
+                children: grouped.map((g) => {
+                  return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scorers: g, showReducer });
+                })
               }
-            }
-          )
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              LinkButton,
+              {
+                className: styles$4.moreButton,
+                text: "Additional metrics",
+                icon: ApplicationIcons.metrics,
+                onClick: () => {
+                  setShowing(true);
+                }
+              }
+            )
+          ] }) : void 0
         ] });
       }
     };
@@ -67334,9 +67346,11 @@ ${events}
     const groupMetrics = (scorers) => {
       const results = {};
       scorers.forEach((scorer) => {
-        const key2 = metricsKey(scorer.metrics);
-        results[key2] = results[key2] || [];
-        results[key2].push(scorer);
+        if (scorer.metrics.length > 0) {
+          const key2 = metricsKey(scorer.metrics);
+          results[key2] = results[key2] || [];
+          results[key2].push(scorer);
+        }
       });
       return Object.values(results);
     };
