@@ -4,14 +4,14 @@ title: Agent Protocol (Beta)
 
 ## Overview
 
-::: {.callout-note appearance="simple"}
+::: {.callout-note}
+The Inspect `Agent` protocol described below is available only in the development version of Inspect. To install the development version from GitHub:
 
-The **inspect_ai.agent** module is currently in development. Install the `feature/agent-protocol` development branch with:
-
-```bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai@feature/agent-protocol
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
+
 
 The Inspect `Agent` protocol enables you to create flexible components that can be used in a wide variety of contexts within evaluations. Agents are similar to solvers, but use a narrower interface that makes them considerably more versatile.
 

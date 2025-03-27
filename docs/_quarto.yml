@@ -3,7 +3,6 @@ project:
    resources: 
       - CNAME
       - llms.txt
-      - reference/inspect_ai.agent.html
    pre-render: 
       - reference/filter/sidebar.py
    post-render: 
@@ -92,6 +91,8 @@ website:
                - agents.qmd
                - sandboxing.qmd
                - agents-api.qmd
+               - text: "Agent Protocol"
+                 href: agent-protocol.qmd
                - agent-bridge.qmd
                - human-agent.qmd
                - approval.qmd
