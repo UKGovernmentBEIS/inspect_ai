@@ -9,7 +9,7 @@ Learn more about eval sets at
 #### Usage
 
 ``` text
-inspect eval_set [OPTIONS] [TASKS]...
+inspect eval-set [OPTIONS] [TASKS]...
 ```
 
 #### Options

@@ -6,7 +6,7 @@ Retry failed evaluation(s)
 #### Usage
 
 ``` text
-inspect eval_retry [OPTIONS] LOG_FILES...
+inspect eval-retry [OPTIONS] LOG_FILES...
 ```
 
 #### Options
