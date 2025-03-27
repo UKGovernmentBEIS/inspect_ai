@@ -21,23 +21,23 @@ interface ToolCallViewProps {
   highlightLanguage?: string;
   view?: ToolCallContent;
   output:
-  | string
-  | number
-  | boolean
-  | ContentText
-  | ContentAudio
-  | ContentImage
-  | ContentVideo
-  | ContentTool
-  | ContentReasoning
-  | (
+    | string
+    | number
+    | boolean
     | ContentText
     | ContentAudio
     | ContentImage
     | ContentVideo
     | ContentTool
     | ContentReasoning
-  )[];
+    | (
+        | ContentText
+        | ContentAudio
+        | ContentImage
+        | ContentVideo
+        | ContentTool
+        | ContentReasoning
+      )[];
   mode?: "compact";
 }
 
@@ -150,13 +150,13 @@ const normalizeContent = (
     | ContentTool
     | ContentReasoning
     | (
-      | ContentText
-      | ContentImage
-      | ContentAudio
-      | ContentVideo
-      | ContentTool
-      | ContentReasoning
-    )[],
+        | ContentText
+        | ContentImage
+        | ContentAudio
+        | ContentVideo
+        | ContentTool
+        | ContentReasoning
+      )[],
 ): (
   | ContentText
   | ContentImage
@@ -175,7 +175,7 @@ const normalizeContent = (
           {
             type: "text",
             text: String(output),
-            refusal: null
+            refusal: null,
           },
         ],
       },

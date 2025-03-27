@@ -143,9 +143,9 @@ class AzureAIAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # emulate tools (auto for llama, opt-in for others)
         if self.emulate_tools is None and self.is_llama():
-            handler: ChatAPIHandler | None = Llama31Handler()
+            handler: ChatAPIHandler | None = Llama31Handler(self.model_name)
         elif self.emulate_tools:
-            handler = Llama31Handler()
+            handler = Llama31Handler(self.model_name)
         else:
             handler = None
 

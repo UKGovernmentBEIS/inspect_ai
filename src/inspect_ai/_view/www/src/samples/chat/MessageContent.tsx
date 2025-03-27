@@ -27,16 +27,16 @@ type ContentType =
 
 interface MessageContentProps {
   contents:
-  | string
-  | string[]
-  | (
-    | ContentText
-    | ContentReasoning
-    | ContentImage
-    | ContentAudio
-    | ContentVideo
-    | ContentTool
-  )[];
+    | string
+    | string[]
+    | (
+        | ContentText
+        | ContentReasoning
+        | ContentImage
+        | ContentAudio
+        | ContentVideo
+        | ContentTool
+      )[];
 }
 
 /**
@@ -52,7 +52,7 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
           {
             type: "text",
             text: content,
-            refusal: null
+            refusal: null,
           },
           index === contents.length - 1,
         );
@@ -76,7 +76,7 @@ export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
     const contentText: ContentText = {
       type: "text",
       text: contents,
-      refusal: null
+      refusal: null,
     };
     return messageRenderers["text"].render(
       "text-message-content",

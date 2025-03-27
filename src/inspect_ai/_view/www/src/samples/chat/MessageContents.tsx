@@ -101,7 +101,7 @@ const resolveToolMessage = (toolMessage?: ChatMessageTool): ContentTool[] => {
           {
             type: "text",
             text: content,
-            refusal: null
+            refusal: null,
           },
         ],
       },
@@ -116,7 +116,7 @@ const resolveToolMessage = (toolMessage?: ChatMessageTool): ContentTool[] => {
               {
                 type: "text",
                 text: con,
-                refusal: null
+                refusal: null,
               },
             ],
           } as ContentTool;
