@@ -16400,15 +16400,15 @@ ul.jsondiffpatch-textdiff {
   height: var(--inspect-font-size-base);
   max-width: 30em;
 }
-._target_112n8_1 {
+._target_giah9_1 {
   padding-left: 0;
 }
 
-._answer_112n8_5 {
+._answer_giah9_5 {
   padding-left: 0;
 }
 
-._grid_112n8_9 {
+._grid_giah9_9 {
   display: grid;
   grid-column-gap: 0.5em;
   border-bottom: solid var(--bs-border-color) 1px;
@@ -16416,21 +16416,27 @@ ul.jsondiffpatch-textdiff {
   padding: 0em 1em 1em 1em;
 }
 
-._centerLabel_112n8_17 {
+._centerLabel_giah9_17 {
   display: flex;
   justify-content: center;
 }
 
-._wrap_112n8_22 {
+._centerValue_giah9_22 {
+  display: flex;
+  align-items: center;
+}
+
+._wrap_giah9_27 {
   word-wrap: anywhere;
 }
 
-._titled_112n8_26:hover {
+._titled_giah9_31:hover {
   cursor: pointer;
 }
 
-._value_112n8_30 {
+._value_giah9_35 {
   flex-direction: column;
+  padding-top: 0.1em;
 }
 ._grid_ktnsp_1 {
   display: grid;
