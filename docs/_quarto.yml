@@ -3,6 +3,7 @@ project:
    resources: 
       - CNAME
       - llms.txt
+      - reference/inspect_ai.agent.html
    pre-render: 
       - reference/filter/sidebar.py
    post-render: 

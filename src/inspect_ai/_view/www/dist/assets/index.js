@@ -56535,7 +56535,10 @@ Supported expressions:
         return `${id}-nav-pill-${index2}`;
       };
       const filteredArrChildren = (Array.isArray(children2) ? children2 : [children2]).filter((child) => !!child);
-      const defaultPillId = pillId(0);
+      const defaultPill = filteredArrChildren.findIndex((node2) => {
+        return hasDataDefault(node2) && node2.props["data-default"];
+      });
+      const defaultPillId = defaultPill !== -1 ? pillId(defaultPill) : pillId(0);
       const [selectedNav, setSelectedNav] = useProperty(id, "selectedNav", {
         defaultValue: defaultPillId
       });
@@ -56649,6 +56652,9 @@ Supported expressions:
       ] });
       return card2;
     };
+    function hasDataDefault(node2) {
+      return reactExports.isValidElement(node2) && node2.props !== null && typeof node2.props === "object" && "data-default" in node2.props;
+    }
     const ErrorEventView = ({
       id,
       event,
@@ -64770,6 +64776,7 @@ ${events}
               {
                 id: `${id}-subtask`,
                 "data-name": "Transcript",
+                "data-default": event.failed,
                 events: event.events,
                 depth: depth + 1
               }

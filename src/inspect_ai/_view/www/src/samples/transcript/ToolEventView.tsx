@@ -96,6 +96,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
         <TranscriptView
           id={`${id}-subtask`}
           data-name="Transcript"
+          data-default={event.failed}
           events={event.events}
           depth={depth + 1}
         />
