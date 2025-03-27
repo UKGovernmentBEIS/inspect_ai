@@ -50,6 +50,7 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
                   : parseFloat(value === true ? "1" : value),
               )
             : String(value);
+
         scores.push(
           <div
             key={`score-value-${index}`}

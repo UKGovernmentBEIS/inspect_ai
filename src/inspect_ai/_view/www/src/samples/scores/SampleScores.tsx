@@ -20,6 +20,7 @@ export const SampleScores: FC<SampleScoresProps> = ({ sample, scorer }) => {
   if (scores?.length === 1) {
     return scores[0].rendered();
   } else {
+    console.log({ scores });
     const rows = scores?.map((score) => {
       return (
         <Fragment>

@@ -98,3 +98,7 @@
   flex-direction: column;
   align-items: flex-end;
 }
+
+.modalScores {
+  padding-bottom: 4em;
+}

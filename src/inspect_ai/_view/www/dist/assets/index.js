@@ -19569,22 +19569,22 @@ self.onmessage = function (e) {
     const sidebar = "_sidebar_1u82r_1";
     const sidebarClosed = "_sidebarClosed_1u82r_15";
     const sidebarOpen = "_sidebarOpen_1u82r_19";
-    const header$2 = "_header_1u82r_23";
+    const header$3 = "_header_1u82r_23";
     const toggle$1 = "_toggle_1u82r_39";
     const progress$2 = "_progress_1u82r_46";
     const list$1 = "_list_1u82r_50";
-    const backdrop = "_backdrop_1u82r_55";
+    const backdrop$1 = "_backdrop_1u82r_55";
     const active = "_active_1u82r_62";
     const item$1 = "_item_1u82r_66";
     const styles$1f = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
-      header: header$2,
+      header: header$3,
       toggle: toggle$1,
       progress: progress$2,
       list: list$1,
-      backdrop,
+      backdrop: backdrop$1,
       active,
       item: item$1
     };
@@ -56194,6 +56194,7 @@ Supported expressions:
       if ((scores2 == null ? void 0 : scores2.length) === 1) {
         return scores2[0].rendered();
       } else {
+        console.log({ scores: scores2 });
         const rows = scores2 == null ? void 0 : scores2.map((score2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { opacity: "0.7" }, children: score2.name }),
@@ -65447,7 +65448,7 @@ ${events}
     const hidden = "_hidden_yj2nt_31";
     const modalBody = "_modalBody_yj2nt_35";
     const content = "_content_yj2nt_41";
-    const header$1 = "_header_yj2nt_45";
+    const header$2 = "_header_yj2nt_45";
     const titleTool = "_titleTool_yj2nt_50";
     const styles$n = {
       title,
@@ -65458,7 +65459,7 @@ ${events}
       hidden,
       modalBody,
       content,
-      header: header$1,
+      header: header$2,
       titleTool
     };
     const LargeModal = ({
@@ -65913,10 +65914,10 @@ ${events}
         ] })
       ] });
     };
-    const header = "_header_16ngy_1";
+    const header$1 = "_header_16ngy_1";
     const center = "_center_16ngy_11";
     const styles$i = {
-      header,
+      header: header$1,
       center
     };
     const SampleHeader = ({
@@ -67041,13 +67042,17 @@ ${events}
         }
       );
     };
-    const modal = "_modal_5cjvj_1";
-    const modalTitle = "_modalTitle_5cjvj_12";
-    const btnClose = "_btnClose_5cjvj_16";
+    const modal = "_modal_1yfor_1";
+    const header = "_header_1yfor_14";
+    const modalTitle = "_modalTitle_1yfor_18";
+    const btnClose = "_btnClose_1yfor_22";
+    const backdrop = "_backdrop_1yfor_28";
     const styles$5 = {
       modal,
+      header,
       modalTitle,
-      btnClose
+      btnClose,
+      backdrop
     };
     const Modal = ({
       id,
@@ -67057,73 +67062,78 @@ ${events}
       children: children2,
       className: className2
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          id,
-          className: clsx("modal", "fade", showing ? "show" : "", className2),
-          tabIndex: -1,
-          style: { display: showing ? "block" : "none" },
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$5.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-header", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "div",
-                {
-                  className: clsx(
-                    "modal-title",
-                    "text-size-base",
-                    styles$5.modalTitle
-                  ),
-                  children: title2
-                }
-              ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$5.backdrop, onClick: () => setShowing(false) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            id,
+            className: clsx("modal", "fade", showing ? "show" : "", className2),
+            tabIndex: -1,
+            style: { display: showing ? "block" : "none" },
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$5.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$5.header), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    className: clsx(
+                      "modal-title",
+                      "text-size-base",
+                      styles$5.modalTitle
+                    ),
+                    children: title2
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "button",
+                  {
+                    type: "button",
+                    className: clsx(
+                      "btn-close",
+                      "text-size-smaller",
+                      styles$5.btnClose
+                    ),
+                    "data-bs-dismiss": "modal",
+                    "aria-label": "Close",
+                    onClick: () => {
+                      setShowing(!showing);
+                    }
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", children: children2 }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "button",
                 {
                   type: "button",
-                  className: clsx(
-                    "btn-close",
-                    "text-size-smaller",
-                    styles$5.btnClose
-                  ),
+                  className: "btn btn-secondary",
                   "data-bs-dismiss": "modal",
-                  "aria-label": "Close",
                   onClick: () => {
                     setShowing(!showing);
-                  }
+                  },
+                  children: "Close"
                 }
-              )
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", children: children2 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "button",
-              {
-                type: "button",
-                className: "btn btn-secondary",
-                "data-bs-dismiss": "modal",
-                onClick: () => {
-                  setShowing(!showing);
-                },
-                children: "Close"
-              }
-            ) })
-          ] }) })
-        }
-      );
+              ) })
+            ] }) })
+          }
+        )
+      ] });
     };
-    const simpleMetricsRows = "_simpleMetricsRows_1ldk2_1";
-    const verticalMetricReducer = "_verticalMetricReducer_1ldk2_26";
-    const verticalMetricName = "_verticalMetricName_1ldk2_33";
-    const verticalMetricValue = "_verticalMetricValue_1ldk2_41";
-    const moreButton = "_moreButton_1ldk2_91";
-    const metricsSummary = "_metricsSummary_1ldk2_96";
+    const simpleMetricsRows = "_simpleMetricsRows_ptsj6_1";
+    const verticalMetricReducer = "_verticalMetricReducer_ptsj6_26";
+    const verticalMetricName = "_verticalMetricName_ptsj6_33";
+    const verticalMetricValue = "_verticalMetricValue_ptsj6_41";
+    const moreButton = "_moreButton_ptsj6_91";
+    const metricsSummary = "_metricsSummary_ptsj6_96";
+    const modalScores = "_modalScores_ptsj6_102";
     const styles$4 = {
       simpleMetricsRows,
       verticalMetricReducer,
       verticalMetricName,
       verticalMetricValue,
       moreButton,
-      metricsSummary
+      metricsSummary,
+      modalScores
     };
     const displayScorersFromRunningMetrics = (metrics) => {
       if (!metrics) {
@@ -67205,7 +67215,6 @@ ${events}
       } else {
         const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
         const grouped = groupMetrics(scorers);
-        console.log({ grouped });
         let primaryResults = grouped[0];
         if (primaryResults.length > 5) {
           const shorterResults = grouped.find((g) => {
@@ -67226,7 +67235,14 @@ ${events}
                 setShowing,
                 title: "Scoring Detail",
                 children: grouped.map((g) => {
-                  return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scorers: g, showReducer });
+                  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    ScoreGrid,
+                    {
+                      scorers: g,
+                      showReducer,
+                      className: styles$4.modalScores
+                    }
+                  );
                 })
               }
             ),
@@ -67260,7 +67276,7 @@ ${events}
       });
       return Object.values(results);
     };
-    const ScoreGrid = ({ scorers, showReducer }) => {
+    const ScoreGrid = ({ scorers, showReducer, className: className2 }) => {
       const metricCount = scorers[0].metrics.length;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
@@ -67268,12 +67284,12 @@ ${events}
           style: {
             display: "grid",
             gridTemplateColumns: `repeat(${metricCount + 1}, max-content)`,
-            columnGap: "0.5em",
+            columnGap: "1.5em",
             marginRight: "1em"
           },
-          className: clsx("text-size-small"),
+          className: clsx("text-size-small", className2),
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", {}),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Scorer" }),
             scorers[0].metrics.map((m) => {
               return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: m.name });
             }),
