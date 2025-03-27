@@ -308,6 +308,7 @@ async def execute_tools(
                 error=result_event.error,
                 events=result_event.events,
                 waiting_time=waiting_time_end - waiting_time_start,
+                failed=True if result_exception else None,
             )
             transcript()._event_updated(event)
 
