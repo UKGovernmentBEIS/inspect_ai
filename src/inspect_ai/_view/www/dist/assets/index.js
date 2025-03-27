@@ -55945,18 +55945,20 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$L.lineBase, "text-truncate"), children: errorType(message2) })
       ] });
     };
-    const target = "_target_112n8_1";
-    const answer = "_answer_112n8_5";
-    const grid$5 = "_grid_112n8_9";
-    const centerLabel = "_centerLabel_112n8_17";
-    const wrap = "_wrap_112n8_22";
-    const titled = "_titled_112n8_26";
-    const value$1 = "_value_112n8_30";
+    const target = "_target_giah9_1";
+    const answer = "_answer_giah9_5";
+    const grid$5 = "_grid_giah9_9";
+    const centerLabel = "_centerLabel_giah9_17";
+    const centerValue = "_centerValue_giah9_22";
+    const wrap = "_wrap_giah9_27";
+    const titled = "_titled_giah9_31";
+    const value$1 = "_value_giah9_35";
     const styles$K = {
       target,
       answer,
       grid: grid$5,
       centerLabel,
+      centerValue,
       wrap,
       titled,
       value: value$1
@@ -56117,7 +56119,7 @@ Supported expressions:
                     styles$K.value,
                     styles$K.wrap,
                     col.clamp ? "three-line-clamp" : void 0,
-                    col.center ? styles$K.centerLabel : void 0
+                    col.center ? styles$K.centerValue : void 0
                   ),
                   children: col.value
                 },
