@@ -19872,7 +19872,7 @@ span.ap-marker-container:hover span.ap-marker {
 ._label_oq9i2_13 {
   margin-left: 0.4em;
 }
-._modal_5cjvj_1 {
+._modal_1yfor_1 {
   margin-left: auto;
   margin-right: auto;
   display: flex;
@@ -19881,17 +19881,35 @@ span.ap-marker-container:hover span.ap-marker {
   max-width: 90vw;
   margin-top: 3rem;
   border-radius: var(--bs-border-radius);
+  position: relative;
+  z-index: 1050;
 }
 
-._modalTitle_5cjvj_12 {
+._header_1yfor_14 {
+  height: 2em;
+}
+
+._modalTitle_1yfor_18 {
   font-weight: 600;
 }
 
-._btnClose_5cjvj_16 {
+._btnClose_1yfor_22 {
   height: 0.8em;
   width: 0.8em;
 }
-._simpleMetricsRows_1ldk2_1 {
+
+/* Backdrop styling for the glass effect */
+._backdrop_1yfor_28 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.3);
+
+  z-index: 1040;
+}
+._simpleMetricsRows_ptsj6_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19902,7 +19920,7 @@ span.ap-marker-container:hover span.ap-marker {
   overflow: scroll;
 }
 
-._multiMetricsRows_1ldk2_12 {
+._multiMetricsRows_ptsj6_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19916,14 +19934,14 @@ span.ap-marker-container:hover span.ap-marker {
   align-items: baseline;
 }
 
-._verticalMetricReducer_1ldk2_26 {
+._verticalMetricReducer_ptsj6_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_1ldk2_33 {
+._verticalMetricName_ptsj6_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -19931,35 +19949,35 @@ span.ap-marker-container:hover span.ap-marker {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_1ldk2_41 {
+._verticalMetricValue_ptsj6_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_1ldk2_46 {
+._multiScorer_ptsj6_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_1ldk2_53 {
+._multiScorerIndent_ptsj6_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_1ldk2_57 {
+._multiScorerReducer_ptsj6_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_1ldk2_63 {
+._multiScorerLabel_ptsj6_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_1ldk2_69 {
+._multiScorerValue_ptsj6_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -19968,12 +19986,12 @@ span.ap-marker-container:hover span.ap-marker {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_1ldk2_78 {
+._multiScorerValueContent_ptsj6_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_1ldk2_83 {
+._multiScoreMetricGrid_ptsj6_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
@@ -19981,15 +19999,19 @@ span.ap-marker-container:hover span.ap-marker {
   justify-content: center;
 }
 
-._moreButton_1ldk2_91 {
+._moreButton_ptsj6_91 {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
-._metricsSummary_1ldk2_96 {
+._metricsSummary_ptsj6_96 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
+}
+
+._modalScores_ptsj6_102 {
+  padding-bottom: 4em;
 }
 ._statusContainer_1sckj_1 {
   display: inline-block;
