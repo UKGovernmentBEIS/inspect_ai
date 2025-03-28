@@ -67,7 +67,15 @@ export const openRemoteZipFile = async (
 
   // Check signature to make sure we found the EOCD record
   if (eocdrView.getUint32(0, true) !== 0x06054b50) {
-    throw new Error("End of central directory record not found");
+    if (eocdrBuffer.length !== 22) {
+      // The range request seems like it was ignored because more bytes than
+      // were requested were returned.
+      throw new Error(
+        "Unexpected central directory size - does the HTTP server serving this file support HTTP range requests?",
+      );
+    } else {
+      throw new Error("End of central directory record not found");
+    }
   }
 
   let centralDirOffset = eocdrView.getUint32(16, true);

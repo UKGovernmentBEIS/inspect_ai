@@ -2,6 +2,7 @@
 
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
+- Inspect View: Improve error message when view bundles are server from incompatible servers.
 
 ## v0.3.79 (26 March 2025)
 
