@@ -145,7 +145,10 @@ async def subprocess(
                     buffer.write(chunk)
                     written += len(chunk)
                     if output_limit is not None and written > output_limit:
-                        process.kill()
+                        try:
+                            process.kill()
+                        except ProcessLookupError:
+                            pass
                         break
 
                 return buffer.getvalue()
@@ -191,13 +194,16 @@ async def subprocess(
                     # then be more forceful if requied
                     with anyio.CancelScope(shield=True):
                         try:
-                            proc.terminate()
-                            await anyio.sleep(2)
                             if proc.returncode is None:
-                                proc.kill()
+                                proc.terminate()
+                                await anyio.sleep(2)
+                                if proc.returncode is None:
+                                    proc.kill()
                         except Exception:
                             pass
                     raise
+                except ProcessLookupError as ex:
+                    return ExecResult(False, 1, "", str(ex))
 
             # await result without timeout
             else:
