@@ -128,10 +128,10 @@ async def tool_container_sandbox(tool_name: str) -> SandboxEnvironment:
 
                 Alternatively, you can include the service into your own Dockerfile:
 
-                RUN python -m venv /opt/inspect_tool_support
-                ENV PATH="/opt/inspect_tool_support/bin:$PATH"
-                RUN pip install inspect-tool-support
-                RUN inspect-tool-support post-install
+                ENV PATH="$PATH:/opt/inspect_tool_support/bin"
+                RUN python -m venv /opt/inspect_tool_support && \
+                    /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
+                    /opt/inspect_tool_support/bin/inspect-tool-support post-install
                 """).strip()
         raise PrerequisiteError(msg)
 

@@ -8,13 +8,12 @@ FROM python:3.12-bookworm
 # RUN apt-get update && apt-get install -y python3 python3-pip python3-venv
 
 # create and install into a venv
-RUN python -m venv /opt/inspect_tool_support
-ENV PATH="/opt/inspect_tool_support/bin:$PATH"
-
-# install inspect-tool-support
+# install inspect-tool-support 
 # (on platforms where Playwright is not supported, add --no-web-browser to the post-install command)
-RUN pip install inspect-tool-support
-RUN inspect-tool-support post-install
+ENV PATH="$PATH:/opt/inspect_tool_support/bin"
+RUN python -m venv /opt/inspect_tool_support && \
+    /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
+    /opt/inspect_tool_support/bin/inspect-tool-support post-install
 
 # run forever
 CMD ["tail", "-f", "/dev/null"]
