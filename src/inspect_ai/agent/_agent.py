@@ -29,7 +29,7 @@ class AgentState:
     """Agent state."""
 
     def __init__(self, *, messages: list[ChatMessage]) -> None:
-        self._messages = copy(messages)
+        self._messages = messages
         self._output: ModelOutput | None = None
 
     @property
@@ -40,7 +40,7 @@ class AgentState:
     @messages.setter
     def messages(self, messages: list[ChatMessage]) -> None:
         """Set the conversation history."""
-        self._messages = copy(messages)
+        self._messages = messages
 
     @property
     def output(self) -> ModelOutput:
