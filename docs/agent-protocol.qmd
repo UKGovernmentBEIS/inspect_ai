@@ -313,3 +313,34 @@ solver = [
 ```
 
 ## Agent State {#agent-state}
+
+In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.
+
+When developing agents, you should use the [typed-interface](agents-api.qmd#store-typing) to the store, which provides both type-checking and namespacing for store access.
+
+For example, here we define a typed accessor to the store by deriving from the `StoreModel` class (which in turn derives from Pydantic `BaseModel`):
+
+``` python
+from pydantic import Field
+from inspect_ai.util import StoreModel
+
+class Activity(StoreModel):
+    active: bool = Field(default=False)
+    tries: int = Field(default=0)
+    actions: list[str] = Field(default_factory=list)
+```
+
+We can then get access to a sample scoped instance of the store for use in agents using the `store_as()` function:
+
+``` python
+from inspect_ai.util import store_as
+
+activity = store_as(Activity)
+```
+
+It's possible that you'll want to have multiple instances of a given store type within a sample (e.g. each participant in a game might need their own store). Use the `instance` parameter of `store_as()` to access multiple instances of a `StoreModel` within a sample:
+
+``` python
+red_team_activity = store_as(Activity, instance="red_team")
+blue_team_activity = store_as(Activity, instance="blue_team")
+```
