@@ -275,6 +275,9 @@ class GoogleGenAIAPI(ModelAPI):
         ):
             return is_retryable_http_status(int(ex.status))
 
+        elif isinstance(ex, APIError) and ex.code is not None:
+            return is_retryable_http_status(ex.code)
+
         # low-level requests exceptions
         elif isinstance(ex, requests.exceptions.RequestException):
             return isinstance(
