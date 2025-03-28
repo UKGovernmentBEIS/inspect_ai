@@ -42,7 +42,10 @@ def searcher() -> Agent:
 def check_agent_handoff(
     max_searches: int | None = None, handoff_tool: Tool | None = None
 ):
-    input = "Please use the searcher to determine the max_searches."
+    input = (
+        "Please use the searcher to determine the max_searches. "
+        + "You should only handoff to the searcher tool a single time, then just report the result."
+    )
     if max_searches and not handoff_tool:
         input = f"{input} Please pass the value {max_searches} to the searcher."
     log = eval(
@@ -234,7 +237,8 @@ def check_agent_handoff_input_filter(
         Task(
             dataset=[
                 Sample(
-                    input="Please use the addition tool to add 1+1. Then, handoff to the tool_checker."
+                    input="Please use the addition tool to add 1+1. Then, handoff to the tool_checker. "
+                    + "You should only handoff to the tool checker a single time, then just report the result."
                 )
             ]
         ),
@@ -243,6 +247,7 @@ def check_agent_handoff_input_filter(
             generate(),
         ],
         model="openai/gpt-4o-mini",
+        parallel_tool_calls=False,
         log_format="json",
     )[0]
     assert log.samples
@@ -261,7 +266,7 @@ def check_agent_handoff_input_filter(
 
 @skip_if_no_openai
 def test_agent_handoff_no_input_filter():
-    check_agent_handoff_input_filter(None, 2)
+    check_agent_handoff_input_filter(None, 4)
 
 
 @skip_if_no_openai
@@ -272,7 +277,7 @@ def test_agent_handoff_remove_tools_input_filter():
 @agent
 def oracle() -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        """Tool checker that checks if tool messages are present.
+        """Oracle that answers questions.
 
         Args:
             state: Input state (conversation)
@@ -297,7 +302,14 @@ def check_agent_handoff_output_filter(
     output_filter: Literal["last_message"] | None, messages_len: int
 ):
     log = eval(
-        Task(dataset=[Sample(input="Please ask the oracle a question?")]),
+        Task(
+            dataset=[
+                Sample(
+                    input="Please ask the oracle a question?"
+                    + "You should only ask the oracle a single question, then just report the result."
+                )
+            ]
+        ),
         solver=[use_tools(handoff(oracle(), output_filter=output_filter)), generate()],
         model="openai/gpt-4o-mini",
         log_format="json",
