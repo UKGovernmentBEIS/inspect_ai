@@ -415,6 +415,12 @@ async def agent_handoff(
     if agent_tool.input_filter is not None:
         agent_conversation = await agent_tool.input_filter(agent_conversation)
 
+    # remove system messages (as they can refer to tools or other special
+    # instructions that don't apply to the sub-agent)
+    agent_conversation = [
+        m for m in agent_conversation if not isinstance(m, ChatMessageSystem)
+    ]
+
     # inject curried args
     arguments = {**call.arguments, **agent_tool.kwargs}
 

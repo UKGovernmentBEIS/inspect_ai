@@ -236,13 +236,15 @@ handoff(
 
 ### Handoff Filters
 
-By default when a handoff occurs, the target agent sees the global message history and has its own internal history appended to the global history when it completes. You can customise this behaviour using handoff filters. For example, you can use the built-in "remove_tools" input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don't get confused about what tools are available):
+By default when a handoff occurs, the target agent sees the global message history and has its own internal history appended to the global history when it completes. The one exception to this is system messages, which are removed from the input and output respectively (as system messages for agents can easily confuse other agents, especially if they refer to tools or objectives that are not applicable across contexts).
+
+You can do additional filtering using handoff filters. For example, you can use the built-in `"remove_tools"` input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don't get confused about what tools are available):
 
 ``` python
 handoff(web_surfer, input_filter="remove_tools")
 ```
 
-You can also use the built-in "last_message" output filter to only append the last message of the agent's history to the global conversation:
+You can also use the built-in `"last_message"` output filter to only append the last message of the agent's history to the global conversation:
 
 ``` python
 handoff(web_surfer, output_filter="last_message")
