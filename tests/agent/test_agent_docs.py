@@ -6,10 +6,27 @@ from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_docker, skip_if_no_openai
 
 from inspect_ai import Task, eval
-from inspect_ai.agent import Agent, AgentState, agent, as_tool, handoff, react, run
+from inspect_ai.agent import (
+    Agent,
+    AgentState,
+    agent,
+    as_solver,
+    as_tool,
+    handoff,
+    react,
+    run,
+)
 from inspect_ai.dataset import Sample
-from inspect_ai.model import ChatMessageSystem, get_model
-from inspect_ai.solver import chain, generate, solver, use_tools
+from inspect_ai.model import ChatMessageSystem, Model, get_model
+from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai.solver import (
+    assistant_message,
+    chain,
+    generate,
+    solver,
+    use_tools,
+    user_message,
+)
 from inspect_ai.tool import ToolFunction, bash_session, text_editor, web_browser
 
 
@@ -176,5 +193,39 @@ def test_agent_react_multi_agent():
     eval(task, model="openai/gpt-4o")
 
 
+@agent
+def critic(model: str | Model | None = None) -> Agent:
+    async def execute(state: AgentState, count: int = 3) -> AgentState:
+        """Provide critiques of previous messages in a conversation.
+
+        Args:
+           state: Agent state
+           count: Number of critiques to provide (defaults to 3)
+        """
+        state.messages.append(
+            ChatMessageUser(
+                content=f"Please provide {count} critiques of the conversation."
+            )
+        )
+        state.output = await get_model(model).generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+
+    return execute
+
+
+@skip_if_no_openai
 def test_agent_critic_parameters():
-    pass
+    task = Task(
+        dataset=[Sample(input="What color is the sky?")],
+        solver=[
+            assistant_message("It is blue."),
+            user_message("What color are my shoes?"),
+            assistant_message("They are brown"),
+            as_solver(critic(), count=1),
+            user_message("Would you revise your answer based on the critique?"),
+            generate(),
+        ],
+    )
+
+    eval(task, model="openai/gpt-4o")
