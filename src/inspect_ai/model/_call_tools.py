@@ -423,7 +423,7 @@ async def agent_handoff(
     del arguments["state"]
 
     # make the call
-    agent_state = AgentState(messages=agent_conversation)
+    agent_state = AgentState(messages=copy(agent_conversation))
     agent_state = await agent_tool.agent(agent_state, **arguments)
 
     # determine which messages are new and return only those (but exclude new
