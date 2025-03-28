@@ -59,7 +59,7 @@ class CloudFlareAPI(ModelAPI):
         self.model_args = model_args
 
     @override
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         await self.client.aclose()
 
     async def generate(

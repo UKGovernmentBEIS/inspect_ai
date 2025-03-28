@@ -116,11 +116,6 @@ class VertexAPI(ModelAPI):
 
         self.model = GenerativeModel(model_name)
 
-    @override
-    async def close(self) -> None:
-        # GenerativeModel uses a cached/shared client so there is no 'close'
-        pass
-
     async def generate(
         self,
         input: list[ChatMessage],

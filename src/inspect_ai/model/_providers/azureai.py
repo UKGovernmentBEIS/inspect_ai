@@ -129,11 +129,6 @@ class AzureAIAPI(ModelAPI):
         self.endpoint_url = endpoint_url
         self.model_args = model_args
 
-    @override
-    async def close(self) -> None:
-        # client is created/destroyed each time in generate()
-        pass
-
     async def generate(
         self,
         input: list[ChatMessage],
