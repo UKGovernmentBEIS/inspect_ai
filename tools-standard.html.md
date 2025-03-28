@@ -93,11 +93,10 @@ Dependencies** below for additional instructions.
 > use this tool:
 >
 > ``` dockerfile
-> RUN python -m venv /opt/inspect_tool_support
-> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
->
-> RUN pip install inspect-tool-support
-> RUN inspect-tool-support post-install
+> ENV PATH="$PATH:/opt/inspect_tool_support/bin"
+> RUN python -m venv /opt/inspect_tool_support && \
+>     /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
+>     /opt/inspect_tool_support/bin/inspect-tool-support post-install
 > ```
 >
 > Note that Playwright (used for the `web_browser()` tool) does not
@@ -179,11 +178,10 @@ below for additional instructions.
 > use this tool:
 >
 > ``` dockerfile
-> RUN python -m venv /opt/inspect_tool_support
-> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
->
-> RUN pip install inspect-tool-support
-> RUN inspect-tool-support post-install
+> ENV PATH="$PATH:/opt/inspect_tool_support/bin"
+> RUN python -m venv /opt/inspect_tool_support && \
+>     /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
+>     /opt/inspect_tool_support/bin/inspect-tool-support post-install
 > ```
 >
 > Note that Playwright (used for the `web_browser()` tool) does not
@@ -274,11 +272,10 @@ support some versions of Linux (e.g. Kali Linux).
 > use this tool:
 >
 > ``` dockerfile
-> RUN python -m venv /opt/inspect_tool_support
-> ENV PATH="/opt/inspect_tool_support/bin:$PATH"
->
-> RUN pip install inspect-tool-support
-> RUN inspect-tool-support post-install
+> ENV PATH="$PATH:/opt/inspect_tool_support/bin"
+> RUN python -m venv /opt/inspect_tool_support && \
+>     /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
+>     /opt/inspect_tool_support/bin/inspect-tool-support post-install
 > ```
 >
 > If you don’t have a custom Dockerfile, you can alternatively use the
