@@ -127,6 +127,15 @@ async with get_model("openai/gpt-4o") as model:
     response = await model.generate("Say hello")
 ```
 
+If you are not in an async context there is also a sync context manager available:
+
+```python
+with get_model("hf/Qwen/Qwen2.5-72B") as model:
+    response = await model.generate("Say hello")
+```
+
+Note though that this *won't work* with model providers that require an async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama, llama-cpp-python, and CloudFlare).
+
 
 ## Learning More
 

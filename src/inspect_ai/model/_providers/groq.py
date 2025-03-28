@@ -93,7 +93,7 @@ class GroqAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client)
 
     @override
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         await self.client.close()
 
     async def generate(

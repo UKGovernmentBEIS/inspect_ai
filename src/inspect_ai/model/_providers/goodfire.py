@@ -115,11 +115,6 @@ class GoodfireAPI(ModelAPI):
         # Initialize variant directly with model name
         self.variant = Variant(self.model_name)  # type: ignore
 
-    @override
-    async def close(self) -> None:
-        # httpx.AsyncClient is created on each generate()
-        pass
-
     def _to_goodfire_message(self, message: ChatMessage) -> GoodfireChatMessage:
         """Convert an Inspect message to a Goodfire message format.
 

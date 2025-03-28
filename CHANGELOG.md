@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.

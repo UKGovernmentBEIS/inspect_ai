@@ -135,11 +135,6 @@ class MistralAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
-    @override
-    async def close(self) -> None:
-        # client is created and destroyed in generate
-        pass
-
     async def generate(
         self,
         input: list[ChatMessage],

@@ -123,7 +123,7 @@ class HuggingFaceAPI(ModelAPI):
         self.tokenizer.padding_side = "left"
 
     @override
-    async def close(self) -> None:
+    def close(self) -> None:
         self.model = None
         self.tokenizer = None
         gc.collect()
