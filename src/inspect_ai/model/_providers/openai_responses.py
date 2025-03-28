@@ -120,9 +120,9 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    # TODO: Since `store=True` is only required for computer use, I'm guessing
-    # we should leave it False in other cases.
-    params: dict[str, Any] = dict(model=model_name, store=True)
+    params: dict[str, Any] = dict(
+        model=model_name, store="computer_use_preview" in model_name
+    )
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
     if config.frequency_penalty is not None:
