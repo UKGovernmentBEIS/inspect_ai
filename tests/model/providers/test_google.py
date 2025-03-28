@@ -1,3 +1,5 @@
+import unittest.mock as mock
+
 from test_helpers.utils import skip_if_no_google, skip_if_trio
 
 from inspect_ai import Task, eval
@@ -72,3 +74,56 @@ def test_completion_choice_malformed_function_call():
     assert (
         choice.message.tool_calls is None
     )  # No tool calls for malformed function calls
+
+
+def test_429_response_is_retried():
+    error_response_json = {
+        "error": {
+            "code": 429,
+            "message": "You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits.",
+            "status": "RESOURCE_EXHAUSTED",
+            "details": [
+                {
+                    "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                    "violations": [
+                        {
+                            "quotaMetric": "generativelanguage.googleapis.com/generate_requests_per_model",
+                            "quotaId": "GenerateRequestsPerMinutePerProjectPerModel",
+                            "quotaDimensions": {
+                                "location": "global",
+                                "model": "gemini-2.0-flash-exp",
+                            },
+                            "quotaValue": "10",
+                        }
+                    ],
+                },
+                {
+                    "@type": "type.googleapis.com/google.rpc.Help",
+                    "links": [
+                        {
+                            "description": "Learn more about Gemini API quotas",
+                            "url": "https://ai.google.dev/gemini-api/docs/rate-limits",
+                        }
+                    ],
+                },
+                {
+                    "@type": "type.googleapis.com/google.rpc.RetryInfo",
+                    "retryDelay": "42s",
+                },
+            ],
+        }
+    }
+
+    import requests  # type: ignore
+    from google.genai.errors import ClientError  # type: ignore
+
+    from inspect_ai.model._providers.google import GoogleGenAIAPI
+
+    mock_response = mock.MagicMock(spec=requests.Response)
+    mock_response.status_code = 429
+    mock_response.json.return_value = error_response_json
+    error = ClientError(429, mock_response)
+
+    api = GoogleGenAIAPI(model_name="gemini-1.0-pro", base_url=None, api_key="fake-key")
+
+    assert api.should_retry(error)
