@@ -105,6 +105,9 @@ class ChatMessageAssistant(ChatMessageBase):
     tool_calls: list[ToolCall] | None = Field(default=None)
     """Tool calls made by the model."""
 
+    internal: object | None = Field(default=None)
+    """Model provider specific payload - typically used to aid transformation back to model types."""
+
     # Some OpenAI compatible REST endpoints include reasoning as a field alongside
     # content, however since this field doesn't exist in the OpenAI interface,
     # hosting providers (so far we've seen this with Together and Groq) may

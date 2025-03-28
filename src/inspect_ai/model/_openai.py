@@ -83,6 +83,10 @@ def is_o1_preview(name: str) -> bool:
     return "o1-preview" in name
 
 
+def is_computer_use_preview(name: str) -> bool:
+    return "computer_use_preview" in name
+
+
 def is_gpt(name: str) -> bool:
     return "gpt" in name
 
@@ -538,6 +542,9 @@ def openai_handle_bad_request(
 
 def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
     # remove images from raw api call
+    if key == "output" and isinstance(value, dict) and "image_url" in value:
+        value = copy(value)
+        value.update(image_url=BASE_64_DATA_REMOVED)
     if key == "image_url" and isinstance(value, dict) and "url" in value:
         url = str(value.get("url"))
         if url.startswith("data:"):
