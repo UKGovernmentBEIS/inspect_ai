@@ -1,4 +1,4 @@
-from copy import copy
+from copy import copy, deepcopy
 from functools import wraps
 from typing import (
     Any,
@@ -70,6 +70,16 @@ class AgentState:
     def output(self, output: ModelOutput) -> None:
         """Set the model output."""
         self._output = output
+
+    def __copy__(self) -> "AgentState":
+        state = AgentState(messages=copy(self.messages))
+        state.output = self.output.model_copy()
+        return state
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "AgentState":
+        state = AgentState(messages=deepcopy(self.messages, memo))
+        state.output = self.output.model_copy(deep=True)
+        return state
 
 
 @runtime_checkable

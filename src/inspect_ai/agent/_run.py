@@ -1,3 +1,4 @@
+from copy import copy
 from typing import Any
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
@@ -18,6 +19,16 @@ async def run(
     Returns:
         AgentState: Messages and generated output.
     """
-    input = [ChatMessageUser(content=input)] if isinstance(input, str) else input
+    # copy input so we don't mutate it in place
+    input = copy(input)
+
+    # resolve str
+    if isinstance(input, str):
+        input = [ChatMessageUser(content=input)]
+
+    # create state (copy input so we don't mutate it in place)
+    input = copy(input)
     state = AgentState(messages=input) if isinstance(input, list) else input
+
+    # run the agent
     return await agent(state, **agent_kwargs)
