@@ -29,13 +29,22 @@ The following is a simple `web_surfer()` agent that uses the `web_browser()` too
 
 ``` python
 from inspect_ai.agent import Agent, AgentState, agent
-from inspect_ai.model import get_model
+from inspect_ai.model import ChatMessageSystem, get_model
 from inspect_ai.tool import web_browser
 
 @agent
 def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         """Web research assistant."""
+        # some general guideance for the agent
+        state.messages.append(
+            ChatMessageSystem(
+                content="Use the web browser tools for every question, "
+                + "even if you think you already know the answer."
+            )
+        )
+
+        # run a tool loop w/ the web_browser then update & return state
         messages, state.output = await get_model().generate_loop(
             state.messages, tools=web_browser()
         )
@@ -65,28 +74,30 @@ This agent can be used in the following ways:
 
     ``` python
     from inspect_ai.agent import as_tool
-    from inspect_ai.model import get_model
+    from inspect_ai.solver use_tools, generate
 
-    output = await get_model("openai/gpt-4o").generate(
-        "What are the 3 most popular movies of 2024?", 
-        tools=[as_tool(web_surfer())]
+    eval(
+        task="research_bench", 
+        solver=[
+            use_tools(as_tool(web_surfer())),
+            generate()
+        ]
     )
-    print(f"The most popular movies are: {state.output.completion}")
+    print(f"The most popular movies were: {state.output.completion}")
     ```
 
 3.  It can participate in a multi-agent system where the conversation history is shared across agents. Use the `handoff()` function to create a tool that enables handing off the conversation from one agent to another:
 
     ``` python
     from inspect_ai.agent import handoff
-    from inspect_ai.model import get_model
+    from inspect_ai.solver use_tools, generate
     from math_tools import addition
 
-    output = await get_model("openai/gpt-4o").generate_loop(
-        "I'd like to know the answer to 1+1 and would also like " +
-        "to know what the 3 most popular movies of 2024 were?", 
-        tools=[
-            addition(),
-            handoff(web_surfer())
+    eval(
+        task="research_bench", 
+        solver=[
+            use_tools(addition(), handoff(web_surfer())),
+            generate()
         ]
     )
     ```
@@ -99,9 +110,9 @@ This agent can be used in the following ways:
     from inspect_ai.agent import run
 
     state = await run(
-        web_surfer(), "What are the 3 most popular movies of 2024?"
+        web_surfer(), "What were the 3 most popular movies of 2020?"
     )
-    print(f"The most popular movies are: {state.output.completion}")
+    print(f"The most popular movies were: {state.output.completion}")
     ```
 
 ## React Agent {#react-agent}
@@ -139,7 +150,7 @@ def ctf_agent(attempts=3) -> Agent:
     """)
 
     return react(
-        instructions=INSTRUCTIONS,
+        prompt=INSTRUCTIONS,
         tools=[bash_session(), text_editor()],
         attempts=attempts,
     )
@@ -182,19 +193,24 @@ from math_tools import addition
 def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         """Web research assistant."""
-        agent = react(tools=web_browser())
+        agent = react(
+            prompt="Use the web browser tools for every question, "
+                   + "even if you think you already know the answer.",
+            tools=web_browser()
+        )
         return await agent(state)
        
     return execute
 
 supervisor = react(
-    "You are an agent that can answer addition problems and do web research.",
-    tools=[addition, handoff(web_surfer)]
+    prompt="You are an agent that can answer addition problems and do web research.",
+    tools=[addition(), handoff(web_surfer())]
 )
 
 task = Task(
     dataset=[Sample(input="Please add 1+1 then tell me what movies were popular in 2024")],
-    solver=supervisor
+    solver=supervisor,
+    sandbox="docker",
 )
 ```
 
