@@ -193,12 +193,12 @@ from math_tools import addition
 def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         """Web research assistant."""
-        agent = react(
+        research_agent = react(
             prompt="Use the web browser tools for every question, "
                    + "even if you think you already know the answer.",
             tools=web_browser()
         )
-        return await agent(state)
+        return await research_agent(state)
        
     return execute
 
