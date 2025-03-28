@@ -182,8 +182,8 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
-        # TODO: Clean me up
-        return True
+        # o1-pro, o1, and computer_use_preview support image inputs (but we're not strictly supporting o1)
+        return self.is_o1_pro() or self.is_computer_use_preview()
 
     async def generate(
         self,
