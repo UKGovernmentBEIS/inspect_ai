@@ -62,28 +62,6 @@ async def openai_responses_inputs(
     return responses_inputs
 
 
-def openai_responses_tool_choice(tool_choice: ToolChoice) -> ResponsesToolChoice:
-    match tool_choice:
-        case "none" | "auto":
-            return tool_choice
-        case "any":
-            return "required"
-        # TODO: internal tools need to be converted to ToolChoiceTypesParam
-        case _:
-            return ToolChoiceFunctionParam(type="function", name=tool_choice.name)
-
-
-def openai_responses_tools(tools: list[ToolInfo]) -> list[ToolParam]:
-    return [_tool_param_for_tool_info(tool) for tool in tools]
-
-
-def openai_responses_chat_choices(
-    response: OpenAIResponse, tools: list[ToolInfo]
-) -> list[ChatCompletionChoice]:
-    message, stop_reason = _chat_message_assistant_from_openai_response(response, tools)
-    return [ChatCompletionChoice(message=message, stop_reason=stop_reason)]
-
-
 async def _openai_responses_input(
     message: ChatMessage, model: str
 ) -> list[ResponseInputItemParam]:
@@ -166,68 +144,26 @@ async def _openai_responses_content_param(
         raise ValueError("Unsupported content type.")
 
 
-def _tool_call_items_from_assistant_message(
-    message: ChatMessageAssistant,
-) -> list[ResponseInputItemParam]:
-    return [
-        cast(
-            _ResponseToolCallParam,
-            _model_tool_call_for_internal(call.internal).model_dump(),
-        )
-        for call in message.tool_calls or []
-    ]
+def openai_responses_tool_choice(tool_choice: ToolChoice) -> ResponsesToolChoice:
+    match tool_choice:
+        case "none" | "auto":
+            return tool_choice
+        case "any":
+            return "required"
+        # TODO: internal tools need to be converted to ToolChoiceTypesParam
+        case _:
+            return ToolChoiceFunctionParam(type="function", name=tool_choice.name)
 
 
-_ResponseToolCallParam = (
-    ResponseFunctionToolCallParam | ResponseComputerToolCallParam
-    # | ResponseFileSearchToolCallParam
-    # | ResponseFunctionToolCallParam
-    # | ResponseFunctionWebSearchParam
-)
+def openai_responses_tools(tools: list[ToolInfo]) -> list[ToolParam]:
+    return [_tool_param_for_tool_info(tool) for tool in tools]
 
 
-def _model_tool_call_for_internal(internal: object | None) -> ResponseToolCallInternal:
-    assert isinstance(internal, dict), "OpenAI internal must be a dict"
-    # TODO: Stop runtime validating these over and over once the code is stable
-    match internal.get("type"):
-        case "function_call":
-            return ResponseFunctionToolCall.model_validate(internal)
-        case "computer_call":
-            return ResponseComputerToolCall.model_validate(internal)
-        case _ as x:
-            # TODO: Add support for other types
-            raise NotImplementedError(f"Unsupported tool call type: {x}")
-
-
-def _tool_param_for_tool_info(tool: ToolInfo) -> ToolParam:
-    # Use a native tool implementation when available. Otherwise, use the
-    # standard tool implementation
-    return _maybe_native_tool_param(tool) or FunctionToolParam(
-        type="function",
-        name=tool.name,
-        description=tool.description,
-        parameters=tool.parameters.model_dump(exclude_none=True),
-        strict=False,  # default parameters don't work in strict mode
-    )
-
-
-def _maybe_native_tool_param(tool: ToolInfo) -> ToolParam | None:
-    # TODO: Is it worth plumbing this option?
-    config_internal_tools = None
-    return (
-        (
-            maybe_computer_use_tool_param(tool)
-            # or self.text_editor_tool_param(tool)
-            # or self.bash_tool_param(tool)
-        )
-        if config_internal_tools is not False
-        else None
-    )
-
-
-class _AssistantInternal(TypedDict):
-    output_message_id: str | None
-    reasoning_id: str | None
+def openai_responses_chat_choices(
+    response: OpenAIResponse, tools: list[ToolInfo]
+) -> list[ChatCompletionChoice]:
+    message, stop_reason = _chat_message_assistant_from_openai_response(response, tools)
+    return [ChatCompletionChoice(message=message, stop_reason=stop_reason)]
 
 
 # The next two function perform transformations between OpenAI types an Inspect
@@ -264,6 +200,11 @@ class _AssistantInternal(TypedDict):
 #                                  └───────────────────────────┘
 
 
+class _AssistantInternal(TypedDict):
+    output_message_id: str | None
+    reasoning_id: str | None
+
+
 def _chat_message_assistant_from_openai_response(
     response: OpenAIResponse, tools: list[ToolInfo]
 ) -> tuple[ChatMessageAssistant, StopReason]:
@@ -295,9 +236,6 @@ def _chat_message_assistant_from_openai_response(
         match output:
             case ResponseOutputMessage(content=content, id=id):
                 assert internal["output_message_id"] is None, "Multiple message outputs"
-                print(
-                    f"XXXXX response {response.id} contained ResponseOutputMessage {id}"
-                )
                 internal["output_message_id"] = id
                 message_content.extend(
                     [
@@ -308,9 +246,6 @@ def _chat_message_assistant_from_openai_response(
                     ]
                 )
             case ResponseReasoningItem(summary=summary, id=id):
-                print(
-                    f"XXXXX response {response.id} contained ResponseReasoningItem {id}"
-                )
                 assert internal["reasoning_id"] is None, "Multiple reasoning items"
                 internal["reasoning_id"] = id
                 message_content.append(
@@ -338,9 +273,6 @@ def _chat_message_assistant_from_openai_response(
                     case _:
                         raise ValueError(f"Unexpected output type: {output.__class__}")
 
-    print(
-        f"XXXXX creating internal of {internal} for ChatMessageAssistant for {response.id}"
-    )
     return (
         ChatMessageAssistant(
             id=response.id,
@@ -423,3 +355,62 @@ def _openai_input_items_from_chat_message_assistant(
     return [
         item for item in (reasoning_item, output_message) if item
     ] + _tool_call_items_from_assistant_message(message)
+
+
+def _model_tool_call_for_internal(internal: object | None) -> ResponseToolCallInternal:
+    assert isinstance(internal, dict), "OpenAI internal must be a dict"
+    # TODO: Stop runtime validating these over and over once the code is stable
+    match internal.get("type"):
+        case "function_call":
+            return ResponseFunctionToolCall.model_validate(internal)
+        case "computer_call":
+            return ResponseComputerToolCall.model_validate(internal)
+        case _ as x:
+            # TODO: Add support for other types
+            raise NotImplementedError(f"Unsupported tool call type: {x}")
+
+
+def _maybe_native_tool_param(tool: ToolInfo) -> ToolParam | None:
+    # TODO: Is it worth plumbing this option?
+    config_internal_tools = None
+    return (
+        (
+            maybe_computer_use_tool_param(tool)
+            # or self.text_editor_tool_param(tool)
+            # or self.bash_tool_param(tool)
+        )
+        if config_internal_tools is not False
+        else None
+    )
+
+
+def _tool_call_items_from_assistant_message(
+    message: ChatMessageAssistant,
+) -> list[ResponseInputItemParam]:
+    return [
+        cast(
+            _ResponseToolCallParam,
+            _model_tool_call_for_internal(call.internal).model_dump(),
+        )
+        for call in message.tool_calls or []
+    ]
+
+
+_ResponseToolCallParam = (
+    ResponseFunctionToolCallParam | ResponseComputerToolCallParam
+    # | ResponseFileSearchToolCallParam
+    # | ResponseFunctionToolCallParam
+    # | ResponseFunctionWebSearchParam
+)
+
+
+def _tool_param_for_tool_info(tool: ToolInfo) -> ToolParam:
+    # Use a native tool implementation when available. Otherwise, use the
+    # standard tool implementation
+    return _maybe_native_tool_param(tool) or FunctionToolParam(
+        type="function",
+        name=tool.name,
+        description=tool.description,
+        parameters=tool.parameters.model_dump(exclude_none=True),
+        strict=False,  # default parameters don't work in strict mode
+    )
