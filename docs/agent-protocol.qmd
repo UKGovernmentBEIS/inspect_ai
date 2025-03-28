@@ -13,14 +13,16 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 :::
 
 
-The Inspect `Agent` protocol enables you to create flexible agent components that can be used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them considerably more versatile. A single agent can be:
+The Inspect `Agent` protocol enables you to create flexible agent components that can be used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:
 
 1.  Used as a top-level `Solver` for a task
 2.  Provided as a standard `Tool` to a model
 3.  Delegated to in a multi-agent architecture.
 4.  Run as a standalone operation in an agent workflow.
 
-The agents module also includes a [React Agent](#react-agent) that provides a flexible general purpose agent based on agent development best practices. React agents can be used standalone or be used to orchestrate a multi-agent system using [Handoffs](#handoffs). More complex agents may also make use of [Agent State](#agent-state).
+Like tools, agents can have [parameters](#agent-paramaeters) as well as make use of [state](#agent-state).
+
+The agents module includes a flexible, general-purpose [react agent](#react-agent), which can be used standalone or to orchestrate a multi-agent system using [handoffs](#handoffs). 
 
 ## Example
 
@@ -223,6 +225,8 @@ handoff(
 
 ### Handoff Filters
 
+
+## Parameters
 
 ## Agent State
 
