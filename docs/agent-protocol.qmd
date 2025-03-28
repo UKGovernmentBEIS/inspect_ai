@@ -12,7 +12,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-The Inspect `Agent` protocol enables you to create flexible agent components that can be used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:
+The Inspect `Agent` protocol enables the creation of agent components that can be flexibly used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:
 
 1.  Used as a top-level `Solver` for a task
 2.  Provided as a standard `Tool` to a model
@@ -249,9 +249,8 @@ The `web_surfer` agent used an example above doesn't take any parameters, howeve
 For example, here is a `critic` agent that asks a model to contribute to a conversation by critiquing its previous output. There are two types of parameters demonstrated: parameters that configure the entire agent (in this case the critic `model`) and parameters passed by the parent agent (in this case the `count` of critiques to provide):
 
 ``` python
-import httpx
 from inspect_ai.agent import Agent, AgentState, agent
-from inspect_ai.model import ChatMessageUser
+from inspect_ai.model import ChatMessageUser, Model
 
 @agent
 def critic(model: str | Model | None = None) -> Agent:
@@ -269,7 +268,6 @@ def critic(model: str | Model | None = None) -> Agent:
         state.messages.append(state.output.message)
         return state
         
-
     return execute
 ```
 
