@@ -1,9 +1,7 @@
-from google.genai.types import Candidate, Content, FinishReason  # type: ignore
 from test_helpers.utils import skip_if_no_google, skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.model._providers.google import completion_choice_from_candidate
 from inspect_ai.scorer import includes
 
 
@@ -48,6 +46,10 @@ def test_google_block_reason():
 
 
 def test_completion_choice_malformed_function_call():
+    from google.genai.types import Candidate, Content, FinishReason  # type: ignore
+
+    from inspect_ai.model._providers.google import completion_choice_from_candidate
+
     # Copied from the ``Candidate`` object actually returned by the Google API
     candidate = Candidate(
         content=Content(parts=None, role=None),
