@@ -14,6 +14,7 @@ from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
+    is_computer_use_preview,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
@@ -64,9 +65,7 @@ async def generate_responses(
         tool_choice=openai_responses_tool_choice(tool_choice)
         if len(tools) > 0 and tool_choice != "auto"
         else NOT_GIVEN,
-        # TODO: Pass the right thing - stop hard-wiring it
-        truncation="auto",
-        reasoning={"generate_summary": "concise"},
+        truncation="auto" if is_computer_use_preview(model_name) else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(model_name, config, len(tools) > 0),
     )
@@ -121,7 +120,7 @@ def completion_params_responses(
         )
 
     params: dict[str, Any] = dict(
-        model=model_name, store="computer_use_preview" in model_name
+        model=model_name, store=is_computer_use_preview(model_name)
     )
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens

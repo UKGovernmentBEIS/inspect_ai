@@ -33,6 +33,7 @@ from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
+    is_computer_use_preview,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
@@ -166,7 +167,7 @@ class OpenAIAPI(ModelAPI):
         return is_o1_preview(self.model_name)
 
     def is_computer_use_preview(self) -> bool:
-        return "computer_use_preview" in self.model_name
+        return is_computer_use_preview(self.model_name)
 
     def is_gpt(self) -> bool:
         return is_gpt(self.model_name)

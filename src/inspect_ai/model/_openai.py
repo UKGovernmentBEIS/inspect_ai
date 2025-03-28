@@ -83,6 +83,10 @@ def is_o1_preview(name: str) -> bool:
     return "o1-preview" in name
 
 
+def is_computer_use_preview(name: str) -> bool:
+    return "computer_use_preview" in name
+
+
 def is_gpt(name: str) -> bool:
     return "gpt" in name
 
