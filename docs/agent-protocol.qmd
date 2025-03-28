@@ -5,7 +5,7 @@ title: Agent Protocol (Beta)
 ## Overview
 
 ::: {.callout-note}
-The Inspect `Agent` protocol described below is available only in the development version of Inspect. To install the development version from GitHub:
+The Inspect agent protocol described below is available only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
@@ -13,11 +13,14 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 :::
 
 
-The Inspect `Agent` protocol enables you to create flexible components that can be used in a wide variety of contexts within evaluations. Agents are similar to solvers, but use a narrower interface that makes them considerably more versatile.
+The Inspect `Agent` protocol enables you to create flexible agent components that can be used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them considerably more versatile. A single agent can be:
 
-The agents module also includes a `react()` agent which implements the agent protocol provides a more flexible and capable version of the `basic_agent()`. 
+1.  Used as a top-level `Solver` for a task
+2.  Provided as a standard `Tool` to a model
+3.  Delegated to in a multi-agent architecture.
+4.  Run as a standalone operation in an agent workflow.
 
-Below is a simple example of building and using an agent. See the [inspect_ai.agent](reference/inspect_ai.agent.qmd) reference for more in-depth details on using the agent protocol.
+The agents module also includes a [React Agent](#react-agent) that provides a flexible general purpose agent based on agent development best practices. React agents can be used standalone or be used to orchestrate a multi-agent system using [Handoffs](#handoffs). More complex agents may also make use of [Agent State](#agent-state).
 
 ## Example
 
@@ -31,6 +34,7 @@ from inspect_ai.tool import web_browser
 @agent
 def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
+        """Web research assistant."""
         messages, state.output = await get_model().generate_loop(
             state.messages, tools=[web_browser()]
         )
@@ -40,6 +44,10 @@ def web_surfer() -> Agent:
     return execute
 ```
 
+This agent looks a lot like a standard solver but deals with a more confined `AgentState` interface (which has only `messages` and `output` fields). This allows agents to be naturally decoupled from the details of tasks and consequently more re-usable.
+
+Note that the agent calls new `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model might make several calls to the `web_browser()` tool to fulfill the request.
+
 This agent can be used in the following ways:
 
 1.  It can be passed as a `Solver` to any Inspect interface that takes a solver:
@@ -47,21 +55,12 @@ This agent can be used in the following ways:
     ```python
     from inspect_ai import eval
 
-    eval(task, solver=web_surfer())
+    eval("research_bench", solver=web_surfer())
     ```
 
-2.  It can be run directly using the `run()` function (you might do this in a multi-step workflow):
+    For other interfaces that aren't aware of agents, you can use the `as_solver()` function to convert any agent to a solver.
 
-    ```python
-    from inspect_ai.agent import run
-
-    state = await run(
-        web_surfer(), "What are the 3 most popular movies of 2024?"
-    )
-    print(f"The most popular movies are: {state.output.completion}")
-    ```
-
-3.  It can be used as a standard Inspect [Tool](tools.qmd) using the `as_tool()` function:
+2.  It can be used as a standard Inspect [Tool](tools.qmd) using the `as_tool()` function:
 
     ```python
     from inspect_ai.agent import as_tool
@@ -74,7 +73,7 @@ This agent can be used in the following ways:
     print(f"The most popular movies are: {state.output.completion}")
     ```
 
-4.  It can participate in a multi-agent system where the conversation history is shared accross agents. Use the `handoff()` function to create a tool that enables handing off the conversation from one agent to another:
+3.  It can participate in a multi-agent system where the conversation history is shared accross agents. Use the `handoff()` function to create a tool that enables handing off the conversation from one agent to another:
 
     ```python
     from inspect_ai.agent import handoff
@@ -93,6 +92,18 @@ This agent can be used in the following ways:
 
     The difference between `handoff()` and `as_tool()` is that `handoff()` forwards the entire conversation history to the agent (and enables the agent to add entries to it) whereas `as_tool()` provides a simple string in, string out interface to the agent.
 
+4.  It can be exected directly using the `run()` function (you might do this in a multi-step workflow):
+
+    ```python
+    from inspect_ai.agent import run
+
+    state = await run(
+        web_surfer(), "What are the 3 most popular movies of 2024?"
+    )
+    print(f"The most popular movies are: {state.output.completion}")
+    ```
+
+
 ## React Agent
 
 The `react()` agent is a general purpose agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629). ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be suprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).
@@ -103,13 +114,14 @@ The `react()` agent provides the following built-in capabilities:
 
 2.  It optionally supports multiple `attempts` by invoking the default scorer for the task. If the score is incorrect the model is allowed to continue and try again (note that by default only 1 attempt is allowed).
 
-You can cusomize the `react()` agent in several ways, including providing a callback that determine whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g. to implement a "best of n" multi-generation strategy).
+You can cusomize the `react()` agent in several ways, including providing a callback that determines whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g. to implement a "best of n" multi-generation strategy).
 
 ### Example
 
 For example, here is a simple `ctf_agent()`:
 
 ```{python}
+from textwrap import dedent
 from inspect_ai.agent import Agent, agent, react
 from inspect_ai.tool import bash_session, text_editor
 
@@ -151,22 +163,30 @@ task = Task(
 eval(task, model="openai/gpt-4o")
 ```
 
-### Multi Agent
+## Handoffs
 
-The ReAct agent can also be used in multi-agent archictures where a supervisor agent hands off to sub-agents. 
+The `react()` agent can also be used in multi-agent archictures where a supervisor agent delegates to other agents using a `handoff()`. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it. 
+
+Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to (all of this built-in behavior and prompting is customizable).
+
+Create handoffs by enclosing an agent with the `handoff()` function. For example, here we provide a `web_surfer` agent to a `supervisor` agent:
 
 ```python
 from inspect_ai import Task, eval
-from inspect_ai.agent import handoff, react
+from inspect_ai.agent import Agent, agent, handoff, react
 from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
 from inspect_ai.tool import web_browser
 from math_tools import addition
 
-web_surfer = react(
-    "You are an expert web researcher that explores topics thoroughly.",
-    tools=[web_browser()]
-)
+@agent
+def web_surfer() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Web research assistant."""
+        agent = react(tools=[web_surfur()])
+        return await agent(state)
+       
+    return execute
 
 supervisor = react(
     "You are an agent that can answer addition problems and do web research.",
@@ -174,18 +194,42 @@ supervisor = react(
 )
 
 task = Task(
-    dataset=[Sample(input="Please add 1+1 then tell me what movies were populare in 2024")],
+    dataset=[Sample(input="Please add 1+1 then tell me what movies were popular in 2024")],
     solver=supervisor
 )
 ```
 
-
-## Learning More
-
-See the [inspect_ai.agent](reference/inspect_ai.agent.qmd) reference for additional details on using the agent protocol.
+Here, the `supervisor` agent has access to both a conventional `addition()` tool as well as the ability to `handoff()` to the `web_surfer` agent. The `web_surfer()` in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.
 
 
-    
+### Tool Interface
+
+Agent handoffs are presented as tools to the model with a special prefix (by default, `transfer_to`). You can customise the tool name during the handoff as follows:
+
+```python
+handoff(web_surfer, tool_name="transfer_to_web_researcher")
+```
+
+The tool description provided to the model will be based on the documentation comment for the agent's execute function (in the example above this is "Web research assistant."). You can customize the description that the model sees as follows:
+
+```python
+handoff(
+    web_surfer, 
+    description="Web researcher agent. Use this tool when you need " + 
+                "to answer a question that requires research."
+)
+```
+
+
+### Handoff Filters
+
+
+## Agent State
+
+
+
+
+
 
 
 
