@@ -148,7 +148,7 @@ class VLLMAPI(ModelAPI):
         # handle system message and consecutive user messages
         messages = simple_input_messages(messages)
         # convert to chat template input format
-        chat_messages = chat_api_input(messages, tools)
+        chat_messages = chat_api_input(self.model_name, messages, tools)
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             chat_messages,
@@ -253,7 +253,7 @@ class VLLMAPI(ModelAPI):
         choices = [
             ChatCompletionChoice(
                 message=ChatMessageAssistant(
-                    content=response.output, source="generate"
+                    content=response.output, model=self.model_name, source="generate"
                 ),
                 stop_reason=response.stop_reason,
                 logprobs=response.logprobs,

@@ -89,7 +89,7 @@ async def generate_responses(
         response = model_response.model_dump()
 
         # parse out choices
-        choices = openai_responses_chat_choices(model_response, tools)
+        choices = openai_responses_chat_choices(model_name, model_response, tools)
 
         # return output and call
         return ModelOutput(

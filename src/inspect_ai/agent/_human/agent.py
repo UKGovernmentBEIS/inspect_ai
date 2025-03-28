@@ -5,8 +5,7 @@ import anyio
 from inspect_ai.util import display_type, input_panel, sandbox
 from inspect_ai.util._sandbox.events import SandboxEnvironmentProxy
 
-from .._solver import Generate, Solver, solver
-from .._task_state import TaskState
+from .._agent import Agent, AgentState, agent
 from .commands import human_agent_commands
 from .install import install_human_agent
 from .panel import HumanAgentPanel
@@ -14,15 +13,15 @@ from .service import run_human_agent_service
 from .view import ConsoleView, HumanAgentView
 
 
-@solver
-def human_agent(
+@agent
+def human(
     answer: bool | str = True,
     intermediate_scoring: bool = False,
     record_session: bool = True,
-) -> Solver:
-    """Human solver for agentic tasks that run in a Linux environment.
+) -> Agent:
+    """Human agent for agentic tasks that run in a Linux environment.
 
-    The Human agent solver installs agent task tools in the default
+    The Human agent installs agent task tools in the default
     sandbox and presents the user with both task instructions and
     documentation for the various tools (e.g. `task submit`,
     `task start`, `task stop` `task instructions`, etc.). A human agent panel
@@ -45,7 +44,7 @@ def human_agent(
     # we can only run one human agent interaction at a time (use lock to enforce)
     agent_lock = anyio.Lock()
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
+    async def execute(state: AgentState) -> AgentState:
         async with agent_lock:
             # ensure that we have a sandbox to work with
             try:
@@ -58,7 +57,7 @@ def human_agent(
                 )
 
             # helper function to run the agent (called for fullscreen vs. fallback below)
-            async def run_human_agent(view: HumanAgentView) -> TaskState:
+            async def run_human_agent(view: HumanAgentView) -> AgentState:
                 sandbox_proxy = cast(SandboxEnvironmentProxy, sandbox())
                 with sandbox_proxy.no_events():
                     # create agent commands
@@ -67,7 +66,7 @@ def human_agent(
                     )
 
                     # install agent tools
-                    await install_human_agent(state, commands, record_session)
+                    await install_human_agent(commands, record_session)
 
                     # hookup the view ui
                     view.connect(connection)
@@ -82,4 +81,4 @@ def human_agent(
             else:
                 return await run_human_agent(ConsoleView())
 
-    return solve
+    return execute

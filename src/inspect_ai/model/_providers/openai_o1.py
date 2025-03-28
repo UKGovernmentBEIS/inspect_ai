@@ -40,7 +40,7 @@ async def generate_o1(
     **params: Any,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # create chatapi handler
-    handler = O1PreviewChatAPIHandler()
+    handler = O1PreviewChatAPIHandler(model)
 
     # call model
     request = dict(
@@ -155,6 +155,9 @@ TOOL_CALL = "tool_call"
 
 
 class O1PreviewChatAPIHandler(ChatAPIHandler):
+    def __init__(self, model: str) -> None:
+        self.model = model
+
     @override
     def input_with_tools(
         self, input: list[ChatMessage], tools: list[ToolInfo]
@@ -234,12 +237,17 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
 
             # return the message
             return ChatMessageAssistant(
-                content=content, tool_calls=tool_calls, source="generate"
+                content=content,
+                tool_calls=tool_calls,
+                model=self.model,
+                source="generate",
             )
 
         # otherwise this is just an ordinary assistant message
         else:
-            return ChatMessageAssistant(content=response, source="generate")
+            return ChatMessageAssistant(
+                content=response, model=self.model, source="generate"
+            )
 
     @override
     def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:

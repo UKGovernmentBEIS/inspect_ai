@@ -9,6 +9,8 @@ from typing_extensions import TypedDict, Unpack
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import is_registry_object, registry_info
+from inspect_ai.agent._agent import Agent, is_agent
+from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_config
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
@@ -47,7 +49,7 @@ class Task:
         self,
         dataset: Dataset | Sequence[Sample] | None = None,
         setup: Solver | list[Solver] | None = None,
-        solver: Solver | list[Solver] = generate(),
+        solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
@@ -340,8 +342,13 @@ def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:
     return dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
 
 
-def resolve_solver(solver: Solver | list[Solver]) -> Solver:
-    return chain(solver) if isinstance(solver, list) else solver
+def resolve_solver(solver: Solver | Agent | list[Solver]) -> Solver:
+    if isinstance(solver, list):
+        return chain(solver)
+    elif is_agent(solver):
+        return as_solver(solver)
+    else:
+        return cast(Solver, solver)
 
 
 def resolve_model(model: str | Model | None) -> Model | None:

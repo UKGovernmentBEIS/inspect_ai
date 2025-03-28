@@ -50,13 +50,16 @@ class HFHandler(ChatAPIHandler):
             return ChatMessageAssistant(
                 content=content,
                 tool_calls=tool_calls,
+                model=self.model_name,
                 source="generate",
             )
 
         # otherwise this is just an ordinary assistant message
         else:
             return ChatMessageAssistant(
-                content=filter_assistant_header(response), source="generate"
+                content=filter_assistant_header(response),
+                model=self.model_name,
+                source="generate",
             )
 
 

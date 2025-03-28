@@ -205,7 +205,9 @@ class HuggingFaceAPI(ModelAPI):
 
         # construct choice
         choice = ChatCompletionChoice(
-            message=ChatMessageAssistant(content=response.output, source="generate"),
+            message=ChatMessageAssistant(
+                content=response.output, model=self.model_name, source="generate"
+            ),
             logprobs=(
                 Logprobs(content=final_logprobs) if final_logprobs is not None else None
             ),
@@ -338,7 +340,9 @@ def chat_completion_assistant_message(
     if handler:
         return handler.parse_assistant_response(response.output, tools)
     else:
-        return ChatMessageAssistant(content=response.output, source="generate")
+        return ChatMessageAssistant(
+            content=response.output, model=model_name, source="generate"
+        )
 
 
 def set_random_seeds(seed: int | None = None) -> None:

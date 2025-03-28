@@ -32,6 +32,11 @@ title: "inspect_ai.model"
 ### ContentAudio
 ### ContentVideo
 
+## Tools
+
+### execute_tools
+### ExecuteToolsResult
+
 ## Logprobs
 
 ### Logprob

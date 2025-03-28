@@ -124,6 +124,10 @@ class ModelOutput(BaseModel):
     """Error message in the case of content moderation refusals."""
 
     @property
+    def empty(self) -> bool:
+        return len(self.choices) == 0
+
+    @property
     def stop_reason(self) -> StopReason:
         """First message stop reason."""
         return self.choices[0].stop_reason
@@ -153,7 +157,8 @@ class ModelOutput(BaseModel):
         else:
             self.choices.append(
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=completion), stop_reason="stop"
+                    message=ChatMessageAssistant(content=completion, model=self.model),
+                    stop_reason="stop",
                 )
             )
 
@@ -176,7 +181,9 @@ class ModelOutput(BaseModel):
             model=model,
             choices=[
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=content, source="generate"),
+                    message=ChatMessageAssistant(
+                        content=content, model=model, source="generate"
+                    ),
                     stop_reason=stop_reason,
                 )
             ],
@@ -220,6 +227,7 @@ class ModelOutput(BaseModel):
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
                         content=content,
+                        model=model,
                         source="generate",
                         tool_calls=[
                             ToolCall(
