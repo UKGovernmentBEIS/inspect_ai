@@ -19,7 +19,7 @@ The Inspect `Agent` protocol enables the creation of agent components that can b
 3.  Delegated to in a multi-agent architecture.
 4.  Run as a standalone operation in an agent workflow.
 
-Like tools, agents can have [parameters](#agent-paramaeters) as well as make use of [state](#agent-state).
+Like tools, agents can have [parameters](#parameters) as well as make use of [state](#agent-state).
 
 The agents module includes a flexible, general-purpose [react agent](#react-agent), which can be used standalone or to orchestrate a multi-agent system using [handoffs](#handoffs).
 
@@ -36,7 +36,7 @@ from inspect_ai.tool import web_browser
 def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         """Web research assistant."""
-        # some general guideance for the agent
+        # some general guidance for the agent
         state.messages.append(
             ChatMessageSystem(
                 content="Use the web browser tools for every question, "
@@ -131,7 +131,7 @@ You can customise the `react()` agent in several ways, including providing a cal
 
 For example, here is a simple `ctf_agent()`:
 
-```{python}
+```python
 from textwrap import dedent
 from inspect_ai.agent import Agent, agent, react
 from inspect_ai.tool import bash_session, text_editor
