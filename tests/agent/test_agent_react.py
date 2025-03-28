@@ -248,7 +248,32 @@ def test_react_agent_retries_with_custom_incorrect_message():
     check_task(async_custom_incorrect_message)
 
 
-def test_react_agent_on_continue():
+def test_react_agent_on_continue_str():
+    on_continue = "Please keep going!"
+    addition_task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target="2")],
+        solver=react(tools=[addition()], on_continue=on_continue),
+        scorer=compare_quantities(),
+    )
+    log = eval(
+        addition_task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model", "addition", {"x": 1, "y": 1}
+                ),
+                ModelOutput.from_content("mockllm/model", "I give up!"),
+                ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": 2}),
+            ],
+        ),
+    )[0]
+    assert log.samples
+    messages = log.samples[0].messages
+    assert messages[-2].text == on_continue
+
+
+def test_react_agent_on_continue_func():
     async def on_continue(state: AgentState) -> bool | str:
         if state.output.completion == "5":
             return "You should definitely continue!"

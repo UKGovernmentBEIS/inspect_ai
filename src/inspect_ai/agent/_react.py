@@ -34,7 +34,7 @@ def react(
     model: str | Model | Agent | None = None,
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit = AgentSubmit(),
-    on_continue: AgentContinue | None = None,
+    on_continue: str | AgentContinue | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -58,9 +58,10 @@ def react(
        model: Model to use for agent (defaults to currently evaluated model).
        attempts: Configure agent to make multiple attempts.
        submit: Configure submit tool used by agent.
-       on_continue: Optional async function to call to determine whether the loop
-          should continue (executed on every turn). By default, urges the model
-          to continue when it doesn't make a tool call.
+       on_continue: Message to play back to the model to urge it to continue.
+          Optionally, can also be an async function to call to determine whether
+          the loop should continue (executed on every turn) and what message
+          to play back.
 
     Returns:
         ReAct agent.
@@ -82,11 +83,13 @@ def react(
 
     # resolve on_continue
     if on_continue is None:
-        # by default, always continue (inserting an encouragement message
-        # if the model failed to call a tool)
+        on_continue = "Please proceed to the next step using your best judgement."
+    if isinstance(on_continue, str):
+        no_tools_continue_message = on_continue
+
         async def no_tools_continue(state: AgentState) -> bool | str:
             if state.output is None or not state.output.message.tool_calls:
-                return "Please proceed to the next step using your best judgement."
+                return no_tools_continue_message
             else:
                 return True
 
