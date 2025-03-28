@@ -1,17 +1,16 @@
 ---
-title: Agent Protocol (Beta)
+title: Agent Protocol
 ---
 
 ## Overview
 
-::: {.callout-note}
+::: callout-note
 The Inspect agent protocol described below is available only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
-
 
 The Inspect `Agent` protocol enables you to create flexible agent components that can be used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:
 
@@ -22,13 +21,13 @@ The Inspect `Agent` protocol enables you to create flexible agent components tha
 
 Like tools, agents can have [parameters](#agent-paramaeters) as well as make use of [state](#agent-state).
 
-The agents module includes a flexible, general-purpose [react agent](#react-agent), which can be used standalone or to orchestrate a multi-agent system using [handoffs](#handoffs). 
+The agents module includes a flexible, general-purpose [react agent](#react-agent), which can be used standalone or to orchestrate a multi-agent system using [handoffs](#handoffs).
 
 ## Example
 
 The following is a simple `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research:
 
-```python
+``` python
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.model import get_model
 from inspect_ai.tool import web_browser
@@ -38,7 +37,7 @@ def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         """Web research assistant."""
         messages, state.output = await get_model().generate_loop(
-            state.messages, tools=[web_browser()]
+            state.messages, tools=web_browser()
         )
         state.messages.extend(messages)
         return state
@@ -48,13 +47,13 @@ def web_surfer() -> Agent:
 
 This agent looks a lot like a standard solver but deals with a more confined `AgentState` interface (which has only `messages` and `output` fields). This allows agents to be naturally decoupled from the details of tasks and consequently more re-usable.
 
-Note that the agent calls new `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model might make several calls to the `web_browser()` tool to fulfill the request.
+Note that the agent calls new `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model might make several calls to the `web_browser()` tool to fulfil the request.
 
 This agent can be used in the following ways:
 
 1.  It can be passed as a `Solver` to any Inspect interface that takes a solver:
 
-    ```python
+    ``` python
     from inspect_ai import eval
 
     eval("research_bench", solver=web_surfer())
@@ -64,10 +63,10 @@ This agent can be used in the following ways:
 
 2.  It can be used as a standard Inspect [Tool](tools.qmd) using the `as_tool()` function:
 
-    ```python
+    ``` python
     from inspect_ai.agent import as_tool
     from inspect_ai.model import get_model
-    
+
     output = await get_model("openai/gpt-4o").generate(
         "What are the 3 most popular movies of 2024?", 
         tools=[as_tool(web_surfer())]
@@ -75,13 +74,13 @@ This agent can be used in the following ways:
     print(f"The most popular movies are: {state.output.completion}")
     ```
 
-3.  It can participate in a multi-agent system where the conversation history is shared accross agents. Use the `handoff()` function to create a tool that enables handing off the conversation from one agent to another:
+3.  It can participate in a multi-agent system where the conversation history is shared across agents. Use the `handoff()` function to create a tool that enables handing off the conversation from one agent to another:
 
-    ```python
+    ``` python
     from inspect_ai.agent import handoff
     from inspect_ai.model import get_model
     from math_tools import addition
-   
+
     output = await get_model("openai/gpt-4o").generate_loop(
         "I'd like to know the answer to 1+1 and would also like " +
         "to know what the 3 most popular movies of 2024 were?", 
@@ -94,9 +93,9 @@ This agent can be used in the following ways:
 
     The difference between `handoff()` and `as_tool()` is that `handoff()` forwards the entire conversation history to the agent (and enables the agent to add entries to it) whereas `as_tool()` provides a simple string in, string out interface to the agent.
 
-4.  It can be exected directly using the `run()` function (you might do this in a multi-step workflow):
+4.  It can be executed directly using the `run()` function (you might do this in a multi-step workflow):
 
-    ```python
+    ``` python
     from inspect_ai.agent import run
 
     state = await run(
@@ -105,10 +104,9 @@ This agent can be used in the following ways:
     print(f"The most popular movies are: {state.output.completion}")
     ```
 
+## React Agent {#react-agent}
 
-## React Agent
-
-The `react()` agent is a general purpose agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629). ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be suprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).
+The `react()` agent is a general purpose agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629). ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be surprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).
 
 The `react()` agent provides the following built-in capabilities:
 
@@ -116,7 +114,7 @@ The `react()` agent provides the following built-in capabilities:
 
 2.  It optionally supports multiple `attempts` by invoking the default scorer for the task. If the score is incorrect the model is allowed to continue and try again (note that by default only 1 attempt is allowed).
 
-You can cusomize the `react()` agent in several ways, including providing a callback that determines whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g. to implement a "best of n" multi-generation strategy).
+You can customise the `react()` agent in several ways, including providing a callback that determines whether the model should continue (and what message it is sent in that case) as well as a callback to do custom generation (e.g. to implement a "best of n" multi-generation strategy).
 
 ### Example
 
@@ -147,10 +145,9 @@ def ctf_agent(attempts=3) -> Agent:
     )
 ```
 
-
 We can use this in a `Task` definition just like a `Solver`:
 
-```python
+``` python
 from inspect_ai import Task, eval
 from inspect_ai.dataset import json_dataset
 from inspect_ai.scorer import includes
@@ -165,15 +162,15 @@ task = Task(
 eval(task, model="openai/gpt-4o")
 ```
 
-## Handoffs
+## Handoffs {#handoffs}
 
-The `react()` agent can also be used in multi-agent archictures where a supervisor agent delegates to other agents using a `handoff()`. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it. 
+The `react()` agent can also be used in multi-agent architectures where a supervisor agent delegates to other agents using a `handoff()`. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.
 
-Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to (all of this built-in behavior and prompting is customizable).
+Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to (all of this built-in behaviour and prompting is customisable).
 
 Create handoffs by enclosing an agent with the `handoff()` function. For example, here we provide a `web_surfer` agent to a `supervisor` agent:
 
-```python
+``` python
 from inspect_ai import Task, eval
 from inspect_ai.agent import Agent, agent, handoff, react
 from inspect_ai.dataset import Sample
@@ -185,7 +182,7 @@ from math_tools import addition
 def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         """Web research assistant."""
-        agent = react(tools=[web_surfur()])
+        agent = react(tools=web_browser())
         return await agent(state)
        
     return execute
@@ -203,18 +200,17 @@ task = Task(
 
 Here, the `supervisor` agent has access to both a conventional `addition()` tool as well as the ability to `handoff()` to the `web_surfer` agent. The `web_surfer()` in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.
 
-
 ### Tool Interface
 
 Agent handoffs are presented as tools to the model with a special prefix (by default, `transfer_to`). You can customise the tool name during the handoff as follows:
 
-```python
+``` python
 handoff(web_surfer, tool_name="transfer_to_web_researcher")
 ```
 
-The tool description provided to the model will be based on the documentation comment for the agent's execute function (in the example above this is "Web research assistant."). You can customize the description that the model sees as follows:
+The tool description provided to the model will be based on the documentation comment for the agent's execute function (in the example above this is "Web research assistant."). You can customise the description that the model sees as follows:
 
-```python
+``` python
 handoff(
     web_surfer, 
     description="Web researcher agent. Use this tool when you need " + 
@@ -222,22 +218,98 @@ handoff(
 )
 ```
 
-
 ### Handoff Filters
 
+By default when a handoff occurs, the target agent sees the global message history and has its own internal history appended to the global history when it completes. You can customise this behaviour using handoff filters. For example, you can use the built-in "remove_tools" input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don't get confused about what tools are available):
+
+``` python
+handoff(web_surfer, input_filter="remove_tools")
+```
+
+You can also use the built-in "last_message" output filter to only append the last message of the agent's history to the global conversation:
+
+``` python
+handoff(web_surfer, output_filter="last_message")
+```
+
+You aren't confined to the built in filters—you can pass a function as either the `input_filter` or `output_filter`, for example:
+
+``` python
+async def my_filter(messages: list[ChatMessage]) -> list[ChatMessage]:
+    # filter messages however you want...
+    return messages
+
+handoff(web_surfer, output_filter=my_filter)
+```
 
 ## Parameters
 
-## Agent State
+The `web_surfer` agent used an example above doesn't take any parameters, however, like tools, agents can accept arbitrary parameters.
 
+For example, here is a `critic` agent that asks a model to contribute to a conversation by critiquing its previous output. There are two types of parameters demonstrated: parameters that configure the entire agent (in this case the critic `model`) and parameters passed by the parent agent (in this case the `count` of critiques to provide):
 
+``` python
+import httpx
+from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.model import ChatMessageUser
 
+@agent
+def critic(model: str | Model | None = None) -> Agent:
+    
+    async def execute(state: AgentState, count: int = 3) -> AgentState:
+        """Provide critiques of previous messages in a conversation.
+        
+        Args:
+           count: Number of critiques to provide (defaults to 3)
+        """
+        state.messages.append(
+            ChatMessageUser(content=f"Please provide {count} critiques of the conversation.")
+        )
+        state.output = await get_model(model).generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+        
 
+    return execute
+```
 
+You might use this in a multi-agent system as follows:
 
+``` python
+supervisor = react(
+    ...,
+    tools=[
+        addition(), 
+        handoff(web_surfer()), 
+        handoff(critic(model="openai/gpt-4o-mini"))
+    ]
+)
+```
 
+When the supervisor agent decides to hand off to the `critic()` it will decide how many critiques to request and pass that in the `count` parameter (or alternatively just accept the default `count` of 3).
 
+### Currying
 
+Note that when you use an agent as a solver there isn't a mechanism for specifying parameters dynamically during the solver chain. In this case the default value for `count` will be used:
 
+``` python
+solver = [
+    system_message(...),
+    generate(),
+    critic(),
+    generate()
+]
+```
 
+If you need to pass parameters explicitly to the agent `execute` function, you can curry them using the `as_solver()` function:
 
+``` python
+solver = [
+    system_message(...),
+    generate(),
+    as_solver(critic(), count=5),
+    generate()
+]
+```
+
+## Agent State {#agent-state}
