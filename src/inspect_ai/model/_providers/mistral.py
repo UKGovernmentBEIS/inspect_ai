@@ -283,10 +283,9 @@ def mistral_function(tool: ToolInfo) -> MistralFunction:
     return MistralFunction(
         name=tool.name,
         description=tool.description,
-        parameters={
-            k: v.model_dump(exclude={"additionalProperties"}, exclude_none=True)
-            for k, v in tool.parameters.properties.items()
-        },
+        parameters=tool.parameters.model_dump(
+            exclude={"additionalProperties"}, exclude_none=True
+        ),
     )
 
 
