@@ -64542,6 +64542,7 @@ ${events}
       return current2 ?? {};
     }
     const StepEventView = ({
+      id,
       event,
       children: children2,
       className: className2
@@ -64552,7 +64553,7 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: `step-${event.name}`,
+          id: `step-${event.name}-${id}`,
           className: clsx("transcript-step", className2),
           title: title2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -64562,7 +64563,7 @@ ${events}
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             TranscriptComponent,
             {
-              id: `step-${event.name}-transcript`,
+              id: `step|${event.name}|${id}`,
               eventNodes: children2
             }
           )
@@ -64866,7 +64867,7 @@ ${events}
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$m.darkenedBg : styles$m.normalBg;
         const paddingClass = index2 === 0 ? styles$m.first : void 0;
-        const eventId = `${id}-event${index2}`;
+        const eventId = `${id}-event-${index2}`;
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$m.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) }) }, eventId);
       }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -64921,7 +64922,7 @@ ${events}
           if (index2 === eventNodes.length - 1) {
             clz.push(styles$n.lastNode);
           }
-          const eventId = `${id}-event${index2}`;
+          const eventId = `${id}|event|${index2}`;
           const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -64987,6 +64988,7 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               StepEventView,
               {
+                id,
                 event: node2.event,
                 children: node2.children,
                 className: className2
