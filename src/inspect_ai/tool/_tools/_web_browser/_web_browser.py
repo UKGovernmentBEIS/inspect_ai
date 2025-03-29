@@ -1,6 +1,7 @@
 import re
 
 from pydantic import BaseModel, Field
+from shortuuid import uuid
 
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
@@ -31,7 +32,9 @@ class CrawlerResult(BaseModel):
     error: str | None = None
 
 
-def web_browser(interactive: bool = True) -> list[Tool]:
+def web_browser(
+    *, interactive: bool = True, instance: str | None = uuid()
+) -> list[Tool]:
     """Tools used for web browser navigation.
 
      See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
@@ -40,13 +43,14 @@ def web_browser(interactive: bool = True) -> list[Tool]:
        interactive: Provide interactive tools (enable
           clicking, typing, and submitting forms). Defaults
           to True.
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        List of tools used for web browser navigation.
 
     """
     # start with go tool (excluding interactive docs if necessary)
-    go = web_browser_go()
+    go = web_browser_go(instance)
     if not interactive:
         go = go_without_interactive_docs(go)
     tools = [go]
@@ -54,23 +58,26 @@ def web_browser(interactive: bool = True) -> list[Tool]:
     # add interactive tools if requested
     if interactive:
         tools = tools + [
-            web_browser_click(),
-            web_browser_type_submit(),
-            web_browser_type(),
+            web_browser_click(instance),
+            web_browser_type_submit(instance),
+            web_browser_type(instance),
         ]
 
     # add navigational tools
     return tools + [
-        web_browser_scroll(),
-        web_browser_back(),
-        web_browser_forward(),
-        web_browser_refresh(),
+        web_browser_scroll(instance),
+        web_browser_back(instance),
+        web_browser_forward(instance),
+        web_browser_refresh(instance),
     ]
 
 
 @tool(parallel=False)
-def web_browser_go() -> Tool:
+def web_browser_go(instance: str | None = None) -> Tool:
     """Web Browser tool for navigation to a URL.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser navigation tool.
@@ -153,8 +160,11 @@ def web_at_viewer(call: ToolCall) -> ToolCallView:
 
 
 @tool(viewer=web_at_viewer, parallel=False)
-def web_browser_click() -> Tool:
+def web_browser_click(instance: str | None = None) -> Tool:
     """Web Browser tool for clicking an element on a web page.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser clicking tool.
@@ -188,8 +198,11 @@ def web_browser_click() -> Tool:
 
 
 @tool(viewer=web_at_viewer, parallel=False)
-def web_browser_type_submit() -> Tool:
+def web_browser_type_submit(instance: str | None = None) -> Tool:
     """Web Browser tool for typing and submitting input.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser type and submit tool.
@@ -226,8 +239,11 @@ def web_browser_type_submit() -> Tool:
 
 
 @tool(viewer=web_at_viewer, parallel=False)
-def web_browser_type() -> Tool:
+def web_browser_type(instance: str | None = None) -> Tool:
     """Web Browser tool for typing into inputs.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser typing tool.
@@ -264,8 +280,11 @@ def web_browser_type() -> Tool:
 
 
 @tool(parallel=False)
-def web_browser_scroll() -> Tool:
+def web_browser_scroll(instance: str | None = None) -> Tool:
     """Web Browser tool for scrolling up or down one page.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser scrolling tool.
@@ -294,8 +313,11 @@ def web_browser_scroll() -> Tool:
 
 
 @tool(parallel=False)
-def web_browser_back() -> Tool:
+def web_browser_back(instance: str | None = None) -> Tool:
     """Web Browser tool for navigating back in the browser history.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser back navigation tool.
@@ -315,8 +337,11 @@ def web_browser_back() -> Tool:
 
 
 @tool(parallel=False)
-def web_browser_forward() -> Tool:
+def web_browser_forward(instance: str | None = None) -> Tool:
     """Web Browser tool for navigating forward in the browser history.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser forward navigation tool.
@@ -336,8 +361,11 @@ def web_browser_forward() -> Tool:
 
 
 @tool(parallel=False)
-def web_browser_refresh() -> Tool:
+def web_browser_refresh(instance: str | None = None) -> Tool:
     """Web Browser tool for refreshing the current page.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser page refresh tool.
@@ -367,7 +395,9 @@ async def _web_browser_cmd(tool_name: str, params: dict[str, object]) -> ToolRes
         except PrerequisiteError:
             raise e
 
-    store = store_as(WebBrowserStore)
+    # bind to store (use instance id if provided)
+    instance = str(params.pop("instance", None))
+    store = store_as(WebBrowserStore, instance=instance)
 
     if not store.session_id:
         store.session_id = (
@@ -395,10 +425,8 @@ async def _web_browser_cmd(tool_name: str, params: dict[str, object]) -> ToolRes
             line.partition("data:image/png;base64")[0] for line in web_at_lines
         ]
 
-        store_as(WebBrowserStore).main_content = (
-            main_content or "(no main text summary)"
-        )
-        store_as(WebBrowserStore).web_at = web_at
+        store.main_content = main_content or "(no main text summary)"
+        store.web_at = web_at
 
         web_at = "\n".join(web_at_lines)
         return (
