@@ -1,4 +1,4 @@
 services:
   default:
-    image: aisiuk/inspect-web-browser-tool
+    image: aisiuk/inspect-tool-support
     init: true
