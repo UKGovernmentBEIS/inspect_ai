@@ -47,14 +47,6 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
         sampleData.sample?.epoch !== logSelection.sample.epoch ||
         currentSampleCompleted !== prevCompleted
       ) {
-        console.log({
-          a: prevLogFile !== logSelection.logFile,
-          b: sampleData.sample?.id !== logSelection.sample.id,
-          c: sampleData.sample?.epoch !== logSelection.sample.epoch,
-          d: currentSampleCompleted !== prevCompleted,
-          sampleData,
-          logSelection,
-        });
         loadSample(logSelection.logFile, logSelection.sample);
       }
     }

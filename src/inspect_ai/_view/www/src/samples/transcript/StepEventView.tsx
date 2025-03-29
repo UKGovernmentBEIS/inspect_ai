@@ -7,6 +7,7 @@ import { TranscriptComponent } from "./TranscriptView";
 import { EventNode } from "./types";
 
 interface StepEventViewProps {
+  id: string;
   event: StepEvent;
   children: EventNode[];
   className?: string | string[];
@@ -16,6 +17,7 @@ interface StepEventViewProps {
  * Renders the StepEventView component.
  */
 export const StepEventView: FC<StepEventViewProps> = ({
+  id,
   event,
   children,
   className,
@@ -28,7 +30,7 @@ export const StepEventView: FC<StepEventViewProps> = ({
 
   return (
     <EventPanel
-      id={`step-${event.name}`}
+      id={`step-${event.name}-${id}`}
       className={clsx("transcript-step", className)}
       title={title}
       subTitle={formatDateTime(new Date(event.timestamp))}
@@ -37,7 +39,7 @@ export const StepEventView: FC<StepEventViewProps> = ({
       text={text}
     >
       <TranscriptComponent
-        id={`step-${event.name}-transcript`}
+        id={`step|${event.name}|${id}`}
         eventNodes={children}
       />
     </EventPanel>
