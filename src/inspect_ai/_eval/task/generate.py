@@ -1,12 +1,8 @@
 from typing import Literal
 
-from inspect_ai.model import (
-    CachePolicy,
-    GenerateConfig,
-    Model,
-    call_tools,
-)
+from inspect_ai.model import CachePolicy, GenerateConfig, Model
 from inspect_ai.model._cache import epoch
+from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.solver import TaskState
 from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.tool import ToolFunction
@@ -48,10 +44,13 @@ async def task_generate(
 
             # resolve tool calls if necessary
             if tool_calls != "none" and message.tool_calls:
-                # call tools and append messages to state
-                state.messages.extend(
-                    await call_tools(message, state.tools, config.max_tool_output)
+                # call tools and update messages and output
+                messages, output = await execute_tools(
+                    state.messages, state.tools, config.max_tool_output
                 )
+                state.messages.extend(messages)
+                if output is not None:
+                    state.output = output
 
                 # check for completed or only executing a single tool call
                 if state.completed or tool_calls == "single":

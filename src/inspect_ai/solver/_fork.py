@@ -52,7 +52,7 @@ async def fork(
 
 async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
     # get the generate function for the current task
-    generate = _generate.get(None)
+    generate = task_generate()
     if generate is None:
         raise RuntimeError("Called fork() outside of a running task.")
 
@@ -86,6 +86,10 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
 
 def set_task_generate(generate: Generate) -> None:
     _generate.set(generate)
+
+
+def task_generate() -> Generate | None:
+    return _generate.get(None)
 
 
 _generate: ContextVar[Generate] = ContextVar("_generate")

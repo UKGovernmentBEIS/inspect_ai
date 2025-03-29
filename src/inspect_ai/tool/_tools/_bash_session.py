@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field, RootModel
+from shortuuid import uuid
 
 from inspect_ai.tool import ToolResult
 from inspect_ai.tool._tool_support_helpers import (
@@ -52,13 +53,14 @@ def code_viewer(language: str, code_param: str) -> ToolCallViewer:
 
 
 @tool(viewer=code_viewer("bash", "command"))
-def bash_session(timeout: int | None = None) -> Tool:
+def bash_session(*, timeout: int | None = None, instance: str | None = uuid()) -> Tool:
     """Bash shell session command execution tool.
 
     Execute bash shell commands in a long running session using a sandbox environment (e.g. "docker").
 
     Args:
       timeout: Timeout (in seconds) for command.
+      instance: Instance id (each unique instance id has its own bash process)
 
     Returns:
       String with command output (stdout) or command error (stderr).
@@ -85,7 +87,7 @@ def bash_session(timeout: int | None = None) -> Tool:
         params: dict[str, object] = {"command": command, "restart": restart}
 
         sandbox = await tool_container_sandbox("bash session")
-        store = store_as(BashSessionStore)
+        store = store_as(BashSessionStore, instance=instance)
 
         if not store.session_id:
             store.session_id = (

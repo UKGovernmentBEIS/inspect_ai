@@ -23,6 +23,9 @@ ChatAPIMessage = dict[Literal["role", "content"], str]
 
 
 class ChatAPIHandler:
+    def __init__(self, model: str) -> None:
+        self.model = model
+
     def input_with_tools(
         self, input: list[ChatMessage], tools: list[ToolInfo]
     ) -> list[ChatMessage]:
@@ -31,7 +34,9 @@ class ChatAPIHandler:
     def parse_assistant_response(
         self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
-        return ChatMessageAssistant(content=response)
+        return ChatMessageAssistant(
+            content=response, model=self.model, source="generate"
+        )
 
     def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:
         return {"role": "assistant", "content": message.text}
@@ -48,7 +53,7 @@ class ChatAPIHandler:
 def chat_api_input(
     input: list[ChatMessage],
     tools: list[ToolInfo],
-    handler: ChatAPIHandler = ChatAPIHandler(),
+    handler: ChatAPIHandler,
 ) -> list[ChatAPIMessage]:
     # add tools to input
     if len(tools) > 0:

@@ -209,14 +209,16 @@ class EvalSample(BaseModel):
     store: dict[str, Any] = Field(default_factory=dict)
     """State at end of sample execution."""
 
-    def store_as(self, model_cls: Type[SMT]) -> SMT:
+    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
         """Pydantic model interface to the store.
 
         Args:
           model_cls: Pydantic model type (must derive from StoreModel)
+          instance: Optional instances name for store (enables multiple instances
+            of a given StoreModel type within a single sample)
 
         Returns:
-          StoreModel: Instance of model_cls bound to sample store data.
+          StoreModel: model_cls bound to sample store data.
         """
         # un-namespace names for creation
         data = {
@@ -225,6 +227,10 @@ class EvalSample(BaseModel):
 
         # since we are reading from the log provide a fully detached store
         data["store"] = Store()
+
+        # provide instance if specified
+        if instance is not None:
+            data["instance"] = instance
 
         # create the model
         return model_cls.model_validate(data)

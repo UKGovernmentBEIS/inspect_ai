@@ -203,7 +203,7 @@ class GroqAPI(ModelAPI):
         choices.sort(key=lambda c: c.index)
         return [
             ChatCompletionChoice(
-                message=chat_message_assistant(choice.message, tools),
+                message=chat_message_assistant(self.model_name, choice.message, tools),
                 stop_reason=as_stop_reason(choice.finish_reason),
             )
             for choice in choices
@@ -323,7 +323,9 @@ def chat_tool_calls(message: Any, tools: list[ToolInfo]) -> Optional[List[ToolCa
     return None
 
 
-def chat_message_assistant(message: Any, tools: list[ToolInfo]) -> ChatMessageAssistant:
+def chat_message_assistant(
+    model: str, message: Any, tools: list[ToolInfo]
+) -> ChatMessageAssistant:
     reasoning = getattr(message, "reasoning", None)
     if reasoning is not None:
         content: str | list[Content] = [
@@ -335,6 +337,7 @@ def chat_message_assistant(message: Any, tools: list[ToolInfo]) -> ChatMessageAs
 
     return ChatMessageAssistant(
         content=content,
+        model=model,
         source="generate",
         tool_calls=chat_tool_calls(message, tools),
     )

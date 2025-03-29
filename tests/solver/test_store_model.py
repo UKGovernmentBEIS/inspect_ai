@@ -172,6 +172,18 @@ def test_store_model_multiple_instances_same_store():
     assert model1.y == "shared"
 
 
+def test_store_multiple_model_instances_context():
+    store = Store()
+    model1 = MyModel(store=store, instance="m1")
+    model2 = MyModel(store=store, instance="m2")
+
+    model1.x = 42
+    assert model2.x != 42
+
+    model2.y = "shared"
+    assert model1.y != "shared"
+
+
 def test_store_model_deletion():
     store = Store()
     model = MyModel(store=store)

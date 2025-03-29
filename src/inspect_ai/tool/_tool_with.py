@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 from inspect_ai._util.registry import (
     registry_info,
     registry_params,
@@ -22,10 +20,15 @@ def tool_with(
     viewer: ToolCallViewer | None = None,
     model_input: ToolCallModelInput | None = None,
 ) -> Tool:
-    """Tool with modifications to name and descriptions.
+    """Tool with modifications to various attributes.
+
+    This function modifies the passed tool in place and
+    returns it. If you want to create multiple variations
+    of a single tool using `tool_with()` you should create
+    the underlying tool multiple times.
 
     Args:
-       tool: Tool instance to copy and add descriptions to.
+       tool: Tool instance to modify.
        name: Tool name (optional).
        description: Tool description (optional).
        parameters: Parameter descriptions (optional)
@@ -36,7 +39,7 @@ def tool_with(
            tool call results are played back as model input.
 
     Returns:
-       A copy of the passed tool with the specified descriptive information.
+       The passed tool with the requested modifications.
     """
     # get the existing tool info
     tool_info = parse_tool_info(tool)
@@ -54,8 +57,7 @@ def tool_with(
                 param_name
             ]
 
-    # copy the tool and set the descriptions on the new copy
-    tool_copy = deepcopy(tool)
+    # resolve attributes
     info = registry_info(tool).model_copy()
     if parallel is not None:
         info.metadata[TOOL_PARALLEL] = parallel
@@ -64,12 +66,13 @@ def tool_with(
     elif model_input is not None:
         info.metadata[TOOL_MODEL_INPUT] = model_input
 
-    set_registry_info(tool_copy, info)
-    set_registry_params(tool_copy, registry_params(tool))
+    # set attributes
+    set_registry_info(tool, info)
+    set_registry_params(tool, registry_params(tool))
     set_tool_description(
-        tool_copy,
+        tool,
         ToolDescription(
             name=name, description=description, parameters=tool_info.parameters
         ),
     )
-    return tool_copy
+    return tool

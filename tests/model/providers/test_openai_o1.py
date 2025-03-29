@@ -4,7 +4,7 @@ from inspect_ai.model import ChatMessageAssistant
 def test_openai_o1_tool_call_parsing() -> None:
     from inspect_ai.model._providers.openai_o1 import O1PreviewChatAPIHandler
 
-    handler = O1PreviewChatAPIHandler()
+    handler = O1PreviewChatAPIHandler("")
 
     resp: ChatMessageAssistant = handler.parse_assistant_response(
         response="""I will enter the search term into the search box and submit the search.
@@ -25,7 +25,7 @@ def test_openai_o1_tool_call_parsing() -> None:
 def test_openai_o1_tool_call_parsing_empty_arguments() -> None:
     from inspect_ai.model._providers.openai_o1 import O1PreviewChatAPIHandler
 
-    handler = O1PreviewChatAPIHandler()
+    handler = O1PreviewChatAPIHandler("")
 
     resp: ChatMessageAssistant = handler.parse_assistant_response(
         response="""I need to return to the search results to explore other potential sources for the answer.
@@ -45,7 +45,7 @@ def test_openai_o1_tool_call_parsing_empty_arguments() -> None:
 def test_openai_o1_tool_call_parsing_no_arguments() -> None:
     from inspect_ai.model._providers.openai_o1 import O1PreviewChatAPIHandler
 
-    handler = O1PreviewChatAPIHandler()
+    handler = O1PreviewChatAPIHandler("")
 
     resp: ChatMessageAssistant = handler.parse_assistant_response(
         response="""I need to return to the search results to explore other potential sources for the answer.

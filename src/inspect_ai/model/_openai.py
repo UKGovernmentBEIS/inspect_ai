@@ -308,6 +308,7 @@ def chat_tool_calls_from_openai(
 
 
 def chat_messages_from_openai(
+    model: str,
     messages: list[ChatCompletionMessageParam],
 ) -> list[ChatMessage]:
     # track tool names by id
@@ -386,6 +387,8 @@ def chat_messages_from_openai(
                 ChatMessageAssistant(
                     content=content,
                     tool_calls=tool_calls or None,
+                    model=model,
+                    source="generate",
                 )
             )
         elif message["role"] == "tool":
@@ -464,7 +467,7 @@ def content_from_openai(
 
 
 def chat_message_assistant_from_openai(
-    message: ChatCompletionMessage, tools: list[ToolInfo]
+    model: str, message: ChatCompletionMessage, tools: list[ToolInfo]
 ) -> ChatMessageAssistant:
     refusal = getattr(message, "refusal", None)
     reasoning = getattr(message, "reasoning_content", None) or getattr(
@@ -484,6 +487,7 @@ def chat_message_assistant_from_openai(
 
     return ChatMessageAssistant(
         content=content,
+        model=model,
         source="generate",
         tool_calls=chat_tool_calls_from_openai(message, tools),
     )
@@ -496,7 +500,9 @@ def chat_choices_from_openai(
     choices.sort(key=lambda c: c.index)
     return [
         ChatCompletionChoice(
-            message=chat_message_assistant_from_openai(choice.message, tools),
+            message=chat_message_assistant_from_openai(
+                response.model, choice.message, tools
+            ),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=(
                 Logprobs(**choice.logprobs.model_dump())

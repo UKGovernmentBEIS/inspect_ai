@@ -120,6 +120,7 @@ const normalizeContent = (
     return {
       type: "text",
       text: content,
+      refusal: null,
     };
   } else {
     return content;

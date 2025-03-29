@@ -123,7 +123,9 @@ def assistant_message(template: str, **params: Any) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         kwargs = state.metadata | state.store._data | params
         state.messages.append(
-            ChatMessageAssistant(content=format_template(content, kwargs))
+            ChatMessageAssistant(
+                content=format_template(content, kwargs), model=state.model.name
+            )
         )
         return state
 
