@@ -64220,8 +64220,36 @@ ${events}
         ] }, key2);
       }) }, "state-diff-tools");
     };
+    const createMessageRenderer = (name2, role) => {
+      return {
+        type: name2,
+        match: (changes) => {
+          console.log(changes);
+          if (changes.length === 1) {
+            const change = changes[0];
+            if (change.op === "add" && change.path.match(/\/messages\/\d+/)) {
+              return change.value["role"] === role;
+            }
+          }
+          return false;
+        },
+        render: (changes) => {
+          const message2 = changes[0].value;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            ChatView,
+            {
+              id: "system_msg_event_preview",
+              messages: [message2]
+            },
+            "system_msg_event_preview"
+          );
+        }
+      };
+    };
     const RenderableChangeTypes = [
       system_msg_added_sig,
+      createMessageRenderer("assistant_msg", "assistant"),
+      createMessageRenderer("user_msg", "user"),
       use_tools,
       add_tools
     ];
@@ -64263,7 +64291,15 @@ ${events}
         return summarizeChanges(event.changes);
       }, [event.changes]);
       const [before, after] = reactExports.useMemo(() => {
-        return synthesizeComparable(event.changes);
+        try {
+          return synthesizeComparable(event.changes);
+        } catch (e) {
+          console.error(
+            "Unable to synthesize comparable object to display state diffs.",
+            e
+          );
+          return [{}, {}];
+        }
       }, [event.changes]);
       const changePreview = reactExports.useMemo(() => {
         return generatePreview(event.changes, structuredClone(after), isStore);
@@ -64299,44 +64335,53 @@ ${events}
         ...RenderableChangeTypes,
         ...isStore ? StoreSpecificRenderableTypes : []
       ]) {
-        const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
-        let matchingOps = 0;
-        for (const change of changes) {
-          const op = change.op;
-          switch (op) {
-            case "add":
-              if (changeType.signature.add && changeType.signature.add.length > 0) {
-                changeType.signature.add.forEach((signature) => {
-                  if (change.path.match(signature)) {
-                    matchingOps++;
-                  }
-                });
-              }
-              break;
-            case "remove":
-              if (changeType.signature.remove && changeType.signature.remove.length > 0) {
-                changeType.signature.remove.forEach((signature) => {
-                  if (change.path.match(signature)) {
-                    matchingOps++;
-                  }
-                });
-              }
-              break;
-            case "replace":
-              if (changeType.signature.replace && changeType.signature.replace.length > 0) {
-                changeType.signature.replace.forEach((signature) => {
-                  if (change.path.match(signature)) {
-                    matchingOps++;
-                  }
-                });
-              }
-              break;
+        if (changeType.signature) {
+          const requiredMatchCount = changeType.signature.remove.length + changeType.signature.replace.length + changeType.signature.add.length;
+          let matchingOps = 0;
+          for (const change of changes) {
+            const op = change.op;
+            switch (op) {
+              case "add":
+                if (changeType.signature.add && changeType.signature.add.length > 0) {
+                  changeType.signature.add.forEach((signature) => {
+                    if (change.path.match(signature)) {
+                      matchingOps++;
+                    }
+                  });
+                }
+                break;
+              case "remove":
+                if (changeType.signature.remove && changeType.signature.remove.length > 0) {
+                  changeType.signature.remove.forEach((signature) => {
+                    if (change.path.match(signature)) {
+                      matchingOps++;
+                    }
+                  });
+                }
+                break;
+              case "replace":
+                if (changeType.signature.replace && changeType.signature.replace.length > 0) {
+                  changeType.signature.replace.forEach((signature) => {
+                    if (change.path.match(signature)) {
+                      matchingOps++;
+                    }
+                  });
+                }
+                break;
+            }
           }
-        }
-        if (matchingOps === requiredMatchCount) {
-          const el = changeType.render(changes, resolvedState);
-          results.push(el);
-          break;
+          if (matchingOps === requiredMatchCount) {
+            const el = changeType.render(changes, resolvedState);
+            results.push(el);
+            break;
+          }
+        } else if (changeType.match) {
+          const matches = changeType.match(changes);
+          if (matches) {
+            const el = changeType.render(changes, resolvedState);
+            results.push(el);
+            break;
+          }
         }
       }
       return results.length > 0 ? results : void 0;
@@ -65398,18 +65443,10 @@ ${events}
       );
       const prevLogFile = usePrevious(logSelection.logFile);
       reactExports.useEffect(() => {
-        var _a3, _b3, _c2, _d2, _e3;
+        var _a3, _b3, _c2;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = ((_a3 = logSelection.sample) == null ? void 0 : _a3.completed) !== void 0 ? logSelection.sample.completed : true;
           if (prevLogFile !== logSelection.logFile || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || currentSampleCompleted !== prevCompleted) {
-            console.log({
-              a: prevLogFile !== logSelection.logFile,
-              b: ((_d2 = sampleData.sample) == null ? void 0 : _d2.id) !== logSelection.sample.id,
-              c: ((_e3 = sampleData.sample) == null ? void 0 : _e3.epoch) !== logSelection.sample.epoch,
-              d: currentSampleCompleted !== prevCompleted,
-              sampleData,
-              logSelection
-            });
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
