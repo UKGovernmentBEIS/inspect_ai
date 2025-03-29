@@ -44,11 +44,11 @@ The names used in the underlying `Store` are namespaced to prevent collisions wi
 
 #### Namespaces
 
-If you need to create multiple instances of a `StoreModel` within a sample, you can use the `namespace` option to deliniate multiple named contexts. For example:
+If you need to create multiple instances of a `StoreModel` within a sample, you can use the `instance` option to deliniate multiple named contexts. For example:
 
 ```python
-red_activity = state.store_as(Activity, namespace="red_team")
-blue_activity = state.store_as(Activity, namespace="blue_team")
+red_activity = state.store_as(Activity, instance="red_team")
+blue_activity = state.store_as(Activity, instance="blue_team")
 ```
 
 
