@@ -246,11 +246,13 @@ my_add = tool_with(
 You need not provide all of the parameters shown above, for example here are some examples where we modify just the main tool description or only a single parameter:
 
 ``` python
-my_add = tool_with(add(), description="a tool to add numbers")
-my_add = tool_with(add(), parameters={"x": "the x argument"})
+my_add1 = tool_with(add(), description="a tool to add numbers")
+my_add2 = tool_with(add(), parameters={"x": "the x argument"})
 ```
 
-Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).
+Note that `tool_with()` function modifies the passed tool in-place, so if you want to create multiple variations of a single tool using `tool_with()` you should create the underlying tool multiple times, once for each call to `tool_with()` (this is demonsrated in the example above).
+
+
 
 ## Dynamic Tools {#sec-dynamic-tools}
 

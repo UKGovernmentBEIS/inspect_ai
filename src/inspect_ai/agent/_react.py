@@ -14,7 +14,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
-from ._agent import Agent, AgentState, agent
+from ._agent import Agent, AgentState, agent, agent_with
 from ._handoff import has_handoff
 from ._types import (
     AgentAttempts,
@@ -29,6 +29,8 @@ logger = getLogger(__name__)
 @agent
 def react(
     *,
+    name: str | None = None,
+    description: str | None = None,
     prompt: str | AgentPrompt | None = AgentPrompt(),
     tools: list[Tool] | None = None,
     model: str | Model | Agent | None = None,
@@ -37,6 +39,11 @@ def react(
     on_continue: str | AgentContinue | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
+
+    Provide a `name` and `description` for the agent if you plan on using it
+    in a multi-agent system (this is so other agents can clearly identify
+    its name and purpose). These fields are not required when using `react()`
+    as a top-level solver.
 
     The agent runs a tool use loop until the model submits an answer using the
     `submit()` tool. Use `instructions` to tailor the agent's system message
@@ -49,6 +56,8 @@ def react(
     a tool. Customise this behavior using the `on_continue` option.
 
     Args:
+       name: Agent name (required when using with `handoff()` or `as_tool()`)
+       description: Agent description (required when using with `handoff()` or `as_tool()`)
        prompt: Prompt for agent. Includes agent-specific contextual `instructions`
           as well as an optional `assistant_prompt` and `handoff_prompt` (for agents
           that use handoffs). both are provided by default but can be removed or
@@ -197,7 +206,10 @@ def react(
 
         return state
 
-    return execute
+    if name is not None or description is not None:
+        return agent_with(execute, name=name, description=description)
+    else:
+        return execute
 
 
 async def _agent_generate(

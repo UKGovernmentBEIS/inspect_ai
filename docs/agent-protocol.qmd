@@ -54,7 +54,7 @@ def web_surfer() -> Agent:
     return execute
 ```
 
-This agent looks a lot like a standard solver but deals with a more confined `AgentState` interface (which has only `messages` and `output` fields). This allows agents to be naturally decoupled from the details of tasks and consequently more re-usable.
+This agent looks a lot like a standard solver but deals with a more confined `AgentState` interface (which has only `messages` and `output` fields). This allows agents to be naturally decoupled from the details of tasks and consequently more re-usable. 
 
 Note that the agent calls new `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model might make several calls to the `web_browser()` tool to fulfil the request.
 
@@ -179,60 +179,48 @@ The `react()` agent can also be used in multi-agent architectures where a superv
 
 Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to (all of this built-in behaviour and prompting is customisable).
 
-Create handoffs by enclosing an agent with the `handoff()` function. For example, here we provide a `web_surfer` agent to a `supervisor` agent:
+Create handoffs by enclosing an agent with the `handoff()` function. These agents in turn are often simple `react()` agents with a tailored prompt and set of tools. For example, here we create a `web_surfer()` agent that is functionally identical to what we did above, but using the `react()` agent as a base:
+
+```python
+from inspect_ai.agent react
+
+web_surfer = react(
+    name="web_surfer",
+    description="Web research assistant",
+    prompt="Use the web browser tools for every question, "
+           + "even if you think you already know the answer.",
+    tools=web_browser()   
+)
+```
+
+We can then create a supervisor agent that has access to both a standard tool and the ability to hand off to the web surfer agent. We use this supervisor agent as our solver for a task:
 
 ``` python
-from inspect_ai import Task, eval
-from inspect_ai.agent import Agent, agent, handoff, react
+from inspect_ai.agent import handoff
 from inspect_ai.dataset import Sample
-from inspect_ai.model import get_model
-from inspect_ai.tool import web_browser
 from math_tools import addition
 
-@agent
-def web_surfer() -> Agent:
-    async def execute(state: AgentState) -> AgentState:
-        """Web research assistant."""
-        research_agent = react(
-            prompt="Use the web browser tools for every question, "
-                   + "even if you think you already know the answer.",
-            tools=web_browser()
-        )
-        return await research_agent(state)
-       
-    return execute
-
-supervisor = react(
-    prompt="You are an agent that can answer addition problems and do web research.",
-    tools=[addition(), handoff(web_surfer())]
-)
-
 task = Task(
-    dataset=[Sample(input="Please add 1+1 then tell me what movies were popular in 2024")],
-    solver=supervisor,
+    dataset=[
+        Sample(input="Please add 1+1 then tell me what " 
+                     + "movies were popular in 2020")
+    ],
+    solver=react(
+        prompt="You are an agent that can answer addition " 
+               + "problems and do web research.",
+        tools=[addition(), handoff(web_surfer)]
+    ),
     sandbox="docker",
 )
 ```
 
 Here, the `supervisor` agent has access to both a conventional `addition()` tool as well as the ability to `handoff()` to the `web_surfer` agent. The `web_surfer()` in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.
 
-### Tool Interface
+::: {.callout-note appearance="simple"}
+You'll notice that when we called the `react()` function to create the `web_surfer` we passed `name` and `description` parameters. These parmaeters are required when you are 
+using an agent in a handoff (so the supervisor model knows its name and capabilities) but are _not_ required when you use a `react()` agent at the top level.
+:::
 
-Agent handoffs are presented as tools to the model with a special prefix (by default, `transfer_to`). You can customise the tool name during the handoff as follows:
-
-``` python
-handoff(web_surfer, tool_name="transfer_to_web_researcher")
-```
-
-The tool description provided to the model will be based on the documentation comment for the agent's execute function (in the example above this is "Web research assistant."). You can customise the description that the model sees as follows:
-
-``` python
-handoff(
-    web_surfer, 
-    description="Web researcher agent. Use this tool when you need " + 
-                "to answer a question that requires research."
-)
-```
 
 ### Handoff Filters
 
@@ -333,9 +321,9 @@ solver = [
 
 In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.
 
-### Typed Store
+### Store
 
-When developing agents, you should use the [typed-interface](agents-api.qmd#store-typing) to the store, which provides both type-checking and namespacing for store access.
+When developing agents, you should use the [typed-interface](agents-api.qmd#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
 
 For example, here we define a typed accessor to the store by deriving from the `StoreModel` class (which in turn derives from Pydantic `BaseModel`):
 
@@ -357,6 +345,8 @@ from inspect_ai.util import store_as
 activity = store_as(Activity)
 ```
 
+### Instances
+
 It's possible that you'll want to have multiple instances of a given store type within a sample (e.g. each participant in a game might need their own store). Use the `instance` parameter of `store_as()` to access multiple instances of a `StoreModel` within a sample:
 
 ``` python
@@ -364,9 +354,7 @@ red_team_activity = store_as(Activity, instance="red_team")
 blue_team_activity = store_as(Activity, instance="blue_team")
 ```
 
-### Agent Instances
-
-If you want your agent to have a store-per-agent instance by default, add an `instance` parmaeter to your `@agent` function and default it to `uuid()`. Then, forward the `instance` on to `store_as()` as well as any tools you call that are also stateful (e.g. `web_browser()`). For example:
+If you want an agent to have a store-per-agent instance by default, add an `instance` parmaeter to your `@agent` function and default it to `uuid()`. Then, forward the `instance` on to `store_as()` as well as any tools you call that are also stateful (e.g. `web_browser()`). For example:
 
 ```python
 from pydantic import Field

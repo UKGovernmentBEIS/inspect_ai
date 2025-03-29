@@ -159,27 +159,21 @@ def test_agent_react_ctf():
     eval(task, model="openai/gpt-4o")
 
 
-@agent(name="web_surfer")
-def web_surfer_react() -> Agent:
-    async def execute(state: AgentState) -> AgentState:
-        """Web research assistant."""
-        research_agent = react(
-            prompt="Use the web browser tools for every question, "
-            + "even if you think you already know the answer.",
-            tools=web_browser(),
-        )
-        return await research_agent(state)
-
-    return execute
-
-
 @pytest.mark.slow
 @skip_if_no_docker
 @skip_if_no_openai
 def test_agent_react_multi_agent():
+    web_surfer_react = react(
+        name="web_surfer",
+        description="Web research assistant",
+        prompt="Use the web browser tools for every question, "
+        + "even if you think you already know the answer.",
+        tools=web_browser(),
+    )
+
     supervisor = react(
         prompt="You are an agent that can answer addition problems and do web research.",
-        tools=[addition(), handoff(web_surfer_react())],
+        tools=[addition(), handoff(web_surfer_react)],
     )
 
     task = Task(

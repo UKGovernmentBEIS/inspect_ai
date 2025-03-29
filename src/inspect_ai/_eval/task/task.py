@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Any, Awaitable, Callable, Sequence, cast
@@ -193,8 +192,12 @@ def task_with(
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
+    This function modifies the passed task in place and returns it.
+    If you want to create multiple variations of a single task using
+    `task_with()` you should create the underlying task multiple times.
+
     Args:
-        task: Task to adapt (it is deep copied prior to mutating options)
+        task: Task to adapt
         dataset: Dataset to evaluate
         setup: Setup step (always run even when the main `solver` is replaced).
         solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
@@ -229,11 +232,8 @@ def task_with(
         metadata:  Additional metadata to associate with the task.
 
     Returns:
-        Task: Task adapted with alternate options.
+        Task: Passed `task` with modifications.
     """
-    # deep copy the task
-    task = deepcopy(task)
-
     if not isinstance(dataset, NotGiven):
         task.dataset = resolve_dataset(dataset)
     if not isinstance(setup, NotGiven):

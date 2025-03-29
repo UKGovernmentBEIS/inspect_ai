@@ -15,8 +15,10 @@ from inspect_ai._util.registry import (
     RegistryInfo,
     is_registry_object,
     registry_add,
+    registry_info,
     registry_name,
     registry_tag,
+    set_registry_info,
 )
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -158,17 +160,29 @@ def agent(
             agent_type, name if name else getattr(agent_type, "__name__")
         )
 
-        # wrap instantiations of scorer so they carry registry info and metrics
+        # wrap instantiations of agent so they carry registry info and metrics
         @wraps(agent_type)
         def agent_wrapper(*args: P.args, **kwargs: P.kwargs) -> Agent:
+            # create agent
             agent = agent_type(*args, **kwargs)
+
+            # this might already have registry info, if so capture that
+            # and use it as default
+            if is_registry_object(agent):
+                info = registry_info(agent)
+                registry_name = info.name
+                registry_description = info.metadata.get(AGENT_DESCRIPTION, None)
+            else:
+                registry_name = None
+                registry_description = None
+
             registry_tag(
                 agent_type,
                 agent,
                 RegistryInfo(
                     type="agent",
-                    name=agent_name,
-                    metadata={AGENT_DESCRIPTION: description},
+                    name=registry_name or agent_name,
+                    metadata={AGENT_DESCRIPTION: registry_description or description},
                 ),
                 *args,
                 **kwargs,
@@ -182,6 +196,52 @@ def agent(
         return create_agent_wrapper(func)
     else:
         return create_agent_wrapper
+
+
+def agent_with(
+    agent: Agent,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+) -> Agent:
+    """Agent with modifications to name and/or description
+
+    This function modifies the passed agent in place and
+    returns it. If you want to create multiple variations
+    of a single agent using `agent_with()` you should create
+    the underlying agent multiple times.
+
+    Args:
+       agent: Agent instance to modify.
+       name: Agent name (optional).
+       description: Agent description (optional).
+
+    Returns:
+       The passed agent with the requested modifications.
+    """
+    # resolve name and description
+    if is_registry_object(agent):
+        info = registry_info(agent)
+        name = name or info.name
+        description = description or info.metadata.get(AGENT_DESCRIPTION, None)
+
+    # if the name is null then raise
+    if name is None:
+        raise ValueError("You must provide a name to agent_with")
+
+    # now set registry info
+    set_registry_info(
+        agent,
+        RegistryInfo(
+            type="agent",
+            name=name,
+            metadata={AGENT_DESCRIPTION: description}
+            if description is not None
+            else {},
+        ),
+    )
+
+    return agent
 
 
 def agent_register(agent: Callable[P, Agent], name: str) -> Callable[P, Agent]:
