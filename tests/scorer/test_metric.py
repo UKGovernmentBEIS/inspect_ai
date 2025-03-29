@@ -10,6 +10,7 @@ from inspect_ai.scorer import (
     Scorer,
     Value,
     accuracy,
+    grouped_mean,
     includes,
     match,
     mean,
@@ -382,3 +383,19 @@ def test_clustered_stderr():
         ]
     )
     assert round(se, 3) == 0.645
+
+
+def test_grouped_mean():
+    metric = grouped_mean(group_key="group")
+    result = metric(
+        [
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=4), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=2), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=6), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=10), sample_metadata={"group": "B"}),
+        ]
+    )
+    assert result["A"] == 2.0
+    assert result["B"] == 6.0

@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Add new `grouped_mean` metric, which computes the mean of a list of scores grouped by a value in sample metadata.
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
