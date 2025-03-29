@@ -496,6 +496,7 @@ export type Events1 = (
 )[];
 export type Completed3 = string | null;
 export type WorkingTime2 = number | null;
+export type Agent = string | null;
 export type Failed = boolean | null;
 export type Events = (
   | SampleInitEvent
@@ -1221,6 +1222,7 @@ export interface ToolEvent {
   events: Events1;
   completed: Completed3;
   working_time: WorkingTime2;
+  agent: Agent;
   failed: Failed;
 }
 export interface Arguments1 {

@@ -64785,7 +64785,7 @@ ${events}
               {
                 id: `${id}-subtask`,
                 "data-name": "Transcript",
-                "data-default": event.failed,
+                "data-default": event.failed || event.agent ? true : null,
                 events: event.events,
                 depth: depth + 1
               }

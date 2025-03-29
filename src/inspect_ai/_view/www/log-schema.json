@@ -4907,6 +4907,18 @@
           "default": null,
           "title": "Working Time"
         },
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
         "failed": {
           "anyOf": [
             {
@@ -4937,6 +4949,7 @@
         "events",
         "completed",
         "working_time",
+        "agent",
         "failed"
       ],
       "title": "ToolEvent",

@@ -123,11 +123,12 @@ async def execute_tools(
             result: ToolResult = ""
             messages: list[ChatMessage] = []
             output: ModelOutput | None = None
+            agent: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
             try:
                 with track_store_changes():
-                    result, messages, output = await call_tool(
+                    result, messages, output, agent = await call_tool(
                         tdefs, message.text, call, conversation
                     )
             except TimeoutError:
@@ -208,6 +209,7 @@ async def execute_tools(
                 view=call.view,
                 error=tool_error,
                 events=list(transcript().events),
+                agent=agent,
             )
 
             # yield message and event
@@ -308,6 +310,7 @@ async def execute_tools(
                 error=result_event.error,
                 events=result_event.events,
                 waiting_time=waiting_time_end - waiting_time_start,
+                agent=result_event.agent,
                 failed=True if result_exception else None,
             )
             transcript()._event_updated(event)
@@ -327,7 +330,7 @@ async def execute_tools(
 
 async def call_tool(
     tools: list[ToolDef], message: str, call: ToolCall, conversation: list[ChatMessage]
-) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None]:
+) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
 
     # if there was an error parsing the ToolCall, raise that
@@ -368,12 +371,12 @@ async def call_tool(
         else:
             arguments = tool_params(call.arguments, tool_def.tool)
             result: ToolResult = await tool_def.tool(**arguments)
-            return result, [], None
+            return result, [], None, None
 
 
 async def agent_handoff(
     tool_def: ToolDef, call: ToolCall, conversation: list[ChatMessage]
-) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None]:
+) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str]:
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.agent._handoff import AgentTool
 
@@ -455,7 +458,7 @@ async def agent_handoff(
             ChatMessageUser(content=f"The {agent_name} agent has completed its work.")
         )
 
-    return (tool_result, agent_messages, agent_state.output)
+    return (tool_result, agent_messages, agent_state.output, agent_name)
 
 
 def prepend_agent_name(
