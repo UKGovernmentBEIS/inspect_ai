@@ -1,4 +1,7 @@
+from textwrap import dedent
+
 from pydantic import Field
+from shortuuid import uuid
 
 from inspect_ai.model import ChatMessage, ChatMessageSystem, ChatMessageUser, get_model
 from inspect_ai.tool import Tool, tool, web_browser
@@ -10,7 +13,7 @@ class WebSurferState(StoreModel):
 
 
 @tool
-def web_surfer() -> Tool:
+def web_surfer(instance: str | None = uuid()) -> Tool:
     """Stateful web surfer tool for researching topics.
 
     The web_surfer tool builds on the web_browser tool to complete sequences of
@@ -26,7 +29,7 @@ def web_surfer() -> Tool:
         about previous web searches.
 
         Args:
-           input: Message to the web server. This can either be a prompt
+           input: Message to the web surfer. This can either be a prompt
               to do research or a question about previous research.
            clear_history: Clear memory of previous questions and responses.
 
@@ -34,17 +37,17 @@ def web_surfer() -> Tool:
            Answer to research prompt or question.
         """
         # keep track of message history in the store
-        state = store_as(WebSurferState)
+        surfer_state = store_as(WebSurferState, instance=instance)
 
         # clear history if requested.
         if clear_history:
-            state.messages.clear()
+            surfer_state.messages.clear()
 
         # provide system prompt if we are at the beginning
-        if len(state.messages) == 0:
-            state.messages.append(
+        if len(surfer_state.messages) == 0:
+            surfer_state.messages.append(
                 ChatMessageSystem(
-                    content="""
+                    content=dedent("""
                 You are a helpful assistant that can use a web browser to
                 answer questions. You don't need to answer the questions with
                 a single web browser request, rather, you can perform searches,
@@ -54,20 +57,20 @@ def web_surfer() -> Tool:
                 In some cases questions will be about your previous web searches,
                 in those cases you don't always need to use the web browser tool
                 but can answer by consulting previous conversation messages.
-                """
+                """)
                 )
             )
 
         # append the latest question
-        state.messages.append(ChatMessageUser(content=input))
+        surfer_state.messages.append(ChatMessageUser(content=input))
 
-        # web browser session
+        # run tool loop with web browser
         messages, output = await get_model().generate_loop(
-            state.messages, tools=web_browser()
+            surfer_state.messages, tools=web_browser(instance=instance)
         )
 
         # update state
-        state.messages.extend(messages)
+        surfer_state.messages.extend(messages)
 
         # return response
         return output.completion
