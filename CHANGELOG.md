@@ -20,6 +20,7 @@
 - Bugfix: Handle process lookup errors that can occur during timeout race conditions.
 - Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.
 - Bugfix: Correctly capture and return logs from `eval()` when a cancellation occurs. 
+- Add new `grouped` metric, which computes a metric for a list of scores grouped by a value in sample metadata.
 
 ## v0.3.81 (30 March 2025)
 
