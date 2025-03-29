@@ -136,6 +136,8 @@ website:
           href: reference/inspect_ai.agent.qmd#agentstate
         - text: agent
           href: reference/inspect_ai.agent.qmd#agent
+        - text: agent_with
+          href: reference/inspect_ai.agent.qmd#agent_with
         - text: AgentPrompt
           href: reference/inspect_ai.agent.qmd#agentprompt
         - text: AgentAttempts
