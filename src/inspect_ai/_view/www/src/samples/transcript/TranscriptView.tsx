@@ -95,7 +95,7 @@ export const TranscriptComponent: FC<TranscriptComponentProps> = memo(
         clz.push(styles.lastNode);
       }
 
-      const eventId = `${id}-event${index}`;
+      const eventId = `${id}|event|${index}`;
 
       const row = (
         <div
@@ -181,6 +181,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
       case "step":
         return (
           <StepEventView
+            id={id}
             event={node.event}
             children={node.children}
             className={className}
