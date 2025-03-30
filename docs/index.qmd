@@ -206,7 +206,7 @@ These sections cover defining custom tools as well as Inspect's standard built-i
 - [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
 
 
-These sections cover how to use varoius language models with Inspect:
+These sections cover how to use various language models with Inspect:
 
 -   [Models](models.qmd) describe various ways to specify and provide options to models in Inspect evaluations.
 
@@ -235,7 +235,7 @@ These sections describe how to create agent evaluations with Inspect:
 
 -   [Approval](approval.qmd) enable you to create fine-grained policies for approving tool calls made by model agents.
 
-These sections discuss more advanced features and workflow. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
+These sections discuss more advanced features and workflows. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
 
 -   [Eval Logs](eval-logs.qmd) explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
 
@@ -245,7 +245,7 @@ These sections discuss more advanced features and workflow. You don't need to re
 
 -   [Multimodal](multimodal.qmd) documents the APIs available for creating multimodal evaluations (including images, audio, and video).
 
--   [Typing](typing.qmd): provides guideance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
+-   [Typing](typing.qmd): provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
 
 -   [Tracing](tracing.qmd) Describes advanced execution tracing tools used to diagnose runtime issues.
 

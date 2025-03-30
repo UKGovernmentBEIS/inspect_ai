@@ -80,7 +80,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
 | `--cache-prompt` | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools. |
-| `--reasoning-effort` | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o-series models only. |
+| `--reasoning-effort` | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series models only. |
 | `--reasoning-tokens` | Maximum number of tokens to use for reasoning. Anthropic Claude models only. |
 | `--reasoning-history` | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to "auto", which uses the recommended default for each provider) |
 | `--response-format` | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. |
@@ -138,6 +138,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--no-log-samples` | Do not log sample details. |
 | `--no-log-images` | Do not log images and other media. |
 | `--log-buffer` | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
+| `--log-shared`           | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify `True` to sync every 10 seconds, otherwise an integer to sync every `n` seconds. |
 | `--log-format` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
 | `--log-level` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
 | `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |

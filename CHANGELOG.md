@@ -8,6 +8,14 @@
 - Mistral: Compatibility with tool call schema for `mistralai` >= v1.6.0 (which is now required).
 - Inspect View: Correctly parse NaN values (use JSON5 for all JSON parsing)
 
+## Unreleased
+
+- Inspect View: Live updates to running evaluation logs.
+- Inspect View: Fallback to content range request if inital HEAD request fails.
+- Inspect View: Improve error message when view bundles are server from incompatible servers.
+- Inspect View: Render messages in `user` and `assistant` solver events.
+- Inspect View: Improved support for display of nested arrays.
+
 ## v0.3.79 (26 March 2025)
 
 - Google: Compatibility with v1.7 of google-genai package (create client per-generate request)

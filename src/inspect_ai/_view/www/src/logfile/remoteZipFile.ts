@@ -67,7 +67,15 @@ export const openRemoteZipFile = async (
 
   // Check signature to make sure we found the EOCD record
   if (eocdrView.getUint32(0, true) !== 0x06054b50) {
-    throw new Error("End of central directory record not found");
+    if (eocdrBuffer.length !== 22) {
+      // The range request seems like it was ignored because more bytes than
+      // were requested were returned.
+      throw new Error(
+        "Unexpected central directory size - does the HTTP server serving this file support HTTP range requests?",
+      );
+    } else {
+      throw new Error("End of central directory record not found");
+    }
   }
 
   let centralDirOffset = eocdrView.getUint32(16, true);
@@ -180,9 +188,27 @@ export const openRemoteZipFile = async (
 };
 
 export const fetchSize = async (url: string): Promise<number> => {
-  const response = await fetch(`${url}`, { method: "HEAD" });
-  const contentLength = Number(response.headers.get("Content-Length"));
-  return contentLength;
+  // First try HEAD request to get Content-Length
+  const headResponse = await fetch(`${url}`, { method: "HEAD" });
+  const contentLength = headResponse.headers.get("Content-Length");
+
+  if (contentLength !== null) {
+    return Number(contentLength);
+  }
+
+  // If Content-Length is not present, use a GET with an 1 byte range request:
+  const getResponse = await fetch(`${url}`, {
+    method: "GET",
+    headers: { Range: "bytes=0-0" },
+  });
+  const contentRange = getResponse.headers.get("Content-Range");
+  if (contentRange !== null) {
+    const rangeMatch = contentRange.match(/bytes (\d+)-(\d+)\/(\d+)/);
+    if (rangeMatch !== null) {
+      return Number(rangeMatch[3]);
+    }
+  }
+  throw new Error("Could not determine content length");
 };
 
 /**

@@ -1,6 +1,6 @@
 import * as AsciicinemaPlayerJS from "asciinema-player";
 import "asciinema-player/dist/bundle/asciinema-player.css";
-import React, { useEffect, useRef } from "react";
+import { CSSProperties, FC, useEffect, useRef } from "react";
 
 interface AsciinemaPlayerProps {
   id?: string;
@@ -10,7 +10,7 @@ interface AsciinemaPlayerProps {
   rows?: number;
   cols?: number;
   fit?: string;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   speed?: number;
   autoPlay?: boolean;
   loop?: boolean;
@@ -19,7 +19,7 @@ interface AsciinemaPlayerProps {
   className?: string;
 }
 
-export const AsciinemaPlayer: React.FC<AsciinemaPlayerProps> = ({
+export const AsciinemaPlayer: FC<AsciinemaPlayerProps> = ({
   id,
   rows,
   cols,

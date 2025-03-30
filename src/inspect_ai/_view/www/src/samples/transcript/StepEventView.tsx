@@ -1,17 +1,15 @@
 import clsx from "clsx";
-import { FC, RefObject, useCallback, useState } from "react";
+import { FC } from "react";
 import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptComponent } from "./TranscriptView";
-import { EventNode, TranscriptEventState } from "./types";
+import { EventNode } from "./types";
 
 interface StepEventViewProps {
+  id: string;
   event: StepEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   children: EventNode[];
-  scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string | string[];
 }
 
@@ -19,11 +17,9 @@ interface StepEventViewProps {
  * Renders the StepEventView component.
  */
 export const StepEventView: FC<StepEventViewProps> = ({
+  id,
   event,
-  eventState,
-  setEventState,
   children,
-  scrollRef,
   className,
 }) => {
   const descriptor = stepDescriptor(event);
@@ -32,37 +28,19 @@ export const StepEventView: FC<StepEventViewProps> = ({
     `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
 
-  const [transcriptState, setTranscriptState] = useState({});
-  const onTranscriptState = useCallback(
-    (state: TranscriptEventState) => {
-      setTranscriptState({ ...state });
-    },
-    [setTranscriptState],
-  );
-
   return (
     <EventPanel
-      id={`step-${event.name}`}
+      id={`step-${event.name}-${id}`}
       className={clsx("transcript-step", className)}
       title={title}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={descriptor.icon}
       collapse={descriptor.collapse}
       text={text}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <TranscriptComponent
-        id={`step-${event.name}-transcript`}
+        id={`step|${event.name}|${id}`}
         eventNodes={children}
-        transcriptState={transcriptState}
-        setTranscriptState={onTranscriptState}
       />
     </EventPanel>
   );

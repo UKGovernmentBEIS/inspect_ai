@@ -240,3 +240,5 @@ Deploy this folder to a static webserver to publish the log viewer.
     ```
 
 -   The bundled output directory includes a `robots.txt` file to prevent indexing by web crawlers. If you deploy this folder outside of the root of your website then you would need to update your root `robots.txt` accordingly to exclude the folder from indexing (this is required because web crawlers only read `robots.txt` from the root of the website not subdirectories).
+
+-   The Inspect log viewer uses HTTP range requests to efficiently read the log files being served in the bundle. Please be sure to use a server which supports HTTP range requests to server the statically bundled files. Most HTTP servers do support this, but notably, Python's built in `http.server` does not. 
