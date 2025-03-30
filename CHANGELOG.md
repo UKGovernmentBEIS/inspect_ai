@@ -1,3 +1,9 @@
+## v0.3.80 (30 March 2025)
+
+- Google: Compatibility with httpx client in `google-genai` >= 1.8.0 (which is now required).
+- Mistral: Compatibility with tool call schema for `mistralai` >= v1.6.0 (which is now required).
+- Inspect View: Correctly parse NaN values (use JSON5 for all JSON parsing)
+
 ## v0.3.79 (26 March 2025)
 
 - Google: Compatibility with v1.7 of google-genai package (create client per-generate request)
