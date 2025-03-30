@@ -1,3 +1,7 @@
+## v0.3.81 (30 March 2025)
+
+- Requirements: Temporarily upper-bound `rich` to < 14.0.0 to workaround issue.
+
 ## v0.3.80 (30 March 2025)
 
 - Google: Compatibility with httpx client in `google-genai` >= 1.8.0 (which is now required).
