@@ -62,7 +62,10 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._conversation import conversation_assistant, conversation_assistant_error
+from ._display import (
+    display_conversation_assistant,
+    display_conversation_assistant_error,
+)
 from ._generate_config import (
     GenerateConfig,
     active_generate_config,
@@ -718,10 +721,10 @@ class Model:
             # trace
             if isinstance(result, ModelOutput):
                 if result.choices:
-                    conversation_assistant(input, result.choices[0].message)
+                    display_conversation_assistant(input, result.choices[0].message)
                 event.output = result
             else:
-                conversation_assistant_error(result)
+                display_conversation_assistant_error(result)
                 event.error = repr(result)
 
             event.call = updated_call

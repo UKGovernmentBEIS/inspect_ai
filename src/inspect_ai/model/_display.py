@@ -13,12 +13,12 @@ from ._render import messages_preceding_assistant, render_tool_calls
 MESSAGE_TITLE = "Message"
 
 
-def conversation_message(message: ChatMessage) -> None:
+def display_conversation_message(message: ChatMessage) -> None:
     if display_type() == "conversation":
         if isinstance(message, ChatMessageTool):
-            conversation_tool_message(message)
+            display_conversation_tool_message(message)
         elif isinstance(message, ChatMessageAssistant):
-            conversation_assistant_message(message)
+            display_conversation_assistant_message(message)
         else:
             conversation_panel(
                 title=message.role.capitalize(),
@@ -26,7 +26,7 @@ def conversation_message(message: ChatMessage) -> None:
             )
 
 
-def conversation_tool_message(message: ChatMessageTool) -> None:
+def display_conversation_tool_message(message: ChatMessageTool) -> None:
     if display_type() == "conversation":
         # truncate output to 100 lines
         output = (
@@ -41,7 +41,7 @@ def conversation_tool_message(message: ChatMessageTool) -> None:
             )
 
 
-def conversation_assistant_message(message: ChatMessageAssistant) -> None:
+def display_conversation_assistant_message(message: ChatMessageAssistant) -> None:
     # build content
     content: list[RenderableType] = []
 
@@ -65,7 +65,7 @@ def conversation_assistant_message(message: ChatMessageAssistant) -> None:
     conversation_panel(title="Assistant", content=content)
 
 
-def conversation_assistant(
+def display_conversation_assistant(
     input: list[ChatMessage], message: ChatMessageAssistant
 ) -> None:
     if display_type() == "conversation":
@@ -77,9 +77,9 @@ def conversation_assistant(
             )
 
         # show assistant message
-        conversation_assistant_message(message)
+        display_conversation_assistant_message(message)
 
 
-def conversation_assistant_error(error: Exception) -> None:
+def display_conversation_assistant_error(error: Exception) -> None:
     if display_type() == "conversation":
         conversation_panel(title="Assistant", content=repr(error))

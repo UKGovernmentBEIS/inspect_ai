@@ -42,7 +42,7 @@ from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
-from inspect_ai.model._conversation import conversation_message
+from inspect_ai.model._display import display_conversation_message
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
 from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError, ToolResult
@@ -294,11 +294,11 @@ async def execute_tools(
                     f"Tool call '{call.function}' was cancelled by operator."
                 )
                 result_messages.append(tool_message)
-                conversation_message(tool_message)
+                display_conversation_message(tool_message)
             else:
                 for message in result.messages:
                     result_messages.append(message)
-                    conversation_message(message)
+                    display_conversation_message(message)
                 if result.output is not None:
                     result_output = result.output
 
