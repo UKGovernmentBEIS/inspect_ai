@@ -17,7 +17,8 @@ interface Signature {
 
 interface ChangeType {
   type: string;
-  signature: Signature;
+  signature?: Signature;
+  match?: (changes: JsonChange[]) => boolean;
   render: (
     changes: JsonChange[],
     state: Record<string, unknown>,
@@ -211,8 +212,36 @@ const renderTools = (
   );
 };
 
+const createMessageRenderer = (name: string, role: string): ChangeType => {
+  return {
+    type: name,
+    match: (changes: JsonChange[]) => {
+      console.log(changes);
+      if (changes.length === 1) {
+        const change = changes[0];
+        if (change.op === "add" && change.path.match(/\/messages\/\d+/)) {
+          return change.value["role"] === role;
+        }
+      }
+      return false;
+    },
+    render: (changes) => {
+      const message = changes[0].value as unknown;
+      return (
+        <ChatView
+          key="system_msg_event_preview"
+          id="system_msg_event_preview"
+          messages={[message] as Messages}
+        />
+      );
+    },
+  };
+};
+
 export const RenderableChangeTypes: ChangeType[] = [
   system_msg_added_sig,
+  createMessageRenderer("assistant_msg", "assistant"),
+  createMessageRenderer("user_msg", "user"),
   use_tools,
   add_tools,
 ];

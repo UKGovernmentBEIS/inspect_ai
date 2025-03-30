@@ -98,59 +98,71 @@ const generatePreview = (
     ...RenderableChangeTypes,
     ...(isStore ? StoreSpecificRenderableTypes : []),
   ]) {
-    // Note that we currently only have renderers that depend upon
-    // add, remove, replace, but we should likely add
-    // move, copy, test
-    const requiredMatchCount =
-      changeType.signature.remove.length +
-      changeType.signature.replace.length +
-      changeType.signature.add.length;
-    let matchingOps = 0;
-    for (const change of changes) {
-      const op = change.op;
-      switch (op) {
-        case "add":
-          if (changeType.signature.add && changeType.signature.add.length > 0) {
-            changeType.signature.add.forEach((signature) => {
-              if (change.path.match(signature)) {
-                matchingOps++;
-              }
-            });
-          }
-          break;
-        case "remove":
-          if (
-            changeType.signature.remove &&
-            changeType.signature.remove.length > 0
-          ) {
-            changeType.signature.remove.forEach((signature) => {
-              if (change.path.match(signature)) {
-                matchingOps++;
-              }
-            });
-          }
-          break;
-        case "replace":
-          if (
-            changeType.signature.replace &&
-            changeType.signature.replace.length > 0
-          ) {
-            changeType.signature.replace.forEach((signature) => {
-              if (change.path.match(signature)) {
-                matchingOps++;
-              }
-            });
-          }
-          break;
+    if (changeType.signature) {
+      // Note that we currently only have renderers that depend upon
+      // add, remove, replace, but we should likely add
+      // move, copy, test
+      const requiredMatchCount =
+        changeType.signature.remove.length +
+        changeType.signature.replace.length +
+        changeType.signature.add.length;
+      let matchingOps = 0;
+      for (const change of changes) {
+        const op = change.op;
+        switch (op) {
+          case "add":
+            if (
+              changeType.signature.add &&
+              changeType.signature.add.length > 0
+            ) {
+              changeType.signature.add.forEach((signature) => {
+                if (change.path.match(signature)) {
+                  matchingOps++;
+                }
+              });
+            }
+            break;
+          case "remove":
+            if (
+              changeType.signature.remove &&
+              changeType.signature.remove.length > 0
+            ) {
+              changeType.signature.remove.forEach((signature) => {
+                if (change.path.match(signature)) {
+                  matchingOps++;
+                }
+              });
+            }
+            break;
+          case "replace":
+            if (
+              changeType.signature.replace &&
+              changeType.signature.replace.length > 0
+            ) {
+              changeType.signature.replace.forEach((signature) => {
+                if (change.path.match(signature)) {
+                  matchingOps++;
+                }
+              });
+            }
+            break;
+        }
       }
-    }
-    if (matchingOps === requiredMatchCount) {
-      const el = changeType.render(changes, resolvedState);
-      results.push(el);
-      // Only one renderer can process a change
-      // TODO: consider changing this to allow many handlers to render (though then we sort of need
-      // to match the renderer to the key (e.g. a rendered for `tool_choice` a renderer for `tools` etc..))
-      break;
+      if (matchingOps === requiredMatchCount) {
+        const el = changeType.render(changes, resolvedState);
+        results.push(el);
+        // Only one renderer can process a change
+        // TODO: consider changing this to allow many handlers to render (though then we sort of need
+        // to match the renderer to the key (e.g. a rendered for `tool_choice` a renderer for `tools` etc..))
+        break;
+      }
+    } else if (changeType.match) {
+      const matches = changeType.match(changes);
+      if (matches) {
+        const el = changeType.render(changes, resolvedState);
+        results.push(el);
+        break;
+      }
     }
   }
   return results.length > 0 ? results : undefined;

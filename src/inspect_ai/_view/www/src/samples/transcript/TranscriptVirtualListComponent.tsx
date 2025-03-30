@@ -23,7 +23,7 @@ export const TranscriptVirtualListComponent: FC<
     const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
     const paddingClass = index === 0 ? styles.first : undefined;
 
-    const eventId = `${id}-event${index}`;
+    const eventId = `${id}-event-${index}`;
 
     return (
       <div key={eventId} className={clsx(styles.node, paddingClass)}>
