@@ -27,6 +27,7 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
+from ._conversation import ModelConversation
 from ._generate_config import GenerateConfig, GenerateConfigArgs, ResponseSchema
 from ._model import (
     Model,
@@ -65,6 +66,7 @@ __all__ = [
     "ChatMessageTool",
     "ChatCompletionChoice",
     "ModelOutput",
+    "ModelConversation",
     "Logprobs",
     "Logprob",
     "TopLogprob",

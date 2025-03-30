@@ -1,9 +1,7 @@
 from contextvars import ContextVar
 from copy import copy
-from typing import Protocol
 
-from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._conversation import ModelConversation
 from inspect_ai.solver._task_state import TaskState, sample_state
 
 from ._metric import Score
@@ -11,26 +9,14 @@ from ._scorer import Scorer
 from ._target import Target
 
 
-class Conversation(Protocol):
-    @property
-    def messages(self) -> list[ChatMessage]:
-        """Conversation history."""
-        ...
+async def score(conversation: ModelConversation) -> list[Score]:
+    """Score a model conversation.
 
-    @property
-    def output(self) -> ModelOutput:
-        """Model output."""
-        ...
-
-
-async def score(conversation: Conversation) -> list[Score]:
-    """Score a TaskState.
-
-    Score a conversation (you may pass `TaskState` or `AgentState`
+    Score a model conversation (you may pass `TaskState` or `AgentState`
     as the value for `conversation`)
 
     Args:
-      conversation (Conversation): Conversation to submit for scoring.
+      conversation: Conversation to submit for scoring.
         Note that both `TaskState` and `AgentState` can be passed
         as the `conversation` parameter.
 
