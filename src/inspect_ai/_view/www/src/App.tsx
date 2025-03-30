@@ -1,5 +1,6 @@
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.css";
+import JSON5 from "json5";
 
 import "prismjs";
 import "prismjs/components/prism-bash";
@@ -748,7 +749,7 @@ export const App: FC<AppProps> = ({
 
       const embeddedState = document.getElementById("logview-state");
       if (embeddedState) {
-        const state = JSON.parse(embeddedState.textContent || "");
+        const state = JSON5.parse(embeddedState.textContent || "");
         onMessage({ data: state });
       } else {
         const result = await load();
