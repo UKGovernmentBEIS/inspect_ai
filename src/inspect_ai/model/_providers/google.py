@@ -70,8 +70,6 @@ from inspect_ai.model import (
     TopLogprob,
 )
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._providers.util import model_base_url
-from inspect_ai.model._providers.util.hooks import HttpHooks, urllib3_hooks
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -80,6 +78,9 @@ from inspect_ai.tool import (
     ToolParam,
     ToolParams,
 )
+
+from .util import model_base_url
+from .util.hooks import HttpHooks, HttpxHooks
 
 logger = getLogger(__name__)
 
@@ -205,8 +206,9 @@ class GoogleGenAIAPI(ModelAPI):
             **self.model_args,
         )
 
-        # generate request_id
-        request_id = urllib3_hooks().start_request()
+        # create hooks and allocate request
+        http_hooks = HttpxHooks(client._api_client._async_httpx_client)
+        request_id = http_hooks.start_request()
 
         # Create google-genai types.
         gemini_contents = await as_chat_messages(client, input)
@@ -243,7 +245,7 @@ class GoogleGenAIAPI(ModelAPI):
                 tools=gemini_tools,
                 tool_config=gemini_tool_config,
                 response=response,
-                time=urllib3_hooks().end_request(request_id),
+                time=http_hooks.end_request(request_id),
             )
 
         try:
@@ -265,26 +267,8 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: Exception) -> bool:
-        import requests  # type: ignore
-
-        # standard http errors
-        if (
-            isinstance(ex, APIError)
-            and isinstance(ex.status, str)
-            and ex.status.isdigit()
-        ):
-            return is_retryable_http_status(int(ex.status))
-
-        # low-level requests exceptions
-        elif isinstance(ex, requests.exceptions.RequestException):
-            return isinstance(
-                ex,
-                (
-                    requests.exceptions.ConnectionError
-                    | requests.exceptions.ConnectTimeout
-                    | requests.exceptions.ChunkedEncodingError
-                ),
-            )
+        if isinstance(ex, APIError) and ex.code is not None:
+            return is_retryable_http_status(ex.code)
         else:
             return False
 

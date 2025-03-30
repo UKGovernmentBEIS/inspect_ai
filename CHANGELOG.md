@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Google: Compatibility with httpx client in `google-genai` >= 1.8.0 (which is now required).
 - Mistral: Compatibility with tool call schema for `mistralai` >= v1.6.0 (which is now required).
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
