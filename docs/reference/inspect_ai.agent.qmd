@@ -18,10 +18,10 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 
 ## Execution
 
+### handoff
 ### run
 ### as_tool
 ### as_solver
-### handoff
 ### HandoffFilter
 
 ## Protocol

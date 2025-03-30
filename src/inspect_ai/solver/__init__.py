@@ -52,7 +52,6 @@ __all__ = [
 _TOOL_MODULE_VERSION_3_18 = "0.3.18"
 _TOOL_MODULE_VERSION_3_19 = "0.3.19"
 _SUBTASKS_MODULE_VERSION = "0.3.26"
-_AGENTS_MODULE_VERSION = "0.3.74"
 _REMOVED_IN = "0.4"
 relocated_module_attribute(
     "Tool", "inspect_ai.tool.Tool", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
