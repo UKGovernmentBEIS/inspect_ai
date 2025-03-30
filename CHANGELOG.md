@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Eval Set: Resolve tasks before each pass (ensure that each pass runs against an entirely new task instance).
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.

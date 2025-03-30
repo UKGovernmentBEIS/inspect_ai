@@ -353,18 +353,20 @@ async def eval_async(
 
     try:
         # intialise eval
-        model, approval, resolved_tasks = eval_init(
-            tasks=tasks,
+        model, approval = eval_init(
             model=model,
             model_base_url=model_base_url,
             model_args=model_args,
-            task_args=task_args,
-            sandbox=sandbox,
             approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             **kwargs,
+        )
+
+        # resolve tasks
+        resolved_tasks = eval_resolve_tasks(
+            tasks, task_args, model, GenerateConfig(**kwargs), sandbox
         )
 
         # warn and return empty string if we resolved no tasks
@@ -846,24 +848,20 @@ async def eval_retry_async(
 
 
 def eval_init(
-    tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    task_args: dict[str, Any] | str = dict(),
-    sandbox: SandboxEnvironmentType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
-) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
+) -> tuple[list[Model], list[ApprovalPolicy] | None]:
     # init eval context
     init_eval_context(log_level, log_level_transcript, max_subprocesses)
 
     # resolve model and task args
     model_args = resolve_args(model_args)
-    task_args = resolve_args(task_args)
 
     # resolve model args from environment if not specified
     if len(model_args) == 0:
@@ -876,21 +874,28 @@ def eval_init(
     generate_config = GenerateConfig(**kwargs)
     models = resolve_models(model, model_base_url, model_args, generate_config)
 
-    # resolve tasks (set active model to resolve uses of the
-    # 'default' model in tools, solvers, and scorers)
-
-    with task_display().suspend_task_app():
-        resolved_tasks: list[ResolvedTask] = []
-        for m in models:
-            init_active_model(m, generate_config)
-            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
-
     # resolve approval
     if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
 
-    return models, approval, resolved_tasks
+    return models, approval
+
+
+def eval_resolve_tasks(
+    tasks: Tasks,
+    task_args: dict[str, Any] | str,
+    models: list[Model],
+    config: GenerateConfig,
+    sandbox: SandboxEnvironmentType | None,
+) -> list[ResolvedTask]:
+    task_args = resolve_args(task_args)
+    with task_display().suspend_task_app():
+        resolved_tasks: list[ResolvedTask] = []
+        for m in models:
+            init_active_model(m, config)
+            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
+        return resolved_tasks
 
 
 def init_eval_display(
