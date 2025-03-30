@@ -1,3 +1,4 @@
+import JSON5 from "json5";
 import { dirname } from "../utils/path";
 import { getVscodeApi } from "../utils/vscode";
 import browserApi from "./api-browser";
@@ -22,7 +23,7 @@ const resolveApi = (): ClientAPI => {
       // Read the contents
       const context = scriptEl.textContent;
       if (context !== null) {
-        const data = JSON.parse(context);
+        const data = JSON5.parse(context);
         if (data.log_dir || data.log_file) {
           const log_dir = data.log_dir || dirname(data.log_file);
           const api = simpleHttpApi(log_dir, data.log_file);

@@ -1,3 +1,4 @@
+import JSON5 from "json5";
 import { ApplicationIcons } from "../appearance/icons";
 
 import { ANSIDisplay } from "../components/AnsiDisplay";
@@ -90,7 +91,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return false;
     },
     render: (_id, entry) => {
-      const obj = JSON.parse(entry.value);
+      const obj = JSON5.parse(entry.value);
       return { rendered: <JSONPanel data={obj as Record<string, unknown>} /> };
     },
   },
