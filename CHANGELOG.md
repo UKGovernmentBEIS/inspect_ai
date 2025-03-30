@@ -1,10 +1,18 @@
+## v0.3.81 (30 March 2025)
+
+- Requirements: Temporarily upper-bound `rich` to < 14.0.0 to workaround issue.
+
+## v0.3.80 (30 March 2025)
+
+- Google: Compatibility with httpx client in `google-genai` >= 1.8.0 (which is now required).
+- Mistral: Compatibility with tool call schema for `mistralai` >= v1.6.0 (which is now required).
+- Inspect View: Correctly parse NaN values (use JSON5 for all JSON parsing)
+
 ## Unreleased
 
-- Mistral: Compatibility with tool call schema for `mistralai` >= v1.6.0 (which is now required).
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
-- Inspect View: Correctly parse NaN values (use JSON5 for all JSON parsing)
 - Inspect View: Render messages in `user` and `assistant` solver events.
 - Inspect View: Improved support for display of nested arrays.
 
