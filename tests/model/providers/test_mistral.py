@@ -1,12 +1,11 @@
 import pytest
-from test_helpers.utils import skip_if_no_mistral
+from test_helpers.utils import skip_if_no_mistral, skip_if_no_mistral_package
 
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
     get_model,
 )
-from inspect_ai.model._providers.mistral import mistral_chat_tools
 from inspect_ai.tool import (
     ToolInfo,
     ToolParam,
@@ -41,12 +40,15 @@ def tiktok_tool_with_description_param():
     )
 
 
+@skip_if_no_mistral_package
 def test_mistral_tool_schema_formatting(tiktok_tool_with_description_param):
     """Test that the tool schema is correctly formatted for the Mistral API.
 
     This test verifies that our tool schema conversion correctly includes the outer schema
     structure with type, properties, and required fields that Mistral expects.
     """
+    from inspect_ai.model._providers.mistral import mistral_chat_tools
+
     # Convert the tool to Mistral format
     mistral_tools = mistral_chat_tools([tiktok_tool_with_description_param])
 
@@ -81,6 +83,7 @@ def test_mistral_tool_schema_formatting(tiktok_tool_with_description_param):
 
 @pytest.mark.anyio
 @skip_if_no_mistral
+@skip_if_no_mistral_package
 async def test_mistral_with_description_parameter(tiktok_tool_with_description_param):
     """Test that the Mistral API correctly accepts a tool with a parameter named 'description'.
 
