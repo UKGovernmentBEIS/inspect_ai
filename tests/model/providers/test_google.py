@@ -77,6 +77,7 @@ def test_completion_choice_malformed_function_call():
     )  # No tool calls for malformed function calls
 
 
+@skip_if_no_google_genai
 def test_429_response_is_retried():
     error_response_json = {
         "error": {
@@ -114,16 +115,15 @@ def test_429_response_is_retried():
             ],
         }
     }
-
-    import requests  # type: ignore
+    import httpx
     from google.genai.errors import ClientError  # type: ignore
 
     from inspect_ai.model._providers.google import GoogleGenAIAPI
 
-    mock_response = mock.MagicMock(spec=requests.Response)
+    mock_response = mock.MagicMock(spec=httpx.Response)
     mock_response.status_code = 429
     mock_response.json.return_value = error_response_json
-    error = ClientError(429, mock_response)
+    error = ClientError(429, error_response_json, mock_response)
 
     api = GoogleGenAIAPI(model_name="gemini-1.0-pro", base_url=None, api_key="fake-key")
 
