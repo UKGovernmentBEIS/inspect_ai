@@ -170,7 +170,7 @@ eval(task, model="openai/gpt-4o")
 
 ## Multi Agent {#multi-agent}
 
-There are several ways to imlpement multi-agent sytems using the `Agent` protocol:
+There are several ways to implement multi-agent systems using the `Agent` protocol:
 
 1.  You can provide a top-level supervisor agent with the ability to handoff to various sub-agents that are expert at different tasks.
 
@@ -180,7 +180,7 @@ There are several ways to imlpement multi-agent sytems using the `Agent` protoco
 
 ### Handoffs {#handoffs}
 
-Hanoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.
+Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.
 
 Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.
 
@@ -199,7 +199,7 @@ web_surfer = react(
 ```
 
 ::: {.callout-note appearance="simple"}
-When we call the `react()` function to create the `web_surfer` agent we pass `name` and `description` parameters. These parmaeters are required when you are using an agent in a handoff (so the supervisor model knows its name and capabilities).
+When we call the `react()` function to create the `web_surfer` agent we pass `name` and `description` parameters. These parameters are required when you are using a react agent in a handoff (so the supervisor model knows its name and capabilities).
 :::
 
 We can then create a supervisor agent that has access to both a standard tool and the ability to hand off to the web surfer agent. In this case the supervisor is a standard `react()` agent however other approaches to supervision are possible.
@@ -343,7 +343,7 @@ activity = store_as(Activity)
 
 ### Agent Instances
 
-If you want an agent to have a store-per-instance by default, add an `instance` parmaeter to your `@agent` function and default it to `uuid()`. Then, forward the `instance` on to `store_as()` as well as any tools you call that are also stateful (e.g. `web_browser()`). For example:
+If you want an agent to have a store-per-instance by default, add an `instance` parameter to your `@agent` function and default it to `uuid()`. Then, forward the `instance` on to `store_as()` as well as any tools you call that are also stateful (e.g. `web_browser()`). For example:
 
 ``` python
 from pydantic import Field
