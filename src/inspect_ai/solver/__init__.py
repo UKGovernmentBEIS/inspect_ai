@@ -16,7 +16,6 @@ from ._prompt import (
     system_message,
     user_message,
 )
-from ._run import run
 from ._solver import Generate, Solver, SolverSpec, generate, solver
 from ._task_state import Choice, Choices, TaskState
 from ._use_tools import use_tools
@@ -27,7 +26,6 @@ __all__ = [
     "human_agent",
     "chain",
     "fork",
-    "run",
     "generate",
     "prompt_template",
     "chain_of_thought",
