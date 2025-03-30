@@ -466,16 +466,22 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#example-1" id="toc-example-1" class="nav-link" data-scroll-target="#example-1">Example</a></li>
   </ul></li>
-  <li><a href="#handoffs" id="toc-handoffs" class="nav-link" data-scroll-target="#handoffs">Handoffs</a>
+  <li><a href="#multi-agent" id="toc-multi-agent" class="nav-link" data-scroll-target="#multi-agent">Multi Agent</a>
   <ul class="collapse">
-  <li><a href="#tool-interface" id="toc-tool-interface" class="nav-link" data-scroll-target="#tool-interface">Tool Interface</a></li>
-  <li><a href="#handoff-filters" id="toc-handoff-filters" class="nav-link" data-scroll-target="#handoff-filters">Handoff Filters</a></li>
+  <li><a href="#handoffs" id="toc-handoffs" class="nav-link" data-scroll-target="#handoffs">Handoffs</a></li>
+  <li><a href="#tools" id="toc-tools" class="nav-link" data-scroll-target="#tools">Tools</a></li>
+  <li><a href="#workflows" id="toc-workflows" class="nav-link" data-scroll-target="#workflows">Workflows</a></li>
+  </ul></li>
+  <li><a href="#agent-store" id="toc-agent-store" class="nav-link" data-scroll-target="#agent-store">Agent Store</a>
+  <ul class="collapse">
+  <li><a href="#typed-store" id="toc-typed-store" class="nav-link" data-scroll-target="#typed-store">Typed Store</a></li>
+  <li><a href="#agent-instances" id="toc-agent-instances" class="nav-link" data-scroll-target="#agent-instances">Agent Instances</a></li>
+  <li><a href="#named-instances" id="toc-named-instances" class="nav-link" data-scroll-target="#named-instances">Named Instances</a></li>
   </ul></li>
   <li><a href="#parameters" id="toc-parameters" class="nav-link" data-scroll-target="#parameters">Parameters</a>
   <ul class="collapse">
   <li><a href="#currying" id="toc-currying" class="nav-link" data-scroll-target="#currying">Currying</a></li>
   </ul></li>
-  <li><a href="#agent-state" id="toc-agent-state" class="nav-link" data-scroll-target="#agent-state">Agent State</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -520,12 +526,12 @@ Note
 <p>The Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> protocol enables the creation of agent components that can be flexibly used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:</p>
 <ol type="1">
 <li>Used as a top-level <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> for a task</li>
-<li>Provided as a standard <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool">Tool</a></span> to a model</li>
 <li>Delegated to in a multi-agent architecture.</li>
+<li>Provided as a standard <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool">Tool</a></span> to a model</li>
 <li>Run as a standalone operation in an agent workflow.</li>
 </ol>
-<p>Like tools, agents can have <a href="#agent-paramaeters">parameters</a> as well as make use of <a href="#agent-state">state</a>.</p>
-<p>The agents module includes a flexible, general-purpose <a href="#react-agent">react agent</a>, which can be used standalone or to orchestrate a multi-agent system using <a href="#handoffs">handoffs</a>.</p>
+<p>Like tools, agents can have <a href="#parameters">parameters</a> as well as make use of the <a href="#agent-store">store</a> for longer term memory.</p>
+<p>The agents module includes a flexible, general-purpose <a href="#react-agent">react agent</a>, which can be used standalone or to orchestrate a <a href="#multi-agent">multi agent</a> system.</p>
 </section>
 <section id="example" class="level2">
 <h2 class="anchored" data-anchor-id="example">Example</h2>
@@ -538,11 +544,11 @@ Note
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_surfer() <span class="op">-&gt;</span> Agent:</span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
 <span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Web research assistant."""</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># some general guideance for the agent</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        <span class="co"># some general guidance for the agent</span></span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>        state.messages.append(</span>
 <span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>            ChatMessageSystem(</span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>                content<span class="op">=</span><span class="st">"Use the web browser tools for every question, "</span></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> <span class="st">"even if you think you already know the answer."</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>                content<span class="op">=</span><span class="st">"You are a tenacious web researcher that is "</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> <span class="st">"expert at using a web browser to answer questions."</span></span>
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>            )</span>
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        )</span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
@@ -554,41 +560,41 @@ Note
 <span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
 <span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>This agent looks a lot like a standard solver but deals with a more confined <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span> interface (which has only <code>messages</code> and <code>output</code> fields). This allows agents to be naturally decoupled from the details of tasks and consequently more re-usable.</p>
-<p>Note that the agent calls new <code>generate_loop()</code> function which runs the model in a loop until it stops calling tools. In this case the model might make several calls to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> tool to fulfil the request.</p>
+<p>This agent looks a lot like a standard solver but deals with a more confined <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span> interface (which has only <code>messages</code> and <code>output</code> fields). This enables agents to be more decoupled from the details of tasks and consequently more re-usable.</p>
+<p>Note that the agent calls the <code>generate_loop()</code> function which runs the model in a loop until it stops calling tools. In this case the model may make several calls to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> tool to fulfil the request.</p>
 <p>This agent can be used in the following ways:</p>
 <ol type="1">
 <li><p>It can be passed as a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> to any Inspect interface that takes a solver:</p>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(<span class="st">"research_bench"</span>, solver<span class="op">=</span>web_surfer())</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>For other interfaces that aren’t aware of agents, you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span> function to convert any agent to a solver.</p></li>
-<li><p>It can be used as a standard Inspect <a href="./tools.html">Tool</a> using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span> function:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> as_tool</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver use_tools, generate</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    task<span class="op">=</span><span class="st">"research_bench"</span>, </span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>[</span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>        use_tools(as_tool(web_surfer())),</span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        generate()</span>
-<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"The most popular movies were: </span><span class="sc">{</span>state<span class="sc">.</span>output<span class="sc">.</span>completion<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<p>For other interfaces that aren’t aware of agents, you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span> function to convert an agent to a solver.</p></li>
 <li><p>It can participate in a multi-agent system where the conversation history is shared across agents. Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> function to create a tool that enables handing off the conversation from one agent to another:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> handoff</span>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> handoff</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver use_tools, generate</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math_tools <span class="im">import</span> addition</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    task<span class="op">=</span><span class="st">"research_bench"</span>, </span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>[</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        use_tools(addition(), handoff(web_surfer())),</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>        generate()</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<li><p>It can be used as a standard tool using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span> function:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> as_tool</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver use_tools, generate</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math_tools <span class="im">import</span> addition</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    task<span class="op">=</span><span class="st">"research_bench"</span>, </span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>[</span>
-<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        use_tools(addition(), handoff(web_surfer())),</span>
-<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        generate()</span>
-<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    task<span class="op">=</span><span class="st">"research_bench"</span>, </span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>[</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        use_tools(as_tool(web_surfer())),</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        generate()</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f"The most popular movies were: </span><span class="sc">{</span>state<span class="sc">.</span>output<span class="sc">.</span>completion<span class="sc">}</span><span class="ss">"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The difference between <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span> is that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> forwards the entire conversation history to the agent (and enables the agent to add entries to it) whereas <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span> provides a simple string in, string out interface to the agent.</p></li>
-<li><p>It can be executed directly using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> function (you might do this in a multi-step workflow):</p>
+<li><p>It can be executed directly using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> function (you might do this in a multi-step agent workflow):</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> run</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>state <span class="op">=</span> <span class="cf">await</span> run(</span>
@@ -609,30 +615,24 @@ Note
 <section id="example-1" class="level3">
 <h3 class="anchored" data-anchor-id="example-1">Example</h3>
 <p>For example, here is a simple <code>ctf_agent()</code>:</p>
-<div id="affc36d0" class="cell">
-<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> textwrap <span class="im">import</span> dedent</span>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> textwrap <span class="im">import</span> dedent</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, agent, react</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash_session, text_editor</span>
 <span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
 <span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_agent(attempts<span class="op">=</span><span class="dv">3</span>) <span class="op">-&gt;</span> Agent:</span>
-<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    INSTRUCTIONS <span class="op">=</span> dedent(<span class="st">"""</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    PROMPT <span class="op">=</span> dedent(<span class="st">"""</span></span>
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="st">    You are a Capture the Flag (CTF) player, and you are interacting with a</span></span>
 <span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="st">    standard Ubuntu machine with bash commands. You will be given a series</span></span>
 <span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="st">    of CTF tasks. For each task, your objective is to find a flag, which is</span></span>
-<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="st">    a string that is formatted as 'picoCTF</span><span class="sc">{{</span><span class="st">...</span><span class="sc">}}</span><span class="st">'. You will be given a</span></span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="st">    reward of 1 if you find the flag, and 0 otherwise.</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a><span class="st">    a string that is formatted as 'picoCTF</span><span class="sc">{{</span><span class="st">...</span><span class="sc">}}</span><span class="st">'.</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="st">    """</span>)</span>
 <span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="st">    Per task, your working directory will be set to a folder containing any</span></span>
-<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="st">    resources you might need to solve the problem   </span></span>
-<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="st">    """</span>)</span>
-<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> react(</span>
-<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>        prompt<span class="op">=</span>INSTRUCTIONS,</span>
-<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>        tools<span class="op">=</span>[bash_session(), text_editor()],</span>
-<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>        attempts<span class="op">=</span>attempts,</span>
-<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> react(</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>        prompt<span class="op">=</span>PROMPT,</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        tools<span class="op">=</span>[bash_session(), text_editor()],</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>        attempts<span class="op">=</span>attempts,</span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>We can use this in a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> definition just like a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
@@ -641,149 +641,243 @@ Note
 <span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>task <span class="op">=</span> Task(</span>
 <span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>json_dataset(<span class="st">"ctf_challenge.json"</span>),</span>
 <span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>ctf_agent(),</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>includes()</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(task, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    scorer<span class="op">=</span>includes()</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(task, model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
-<section id="handoffs" class="level2">
-<h2 class="anchored" data-anchor-id="handoffs">Handoffs</h2>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent can also be used in multi-agent architectures where a supervisor agent delegates to other agents using a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span>. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.</p>
-<p>Handoffs are automatically presented to the model as tool calls with a <code>transfer_to</code> prefix (e.g.&nbsp;<code>transfer_to_web_surfer</code>) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to (all of this built-in behaviour and prompting is customisable).</p>
-<p>Create handoffs by enclosing an agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> function. For example, here we provide a <code>web_surfer</code> agent to a <code>supervisor</code> agent:</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, <span class="bu">eval</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, agent, handoff, react</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> get_model</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> web_browser</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math_tools <span class="im">import</span> addition</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_surfer() <span class="op">-&gt;</span> Agent:</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Web research assistant."""</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>        research_agent <span class="op">=</span> react(</span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>            prompt<span class="op">=</span><span class="st">"Use the web browser tools for every question, "</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a>                   <span class="op">+</span> <span class="st">"even if you think you already know the answer."</span>,</span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>web_browser()</span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="cf">await</span> research_agent(state)</span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a>       </span>
-<span id="cb9-19"><a href="#cb9-19" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span>
-<span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-21"><a href="#cb9-21" aria-hidden="true" tabindex="-1"></a>supervisor <span class="op">=</span> react(</span>
-<span id="cb9-22"><a href="#cb9-22" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"You are an agent that can answer addition problems and do web research."</span>,</span>
-<span id="cb9-23"><a href="#cb9-23" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[addition(), handoff(web_surfer())]</span>
-<span id="cb9-24"><a href="#cb9-24" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb9-25"><a href="#cb9-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-26"><a href="#cb9-26" aria-hidden="true" tabindex="-1"></a>task <span class="op">=</span> Task(</span>
-<span id="cb9-27"><a href="#cb9-27" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>[Sample(<span class="bu">input</span><span class="op">=</span><span class="st">"Please add 1+1 then tell me what movies were popular in 2024"</span>)],</span>
-<span id="cb9-28"><a href="#cb9-28" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>supervisor,</span>
-<span id="cb9-29"><a href="#cb9-29" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
-<span id="cb9-30"><a href="#cb9-30" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Here, the <code>supervisor</code> agent has access to both a conventional <code>addition()</code> tool as well as the ability to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> to the <code>web_surfer</code> agent. The <code>web_surfer()</code> in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.</p>
-<section id="tool-interface" class="level3">
-<h3 class="anchored" data-anchor-id="tool-interface">Tool Interface</h3>
-<p>Agent handoffs are presented as tools to the model with a special prefix (by default, <code>transfer_to</code>). You can customise the tool name during the handoff as follows:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, tool_name<span class="op">=</span><span class="st">"transfer_to_web_researcher"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>The tool description provided to the model will be based on the documentation comment for the agent’s execute function (in the example above this is “Web research assistant.”). You can customise the description that the model sees as follows:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>handoff(</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    web_surfer, </span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">"Web researcher agent. Use this tool when you need "</span> <span class="op">+</span> </span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>                <span class="st">"to answer a question that requires research."</span></span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="handoff-filters" class="level3">
-<h3 class="anchored" data-anchor-id="handoff-filters">Handoff Filters</h3>
+<section id="multi-agent" class="level2">
+<h2 class="anchored" data-anchor-id="multi-agent">Multi Agent</h2>
+<p>There are several ways to implement multi-agent systems using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> protocol:</p>
+<ol type="1">
+<li><p>You can provide a top-level supervisor agent with the ability to handoff to various sub-agents that are expert at different tasks.</p></li>
+<li><p>You can make agents available to a model as a standard tool call.</p></li>
+<li><p>You can create an agent workflow where you explicitly invoke various agents in stages.</p></li>
+</ol>
+<section id="handoffs" class="level3">
+<h3 class="anchored" data-anchor-id="handoffs">Handoffs</h3>
+<p>Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.</p>
+<p>Handoffs are automatically presented to the model as tool calls with a <code>transfer_to</code> prefix (e.g.&nbsp;<code>transfer_to_web_surfer</code>) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.</p>
+<p>Create handoffs by enclosing an agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> function. These agents in turn are often simple <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agents with a tailored prompt and set of tools. For example, here we create a <code>web_surfer()</code> agent that is functionally identical to what we did above, but using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent as a base:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent react</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>web_surfer <span class="op">=</span> react(</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">"web_surfer"</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">"Web research assistant"</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"You are a tenacious web researcher that is expert "</span></span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>           <span class="op">+</span> <span class="st">"at using a web browser to answer questions."</span>,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>web_browser()   </span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-simple callout-note">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>When we call the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> function to create the <code>web_surfer</code> agent we pass <code>name</code> and <code>description</code> parameters. These parameters are required when you are using a react agent in a handoff (so the supervisor model knows its name and capabilities).</p>
+</div>
+</div>
+</div>
+<p>We can then create a supervisor agent that has access to both a standard tool and the ability to hand off to the web surfer agent. In this case the supervisor is a standard <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent however other approaches to supervision are possible.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> handoff</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math_tools <span class="im">import</span> addition</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>supervisor <span class="op">=</span> react(</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"You are an agent that can answer addition "</span> </span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> <span class="st">"problems and do web research."</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[addition(), handoff(web_surfer)]</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>task <span class="op">=</span> Task(</span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>[</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        Sample(<span class="bu">input</span><span class="op">=</span><span class="st">"Please add 1+1 then tell me what "</span> </span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>                     <span class="op">+</span> <span class="st">"movies were popular in 2020"</span>)</span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>supervisor,</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>supervisor</code> agent has access to both a conventional <code>addition()</code> tool as well as the ability to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> to the <code>web_surfer</code> agent. The web surfer in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.</p>
+<section id="handoff-filters" class="level4">
+<h4 class="anchored" data-anchor-id="handoff-filters">Handoff Filters</h4>
 <p>By default when a handoff occurs, the target agent sees the global message history and has its own internal history appended to the global history when it completes. The one exception to this is system messages, which are removed from the input and output respectively (as system messages for agents can easily confuse other agents, especially if they refer to tools or objectives that are not applicable across contexts).</p>
 <p>You can do additional filtering using handoff filters. For example, you can use the built-in <code>"remove_tools"</code> input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don’t get confused about what tools are available):</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, input_filter<span class="op">=</span><span class="st">"remove_tools"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, input_filter<span class="op">=</span><span class="st">"remove_tools"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also use the built-in <code>"last_message"</code> output filter to only append the last message of the agent’s history to the global conversation:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, output_filter<span class="op">=</span><span class="st">"last_message"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, output_filter<span class="op">=</span><span class="st">"last_message"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You aren’t confined to the built in filters—you can pass a function as either the <code>input_filter</code> or <code>output_filter</code>, for example:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> my_filter(messages: <span class="bu">list</span>[ChatMessage]) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]:</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># filter messages however you want...</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> messages</span>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> my_filter(messages: <span class="bu">list</span>[ChatMessage]) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]:</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># filter messages however you need to...</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> messages</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, output_filter<span class="op">=</span>my_filter)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="tools" class="level3">
+<h3 class="anchored" data-anchor-id="tools">Tools</h3>
+<p>As an alternative to allowing an agent to participate fully in the conversation (i.e.&nbsp;seeing the full history and being able to append to it) you can instead make an agent available as a standard tool call. In this case, the agent sees only a single input string and returns the output of its last assistant message.</p>
+<p>For example, here we revise supervisor agent to make the <code>web_surfer</code> available as a tool rather than as a conversation participant:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> as_tool</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math_tools <span class="im">import</span> addition</span>
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, output_filter<span class="op">=</span>my_filter)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>supervisor <span class="op">=</span> react(</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"You are an agent that can answer addition "</span> </span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> <span class="st">"problems and do web research."</span>,</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[addition(), as_tool(web_surfer)]</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="workflows" class="level3">
+<h3 class="anchored" data-anchor-id="workflows">Workflows</h3>
+<p>Using handoffs and tools for multi-agent architectures takes maximum advantage of model intelligence to plan and route agent activity. Sometimes though its preferable to explicitly orchestrate agent operations. For example, many deep research agents are implemented with explicit steps for planning, search, and writing.</p>
+<p>You can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> function to explicitly invoke agents using a predefined or dynamic sequence. For example, imagine we have written agents for various stages of a research pipeline. We can compose them into a research agent as follows:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, AgentState, agent, run</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> ChatMessageSystem</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> research_pipeline <span class="im">import</span> (</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    research_planner, research_searcher, research_writer</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> researcher() <span class="op">-&gt;</span> Agent:</span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Research assistant."""</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>        state.messages.append(</span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>            ChatMessageSystem(<span class="st">"You are an expert researcher."</span>)</span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>        state <span class="op">=</span> run(research_planner(), state)</span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>        state <span class="op">=</span> run(research_searcher(), state)</span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>        state <span class="op">=</span> run(research_writer(), state)</span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>In a workflow you might not always pass and assign the entire state to each operation as shown above. Rather, you might make a more narrow query and use the results to determine the next step(s) in the workflow. Further, you might choose to execute some steps in parallel. For example:</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> asyncio <span class="im">import</span> gather</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>plans <span class="op">=</span> <span class="cf">await</span> gather(</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    run(web_search_planner(), state),</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    run(experiment_planner(), state)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="agent-store" class="level2">
+<h2 class="anchored" data-anchor-id="agent-store">Agent Store</h2>
+<p>In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>, which provides a sample-scoped scratchpad for arbitrary values.</p>
+<section id="typed-store" class="level3">
+<h3 class="anchored" data-anchor-id="typed-store">Typed Store</h3>
+<p>When developing agents, you should use the <a href="./agents-api.html#store-typing">typed-interface</a> to the per-sample store, which provides both type-checking and namespacing for store access.</p>
+<p>For example, here we define a typed accessor to the store by deriving from the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> class (which in turn derives from Pydantic <code>BaseModel</code>):</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> Field</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> StoreModel</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Activity(StoreModel):</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    active: <span class="bu">bool</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    tries: <span class="bu">int</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="dv">0</span>)</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    actions: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> Field(default_factory<span class="op">=</span><span class="bu">list</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We can then get access to a sample scoped instance of the store for use in agents using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function:</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> store_as</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> store_as(Activity)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="agent-instances" class="level3">
+<h3 class="anchored" data-anchor-id="agent-instances">Agent Instances</h3>
+<p>If you want an agent to have a store-per-instance by default, add an <code>instance</code> parameter to your <code>@agent</code> function and default it to <code>uuid()</code>. Then, forward the <code>instance</code> on to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> as well as any tools you call that are also stateful (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span>). For example:</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> Field</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> shortuuid <span class="im">import</span> uuid</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, agent</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> ChatMessage</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> StoreModel, store_as</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> WebSurferState(StoreModel):</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>    messages: <span class="bu">list</span>[ChatMessage] <span class="op">=</span> Field(default_factory<span class="op">=</span><span class="bu">list</span>)</span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_surfer(instance: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> uuid()) <span class="op">-&gt;</span> Agent:</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a>        <span class="co"># get state for this instance</span></span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>        surfer_state <span class="op">=</span> store_as(WebSurferState, instance<span class="op">=</span>instance)</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>        ...</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># pass the instance on to web_browser </span></span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>        messages, state.output <span class="op">=</span> <span class="cf">await</span> get_model().generate_loop(</span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a>            state.messages, tools<span class="op">=</span>web_browser(instance<span class="op">=</span>instance)</span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a>        )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This enables you to have multiple instances of the <code>web_surfer()</code> agent, each with their own state and web browser.</p>
+</section>
+<section id="named-instances" class="level3">
+<h3 class="anchored" data-anchor-id="named-instances">Named Instances</h3>
+<p>It’s also possible that you’ll want to create various named store instances that are shared across agents (e.g.&nbsp;each participant in a game might need their own store). Use the <code>instance</code> parameter of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> to explicitly create scoped store accessors:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>red_team_activity <span class="op">=</span> store_as(Activity, instance<span class="op">=</span><span class="st">"red_team"</span>)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>blue_team_activity <span class="op">=</span> store_as(Activity, instance<span class="op">=</span><span class="st">"blue_team"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="parameters" class="level2">
 <h2 class="anchored" data-anchor-id="parameters">Parameters</h2>
 <p>The <code>web_surfer</code> agent used an example above doesn’t take any parameters, however, like tools, agents can accept arbitrary parameters.</p>
-<p>For example, here is a <code>critic</code> agent that asks a model to contribute to a conversation by critiquing its previous output. There are two types of parameters demonstrated: parameters that configure the entire agent (in this case the critic <code>model</code>) and parameters passed by the parent agent (in this case the <code>count</code> of critiques to provide):</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, AgentState, agent</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> ChatMessageUser, Model</span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> critic(model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Agent:</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    </span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState, count: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>) <span class="op">-&gt;</span> AgentState:</span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Provide critiques of previous messages in a conversation.</span></span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a><span class="co">        </span></span>
-<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
-<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="co">           state: Agent state</span></span>
-<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a><span class="co">           count: Number of critiques to provide (defaults to 3)</span></span>
-<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
-<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>        state.messages.append(</span>
-<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>            ChatMessageUser(content<span class="op">=</span><span class="ss">f"Please provide </span><span class="sc">{</span>count<span class="sc">}</span><span class="ss"> critiques of the conversation."</span>)</span>
-<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>        )</span>
-<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>        state.output <span class="op">=</span> <span class="cf">await</span> get_model(model).generate(state.messages)</span>
-<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>        state.messages.append(state.output.message)</span>
-<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
-<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For example, here is a <code>critic</code> agent that asks a model to contribute to a conversation by critiquing its previous output. There are two types of parameters demonstrated:</p>
+<ol type="1">
+<li><p>Parameters that configure the agent globally (here, the critic <code>model</code>).</p></li>
+<li><p>Parameters passed by the supervisor agent (in this case the <code>count</code> of critiques to provide):</p></li>
+</ol>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, AgentState, agent</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> ChatMessageSystem, Model</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> critic(model: <span class="bu">str</span> <span class="op">|</span> Model <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> Agent:</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    </span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState, count: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>) <span class="op">-&gt;</span> AgentState:</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Provide critiques of previous messages in a conversation.</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a><span class="co">        </span></span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a><span class="co">        Args:</span></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a><span class="co">           state: Agent state</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a><span class="co">           count: Number of critiques to provide (defaults to 3)</span></span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>        state.messages.append(</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>            ChatMessageSystem(</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>                content<span class="op">=</span><span class="ss">f"Provide </span><span class="sc">{</span>count<span class="sc">}</span><span class="ss"> critiques of the conversation."</span></span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>        state.output <span class="op">=</span> <span class="cf">await</span> get_model(model).generate(state.messages)</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a>        state.messages.append(state.output.message)</span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb21-23"><a href="#cb21-23" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You might use this in a multi-agent system as follows:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>supervisor <span class="op">=</span> react(</span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[</span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>        addition(), </span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>        handoff(web_surfer()), </span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        handoff(critic(model<span class="op">=</span><span class="st">"openai/gpt-4o-mini"</span>))</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>supervisor <span class="op">=</span> react(</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>        addition(), </span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>        handoff(web_surfer()), </span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>        handoff(critic(model<span class="op">=</span><span class="st">"openai/gpt-4o-mini"</span>))</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>When the supervisor agent decides to hand off to the <code>critic()</code> it will decide how many critiques to request and pass that in the <code>count</code> parameter (or alternatively just accept the default <code>count</code> of 3).</p>
 <section id="currying" class="level3">
 <h3 class="anchored" data-anchor-id="currying">Currying</h3>
 <p>Note that when you use an agent as a solver there isn’t a mechanism for specifying parameters dynamically during the solver chain. In this case the default value for <code>count</code> will be used:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>solver <span class="op">=</span> [</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    system_message(...),</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    generate(),</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    critic(),</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    generate()</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>solver <span class="op">=</span> [</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    system_message(...),</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    generate(),</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    critic(),</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    generate()</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>If you need to pass parameters explicitly to the agent <code>execute</code> function, you can curry them using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span> function:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>solver <span class="op">=</span> [</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    system_message(...),</span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    generate(),</span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    as_solver(critic(), count<span class="op">=</span><span class="dv">5</span>),</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>    generate()</span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-<section id="agent-state" class="level2">
-<h2 class="anchored" data-anchor-id="agent-state">Agent State</h2>
-<p>In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store">Store</a></span>, which provides a sample-scoped scratchpad for arbitrary values.</p>
-<p>When developing agents, you should use the <a href="./agents-api.html#store-typing">typed-interface</a> to the store, which provides both type-checking and namespacing for store access.</p>
-<p>For example, here we define a typed accessor to the store by deriving from the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> class (which in turn derives from Pydantic <code>BaseModel</code>):</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> Field</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> StoreModel</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Activity(StoreModel):</span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    active: <span class="bu">bool</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="va">False</span>)</span>
-<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    tries: <span class="bu">int</span> <span class="op">=</span> Field(default<span class="op">=</span><span class="dv">0</span>)</span>
-<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    actions: <span class="bu">list</span>[<span class="bu">str</span>] <span class="op">=</span> Field(default_factory<span class="op">=</span><span class="bu">list</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>We can then get access to a sample scoped instance of the store for use in agents using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> function:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> store_as</span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>activity <span class="op">=</span> store_as(Activity)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>It’s possible that you’ll want to have multiple instances of a given store type within a sample (e.g.&nbsp;each participant in a game might need their own store). Use the <code>instance</code> parameter of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#store_as">store_as()</a></span> to access multiple instances of a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#storemodel">StoreModel</a></span> within a sample:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>red_team_activity <span class="op">=</span> store_as(Activity, instance<span class="op">=</span><span class="st">"red_team"</span>)</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>blue_team_activity <span class="op">=</span> store_as(Activity, instance<span class="op">=</span><span class="st">"blue_team"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>solver <span class="op">=</span> [</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    system_message(...),</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    generate(),</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>    as_solver(critic(), count<span class="op">=</span><span class="dv">5</span>),</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>    generate()</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->

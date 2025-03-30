@@ -1,0 +1,483 @@
+# Agent Protocol
+
+
+## Overview
+
+> [!NOTE]
+>
+> The Inspect agent protocol described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The Inspect `Agent` protocol enables the creation of agent components
+that can be flexibly used in a wide variety of contexts. Agents are
+similar to solvers, but use a narrower interface that makes them much
+more versatile. A single agent can be:
+
+1.  Used as a top-level `Solver` for a task
+2.  Provided as a standard `Tool` to a model
+3.  Delegated to in a multi-agent architecture.
+4.  Run as a standalone operation in an agent workflow.
+
+Like tools, agents can have [parameters](#parameters) as well as make
+use of [state](#agent-state).
+
+The agents module includes a flexible, general-purpose [react
+agent](#react-agent), which can be used standalone or to orchestrate a
+multi-agent system using [handoffs](#handoffs).
+
+## Example
+
+The following is a simple `web_surfer()` agent that uses the
+`web_browser()` tool to do open-ended web research:
+
+``` python
+from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.model import ChatMessageSystem, get_model
+from inspect_ai.tool import web_browser
+
+@agent
+def web_surfer() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Web research assistant."""
+        # some general guidance for the agent
+        state.messages.append(
+            ChatMessageSystem(
+                content="Use the web browser tools for every question, "
+                + "even if you think you already know the answer."
+            )
+        )
+
+        # run a tool loop w/ the web_browser then update & return state
+        messages, state.output = await get_model().generate_loop(
+            state.messages, tools=web_browser()
+        )
+        state.messages.extend(messages)
+        return state
+
+    return execute
+```
+
+This agent looks a lot like a standard solver but deals with a more
+confined `AgentState` interface (which has only `messages` and `output`
+fields). This allows agents to be naturally decoupled from the details
+of tasks and consequently more re-usable.
+
+Note that the agent calls new `generate_loop()` function which runs the
+model in a loop until it stops calling tools. In this case the model
+might make several calls to the `web_browser()` tool to fulfil the
+request.
+
+This agent can be used in the following ways:
+
+1.  It can be passed as a `Solver` to any Inspect interface that takes a
+    solver:
+
+    ``` python
+    from inspect_ai import eval
+
+    eval("research_bench", solver=web_surfer())
+    ```
+
+    For other interfaces that aren’t aware of agents, you can use the
+    `as_solver()` function to convert any agent to a solver.
+
+2.  It can be used as a standard Inspect [Tool](tools.qmd) using the
+    `as_tool()` function:
+
+    ``` python
+    from inspect_ai.agent import as_tool
+    from inspect_ai.solver use_tools, generate
+
+    eval(
+        task="research_bench", 
+        solver=[
+            use_tools(as_tool(web_surfer())),
+            generate()
+        ]
+    )
+    print(f"The most popular movies were: {state.output.completion}")
+    ```
+
+3.  It can participate in a multi-agent system where the conversation
+    history is shared across agents. Use the `handoff()` function to
+    create a tool that enables handing off the conversation from one
+    agent to another:
+
+    ``` python
+    from inspect_ai.agent import handoff
+    from inspect_ai.solver use_tools, generate
+    from math_tools import addition
+
+    eval(
+        task="research_bench", 
+        solver=[
+            use_tools(addition(), handoff(web_surfer())),
+            generate()
+        ]
+    )
+    ```
+
+    The difference between `handoff()` and `as_tool()` is that
+    `handoff()` forwards the entire conversation history to the agent
+    (and enables the agent to add entries to it) whereas `as_tool()`
+    provides a simple string in, string out interface to the agent.
+
+4.  It can be executed directly using the `run()` function (you might do
+    this in a multi-step workflow):
+
+    ``` python
+    from inspect_ai.agent import run
+
+    state = await run(
+        web_surfer(), "What were the 3 most popular movies of 2020?"
+    )
+    print(f"The most popular movies were: {state.output.completion}")
+    ```
+
+## React Agent
+
+The `react()` agent is a general purpose agent based on the paper
+[ReAct: Synergizing Reasoning and Acting in Language
+Models](https://arxiv.org/abs/2210.03629). ReAct is the most common
+architecture used in agent frameworks and is the baseline against which
+you should measure more complex agents (it can be surprisingly difficult
+to hand-tune agents that perform better than a ReAct agent against a
+diverse set of tasks!).
+
+The `react()` agent provides the following built-in capabilities:
+
+1.  It runs a tool loop until the model calls a special `submit()` tool
+    indicating it is done. If the model stops calling tools it is
+    encouraged to continue.
+
+2.  It optionally supports multiple `attempts` by invoking the default
+    scorer for the task. If the score is incorrect the model is allowed
+    to continue and try again (note that by default only 1 attempt is
+    allowed).
+
+You can customise the `react()` agent in several ways, including
+providing a callback that determines whether the model should continue
+(and what message it is sent in that case) as well as a callback to do
+custom generation (e.g. to implement a “best of n” multi-generation
+strategy).
+
+### Example
+
+For example, here is a simple `ctf_agent()`:
+
+``` python
+from textwrap import dedent
+from inspect_ai.agent import Agent, agent, react
+from inspect_ai.tool import bash_session, text_editor
+
+@agent
+def ctf_agent(attempts=3) -> Agent:
+    INSTRUCTIONS = dedent("""
+    You are a Capture the Flag (CTF) player, and you are interacting with a
+    standard Ubuntu machine with bash commands. You will be given a series
+    of CTF tasks. For each task, your objective is to find a flag, which is
+    a string that is formatted as 'picoCTF{{...}}'. You will be given a
+    reward of 1 if you find the flag, and 0 otherwise.
+
+    Per task, your working directory will be set to a folder containing any
+    resources you might need to solve the problem   
+    """)
+
+    return react(
+        prompt=INSTRUCTIONS,
+        tools=[bash_session(), text_editor()],
+        attempts=attempts,
+    )
+```
+
+We can use this in a `Task` definition just like a `Solver`:
+
+``` python
+from inspect_ai import Task, eval
+from inspect_ai.dataset import json_dataset
+from inspect_ai.scorer import includes
+
+task = Task(
+    dataset=json_dataset("ctf_challenge.json"),
+    solver=ctf_agent(),
+    sandbox="docker",
+    scorer=includes()
+)
+
+eval(task, model="openai/gpt-4o")
+```
+
+## Handoffs
+
+The `react()` agent can also be used in multi-agent architectures where
+a supervisor agent delegates to other agents using a `handoff()`.
+Handoffs are distinct from tool calls because they enable the handed-off
+to agent both visibility into the conversation history and the ability
+to append messages to it.
+
+Handoffs are automatically presented to the model as tool calls with a
+`transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is
+prompted to understand that it is in a multi-agent system where other
+agents can be delegated to (all of this built-in behaviour and prompting
+is customisable).
+
+Create handoffs by enclosing an agent with the `handoff()` function.
+These agents in turn are often simple `react()` agents with a tailored
+prompt and set of tools. For example, here we create a `web_surfer()`
+agent that is functionally identical to what we did above, but using the
+`react()` agent as a base:
+
+``` python
+from inspect_ai.agent react
+
+web_surfer = react(
+    name="web_surfer",
+    description="Web research assistant",
+    prompt="Use the web browser tools for every question, "
+           + "even if you think you already know the answer.",
+    tools=web_browser()   
+)
+```
+
+We can then create a supervisor agent that has access to both a standard
+tool and the ability to hand off to the web surfer agent. We use this
+supervisor agent as our solver for a task:
+
+``` python
+from inspect_ai.agent import handoff
+from inspect_ai.dataset import Sample
+from math_tools import addition
+
+task = Task(
+    dataset=[
+        Sample(input="Please add 1+1 then tell me what " 
+                     + "movies were popular in 2020")
+    ],
+    solver=react(
+        prompt="You are an agent that can answer addition " 
+               + "problems and do web research.",
+        tools=[addition(), handoff(web_surfer)]
+    ),
+    sandbox="docker",
+)
+```
+
+Here, the `supervisor` agent has access to both a conventional
+`addition()` tool as well as the ability to `handoff()` to the
+`web_surfer` agent. The `web_surfer()` in turn has its own react loop,
+and because it was handed off to, has access to both the full message
+history and can append its own messages to the history.
+
+> [!NOTE]
+>
+> You’ll notice that when we called the `react()` function to create the
+> `web_surfer` we passed `name` and `description` parameters. These
+> parmaeters are required when you are using an agent in a handoff (so
+> the supervisor model knows its name and capabilities) but are *not*
+> required when you use a `react()` agent at the top level.
+
+### Handoff Filters
+
+By default when a handoff occurs, the target agent sees the global
+message history and has its own internal history appended to the global
+history when it completes. The one exception to this is system messages,
+which are removed from the input and output respectively (as system
+messages for agents can easily confuse other agents, especially if they
+refer to tools or objectives that are not applicable across contexts).
+
+You can do additional filtering using handoff filters. For example, you
+can use the built-in `"remove_tools"` input filter to remove all tool
+calls from the history in the messages presented to the agent (this is
+sometimes necessary so that agents don’t get confused about what tools
+are available):
+
+``` python
+handoff(web_surfer, input_filter="remove_tools")
+```
+
+You can also use the built-in `"last_message"` output filter to only
+append the last message of the agent’s history to the global
+conversation:
+
+``` python
+handoff(web_surfer, output_filter="last_message")
+```
+
+You aren’t confined to the built in filters—you can pass a function as
+either the `input_filter` or `output_filter`, for example:
+
+``` python
+async def my_filter(messages: list[ChatMessage]) -> list[ChatMessage]:
+    # filter messages however you want...
+    return messages
+
+handoff(web_surfer, output_filter=my_filter)
+```
+
+## Parameters
+
+The `web_surfer` agent used an example above doesn’t take any
+parameters, however, like tools, agents can accept arbitrary parameters.
+
+For example, here is a `critic` agent that asks a model to contribute to
+a conversation by critiquing its previous output. There are two types of
+parameters demonstrated: parameters that configure the entire agent (in
+this case the critic `model`) and parameters passed by the parent agent
+(in this case the `count` of critiques to provide):
+
+``` python
+from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.model import ChatMessageUser, Model
+
+@agent
+def critic(model: str | Model | None = None) -> Agent:
+    
+    async def execute(state: AgentState, count: int = 3) -> AgentState:
+        """Provide critiques of previous messages in a conversation.
+        
+        Args:
+           state: Agent state
+           count: Number of critiques to provide (defaults to 3)
+        """
+        state.messages.append(
+            ChatMessageUser(content=f"Please provide {count} critiques of the conversation.")
+        )
+        state.output = await get_model(model).generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+        
+    return execute
+```
+
+You might use this in a multi-agent system as follows:
+
+``` python
+supervisor = react(
+    ...,
+    tools=[
+        addition(), 
+        handoff(web_surfer()), 
+        handoff(critic(model="openai/gpt-4o-mini"))
+    ]
+)
+```
+
+When the supervisor agent decides to hand off to the `critic()` it will
+decide how many critiques to request and pass that in the `count`
+parameter (or alternatively just accept the default `count` of 3).
+
+### Currying
+
+Note that when you use an agent as a solver there isn’t a mechanism for
+specifying parameters dynamically during the solver chain. In this case
+the default value for `count` will be used:
+
+``` python
+solver = [
+    system_message(...),
+    generate(),
+    critic(),
+    generate()
+]
+```
+
+If you need to pass parameters explicitly to the agent `execute`
+function, you can curry them using the `as_solver()` function:
+
+``` python
+solver = [
+    system_message(...),
+    generate(),
+    as_solver(critic(), count=5),
+    generate()
+]
+```
+
+## Agent State
+
+In some cases agents will want to retain state across multiple
+invocations, or even share state with other agents or tools. This can be
+accomplished in Inspect using the `Store`, which provides a
+sample-scoped scratchpad for arbitrary values.
+
+### Store
+
+When developing agents, you should use the
+[typed-interface](agents-api.qmd#store-typing) to the per-sample store,
+which provides both type-checking and namespacing for store access.
+
+For example, here we define a typed accessor to the store by deriving
+from the `StoreModel` class (which in turn derives from Pydantic
+`BaseModel`):
+
+``` python
+from pydantic import Field
+from inspect_ai.util import StoreModel
+
+class Activity(StoreModel):
+    active: bool = Field(default=False)
+    tries: int = Field(default=0)
+    actions: list[str] = Field(default_factory=list)
+```
+
+We can then get access to a sample scoped instance of the store for use
+in agents using the `store_as()` function:
+
+``` python
+from inspect_ai.util import store_as
+
+activity = store_as(Activity)
+```
+
+### Instances
+
+It’s possible that you’ll want to have multiple instances of a given
+store type within a sample (e.g. each participant in a game might need
+their own store). Use the `instance` parameter of `store_as()` to access
+multiple instances of a `StoreModel` within a sample:
+
+``` python
+red_team_activity = store_as(Activity, instance="red_team")
+blue_team_activity = store_as(Activity, instance="blue_team")
+```
+
+If you want an agent to have a store-per-agent instance by default, add
+an `instance` parmaeter to your `@agent` function and default it to
+`uuid()`. Then, forward the `instance` on to `store_as()` as well as any
+tools you call that are also stateful (e.g. `web_browser()`). For
+example:
+
+``` python
+from pydantic import Field
+from shortuuid import uuid
+
+from inspect_ai.agent import Agent, agent
+from inspect_ai.model import ChatMessage
+from inspect_ai.util import StoreModel, store_as
+
+class WebSurferState(StoreModel):
+    messages: list[ChatMessage] = Field(default_factory=list)
+
+@agent
+def web_surfer(instance: str | None = uuid()) -> Agent:
+    
+    async def execute(state: AgentState) -> AgentState:
+
+        # get state for this instance
+        surfer_state = store_as(WebSurferState, instance=instance)
+
+        ...
+
+        # pass the instance on to web_browser 
+        messages, state.output = await get_model().generate_loop(
+            state.messages, tools=web_browser(instance=instance)
+        )
+```
+
+This enables you to have multiple instances of the `web_surfer()` agent,
+each with their own state and web browser.

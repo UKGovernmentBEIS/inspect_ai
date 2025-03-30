@@ -195,7 +195,7 @@ window.Quarto = {
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
         
-    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(53)</span></div><div class="category" data-category="Agent">Agent <span class="quarto-category-count">(9)</span></div><div class="category" data-category="Assistants">Assistants <span class="quarto-category-count">(4)</span></div><div class="category" data-category="Coding">Coding <span class="quarto-category-count">(8)</span></div><div class="category" data-category="Cybersecurity">Cybersecurity <span class="quarto-category-count">(7)</span></div><div class="category" data-category="Knowledge">Knowledge <span class="quarto-category-count">(11)</span></div><div class="category" data-category="Mathematics">Mathematics <span class="quarto-category-count">(4)</span></div><div class="category" data-category="Multimodal">Multimodal <span class="quarto-category-count">(4)</span></div><div class="category" data-category="Reasoning">Reasoning <span class="quarto-category-count">(17)</span></div><div class="category" data-category="Safeguards">Safeguards <span class="quarto-category-count">(2)</span></div></div></div>
+    <h5 class="quarto-listing-category-title">Categories</h5><div class="quarto-listing-category category-default"><div class="category" data-category="">All <span class="quarto-category-count">(63)</span></div><div class="category" data-category="Agent">Agent <span class="quarto-category-count">(11)</span></div><div class="category" data-category="Assistants">Assistants <span class="quarto-category-count">(5)</span></div><div class="category" data-category="Coding">Coding <span class="quarto-category-count">(10)</span></div><div class="category" data-category="Cybersecurity">Cybersecurity <span class="quarto-category-count">(8)</span></div><div class="category" data-category="Knowledge">Knowledge <span class="quarto-category-count">(13)</span></div><div class="category" data-category="Mathematics">Mathematics <span class="quarto-category-count">(5)</span></div><div class="category" data-category="Multimodal">Multimodal <span class="quarto-category-count">(5)</span></div><div class="category" data-category="Reasoning">Reasoning <span class="quarto-category-count">(17)</span></div><div class="category" data-category="Safeguards">Safeguards <span class="quarto-category-count">(4)</span></div></div></div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
@@ -240,10 +240,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/humaneval">
-            HumanEval: Evaluating Large Language Models Trained on Code
+            HumanEval: Python Function Generation from Instructions
           </a>
         </div>
-        <div class="listing-description text-secondary">Measures the functional correctness of synthesizing programs from docstrings.
+        <div class="listing-description text-secondary">Assesses how accurately language models can write correct Python functions based solely on natural-language instructions provided as docstrings.
 </div>
       </div>
     </div>
@@ -261,10 +261,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mbpp">
-            MBPP: Mostly Basic Python Problems
+            MBPP: Basic Python Coding Challenges
           </a>
         </div>
-        <div class="listing-description text-secondary">Measures the ability to synthesize short Python programs from natural language descriptions.
+        <div class="listing-description text-secondary">Measures the ability of language models to generate short Python programs from simple natural-language descriptions, testing basic coding proficiency.
 </div>
       </div>
     </div>
@@ -285,7 +285,7 @@ window.Quarto = {
             SWE-bench Verified: Resolving Real-World GitHub Issues
           </a>
         </div>
-        <div class="listing-description text-secondary">Software engineering problems drawn from real GitHub issues and corresponding pull requests across 12 popular Python repositories.
+        <div class="listing-description text-secondary">Evaluates AI's ability to resolve genuine software engineering issues sourced from 12 popular Python GitHub repositories, reflecting realistic coding and debugging scenarios.
 </div>
       </div>
     </div>
@@ -295,18 +295,18 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="3" data-categories="Coding">
+<li class="example" data-index="3" data-categories="Coding,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-code"></i>
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/scicode">
-            SciCode: A Research Coding Benchmark Curated by Scientists
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mle_bench">
+            MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering
           </a>
         </div>
-        <div class="listing-description text-secondary">SciCode tests the ability of language models to generate code to solve scientific research problems. It assesses models on 65 problems from mathematics, physics, chemistry, biology, and materials science.
+        <div class="listing-description text-secondary">Machine learning tasks drawn from 75 Kaggle competitions.
 </div>
       </div>
     </div>
@@ -364,11 +364,11 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/apps">
-            APPS: Automated Programming Progress Standard
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/class_eval">
+            ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level Code Generation
           </a>
         </div>
-        <div class="listing-description text-secondary">APPS is a dataset for evaluating model performance on Python programming tasks across three difficulty levels consisting of 1,000 at introductory, 3,000 at interview, and 1,000 at competition level. The dataset consists of an additional 5,000 training samples, for a total of 10,000 total samples. We evaluate on questions from the test split, which consists of programming problems commonly found in coding interviews.
+        <div class="listing-description text-secondary">Evaluates LLMs on class-level code generation with 100 tasks constructed over 500 person-hours. The study shows that LLMs perform worse on class-level tasks compared to method-level tasks.
 </div>
       </div>
     </div>
@@ -385,12 +385,53 @@ window.Quarto = {
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/class_eval">
-            ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level Code Generation
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/scicode">
+            SciCode: A Research Coding Benchmark Curated by Scientists
           </a>
         </div>
-        <div class="listing-description text-secondary">Evaluates LLMs on class-level code generation with 100 tasks constructed over 500 person-hours. The study shows that LLMs perform worse on class-level tasks compared to method-level tasks.
+        <div class="listing-description text-secondary">SciCode tests the ability of language models to generate code to solve scientific research problems. It assesses models on 65 problems from mathematics, physics, chemistry, biology, and materials science.
 </div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="8" data-categories="Coding">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/apps">
+            APPS: Automated Programming Progress Standard
+          </a>
+        </div>
+        <div class="listing-description text-secondary">APPS is a dataset for evaluating model performance on Python programming tasks across three difficulty levels consisting of 1,000 at introductory, 3,000 at interview, and 1,000 at competition level. The dataset consists of an additional 5,000 training samples, for a total of 10,000 total samples. We evaluate on questions from the test split, which consists of programming problems commonly found in coding interviews.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="9" data-categories="Coding,Agent">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-code"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/core_bench">
+            CORE-Bench
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluate how well an LLM Agent is at computationally reproducing the results of a set of scientific papers.</div>
       </div>
     </div>
   
@@ -402,7 +443,7 @@ window.Quarto = {
 <li class="group"><h2 href="#assistants" class="anchored">Assistants</h2></li>
     
   
-<li class="example" data-index="8" data-categories="Assistants,Agent">
+<li class="example" data-index="10" data-categories="Assistants,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-info-circle"></i>
@@ -423,7 +464,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="9" data-categories="Assistants,Agent">
+<li class="example" data-index="11" data-categories="Assistants,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-info-circle"></i>
@@ -431,10 +472,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/osworld">
-            OSWorld
+            OSWorld: Multimodal Computer Interaction Tasks
           </a>
         </div>
-        <div class="listing-description text-secondary">Benchmark for multimodal agents for open-ended tasks in real computer environments.
+        <div class="listing-description text-secondary">Tests AI agents' ability to perform realistic, open-ended tasks within simulated computer environments, requiring complex interaction across multiple input modalities.
 </div>
       </div>
     </div>
@@ -444,7 +485,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="10" data-categories="Assistants,Agent">
+<li class="example" data-index="12" data-categories="Assistants,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-info-circle"></i>
@@ -465,7 +506,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="11" data-categories="Assistants">
+<li class="example" data-index="13" data-categories="Assistants">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-info-circle"></i>
@@ -484,12 +525,33 @@ window.Quarto = {
 </li>
 
   
+    
+  
+<li class="example" data-index="14" data-categories="Assistants">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-info-circle"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mind2web">
+            Mind2Web: Towards a Generalist Agent for the Web
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A dataset for developing and evaluating generalist agents for the web that can follow language instructions to complete complex tasks on any website.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#cybersecurity" class="anchored">Cybersecurity</h2></li>
     
   
-<li class="example" data-index="12" data-categories="Cybersecurity,Agent">
+<li class="example" data-index="15" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -497,10 +559,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cybench">
-            Cybench: A Framework for Evaluating Cybersecurity Capabilities and Risks of Language Models
+            Cybench: Capture-The-Flag Cybersecurity Challenges
           </a>
         </div>
-        <div class="listing-description text-secondary">40 professional-level Capture the Flag (CTF) tasks from 4 distinct CTF competitions, chosen to be recent, meaningful, and spanning a wide range of difficulties.
+        <div class="listing-description text-secondary">Tests language models on cybersecurity skills using 40 practical, professional-level challenges taken from cybersecurity competitions, designed to cover various difficulty levels and security concepts.
 </div>
       </div>
     </div>
@@ -510,7 +572,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="13" data-categories="Cybersecurity,Agent">
+<li class="example" data-index="16" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -531,7 +593,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="14" data-categories="Cybersecurity">
+<li class="example" data-index="17" data-categories="Cybersecurity">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -539,10 +601,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cyberseceval_2">
-            CyberSecEval_2: A Wide-Ranging Cybersecurity Evaluation Suite for Large Language Models
+            CyberSecEval_2: Cybersecurity Risk and Vulnerability Evaluation
           </a>
         </div>
-        <div class="listing-description text-secondary">Evaluates Large Language Models for risky capabilities in cybersecurity.
+        <div class="listing-description text-secondary">Assesses language models for cybersecurity risks, specifically testing their potential to misuse programming interpreters, vulnerability to malicious prompt injections, and capability to exploit known software vulnerabilities.
 </div>
       </div>
     </div>
@@ -552,7 +614,28 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="15" data-categories="Cybersecurity,Agent">
+<li class="example" data-index="18" data-categories="Cybersecurity">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-laptop"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/cyberseceval_3">
+            CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities in Large Language Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Evaluates Large Language Models for cybersecurity risk to third parties, application developers and end users.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="19" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -560,10 +643,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gdm_capabilities/intercode_ctf">
-            InterCode: Capture the Flag
+            InterCode: Security and Coding Capture-the-Flag Challenges
           </a>
         </div>
-        <div class="listing-description text-secondary">Measure expertise in coding, cryptography (i.e. binary exploitation, forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates tool use and sandboxing untrusted model code.
+        <div class="listing-description text-secondary">Tests AI's ability in coding, cryptography, reverse engineering, and vulnerability identification through practical capture-the-flag (CTF) cybersecurity scenarios.
 </div>
       </div>
     </div>
@@ -573,7 +656,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="16" data-categories="Cybersecurity,Agent">
+<li class="example" data-index="20" data-categories="Cybersecurity,Agent">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -594,7 +677,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="17" data-categories="Cybersecurity">
+<li class="example" data-index="21" data-categories="Cybersecurity">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -615,7 +698,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="18" data-categories="Cybersecurity">
+<li class="example" data-index="22" data-categories="Cybersecurity">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-laptop"></i>
@@ -626,7 +709,7 @@ window.Quarto = {
             SecQA: A Concise Question-Answering Dataset for Evaluating Large Language Models in Computer Security
           </a>
         </div>
-        <div class="listing-description text-secondary">"Security Question Answering" dataset to assess LLMs' understanding and application of security principles. SecQA has "v1" and "v2" datasets of multiple-choice questions that aim to provide two levels of cybersecurity evaluation criteria.  The questions were generated by GPT-4 based on the "Computer Systems Security: Planning for Success" textbook and vetted by humans.
+        <div class="listing-description text-secondary">"Security Question Answering" dataset to assess LLMs' understanding and application of security principles. SecQA has "v1" and "v2" datasets of multiple-choice questions that aim to provide two levels of cybersecurity evaluation criteria. The questions were generated by GPT-4 based on the "Computer Systems Security: Planning for Success" textbook and vetted by humans.
 </div>
       </div>
     </div>
@@ -639,18 +722,18 @@ window.Quarto = {
 <li class="group"><h2 href="#safeguards" class="anchored">Safeguards</h2></li>
     
   
-<li class="example" data-index="19" data-categories="Safeguards,Agent">
+<li class="example" data-index="23" data-categories="Safeguards">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-shield-lock"></i>
       </div>
       <div class="example-info">
         <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agentharm">
-            AgentHarm: A Benchmark for Measuring Harmfulness of LLM Agents
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/lab_bench">
+            LAB-Bench: Measuring Capabilities of Language Models for Biology Research
           </a>
         </div>
-        <div class="listing-description text-secondary">Diverse set of 110 explicitly malicious agent tasks (440 with augmentations), covering 11 harm categories including fraud, cybercrime, and harassment.
+        <div class="listing-description text-secondary">Tests LLMs and LLM-augmented agents abilities to answer questions on scientific research workflows in domains like chemistry, biology, materials science, as well as more general science tasks
 </div>
       </div>
     </div>
@@ -660,7 +743,28 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="20" data-categories="Safeguards">
+<li class="example" data-index="24" data-categories="Safeguards,Agent">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/agentharm">
+            AgentHarm: Harmfulness Potential in AI Agents
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Assesses whether AI agents might engage in harmful activities by testing their responses to malicious prompts in areas like cybercrime, harassment, and fraud, aiming to ensure safe behavior.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="25" data-categories="Safeguards">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-shield-lock"></i>
@@ -679,12 +783,33 @@ window.Quarto = {
 </li>
 
   
+    
+  
+<li class="example" data-index="26" data-categories="Safeguards">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-shield-lock"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/strong_reject">
+            StrongREJECT: Measuring LLM susceptibility to jailbreak attacks
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A benchmark that evaluates the susceptibility of LLMs to various jailbreak attacks.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#mathematics" class="anchored">Mathematics</h2></li>
     
   
-<li class="example" data-index="21" data-categories="Mathematics">
+<li class="example" data-index="27" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -705,7 +830,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="22" data-categories="Mathematics">
+<li class="example" data-index="28" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -713,10 +838,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gsm8k">
-            GSM8K: Training Verifiers to Solve Math Word Problems
+            GSM8K: Grade School Math Word Problems
           </a>
         </div>
-        <div class="listing-description text-secondary">Dataset of 8.5K high quality linguistically diverse grade school math word problems.
+        <div class="listing-description text-secondary">Measures how effectively language models solve realistic, linguistically rich math word problems suitable for grade-school-level mathematics.
 </div>
       </div>
     </div>
@@ -726,7 +851,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="23" data-categories="Mathematics,Multimodal">
+<li class="example" data-index="29" data-categories="Mathematics,Multimodal">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -734,10 +859,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mathvista">
-            MathVista: Evaluating Mathematical Reasoning in Visual Contexts
+            MathVista: Visual Math Problem-Solving
           </a>
         </div>
-        <div class="listing-description text-secondary">Diverse mathematical and visual tasks that require fine-grained, deep visual understanding and compositional reasoning. Demonstrates multimodal inputs and custom scorers.
+        <div class="listing-description text-secondary">Tests AI models on math problems that involve interpreting visual elements like diagrams and charts, requiring detailed visual comprehension and logical reasoning.
 </div>
       </div>
     </div>
@@ -747,7 +872,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="24" data-categories="Mathematics">
+<li class="example" data-index="30" data-categories="Mathematics">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-calculator"></i>
@@ -766,12 +891,33 @@ window.Quarto = {
 </li>
 
   
+    
+  
+<li class="example" data-index="31" data-categories="Mathematics">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-calculator"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/aime2024">
+            AIME 2024: Problems from the American Invitational Mathematics Examination
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A benchmark for evaluating AI's ability to solve challenging mathematics problems from AIME - a prestigious high school mathematics competition.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
   
     
 <li class="group"><h2 href="#reasoning" class="anchored">Reasoning</h2></li>
     
   
-<li class="example" data-index="25" data-categories="Reasoning,Multimodal">
+<li class="example" data-index="32" data-categories="Reasoning,Multimodal">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -792,7 +938,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="26" data-categories="Reasoning">
+<li class="example" data-index="33" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -812,7 +958,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="27" data-categories="Reasoning">
+<li class="example" data-index="34" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -820,10 +966,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/hellaswag">
-            HellaSwag: Can a Machine Really Finish Your Sentence?
+            HellaSwag: Commonsense Event Continuation
           </a>
         </div>
-        <div class="listing-description text-secondary">Evaluting commonsense natural language inference: given an event description such as "A woman sits at a piano," a machine must select the most likely followup.
+        <div class="listing-description text-secondary">Tests models' commonsense reasoning abilities by asking them to select the most likely next step or continuation for a given everyday situation.
 </div>
       </div>
     </div>
@@ -833,7 +979,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="28" data-categories="Reasoning">
+<li class="example" data-index="35" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -841,10 +987,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/piqa">
-            PIQA: Reasoning about Physical Commonsense in Natural Language
+            PIQA: Physical Commonsense Reasoning Test
           </a>
         </div>
-        <div class="listing-description text-secondary">Measure physical commonsense reasoning (e.g. "To apply eyeshadow without a brush, should I use a cotton swab or a toothpick?")
+        <div class="listing-description text-secondary">Measures the model's ability to apply practical, everyday commonsense reasoning about physical objects and scenarios through simple decision-making questions.
 </div>
       </div>
     </div>
@@ -854,7 +1000,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="29" data-categories="Reasoning">
+<li class="example" data-index="36" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -875,7 +1021,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="30" data-categories="Reasoning">
+<li class="example" data-index="37" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -883,10 +1029,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/bbh">
-            BBH: Challenging BIG-Bench Tasks and Whether Chain-of-Thought Can Solve Them
+            BBH: Challenging BIG-Bench Tasks
           </a>
         </div>
-        <div class="listing-description text-secondary">Suite of 23 challenging BIG-Bench tasks for which prior language model evaluations did not outperform the average human-rater.
+        <div class="listing-description text-secondary">Tests AI models on a suite of 23 challenging BIG-Bench tasks that previously proved difficult even for advanced language models to solve.
 </div>
       </div>
     </div>
@@ -896,7 +1042,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="31" data-categories="Reasoning">
+<li class="example" data-index="38" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -917,7 +1063,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="32" data-categories="Reasoning,Multimodal">
+<li class="example" data-index="39" data-categories="Reasoning,Multimodal">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -938,7 +1084,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="33" data-categories="Reasoning">
+<li class="example" data-index="40" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -959,7 +1105,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="34" data-categories="Reasoning">
+<li class="example" data-index="41" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -980,7 +1126,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="35" data-categories="Reasoning">
+<li class="example" data-index="42" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1001,7 +1147,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="36" data-categories="Reasoning,Multimodal">
+<li class="example" data-index="43" data-categories="Reasoning,Multimodal">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1009,10 +1155,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmmu">
-            MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning Benchmark
+            MMMU: Multimodal College-Level Understanding and Reasoning
           </a>
         </div>
-        <div class="listing-description text-secondary">Multimodal questions from college exams, quizzes, and textbooks, covering six core disciplinestasks, demanding college-level subject knowledge and deliberate reasoning. Demonstrates multimodel inputs.
+        <div class="listing-description text-secondary">Assesses multimodal AI models on challenging college-level questions covering multiple academic subjects, requiring detailed visual interpretation, in-depth reasoning, and both multiple-choice and open-ended answering abilities.
 </div>
       </div>
     </div>
@@ -1022,7 +1168,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="37" data-categories="Reasoning">
+<li class="example" data-index="44" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1043,7 +1189,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="38" data-categories="Reasoning">
+<li class="example" data-index="45" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1051,10 +1197,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/ifeval">
-            IFEval: Instruction-Following Evaluation for Large Language Models
+            IFEval: Instruction-Following Evaluation
           </a>
         </div>
-        <div class="listing-description text-secondary">Evaluates the ability to follow a set of "verifiable instructions" such as "write in more than 400 words" and "mention the keyword of AI at least 3 times. Demonstrates custom scoring.
+        <div class="listing-description text-secondary">Evaluates how well language models can strictly follow detailed instructions, such as writing responses with specific word counts or including required keywords.
 </div>
       </div>
     </div>
@@ -1064,7 +1210,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="39" data-categories="Reasoning">
+<li class="example" data-index="46" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1085,7 +1231,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="40" data-categories="Reasoning">
+<li class="example" data-index="47" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1106,7 +1252,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="41" data-categories="Reasoning">
+<li class="example" data-index="48" data-categories="Reasoning">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-boxes"></i>
@@ -1130,7 +1276,7 @@ window.Quarto = {
 <li class="group"><h2 href="#knowledge" class="anchored">Knowledge</h2></li>
     
   
-<li class="example" data-index="42" data-categories="Knowledge">
+<li class="example" data-index="49" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1151,7 +1297,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="43" data-categories="Knowledge">
+<li class="example" data-index="50" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1159,10 +1305,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmlu_pro">
-            MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding Benchmark
+            MMLU-Pro: Advanced Multitask Knowledge and Reasoning Evaluation
           </a>
         </div>
-        <div class="listing-description text-secondary">An enhanced dataset designed to extend the mostly knowledge-driven MMLU benchmark by integrating more challenging, reasoning-focused questions and expanding the choice set from four to ten options.
+        <div class="listing-description text-secondary">An advanced benchmark that tests both broad knowledge and reasoning capabilities across many subjects, featuring challenging questions and multiple-choice answers with increased difficulty and complexity.
 </div>
       </div>
     </div>
@@ -1172,7 +1318,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="44" data-categories="Knowledge">
+<li class="example" data-index="51" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1180,10 +1326,10 @@ window.Quarto = {
       <div class="example-info">
         <div class="listing-title">
           <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/gpqa">
-            GPQA: A Graduate-Level Google-Proof Q&amp;A Benchmark
+            GPQA: Graduate-Level STEM Knowledge Challenge
           </a>
         </div>
-        <div class="listing-description text-secondary">Challenging dataset of 448 multiple-choice questions written by domain experts in biology, physics, and chemistry (experts at PhD level in the corresponding domains reach 65% accuracy).
+        <div class="listing-description text-secondary">Contains challenging multiple-choice questions created by domain experts in biology, physics, and chemistry, designed to test advanced scientific understanding beyond basic internet searches. Experts at PhD level in the corresponding domains reach 65% accuracy.
 </div>
       </div>
     </div>
@@ -1193,7 +1339,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="45" data-categories="Knowledge">
+<li class="example" data-index="52" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1204,7 +1350,7 @@ window.Quarto = {
             CommonsenseQA: A Question Answering Challenge Targeting Commonsense Knowledge
           </a>
         </div>
-        <div class="listing-description text-secondary">Measure question answering with commonsense prior knowledge.
+        <div class="listing-description text-secondary">Evaluates an AI model's ability to correctly answer everyday questions that rely on basic commonsense knowledge and understanding of the world.
 </div>
       </div>
     </div>
@@ -1214,7 +1360,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="46" data-categories="Knowledge">
+<li class="example" data-index="53" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1235,7 +1381,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="47" data-categories="Knowledge">
+<li class="example" data-index="54" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1256,49 +1402,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="48" data-categories="Knowledge">
-    <div class="example-card">
-      <div class="example-icon fs-5">
-        <i class="bi bi-book"></i>
-      </div>
-      <div class="example-info">
-        <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/hle">
-            Humanity's Last Exam
-          </a>
-        </div>
-        <div class="listing-description text-secondary">Humanity's Last Exam (HLE) is a multi-modal benchmark at the frontier of human knowledge, designed to be the final closed-ended academic benchmark of its kind with broad subject coverage. Humanity's Last Exam consists of 3,000 questions across dozens of subjects, including mathematics, humanities, and the natural sciences. HLE is developed globally by subject-matter experts and consists of multiple-choice and short-answer questions suitable for automated grading.
-</div>
-      </div>
-    </div>
-  
-</li>
-
-  
-    
-  
-<li class="example" data-index="49" data-categories="Knowledge">
-    <div class="example-card">
-      <div class="example-icon fs-5">
-        <i class="bi bi-book"></i>
-      </div>
-      <div class="example-info">
-        <div class="listing-title">
-          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/onet">
-            O-NET: A high-school student knowledge test
-          </a>
-        </div>
-        <div class="listing-description text-secondary">Questions and answers from the Ordinary National Educational Test (O-NET), administered annually by the National Institute of Educational Testing Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand. The exam contains six subjects: English language, math, science, social knowledge, and Thai language. There are questions with multiple-choice and true/false answers. Questions can be in either English or Thai.
-</div>
-      </div>
-    </div>
-  
-</li>
-
-  
-    
-  
-<li class="example" data-index="50" data-categories="Knowledge">
+<li class="example" data-index="55" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1319,7 +1423,7 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="51" data-categories="Knowledge">
+<li class="example" data-index="56" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1340,7 +1444,70 @@ window.Quarto = {
   
     
   
-<li class="example" data-index="52" data-categories="Knowledge">
+<li class="example" data-index="57" data-categories="Knowledge">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/livebench">
+            LiveBench: A Challenging, Contamination-Free LLM Benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary">LiveBench is a benchmark designed with test set contamination and objective evaluation in mind by releasing new questions regularly, as well as having questions based on recently-released datasets. Each question has verifiable, objective ground-truth answers, allowing hard questions to be scored accurately and automatically, without the use of an LLM judge.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="58" data-categories="Knowledge">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/onet">
+            O-NET: A high-school student knowledge test
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Questions and answers from the Ordinary National Educational Test (O-NET), administered annually by the National Institute of Educational Testing Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand. The exam contains six subjects: English language, math, science, social knowledge, and Thai language. There are questions with multiple-choice and true/false answers. Questions can be in either English or Thai.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="59" data-categories="Knowledge">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/hle">
+            Humanity's Last Exam
+          </a>
+        </div>
+        <div class="listing-description text-secondary">Humanity's Last Exam (HLE) is a multi-modal benchmark at the frontier of human knowledge, designed to be the final closed-ended academic benchmark of its kind with broad subject coverage. Humanity's Last Exam consists of 3,000 questions across dozens of subjects, including mathematics, humanities, and the natural sciences. HLE is developed globally by subject-matter experts and consists of multiple-choice and short-answer questions suitable for automated grading.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="60" data-categories="Knowledge">
     <div class="example-card">
       <div class="example-icon fs-5">
         <i class="bi bi-book"></i>
@@ -1353,6 +1520,50 @@ window.Quarto = {
         </div>
         <div class="listing-description text-secondary">A benchmark that evaluates the ability of language models to answer short, fact-seeking questions.
 </div>
+      </div>
+    </div>
+  
+</li>
+
+  
+    
+  
+<li class="example" data-index="61" data-categories="Knowledge">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/air_bench">
+            AIR Bench: AI Risk Benchmark
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A safety benchmark evaluating language models against risk categories derived from government regulations and company policies.
+</div>
+      </div>
+    </div>
+  
+</li>
+
+  
+  
+    
+<li class="group"><h2 href="#multimodal" class="anchored">Multimodal</h2></li>
+    
+  
+<li class="example" data-index="62" data-categories="Multimodal">
+    <div class="example-card">
+      <div class="example-icon fs-5">
+        <i class="bi bi-book"></i>
+      </div>
+      <div class="example-info">
+        <div class="listing-title">
+          <a href="https://github.com/UKGovernmentBEIS/inspect_evals/tree/main/src/inspect_evals/mmiu">
+            MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language Models
+          </a>
+        </div>
+        <div class="listing-description text-secondary">A comprehensive dataset designed to evaluate Large Vision-Language Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses 7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously curated multiple-choice questions.</div>
       </div>
     </div>
   
