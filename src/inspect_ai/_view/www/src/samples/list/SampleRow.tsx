@@ -1,9 +1,10 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, ReactNode, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
+import { PulsingDots } from "../../components/PulsingDots";
+import { useStore } from "../../state/store";
 import { arrayToString, inputString } from "../../utils/format";
-import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
@@ -11,10 +12,11 @@ interface SampleRowProps {
   id: string;
   index: number;
   sample: SampleSummary;
-  sampleDescriptor: SamplesDescriptor;
+  answer: string;
+  completed: boolean;
+  scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
-  selected: boolean;
   showSample: (index: number) => void;
 }
 
@@ -22,22 +24,33 @@ export const SampleRow: FC<SampleRowProps> = ({
   id,
   index,
   sample,
-  sampleDescriptor,
+  answer,
+  completed,
+  scoreRendered,
   gridColumnsTemplate,
   height,
-  selected,
   showSample,
 }) => {
+  const streamSampleData = useStore(
+    (state) => state.capabilities.streamSampleData,
+  );
+  const selectedSampleIndex = useStore(
+    (state) => state.log.selectedSampleIndex,
+  );
+  const handleClick = useCallback(() => {
+    if (completed || streamSampleData) {
+      showSample(index);
+    }
+  }, [index, showSample, completed]);
+
   return (
     <div
       id={`sample-${id}`}
-      onClick={() => {
-        showSample(index);
-      }}
+      onClick={handleClick}
       className={clsx(
         styles.grid,
         "text-size-base",
-        selected ? styles.selected : undefined,
+        selectedSampleIndex === index ? styles.selected : undefined,
       )}
       style={{
         height: `${height}px`,
@@ -67,9 +80,7 @@ export const SampleRow: FC<SampleRowProps> = ({
       <div className={clsx("sample-answer", "three-line-clamp", styles.cell)}>
         {sample ? (
           <MarkdownDiv
-            markdown={sampleDescriptor
-              ?.selectedScorerDescriptor(sample)
-              .answer()}
+            markdown={answer || ""}
             className={clsx("no-last-para-padding", styles.noLeft)}
           />
         ) : (
@@ -90,8 +101,10 @@ export const SampleRow: FC<SampleRowProps> = ({
       <div className={clsx("text-size-small", styles.cell, styles.score)}>
         {sample.error ? (
           <SampleErrorView message={sample.error} />
+        ) : completed ? (
+          scoreRendered
         ) : (
-          sampleDescriptor?.selectedScore(sample)?.render()
+          <PulsingDots />
         )}
       </div>
     </div>

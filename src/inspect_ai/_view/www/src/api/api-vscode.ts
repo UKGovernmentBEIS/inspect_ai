@@ -8,9 +8,20 @@ import {
   kMethodEvalLogHeaders,
   kMethodEvalLogs,
   kMethodEvalLogSize,
+  kMethodPendingSamples,
+  kMethodSampleData,
   webViewJsonRpcClient,
 } from "./jsonrpc";
-import { Capabilities, LogContents, LogViewAPI } from "./types";
+import {
+  Capabilities,
+  LogContents,
+  LogViewAPI,
+  PendingSampleResponse,
+  SampleDataResponse,
+} from "./types";
+
+const kNotFoundSignal = "NotFound";
+const kNotModifiedSignal = "NotModified";
 
 const vscodeClient = webViewJsonRpcClient(getVscodeApi());
 
@@ -75,6 +86,67 @@ async function eval_log_headers(files: string[]) {
   }
 }
 
+async function eval_pending_samples(
+  log_file: string,
+  etag?: string,
+): Promise<PendingSampleResponse> {
+  // TODO: use web worked to parse when possible
+  const response = await vscodeClient(kMethodPendingSamples, [log_file, etag]);
+  if (response) {
+    if (response === kNotModifiedSignal) {
+      return {
+        status: "NotModified",
+      };
+    } else if (response === kNotFoundSignal) {
+      return {
+        status: "NotFound",
+      };
+    }
+
+    const json = await asyncJsonParse(response);
+    return {
+      status: "OK",
+      pendingSamples: json,
+    };
+  } else {
+    throw new Error(`Unable to load pending samples ${log_file}.`);
+  }
+}
+
+async function eval_log_sample_data(
+  log_file: string,
+  id: string | number,
+  epoch: number,
+  last_event?: number,
+  last_attachment?: number,
+): Promise<SampleDataResponse | undefined> {
+  const response = await vscodeClient(kMethodSampleData, [
+    log_file,
+    id,
+    epoch,
+    last_event,
+    last_attachment,
+  ]);
+  if (response) {
+    if (response === kNotModifiedSignal) {
+      return {
+        status: "NotModified",
+      };
+    } else if (response === kNotFoundSignal) {
+      return {
+        status: "NotFound",
+      };
+    }
+    const json = await asyncJsonParse(response);
+    return {
+      status: "OK",
+      sampleData: json,
+    };
+  } else {
+    throw new Error(`Unable to load live sample data ${log_file}.`);
+  }
+}
+
 async function download_file() {
   throw Error("Downloading files is not supported in VS Code");
 }
@@ -97,6 +169,8 @@ const api: LogViewAPI = {
   eval_log_headers,
   download_file,
   open_log_file,
+  eval_pending_samples,
+  eval_log_sample_data,
 };
 
 export default api;

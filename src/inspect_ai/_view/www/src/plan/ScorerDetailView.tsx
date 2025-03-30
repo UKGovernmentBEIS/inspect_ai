@@ -17,7 +17,7 @@ export const ScorerDetailView: FC<ScorerDetailViewProps> = ({
 }) => {
   // Merge scores into params
   if (scores.length > 1) {
-    params["scores"] = scores;
+    params = { ...params, ["scores"]: scores };
   }
 
   return (

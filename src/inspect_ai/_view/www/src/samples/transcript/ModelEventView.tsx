@@ -3,7 +3,7 @@ import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
 
 import clsx from "clsx";
-import { FC, Fragment, useEffect, useMemo, useRef } from "react";
+import { FC, Fragment, useMemo } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import {
@@ -17,9 +17,9 @@ import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
-import { TranscriptEventState } from "./types";
 
-import { highlightElement } from "prismjs";
+import { PulsingDots } from "../../components/PulsingDots";
+import { usePrismHighlight } from "../../state/hooks";
 import styles from "./ModelEventView.module.css";
 import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming, formatTitle } from "./event/utils";
@@ -27,8 +27,6 @@ import { formatTiming, formatTitle } from "./event/utils";
 interface ModelEventViewProps {
   id: string;
   event: ModelEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 
@@ -38,8 +36,6 @@ interface ModelEventViewProps {
 export const ModelEventView: FC<ModelEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   className,
 }) => {
   const totalUsage = event.output.usage?.total_tokens;
@@ -74,14 +70,6 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       title={formatTitle(`Model Call: ${event.model}`, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView
@@ -91,6 +79,11 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           numbered={false}
           toolCallStyle="compact"
         />
+        {event.pending ? (
+          <div className={clsx(styles.progress)}>
+            <PulsingDots subtle={false} size="medium" />
+          </div>
+        ) : undefined}
       </div>
       <div data-name="All" className={styles.container}>
         <div className={styles.all}>
@@ -170,27 +163,20 @@ interface APICodeCellProps {
 }
 
 export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
-  const codeRef = useRef<HTMLElement>(null);
   const sourceCode = useMemo(() => {
     return JSON.stringify(contents, undefined, 2);
   }, [contents]);
-
-  useEffect(() => {
-    if (codeRef.current) {
-      highlightElement(codeRef.current);
-    }
-  }, [contents]);
+  const prismParentRef = usePrismHighlight(sourceCode);
 
   if (!contents) {
     return null;
   }
 
   return (
-    <div className={clsx("model-call")}>
+    <div ref={prismParentRef} className={clsx("model-call")}>
       <pre className={clsx(styles.codePre)}>
         <code
           id={id}
-          ref={codeRef}
           className={clsx("language-json", styles.code, "text-size-small")}
         >
           {sourceCode}

@@ -1,3 +1,11 @@
+## Unreleased
+
+- Inspect View: Live updates to running evaluation logs.
+- Inspect View: Fallback to content range request if inital HEAD request fails.
+- Inspect View: Improve error message when view bundles are server from incompatible servers.
+- Inspect View: Render messages in `user` and `assistant` solver events.
+- Inspect View: Improved support for display of nested arrays.
+
 ## v0.3.80 (30 March 2025)
 
 - Google: Compatibility with httpx client in `google-genai` >= 1.8.0 (which is now required).
