@@ -1,6 +1,5 @@
 import hashlib
 import logging
-from copy import deepcopy
 from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
@@ -37,7 +36,7 @@ from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
 from inspect_ai.util._display import display_type_initialized, init_display_type
 
-from .eval import eval, eval_init
+from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args
 from .task import Epochs
 from .task.resolved import ResolvedTask
@@ -247,28 +246,20 @@ def eval_set(
     if display == "conversation":
         raise RuntimeError("eval_set cannot be used with conversation display.")
 
-    # resolve tasks
-    models, _, resolved_tasks = eval_init(
-        tasks=tasks,
+    # initialize eval
+    models, _ = eval_init(
         model=model,
         model_base_url=model_base_url,
         model_args=model_args,
-        task_args=task_args,
-        sandbox=sandbox,
         max_subprocesses=max_subprocesses,
         log_level=log_level,
         log_level_transcript=log_level_transcript,
         **kwargs,
     )
 
-    # ensure log_dir and list all logs
+    # ensure log_dir
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
-
-    # validate that:
-    #  (1) All tasks have a unique identifier
-    #  (2) All logs have identifiers that map to tasks
-    validate_eval_set_prerequisites(resolved_tasks, list_all_eval_logs(log_dir))
 
     # resolve some parameters
     retry_connections = retry_connections or 0.5
@@ -310,10 +301,20 @@ def eval_set(
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
+        # resolve tasks
+        resolved_tasks = eval_resolve_tasks(
+            tasks, task_args, models, GenerateConfig(**kwargs), sandbox
+        )
+
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)
+
+        # validate that:
+        #  (1) All tasks have a unique identifier
+        #  (2) All logs have identifiers that map to tasks
+        validate_eval_set_prerequisites(resolved_tasks, all_logs)
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
@@ -419,13 +420,10 @@ def as_previous_tasks(
         # want to bring this back but we'd need to resolve the
         # directory issues.
 
-        # deepcopy so the same instance is not run twice
-        prev_task = deepcopy(task.task)
-
         previous_tasks.append(
             PreviousTask(
                 id=log.header.eval.task_id,
-                task=prev_task,
+                task=task.task,
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 log=read_eval_log(log.info),
