@@ -5,6 +5,7 @@
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
 - Inspect View: Render messages in `user` and `assistant` solver events.
 - Inspect View: Improved support for display of nested arrays.
+- Bugfix: Handle process lookup errors that can occur during timeout race conditions.
 
 ## v0.3.81 (30 March 2025)
 
