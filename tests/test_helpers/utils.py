@@ -83,6 +83,10 @@ def skip_if_no_google(func):
     return pytest.mark.api(skip_if_env_var("GOOGLE_API_KEY", exists=False)(func))
 
 
+def skip_if_no_google_genai(func):
+    return skip_if_no_package("google.genai")(func)
+
+
 def skip_if_no_mistral(func):
     return pytest.mark.api(skip_if_env_var("MISTRAL_API_KEY", exists=False)(func))
 

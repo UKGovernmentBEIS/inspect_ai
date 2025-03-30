@@ -1,6 +1,6 @@
 import unittest.mock as mock
 
-from test_helpers.utils import skip_if_no_google, skip_if_trio
+from test_helpers.utils import skip_if_no_google, skip_if_no_google_genai, skip_if_trio
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -47,6 +47,7 @@ def test_google_block_reason():
     # assert log.samples[0].output.stop_reason == "content_filter"
 
 
+@skip_if_no_google_genai
 def test_completion_choice_malformed_function_call():
     from google.genai.types import Candidate, Content, FinishReason  # type: ignore
 
