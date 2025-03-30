@@ -5,6 +5,7 @@
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
 - Inspect View: Correctly parse NaN values (use JSON5 for all JSON parsing)
 - Inspect View: Render messages in `user` and `assistant` solver events.
+- Inspect View: Improved support for display of nested arrays.
 
 ## v0.3.79 (26 March 2025)
 
