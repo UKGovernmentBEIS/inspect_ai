@@ -1,5 +1,11 @@
 ## Unreleased
 
+- [Agent](https://inspect.aisi.org.uk/agent-protocol.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
+- Model API: New `execute_tools()` function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
+- Model API: `generate_loop()` method for calling generate in a tool use loop.
+- Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
+- Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
+- Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
@@ -84,8 +90,6 @@
 - Mistral: Update to new Mistral API (v1.5.1 of `mistralai` is now required).
 - Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
 - Tasks: For filesystem based tasks, no longer switch to the task file's directory during execution (directory switching still occurs during task loading). Specify `@task(chdir=True)` to preserve the previous behavior.
-- Model API: `generate_loop()` method for calling generate in a tool use loop.
-- Store: `context` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
 - Bugfix: Fix issue with deserializing custom sandbox configuration objects.
 - Bugfix: Handle `parallel_tool_calls` correctly for OpenAI models served through Azure.
 
