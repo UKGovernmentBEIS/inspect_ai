@@ -7,6 +7,7 @@
 - Inspect View: Render messages in `user` and `assistant` solver events.
 - Inspect View: Improved support for display of nested arrays.
 - Bugfix: Handle process lookup errors that can occur during timeout race conditions.
+- Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.
 
 ## v0.3.81 (30 March 2025)
 
