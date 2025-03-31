@@ -403,7 +403,9 @@ async def _web_browser_cmd(
         # The user may have the old, incompatible, sandbox. If so, use that and
         # execute the old compatible code.
         try:
-            return await old_web_browser_cmd(tool_name, *params)
+            return await old_web_browser_cmd(
+                tool_name, *(str(value) for value in params.values())
+            )
         except PrerequisiteError:
             raise e
 
