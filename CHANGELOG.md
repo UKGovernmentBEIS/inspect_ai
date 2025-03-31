@@ -8,6 +8,7 @@
 - Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
 - Eval Set: Resolve tasks before each pass (ensure that each pass runs against an entirely new task instance).
 - Eval Retry: Ability to retry any task in the registry, even if it has a custom `name` (save `registry_name` separately).
+- Typed Store: Raise error if attempting to embed a `StoreModel` within another `StoreModel`.
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
