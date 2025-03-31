@@ -1,3 +1,7 @@
+## v0.3.82 (02 April 2025)
+
+- Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.
+
 ## v0.3.81 (30 March 2025)
 
 - Requirements: Temporarily upper-bound `rich` to < 14.0.0 to workaround issue.
