@@ -52198,6 +52198,15 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx(SortFilter, { sort, setSort, epochs })
       ] });
     };
+    const ScoreFilterTools = () => {
+      const scores2 = useScores();
+      const score2 = useScore();
+      const setScore = useStore((state) => state.logActions.setScore);
+      if (scores2.length <= 1) {
+        return void 0;
+      }
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(SelectScorer, { scores: scores2, score: score2, setScore });
+    };
     const DownloadButton = ({
       label: label2,
       fileName,
@@ -68067,14 +68076,8 @@ ${events}
           componentProps: {
             running: evalStatus === "started"
           },
-          tools: () => totalSampleCount === 1 || !samplesDescriptor ? void 0 : [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              SampleTools,
-              {
-                samples: sampleSummaries || []
-              },
-              "sample-tools"
-            ),
+          tools: () => !samplesDescriptor ? void 0 : totalSampleCount === 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreFilterTools, {}) : [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SampleTools, { samples: sampleSummaries || [] }, "sample-tools"),
             evalStatus === "started" && !streamSamples && /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolButton,
               {

@@ -1,6 +1,6 @@
 import { ApplicationIcons } from "../appearance/icons";
 import { ToolButton } from "../components/ToolButton";
-import { SampleTools } from "../samples/SamplesTools";
+import { SampleTools, ScoreFilterTools } from "../samples/SamplesTools";
 import { JsonTab } from "./tabs/JsonTab";
 import { SamplesTab } from "./tabs/SamplesTab";
 
@@ -131,22 +131,21 @@ export const useSamplesTabConfig = (
         running: evalStatus === "started",
       },
       tools: () =>
-        totalSampleCount === 1 || !samplesDescriptor
-          ? undefined
-          : [
-              <SampleTools
-                samples={sampleSummaries || []}
-                key="sample-tools"
-              />,
-              evalStatus === "started" && !streamSamples && (
-                <ToolButton
-                  key="refresh"
-                  label="Refresh"
-                  icon={ApplicationIcons.refresh}
-                  onClick={refreshLog}
-                />
-              ),
-            ].filter(Boolean),
+        !samplesDescriptor ? undefined : totalSampleCount === 1 ? (
+          <ScoreFilterTools />
+        ) : (
+          [
+            <SampleTools samples={sampleSummaries || []} key="sample-tools" />,
+            evalStatus === "started" && !streamSamples && (
+              <ToolButton
+                key="refresh"
+                label="Refresh"
+                icon={ApplicationIcons.refresh}
+                onClick={refreshLog}
+              />
+            ),
+          ].filter(Boolean)
+        ),
     };
   }, [
     evalStatus,
