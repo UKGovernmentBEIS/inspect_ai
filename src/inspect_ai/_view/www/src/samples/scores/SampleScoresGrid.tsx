@@ -64,14 +64,13 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
       ></div>
 
       {Object.keys(evalSample.scores || {}).map((scorer) => {
-        const scorerDescriptor = evalDescriptor.scorerDescriptor(evalSample, {
-          scorer,
-          name: scorer,
-        });
-        const explanation =
-          scorerDescriptor.explanation() || "(No Explanation)";
-        const answer = scorerDescriptor.answer();
-        let metadata = scorerDescriptor.metadata();
+        if (!evalSample.scores) {
+          return undefined;
+        }
+        const scoreData = evalSample.scores[scorer];
+        const explanation = scoreData.explanation || "(No Explanation)";
+        const answer = scoreData.answer;
+        let metadata = scoreData.metadata || {};
 
         return (
           <>
