@@ -14306,7 +14306,8 @@ pre[class*="language-"] {
   --inspect-font-size-smaller: 0.8rem;
 
   /* Inspect Glass */
-  --inspect-glass-color: rgba(0, 0, 0, 0.3);
+  --inspect-glass-color: #000000;
+  --inspect-glass-opacity: 0.3;
 }
 
 body:not([class^="vscode-"]) button {
@@ -14430,7 +14431,8 @@ body[class^="vscode-"] {
   --inspect-input-border: var(--vscode-input-border);
   --inspect-diff-add-color: var(--vscode-diffEditor-insertedTextBackground);
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
-  --inspect-glass-color: var(--vscode-sideBar-dropBackground);
+  --inspect-glass-color: var(--vscode-editor-foreground);
+  --inspect-glass-opacity: 0.15;
 }
 
 html.vscode {
@@ -15526,7 +15528,7 @@ ul.jsondiffpatch-textdiff {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-._sidebar_sek3m_1 {
+._sidebar_ajt7u_1 {
   position: fixed;
   left: 0;
   top: 0;
@@ -15540,15 +15542,15 @@ ul.jsondiffpatch-textdiff {
   transition: transform 0.3s ease-in-out;
 }
 
-._sidebarClosed_sek3m_15 {
+._sidebarClosed_ajt7u_15 {
   transform: translateX(-100%);
 }
 
-._sidebarOpen_sek3m_19 {
+._sidebarOpen_ajt7u_19 {
   transform: translateX(0);
 }
 
-._header_sek3m_23 {
+._header_ajt7u_23 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 0.2rem;
@@ -15564,34 +15566,35 @@ ul.jsondiffpatch-textdiff {
   z-index: 10;
 }
 
-._toggle_sek3m_39 {
+._toggle_ajt7u_39 {
   padding: 0.1rem;
   align-self: end;
   width: 40px;
   flex: 0 0 auto;
 }
 
-._progress_sek3m_46 {
+._progress_ajt7u_46 {
   z-index: 3;
 }
 
-._list_sek3m_50 {
+._list_ajt7u_50 {
   flex-grow: 1;
   overflow-y: auto;
 }
 
-._backdrop_sek3m_55 {
+._backdrop_ajt7u_55 {
   position: fixed;
   inset: 0;
   background-color: var(--inspect-glass-color);
+  opacity: var(--inspect-glass-opacity);
   z-index: 9998;
 }
 
-._active_sek3m_62 {
+._active_ajt7u_63 {
   background-color: var(--bs-secondary-bg-subtle);
 }
 
-._item_sek3m_66 {
+._item_ajt7u_67 {
   cursor: pointer;
 }
 ._error_srruf_1 {
@@ -19877,7 +19880,7 @@ span.ap-marker-container:hover span.ap-marker {
 ._label_12472_14 {
   margin-left: 0.4em;
 }
-._modal_egs8z_1 {
+._modal_1tvha_1 {
   margin-left: auto;
   margin-right: auto;
   display: flex;
@@ -19890,27 +19893,28 @@ span.ap-marker-container:hover span.ap-marker {
   z-index: 1050;
 }
 
-._header_egs8z_14 {
+._header_1tvha_14 {
   height: 2em;
 }
 
-._modalTitle_egs8z_18 {
+._modalTitle_1tvha_18 {
   font-weight: 600;
 }
 
-._btnClose_egs8z_22 {
+._btnClose_1tvha_22 {
   height: 0.8em;
   width: 0.8em;
 }
 
 /* Backdrop styling for the glass effect */
-._backdrop_egs8z_28 {
+._backdrop_1tvha_28 {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
   background-color: var(--inspect-glass-color);
+  opacity: var(--inspect-glass-opacity);
 
   z-index: 1040;
 }

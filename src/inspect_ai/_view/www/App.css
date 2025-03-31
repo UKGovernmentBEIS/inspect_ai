@@ -33,7 +33,8 @@
   --inspect-font-size-smaller: 0.8rem;
 
   /* Inspect Glass */
-  --inspect-glass-color: rgba(0, 0, 0, 0.3);
+  --inspect-glass-color: #000000;
+  --inspect-glass-opacity: 0.3;
 }
 
 body:not([class^="vscode-"]) button {
@@ -157,7 +158,8 @@ body[class^="vscode-"] {
   --inspect-input-border: var(--vscode-input-border);
   --inspect-diff-add-color: var(--vscode-diffEditor-insertedTextBackground);
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
-  --inspect-glass-color: var(--vscode-sideBar-dropBackground);
+  --inspect-glass-color: var(--vscode-editor-foreground);
+  --inspect-glass-opacity: 0.15;
 }
 
 html.vscode {
