@@ -2138,6 +2138,18 @@
           "default": null,
           "title": "Task File"
         },
+        "task_registry_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Registry Name"
+        },
         "task_attribs": {
           "title": "Task Attribs",
           "type": "object"
@@ -2299,6 +2311,7 @@
         "task_id",
         "task_version",
         "task_file",
+        "task_registry_name",
         "task_attribs",
         "task_args",
         "solver",

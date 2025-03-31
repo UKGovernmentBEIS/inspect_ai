@@ -733,7 +733,7 @@ async def eval_retry_async(
         # context to reconstruct ephemeral Task instances)
         task: str | None
         task_id = eval_log.eval.task_id
-        task_name = eval_log.eval.task
+        task_name = eval_log.eval.task_registry_name or eval_log.eval.task
         task_file = eval_log.eval.task_file
         if task_file:
             if not Path(task_file).exists():

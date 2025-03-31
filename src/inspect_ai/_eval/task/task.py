@@ -160,6 +160,13 @@ class Task:
             return "task"
 
     @property
+    def registry_name(self) -> str | None:
+        if is_registry_object(self):
+            return registry_info(self).name
+        else:
+            return None
+
+    @property
     def attribs(self) -> dict[str, Any]:
         if is_registry_object(self):
             return cast(dict[str, Any], registry_info(self).metadata.get("attribs", {}))
