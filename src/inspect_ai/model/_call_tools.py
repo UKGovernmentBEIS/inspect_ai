@@ -97,7 +97,6 @@ async def execute_tools(
     Returns:
        Messages added to the conversation and final model output (if any)
     """
-    messages = messages if isinstance(messages, list) else [messages]
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         from inspect_ai.log._transcript import (
