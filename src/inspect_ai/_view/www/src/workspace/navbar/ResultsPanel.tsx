@@ -147,6 +147,7 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
                 scoreGroups={grouped}
                 showReducer={showReducer}
                 className={styles.modalScores}
+                striped={false}
               />
             </Modal>
             <LinkButton

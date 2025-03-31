@@ -1,16 +1,33 @@
-.label {
-  justify-self: center;
+.table {
+  margin-bottom: 0;
 }
 
+.scorer,
 .value {
-  justify-self: center;
+  padding-top: 0.2em !important;
+  padding-bottom: 0.2em !important;
 }
 
-.padded {
-  padding-top: 2em;
-  border-bottom: solid black 1px;
+.label,
+.value {
+  text-align: center;
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
+.label {
+  font-weight: 400;
 }
 
 .scorer {
-  justify-self: right;
+  font-weight: 400;
+}
+
+.groupSeparator {
+  padding-top: 2em;
+  border-bottom: hidden;
+}
+
+.tableBody {
+  border-top-color: var(--bs-light-border-subtle);
 }

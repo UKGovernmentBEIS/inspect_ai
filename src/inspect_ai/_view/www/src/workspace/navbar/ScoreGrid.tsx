@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, ReactNode } from "react";
 import { formatPrettyDecimal } from "../../utils/format";
 import { ResultsScorer } from "./ResultsPanel";
 
@@ -9,75 +9,109 @@ interface ScoreGridProps {
   scoreGroups: ResultsScorer[][];
   showReducer?: boolean;
   className?: string | string[];
+  striped?: boolean;
 }
 
 export const ScoreGrid: FC<ScoreGridProps> = ({
   scoreGroups,
   showReducer,
   className,
+  striped,
 }) => {
   const columnCount = scoreGroups.reduce((prev, group) => {
     return Math.max(prev, group[0].metrics.length);
   }, 0);
 
-  const groups = scoreGroups.map((group, index) => {
-    const metrics = group[0].metrics;
-    const cells = [];
+  const subTables: ReactNode[] = [];
 
-    // Column headings
-    cells.push(<div></div>);
+  let index = 0;
+  for (const scoreGroup of scoreGroups) {
+    const metrics = scoreGroup[0].metrics;
+
+    // Add header row
+
+    const cells: ReactNode[] = [];
     for (let i = 0; i < columnCount; i++) {
       if (metrics.length > i) {
         cells.push(
-          <div
+          <th
             className={clsx(
               "text-style-label",
               "text-style-secondary",
+              "text-size-small",
               styles.label,
-              index > 0 ? styles.padded : undefined,
             )}
           >
             {metrics[i].name}
-          </div>,
+          </th>,
         );
       } else {
-        cells.push(<div></div>);
+        cells.push(<td></td>);
       }
     }
 
-    // Column values
-    group.map((g) => {
-      cells.push(
-        <div className={clsx(styles.scorer)}>
-          {g.scorer} {showReducer && g.reducer ? `(${g.reducer})` : undefined}
-        </div>,
-      );
+    const headerRow = (
+      <tr className={clsx(styles.headerRow)}>
+        <td></td>
+        {cells}
+      </tr>
+    );
+    const rows: ReactNode[] = [];
+    scoreGroup.forEach((g) => {
+      const cells: ReactNode[] = [];
       for (let i = 0; i < columnCount; i++) {
         if (metrics.length > i) {
           cells.push(
-            <div className={clsx(styles.value)}>
+            <td className={clsx(styles.value, "text-size-small")}>
               {formatPrettyDecimal(g.metrics[i].value)}
-            </div>,
+            </td>,
           );
         } else {
-          cells.push(<div></div>);
+          cells.push(<td className={clsx(styles.value)}></td>);
         }
       }
+
+      rows.push(
+        <tr>
+          <th className={clsx(styles.scorer, "text-size-small")}>
+            {g.scorer} {showReducer && g.reducer ? `(${g.reducer})` : undefined}
+          </th>
+          {cells}
+        </tr>,
+      );
     });
 
-    return cells;
-  });
+    subTables.push(
+      <>
+        {index > 0 ? (
+          <tr>
+            <td
+              colSpan={columnCount + 1}
+              className={clsx(styles.groupSeparator)}
+            ></td>
+          </tr>
+        ) : undefined}
+        {headerRow}
+        <tbody className={clsx("table-group-divider", styles.tableBody)}>
+          {rows}
+        </tbody>
+      </>,
+    );
+
+    index++;
+  }
 
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(${columnCount + 1}, max-content)`,
-        columnGap: "1.5em",
-      }}
-      className={clsx("text-size-small", className)}
+    <table
+      className={clsx(
+        className,
+        "table",
+        striped ? "table-striped" : undefined,
+        styles.table,
+        "table-bordered",
+      )}
     >
-      {groups}
-    </div>
+      {subTables}
+    </table>
   );
 };

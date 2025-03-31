@@ -19571,16 +19571,16 @@ self.onmessage = function (e) {
         return path;
       }
     };
-    const sidebar = "_sidebar_1u82r_1";
-    const sidebarClosed = "_sidebarClosed_1u82r_15";
-    const sidebarOpen = "_sidebarOpen_1u82r_19";
-    const header$3 = "_header_1u82r_23";
-    const toggle$1 = "_toggle_1u82r_39";
-    const progress$2 = "_progress_1u82r_46";
-    const list$1 = "_list_1u82r_50";
-    const backdrop$1 = "_backdrop_1u82r_55";
-    const active = "_active_1u82r_62";
-    const item$1 = "_item_1u82r_66";
+    const sidebar = "_sidebar_sek3m_1";
+    const sidebarClosed = "_sidebarClosed_sek3m_15";
+    const sidebarOpen = "_sidebarOpen_sek3m_19";
+    const header$3 = "_header_sek3m_23";
+    const toggle$1 = "_toggle_sek3m_39";
+    const progress$2 = "_progress_sek3m_46";
+    const list$1 = "_list_sek3m_50";
+    const backdrop$1 = "_backdrop_sek3m_55";
+    const active = "_active_sek3m_62";
+    const item$1 = "_item_sek3m_66";
     const styles$1g = {
       sidebar,
       sidebarClosed,
@@ -20105,12 +20105,12 @@ self.onmessage = function (e) {
       }
     };
     const container$f = "_container_w37fs_1";
-    const padded$3 = "_padded_w37fs_8";
+    const padded$2 = "_padded_w37fs_8";
     const key = "_key_w37fs_12";
     const value$3 = "_value_w37fs_16";
     const styles$1a = {
       container: container$f,
-      padded: padded$3,
+      padded: padded$2,
       key,
       value: value$3
     };
@@ -23861,7 +23861,7 @@ self.onmessage = function (e) {
       result2.push(current2 + str2.substring(lastPos));
       return result2;
     }
-    function table$2(state, startLine, endLine, silent) {
+    function table$3(state, startLine, endLine, silent) {
       if (startLine + 2 > endLine) {
         return false;
       }
@@ -24930,7 +24930,7 @@ self.onmessage = function (e) {
     const _rules$1 = [
       // First 2 params - rule name & source. Secondary array - list of rules,
       // which can be terminated by this one.
-      ["table", table$2, ["paragraph", "reference"]],
+      ["table", table$3, ["paragraph", "reference"]],
       ["code", code$3],
       ["fence", fence, ["paragraph", "reference", "blockquote", "list"]],
       ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
@@ -27706,13 +27706,13 @@ self.onmessage = function (e) {
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
     };
-    const table$1 = "_table_1memb_1";
+    const table$2 = "_table_1memb_1";
     const cell$3 = "_cell_1memb_11";
     const compact = "_compact_1memb_15";
     const cellKey = "_cellKey_1memb_19";
     const cellValue = "_cellValue_1memb_31";
     const styles$10 = {
-      table: table$1,
+      table: table$2,
       cell: cell$3,
       compact,
       cellKey,
@@ -52437,14 +52437,14 @@ Supported expressions:
     const col1_3$1 = "_col1_3_sq96g_12";
     const col3$1 = "_col3_sq96g_16";
     const separator$4 = "_separator_sq96g_20";
-    const padded$2 = "_padded_sq96g_26";
+    const padded$1 = "_padded_sq96g_26";
     const styles$T = {
       wrapper: wrapper$3,
       col2: col2$2,
       col1_3: col1_3$1,
       col3: col3$1,
       separator: separator$4,
-      padded: padded$2
+      padded: padded$1
     };
     const ModelUsagePanel = ({ usage }) => {
       if (!usage) {
@@ -52530,12 +52530,12 @@ Supported expressions:
         }
       }) });
     };
-    const table = "_table_dbhwb_1";
+    const table$1 = "_table_dbhwb_1";
     const tableTokens = "_tableTokens_dbhwb_6";
     const tableH = "_tableH_dbhwb_10";
     const model = "_model_dbhwb_15";
     const styles$S = {
-      table,
+      table: table$1,
       tableTokens,
       tableH,
       model
@@ -55909,7 +55909,7 @@ Supported expressions:
     const tabPanel = "_tabPanel_cjf1d_1";
     const fullWidth$1 = "_fullWidth_cjf1d_5";
     const metadataPanel = "_metadataPanel_cjf1d_9";
-    const padded$1 = "_padded_cjf1d_18";
+    const padded = "_padded_cjf1d_18";
     const ansi = "_ansi_cjf1d_23";
     const noTop = "_noTop_cjf1d_27";
     const timePanel = "_timePanel_cjf1d_31";
@@ -55918,7 +55918,7 @@ Supported expressions:
       tabPanel,
       fullWidth: fullWidth$1,
       metadataPanel,
-      padded: padded$1,
+      padded,
       ansi,
       noTop,
       timePanel,
@@ -67137,11 +67137,11 @@ ${events}
         }
       );
     };
-    const modal = "_modal_1yfor_1";
-    const header = "_header_1yfor_14";
-    const modalTitle = "_modalTitle_1yfor_18";
-    const btnClose = "_btnClose_1yfor_22";
-    const backdrop = "_backdrop_1yfor_28";
+    const modal = "_modal_egs8z_1";
+    const header = "_header_egs8z_14";
+    const modalTitle = "_modalTitle_egs8z_18";
+    const btnClose = "_btnClose_egs8z_22";
+    const backdrop = "_backdrop_egs8z_28";
     const styles$6 = {
       modal,
       header,
@@ -67230,78 +67230,107 @@ ${events}
       metricsSummary,
       modalScores
     };
-    const label = "_label_k2zcs_1";
-    const value = "_value_k2zcs_5";
-    const padded = "_padded_k2zcs_9";
-    const scorer = "_scorer_k2zcs_14";
+    const table = "_table_1k10g_1";
+    const scorer = "_scorer_1k10g_5";
+    const value = "_value_1k10g_6";
+    const label = "_label_1k10g_11";
+    const groupSeparator = "_groupSeparator_1k10g_26";
+    const tableBody = "_tableBody_1k10g_31";
     const styles$4 = {
-      label,
+      table,
+      scorer,
       value,
-      padded,
-      scorer
+      label,
+      groupSeparator,
+      tableBody
     };
     const ScoreGrid = ({
       scoreGroups,
       showReducer,
-      className: className2
+      className: className2,
+      striped
     }) => {
       const columnCount = scoreGroups.reduce((prev, group) => {
         return Math.max(prev, group[0].metrics.length);
       }, 0);
-      const groups = scoreGroups.map((group, index2) => {
-        const metrics = group[0].metrics;
+      const subTables = [];
+      let index2 = 0;
+      for (const scoreGroup of scoreGroups) {
+        const metrics = scoreGroup[0].metrics;
         const cells = [];
-        cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("div", {}));
         for (let i2 = 0; i2 < columnCount; i2++) {
           if (metrics.length > i2) {
             cells.push(
               /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "div",
+                "th",
                 {
                   className: clsx(
                     "text-style-label",
                     "text-style-secondary",
-                    styles$4.label,
-                    index2 > 0 ? styles$4.padded : void 0
+                    "text-size-small",
+                    styles$4.label
                   ),
                   children: metrics[i2].name
                 }
               )
             );
           } else {
-            cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("div", {}));
+            cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
           }
         }
-        group.map((g) => {
-          cells.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$4.scorer), children: [
-              g.scorer,
-              " ",
-              showReducer && g.reducer ? `(${g.reducer})` : void 0
-            ] })
-          );
+        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$4.headerRow), children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
+          cells
+        ] });
+        const rows = [];
+        scoreGroup.forEach((g) => {
+          const cells2 = [];
           for (let i2 = 0; i2 < columnCount; i2++) {
             if (metrics.length > i2) {
-              cells.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$4.value), children: formatPrettyDecimal(g.metrics[i2].value) })
+              cells2.push(
+                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$4.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
               );
             } else {
-              cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("div", {}));
+              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$4.value) }));
             }
           }
+          rows.push(
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$4.scorer, "text-size-small"), children: [
+                g.scorer,
+                " ",
+                showReducer && g.reducer ? `(${g.reducer})` : void 0
+              ] }),
+              cells2
+            ] })
+          );
         });
-        return cells;
-      });
+        subTables.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "td",
+              {
+                colSpan: columnCount + 1,
+                className: clsx(styles$4.groupSeparator)
+              }
+            ) }) : void 0,
+            headerRow,
+            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$4.tableBody), children: rows })
+          ] })
+        );
+        index2++;
+      }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
+        "table",
         {
-          style: {
-            display: "grid",
-            gridTemplateColumns: `repeat(${columnCount + 1}, max-content)`,
-            columnGap: "1.5em"
-          },
-          className: clsx("text-size-small", className2),
-          children: groups
+          className: clsx(
+            className2,
+            "table",
+            striped ? "table-striped" : void 0,
+            styles$4.table,
+            "table-bordered"
+          ),
+          children: subTables
         }
       );
     };
@@ -67409,7 +67438,8 @@ ${events}
                   {
                     scoreGroups: grouped,
                     showReducer,
-                    className: styles$5.modalScores
+                    className: styles$5.modalScores,
+                    striped: false
                   }
                 )
               }
