@@ -47,7 +47,13 @@ export const createEvalDescriptor = (
       sample.scores[scoreLabel.scorer] &&
       sample.scores[scoreLabel.scorer].value
     ) {
-      return sample.scores[scoreLabel.scorer].value;
+      if (typeof sample.scores[scoreLabel.scorer].value === "object") {
+        return (
+          sample.scores[scoreLabel.scorer].value as Record<string, Value2>
+        )[scoreLabel.name];
+      } else {
+        return sample.scores[scoreLabel.scorer].value;
+      }
     } else if (sample.scores[scoreLabel.name]) {
       return sample.scores[scoreLabel.name].value;
     } else {
