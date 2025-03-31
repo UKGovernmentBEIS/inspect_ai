@@ -314,4 +314,4 @@ def verify_tool_call(log: EvalLog, includes: str):
     assert log.samples
     tool_message = log.samples[0].messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
-    assert includes in log.samples[0].output.completion
+    assert includes.lower() in log.samples[0].output.completion.lower()

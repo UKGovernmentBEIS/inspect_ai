@@ -225,7 +225,7 @@ def openai_responses_tools(tools: list[ToolInfo]) -> list[ToolParam]:
 
 
 def openai_responses_chat_choices(
-    response: Response, tools: list[ToolInfo]
+    model: str, response: Response, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
     # determine the StopReason
     stop_reason: StopReason = "stop"
@@ -276,6 +276,7 @@ def openai_responses_chat_choices(
                 id=response.id,
                 content=message_content,
                 tool_calls=tool_calls if len(tool_calls) > 0 else None,
+                model=model,
                 source="generate",
             ),
             stop_reason=stop_reason,

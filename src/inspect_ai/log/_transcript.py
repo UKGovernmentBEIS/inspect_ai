@@ -208,6 +208,12 @@ class ToolEvent(BaseEvent):
     working_time: float | None = Field(default=None)
     """Working time for tool call (i.e. time not spent waiting on semaphores)."""
 
+    agent: str | None = Field(default=None)
+    """Name of agent if the tool call was an agent handoff."""
+
+    failed: bool | None = Field(default=None)
+    """Did the tool call fail with a hard error?."""
+
     def _set_result(
         self,
         result: ToolResult,
@@ -215,6 +221,8 @@ class ToolEvent(BaseEvent):
         error: ToolCallError | None,
         events: list["Event"],
         waiting_time: float,
+        agent: str | None,
+        failed: bool | None,
     ) -> None:
         self.result = result
         self.truncated = truncated
@@ -224,6 +232,8 @@ class ToolEvent(BaseEvent):
         completed = datetime.now()
         self.completed = completed
         self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
+        self.agent = agent
+        self.failed = failed
 
     # mechanism for operator to cancel the tool call
 

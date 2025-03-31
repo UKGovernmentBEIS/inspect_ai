@@ -27068,7 +27068,8 @@ self.onmessage = function (e) {
               `text-content-${index2}`,
               {
                 type: "text",
-                text: content2
+                text: content2,
+                refusal: null
               },
               index2 === contents2.length - 1
             );
@@ -27090,7 +27091,8 @@ self.onmessage = function (e) {
       } else {
         const contentText = {
           type: "text",
-          text: contents2
+          text: contents2,
+          refusal: null
         };
         return messageRenderers["text"].render(
           "text-message-content",
@@ -27368,7 +27370,8 @@ self.onmessage = function (e) {
             content: [
               {
                 type: "text",
-                text: String(output2)
+                text: String(output2),
+                refusal: null
               }
             ]
           }
@@ -27439,7 +27442,8 @@ self.onmessage = function (e) {
             content: [
               {
                 type: "text",
-                text: content2
+                text: content2,
+                refusal: null
               }
             ]
           }
@@ -27452,7 +27456,8 @@ self.onmessage = function (e) {
               content: [
                 {
                   type: "text",
-                  text: con
+                  text: con,
+                  refusal: null
                 }
               ]
             };
@@ -27526,7 +27531,8 @@ self.onmessage = function (e) {
       if (typeof content2 === "string") {
         return {
           type: "text",
-          text: content2
+          text: content2,
+          refusal: null
         };
       } else {
         return content2;
@@ -56538,7 +56544,10 @@ Supported expressions:
         return `${id}-nav-pill-${index2}`;
       };
       const filteredArrChildren = (Array.isArray(children2) ? children2 : [children2]).filter((child) => !!child);
-      const defaultPillId = pillId(0);
+      const defaultPill = filteredArrChildren.findIndex((node2) => {
+        return hasDataDefault(node2) && node2.props["data-default"];
+      });
+      const defaultPillId = defaultPill !== -1 ? pillId(defaultPill) : pillId(0);
       const [selectedNav, setSelectedNav] = useProperty(id, "selectedNav", {
         defaultValue: defaultPillId
       });
@@ -56652,6 +56661,9 @@ Supported expressions:
       ] });
       return card2;
     };
+    function hasDataDefault(node2) {
+      return reactExports.isValidElement(node2) && node2.props !== null && typeof node2.props === "object" && "data-default" in node2.props;
+    }
     const ErrorEventView = ({
       id,
       event,
@@ -64782,9 +64794,15 @@ ${events}
         () => resolveToolInput(event.function, event.arguments),
         [event.function, event.arguments]
       );
-      const approvalEvent = event.events.find((e) => {
-        return e.event === "approval";
-      });
+      const { approvalEvent, lastModelEvent } = reactExports.useMemo(() => {
+        const approvalEvent2 = event.events.find((e) => {
+          return e.event === "approval";
+        });
+        const lastModelEvent2 = [...event.events].reverse().find((e) => {
+          return e.event === "model";
+        });
+        return { approvalEvent: approvalEvent2, lastModelEvent: lastModelEvent2 };
+      }, [event.events]);
       const title2 = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
@@ -64808,6 +64826,15 @@ ${events}
                   view: event.view ? event.view : void 0
                 }
               ),
+              lastModelEvent && lastModelEvent.event === "model" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ChatView,
+                {
+                  id: `${id}-toolcall-chatmessage`,
+                  messages: lastModelEvent.output.choices.map((m) => m.message),
+                  numbered: false,
+                  toolCallStyle: "compact"
+                }
+              ) : void 0,
               approvalEvent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ApprovalEventView,
                 {
@@ -64822,6 +64849,7 @@ ${events}
               {
                 id: `${id}-subtask`,
                 "data-name": "Transcript",
+                "data-default": event.failed || event.agent ? true : null,
                 events: event.events,
                 depth: depth + 1
               }

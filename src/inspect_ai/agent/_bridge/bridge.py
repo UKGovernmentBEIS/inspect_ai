@@ -5,17 +5,15 @@ from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.model._model import get_model
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.providers import validate_openai_client
-from inspect_ai.scorer._metric import Score
-
-from .._solver import Generate, Solver, solver
-from .._task_state import TaskState
 
 
-@solver
-def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solver:
-    """Bridge an external agent into an Inspect Solver.
+@agent
+def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Agent:
+    """Bridge an external agent into an Inspect Agent.
 
     See documentation at <https://inspect.aisi.org.uk/agent-bridge.html>
 
@@ -25,7 +23,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     Returns:
       Standard Inspect solver.
     """
-    validate_openai_client("Solver bridge()")
+    validate_openai_client("Agent bridge()")
 
     from openai.types.chat import ChatCompletionMessageParam
 
@@ -36,17 +34,15 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
 
     from .patch import openai_request_to_inspect_model
 
-    class BridgeSample(BaseModel):
-        sample_id: str
-        epoch: int
+    class BridgeInput(BaseModel):
+        messages: list[ChatCompletionMessageParam]
+
+        # temporarily here for backward compatibility w/ previous bridge
         input: list[ChatCompletionMessageParam]
-        metadata: dict[str, Any]
-        target: list[str]
 
     class BridgeResult(BaseModel):
         output: str
         messages: list[ChatCompletionMessageParam] | None = Field(default=None)
-        scores: dict[str, Score] | None = Field(default=None)
 
     result_schema = BridgeResult.model_json_schema()
     result_validator = Draft7Validator(result_schema)
@@ -55,27 +51,15 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
     if not is_callable_coroutine(agent):
         raise TypeError(f"'{agent.__name__}' is not declared as an async callable.")
 
-    async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # resolve input to array
-        input: list[ChatMessage] = (
-            [ChatMessageUser(content=state.input)]
-            if isinstance(state.input, str)
-            else state.input
-        )
-
-        # create sample (use standard gpt-4 message encoding -- i.e. no 'developer' messages)
-        sample = BridgeSample(
-            sample_id=str(state.sample_id),
-            epoch=state.epoch,
-            input=await openai_chat_messages(input, model="gpt-4"),
-            metadata=state.metadata,
-            target=list(state.target),
-        )
+    async def execute(state: AgentState) -> AgentState:
+        # create input (use standard gpt-4 message encoding -- i.e. no 'developer' messages)
+        messages = await openai_chat_messages(state.messages, model="gpt-4")
+        input = BridgeInput(messages=messages, input=messages)
 
         # run target function
         async with openai_request_to_inspect_model():
             # call the function
-            result_dict = await agent(sample.model_dump())
+            result_dict = await agent(input.model_dump())
             try:
                 result = BridgeResult.model_validate(result_dict)
             except ValidationError:
@@ -89,12 +73,14 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solv
                 raise ValueError(message)
 
         # update and return state
-        state.output.completion = result.output
+        state.output = ModelOutput.from_content(
+            model=get_model().name, content=result.output
+        )
         if result.messages is not None:
-            state.messages = chat_messages_from_openai(result.messages)
-        if result.scores is not None:
-            state.scores = result.scores
+            state.messages = chat_messages_from_openai(
+                state.output.model, result.messages
+            )
 
         return state
 
-    return solve
+    return execute

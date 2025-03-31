@@ -1,5 +1,11 @@
 import clsx from "clsx";
-import { FC, isValidElement, ReactNode, useCallback } from "react";
+import {
+  FC,
+  isValidElement,
+  ReactElement,
+  ReactNode,
+  useCallback,
+} from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
@@ -49,7 +55,11 @@ export const EventPanel: FC<EventPanelProps> = ({
   const filteredArrChildren = (
     Array.isArray(children) ? children : [children]
   ).filter((child) => !!child);
-  const defaultPillId = pillId(0);
+
+  const defaultPill = filteredArrChildren.findIndex((node) => {
+    return hasDataDefault(node) && node.props["data-default"];
+  });
+  const defaultPillId = defaultPill !== -1 ? pillId(defaultPill) : pillId(0);
 
   const [selectedNav, setSelectedNav] = useProperty(id, "selectedNav", {
     defaultValue: defaultPillId,
@@ -186,3 +196,20 @@ export const EventPanel: FC<EventPanelProps> = ({
   );
   return card;
 };
+
+// Typeguard for reading default value from pills
+interface DataDefaultProps {
+  "data-default"?: boolean;
+  [key: string]: any;
+}
+
+function hasDataDefault(
+  node: ReactNode,
+): node is ReactElement<DataDefaultProps> {
+  return (
+    isValidElement(node) &&
+    node.props !== null &&
+    typeof node.props === "object" &&
+    "data-default" in node.props
+  );
+}

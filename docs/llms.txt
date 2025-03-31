@@ -49,6 +49,7 @@
 - [inspect_ai](https://inspect.aisi.org.uk/reference/inspect_ai.html.md) describes the core types used to create tasks and run evaluations.
 - [inspect_ai.solver](https://inspect.aisi.org.uk/reference/inspect_ai.solver.html.md) describes built in solvers as well as the types used to create custom solvers.
 - [inspect_ai.tool](https://inspect.aisi.org.uk/reference/inspect_ai.tool.html.md) describes built in tools as well as the types used to create custom tools.
+- [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html.md) describes high level agent orchestration and the agent protocol.
 - [inspect_ai.scorer](https://inspect.aisi.org.uk/reference/inspect_ai.scorer.html.md) describes built in scorers as well as the types used to create custom scorers.
 - [inspect_ai.model](https://inspect.aisi.org.uk/reference/inspect_ai.model.html.md) covers using the Inspect model API for accessing various language models.
 - [inspect_ai.dataset](https://inspect.aisi.org.uk/reference/inspect_ai.dataset.html.md) describes the types used to read and manipulate datasets and samples.

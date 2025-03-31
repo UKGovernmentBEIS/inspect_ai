@@ -257,9 +257,10 @@ class GoogleGenAIAPI(ModelAPI):
         except ClientError as ex:
             return self.handle_client_error(ex), model_call()
 
+        model_name = response.model_version or self.model_name
         output = ModelOutput(
-            model=self.model_name,
-            choices=completion_choices_from_candidates(response),
+            model=model_name,
+            choices=completion_choices_from_candidates(model_name, response),
             usage=usage_metadata_to_model_usage(response.usage_metadata),
         )
 
@@ -546,7 +547,9 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
         )
 
 
-def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
+def completion_choice_from_candidate(
+    model: str, candidate: Candidate
+) -> ChatCompletionChoice:
     # content can be None when the finish_reason is SAFETY
     if candidate.content is None:
         content = ""
@@ -596,6 +599,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         message=ChatMessageAssistant(
             content=choice_content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
+            model=model,
             source="generate",
         ),
         stop_reason=stop_reason,
@@ -624,19 +628,22 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
 
 
 def completion_choices_from_candidates(
+    model: str,
     response: GenerateContentResponse,
 ) -> list[ChatCompletionChoice]:
     candidates = response.candidates
     if candidates:
         candidates_list = sorted(candidates, key=lambda c: c.index)
         return [
-            completion_choice_from_candidate(candidate) for candidate in candidates_list
+            completion_choice_from_candidate(model, candidate)
+            for candidate in candidates_list
         ]
     elif response.prompt_feedback:
         return [
             ChatCompletionChoice(
                 message=ChatMessageAssistant(
                     content=prompt_feedback_to_content(response.prompt_feedback),
+                    model=model,
                     source="generate",
                 ),
                 stop_reason="content_filter",

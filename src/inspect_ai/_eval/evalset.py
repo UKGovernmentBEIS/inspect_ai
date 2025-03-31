@@ -17,6 +17,7 @@ from typing_extensions import Unpack
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai.agent._agent import Agent
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
@@ -65,7 +66,7 @@ def eval_set(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    solver: Solver | list[Solver] | SolverSpec | None = None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
