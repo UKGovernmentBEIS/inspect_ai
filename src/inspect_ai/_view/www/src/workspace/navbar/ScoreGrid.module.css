@@ -17,6 +17,8 @@
 
 .label {
   font-weight: 400;
+  padding-left: 1em;
+  padding-right: 1em;
 }
 
 .scorer {
