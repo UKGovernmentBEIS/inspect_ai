@@ -3,6 +3,7 @@
   border: none;
   flex-direction: row;
   background-color: unset;
+  color: var(--bs-link-color);
 }
 
 .button:hover {

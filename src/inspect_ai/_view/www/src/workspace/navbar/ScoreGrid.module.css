@@ -1,0 +1,16 @@
+.label {
+  justify-self: center;
+}
+
+.value {
+  justify-self: center;
+}
+
+.padded {
+  padding-top: 2em;
+  border-bottom: solid black 1px;
+}
+
+.scorer {
+  justify-self: right;
+}

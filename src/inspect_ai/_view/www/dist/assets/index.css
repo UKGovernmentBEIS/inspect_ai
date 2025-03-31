@@ -19857,19 +19857,20 @@ span.ap-marker-container:hover span.ap-marker {
   display: grid;
   grid-template-columns: minmax(0, max-content) max-content;
 }
-._button_oq9i2_1 {
+._button_12472_1 {
   display: flex;
   border: none;
   flex-direction: row;
   background-color: unset;
+  color: var(--bs-link-color);
 }
 
-._button_oq9i2_1:hover {
+._button_12472_1:hover {
   color: var(--bs-link-hover-color);
   cursor: pointer;
 }
 
-._label_oq9i2_13 {
+._label_12472_14 {
   margin-left: 0.4em;
 }
 ._modal_1yfor_1 {
@@ -19909,7 +19910,7 @@ span.ap-marker-container:hover span.ap-marker {
 
   z-index: 1040;
 }
-._simpleMetricsRows_ptsj6_1 {
+._simpleMetricsRows_yha6g_1 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19920,7 +19921,7 @@ span.ap-marker-container:hover span.ap-marker {
   overflow: scroll;
 }
 
-._multiMetricsRows_ptsj6_12 {
+._multiMetricsRows_yha6g_12 {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
@@ -19934,14 +19935,14 @@ span.ap-marker-container:hover span.ap-marker {
   align-items: baseline;
 }
 
-._verticalMetricReducer_ptsj6_26 {
+._verticalMetricReducer_yha6g_26 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
   margin-bottom: -0.3rem;
 }
 
-._verticalMetricName_ptsj6_33 {
+._verticalMetricName_yha6g_33 {
   font-size: var(--inspect-font-size-smaller);
   text-align: center;
   padding-top: 0.3rem;
@@ -19949,35 +19950,35 @@ span.ap-marker-container:hover span.ap-marker {
   border-bottom: solid var(--bs-border-color) 1px;
 }
 
-._verticalMetricValue_ptsj6_41 {
+._verticalMetricValue_yha6g_41 {
   font-weight: 500;
   text-align: center;
 }
 
-._multiScorer_ptsj6_46 {
+._multiScorer_yha6g_46 {
   padding-left: 0;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
 }
 
-._multiScorerIndent_ptsj6_53 {
+._multiScorerIndent_yha6g_53 {
   padding-left: 1.5em;
 }
 
-._multiScorerReducer_ptsj6_57 {
+._multiScorerReducer_yha6g_57 {
   text-align: center;
   margin-bottom: -0.3rem;
   margin-top: 0.2em;
 }
 
-._multiScorerLabel_ptsj6_63 {
+._multiScorerLabel_yha6g_63 {
   text-align: center;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: -0.1rem;
 }
 
-._multiScorerValue_ptsj6_69 {
+._multiScorerValue_yha6g_69 {
   display: grid;
   grid-template-columns: auto auto;
   grid-auto-rows: auto;
@@ -19986,12 +19987,12 @@ span.ap-marker-container:hover span.ap-marker {
   padding-top: 0.3em;
 }
 
-._multiScorerValueContent_ptsj6_78 {
+._multiScorerValueContent_yha6g_78 {
   font-weight: 600;
   text-align: center;
 }
 
-._multiScoreMetricGrid_ptsj6_83 {
+._multiScoreMetricGrid_yha6g_83 {
   display: grid;
   grid-template-rows: auto auto;
   column-gap: 1em;
@@ -19999,19 +20000,36 @@ span.ap-marker-container:hover span.ap-marker {
   justify-content: center;
 }
 
-._moreButton_ptsj6_91 {
+._moreButton_yha6g_91 {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
+  padding-right: 0;
 }
 
-._metricsSummary_ptsj6_96 {
+._metricsSummary_yha6g_97 {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
 }
 
-._modalScores_ptsj6_102 {
+._modalScores_yha6g_103 {
   padding-bottom: 4em;
+}
+._label_k2zcs_1 {
+  justify-self: center;
+}
+
+._value_k2zcs_5 {
+  justify-self: center;
+}
+
+._padded_k2zcs_9 {
+  padding-top: 2em;
+  border-bottom: solid black 1px;
+}
+
+._scorer_k2zcs_14 {
+  justify-self: right;
 }
 ._statusContainer_1sckj_1 {
   display: inline-block;

@@ -1,7 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
 import { RunningMetric } from "../../api/types";
-import { ApplicationIcons } from "../../appearance/icons";
 import { LinkButton } from "../../components/LinkButton";
 import { Modal } from "../../components/Modal";
 import { useProperty } from "../../state/hooks";
@@ -9,6 +8,7 @@ import { Scores } from "../../types/log";
 import { formatPrettyDecimal } from "../../utils/format";
 import { metricDisplayName } from "../utils";
 import styles from "./ResultsPanel.module.css";
+import { ScoreGrid } from "./ScoreGrid";
 
 export interface ResultsMetric {
   name: string;
@@ -134,7 +134,7 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
 
     return (
       <div className={clsx(styles.metricsSummary)}>
-        <ScoreGrid scorers={primaryResults} showReducer={showReducer} />
+        <ScoreGrid scoreGroups={[primaryResults]} showReducer={showReducer} />
         {grouped.length > 1 ? (
           <>
             <Modal
@@ -143,20 +143,15 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
               setShowing={setShowing}
               title={"Scoring Detail"}
             >
-              {grouped.map((g) => {
-                return (
-                  <ScoreGrid
-                    scorers={g}
-                    showReducer={showReducer}
-                    className={styles.modalScores}
-                  />
-                );
-              })}
+              <ScoreGrid
+                scoreGroups={grouped}
+                showReducer={showReducer}
+                className={styles.modalScores}
+              />
             </Modal>
             <LinkButton
               className={styles.moreButton}
-              text={"Additional metrics"}
-              icon={ApplicationIcons.metrics}
+              text={"All scoring..."}
               onClick={() => {
                 setShowing(true);
               }}
@@ -184,55 +179,6 @@ const groupMetrics = (scorers: ResultsScorer[]): ResultsScorer[][] => {
     }
   });
   return Object.values(results);
-};
-
-interface ScoreGridProps {
-  scorers: ResultsScorer[];
-  showReducer?: boolean;
-  className?: string | string[];
-}
-
-const ScoreGrid: FC<ScoreGridProps> = ({ scorers, showReducer, className }) => {
-  const metricCount = scorers[0].metrics.length;
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(${metricCount + 1}, max-content)`,
-        columnGap: "1.5em",
-        marginRight: "1em",
-      }}
-      className={clsx("text-size-small", className)}
-    >
-      <div className={clsx("text-style-label")}>Scorer</div>
-      {scorers[0].metrics.map((m) => {
-        return (
-          <div className={clsx("text-style-label", "text-style-secondary")}>
-            {m.name}
-          </div>
-        );
-      })}
-
-      {scorers.map((scorer) => {
-        const results = [
-          <div>
-            {scorer.scorer}{" "}
-            {showReducer && scorer.reducer ? `(${scorer.reducer})` : undefined}
-          </div>,
-        ];
-        const metrics = scorer.metrics;
-        metrics.forEach((m) => {
-          results.push(
-            <div style={{ justifySelf: "center", fontWeight: "600" }}>
-              {formatPrettyDecimal(m.value)}
-            </div>,
-          );
-        });
-        return results;
-      })}
-    </div>
-  );
 };
 
 interface VerticalMetricProps {
