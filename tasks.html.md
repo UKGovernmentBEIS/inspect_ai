@@ -295,8 +295,8 @@ In some cases though you might not have full control over the base
 `@task` function (e.g. it’s published in a Python package you aren’t the
 maintainer of) but you nevertheless want to flexibly create derivative
 tasks from it. To do this, you can use the `task_with()` function, which
-clones an existing task and enables you to override any of the task
-fields that you need to.
+provides a straightforward way to modify the properties of an existing
+task.
 
 For example, imagine you are dealing with a `Task` that hard-codes its
 `sandbox` to a particular Dockerfile included with the task, and further
@@ -351,6 +351,16 @@ many considerations (datasets, solvers, sandbox environments, limits,
 and scoring). Task variations often lie at the intersection of these,
 and the `task_with()` function is intended to help you produce exactly
 the variation you need for a given evaluation.
+
+Note that `task_with()` modifies the passed task in-place, so if you
+want to create multiple variations of a single task using `task_with()`
+you should create the underlying task multiple times (once for each call
+to `task_with()`). For example:
+
+``` python
+adapted1 = task_with(hard_coded(), ...)
+adapted2 = task_with(hard_coded(), ...)
+```
 
 ## Exploratory
 

@@ -370,6 +370,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./agent-protocol.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agent Protocol</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./agent-bridge.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Agent Bridge</span></a>
   </div>
@@ -560,6 +566,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="sec-bash-session" class="level2">
 <h2 class="anchored" data-anchor-id="sec-bash-session">Bash Session</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> tool provides a bash shell that retains its state across calls from the model (as distinct from the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span> tool which executes each command in a fresh session). The prompt, working directory, and environment variables are all retained across calls. The tool also supports a <code>restart</code> action that enables the model to reset its state and work in a fresh session.</p>
+<p>Note that a separate bash process is created within the sandbox for each instance of the bash session tool. See the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> reference docs for details on customizing this behavior.</p>
 <section id="configuration" class="level3">
 <h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
 <p>Bash sessions require the use of a <a href="./sandboxing.html">Sandbox Environment</a> for the execution of untrusted code. In addition, you’ll need some dependencies installed in the sandbox container. Please see <strong>Sandbox Dependencies</strong> below for additional instructions.</p>
@@ -749,7 +756,8 @@ Sandbox Dependencies
 <span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>match(),</span>
 <span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span>(<span class="st">"docker"</span>, <span class="st">"compose.yaml"</span>),</span>
 <span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that unlike some other tool functions like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span>, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#use_tools">use_tools()</a></span>.</p>
+<p>Unlike some other tool functions like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span>, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#use_tools">use_tools()</a></span>.</p>
+<p>Note that a separate web browser process is created within the sandbox for each instance of the web browser tool. See the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_browser">web_browser()</a></span> reference docs for details on customizing this behavior.</p>
 </section>
 <section id="browsing" class="level3">
 <h3 class="anchored" data-anchor-id="browsing">Browsing</h3>
@@ -1652,7 +1660,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","selector":".lightbox","closeEffect":"zoom","loop":false,"descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"loop":false,"openEffect":"zoom","selector":".lightbox","descPosition":"bottom","closeEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

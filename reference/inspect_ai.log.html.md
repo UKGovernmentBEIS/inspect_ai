@@ -7,7 +7,7 @@
 
 List all eval logs in a directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L50)
 
 ``` python
 def list_eval_logs(
@@ -45,7 +45,7 @@ provider (e.g. `S3FileSystem`).
 
 Write an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L98)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L98)
 
 ``` python
 def write_eval_log(
@@ -68,7 +68,7 @@ Write to format (defaults to ‘auto’ based on `log_file` extension)
 
 Write an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L122)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L122)
 
 ``` python
 async def write_eval_log_async(
@@ -91,7 +91,7 @@ Write to format (defaults to ‘auto’ based on `log_file` extension)
 
 Read an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L199)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L199)
 
 ``` python
 def read_eval_log(
@@ -119,7 +119,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L237)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L237)
 
 ``` python
 async def read_eval_log_async(
@@ -147,7 +147,7 @@ Read from format (defaults to ‘auto’ based on `log_file` extension)
 
 Read a sample from an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L301)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L301)
 
 ``` python
 def read_eval_log_sample(
@@ -181,7 +181,7 @@ Read all samples from an evaluation log incrementally.
 Generator for samples in a log file. Only one sample at a time will be
 read into memory and yielded to the caller.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L377)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L377)
 
 ``` python
 def read_eval_log_samples(
@@ -211,7 +211,7 @@ Convert between log file formats.
 Convert log file(s) to a target format. If a file is already in the
 target format it will just be copied to the output dir.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_convert.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_convert.py#L13)
 
 ``` python
 def convert_eval_logs(
@@ -238,7 +238,7 @@ the output file path already exists).
 
 Bundle a log_dir into a statically deployable viewer
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_bundle.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_bundle.py#L23)
 
 ``` python
 def bundle_log_dir(
@@ -273,7 +273,7 @@ A log directory manifest is a dictionary of EvalLog headers (EvalLog w/o
 samples) keyed by log file names (names are relative to the log
 directory)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L157)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L157)
 
 ``` python
 def write_log_dir_manifest(
@@ -306,7 +306,7 @@ Retryable logs are logs with status “error” or “cancelled” that do not
 have a corresponding log with status “success” (indicating they were
 subsequently retried and completed)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_retry.py#L10)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_retry.py#L10)
 
 ``` python
 def retryable_eval_logs(logs: list[EvalLogInfo]) -> list[EvalLogInfo]
@@ -319,7 +319,7 @@ List of logs to examine.
 
 File info and task identifiers for eval log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_file.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_file.py#L25)
 
 ``` python
 class EvalLogInfo(BaseModel)
@@ -354,7 +354,7 @@ Log file suffix (e.g. “-scored”)
 
 Evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L740)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L749)
 
 ``` python
 class EvalLog(BaseModel)
@@ -396,7 +396,7 @@ Location that the log file was read from.
 
 Eval target and configuration.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L548)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L554)
 
 ``` python
 class EvalSpec(BaseModel)
@@ -421,6 +421,9 @@ Task version.
 
 `task_file` str \| None  
 Task source file.
+
+`task_registry_name` str \| None  
+Task registry name.
 
 `task_attribs` dict\[str, Any\]  
 Attributes of the @task decorator.
@@ -474,7 +477,7 @@ metrics and args for this eval
 
 Dataset used for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L492)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L498)
 
 ``` python
 class EvalDataset(BaseModel)
@@ -501,7 +504,7 @@ Was the dataset shuffled after reading.
 
 Configuration used for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L61)
 
 ``` python
 class EvalConfig(BaseModel)
@@ -578,7 +581,7 @@ Display scoring metrics realtime.
 
 Git revision for evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L535)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L541)
 
 ``` python
 class EvalRevision(BaseModel)
@@ -599,7 +602,7 @@ Revision commit.
 
 Plan (solvers) used in evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L334)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L340)
 
 ``` python
 class EvalPlan(BaseModel)
@@ -623,7 +626,7 @@ Generation config.
 
 Solver step.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L324)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L330)
 
 ``` python
 class EvalPlanStep(BaseModel)
@@ -641,7 +644,7 @@ Parameters used to instantiate solver.
 
 Scoring results from evaluation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L408)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L414)
 
 ``` python
 class EvalResults(BaseModel)
@@ -670,7 +673,7 @@ List of per sample scores reduced across epochs
 
 Score for evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L366)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L372)
 
 ``` python
 class EvalScore(BaseModel)
@@ -700,7 +703,7 @@ Additional scorer metadata.
 
 Metric for evaluation score.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L350)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L356)
 
 ``` python
 class EvalMetric(BaseModel)
@@ -724,7 +727,7 @@ Additional metadata associated with metric.
 
 Score reductions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L395)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L401)
 
 ``` python
 class EvalSampleReductions(BaseModel)
@@ -745,7 +748,7 @@ List of reduced scores
 
 Timing and usage statistics.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L724)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L733)
 
 ``` python
 class EvalStats(BaseModel)
@@ -766,7 +769,7 @@ Model token usage for evaluation.
 
 Eval error details.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/_util/error.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/_util/error.py#L11)
 
 ``` python
 class EvalError(BaseModel)
@@ -787,7 +790,7 @@ Error traceback with ANSI color codes.
 
 Sample from evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L159)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L159)
 
 ``` python
 class EvalSample(BaseModel)
@@ -868,7 +871,7 @@ The limit that halted the sample
 metadata_as  
 Pydantic model interface to metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L198)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L198)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -880,20 +883,24 @@ Pydantic model type
 store_as  
 Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L212)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L212)
 
 ``` python
-def store_as(self, model_cls: Type[SMT]) -> SMT
+def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT
 ```
 
 `model_cls` Type\[SMT\]  
 Pydantic model type (must derive from StoreModel)
 
+`instance` str \| None  
+Optional instances name for store (enables multiple instances of a given
+StoreModel type within a single sample)
+
 ### EvalSampleLimit
 
 Limit encontered by sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L147)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L147)
 
 ``` python
 class EvalSampleLimit(BaseModel)
@@ -911,7 +918,7 @@ The limit value
 
 Score reductions.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L395)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L401)
 
 ``` python
 class EvalSampleReductions(BaseModel)
@@ -932,7 +939,7 @@ List of reduced scores
 
 Score and sample_id scored.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_log.py#L388)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_log.py#L394)
 
 ``` python
 class EvalSampleScore(Score)
@@ -949,7 +956,7 @@ Sample ID.
 
 Get the current `Transcript`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L525)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L535)
 
 ``` python
 def transcript() -> Transcript
@@ -959,7 +966,7 @@ def transcript() -> Transcript
 
 Transcript of events.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L465)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L475)
 
 ``` python
 class Transcript
@@ -970,7 +977,7 @@ class Transcript
 info  
 Add an `InfoEvent` to the transcript.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L475)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L485)
 
 ``` python
 def info(self, data: JsonValue, *, source: str | None = None) -> None
@@ -985,7 +992,7 @@ Optional event source.
 step  
 Context manager for recording StepEvent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L484)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L494)
 
 ``` python
 @contextlib.contextmanager
@@ -1002,7 +1009,7 @@ Optional step type.
 
 Event in a transcript.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L442)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L452)
 
 ``` python
 Event: TypeAlias = Union[
@@ -1029,7 +1036,7 @@ Event: TypeAlias = Union[
 
 Beginning of processing a Sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L74)
 
 ``` python
 class SampleInitEvent(BaseEvent)
@@ -1050,7 +1057,7 @@ Initial state.
 
 The sample was unable to finish processing due to a limit
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L87)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L87)
 
 ``` python
 class SampleLimitEvent(BaseEvent)
@@ -1074,7 +1081,7 @@ The limit value (if any)
 
 Change to the current `TaskState`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L113)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L113)
 
 ``` python
 class StateEvent(BaseEvent)
@@ -1092,7 +1099,7 @@ List of changes to the `TaskState`
 
 Change to data within the current `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L103)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L103)
 
 ``` python
 class StoreEvent(BaseEvent)
@@ -1110,7 +1117,7 @@ List of changes to the `Store`.
 
 Call to a language model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L123)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L123)
 
 ``` python
 class ModelEvent(BaseEvent)
@@ -1158,7 +1165,7 @@ working time for model call that succeeded (i.e. was not retried).
 
 Call to a tool.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L169)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L169)
 
 ``` python
 class ToolEvent(BaseEvent)
@@ -1205,6 +1212,12 @@ Time that tool call completed (see `timestamp` for started)
 `working_time` float \| None  
 Working time for tool call (i.e. time not spent waiting on semaphores).
 
+`agent` str \| None  
+Name of agent if the tool call was an agent handoff.
+
+`failed` bool \| None  
+Did the tool call fail with a hard error?.
+
 `cancelled` bool  
 Was the task cancelled?
 
@@ -1212,7 +1225,7 @@ Was the task cancelled?
 
 Sandbox execution or I/O
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L261)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L271)
 
 ``` python
 class SandboxEvent(BaseEvent)
@@ -1251,7 +1264,7 @@ Time that sandbox action completed (see `timestamp` for started)
 
 Tool approval.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L298)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L308)
 
 ``` python
 class ApprovalEvent(BaseEvent)
@@ -1287,7 +1300,7 @@ Explanation for decision.
 
 Input screen interaction.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L326)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L336)
 
 ``` python
 class InputEvent(BaseEvent)
@@ -1308,7 +1321,7 @@ Input interaction (ANSI).
 
 Change to data within the current `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L103)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L103)
 
 ``` python
 class StoreEvent(BaseEvent)
@@ -1326,7 +1339,7 @@ List of changes to the `Store`.
 
 Event with sample error.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L362)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L372)
 
 ``` python
 class ErrorEvent(BaseEvent)
@@ -1344,7 +1357,7 @@ Sample error
 
 Log message recorded with Python logger.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L339)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L349)
 
 ``` python
 class LoggerEvent(BaseEvent)
@@ -1362,7 +1375,7 @@ Logging message
 
 Logging level.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_message.py#L7)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_message.py#L7)
 
 ``` python
 LoggingLevel = Literal[
@@ -1374,7 +1387,7 @@ LoggingLevel = Literal[
 
 Message written to Python log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_message.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_message.py#L13)
 
 ``` python
 class LoggingMessage(BaseModel)
@@ -1407,7 +1420,7 @@ Logged from line number.
 
 Event with custom info/data.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L349)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L359)
 
 ``` python
 class InfoEvent(BaseEvent)
@@ -1428,7 +1441,7 @@ Data provided with event.
 
 Step within current sample or subtask.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L392)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L402)
 
 ``` python
 class StepEvent(BaseEvent)
@@ -1452,7 +1465,7 @@ Event name.
 
 Subtask spawned.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/936f95e2ede1bfe35bd9bdfb92d123d4266825fc/src/inspect_ai/log/_transcript.py#L408)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/log/_transcript.py#L418)
 
 ``` python
 class SubtaskEvent(BaseEvent)

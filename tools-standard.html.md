@@ -78,6 +78,10 @@ directory, and environment variables are all retained across calls. The
 tool also supports a `restart` action that enables the model to reset
 its state and work in a fresh session.
 
+Note that a separate bash process is created within the sandbox for each
+instance of the bash session tool. See the `bash_session()` reference
+docs for details on customizing this behavior.
+
 ### Configuration
 
 Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd)
@@ -313,10 +317,13 @@ def browser_task():
     )
 ```
 
-Note that unlike some other tool functions like `bash()`, the
-`web_browser()` function returns a list of tools. Therefore, we
-concatenate it with a list of the other tools we are using in the call
-to `use_tools()`.
+Unlike some other tool functions like `bash()`, the `web_browser()`
+function returns a list of tools. Therefore, we concatenate it with a
+list of the other tools we are using in the call to `use_tools()`.
+
+Note that a separate web browser process is created within the sandbox
+for each instance of the web browser tool. See the `web_browser()`
+reference docs for details on customizing this behavior.
 
 ### Browsing
 

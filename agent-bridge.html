@@ -65,7 +65,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
 <link href="./human-agent.html" rel="next">
-<link href="./agents-api.html" rel="prev">
+<link href="./agent-protocol.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -367,6 +367,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./agent-protocol.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Agent Protocol</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./agent-bridge.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Agent Bridge</span></a>
   </div>
@@ -498,7 +504,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ol type="1">
 <li><p>Write an agent function that takes a sample <code>dict</code> as input and a returns a results <code>dict</code> with output. This function won’t have any dependencies on Inspect, rather it will depend on whatever agent framework or custom code you are using.</p></li>
 <li><p>This function should use the OpenAI API for model access, however calls to the OpenAI API will be <em>redirected</em> to Inspect (using whatever model is configured for the current task).</p></li>
-<li><p>Use the agent function with Inspect by passing it to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function, which will turn it into a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>.</p></li>
+<li><p>Use the agent function with Inspect by passing it to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function, which will turn it into a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>.</p></li>
 </ol>
 </section>
 <section id="agent-function" class="level2">
@@ -527,7 +533,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>We use the OpenAI API with <code>model="inspect"</code>, which enables Inspect to intercept the request and send it to the Inspect model being evaluated for the task.</p>
 <p>We read the input from <code>sample["input"]</code> (a list of OpenAI compatible messages) and return <code>output</code> as a string in the result <code>dict</code>.</p>
-<p>Here is how you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function to use this agent as a solver:</p>
+<p>Here is how you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function to use this agent as a solver:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>task.py</strong></pre>
@@ -554,7 +560,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-2" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function.</span>
+<span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
 </dd>
 </dl>
 <p>For more in-depth examples that make use of popular agent framworks, see:</p>
@@ -639,7 +645,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span data-code-cell="annotated-cell-3" data-code-lines="43,44" data-code-annotation="5">Extract content from final assistant message and return it as <code>output</code>.</span>
 </dd>
 </dl>
-<p>To use this agent in an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>, import it and use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function:</p>
+<p>To use this agent in an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>, import it and use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>task.py</strong></pre>
@@ -666,10 +672,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-4" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function.</span>
+<span data-code-cell="annotated-cell-4" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
 </dd>
 </dl>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function takes the agent function and hooks it up to a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>, updating the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and providing the means of redirecting OpenAI calls to the current Inspect model.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function takes the agent function and hooks it up to a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>, updating the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and providing the means of redirecting OpenAI calls to the current Inspect model.</p>
 </section>
 </section>
 <section id="bridge-types" class="level2">
@@ -748,7 +754,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="transcript" class="level2">
 <h2 class="anchored" data-anchor-id="transcript">Transcript</h2>
-<p>Custom agents run through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#bridge">bridge()</a></span> function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional solvers. The message history is also automatically captured and logged.</p>
+<p>Custom agents run through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional solvers. The message history is also automatically captured and logged.</p>
 <p>Calls to the Python <code>logging</code> module for levels <code>info</code> and above are also handled as normal and show up within sample transcripts.</p>
 <p>If you want to use additional features of Inspect transcripts (e.g.&nbsp;steps, markdown output, etc.) you can still import and use the <code>transcript</code> function as normal. For example:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
@@ -1223,8 +1229,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./agents-api.html" class="pagination-link" aria-label="Agent API">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Agent API</span>
+      <a href="./agent-protocol.html" class="pagination-link" aria-label="Agent Protocol">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Agent Protocol</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
