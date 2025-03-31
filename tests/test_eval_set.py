@@ -1,4 +1,5 @@
 import shutil
+import sys
 import tempfile
 from copy import deepcopy
 from pathlib import Path
@@ -61,6 +62,9 @@ def test_eval_set() -> None:
         assert logs[0].status == "error"
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 11), reason="can exceed retry attempts on python 3.10"
+)
 def test_eval_set_dynamic() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         dataset: list[Sample] = []
