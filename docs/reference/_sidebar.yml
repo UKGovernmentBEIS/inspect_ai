@@ -132,8 +132,12 @@ website:
           href: reference/inspect_ai.agent.qmd#as_tool
         - text: as_solver
           href: reference/inspect_ai.agent.qmd#as_solver
-        - text: HandoffFilter
-          href: reference/inspect_ai.agent.qmd#handofffilter
+        - text: remove_tools
+          href: reference/inspect_ai.agent.qmd#remove_tools
+        - text: last_message
+          href: reference/inspect_ai.agent.qmd#last_message
+        - text: MessageFilter
+          href: reference/inspect_ai.agent.qmd#messagefilter
         - text: Agent
           href: reference/inspect_ai.agent.qmd#agent
         - text: AgentState
