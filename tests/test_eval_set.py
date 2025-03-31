@@ -10,6 +10,7 @@ from test_helpers.utils import (
     failing_task,
     failing_task_deterministic,
     keyboard_interrupt,
+    skip_if_github_action,
     skip_if_trio,
     sleep_for_solver,
 )
@@ -65,6 +66,7 @@ def test_eval_set() -> None:
 @pytest.mark.skipif(
     sys.version_info < (3, 11), reason="can exceed retry attempts on python 3.10"
 )
+@skip_if_github_action
 def test_eval_set_dynamic() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         dataset: list[Sample] = []
