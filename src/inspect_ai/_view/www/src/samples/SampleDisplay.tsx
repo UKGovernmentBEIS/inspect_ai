@@ -92,7 +92,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     return false;
   };
 
-  const scorerNames = Object.keys(sample?.scores || {});
   const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
 
   const tabsetId = `task-sample-details-tab-${id}`;

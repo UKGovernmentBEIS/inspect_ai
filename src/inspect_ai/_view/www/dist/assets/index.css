@@ -15724,22 +15724,22 @@ ul.jsondiffpatch-textdiff {
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
 }
-._container_w37fs_1 {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-left: 0.5rem;
+._container_1ramc_1 {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-auto-rows: auto;
+  column-gap: 1rem;
 }
 
-._padded_w37fs_8 {
+._padded_1ramc_8 {
   padding-bottom: 1em;
 }
 
-._key_w37fs_12 {
+._key_1ramc_12 {
   font-weight: 300;
 }
 
-._value_w37fs_16 {
+._value_1ramc_16 {
   font-weight: 600;
 }
 .ansi-display {

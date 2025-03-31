@@ -20104,13 +20104,11 @@ self.onmessage = function (e) {
         return [val];
       }
     };
-    const container$f = "_container_w37fs_1";
-    const padded$2 = "_padded_w37fs_8";
-    const key = "_key_w37fs_12";
-    const value$3 = "_value_w37fs_16";
+    const container$f = "_container_1ramc_1";
+    const key = "_key_1ramc_12";
+    const value$3 = "_value_1ramc_16";
     const styles$1a = {
       container: container$f,
-      padded: padded$2,
       key,
       value: value$3
     };
@@ -20140,7 +20138,7 @@ self.onmessage = function (e) {
           }
           const scores2 = [];
           const keys = Object.keys(score2);
-          keys.forEach((key2, index2) => {
+          keys.forEach((key2) => {
             if (typeof score2 !== "object" || Array.isArray(score2)) {
               throw new Error(
                 "Unexpected us of object score descriptor for non-score object"
@@ -20151,23 +20149,13 @@ self.onmessage = function (e) {
               typeof value2 === "number" ? value2 : parseFloat(value2 === true ? "1" : value2)
             ) : String(value2);
             scores2.push(
-              /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                "div",
-                {
-                  className: clsx(
-                    styles$1a.container,
-                    index2 + 1 < keys.length ? styles$1a.padded : void 0
-                  ),
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1a.key, "text-size-smaller"), children: key2 }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1a.value, "text-size-base"), children: formattedValue })
-                  ]
-                },
-                `score-value-${index2}`
-              )
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1a.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1a.value, "text-size-base"), children: formattedValue })
+              ] })
             );
           });
-          return scores2;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1a.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -28242,7 +28230,11 @@ self.onmessage = function (e) {
           return void 0;
         }
         if (scoreLabel.scorer !== scoreLabel.name && sample2.scores[scoreLabel.scorer] && sample2.scores[scoreLabel.scorer].value) {
-          return sample2.scores[scoreLabel.scorer].value;
+          if (typeof sample2.scores[scoreLabel.scorer].value === "object") {
+            return sample2.scores[scoreLabel.scorer].value[scoreLabel.name];
+          } else {
+            return sample2.scores[scoreLabel.scorer].value;
+          }
         } else if (sample2.scores[scoreLabel.name]) {
           return sample2.scores[scoreLabel.name].value;
         } else {
@@ -31338,7 +31330,8 @@ categories: ${categories.join(" ")}`;
         if (!selectedLogSummary) {
           return [];
         }
-        return getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+        const result2 = getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+        return result2;
       }, [selectedLogSummary, sampleSummaries]);
     };
     const useEvalDescriptor = () => {
@@ -65197,7 +65190,6 @@ ${events}
         setSelectedTab(id2);
         return false;
       };
-      Object.keys((sample2 == null ? void 0 : sample2.scores) || {});
       const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
       const tabsetId = `task-sample-details-tab-${id}`;
       const targetId = `${tabsetId}-content`;

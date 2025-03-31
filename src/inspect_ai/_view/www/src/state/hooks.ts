@@ -78,7 +78,9 @@ export const useScores = () => {
       return [];
     }
 
-    return getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+    const result =
+      getAvailableScorers(selectedLogSummary, sampleSummaries) || [];
+    return result;
   }, [selectedLogSummary, sampleSummaries]);
 };
 
