@@ -1,5 +1,4 @@
 import shutil
-import sys
 import tempfile
 from copy import deepcopy
 from pathlib import Path
@@ -10,7 +9,6 @@ from test_helpers.utils import (
     failing_task,
     failing_task_deterministic,
     keyboard_interrupt,
-    skip_if_github_action,
     skip_if_trio,
     sleep_for_solver,
 )
@@ -63,10 +61,7 @@ def test_eval_set() -> None:
         assert logs[0].status == "error"
 
 
-@pytest.mark.skipif(
-    sys.version_info < (3, 11), reason="can exceed retry attempts on python 3.10"
-)
-@skip_if_github_action
+@pytest.mark.slow
 def test_eval_set_dynamic() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         dataset: list[Sample] = []
@@ -88,8 +83,8 @@ def test_eval_set_dynamic() -> None:
             tasks=[task1, task2],
             log_dir=log_dir,
             model=[get_model("mockllm/model"), get_model("mockllm/model2")],
-            retry_attempts=1000,
-            retry_wait=0.01,
+            retry_attempts=10000,
+            retry_wait=0.001,
         )
         assert len(logs) == 4
         assert success
