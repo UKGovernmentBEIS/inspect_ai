@@ -1,11 +1,10 @@
-from typing import Literal
-
 from test_helpers.tool_call_utils import find_tool_call
 from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import Agent, AgentState, agent, handoff
+from inspect_ai.agent._filter import MessageFilter, last_message, remove_tools
 from inspect_ai.dataset import Sample
 from inspect_ai.model import (
     ChatMessage,
@@ -231,7 +230,7 @@ def tool_checker() -> Agent:
 
 
 def check_agent_handoff_input_filter(
-    input_filter: Literal["remove_tools"] | None, tool_count: int
+    input_filter: MessageFilter | None, tool_count: int
 ):
     log = eval(
         Task(
@@ -271,7 +270,7 @@ def test_agent_handoff_no_input_filter():
 
 @skip_if_no_openai
 def test_agent_handoff_remove_tools_input_filter():
-    check_agent_handoff_input_filter("remove_tools", 0)
+    check_agent_handoff_input_filter(remove_tools, 0)
 
 
 @agent
@@ -299,7 +298,7 @@ def oracle() -> Agent:
 
 
 def check_agent_handoff_output_filter(
-    output_filter: Literal["last_message"] | None, messages_len: int
+    output_filter: MessageFilter | None, messages_len: int
 ):
     log = eval(
         Task(
@@ -325,4 +324,4 @@ def test_agent_handoff_no_output_filter():
 
 @skip_if_no_openai
 def test_agent_handoff_last_message_output_filter():
-    check_agent_handoff_output_filter("last_message", 6)
+    check_agent_handoff_output_filter(last_message, 6)

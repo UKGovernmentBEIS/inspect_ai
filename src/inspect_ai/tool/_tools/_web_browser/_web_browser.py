@@ -37,7 +37,12 @@ def web_browser(
 ) -> list[Tool]:
     """Tools used for web browser navigation.
 
-     See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
+    By default, a separate web browser process is created within the sandbox for each
+    call to `web_browser()`. You can modify this behavior by passing `instance=None`
+    (which will result in a single web browser for the entire sample) or use other
+    `instance` values that implement another scheme).
+
+    See complete documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
 
     Args:
        interactive: Provide interactive tools (enable

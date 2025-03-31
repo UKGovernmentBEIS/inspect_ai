@@ -189,7 +189,7 @@ def web_surfer(instance: str | None = uuid()) -> Tool:
     return execute
 ```
 
-Note that we use an `instance` parameter (which defaults to `uuid()`) to ensure that each call to the `web_surfer()` function creates its own instance of the tool. We then pass this `instance` to the `store_as()` function (to store our own tool's message history) and the `web_browser()` function (so that we also provision a unique browser for the web surfsurr session).
+Note that we use an `instance` parameter (which defaults to `uuid()`) to ensure that each call to the `web_surfer()` function creates its own instance of the tool. We then pass this `instance` to the `store_as()` function (to store our own tool's message history) and the `web_browser()` function (so that we also provision a unique browser for the web surfer session).
 
 
 ## Tool Choice

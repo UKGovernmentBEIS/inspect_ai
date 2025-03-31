@@ -11,6 +11,9 @@ async def run(
 ) -> AgentState:
     """Run an agent.
 
+    The input messages(s) will be copied prior to running so are
+    not modified in place.
+
     Args:
         agent: Agent to run.
         input: Agent input (string, list of messages, or an `AgentState`).
@@ -26,8 +29,7 @@ async def run(
     if isinstance(input, str):
         input = [ChatMessageUser(content=input)]
 
-    # create state (copy input so we don't mutate it in place)
-    input = copy(input)
+    # create state
     state = AgentState(messages=input) if isinstance(input, list) else input
 
     # run the agent

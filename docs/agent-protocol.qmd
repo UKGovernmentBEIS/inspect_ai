@@ -231,16 +231,20 @@ The `supervisor` agent has access to both a conventional `addition()` tool as we
 
 By default when a handoff occurs, the target agent sees the global message history and has its own internal history appended to the global history when it completes. The one exception to this is system messages, which are removed from the input and output respectively (as system messages for agents can easily confuse other agents, especially if they refer to tools or objectives that are not applicable across contexts).
 
-You can do additional filtering using handoff filters. For example, you can use the built-in `"remove_tools"` input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don't get confused about what tools are available):
+You can do additional filtering using handoff filters. For example, you can use the built-in `remove_tools` input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don't get confused about what tools are available):
 
 ``` python
-handoff(web_surfer, input_filter="remove_tools")
+from inspect_ai.agent import remove_tools
+
+handoff(web_surfer, input_filter=remove_tools)
 ```
 
-You can also use the built-in `"last_message"` output filter to only append the last message of the agent's history to the global conversation:
+You can also use the built-in `last_message` output filter to only append the last message of the agent's history to the global conversation:
 
 ``` python
-handoff(web_surfer, output_filter="last_message")
+from inspect_ai.agent import last_message
+
+handoff(web_surfer, output_filter=last_message)
 ```
 
 You aren't confined to the built in filters—you can pass a function as either the `input_filter` or `output_filter`, for example:
@@ -312,6 +316,9 @@ plans = await gather(
     run(experiment_planner(), state)
 )
 ```
+
+Note that the `run()` method makes a copy of the input so is suitable for running in parallel as shown above (the two parallel runs will not make shared/conflicting edits to the `state`).
+
 
 ## Agent Store {#agent-store}
 

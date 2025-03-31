@@ -1,4 +1,4 @@
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any
 
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -6,26 +6,19 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
     set_registry_info,
 )
-from inspect_ai.model._chat_message import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageTool,
-)
 from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_description import ToolDescription, set_tool_description
 
 from ._agent import Agent
 from ._as_tool import agent_tool_info
-
-HandoffFilter = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
-"""Filter messages sent to or received from agent handoffs."""
+from ._filter import MessageFilter
 
 
 def handoff(
     agent: Agent,
     description: str | None = None,
-    input_filter: Literal["remove_tools"] | HandoffFilter | None = None,
-    output_filter: Literal["last_message"] | HandoffFilter | None = None,
+    input_filter: MessageFilter | None = None,
+    output_filter: MessageFilter | None = None,
     tool_name: str | None = None,
     **agent_kwargs: Any,
 ) -> Tool:
@@ -35,11 +28,11 @@ def handoff(
         agent: Agent to hand off to.
         description: Handoff tool description (defaults to agent description)
         input_filter: Filter to modify the message history before calling the tool.
-            Pass `"remove_tools"` to remove all tool calls or alternatively specify a
-            custom `HandoffFilter` function.
+            Use the built-in `remove_tools` filter to remove all tool calls
+            or alternatively specify a custom `MessageFilter` function.
         output_filter: Filter to modify the message history after calling the tool.
-            Pass `"last_message"` to return only the last message or alternatively
-            specify a custom `HandoffFilter` function.
+            Use the built-in `last_message` filter to return only the last message
+            or alternatively specify a custom `MessageFilter` function.
         tool_name: Alternate tool name (defaults to `transfer_to_{agent_name}`)
         **agent_kwargs: Arguments to curry to `Agent` function (arguments provided here
             will not be presented to the model as part of the tool interface).
@@ -76,16 +69,12 @@ class AgentTool(Tool):
     def __init__(
         self,
         agent: Agent,
-        input_filter: Literal["remove_tools"] | HandoffFilter | None = None,
-        output_filter: Literal["last_message"] | HandoffFilter | None = None,
+        input_filter: MessageFilter | None = None,
+        output_filter: MessageFilter | None = None,
         **kwargs: Any,
     ):
         self.agent = agent
-        if input_filter == "remove_tools":
-            input_filter = remove_tools
         self.input_filter = input_filter
-        if output_filter == "last_message":
-            output_filter = last_message
         self.output_filter = output_filter
         self.kwargs = kwargs
 
@@ -102,19 +91,3 @@ def has_handoff(tools: list[Tool] | None) -> bool:
         return any([isinstance(tool, AgentTool) for tool in tools])
     else:
         return False
-
-
-async def remove_tools(messages: list[ChatMessage]) -> list[ChatMessage]:
-    filtered: list[ChatMessage] = []
-    for message in messages:
-        if isinstance(message, ChatMessageTool):
-            continue
-        if isinstance(message, ChatMessageAssistant):
-            message = message.model_copy(update=dict(tool_calls=None))
-        filtered.append(message)
-
-    return filtered
-
-
-async def last_message(messages: list[ChatMessage]) -> list[ChatMessage]:
-    return messages[-1:]

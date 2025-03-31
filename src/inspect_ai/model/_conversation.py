@@ -5,6 +5,8 @@ from ._model_output import ModelOutput
 
 
 class ModelConversation(Protocol):
+    """Model conversation."""
+
     @property
     def messages(self) -> list[ChatMessage]:
         """Conversation history."""

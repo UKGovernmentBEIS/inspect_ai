@@ -58,6 +58,13 @@ def bash_session(*, timeout: int | None = None, instance: str | None = uuid()) -
 
     Execute bash shell commands in a long running session using a sandbox environment (e.g. "docker").
 
+    By default, a separate bash process is created within the sandbox for each
+    call to `bash_session()`. You can modify this behavior by passing `instance=None`
+    (which will result in a single bash process for the entire sample) or use other
+    `instance` values that implement another scheme).
+
+    See complete documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-bash-session>.
+
     Args:
       timeout: Timeout (in seconds) for command.
       instance: Instance id (each unique instance id has its own bash process)

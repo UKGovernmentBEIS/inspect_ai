@@ -22,7 +22,12 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ### run
 ### as_tool
 ### as_solver
-### HandoffFilter
+
+## Filters
+
+### remove_tools
+### last_message
+### MessageFilter
 
 ## Protocol
 
