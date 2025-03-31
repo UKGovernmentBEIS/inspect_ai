@@ -13,6 +13,7 @@ export type Task = string;
 export type TaskId = string;
 export type TaskVersion = number;
 export type TaskFile = string | null;
+export type TaskRegistryName = string | null;
 export type Solver = string | null;
 export type SolverArgs = {} | null;
 export type Tags = string[] | null;
@@ -570,6 +571,7 @@ export interface EvalSpec {
   task_id: TaskId;
   task_version: TaskVersion;
   task_file: TaskFile;
+  task_registry_name: TaskRegistryName;
   task_attribs: TaskAttribs;
   task_args: TaskArgs;
   solver: Solver;

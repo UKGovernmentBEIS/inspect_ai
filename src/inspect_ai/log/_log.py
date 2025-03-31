@@ -572,6 +572,9 @@ class EvalSpec(BaseModel):
     task_file: str | None = Field(default=None)
     """Task source file."""
 
+    task_registry_name: str | None = Field(default=None)
+    """Task registry name."""
+
     task_attribs: dict[str, Any] = Field(default_factory=dict)
     """Attributes of the @task decorator."""
 
