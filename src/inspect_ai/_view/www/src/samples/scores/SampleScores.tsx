@@ -11,6 +11,7 @@ interface SampleScoresProps {
 
 export const SampleScores: FC<SampleScoresProps> = ({ sample, scorer }) => {
   const samplesDescriptor = useSampleDescriptor();
+
   const scores = scorer
     ? samplesDescriptor?.evalDescriptor
         .scorerDescriptor(sample, { scorer, name: scorer })
@@ -20,7 +21,6 @@ export const SampleScores: FC<SampleScoresProps> = ({ sample, scorer }) => {
   if (scores?.length === 1) {
     return scores[0].rendered();
   } else {
-    console.log({ scores });
     const rows = scores?.map((score) => {
       return (
         <Fragment>

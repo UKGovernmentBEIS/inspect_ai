@@ -8,7 +8,6 @@ import { ScoreDescriptor } from "../types";
 import styles from "./ObjectScoreDescriptor.module.css";
 
 export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
-  console.log({ values });
   const buckets = values.map((val) => {
     return JSON.stringify(val);
   });
@@ -22,8 +21,6 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
       };
     });
   }
-
-  console.log({ categories });
 
   return {
     scoreType: kScoreTypeObject,

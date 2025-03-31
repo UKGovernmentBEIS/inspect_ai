@@ -20115,7 +20115,6 @@ self.onmessage = function (e) {
       value: value$3
     };
     const objectScoreDescriptor = (values) => {
-      console.log({ values });
       const buckets = values.map((val) => {
         return JSON.stringify(val);
       });
@@ -20129,7 +20128,6 @@ self.onmessage = function (e) {
           };
         });
       }
-      console.log({ categories });
       return {
         scoreType: kScoreTypeObject,
         categories,
@@ -56210,7 +56208,6 @@ Supported expressions:
       if ((scores2 == null ? void 0 : scores2.length) === 1) {
         return scores2[0].rendered();
       } else {
-        console.log({ scores: scores2 });
         const rows = scores2 == null ? void 0 : scores2.map((score2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { opacity: "0.7" }, children: score2.name }),
