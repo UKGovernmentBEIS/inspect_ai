@@ -363,8 +363,8 @@ export const usePrismHighlight = (toolCallContent?: string) => {
       toolCallContent.length <= kPrismRenderMaxSize
     ) {
       requestAnimationFrame(() => {
-        const codeBlocks = toolViewRef.current!.querySelectorAll("pre code");
-        codeBlocks.forEach((block) => {
+        const codeBlocks = toolViewRef.current?.querySelectorAll("pre code");
+        codeBlocks?.forEach((block) => {
           if (block.className.includes("language-")) {
             block.classList.add("sourceCode");
             highlightElement(block as HTMLElement);
