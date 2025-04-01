@@ -1,5 +1,3 @@
-from shortuuid import uuid
-
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
