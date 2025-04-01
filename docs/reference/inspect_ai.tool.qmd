@@ -13,6 +13,14 @@ title: "inspect_ai.tool"
 ### web_search
 ### think
 
+## MCP
+
+### mcp_tools
+### mcp_server_local
+### mcp_server_remote
+### mcp_server_sandbox
+### McpServer
+
 ## Dynamic 
 
 ### tool_with

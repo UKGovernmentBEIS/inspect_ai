@@ -8,6 +8,13 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.deprecation import relocated_module_attribute
 
+from ._mcp import (
+    McpServer,
+    mcp_server_local,
+    mcp_server_remote,
+    mcp_server_sandbox,
+    mcp_tools,
+)
 from ._tool import Tool, ToolError, ToolResult, tool
 from ._tool_call import (
     ToolCall,
@@ -45,6 +52,11 @@ __all__ = [
     "ToolCallError",
     "ToolError",
     "ToolResult",
+    "mcp_tools",
+    "mcp_server_local",
+    "mcp_server_remote",
+    "mcp_server_sandbox",
+    "McpServer",
     "Content",
     "ContentAudio",
     "ContentImage",
