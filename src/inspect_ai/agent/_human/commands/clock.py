@@ -62,7 +62,9 @@ class StopCommand(HumanAgentCommand):
         return stop
 
 
-def clock_action_event(action: str, state: HumanAgentState) -> None:
+def clock_action_event(
+    action: Literal["start", "stop"], state: HumanAgentState
+) -> None:
     from inspect_ai.log._transcript import transcript
 
     transcript().info(
