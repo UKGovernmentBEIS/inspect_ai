@@ -16,8 +16,8 @@ async def run_human_agent_service(
     instructions = "\n\n".join([message.text for message in state.messages]).strip()
     agent_state = HumanAgentState(instructions=instructions)
 
-    # record that clock is paused
-    clock_action_event("pause", agent_state)
+    # record that clock is stopped
+    clock_action_event("stop", agent_state)
 
     # extract service methods from commands
     methods = {
