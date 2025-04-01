@@ -123,6 +123,7 @@ dev = [
     "ipython",
     "markdown",
     "mcp",
+    "mcp-server-fetch",
     "mistralai",
     "moto[server]",
     "mypy",

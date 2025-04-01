@@ -16,6 +16,7 @@ logger = getLogger(__name__)
 
 
 def mcp_sse_client(
+    *,
     url: str,
     headers: dict[str, Any] | None = None,
     timeout: float = 5,
@@ -67,6 +68,7 @@ def mcp_sse_client(
 
 
 def mcp_stdio_client(
+    *,
     command: str,
     args: list[str] = [],
     cwd: str | Path | None = None,
@@ -140,10 +142,6 @@ def verfify_mcp_package() -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-
-
-def init_mcp_clients() -> None:
-    _mcp_clients.set({})
 
 
 async def cleanup_mcp_clients() -> None:

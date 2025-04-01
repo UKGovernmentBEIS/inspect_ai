@@ -5,7 +5,9 @@ from ._types import McpClient
 
 
 async def mcp_tools(
-    client: McpClient, tools: Literal["all"] | list[str] = "all"
+    client: McpClient,
+    tools: Literal["all"] | list[str] = "all",
+    rename: dict[str, str] | None = None,
 ) -> list[Tool]:
     """Tools from Model Context Protocol server.
 
@@ -14,6 +16,7 @@ async def mcp_tools(
           `mcp_sse_client()` or `mcp_stdio_client()`.
        tools: List of tool names (or globs) (defaults to "all")
           which returns all tools.
+       rename: Optionally rename tools.
 
     Returns:
        List of tools.

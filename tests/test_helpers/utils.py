@@ -49,6 +49,10 @@ def skip_if_no_package(package):
     )
 
 
+def skip_if_no_mcp_fetch_package(func):
+    return skip_if_no_package("mcp_server_fetch")(func)
+
+
 def skip_if_no_vllm(func):
     return skip_if_no_package("vllm")(func)
 

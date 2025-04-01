@@ -10,7 +10,6 @@ from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._mcp import (
     McpClient,
-    mcp_sandbox_client,
     mcp_sse_client,
     mcp_stdio_client,
     mcp_tools,
