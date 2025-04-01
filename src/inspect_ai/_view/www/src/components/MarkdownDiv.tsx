@@ -121,13 +121,10 @@ const fixDotsNotation = (content: string): string => {
   try {
     // Handle both inline and block math
     // First, fix inline math expressions ($...$)
-    let result = content.replace(
-      /(\$[^\$]*?)\\dots([^\$]*?\$)/g,
-      "$1\\ldots$2",
-    );
+    let result = content.replace(/(\$[^$]*?)\\dots([^$]*?\$)/g, "$1\\ldots$2");
 
     // Then, fix block math expressions ($...$)
-    result = result.replace(/(\$\$[^\$]*?)\\dots([^\$]*?\$\$)/g, "$1\\ldots$2");
+    result = result.replace(/(\$\$[^$]*?)\\dots([^$]*?\$\$)/g, "$1\\ldots$2");
 
     // Also handle other dot variants that might not render well in KaTeX
     const dotVariants = ["dotsb", "dotsc", "dotsi", "dotsm", "dotso"];
