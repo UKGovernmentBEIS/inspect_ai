@@ -1,3 +1,7 @@
+import hashlib
+from contextvars import ContextVar
+from copy import copy
+from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal
 
@@ -5,6 +9,8 @@ from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
 from ._types import McpClient
+
+logger = getLogger(__name__)
 
 
 def mcp_sse_client(
@@ -35,7 +41,25 @@ def mcp_sse_client(
     verfify_mcp_package()
     from ._mcp import create_sse_client
 
-    return create_sse_client(url, headers, timeout, sse_read_timeout)
+    # unique key for this call (keep url unhashed for logging)
+    options = hashlib.sha256(
+        f"{headers}{timeout}{sse_read_timeout}".encode()
+    ).hexdigest()
+    key = f"url={url},options={options}"
+
+    # if we are memoizing then lookup in the cache first
+    if memoize:
+        client = cached_mcp_client(key)
+        if client is not None:
+            return client
+
+    # create the client and add it to the cache if we are memoizing
+    client = create_sse_client(url, headers, timeout, sse_read_timeout)
+    if memoize:
+        cache_mcp_client(key, client)
+
+    # return the client
+    return client
 
 
 def mcp_stdio_client(
@@ -74,9 +98,27 @@ def mcp_stdio_client(
     verfify_mcp_package()
     from ._mcp import create_stdio_client
 
-    return create_stdio_client(
+    # unique key for this call (keep command and args unhashed for logging)
+    options = hashlib.sha256(
+        f"{cwd}{env}{encoding}{encoding_error_handler}".encode()
+    ).hexdigest()
+    key = f"command={command},args={args},options={options}"
+
+    # if we are memoizing then lookup in the cache first
+    if memoize:
+        client = cached_mcp_client(key)
+        if client is not None:
+            return client
+
+    # create the client and add it to the cache if we are memoizing
+    client = create_stdio_client(
         command, args, cwd, env, encoding, encoding_error_handler
     )
+    if memoize:
+        cache_mcp_client(key, client)
+
+    # return the client
+    return client
 
 
 def verfify_mcp_package() -> None:
@@ -92,3 +134,35 @@ def verfify_mcp_package() -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+
+def init_mcp_clients() -> None:
+    _mcp_clients.set({})
+
+
+async def cleanup_mcp_clients() -> None:
+    mcp_clients = copy(_mcp_clients.get())
+    _mcp_clients.set({})
+    for key, client in mcp_clients.items():
+        try:
+            await client.close()
+        except Exception as ex:
+            logger.warning(f"Unexpected error closing MCP client ({key}): {ex}")
+
+
+def cache_mcp_client(key: str, client: McpClient) -> None:
+    _mcp_clients.get()[key] = client
+
+
+def cached_mcp_client(key: str) -> McpClient | None:
+    # clean out context bound mcp clients before accessing the cache
+    mcp_clients = _mcp_clients.get()
+    for k in list(mcp_clients.keys()):
+        if mcp_clients[k]._context_bound:
+            del mcp_clients[k]
+
+    # read from the cache
+    return mcp_clients.get(key, None)
+
+
+_mcp_clients: ContextVar[dict[str, McpClient]] = ContextVar("_mcp_clients", default={})
