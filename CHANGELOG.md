@@ -24,7 +24,8 @@
 - Bugfix: Support for calling the `score()` function within Jupyter notebooks.
 - Bugfix: Handle process lookup errors that can occur during timeout race conditions.
 - Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.
-- Bugfix: Correctly capture and return logs from `eval()` when a cancellation occurs. 
+- Bugfix: Correctly capture and return logs from `eval()` when a cancellation occurs.
+- Bugfix: Correctly handle custom `api_version` model argument for OpenAI on Azure.
 
 ## v0.3.81 (30 March 2025)
 
