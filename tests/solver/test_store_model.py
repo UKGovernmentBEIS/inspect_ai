@@ -275,3 +275,20 @@ def test_store_model_inheritance():
     base = MyModel(store=store)
     base.x = 100
     assert derived.x == 42  # Should not be affected by base model
+
+
+class IllegalModel(StoreModel):
+    my_model: MyModel = Field(default_factory=MyModel)
+
+
+class IllegalModel2(StoreModel):
+    my_model: MyModel | None = None
+
+
+def test_error_on_embed_store_model():
+    with pytest.raises(TypeError):
+        IllegalModel()
+
+    illegal = IllegalModel2()
+    with pytest.raises(TypeError):
+        illegal.my_model = MyModel()

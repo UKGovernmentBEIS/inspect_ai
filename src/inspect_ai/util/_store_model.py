@@ -29,6 +29,9 @@ class StoreModel(BaseModel):
             elif name in self.__dict__.keys():
                 self.store.set(ns_name, self.__dict__[name])
 
+            # validate that we aren't using a nested StoreModel
+            self._validate_value(name, self.__dict__[name])
+
     def __getattribute__(self, name: str) -> Any:
         # sidestep dunders and pydantic fields
         if name.startswith("__") or name.startswith("model_"):
@@ -48,6 +51,7 @@ class StoreModel(BaseModel):
             return super().__getattribute__(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
+        self._validate_value(name, value)
         if name in self.model_fields:
             # validate with the new value (can throw ValidationError)
             temp_data = self.store._data.copy()
@@ -89,6 +93,14 @@ class StoreModel(BaseModel):
 
         # perform validation
         self.__class__.model_validate(validate)
+
+    def _validate_value(self, name: str, value: Any) -> None:
+        # validate that we aren't using a nested StoreModel
+        if isinstance(value, StoreModel):
+            raise TypeError(
+                f"{name} is a StoreModel and you may not embed a StoreModel "
+                "inside another StoreModel (derive from BaseModel for fields in a StoreModel)."
+            )
 
     def _ns_name(self, name: str) -> str:
         namespace = f"{self.instance}:" if self.instance is not None else ""

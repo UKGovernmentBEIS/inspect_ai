@@ -191,7 +191,7 @@ async def subprocess(
             proc = cast(Process, await anext(rc))
 
             # await result wrapped in timeout handler if requested
-            if timeout:
+            if timeout is not None:
                 try:
                     with anyio.fail_after(timeout):
                         result = await anext(rc)
