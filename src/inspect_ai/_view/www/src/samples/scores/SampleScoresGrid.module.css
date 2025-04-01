@@ -1,0 +1,38 @@
+.container {
+  display: grid;
+  grid-template-columns:
+    minmax(auto, 1fr) minmax(auto, 1fr) minmax(auto, 1fr)
+    2fr;
+  column-gap: 0.75em;
+}
+
+.container .cell {
+  margin-bottom: 0.5em;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.heading {
+  font-weight: 600;
+}
+
+.padded {
+  padding-bottom: 3em;
+}
+
+.separator {
+  height: 1px;
+  background-color: var(--bs-light-border-subtle);
+}
+
+.separatorPadded {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.headerSep {
+  margin-top: 0.1em;
+  margin-bottom: 0.2em;
+}

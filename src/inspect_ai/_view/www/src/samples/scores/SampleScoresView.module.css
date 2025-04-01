@@ -1,6 +1,7 @@
 .container {
   margin-top: 0.5em;
   padding-left: 0;
+  padding-right: 0;
 }
 
 .label {
@@ -12,7 +13,7 @@
 }
 
 .wordBreak {
-  word-break: break-all;
+  word-break: break-word;
 }
 
 .scoreTable {
@@ -50,4 +51,12 @@
 
 .noTop {
   margin-top: 0 !important;
+}
+
+.scoreCard {
+  padding-top: 0.5em;
+}
+
+.scores {
+  padding-top: 1em;
 }

@@ -1,0 +1,16 @@
+.button {
+  display: flex;
+  border: none;
+  flex-direction: row;
+  background-color: unset;
+  color: var(--bs-link-color);
+}
+
+.button:hover {
+  color: var(--bs-link-hover-color);
+  cursor: pointer;
+}
+
+.label {
+  margin-left: 0.4em;
+}

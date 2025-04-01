@@ -69,7 +69,7 @@ export const SampleRow: FC<SampleRowProps> = ({
           styles.wrapAnywhere,
         )}
       >
-        {inputString(sample.input).join(" ")}
+        <MarkdownDiv markdown={inputString(sample.input).join(" ")} />
       </div>
       <div className={clsx("sample-target", "three-line-clamp", styles.cell)}>
         <MarkdownDiv

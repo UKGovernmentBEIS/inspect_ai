@@ -123,7 +123,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
 
   columns.push({
     label: "Input",
-    value: fields.input,
+    value: <MarkdownDiv markdown={fields.input.join(" ")} />,
     size: `${input}fr`,
     clamp: true,
   });
@@ -233,7 +233,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
               styles.value,
               styles.wrap,
               col.clamp ? "three-line-clamp" : undefined,
-              col.center ? styles.centerLabel : undefined,
+              col.center ? styles.centerValue : undefined,
             )}
           >
             {col.value}
