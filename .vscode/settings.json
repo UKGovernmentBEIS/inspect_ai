@@ -1,0 +1,39 @@
+{
+  "editor.formatOnSave": true,
+  "mypy-type-checker.importStrategy": "fromEnvironment",
+  "[json]": {
+    "editor.wordWrap": "on"
+  },
+  "[markdown]": {
+    "editor.formatOnSave": false
+  },
+  "[quarto]": {
+    "editor.formatOnSave": false
+  },
+  "[html]": {
+    "editor.formatOnSave": false
+  },
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  },
+  "search.exclude": {
+    "logs/**": true
+  },
+  "mypy-type-checker.ignorePatterns": [
+    "**/_resources/*.py",
+    "${workspaceFolder}/examples/bridge/*.py",
+  ],
+  "mypy-type-checker.args": [
+    "--config-file",
+    "${workspaceFolder}/pyproject.toml"
+  ],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none"
+  },
+  "python.testing.pytestArgs": [
+    "tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "quarto.render.renderOnSave": true
+}
