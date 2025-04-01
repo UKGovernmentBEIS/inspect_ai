@@ -126,23 +126,6 @@ const fixDotsNotation = (content: string): string => {
     // Then, fix block math expressions ($...$)
     result = result.replace(/(\$\$[^$]*?)\\dots([^$]*?\$\$)/g, "$1\\ldots$2");
 
-    // Also handle other dot variants that might not render well in KaTeX
-    const dotVariants = ["dotsb", "dotsc", "dotsi", "dotsm", "dotso"];
-
-    for (const variant of dotVariants) {
-      // For inline math
-      result = result.replace(
-        new RegExp(`(\\$[^\\$]*?)\\\\${variant}([^\\$]*?\\$)`, "g"),
-        "$1\\ldots$2",
-      );
-
-      // For block math
-      result = result.replace(
-        new RegExp(`(\\$\\$[^\\$]*?)\\\\${variant}([^\\$]*?\\$\\$)`, "g"),
-        "$1\\ldots$2",
-      );
-    }
-
     return result;
   } catch (error) {
     console.error("Error fixing dots notation:", error);

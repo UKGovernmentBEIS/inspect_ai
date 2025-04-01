@@ -33774,17 +33774,6 @@ self.onmessage = function (e) {
       try {
         let result2 = content2.replace(/(\$[^$]*?)\\dots([^$]*?\$)/g, "$1\\ldots$2");
         result2 = result2.replace(/(\$\$[^$]*?)\\dots([^$]*?\$\$)/g, "$1\\ldots$2");
-        const dotVariants = ["dotsb", "dotsc", "dotsi", "dotsm", "dotso"];
-        for (const variant of dotVariants) {
-          result2 = result2.replace(
-            new RegExp(`(\\$[^\\$]*?)\\\\${variant}([^\\$]*?\\$)`, "g"),
-            "$1\\ldots$2"
-          );
-          result2 = result2.replace(
-            new RegExp(`(\\$\\$[^\\$]*?)\\\\${variant}([^\\$]*?\\$\\$)`, "g"),
-            "$1\\ldots$2"
-          );
-        }
         return result2;
       } catch (error2) {
         console.error("Error fixing dots notation:", error2);
