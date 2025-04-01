@@ -331,8 +331,8 @@ async def compose_command(
         retries = 0
         while True:
             try:
-                command_timeout = (
-                    timeout if retries == 0 else (min(timeout, 60) // retries)
+                command_timeout = max(
+                    timeout if retries == 0 else (min(timeout, 60) // retries), 1
                 )
                 return await run_command(command_timeout)
             except TimeoutError:
