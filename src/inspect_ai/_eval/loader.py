@@ -2,17 +2,18 @@ import ast
 import contextlib
 import inspect
 import os
-from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
 from importlib.util import module_from_spec, spec_from_loader
 from logging import getLogger
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Callable, cast
+from typing import Any, Callable, Tuple, cast
 
 from typing_extensions import overload
 
+from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import task_file, task_run_dir
+from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -25,41 +26,26 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_params,
 )
-from inspect_ai.model import Model, ModelName
-from inspect_ai.solver._bridge.bridge import bridge
+from inspect_ai.agent._agent import Agent
+from inspect_ai.agent._as_solver import as_solver
+from inspect_ai.model import Model
+from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
+from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
-from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
+from inspect_ai.util._sandbox.environment import (
+    resolve_sandbox_environment,
+)
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .list import task_files
 from .registry import task_create
-from .task import PreviousTask, Task, TaskInfo, Tasks
+from .task import PreviousTask, Task, TaskInfo
 from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
-from .task.run import EvalSampleSource, eval_log_sample_source
+from .task.run import eval_log_sample_source
+from .task.tasks import Tasks
 
 logger = getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class ResolvedTask:
-    task: Task
-    task_args: dict[str, Any]
-    task_file: str | None
-    model: Model
-    sandbox: SandboxEnvironmentSpec | None
-    sequence: int
-    id: str | None = field(default=None)
-    sample_source: EvalSampleSource | None = field(default=None)
-
-    @property
-    def has_sandbox(self) -> bool:
-        if self.sandbox:
-            return True
-        else:
-            return any(
-                [True if sample.sandbox else False for sample in self.task.dataset]
-            )
 
 
 def resolve_tasks(
@@ -74,16 +60,22 @@ def resolve_tasks(
                 task=task,
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
-                model=model,
+                model=task.model or model,
                 sandbox=resolve_task_sandbox(task, sandbox),
                 sequence=sequence,
             )
             for sequence, task in enumerate(tasks)
         ]
 
+    # reflect resolved tasks right back
+    if isinstance(tasks, ResolvedTask):
+        return [tasks]
+    elif isinstance(tasks, list) and isinstance(tasks[0], ResolvedTask):
+        return cast(list[ResolvedTask], tasks)
+
     # take empty lists out of play
     if isinstance(tasks, list) and len(tasks) == 0:
-        return as_resolved_tasks(load_tasks(None, model, task_args))
+        return as_resolved_tasks(load_tasks(None, task_args))
 
     # simple cases of passing us Task objects
     if isinstance(tasks, Task):
@@ -107,9 +99,7 @@ def resolve_tasks(
                 loaded_task = previous_task.task
             else:
                 loaded_task_args = previous_task.task_args
-                loaded_task = load_tasks([previous_task.task], model, loaded_task_args)[
-                    0
-                ]
+                loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
             loaded_tasks.append(loaded_task)
             loaded_tasks_args.append(loaded_task_args)
 
@@ -118,7 +108,7 @@ def resolve_tasks(
                 task=loaded_task,
                 task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
-                model=model,
+                model=previous_task.model or loaded_task.model or model,
                 sandbox=previous_task.log.eval.sandbox,
                 sequence=sequence,
                 id=previous_task.id,
@@ -151,19 +141,14 @@ def resolve_tasks(
         tasks = [tasks]
 
     # done! let's load the tasks
-    return as_resolved_tasks(
-        load_tasks(cast(list[str] | None, tasks), model, task_args)
-    )
+    return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
 
 
 def resolve_task_args(task: Task) -> dict[str, Any]:
     # was the task instantiated via the registry or a decorator?
     # if so then we can get the task_args from the registry.
     try:
-        # filter out model as that's dyanmic and automatically passed
         task_args = dict(registry_params(task))
-        if "model" in task_args:
-            del task_args["model"]
         return task_args
 
     # if it wasn't instantiated via the registry or a decorator
@@ -215,34 +200,29 @@ def resolve_task_sandbox(
 
 
 def load_tasks(
-    task_specs: list[str] | None, model: Model, task_args: dict[str, Any] = {}
+    task_specs: list[str] | None, task_args: dict[str, Any] = {}
 ) -> list[Task]:
     """Load one more more tasks (if no tasks are specified, load from the current working directory"""
-    # determine ModelName object for task creation parameterized by model
-    model_name = ModelName(model)
     # load tasks
     return [
         spec
         for task_spec in (task_specs if task_specs else [Path.cwd().as_posix()])
-        for spec in load_task_spec(task_spec, model_name, task_args)
+        for spec in load_task_spec(task_spec, task_args)
     ]
 
 
-def load_task_spec(
-    task_spec: str, model: ModelName, task_args: dict[str, Any] = {}
-) -> list[Task]:
+def load_task_spec(task_spec: str, task_args: dict[str, Any] = {}) -> list[Task]:
     # task in a python package
     if registry_lookup("task", task_spec) is not None:
         # create the task from a python package
-        return [task_create(task_spec, model, **task_args)]
+        return [task_create(task_spec, **task_args)]
     else:
         # load tasks from glob
-        return create_tasks([task_spec], model, task_args)
+        return create_tasks([task_spec], task_args)
 
 
 def create_tasks(
     globs: list[str],
-    model: ModelName,
     task_args: dict[str, Any] = {},
     root_dir: Path | None = None,
 ) -> list[Task]:
@@ -259,9 +239,7 @@ def create_tasks(
         if spec_split[1] is not None:
             task_path = Path(spec_split[0])
             load_file_tasks(task_path.absolute())
-            tasks.extend(
-                create_file_tasks(task_path, model, [spec_split[1]], task_args)
-            )
+            tasks.extend(create_file_tasks(task_path, [spec_split[1]], task_args))
         else:
             # if the glob is the root dir then set it to empty (will result in
             # enumeration of the root dir)
@@ -269,7 +247,7 @@ def create_tasks(
             files = task_files(target, root_dir)
             files = sorted(files, key=lambda f: f.as_posix())
             for file in files:
-                tasks.extend(create_file_tasks(file, model, None, task_args))
+                tasks.extend(create_file_tasks(file, None, task_args))
     return tasks
 
 
@@ -280,7 +258,6 @@ def load_file_tasks(file: Path) -> None:
 
 def create_file_tasks(
     file: Path,
-    model: ModelName,
     task_specs: list[str] | list[RegistryInfo] | None = None,
     task_args: dict[str, Any] = {},
 ) -> list[Task]:
@@ -300,16 +277,22 @@ def create_file_tasks(
             # create the task from the loaded source file and
             # note that it was loaded from this directory
             # (will be used later to ensure it runs in the directory)
-            task = task_create(task_spec, model, **task_args)
+            task = task_create(task_spec, **task_args)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
             setattr(task, TASK_RUN_DIR_ATTR, run_dir)
             tasks.append(task)
 
-            # warn about deprecated chdir attrib
+            # warn that chdir is deprecated
             if "chdir" in task.attribs:
+                if configured_async_backend() == "trio":
+                    raise RuntimeError(
+                        "The task 'chdir' attribute is not compatible with the trio async backend."
+                    )
+
                 warn_once(
                     logger,
-                    "The 'chdir' task attribute is deprecated (tasks now always chdir)",
+                    "The 'chdir' task attribute is deprecated and will be removed in a future release "
+                    + "(you should write your tasks to not depend on their runtime working directory)",
                 )
 
         return tasks
@@ -421,16 +404,7 @@ def as_solver_spec(solver: Solver) -> SolverSpec:
 
 def solver_from_spec(spec: SolverSpec) -> Solver:
     # resolve @ reference
-    spec_split = split_spec(spec.solver)
-    if spec_split[1] is not None:
-        solver_file: Path | None = Path(spec_split[0]).resolve()
-        solver_name: str | None = spec_split[1]
-    elif Path(spec_split[0]).exists():
-        solver_file = Path(spec_split[0]).resolve()
-        solver_name = None
-    else:
-        solver_file = None
-        solver_name = spec_split[0]
+    solver_file, solver_name = parse_spec_str(spec.solver)
 
     # switch contexts if we are loading from a file
     create_cm = (
@@ -455,14 +429,18 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
         else:
             # load the module and parse decorators
             solver_module = load_module(solver_file)
-            decorators = parse_decorators(solver_file, "solver")
+            solver_decorators = parse_decorators(solver_file, "solver")
+            agent_decorators = parse_decorators(solver_file, "agent")
 
             # if there is no solver_name see if we can discover it
             if solver_name is None:
-                if len(decorators) == 1:
+                if len(solver_decorators) == 1:
                     # decorator based solver
-                    solver_name = decorators[0][0]
-                elif len(decorators) == 0:
+                    solver_name = solver_decorators[0][0]
+                elif len(agent_decorators) == 1:
+                    # decorator based agent
+                    solver_name = agent_decorators[0][0]
+                elif len(solver_decorators) == 0 and len(agent_decorators) == 0:
                     # see if we can find an agent based solver
                     functions = [
                         function
@@ -482,22 +460,31 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
 
                     elif len(agent_functions) == 0:
                         raise PrerequisiteError(
-                            f"The source file {pretty_solver_file} does not contain any @solver functions or agent functions."
+                            f"The source file {pretty_solver_file} does not contain any @solver, @agent or bridged agent functions."
                         )
                     else:
                         raise PrerequisiteError(
-                            f"The source file {pretty_solver_file} has more than one agent function (qualify which agent using e.g. '{solver_file.name}@agent_fn')"
+                            f"The source file {pretty_solver_file} has more than one bridged agent function (qualify which agent using e.g. '{solver_file.name}@agent_fn')"
                         )
-                else:
+                elif len(solver_decorators) > 1:
                     raise PrerequisiteError(
                         f"The source file {pretty_solver_file} has more than one @solver function (qualify which solver using e.g. '{solver_file.name}y@solver_fn')"
                     )
+                else:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_solver_file} has more than one @agent function (qualify which agent using e.g. '{solver_file.name}y@agent_fn')"
+                    )
 
             # create decorator based solvers using the registry
-            if any(solver[0] == solver_name for solver in decorators):
+            if any(solver[0] == solver_name for solver in solver_decorators):
                 return cast(Solver, registry_create("solver", solver_name, **spec.args))
 
-            # create agent based solvers by calling the function and wrapping it in bridge()
+            # create decorator based agents using the registry
+            elif any(agent[0] == solver_name for agent in agent_decorators):
+                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                return as_solver(agent)
+
+            # create bridge based solvers by calling the function and wrapping it in bridge()
             else:
                 agent_fn = getattr(solver_module, solver_name, None)
                 if inspect.isfunction(agent_fn):
@@ -510,3 +497,121 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
                     raise PrerequisiteError(
                         f"The function {solver_name} was not found in file {pretty_solver_file}."
                     )
+
+
+def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) -> Scorer:
+    """
+    Load a scorer
+
+    Args:
+        spec: The scorer spec
+        task_path: An optional path to the task file
+        **kwargs: Additional keyword arguments passed to the scorer initialization
+
+    Returns:
+        Scorer: the loaded scorer
+
+    Raises:
+        PrerequisiteError: If the scorer cannot be found, loaded, or lacks required type annotations
+    """
+    # resolve @ reference
+    scorer_file, scorer_name = parse_spec_str(spec.scorer)
+
+    # switch contexts if we are loading from a file
+    create_cm = (
+        chdir_python(scorer_file.parent.as_posix())
+        if scorer_file is not None
+        else contextlib.nullcontext()
+    )
+
+    # pretty solver name for error messages
+    pretty_scorer_file = (
+        cwd_relative_path(scorer_file.as_posix()) if scorer_file else None
+    )
+
+    with create_cm:
+        # is there a scorer file being provided? if not, load from registry
+        if scorer_file is None:
+            if scorer_name is None:
+                raise ValueError(f"Unable to resolve scorer name from {spec.scorer}")
+
+            try:
+                return scorer_create(scorer_name, **kwargs)
+            except ValueError:
+                # We need a valid path to a scorer file to try to load the scorer from there
+                if not task_path:
+                    raise PrerequisiteError(
+                        f"The scorer '{scorer_name}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter"
+                    )
+
+                task_pretty_path = task_path.as_posix()
+                if not task_path.exists():
+                    raise PrerequisiteError(
+                        f"The scorer `{scorer_name}` couldn't be loaded. The file '{task_pretty_path}' was not found. Please provide a path to the file containing the scorer using the '--scorer' parameter"
+                    )
+
+                # We have the path to a file, so load that and try again
+                try:
+                    load_module(task_path)
+                    scorer_fn = scorer_create(scorer_name, **kwargs)
+
+                    # See if the scorer doesn't have type annotations. Currently the registry will not load
+                    # the function without type annotations.
+                    # TODO: We could consider calling this ourselves if we're certain it is what we're looking for
+                    signature = inspect.signature(scorer_fn)
+                    if signature.return_annotation is inspect.Signature.empty:
+                        raise PrerequisiteError(
+                            f"The scorer '{scorer_name}' in the file '{task_pretty_path}' requires return type annotations. Please add type annotations to load the scorer."
+                        )
+                    return scorer_fn
+                except ValueError:
+                    # we still couldn't load this, request the user provide a path
+                    raise PrerequisiteError(
+                        f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
+                    )
+                except ModuleNotFoundError:
+                    # we still couldn't load this, request the user provide a path
+                    raise PrerequisiteError(
+                        f"The scorer '{scorer_name}' in the file '{task_pretty_path}' couldn't be loaded. Please provide a path to the file containing the scorer using the '--scorer' parameter."
+                    )
+
+        # solver is a path, so load it that way
+        else:
+            load_module(scorer_file)
+            decorators = parse_decorators(scorer_file, "scorer")
+
+            # if there is no solver_name see if we can discover it
+            if scorer_name is None:
+                if len(decorators) == 1:
+                    # decorator based solver
+                    scorer_name = decorators[0][0]
+                elif len(decorators) == 0:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_scorer_file} does not contain any @scorer functions."
+                    )
+                else:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_scorer_file} has more than one @solver function (qualify which solver using e.g. '{scorer_file.name}y@solver_fn')"
+                    )
+
+            # create decorator based solvers using the registry
+            if any(solver[0] == scorer_name for solver in decorators):
+                return scorer_create(scorer_name, **kwargs)
+            else:
+                raise PrerequisiteError(
+                    f"The function {scorer_name} was not found in file {pretty_scorer_file}."
+                )
+
+
+def parse_spec_str(spec_str: str) -> Tuple[Path | None, str | None]:
+    spec_split = split_spec(spec_str)
+    if spec_split[1] is not None:
+        file: Path | None = Path(spec_split[0]).resolve()
+        name: str | None = spec_split[1]
+    elif Path(spec_split[0]).exists():
+        file = Path(spec_split[0]).resolve()
+        name = None
+    else:
+        file = None
+        name = spec_split[0]
+    return file, name

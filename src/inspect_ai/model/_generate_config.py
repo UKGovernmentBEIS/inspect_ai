@@ -1,9 +1,28 @@
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Literal, Union
+from typing import Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
+
+from inspect_ai.util._json import JSONSchema
+
+
+class ResponseSchema(BaseModel):
+    """Schema for model response when using Structured Output."""
+
+    name: str
+    """The name of the response schema. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64."""
+
+    json_schema: JSONSchema
+    """The schema for the response format, described as a JSON Schema object."""
+
+    description: str | None = Field(default=None)
+    """A description of what the response format is for, used by the model to determine how to respond in the format."""
+
+    strict: bool | None = Field(default=None)
+    """Whether to enable strict schema adherence when generating the output. If set to true, the model will always follow the exact schema defined in the schema field.
+    OpenAI and Mistral only."""
 
 
 class GenerateConfigArgs(TypedDict, total=False):
@@ -73,10 +92,16 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
     reasoning_effort: Literal["low", "medium", "high"] | None
-    """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
+    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
 
-    reasoning_history: bool | None
+    reasoning_tokens: int | None
+    """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
+
+    reasoning_history: Literal["none", "all", "last", "auto"] | None
     """Include reasoning in chat message history sent to generate."""
+
+    response_schema: ResponseSchema | None
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
 
 class GenerateConfig(BaseModel):
@@ -146,10 +171,31 @@ class GenerateConfig(BaseModel):
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
     reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
-    """Constrains effort on reasoning for reasoning models. Open AI o1 models only."""
+    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
 
-    reasoning_history: bool | None = Field(default=None)
+    reasoning_tokens: int | None = Field(default=None)
+    """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
+
+    reasoning_history: Literal["none", "all", "last", "auto"] | None = Field(
+        default=None
+    )
     """Include reasoning in chat message history sent to generate."""
+
+    response_schema: ResponseSchema | None = Field(default=None)
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
+
+    # migrate reasoning_history as a bool
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_reasoning(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            reasoning_history = data.get("reasoning_history", None)
+            if reasoning_history is True:
+                data["reasoning_history"] = "all"
+            elif reasoning_history is False:
+                data["reasoning_history"] = "none"
+
+        return data
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]

@@ -5,11 +5,11 @@
   "publisher": "ukaisi",
   "icon": "assets/logo/inspect.png",
   "author": {
-    "name": "UK AI Safety Institute"
+    "name": "UK AI Security Institute"
   },
-  "version": "0.3.51",
+  "version": "0.3.59",
   "license": "MIT",
-  "homepage": "https://inspect.ai-safety-institute.org.uk/",
+  "homepage": "https://inspect.aisi.org.uk/",
   "repository": {
     "type": "git",
     "url": "https://github.com/UKGovernmentBEIS/inspect_ai"
@@ -73,6 +73,13 @@
       {
         "command": "inspect.inspectView",
         "title": "Inspect View...",
+        "icon": "$(code-oss)",
+        "category": "Inspect",
+        "enablement": "workspaceFolderCount != 0"
+      },
+      {
+        "command": "inspect.inspectViewLog",
+        "title": "Open Log File...",
         "icon": "$(code-oss)",
         "category": "Inspect",
         "enablement": "workspaceFolderCount != 0"

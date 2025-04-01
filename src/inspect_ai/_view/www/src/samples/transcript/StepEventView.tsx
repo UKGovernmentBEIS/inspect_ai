@@ -1,29 +1,25 @@
 import clsx from "clsx";
-import { RefObject, useCallback, useState } from "react";
+import { FC } from "react";
 import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptVirtualListComponent } from "./TranscriptView";
-import { EventNode, TranscriptEventState } from "./types";
+import { TranscriptComponent } from "./TranscriptView";
+import { EventNode } from "./types";
 
 interface StepEventViewProps {
+  id: string;
   event: StepEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   children: EventNode[];
-  scrollRef?: RefObject<HTMLDivElement | null>;
   className?: string | string[];
 }
 
 /**
  * Renders the StepEventView component.
  */
-export const StepEventView: React.FC<StepEventViewProps> = ({
+export const StepEventView: FC<StepEventViewProps> = ({
+  id,
   event,
-  eventState,
-  setEventState,
   children,
-  scrollRef,
   className,
 }) => {
   const descriptor = stepDescriptor(event);
@@ -32,38 +28,19 @@ export const StepEventView: React.FC<StepEventViewProps> = ({
     `${event.type ? event.type + ": " : "Step: "}${event.name}`;
   const text = summarize(children);
 
-  const [transcriptState, setTranscriptState] = useState({});
-  const onTranscriptState = useCallback(
-    (state: TranscriptEventState) => {
-      setTranscriptState({ ...state });
-    },
-    [transcriptState, setTranscriptState],
-  );
-
   return (
     <EventPanel
-      id={`step-${event.name}`}
+      id={`step-${event.name}-${id}`}
       className={clsx("transcript-step", className)}
       title={title}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={descriptor.icon}
-      collapse={false}
+      collapse={descriptor.collapse}
       text={text}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
-      <TranscriptVirtualListComponent
-        id={`step-${event.name}-transcript`}
+      <TranscriptComponent
+        id={`step|${event.name}|${id}`}
         eventNodes={children}
-        scrollRef={scrollRef}
-        transcriptState={transcriptState}
-        setTranscriptState={onTranscriptState}
       />
     </EventPanel>
   );
@@ -115,7 +92,7 @@ const summarize = (children: EventNode[]) => {
  */
 const stepDescriptor = (
   event: StepEvent,
-): { icon?: string; name?: string; endSpace?: boolean } => {
+): { icon?: string; name?: string; endSpace?: boolean; collapse?: boolean } => {
   const rootStepDescriptor = {
     endSpace: true,
   };
@@ -161,6 +138,13 @@ const stepDescriptor = (
         return {
           ...rootStepDescriptor,
           name: "Sample Init",
+          collapse: true,
+        };
+      case "init":
+        return {
+          ...rootStepDescriptor,
+          name: "Init",
+          collapse: true,
         };
       default:
         return {

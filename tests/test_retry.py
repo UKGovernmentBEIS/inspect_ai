@@ -2,7 +2,7 @@ import tempfile
 
 from test_helpers.utils import failing_task
 
-from inspect_ai import eval, eval_retry
+from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.log import list_eval_logs, retryable_eval_logs
 
 
@@ -36,3 +36,13 @@ def test_eval_retryable():
             assert retryable[0].task_id == task_id
             eval_retry(retryable, log_dir=log_dir)
             retryable = retryable_eval_logs(list_eval_logs(log_dir))
+
+
+@task
+def mytask():
+    return Task(name="custom-task-name", solver=[])
+
+
+def test_eval_retry_with_task_name():
+    log = eval(mytask())[0]
+    log = eval_retry(log)[0]

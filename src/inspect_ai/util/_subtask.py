@@ -1,5 +1,5 @@
-import asyncio
 import inspect
+from datetime import datetime
 from functools import wraps
 from logging import getLogger
 from typing import (
@@ -12,9 +12,10 @@ from typing import (
     runtime_checkable,
 )
 
-from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai._util._async import is_callable_coroutine, tg_collect
 from inspect_ai._util.content import Content
 from inspect_ai._util.trace import trace_action
+from inspect_ai._util.working import sample_waiting_time
 from inspect_ai.util._store import Store, dict_jsonable, init_subtask_store
 
 SubtaskResult = str | int | float | bool | list[Content]
@@ -130,19 +131,28 @@ def subtask(
                 return result, list(transcript().events)
 
             # create subtask event
+            waiting_time_start = sample_waiting_time()
             event = SubtaskEvent(
                 name=subtask_name, input=log_input, type=type, pending=True
             )
             transcript()._event(event)
 
             # create and run the task as a coroutine
-            asyncio_task = asyncio.create_task(run())
-            result, events = await asyncio_task
+            result, events = (await tg_collect([run]))[0]
+
+            # time accounting
+            completed = datetime.now()
+            waiting_time_end = sample_waiting_time()
+            event.completed = completed
+            event.working_time = (completed - event.timestamp).total_seconds() - (
+                waiting_time_end - waiting_time_start
+            )
 
             # update event
             event.result = result
             event.events = events
             event.pending = None
+            transcript()._event_updated(event)
 
             # return result
             return result

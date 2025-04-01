@@ -34,8 +34,8 @@ from .util import (
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
-    is_chat_api_rate_limit,
     model_base_url,
+    should_retry_chat_api_error,
 )
 
 
@@ -68,7 +68,9 @@ def chat_choices_from_response_together(
         logprobs_models.append(Logprobs(content=logprobs_sequence))
     return [
         ChatCompletionChoice(
-            message=chat_message_assistant_from_openai(choice.message, tools),
+            message=chat_message_assistant_from_openai(
+                response.model, choice.message, tools
+            ),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=logprobs,
         )
@@ -186,7 +188,6 @@ class TogetherRESTAPI(ModelAPI):
             url=f"{chat_url}",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=json,
-            config=config,
         )
 
         if "error" in response:
@@ -215,8 +216,8 @@ class TogetherRESTAPI(ModelAPI):
             return ModelOutput(model=model, choices=choices, usage=usage)
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return is_chat_api_rate_limit(ex)
+    def should_retry(self, ex: Exception) -> bool:
+        return should_retry_chat_api_error(ex)
 
     # cloudflare enforces rate limits by model for each account
     @override
@@ -229,7 +230,7 @@ class TogetherRESTAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
     def chat_api_handler(self) -> ChatAPIHandler:
-        return ChatAPIHandler()
+        return ChatAPIHandler(self.model_name)
 
 
 def together_choices(

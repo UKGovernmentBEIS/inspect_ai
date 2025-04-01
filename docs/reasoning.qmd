@@ -4,42 +4,99 @@ title: Reasoning
 
 ## Overview
 
-Reasoning models like OpenAI o1 and o3, Google's Gemini 2.0 Flash Thinking, and DeepSeek's r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI o1 and o3, Anthropic's Claude Sonnet 3.7, Google's Gemini 2.0 Flash Thinking, and DeepSeek's r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
 
-This article covers using these models with Inspect---note that the state of support for reasoning models is very early and uneven across providers. As such we'll note below which providers are known to support various options and behaviours.
+In this article we'll first cover the basics of [Reasoning Content](#reasoning-content) and [Reasoning Options](#reasoning-options), then cover the usage and options supported by various reasoning models.
 
-## Reasoning Effort
+## Reasoning Content {#reasoning-content}
 
-OpenAI o1 and o3 models support a [`reasoning_effort`](https://platform.openai.com/docs/api-reference/chat/create#chat-create-reasoning_effort) field that can be set to `low`, `medium` or `high`.
+Many reasoning models allow you to see their underlying chain of thought in a special "thinking" or reasoning block. While reasoning is presented in different ways depending on the model, in the Inspect API it is normalised into `ContentReasoning` blocks which are parallel to `ContentText`, `ContentImage`, etc.
 
-Gemini 2.0 Flash Thinking does not yet support an option to configure reasoning effort.
+Reasoning blocks are presented in their own region in both Inspect View and in terminal conversation views.
 
-Deepseek has also indicated that support for the `reasoning_effort` option will be [available soon](https://api-docs.deepseek.com/guides/reasoning_model). Presumably this will option will also be available from other services hosting r1 models over time.
+While reasoning content isn't made available in a standard fashion across models, Inspect does attempt to capture it using several heuristics, including responses that include a `reasoning` or `reasoning_content` field in the assistant message, assistant content that includes `<think></think>` tags, as well as using explicit APIs for models that support them (e.g. Claude 3.7).
 
-To support OpenAI today and other provides in the future, Inspect now includes the `reasoning_effort` field when using the OpenAI provider (as many services including Deepseek and Together AI are accessed using the OpenAI provider).
+In addition, some models (currently OpenAI and Anthropic) make available `reasoning_tokens` which will be added to the standard `ModelUsage` object returned along with output.
 
-::: {.callout appearance="simple"}
-If you are aware of other providers adding support for `reasoning_effort` please [file an issue](https://github.com/UKGovernmentBEIS/inspect_ai/issues) and we will test and update the provider accordingly.
-:::
+## Reasoning Options {#reasoning-options}
 
-## Reasoning Traces
+The following reasoning options are available from the CLI and within `GenerateConfig`:
 
-In some cases reasoning models provide traces of their chain of thought as part of assistant responses. When available, these traces are provided by Inspect in a new `reasoning` field of `ChatMessageAssistant`.
+| Option              | Description                                                                           | Default  | Models       |
+|------------------|--------------------|------------------|------------------|
+| `reasoning_effort`  | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`)      | `medium` | OpenAI o1/o3 |
+| `reasoning_tokens`  | Maximum number of tokens to use for reasoning.                                        | (none)   | Claude 3.7   |
+| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto`   | All models   |
 
-Reasoning traces are currently captured in two ways:
+As you can see from above, models have different means of specifying the tokens to allocate for reasoning (`reasoning_effort` and `reasoning_tokens`). The two options don't map precisely into each other, so if you are doing an evaluation with multiple reasoning models you should specify both. For example:
 
-1.  From OpenAI compatible provider responses that include a `reasoning` or `reasoning_content` field in the assistant message (the latter is currently [provided](https://api-docs.deepseek.com/guides/reasoning_model) by DeepSeek).
+``` python
+ eval(
+    task,
+    model=["openai/o3-mini","anthropic/anthropic/claude-3-7-sonnet-20250219"],
+    reasoning_effort="medium",
+    reasoning_tokens=4096
+ )
+```
 
-2.  From `<think></think>` tags included in the main assistant `content` (this is how Together, Groq, and Ollama currently present reasoning traces).
+The `reasoning_history` option lets you control how much of the model's previous reasoning is presented in the message history sent to `generate()`. The default is `auto`, which uses a provider-specific recommended default (normally `all`). Use `last` to not let the reasoning overwhelm the context window.
 
-Gemini 2.0 Flash Thinking currently includes its reasoning inline with response content (there is currently no structured way to extract it, although this seems likely to change in the future).
+## OpenAI o1/o3
 
-We have confirmed that `reasoning` traces can be extracted from models using the `together`, `groq`, and `ollama` providers.
+OpenAI has several reasoning models available including the o1 and o3 series (`openai/o1`, `openai/o1-mini`, and `openai/o3-mini`). Learn more about the specific models available in the [OpenAI Models](https://platform.openai.com/docs/models) documentation.
 
-We would like to confirm this for other providers (e.g. `bedrock` and `azureai`) but as of yet have not been able to access reasoning models on those services (we'd very much welcome others contributing here, either to confirm that things work or to provide PRs which make the required changes).
+You can condition the amount of reasoning done via the [`reasoning_effort`](https://platform.openai.com/docs/guides/reasoning#reasoning-effort) option, which can be set to `low`, `medium`, or `high` (the default is `medium` if not specified).
 
-## Reasoning History
+OpenAI models currently do not have provision for displaying reasoning content or replaying it to the model.
 
-Model APIs do not yet have fields representing reasoning content, so it isn't possible to replay previous reasoning traces in a structured way. Nevertheless, it is likely useful to replay this content (e.g. the Gemini Flash Thinking docs encourage reply of reasoning history).
+## Claude 3.7 Sonnet
 
-To enable models to see their previous reasoning traces, Inspect will by default include reasoning in `<think></think>` tags when replaying chat history to models. This behavior can be disabled by a new `reasoning_history` option on `GenerateConfig`.
+Anthropic's Claude 3.7 Sonnet model includes optional support for [extended thinking](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking). Unlike other reasoning models 3.7 Sonnet is a hybrid model that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the `reasoning_tokens` option, for example:
+
+``` bash
+inspect eval math.py \
+  --model anthropic/claude-3-7-sonnet-latest \
+  --reasoning-tokens 4096
+```
+
+#### Tokens
+
+The `max_tokens` for any given request is determined as follows:
+
+1. If you only specify `reasoning_tokens`, then the `max_tokens` will be set to `4096 + reasoning_tokens` (as 4096 is the standard Inspect default for Anthropic max tokens).
+2. If you explicitly specify a `max_tokens`, that value will be used as the max tokens without modification (so should accomodate sufficient space for both your `reasoning_tokens` and normal output).
+
+Inspect will automatically use [response streaming](https://docs.anthropic.com/en/api/messages-streaming) whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests.
+
+
+#### History
+
+Note that Anthropic requests that all reasoning blocks and played back to the model in chat conversations (although they will only use the last reasoning block and will not bill for tokens on previous ones). Consquently, the `reasoning_history` option has no effect for Claude 3.7 models (it effectively always uses `last`).
+
+#### Tools
+
+When using tools, you should read Anthropic's documentation on [extended thinking with tool use](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-thinking-with-tool-use). In short, thinking occurs on the first assistant turn and then the normal tool loop is run without additional thinking. Thinking is re-triggered when the tool loop is exited (i.e. a user message without a tool result is received).
+
+## Google Flash Thinking
+
+Google currently makes available a single experimental reasoning model ([Gemini Flash Thinking](https://deepmind.google/technologies/gemini/flash-thinking/)) which you can access using the model name `google/gemini-2.0-flash-thinking-exp`.
+
+There aren't currently options for reasoning effort or reasoning tokens. By default Gemini currently includes all reasoning in the model history and recommends that it all be included in subsequent requests in a conversation.
+
+Inspect captures reasoning blocks from Gemini using the "Final Answer: " delimiter currently used by Gemini 2.0 Flash Thinking (the API has a separate field for \`thinking\` but it is not currently used in responses).
+
+## DeepSeek-R1
+
+[DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1) is an open-weights reasoning model from DeepSeek. It is generally available either in its original form or as a distillation of R1 based on another open weights model (e.g. Qwen or Llama-based models).
+
+DeepSeek models can be accessed directly using their [OpenAI interface](https://api-docs.deepseek.com/). Further, a number of model hosting providers supported by Inspect make DeepSeek available, for example:
+
+| Provider                                 | Model                                                                                   |
+|-------------------------|-----------------------------------------------|
+| [Together AI](providers.qmd#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
+| [Groq](providers.qmd#groq)               | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning))  |
+| [Ollama](providers.qmd#ollama)           | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1))             |
+
+There isn't currently a way to customise the `reasoning_effort` of DeepSeek models, although they have indicated that this will be [available soon](https://api-docs.deepseek.com/guides/reasoning_model).
+
+Reasoning content from DeepSeek models is captured using either the `reasoning_content` field made available by the hosted DeepSeek API or the `<think>` tags used by various hosting providers.

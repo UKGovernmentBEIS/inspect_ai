@@ -49,7 +49,7 @@ def model_with_stop_seqs():
     return model
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_transformers
 @skip_if_no_accelerate
@@ -60,7 +60,7 @@ async def test_hf_api(model) -> None:
     assert len(response.completion) >= 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_transformers
 @skip_if_no_accelerate
@@ -71,7 +71,7 @@ async def test_hf_api_with_stop_seqs(model_with_stop_seqs) -> None:
     assert response.completion == "www.w3"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_transformers
 async def test_hf_api_fails(model) -> None:

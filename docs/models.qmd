@@ -32,6 +32,22 @@ Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable (either
 INSPECT_EVAL_MODEL=google/gemini-1.5-pro
 ```
 
+#### No Model
+
+Some evaluations will either not make use of models or call the lower-level `get_model()` function to explicitly access models for different roles (see the [Model API](#model-api) section below for details on this). 
+
+In these cases, you are not required to specify a `--model`. If you happen to have an `INSPECT_EVAL_MODEL` defined and you want to prevent your evaluation from using it, you can explcitly specify no model as follows:
+
+```bash
+inspect eval arc.py --model none
+```
+
+Or from Python:
+
+```python
+eval("arc.py", model=None)
+```
+
 ## Generation Config
 
 There are a variety of configuration options that affect the behaviour of model generation. There are options which affect the generated tokens (`temperature`, `top_p`, etc.) as well as the connection to model providers (`timeout`, `max_retries`, etc.)
@@ -40,24 +56,24 @@ You can specify generation options either on the command line or in direct calls
 
 ``` bash
 inspect eval arc.py --model openai/gpt-4 --temperature 0.9
-inspect eval arc.py --model google/gemini-1.0-pro --max-connections 20
+inspect eval arc.py --model google/gemini-1.5-pro --max-connections 20
 ```
 
 Or:
 
 ``` python
 eval("arc.py", model="openai/gpt-4", temperature=0.9)
-eval("arc.py", model="google/gemini-1.0-pro", max_connections=20)
+eval("arc.py", model="google/gemini-1.5-pro", max_connections=20)
 ```
 
 Use `inspect eval --help` to learn about all of the available generation config options.
 
 ## Model Args
 
-If there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use model args to pass additional arguments to model clients. For example, here we specify the `transport` option for a Google Gemini model:
+If there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
 
 ``` bash
-inspect eval arc.py --model google/gemini-1.0-pro -M transport:grpc
+inspect eval arc.py --model google/gemini-1.5-pro -M location=us-east5
 ```
 
 See the documentation for the requisite model provider for information on how model args are passed through to model clients.
@@ -67,6 +83,50 @@ See the documentation for the requisite model provider for information on how mo
 Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
 
 By default, Inspect uses a `max_connections` value of 10. You can increase this consistent with your account limits. If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this).
+
+## Model API
+
+The `--model` which is set for an evaluation is automatically used by the `generate()` solver, as well as for other solvers and scorers built to use the currently evaluated model. If you are implementing a `Solver` or `Scorer` and want to use the currently evaluated model, call `get_model()` with no arguments:
+
+```python
+from inspect_ai.model import get_model
+
+model = get_model()
+response = await model.generate("Say hello")
+```
+
+If you want to use other models in your solvers and scorers, call `get_model()` with an alternate model name, along with optional generation config. For example:
+
+```python
+model = get_model("openai/gpt-4o")
+
+model = get_model(
+    "openai/gpt-4o",
+    config=GenerateConfig(temperature=0.9)
+)
+```
+
+You can also pass provider specific parameters as additional arguments to `get_model()`. For example:
+
+```python
+model = get_model("hf/openai-community/gpt2", device="cuda:0")
+```
+
+### Model Caching
+
+By default, calls to `get_model()` are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
+
+```python
+model = get_model("openai/gpt-4o", memoize=False)
+```
+
+Finally, if you prefer to create and fully close model clients at their place of use, you can use the async context manager built in to the `Model` class. For example:
+
+```python
+async with get_model("openai/gpt-4o") as model:
+    response = await model.generate("Say hello")
+```
+
 
 ## Learning More
 
@@ -78,4 +138,5 @@ By default, Inspect uses a `max_connections` value of 10. You can increase this 
 
 - [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
  
+- [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
 

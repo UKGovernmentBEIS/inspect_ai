@@ -49,16 +49,17 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
                   ? value
                   : parseFloat(value === true ? "1" : value),
               )
-            : value;
+            : String(value);
         scores.push(
           <div
+            key={`score-value-${index}`}
             className={clsx(
               styles.container,
               index + 1 < keys.length ? styles.padded : undefined,
             )}
           >
             <div className={clsx(styles.key, "text-size-smaller")}>{key}</div>
-            <div className={clsx(styles.value, "text-size-title")}>
+            <div className={clsx(styles.value, "text-size-large")}>
               {formattedValue}
             </div>
           </div>,

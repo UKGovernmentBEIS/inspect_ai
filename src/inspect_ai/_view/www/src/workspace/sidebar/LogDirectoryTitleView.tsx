@@ -1,15 +1,16 @@
 import clsx from "clsx";
+import { FC } from "react";
+import { useStore } from "../../state/store";
 import styles from "./LogDirectoryTitleView.module.css";
 
 interface LogDirectoryTitleViewProps {
   log_dir?: string;
-  offcanvas: boolean;
 }
 
-export const LogDirectoryTitleView: React.FC<LogDirectoryTitleViewProps> = ({
+export const LogDirectoryTitleView: FC<LogDirectoryTitleViewProps> = ({
   log_dir,
-  offcanvas,
 }) => {
+  const offCanvas = useStore((state) => state.app.offcanvas);
   if (log_dir) {
     const displayDir = prettyDir(log_dir);
     return (
@@ -27,14 +28,14 @@ export const LogDirectoryTitleView: React.FC<LogDirectoryTitleViewProps> = ({
           title={displayDir}
           className={clsx("text-size-base", styles.dirname)}
         >
-          {offcanvas ? displayDir : ""}
+          {offCanvas ? displayDir : ""}
         </span>
       </div>
     );
   } else {
     return (
       <span className={clsx("text-size-title")}>
-        {offcanvas ? "Log History" : ""}
+        {offCanvas ? "Log History" : ""}
       </span>
     );
   }

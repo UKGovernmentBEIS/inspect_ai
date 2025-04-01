@@ -2,14 +2,15 @@ import clsx from "clsx";
 import { MetaDataView } from "../metadata/MetaDataView";
 import { EvalDataset } from "../types/log";
 
+import { CSSProperties, FC } from "react";
 import styles from "./DatasetDetailView.module.css";
 
 interface DatasetDetailViewProps {
   dataset: EvalDataset;
-  style?: React.CSSProperties;
+  style?: CSSProperties;
 }
 
-export const DatasetDetailView: React.FC<DatasetDetailViewProps> = ({
+export const DatasetDetailView: FC<DatasetDetailViewProps> = ({
   dataset,
   style,
 }) => {

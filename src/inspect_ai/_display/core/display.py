@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import (
     Any,
     AsyncIterator,
+    Callable,
     Coroutine,
     Iterator,
     Protocol,
@@ -14,6 +15,7 @@ from typing import (
 )
 
 import rich
+from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
@@ -103,12 +105,20 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         raise NotImplementedError("input_panel not implemented by current display")
 
 
-@dataclass
-class TaskDisplayMetric:
+class TaskDisplayMetric(BaseModel):
     scorer: str
     name: str
-    value: float | int
-    reducer: str | None
+    value: float | int | None = Field(default=None)
+    reducer: str | None = Field(default=None)
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def handle_null_value(cls, v: Any) -> Union[float, int, None]:
+        if v is None:
+            return None
+        if isinstance(v, float | int):
+            return v
+        raise ValueError(f"Expected float, int, or None, got {type(v)}")
 
 
 @runtime_checkable
@@ -130,7 +140,7 @@ class Display(Protocol):
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]: ...
 
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR: ...
+    def run_task_app(self, main: Callable[[], Coroutine[None, None, TR]]) -> TR: ...
 
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]: ...
@@ -143,3 +153,5 @@ class Display(Protocol):
 
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
+
+    def display_counter(self, caption: str, value: str) -> None: ...

@@ -1,6 +1,7 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { EvalLogHeader } from "../../api/types";
+import { kModelNone } from "../../constants";
 import { EvalStatus } from "./EvalStatus";
 import styles from "./SidebarLogEntry.module.css";
 
@@ -9,7 +10,7 @@ interface SidebarLogEntryProps {
   task: string;
 }
 
-export const SidebarLogEntry: React.FC<SidebarLogEntryProps> = ({
+export const SidebarLogEntry: FC<SidebarLogEntryProps> = ({
   logHeader,
   task,
 }) => {
@@ -51,7 +52,7 @@ export const SidebarLogEntry: React.FC<SidebarLogEntryProps> = ({
           </div>
           <small className={clsx("mb-1", "text-size-small")}>{timeStr}</small>
 
-          {model ? (
+          {model && model !== kModelNone ? (
             <div>
               <small className={clsx("mb-1", "text-size-small")}>{model}</small>
             </div>

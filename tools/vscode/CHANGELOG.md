@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.3.59
+
+- Minor changes to support future features
+
+## 0.3.58
+
+- Re-use viewers when using the open log file command.
+
+## 0.3.57
+
+- Add open log file command (paste a path to a local or remote log file in the command palette to open it in the Inspect viewer)
+
+## 0.3.56
+
+- Improve startup performance and task detection performance
+
+## 0.3.55
+
+- Remove display of status icons in log listing (it causes performance issues).
+
+## 0.3.54
+
+- Add startup output channel to monitor extension startup performance
+- Screen additional directories when scanning for tasks
+
+## 0.3.53
+
+- Fix 'Invalid Tree Item' error
+
+## 0.3.52
+
+- Don't add entries to the `.gitignore` file.
+
 ## 0.3.51
 
 - Improve performance of log listing rendering by caching information in the workspace.
@@ -65,7 +98,7 @@ This version includes a signficant rework of the overall workflow for interactin
 - The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer. 
 - The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer. 
 - New open log directory command allows you to select a log directory and open the Inspect Viewer for that directory
-- Support for the new Inspect `eval` log format. More information [here](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format).
+- Support for the new Inspect `eval` log format. More information [here](https://inspect.aisi.org.uk/eval-logs.html#sec-log-format).
 
 ## 0.3.36
 

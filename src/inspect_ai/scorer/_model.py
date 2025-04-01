@@ -274,25 +274,29 @@ def chat_history(state: TaskState) -> str:
 
     # begin history with text of first message (it will come right after
     # 'Task' or 'Question' in the template)
-    history: list[str] = [messages[0].text]
+    history: list[str] = []
+    if len(messages) > 0:
+        history.append(messages[0].text)
 
-    # for subsequent messages present with e.g. Assistant: {message.text}
-    for message in messages[1:]:
-        if isinstance(message, ChatMessageUser):
-            history.append(f"User: {message.text}")
-        elif isinstance(message, ChatMessageAssistant):
-            assistant_message = [message.text] if message.text else []
-            if message.tool_calls:
-                assistant_message.extend(
-                    [
-                        format_function_call(tool_call.function, tool_call.arguments)
-                        for tool_call in message.tool_calls
-                    ]
+        # for subsequent messages present with e.g. Assistant: {message.text}
+        for message in messages[1:]:
+            if isinstance(message, ChatMessageUser):
+                history.append(f"User: {message.text}")
+            elif isinstance(message, ChatMessageAssistant):
+                assistant_message = [message.text] if message.text else []
+                if message.tool_calls:
+                    assistant_message.extend(
+                        [
+                            format_function_call(
+                                tool_call.function, tool_call.arguments
+                            )
+                            for tool_call in message.tool_calls
+                        ]
+                    )
+                history.append("Assistant: " + "\n\n".join(assistant_message))
+            elif isinstance(message, ChatMessageTool):
+                history.append(
+                    f"Tool ({message.function}): {message.tool_error or ''}{message.text}"
                 )
-            history.append("Assistant: " + "\n\n".join(assistant_message))
-        elif isinstance(message, ChatMessageTool):
-            history.append(
-                f"Tool ({message.function}): {message.tool_error or ''}{message.text}"
-            )
 
     return "\n\n".join(history)

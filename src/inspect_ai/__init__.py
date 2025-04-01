@@ -7,9 +7,11 @@ from inspect_ai._eval.evalset import eval_set
 from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.registry import task
 from inspect_ai._eval.score import score, score_async
-from inspect_ai._eval.task import Epochs, Task, TaskInfo, Tasks, task_with
+from inspect_ai._eval.task import Epochs, Task, TaskInfo, task_with
+from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.constants import PKG_NAME
-from inspect_ai.solver._human_agent.agent import human_agent
+from inspect_ai.agent._human.agent import human
+from inspect_ai.solver._human_agent import human_agent
 
 __version__ = importlib_version(PKG_NAME)
 
@@ -26,8 +28,8 @@ __all__ = [
     "score_async",
     "Epochs",
     "Task",
-    "TaskInfo",
     "Tasks",
+    "TaskInfo",
     "task",
     "task_with",
 ]

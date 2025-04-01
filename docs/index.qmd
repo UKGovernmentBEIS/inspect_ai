@@ -2,9 +2,9 @@
 title: Inspect
 subtitle: An open-source framework for large language model evaluations
 citation:
-  id: "UK_AI_Safety_Institute_Inspect_AI_Framework_2024"
+  id: "UK_AI_Security_Institute_Inspect_AI_Framework_2024"
   title: "Inspect AI: Framework for Large Language Model Evaluations"
-  author: "UK AI Safety Institute"
+  author: "UK AI Security Institute"
   issued: 2024-05
   url: "https://github.com/UKGovernmentBEIS/inspect_ai"
   type: "software"
@@ -12,7 +12,7 @@ citation:
 
 ## Welcome
 
-Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Safety Institute](https://aisi.gov.uk).
+Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Security Institute](https://aisi.gov.uk).
 
 Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
 
@@ -56,7 +56,7 @@ inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
 #### Google
 
 ``` bash
-pip install google-generativeai
+pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
 inspect eval arc.py --model google/gemini-1.5-pro
 ```
@@ -195,11 +195,18 @@ These sections provide a more in depth treatment of the various components used 
 
 -   [Solvers](solvers.qmd) are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the `plan` in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.
 
--   [Tools](tools.qmd) provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
-
 -   [Scorers](scorers.qmd) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
-These sections cover how to use varoius language models with Inspect:
+These sections cover defining custom tools as well as Inspect's standard built-in tools:
+
+- [Tool Basics](tools.qmd): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
+
+- [Custom Tools](tools-custom.qmd) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions. 
+
+- [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
+
+
+These sections cover how to use various language models with Inspect:
 
 -   [Models](models.qmd) describe various ways to specify and provide options to models in Inspect evaluations.
 
@@ -211,6 +218,8 @@ These sections cover how to use varoius language models with Inspect:
 
 -   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
  
+-   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
+
 
 These sections describe how to create agent evaluations with Inspect:
 
@@ -226,7 +235,7 @@ These sections describe how to create agent evaluations with Inspect:
 
 -   [Approval](approval.qmd) enable you to create fine-grained policies for approving tool calls made by model agents.
 
-These sections discuss more advanced features and workflow. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
+These sections discuss more advanced features and workflows. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
 
 -   [Eval Logs](eval-logs.qmd) explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
 
@@ -236,7 +245,7 @@ These sections discuss more advanced features and workflow. You don't need to re
 
 -   [Multimodal](multimodal.qmd) documents the APIs available for creating multimodal evaluations (including images, audio, and video).
 
--   [Typing](typing.qmd): provides guideance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
+-   [Typing](typing.qmd): provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
 
 -   [Tracing](tracing.qmd) Describes advanced execution tracing tools used to diagnose runtime issues.
 

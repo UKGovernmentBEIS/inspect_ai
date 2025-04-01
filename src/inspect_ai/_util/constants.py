@@ -1,13 +1,11 @@
 from pathlib import Path
 from typing import Literal
 
-PKG_AUTHOR = "UK AI Safety Institute"
+PKG_AUTHOR = "UK AI Security Institute"
 PKG_AUTHOR_DIR = "UK-AISI"
 PKG_NAME = Path(__file__).parent.parent.stem
 PKG_PATH = Path(__file__).parent.parent
 DEFAULT_EPOCHS = 1
-DEFAULT_MAX_RETRIES = 5
-DEFAULT_TIMEOUT = 120
 DEFAULT_MAX_CONNECTIONS = 10
 DEFAULT_MAX_TOKENS = 2048
 DEFAULT_VIEW_PORT = 7575
@@ -27,8 +25,10 @@ ALL_LOG_LEVELS = [
 ]
 DEFAULT_LOG_LEVEL = "warning"
 DEFAULT_LOG_LEVEL_TRANSCRIPT = "info"
+DEFAULT_LOG_SHARED = 10
 ALL_LOG_FORMATS = ["eval", "json"]
 DEFAULT_LOG_FORMAT: Literal["eval", "json"] = "eval"
+JSON_LOG_FORMAT = "json"
 EVAL_LOG_FORMAT = "eval"
 DEFAULT_DISPLAY = "full"
 LOG_SCHEMA_VERSION = 2
@@ -38,3 +38,6 @@ CONSOLE_DISPLAY_WIDTH = 120
 BASE_64_DATA_REMOVED = "<base64-data-removed>"
 SANDBOX_SETUP_TIMEOUT = 300
 NO_CONTENT = "(no content)"
+
+DESERIALIZING = "deserializing"
+DESERIALIZING_CONTEXT = {DESERIALIZING: True}

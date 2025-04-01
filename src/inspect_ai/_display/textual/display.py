@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any, AsyncIterator, Coroutine, Iterator
+from typing import AsyncIterator, Callable, Coroutine, Iterator
 
 import rich
 from typing_extensions import override
@@ -30,7 +30,7 @@ class TextualDisplay(Display):
             yield RichProgress(total, progress)
 
     @override
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
+    def run_task_app(self, main: Callable[[], Coroutine[None, None, TR]]) -> TR:
         # create and run the app
         self.app = TaskScreenApp[TR]()
         result = self.app.run_app(main)
@@ -72,3 +72,7 @@ class TextualDisplay(Display):
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
         with self.app.task_display(profile) as task_display:
             yield task_display
+
+    @override
+    def display_counter(self, caption: str, value: str) -> None:
+        self.app.display_counter(caption, value)

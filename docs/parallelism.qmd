@@ -16,6 +16,8 @@ There are a progression of concurrency concerns, and while most evaluations can 
 3.  Sandbox environment concurrency.
 4.  Writing parallel code in custom tools, solvers, and scorers.
 
+Inspect uses [asyncio](https://docs.python.org/3/library/asyncio.html) as its async backend by default, but can also be configured to run against [trio](https://trio.readthedocs.io/en/stable/). See the section on [Async Backends](#async-backends) for additional details.
+
 ## Model Connections
 
 ### Max Connections
@@ -28,9 +30,13 @@ $ inspect eval --model openai/gpt-4 --max-connections 20
 
 The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The "correct" max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
 
+::: {.callout-note appearance="simple"}
+Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).
+:::
+
 ### Rate Limits
 
-When you run an eval you'll see information reported on the current active connection usage as well as the number of HTTP rate limit errors that have been encountered (note that Inspect will automatically retry on rate limits and other errors likely to be transient):
+When you run an eval you'll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):
 
 ![](images/rate-limit.png){fig-alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."}
 
@@ -40,21 +46,34 @@ You should experiment with various values for max connections at different times
 
 ### Limiting Retries
 
-By default, Inspect will continue to retry model API calls (with exponential backoff) indefinitely when a rate limit error (HTTP status 429) is returned. You can limit these retries by using the `max_retries` and `timeout` eval options. For example:
+By default, Inspect will retry model API calls indefinitely (with exponential backoff) when a recoverable HTTP error occurs. The initial backoff is 3 seconds and exponentiation will result in a 25 minute wait for the 10th request (then 30 minutes for the 11th and subsequent requests). You can limit Inspect's retries using the `--max-retries` option:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --max-retries 10 --timeout 600
+inspect eval --model openai/gpt-4 --max-retries 10
 ```
+
+Note that model interfaces themselves may have internal retry behavior (for example, the `openai` and `anthropic` packages both retry twice by default).
+
+You can put a limit on the total time for retries using the `--timeout` option:
+
+``` bash
+inspect eval --model openai/gpt-4 --timeout 600 
+```
+
+### Debugging Retries
 
 If you want more insight into Model API connections and retries, specify `log_level=http`. For example:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --log-level=http
+inspect eval --model openai/gpt-4 --log-level=http
 ```
 
-::: {.callout-note appearance="simple"}
-Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).
-:::
+You can also view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
+
+``` bash
+inspect trace http           # show all http requests
+inspect trace http --failed  # show only failed requests
+```
 
 ## Multiple Models {#sec-multiple-models}
 
@@ -265,3 +284,41 @@ except TimeoutError:
 ```
 
 If a timeout occurs, then a `TimeoutError` will be thrown (which your code should generally handle in whatever manner is appropriate).
+
+
+## Async Backends
+
+Inspect asynchronous code is written using the [AnyIO](https://anyio.readthedocs.io/en/stable/) library, which is an async backend independent implementation of async primitives (e.g. tasks, synchronization, subprocesses, streams, etc.).
+
+AnyIO in turn supports two backends: Python's built-in [asyncio](https://docs.python.org/3/library/asyncio.html) library as well as the [Trio](https://trio.readthedocs.io/en/stable/) async framework. By default, Inspect uses asyncio and is compatible with user code that uses native asyncio functions.
+
+### Using Trio
+
+To configure Inspect to use Trio, set the `INSPECT_ASYNC_BACKEND` environment variable:
+
+```bash
+export INSPECT_ASYNC_BACKEND=trio
+inspect eval math.py
+```
+
+Note that there are some features of Inspect that do not yet work when using Trio, including:
+
+1. Full screen task display uses the [textual](https://textual.textualize.io/) framework, which currently works only with asyncio. Inspect will automatically switch to "rich" task display (which is less interactive) when using Trio.
+
+2. Interaction with AWS S3 (e.g. for log storage) uses the [s3fs](https://s3fs.readthedocs.io/en/latest/) package, which currently works only with asyncio.
+
+3. The [Google](providers.qmd#google) and [Bedrock](providers.qmd#aws-bedrock) providers both depend on asyncio so cannot be used with the Trio backend.
+
+
+### Portable Async
+
+If you are writing async code in your Inspect solvers, tools, scorers, or extensions, you should whenever possible use the [AnyIO](https://anyio.readthedocs.io/en/stable/) library rather than asyncio. If you do this, your Inspect code will work correctly no matter what async backend is in use.
+
+AnyIO implements Trio-like [structured concurrency](https://en.wikipedia.org/wiki/Structured_concurrency) (SC) on top of asyncio and works in harmony with the native SC of Trio itself.
+
+To learn more about AnyIO see the following resources:
+
+- <https://anyio.readthedocs.io/>
+
+- <https://lewoudar.medium.com/anyio-all-you-need-for-async-programming-stuff-4cd084d0f6bd>
+

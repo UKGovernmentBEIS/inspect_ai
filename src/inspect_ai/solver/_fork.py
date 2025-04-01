@@ -1,10 +1,11 @@
-import asyncio
+import functools
 from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, cast
 
 from typing_extensions import overload
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.registry import registry_log_name, registry_params
 from inspect_ai.util._subtask import subtask
 
@@ -44,13 +45,14 @@ async def fork(
     if isinstance(solvers, Solver):
         return await solver_subtask(state, solvers)
     else:
-        subtasks = [solver_subtask(state, solver) for solver in solvers]
-        return await asyncio.gather(*subtasks)
+        return await tg_collect(
+            [functools.partial(solver_subtask, state, solver) for solver in solvers]
+        )
 
 
 async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
     # get the generate function for the current task
-    generate = _generate.get(None)
+    generate = task_generate()
     if generate is None:
         raise RuntimeError("Called fork() outside of a running task.")
 
@@ -84,6 +86,10 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
 
 def set_task_generate(generate: Generate) -> None:
     _generate.set(generate)
+
+
+def task_generate() -> Generate | None:
+    return _generate.get(None)
 
 
 _generate: ContextVar[Generate] = ContextVar("_generate")

@@ -1,13 +1,19 @@
-import asyncio
+import concurrent
+import concurrent.futures
 import copy
 import functools
+import gc
 import json
 import os
+import time
+from concurrent.futures import Future
 from dataclasses import dataclass
+from logging import getLogger
 from queue import Empty, Queue
 from threading import Thread
 from typing import Any, Literal, Protocol, cast
 
+import anyio
 import numpy as np
 import torch  # type: ignore
 from torch import Tensor  # type: ignore
@@ -21,6 +27,7 @@ from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import ContentText
+from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
@@ -35,6 +42,9 @@ from .._model_output import (
     TopLogprob,
 )
 from .util import ChatAPIHandler, HFHandler
+
+logger = getLogger(__name__)
+
 
 HF_TOKEN = "HF_TOKEN"
 
@@ -111,6 +121,12 @@ class HuggingFaceAPI(ModelAPI):
         # LLMs generally don't have a pad token and we need one for batching
         self.tokenizer.pad_token = self.tokenizer.eos_token
         self.tokenizer.padding_side = "left"
+
+    @override
+    async def close(self) -> None:
+        self.model = None
+        self.tokenizer = None
+        gc.collect()
 
     async def generate(
         self,
@@ -189,7 +205,9 @@ class HuggingFaceAPI(ModelAPI):
 
         # construct choice
         choice = ChatCompletionChoice(
-            message=ChatMessageAssistant(content=response.output, source="generate"),
+            message=ChatMessageAssistant(
+                content=response.output, model=self.model_name, source="generate"
+            ),
             logprobs=(
                 Logprobs(content=final_logprobs) if final_logprobs is not None else None
             ),
@@ -213,6 +231,7 @@ class HuggingFaceAPI(ModelAPI):
                 output_tokens=response.output_tokens,
                 total_tokens=response.total_tokens,
             ),
+            time=response.time,
         )
 
     @override
@@ -321,7 +340,9 @@ def chat_completion_assistant_message(
     if handler:
         return handler.parse_assistant_response(response.output, tools)
     else:
-        return ChatMessageAssistant(content=response.output, source="generate")
+        return ChatMessageAssistant(
+            content=response.output, model=model_name, source="generate"
+        )
 
 
 def set_random_seeds(seed: int | None = None) -> None:
@@ -370,13 +391,13 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     logprobs: torch.Tensor | None
+    time: float
 
 
 @dataclass
 class _QueueItem:
     input: GenerateInput
-    future: asyncio.Future[GenerateOutput]
-    loop: asyncio.AbstractEventLoop
+    future: Future[GenerateOutput]
 
 
 batch_thread: Thread | None = None
@@ -392,25 +413,26 @@ async def batched_generate(input: GenerateInput) -> GenerateOutput:
         batch_thread.start()
 
     # enqueue the job
-    loop = asyncio.get_event_loop()
-    future: asyncio.Future[GenerateOutput] = loop.create_future()
-    batch_queue.put(_QueueItem(input=input, future=future, loop=loop))
+    future = Future[GenerateOutput]()
+    batch_queue.put(_QueueItem(input=input, future=future))
 
-    # await the job
-    await future
-
-    # return it
-    return future.result()
+    # await the future
+    with trace_action(logger, "HF Batched Generate", "HF Batched Generate"):
+        while True:
+            try:
+                return future.result(timeout=0.01)
+            except concurrent.futures.TimeoutError:
+                pass
+            await anyio.sleep(1)
 
 
 def process_batches() -> None:
     while True:
         # drain the queue (wait until no new messages have shown up for 2 seconds)
-        inputs: list[tuple[GenerateInput, asyncio.Future[GenerateOutput]]] = []
+        inputs: list[tuple[GenerateInput, Future[GenerateOutput]]] = []
         while True:
             try:
                 input = batch_queue.get(timeout=2)
-                loop = input.loop
                 inputs.append((input.input, input.future))
                 if len(inputs) == input.input.batch_size:
                     # max batch size reached
@@ -425,6 +447,7 @@ def process_batches() -> None:
 
         try:
             # capture the generator and decoder functions
+            start_time = time.monotonic()
             first_input = inputs[0][0]
             device = first_input.device
             tokenizer = first_input.tokenizer
@@ -460,6 +483,7 @@ def process_batches() -> None:
             outputs = decoder(sequences=generated_tokens)
 
             # call back futures
+            total_time = time.monotonic() - start_time
             for i, output in enumerate(outputs):
                 future = inputs[i][1]
                 input_tokens = input_ids.size(dim=1)
@@ -468,21 +492,21 @@ def process_batches() -> None:
                 # asyncio futures are not thread safe, so we need to pass the event loop
                 # down to this point, so we can mark the future as done in a thread safe manner.
                 # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
-                loop.call_soon_threadsafe(
-                    future.set_result,
+                future.set_result(
                     GenerateOutput(
                         output=output,
                         input_tokens=input_tokens,
                         output_tokens=output_tokens,
                         total_tokens=input_tokens + output_tokens,
                         logprobs=logprobs[i] if logprobs is not None else None,
-                    ),
+                        time=total_time,
+                    )
                 )
 
         except Exception as ex:
             for inp in inputs:
                 future = inp[1]
-                loop.call_soon_threadsafe(future.set_exception, ex)
+                future.set_exception(ex)
 
 
 def extract_logprobs(

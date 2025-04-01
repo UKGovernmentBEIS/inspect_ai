@@ -63,29 +63,32 @@ Below are sections for the various categories of options supported by `inspect e
 
 ## Model Generation
 
-|                         |                                                                                                                                                                                                                                                         |
-|------------------------------------|------------------------------------|
-| `--max-tokens`          | The maximum number of tokens that can be generated in the completion (default is model specific)                                                                                                                                                        |
-| `--system-message`      | Override the default system message.                                                                                                                                                                                                                    |
-| `--temperature`         | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.                                                                    |
-| `--top-p`               | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.                                                                                                  |
-| `--top-k`               | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.                                                                                                                                     |
-| `--frequency-penalty`   | Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only. |
-| `--presence-penalty`    | Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.               |
-| `--logit-bias`          | Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI and Grok only.                                                                                                                                                 |
-| `--seed`                | Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.                                                                                                                                                                                 |
-| `--stop-seqs`           | Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.                                                                                                                                      |
-| `--num-choices`         | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.                                                                                                                                   |
-| `--best-of`             | Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only.                                                                                                                     |
-| `--log-probs`           | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.                                                                                                                                  |
-| `--top-logprobs`        | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.                                                                                    |
-| `--cache-prompt`        | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools.                                                                                                        |
-| `--reasoning-effort`    | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models. Open AI o1 models only.                                                                                                                                        |
-| `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only.                                                                                                                                                   |
-| `--max-tool-output`     | Maximum size of tool output (in bytes). Defaults to 16 \* 1024.                                                                                                                                                                                         |
-| `--internal-tools`      | Whether to automatically map tools to model internal implementations (e.g. 'computer' for Anthropic).                                                                                                                                                   |
-| `--max-retries`         | Maximum number of times to retry request (defaults to 5)                                                                                                                                                                                                |
-| `--timeout`             | Request timeout (in seconds).                                                                                                                                                                                                                           |
+|  |  |
+|------------------------|-----------------------------------------------|
+| `--max-tokens` | The maximum number of tokens that can be generated in the completion (default is model specific) |
+| `--system-message` | Override the default system message. |
+| `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
+| `--top-p` | An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass. |
+| `--top-k` | Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only. |
+| `--frequency-penalty` | Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama- cpp-python and vLLM only. |
+| `--presence-penalty` | Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only. |
+| `--logit-bias` | Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI and Grok only. |
+| `--seed` | Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only. |
+| `--stop-seqs` | Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence. |
+| `--num-choices` | How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only. |
+| `--best-of` | Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only. |
+| `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
+| `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
+| `--cache-prompt` | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools. |
+| `--reasoning-effort` | Values: `low`, `medium`, or `high`. Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o-series models only. |
+| `--reasoning-tokens` | Maximum number of tokens to use for reasoning. Anthropic Claude models only. |
+| `--reasoning-history` | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to "auto", which uses the recommended default for each provider) |
+| `--response-format` | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. |
+| `--parallel-tool-calls` | Whether to enable calling multiple functions during tool use (defaults to True) OpenAI and Groq only. |
+| `--max-tool-output` | Maximum size of tool output (in bytes). Defaults to 16 \* 1024. |
+| `--internal-tools` | Whether to automatically map tools to model internal implementations (e.g. 'computer' for Anthropic). |
+| `--max-retries` | Maximum number of times to retry generate request (defaults to unlimited) |
+| `--timeout` | Generate timeout in seconds (defaults to no timeout) |
 
 ## Tasks and Solvers
 
@@ -99,72 +102,76 @@ Below are sections for the various categories of options supported by `inspect e
 
 ## Sample Selection
 
-|                    |                                                                                                                                                                |
-|-------------------------|----------------------------------------------|
-| `--limit`          | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`)                                                                          |
-| `--sample-id`      | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`)                                                                                     |
-| `--epochs`         | Number of times to repeat each sample (defaults to 1)                                                                                                          |
+|  |  |
+|--------------------------|----------------------------------------------|
+| `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
+| `--sample-id` | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
+| `--epochs` | Number of times to repeat each sample (defaults to 1) |
 | `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
 
 ## Parallelism
 
-|                      |                                                                                                 |
-|-------------------------|----------------------------------------------|
-| `--max-connections`  | Maximum number of concurrent connections to Model provider (defaults to 10)                     |
-| `--max-samples`      | Maximum number of samples to run in parallel (default is `--max-connections`)                   |
-| `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`)                 |
-| `--max-sandboxes`    | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
-| `--max-tasks`        | Maximum number of tasks to run in parallel (default is 1)                                       |
+|  |  |
+|--------------------------|----------------------------------------------|
+| `--max-connections` | Maximum number of concurrent connections to Model provider (defaults to 10) |
+| `--max-samples` | Maximum number of samples to run in parallel (default is `--max-connections`) |
+| `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`) |
+| `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
+| `--max-tasks` | Maximum number of tasks to run in parallel (default is 1) |
 
 ## Errors and Limits
 
-|                      |                                                                                                                                                                       |
-|-------------------------|----------------------------------------------|
-| `--fail-on-error`    | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
-| `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples)                                                                         |
-| `--message-limit`    | Limit on total messages used for each sample.                                                                                                                         |
-| `--token-limit`      | Limit on total tokens used for each sample.                                                                                                                           |
-| `--time-limit`       | Limit on total execution time for each sample.                                                                                                                        |
+|  |  |
+|--------------------------|----------------------------------------------|
+| `--fail-on-error` | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
+| `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples) |
+| `--message-limit` | Limit on total messages used for each sample. |
+| `--token-limit` | Limit on total tokens used for each sample. |
+| `--time-limit` | Limit on total running time for each sample. |
+| `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. |
 
 ## Eval Logs
 
-|                          |                                                                                                                                                                                                     |
-|-------------------------|----------------------------------------------|
-| `--log-dir`              | Directory for log files (defaults to `./logs`)                                                                                                                                                      |
-| `--no-log-samples`       | Do not log sample details.                                                                                                                                                                          |
-| `--no-log-images`        | Do not log images and other media.                                                                                                                                                                  |
-| `--log-buffer`           | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
-| `--log-format`           | Values: `eval`, `json` Format for writing log files (defaults to `eval`).                                                                                                                           |
-| `--log-level`            | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`)                                                                   |
-| `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`).                                                                                                     |
+|  |  |
+|--------------------------|----------------------------------------------|
+| `--log-dir` | Directory for log files (defaults to `./logs`) |
+| `--no-log-samples` | Do not log sample details. |
+| `--no-log-images` | Do not log images and other media. |
+| `--log-buffer` | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
+| `--log-shared`           | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify `True` to sync every 10 seconds, otherwise an integer to sync every `n` seconds. |
+| `--log-format` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
+| `--log-level` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
+| `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |
 
 ## Scoring
 
-|                      |                                                                                   |
-|-------------------------|----------------------------------------------|
-| `--no-score`         | Do not score model output (use the `inspect score` command to score output later) |
-| `--no-score-display` | Do not display realtime scoring information.                                      |
+|  |  |
+|--------------------------|----------------------------------------------|
+| `--no-score` | Do not score model output (use the `inspect score` command to score output later) |
+| `--no-score-display` | Do not display realtime scoring information. |
 
 ## Sandboxes
 
-|                        |                                                                                             |
-|-------------------------|----------------------------------------------|
-| `--sandbox`            | Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml' |
-| `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes                                    |
+|  |  |
+|--------------------------|----------------------------------------------|
+| `--sandbox` | Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml' |
+| `--no-sandbox-cleanup` | Do not cleanup sandbox environments after task completes |
 
 ## Debugging
 
-|                  |                                                                       |
-|-------------------------|----------------------------------------------|
-| `--debug`        | Wait to attach debugger                                               |
-| `--debug-port`   | Port number for debugger                                              |
+|  |  |
+|--------------------------|----------------------------------------------|
+| `--debug` | Wait to attach debugger |
+| `--debug-port` | Port number for debugger |
 | `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
 
 ## Miscellaneous
 
-|              |                                                                                             |
-|-------------------------|----------------------------------------------|
-| `--display`  | Display type. Values: `full`, `conversation`, `rich`, `plain`, `none` (defaults to `full`). |
-| `--approval` | Config file for tool call approval.                                                         |
-| `--tags`     | Tags to associate with this evaluation run.                                                 |
-| `--help`     | Display help for command options.                                                           |
+|  |  |
+|--------------------------|----------------------------------------------|
+| `--display` | Display type. Values: `full`, `conversation`, `rich`, `plain`, `none` (defaults to `full`). |
+| `--approval` | Config file for tool call approval. |
+| `--env` | Set an environment variable (multiple instances of `--env` are permitted). |
+| `--tags` | Tags to associate with this evaluation run. |
+| `--metadata` | Metadata to associate with this evaluation run (`key=value`)  |
+| `--help` | Display help for command options. |

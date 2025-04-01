@@ -1,8 +1,12 @@
+import clsx from "clsx";
+import { FC, Fragment, ReactNode } from "react";
+import ExpandablePanel from "../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { ContentTool } from "../../types";
 import {
   ContentAudio,
   ContentImage,
+  ContentReasoning,
   ContentText,
   ContentVideo,
   Format,
@@ -15,6 +19,7 @@ type ContentType =
   | string
   | string[]
   | ContentText
+  | ContentReasoning
   | ContentImage
   | ContentAudio
   | ContentVideo
@@ -26,6 +31,7 @@ interface MessageContentProps {
     | string[]
     | (
         | ContentText
+        | ContentReasoning
         | ContentImage
         | ContentAudio
         | ContentVideo
@@ -37,7 +43,7 @@ interface MessageContentProps {
  * Renders message content based on its type.
  * Supports rendering strings, images, and tools using specific renderers.
  */
-export const MessageContent: React.FC<MessageContentProps> = ({ contents }) => {
+export const MessageContent: FC<MessageContentProps> = ({ contents }) => {
   if (Array.isArray(contents)) {
     return contents.map((content, index) => {
       if (typeof content === "string") {
@@ -46,6 +52,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({ contents }) => {
           {
             type: "text",
             text: content,
+            refusal: null,
           },
           index === contents.length - 1,
         );
@@ -69,6 +76,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({ contents }) => {
     const contentText: ContentText = {
       type: "text",
       text: contents,
+      refusal: null,
     };
     return messageRenderers["text"].render(
       "text-message-content",
@@ -79,11 +87,7 @@ export const MessageContent: React.FC<MessageContentProps> = ({ contents }) => {
 };
 
 interface MessageRenderer {
-  render: (
-    key: string,
-    content: ContentType,
-    isLast: boolean,
-  ) => React.ReactNode;
+  render: (key: string, content: ContentType, isLast: boolean) => ReactNode;
 }
 
 const messageRenderers: Record<string, MessageRenderer> = {
@@ -96,6 +100,36 @@ const messageRenderers: Record<string, MessageRenderer> = {
           markdown={c.text}
           className={isLast ? "no-last-para-padding" : ""}
         />
+      );
+    },
+  },
+  reasoning: {
+    render: (key, content, isLast) => {
+      const r = content as ContentReasoning;
+      if (!r.reasoning && !r.redacted) {
+        return undefined;
+      }
+      return (
+        <Fragment key={key}>
+          <div
+            className={clsx(
+              "text-style-label",
+              "text-style-secondary",
+              isLast ? "no-last-para-padding" : "",
+            )}
+          >
+            Reasoning
+          </div>
+          <ExpandablePanel id={`${key}-reasoning`} collapse={true}>
+            <MarkdownDiv
+              markdown={
+                r.redacted
+                  ? "Reasoning encrypted by model provider."
+                  : r.reasoning
+              }
+            />
+          </ExpandablePanel>
+        </Fragment>
       );
     },
   },

@@ -1,12 +1,12 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { CSSProperties, FC, Fragment } from "react";
 import styles from "./MetadataGrid.module.css";
 import { RenderedContent } from "./RenderedContent";
 
 interface MetadataGridProps {
   id?: string;
   className?: string | string[];
-  style?: React.CSSProperties;
+  style?: CSSProperties;
   entries: Record<string, unknown>;
   plain?: boolean;
 }
@@ -14,7 +14,7 @@ interface MetadataGridProps {
 /**
  * Renders the MetaDataView component.
  */
-export const MetaDataGrid: React.FC<MetadataGridProps> = ({
+export const MetaDataGrid: FC<MetadataGridProps> = ({
   id,
   entries,
   className,
@@ -27,12 +27,14 @@ export const MetaDataGrid: React.FC<MetadataGridProps> = ({
     const id = `${baseId}-value-${index}`;
     return (
       <Fragment key={`${baseId}-record-${index}`}>
-        <div
-          style={{
-            gridColumn: "1 / -1",
-            borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`,
-          }}
-        ></div>
+        {index !== 0 ? (
+          <div
+            style={{
+              gridColumn: "1 / -1",
+              borderBottom: `${!plain ? "solid 1px var(--bs-light-border-subtle" : ""}`,
+            }}
+          ></div>
+        ) : undefined}
         <div
           className={clsx(
             `${baseId}-key`,

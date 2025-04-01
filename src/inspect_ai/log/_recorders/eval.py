@@ -1,30 +1,28 @@
-import asyncio
 import json
 import os
 import tempfile
-from contextlib import _AsyncGeneratorContextManager
 from logging import getLogger
 from typing import Any, BinaryIO, Literal, cast
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from fsspec.asyn import AsyncFileSystem  # type: ignore
+import anyio
 from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
 
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.content import (
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import FileSystem, async_fileystem, dirname, file, filesystem
+from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.scorer._metric import Score
 
 from .._log import (
     EvalLog,
@@ -37,18 +35,9 @@ from .._log import (
     sort_samples,
 )
 from .file import FileRecorder
+from .types import SampleSummary
 
 logger = getLogger(__name__)
-
-
-class SampleSummary(BaseModel):
-    id: int | str
-    epoch: int
-    input: str | list[ChatMessage]
-    target: str | list[str]
-    scores: dict[str, Score] | None = Field(default=None)
-    error: str | None = Field(default=None)
-    limit: str | None = Field(default=None)
 
 
 class LogStart(BaseModel):
@@ -225,7 +214,9 @@ class EvalRecorder(FileRecorder):
             with ZipFile(z, mode="r") as zip:
                 try:
                     with zip.open(_sample_filename(id, epoch), "r") as f:
-                        return EvalSample(**json.load(f))
+                        return EvalSample.model_validate(
+                            json.load(f), context=DESERIALIZING_CONTEXT
+                        )
                 except KeyError:
                     raise IndexError(
                         f"Sample id {id} for epoch {epoch} not found in log {location}"
@@ -252,7 +243,11 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
         for message in inputs:
             if not isinstance(message.content, str):
                 filtered_content: list[
-                    ContentText | ContentImage | ContentAudio | ContentVideo
+                    ContentText
+                    | ContentReasoning
+                    | ContentImage
+                    | ContentAudio
+                    | ContentVideo
                 ] = []
                 for content in message.content:
                     if content.type == "text":
@@ -272,16 +267,14 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
 
 
 class ZipLogFile:
-    _zip: ZipFile
+    _zip: ZipFile | None
     _temp_file: BinaryIO
     _fs: FileSystem
-    _async_fs_context: _AsyncGeneratorContextManager[AsyncFileSystem] | None = None
-    _async_fs: AsyncFileSystem | None = None
 
     def __init__(self, file: str) -> None:
         self._file = file
         self._fs = filesystem(file)
-        self._lock = asyncio.Lock()
+        self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[EvalSample] = []
         self._summary_counter = 0
@@ -295,11 +288,6 @@ class ZipLogFile:
         summaries: list[SampleSummary],
     ) -> None:
         async with self._lock:
-            # connect to async filesystem if we can
-            if self._fs.is_async():
-                self._async_fs_context = async_fileystem(self._file)
-                self._async_fs = await self._async_fs_context.__aenter__()
-
             self._open()
             self._summary_counter = summary_counter
             self._summaries = summaries
@@ -333,6 +321,7 @@ class ZipLogFile:
                         epoch=sample.epoch,
                         input=text_inputs(sample.input),
                         target=sample.target,
+                        completed=True,
                         scores=sample.scores,
                         error=sample.error.message
                         if sample.error is not None
@@ -359,7 +348,8 @@ class ZipLogFile:
     async def flush(self) -> None:
         async with self._lock:
             # close the zip file so it is flushed
-            self._zip.close()
+            if self._zip:
+                self._zip.close()
 
             # read the temp_file (leaves pointer at end for subsequent appends)
             self._temp_file.seek(0)
@@ -375,21 +365,19 @@ class ZipLogFile:
 
     async def close(self) -> EvalLog:
         async with self._lock:
-            # close the async context if we have one
-            try:
-                if self._async_fs_context:
-                    await self._async_fs_context.__aexit__(None, None, None)
-            except Exception as ex:
-                logger.warning(
-                    f"Error occurred while closing async fs for {self._file}: {ex}"
-                )
-
             # read the log from the temp file then close it
             try:
                 self._temp_file.seek(0)
                 return _read_log(self._temp_file, self._file)
             finally:
                 self._temp_file.close()
+                if self._zip:
+                    self._zip.close()
+
+    # cleanup zip file if we didn't in normal course
+    def __del__(self) -> None:
+        if self._zip:
+            self._zip.close()
 
     def _open(self) -> None:
         self._zip = ZipFile(
@@ -401,6 +389,7 @@ class ZipLogFile:
 
     # raw unsynchronized version of write
     def _zip_writestr(self, filename: str, data: Any) -> None:
+        assert self._zip
         self._zip.writestr(
             filename,
             to_json(
@@ -418,7 +407,10 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
         if REDUCTIONS_JSON in zip.namelist():
             with zip.open(REDUCTIONS_JSON, "r") as f:
                 reductions = [
-                    EvalSampleReductions(**reduction) for reduction in json.load(f)
+                    EvalSampleReductions.model_validate(
+                        reduction, context=DESERIALIZING_CONTEXT
+                    )
+                    for reduction in json.load(f)
                 ]
                 if evalLog.results is not None:
                     evalLog.reductions = reductions
@@ -429,7 +421,11 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
             for name in zip.namelist():
                 if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
                     with zip.open(name, "r") as f:
-                        samples.append(EvalSample(**json.load(f)))
+                        samples.append(
+                            EvalSample.model_validate(
+                                json.load(f), context=DESERIALIZING_CONTEXT
+                            ),
+                        )
             sort_samples(samples)
             evalLog.samples = samples
         return evalLog
@@ -456,7 +452,10 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
     if SUMMARIES_JSON in zip.namelist():
         summaries_raw = _read_json(zip, SUMMARIES_JSON)
         if isinstance(summaries_raw, list):
-            return [SampleSummary(**value) for value in summaries_raw]
+            return [
+                SampleSummary.model_validate(value, context=DESERIALIZING_CONTEXT)
+                for value in summaries_raw
+            ]
         else:
             raise ValueError(
                 f"Expected a list of summaries when reading {SUMMARIES_JSON}"
@@ -468,7 +467,14 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
             summary_path = _journal_summary_path(summary_file)
             summary = _read_json(zip, summary_path)
             if isinstance(summary, list):
-                summaries.extend([SampleSummary(**value) for value in summary])
+                summaries.extend(
+                    [
+                        SampleSummary.model_validate(
+                            value, context=DESERIALIZING_CONTEXT
+                        )
+                        for value in summary
+                    ]
+                )
             else:
                 raise ValueError(
                     f"Expected a list of summaries when reading {summary_file}"
@@ -480,12 +486,12 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
     # first see if the header is here
     if HEADER_JSON in zip.namelist():
         with zip.open(HEADER_JSON, "r") as f:
-            log = EvalLog(**json.load(f))
+            log = EvalLog.model_validate(json.load(f), context=DESERIALIZING_CONTEXT)
             log.location = location
             return log
     else:
         with zip.open(_journal_path(START_JSON), "r") as f:
-            start = LogStart(**json.load(f))
+            start = LogStart.model_validate(json.load(f), context=DESERIALIZING_CONTEXT)
         return EvalLog(
             version=start.version, eval=start.eval, plan=start.plan, location=location
         )

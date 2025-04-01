@@ -34,7 +34,7 @@ self.onmessage = function (e) {
   const decoder = new TextDecoder();
   const text = decoder.decode(encodedText);
   try {
-    const result = JSON.parse(text);
+    const result = JSON5.parse(text);
     postMessage({ success: true, result });
   } catch (err) {
     postMessage({ success: false, error: err.message });

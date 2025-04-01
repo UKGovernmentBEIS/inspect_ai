@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
-import { ReactElement, useState } from "react";
+import { FC, MouseEvent, ReactElement, ReactNode, useCallback } from "react";
+import { useProperty } from "../state/hooks";
 import styles from "./NavPills.module.css";
 
 interface NavPillChildProps {
@@ -8,15 +9,19 @@ interface NavPillChildProps {
 }
 
 interface NavPillsProps {
+  id: string;
   children?: ReactElement<NavPillChildProps>[];
 }
 
-export const NavPills: React.FC<NavPillsProps> = ({ children }) => {
-  if (!children?.length) {
-    return null;
-  }
+export const NavPills: FC<NavPillsProps> = ({ id, children }) => {
+  const defaultNav = children ? children[0].props["title"] : "";
+  const [activeItem, setActiveItem] = useProperty(id, "active", {
+    defaultValue: defaultNav,
+  });
 
-  const [activeItem, setActiveItem] = useState(children[0].props["title"]);
+  if (!activeItem || !children) {
+    return undefined;
+  }
 
   // Create Nav Pills for each child
   const navPills = children.map((nav, idx) => {
@@ -66,16 +71,25 @@ interface NavPillProps {
   title: string;
   activeItem: string;
   setActiveItem: (item: string) => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
-const NavPill: React.FC<NavPillProps> = ({
+const NavPill: FC<NavPillProps> = ({
   title,
   activeItem,
   setActiveItem,
   children,
 }) => {
   const active = activeItem === title;
+  const handleClick = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      const target = (e.currentTarget as HTMLButtonElement).dataset.target;
+      if (target) {
+        setActiveItem(target);
+      }
+    },
+    [setActiveItem],
+  );
 
   return (
     <li className={"nav-item"}>
@@ -89,9 +103,8 @@ const NavPill: React.FC<NavPillProps> = ({
           active ? "active " : "",
           styles.pill,
         )}
-        onClick={() => {
-          setActiveItem(title);
-        }}
+        data-target={title}
+        onClick={handleClick}
       >
         {title}
       </button>

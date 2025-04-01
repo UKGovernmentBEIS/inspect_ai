@@ -10,6 +10,8 @@ from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
 
+from inspect_ai._util.content import ContentReasoning
+
 from .format import format_function_call
 
 
@@ -111,19 +113,31 @@ def transcript_panel(
     )
 
 
-def transcript_reasoning(reasoning: str) -> list[RenderableType]:
+def transcript_reasoning(reasoning: ContentReasoning) -> list[RenderableType]:
     content: list[RenderableType] = []
+    text = (
+        reasoning.reasoning
+        if not reasoning.redacted
+        else "Reasoning encrypted by model provider."
+    )
+
     content.append(
-        transcript_markdown(
-            f"**<think>**  \n{reasoning}  \n**</think>**\n\n", escape=True
-        )
+        transcript_markdown(f"**<think>**  \n{text}  \n**</think>**\n\n", escape=True)
     )
     content.append(Text())
     return content
 
 
-def transcript_separator(title: str, color: str) -> RenderableType:
-    return Rule(title=title, style=f"{color} bold", align="center", end="\n\n")
+def transcript_separator(
+    title: str, color: str, characters: str = "─"
+) -> RenderableType:
+    return Rule(
+        title=title,
+        characters=characters,
+        style=f"{color} bold",
+        align="center",
+        end="\n\n",
+    )
 
 
 def transcript_function(function: str, arguments: dict[str, Any]) -> RenderableType:

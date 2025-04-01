@@ -15,6 +15,7 @@ from rich.table import Column, Table
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.trace import (
     ActionTraceRecord,
+    TraceRecord,
     inspect_trace_dir,
     list_trace_files,
     read_trace_file,
@@ -27,7 +28,7 @@ def trace_command() -> None:
 
     Inspect includes a TRACE log-level which is right below the HTTP and INFO log levels (so not written to the console by default). However, TRACE logs are always recorded to a separate file, and the last 10 TRACE logs are preserved. The 'trace' command provides ways to list and read these traces.
 
-    Learn more about execution traces at https://inspect.ai-safety-institute.org.uk/tracing.html.
+    Learn more about execution traces at https://inspect.aisi.org.uk/tracing.html.
     """
     return None
 
@@ -84,6 +85,41 @@ def dump_command(trace_file: str | None, filter: str | None) -> None:
     )
 
 
+@trace_command.command("http")
+@click.argument("trace-file", type=str, required=False)
+@click.option(
+    "--filter",
+    type=str,
+    help="Filter (applied to trace message field).",
+)
+@click.option(
+    "--failed",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Show only failed HTTP requests (non-200 status)",
+)
+def http_command(trace_file: str | None, filter: str | None, failed: bool) -> None:
+    """View all HTTP requests in the trace log."""
+    _, traces = _read_traces(trace_file, "HTTP", filter)
+
+    last_timestamp = ""
+    table = Table(Column(), Column(), box=None)
+    for trace in traces:
+        if failed and "200 OK" in trace.message:
+            continue
+        timestamp = trace.timestamp.split(".")[0]
+        if timestamp == last_timestamp:
+            timestamp = ""
+        else:
+            last_timestamp = timestamp
+            timestamp = f"[{timestamp}]"
+        table.add_row(timestamp, trace.message)
+
+    if table.row_count > 0:
+        r_print(table)
+
+
 @trace_command.command("anomalies")
 @click.argument("trace-file", type=str, required=False)
 @click.option(
@@ -99,12 +135,7 @@ def dump_command(trace_file: str | None, filter: str | None) -> None:
 )
 def anomolies_command(trace_file: str | None, filter: str | None, all: bool) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
-    trace_file_path = _resolve_trace_file_path(trace_file)
-    traces = read_trace_file(trace_file_path)
-
-    if filter:
-        filter = filter.lower()
-        traces = [trace for trace in traces if filter in trace.message.lower()]
+    trace_file_path, traces = _read_traces(trace_file, None, filter)
 
     # Track started actions
     running_actions: dict[str, ActionTraceRecord] = {}
@@ -197,6 +228,22 @@ def anomolies_command(trace_file: str | None, filter: str | None, all: bool) -> 
 
         # print
         print(console.export_text(styles=True).strip())
+
+
+def _read_traces(
+    trace_file: str | None, level: str | None = None, filter: str | None = None
+) -> tuple[Path, list[TraceRecord]]:
+    trace_file_path = _resolve_trace_file_path(trace_file)
+    traces = read_trace_file(trace_file_path)
+
+    if level:
+        traces = [trace for trace in traces if trace.level == level]
+
+    if filter:
+        filter = filter.lower()
+        traces = [trace for trace in traces if filter in trace.message.lower()]
+
+    return (trace_file_path, traces)
 
 
 def _print_bucket(

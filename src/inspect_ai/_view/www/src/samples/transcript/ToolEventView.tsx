@@ -1,21 +1,21 @@
 import { ApplicationIcons } from "../../appearance/icons";
 import { ToolEvent } from "../../types/log";
-import { formatDateTime } from "../../utils/format";
 import { resolveToolInput } from "../chat/tools/tool";
 import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptView } from "./TranscriptView";
-import { TranscriptEventState } from "./types";
 
-import { useMemo } from "react";
+import clsx from "clsx";
+import { FC, useMemo } from "react";
+import { PulsingDots } from "../../components/PulsingDots";
+import { ChatView } from "../chat/ChatView";
+import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 
 interface ToolEventViewProps {
   id: string;
   event: ToolEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   depth: number;
   className?: string | string[];
 }
@@ -23,11 +23,9 @@ interface ToolEventViewProps {
 /**
  * Renders the ToolEventView component.
  */
-export const ToolEventView: React.FC<ToolEventViewProps> = ({
+export const ToolEventView: FC<ToolEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   depth,
   className,
 }) => {
@@ -37,30 +35,32 @@ export const ToolEventView: React.FC<ToolEventViewProps> = ({
     [event.function, event.arguments],
   );
 
-  // Find an approval if there is one
-  const approvalEvent = event.events.find((e) => {
-    return e.event === "approval";
-  });
+  const { approvalEvent, lastModelEvent } = useMemo(() => {
+    // Find an approval if there is one
+    const approvalEvent = event.events.find((e) => {
+      return e.event === "approval";
+    });
+
+    // Find a model message to render, if there is one
+    const lastModelEvent = [...event.events].reverse().find((e) => {
+      return e.event === "model";
+    });
+
+    return { approvalEvent, lastModelEvent };
+  }, [event.events]);
 
   const title = `Tool: ${event.view?.title || event.function}`;
   return (
     <EventPanel
       id={id}
-      title={title}
+      title={formatTitle(title, undefined, event.working_time)}
       className={className}
-      subTitle={formatDateTime(new Date(event.timestamp))}
+      subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView
+          id={`${id}-tool-call`}
           functionCall={functionCall}
           input={input}
           highlightLanguage={highlightLanguage}
@@ -68,6 +68,16 @@ export const ToolEventView: React.FC<ToolEventViewProps> = ({
           mode="compact"
           view={event.view ? event.view : undefined}
         />
+
+        {lastModelEvent && lastModelEvent.event === "model" ? (
+          <ChatView
+            id={`${id}-toolcall-chatmessage`}
+            messages={lastModelEvent.output.choices.map((m) => m.message)}
+            numbered={false}
+            toolCallStyle="compact"
+          />
+        ) : undefined}
+
         {approvalEvent ? (
           <ApprovalEventView
             event={approvalEvent}
@@ -76,11 +86,17 @@ export const ToolEventView: React.FC<ToolEventViewProps> = ({
         ) : (
           ""
         )}
+        {event.pending ? (
+          <div className={clsx(styles.progress)}>
+            <PulsingDots subtle={false} size="medium" />
+          </div>
+        ) : undefined}
       </div>
       {event.events.length > 0 ? (
         <TranscriptView
           id={`${id}-subtask`}
           data-name="Transcript"
+          data-default={event.failed || event.agent ? true : null}
           events={event.events}
           depth={depth + 1}
         />

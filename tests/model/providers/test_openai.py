@@ -6,9 +6,10 @@ from inspect_ai.model import (
     GenerateConfig,
     get_model,
 )
+from inspect_ai.model._chat_message import ChatMessageSystem
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_openai
 async def test_openai_api() -> None:
     model = get_model(
@@ -30,7 +31,27 @@ async def test_openai_api() -> None:
     assert len(response.completion) >= 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
+@skip_if_no_openai
+async def test_openai_o_series_developer_messages() -> None:
+    async def check_developer_messages(model_name: str):
+        model = get_model(
+            model_name,
+            config=GenerateConfig(reasoning_effort="medium", parallel_tool_calls=True),
+        )
+        await model.generate(
+            [
+                ChatMessageSystem(content="I am a helpful assistant."),
+                ChatMessageUser(content="What are you?"),
+            ]
+        )
+
+    await check_developer_messages("openai/o1")
+    await check_developer_messages("openai/o1-mini")
+    await check_developer_messages("openai/o3-mini")
+
+
+@pytest.mark.anyio
 @skip_if_no_openai
 async def test_openai_o_series_reasoning_effort() -> None:
     async def check_reasoning_effort(model_name: str):
@@ -44,10 +65,11 @@ async def test_openai_o_series_reasoning_effort() -> None:
         print(response)
 
     await check_reasoning_effort("openai/o1")
+    await check_reasoning_effort("openai/o1-mini")
     await check_reasoning_effort("openai/o3-mini")
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_openai
 async def test_openai_o_series_max_tokens() -> None:
     async def check_max_tokens(model_name: str):
@@ -60,4 +82,5 @@ async def test_openai_o_series_max_tokens() -> None:
         assert len(response.completion) >= 1
 
     await check_max_tokens("openai/o1")
+    await check_max_tokens("openai/o1-mini")
     await check_max_tokens("openai/o3-mini")

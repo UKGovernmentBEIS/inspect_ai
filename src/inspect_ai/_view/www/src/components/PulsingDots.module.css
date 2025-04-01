@@ -1,0 +1,81 @@
+/* PulsingDots.module.css */
+.container {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.dotsContainer {
+  padding-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.small .dotsContainer {
+  column-gap: 3px;
+}
+
+.medium .dotsContainer {
+  column-gap: 5px;
+  padding-bottom: 2px;
+}
+
+.large .dotsContainer {
+  column-gap: 6px;
+  padding-bottom: 3px;
+  padding-left: 2px;
+}
+
+.dot {
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.subtle {
+  background-color: var(--bs-primary-bg-subtle);
+}
+
+.primary {
+  background-color: var(--bs-primary);
+}
+
+.small .dot {
+  width: 4px;
+  height: 4px;
+}
+
+.medium .dot {
+  width: 8px;
+  height: 8px;
+}
+
+.large .dot {
+  width: 12px;
+  height: 12px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}

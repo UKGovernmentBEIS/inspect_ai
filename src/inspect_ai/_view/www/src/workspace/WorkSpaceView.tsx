@@ -1,9 +1,15 @@
 import clsx from "clsx";
-import { Fragment, MouseEvent, RefObject, useCallback, useMemo } from "react";
-import { SampleSummary } from "../api/types";
+import {
+  createElement,
+  FC,
+  Fragment,
+  MouseEvent,
+  RefObject,
+  useCallback,
+} from "react";
+import { RunningMetric } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
-import { EvalDescriptor } from "../samples/descriptor/types";
 import {
   EvalPlan,
   EvalResults,
@@ -11,63 +17,37 @@ import {
   EvalStats,
   Status,
 } from "../types/log";
-import { debounce } from "../utils/sync";
 import { Navbar } from "./navbar/Navbar";
 import { TabDescriptor } from "./types";
 
+import { useStore } from "../state/store";
 import styles from "./WorkSpaceView.module.css";
 
 interface WorkSpaceViewProps {
-  logFileName?: string;
   evalSpec: EvalSpec;
   evalPlan?: EvalPlan;
   evalResults?: EvalResults;
+  runningMetrics?: RunningMetric[];
   evalStats?: EvalStats;
-  samples?: SampleSummary[];
-  evalDescriptor?: EvalDescriptor;
   status?: Status;
   showToggle: boolean;
-  tabs: Record<string, TabDescriptor>;
-  selectedTab: string;
-  setSelectedTab: (tab: string) => void;
+  tabs: Record<string, TabDescriptor<any>>;
   divRef: RefObject<HTMLDivElement | null>;
-  offcanvas: boolean;
-  setOffcanvas: (offcanvas: boolean) => void;
-  workspaceTabScrollPositionRef: RefObject<Record<string, number>>;
-  setWorkspaceTabScrollPosition: (tab: string, pos: number) => void;
 }
 
-export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
-  logFileName,
+export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
   evalSpec,
   evalPlan,
   evalResults,
+  runningMetrics,
   evalStats,
-  samples,
-  evalDescriptor,
   status,
   showToggle,
-  selectedTab,
   tabs,
-  setSelectedTab,
   divRef,
-  offcanvas,
-  setOffcanvas,
-  workspaceTabScrollPositionRef,
-  setWorkspaceTabScrollPosition,
 }) => {
-  const debouncedScroll = useMemo(() => {
-    return debounce((id, position) => {
-      setWorkspaceTabScrollPosition(id, position);
-    }, 100);
-  }, [setWorkspaceTabScrollPosition]);
-
-  const onScroll = useCallback(
-    (id: string, position: number) => {
-      debouncedScroll(id, position);
-    },
-    [debouncedScroll],
-  );
+  const selectedTab = useStore((state) => state.app.tabs.workspace);
+  const setSelectedTab = useStore((state) => state.appActions.setWorkspaceTab);
 
   const onSelected = useCallback(
     (e: MouseEvent<HTMLElement>) => {
@@ -105,14 +85,10 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
           evalSpec={evalSpec}
           evalPlan={evalPlan}
           evalResults={evalResults}
+          runningMetrics={runningMetrics}
           evalStats={evalStats}
-          samples={samples}
-          evalDescriptor={evalDescriptor}
           status={status}
-          file={logFileName}
           showToggle={showToggle}
-          offcanvas={offcanvas}
-          setOffcanvas={setOffcanvas}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
           <div className={clsx("log-detail", styles.tabContainer)}>
@@ -135,17 +111,9 @@ export const WorkSpaceView: React.FC<WorkSpaceViewProps> = ({
                     selected={selectedTab === tab.id}
                     scrollable={!!tab.scrollable}
                     scrollRef={tab.scrollRef}
-                    scrollPosition={
-                      workspaceTabScrollPositionRef.current?.[tab.id]
-                    }
-                    setScrollPosition={useCallback(
-                      (position: number) => {
-                        onScroll(tab.id, position);
-                      },
-                      [onScroll],
-                    )}
+                    style={{ height: tab.scrollable ? "100%" : undefined }}
                   >
-                    {tab.content()}
+                    {createElement(tab.component, tab.componentProps)}
                   </TabPanel>
                 );
               })}

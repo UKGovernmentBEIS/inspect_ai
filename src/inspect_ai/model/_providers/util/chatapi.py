@@ -7,17 +7,15 @@ from tenacity import (
     retry,
     retry_if_exception,
     stop_after_attempt,
-    stop_after_delay,
     wait_exponential_jitter,
 )
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
-from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
+from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.tool._tool_info import ToolInfo
 
 from ..._chat_message import ChatMessage
-from ..._generate_config import GenerateConfig
 
 logger = getLogger(__name__)
 
@@ -25,6 +23,9 @@ ChatAPIMessage = dict[Literal["role", "content"], str]
 
 
 class ChatAPIHandler:
+    def __init__(self, model: str) -> None:
+        self.model = model
+
     def input_with_tools(
         self, input: list[ChatMessage], tools: list[ToolInfo]
     ) -> list[ChatMessage]:
@@ -33,7 +34,9 @@ class ChatAPIHandler:
     def parse_assistant_response(
         self, response: str, tools: list[ToolInfo]
     ) -> ChatMessageAssistant:
-        return ChatMessageAssistant(content=response)
+        return ChatMessageAssistant(
+            content=response, model=self.model, source="generate"
+        )
 
     def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:
         return {"role": "assistant", "content": message.text}
@@ -50,7 +53,7 @@ class ChatAPIHandler:
 def chat_api_input(
     input: list[ChatMessage],
     tools: list[ToolInfo],
-    handler: ChatAPIHandler = ChatAPIHandler(),
+    handler: ChatAPIHandler,
 ) -> list[ChatAPIMessage]:
     # add tools to input
     if len(tools) > 0:
@@ -75,21 +78,13 @@ async def chat_api_request(
     url: str,
     headers: dict[str, Any],
     json: Any,
-    config: GenerateConfig,
 ) -> Any:
-    # provide default max_retries
-    max_retries = config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-
     # define call w/ retry policy
     @retry(
         wait=wait_exponential_jitter(),
-        stop=(
-            (stop_after_attempt(max_retries) | stop_after_delay(config.timeout))
-            if config.timeout
-            else stop_after_attempt(max_retries)
-        ),
+        stop=(stop_after_attempt(2)),
         retry=retry_if_exception(httpx_should_retry),
-        before_sleep=log_retry_attempt(model_name),
+        before_sleep=log_httpx_retry_attempt(model_name),
     )
     async def call_api() -> Any:
         response = await client.post(url=url, headers=headers, json=json)
@@ -104,14 +99,11 @@ async def chat_api_request(
 # checking for rate limit errors needs to punch through the RetryError and
 # look at its `__cause__`. we've observed Cloudflare giving transient 500
 # status as well as a ReadTimeout, so we count these as rate limit errors
-def is_chat_api_rate_limit(ex: BaseException) -> bool:
+def should_retry_chat_api_error(ex: BaseException) -> bool:
     return isinstance(ex, RetryError) and (
         (
             isinstance(ex.__cause__, httpx.HTTPStatusError)
-            and (
-                ex.__cause__.response.status_code == 429
-                or ex.__cause__.response.status_code == 500
-            )
+            and is_retryable_http_status(ex.__cause__.response.status_code)
         )
         or isinstance(ex.__cause__, httpx.ReadTimeout)
     )

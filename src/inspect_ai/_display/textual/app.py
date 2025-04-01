@@ -1,11 +1,20 @@
-import asyncio
 import contextlib
 from asyncio import CancelledError
-from typing import Any, AsyncIterator, ClassVar, Coroutine, Generic, Iterator, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    ClassVar,
+    Generic,
+    Iterator,
+    cast,
+)
 
+import anyio
+import anyio.from_thread
 import rich
 from rich.console import Console
-from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
 from textual.css.query import NoMatches
@@ -82,6 +91,7 @@ class TaskScreenApp(App[TR]):
         self._total_tasks = 0
         self._parallel = False
         self._tasks: list[TaskWithResult] = []
+        self._counters: dict[str, str] = {}
 
         # all tasks processed by app
         self._app_tasks: list[TaskWithResult] = []
@@ -95,9 +105,8 @@ class TaskScreenApp(App[TR]):
         if focus and self.app._driver:
             textual_enable_mouse_support(self.app._driver)
 
-    def run_app(self, main: Coroutine[Any, Any, TR]) -> TaskScreenResult[TR]:
-        # create the worker
-        self._worker = self.run_worker(main, start=False, exit_on_error=False)
+    def run_app(self, main: Callable[[], Awaitable[TR]]) -> TaskScreenResult[TR]:
+        self._worker = self.run_worker(main(), start=False, exit_on_error=False)
 
         # run the app
         self.run()
@@ -115,8 +124,8 @@ class TaskScreenApp(App[TR]):
 
     async def on_load(self) -> None:
         # events used to synchronise loading
-        self._on_load_app = asyncio.Event()
-        self._on_app_loaded = asyncio.Event()
+        self._on_load_app = anyio.Event()
+        self._on_app_loaded = anyio.Event()
 
         # run the workers
         self.workers.start_all()
@@ -128,7 +137,7 @@ class TaskScreenApp(App[TR]):
         while not self._on_load_app.is_set():
             if len(self.workers._workers) == 0:
                 return
-            await asyncio.sleep(0.1)
+            await anyio.sleep(0.1)
 
     @contextlib.contextmanager
     def suspend_app(self) -> Iterator[None]:
@@ -177,6 +186,11 @@ class TaskScreenApp(App[TR]):
 
         # force repaint
         self.refresh(repaint=True)
+
+        # enable mouse support (this broke in textual 2.0 when running in VS Code
+        # however is fixed in textual 2.1)
+        assert self.app._driver
+        textual_enable_mouse_support(self.app._driver)
 
         try:
             yield TextualTaskScreen(self)
@@ -290,7 +304,7 @@ class TaskScreenApp(App[TR]):
         samples_view.set_samples(active_and_started_samples)
 
     def update_footer(self) -> None:
-        left, right = task_footer()
+        left, right = task_footer(self._counters)
         footer = self.query_one(AppFooter)
         footer.left = left
         footer.right = right
@@ -304,9 +318,9 @@ class TaskScreenApp(App[TR]):
 
         def set_unread(unread: int | None) -> None:
             if unread is not None:
-                console_tab.label = Text.from_markup(f"Console ({unread})")
+                console_tab.label = f"Console ({unread})"  # type: ignore[assignment]
             else:
-                console_tab.label = Text.from_markup("Console")
+                console_tab.label = "Console"  # type: ignore[assignment]
 
         self.watch(console_view, "unread", set_unread)
 
@@ -365,6 +379,10 @@ class TaskScreenApp(App[TR]):
         except NoMatches:
             return None
 
+    def display_counter(self, caption: str, value: str) -> None:
+        self._counters[caption] = value
+        self.update_footer()
+
     class InputPanelHost(InputPanel.Host):
         def __init__(self, app: "TaskScreenApp[TR]", tab_id: str) -> None:
             self.app = app
@@ -373,7 +391,7 @@ class TaskScreenApp(App[TR]):
         def set_title(self, title: str) -> None:
             tabs = self.app.query_one(TabbedContent)
             tab = tabs.get_tab(self.tab_id)
-            tab.label = Text.from_markup(title)
+            tab.label = title  # type: ignore[assignment]
 
         def activate(self) -> None:
             # show the tab
@@ -405,7 +423,7 @@ class TaskScreenApp(App[TR]):
 class TextualTaskScreen(TaskScreen, Generic[TR]):
     def __init__(self, app: TaskScreenApp[TR]) -> None:
         self.app = app
-        self.lock = asyncio.Lock()
+        self.lock = anyio.Lock()
 
     def __exit__(self, *excinfo: Any) -> None:
         pass

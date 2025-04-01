@@ -8,7 +8,6 @@ Inspect has support for a wide variety of language model APIs and can be extende
 
 {{< include _model-providers.md >}}
 
-
 ## OpenAI {#openai}
 
 To use the [OpenAI](https://platform.openai.com/) provider, install the `openai` package, set your credentials, and specify a model using the `--model` option:
@@ -30,17 +29,36 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
 
-### OpenAI on Azure {#openai-on-azure}
+### Responses API
 
-To use OpenAI models on Azure AI, specify an `AZUREAI_OPENAI_API_KEY` along with an `AZUREAI_OPENAI_BASE_URL`. You can then use the normal `openai` provider with the `azure` qualifier, specifying a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployed model name was `gpt4-1106-preview-ythre:`
+By default, Inspect uses the standard OpenAI Chat Completions API. However, if you use features that require the new [Responses API](https://platform.openai.com/docs/api-reference/responses) Inspect will use that instead. 
 
-``` bash
-export AZUREAI_OPENAI_API_KEY=key
-export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
-inspect eval --model openai/azure/gpt4-1106-preview-ythre
+Currently, the only feature that requires the Responses API is [o1-pro](https://platform.openai.com/docs/models/o1-pro). In the near future, Inspect will add support for OpenAI's built-in computer and web search tools, which will also require the Responses API.
+
+If you want to manually switch to the Responses API you can use the `responses_api` model argument. For example:
+
+```bash
+inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
-In addition to these variables, you can also set the `OPENAI_API_VERSION` environment variable to specify a specific version of the OpenAI interface on Azure.
+### OpenAI on Azure {#openai-on-azure}
+
+The `openai` provider supports OpenAI models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
+
+- `AZUREAI_OPENAI_API_KEY`
+- `AZUREAI_OPENAI_BASE_URL` 
+- `AZUREAI_OPENAI_API_VERSION`. 
+
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
+
+``` bash
+export AZUREAI_OPENAI_API_KEY=your-api-key
+export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
+export AZUREAI_OPENAI_API_VERSION=2025-02-01-preview
+inspect eval math.py --model openai/azure/gpt-4o-mini
+```
+
+Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-02-01-preview`.
 
 ## Anthropic {#anthropic}
 
@@ -88,15 +106,15 @@ Authentication is doing using the standard Google Cloud CLI (i.e. if you have au
 
 ## Google {#google-gemini}
 
-To use the [Google](https://ai.google.dev/) provider, install the `google-generativeai` package, set your credentials, and specify a model using the `--model` option:
+To use the [Google](https://ai.google.dev/) provider, install the `google-genai` package, set your credentials, and specify a model using the `--model` option:
 
 ``` bash
-pip install google-generativeai
+pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
 inspect eval arc.py --model google/gemini-1.5-pro
 ```
 
-For the `google` provider, custom model args (`-M`) are forwarded to the `genai.configure` function.
+For the `google` provider, custom model args (`-M`) are forwarded to the `genai.Client` function.
 
 The following environment variables are supported by the Google provider
 
@@ -105,12 +123,38 @@ The following environment variables are supported by the Google provider
 | `GOOGLE_API_KEY`  | API key credentials (required).  |
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 
+### Gemini on Vertex AI
+
+To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-2.0-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
+
+``` bash
+export GOOGLE_CLOUD_PROJECT=project-12345
+export GOOGLE_CLOUD_LOCATION=us-east5
+inspect eval ctf.py --model google/vertex/gemini-2.0-flash
+```
+
+You can alternatively pass the project and location as custom model args (`-M`). For example:
+
+``` bash
+inspect eval ctf.py --model google/vertex/gemini-2.0-flash \
+   -M project=project-12345 -M location=us-east5
+```
+
+Authentication is done using the standard Google Cloud CLI. For example:
+
+```bash
+gcloud auth application-default login
+```
+
+If you have authorised the CLI then no additional auth is needed for the model API.
+
 ### Safety Settings {#safety-settings}
 
-Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
+Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:
 
 | Category | Description |
-|-----------------------|------------------------------------------------|
+|------------------------|-----------------------------------------------|
+| `civic_integrity`   |  Election-related queries.          |
 | `sexually_explicit` | Contains references to sexual acts or other lewd content. |
 | `hate_speech` | Content that is rude, disrespectful, or profane. |
 | `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
@@ -121,7 +165,7 @@ Google models make available [safety settings](https://ai.google.dev/gemini-api/
 For each category, the following block thresholds are available:
 
 | Block Threshold | Description |
-|------------------------|------------------------------------------------|
+|-------------------------|-----------------------------------------------|
 | `none` | Always show regardless of probability of unsafe content |
 | `only_high` | Block when high probability of unsafe content |
 | `medium_and_above` | Block when medium or high probability of unsafe content |
@@ -169,12 +213,27 @@ The following environment variables are supported by the Mistral provider
 
 ### Mistral on Azure AI {#mistral-on-azure-ai}
 
-To use Mistral models on Azure AI, specify an `AZURE_MISTRAL_API_KEY` along with an `AZUREAI_MISTRAL_BASE_URL`. You can then use the normal `mistral` provider, but you'll need to specify a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployment model name was `mistral-large-ctwi:`
+The `mistral` provider supports Mistral models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
+
+- `AZURE_MISTRAL_API_KEY`
+- `AZUREAI_MISTRAL_BASE_URL`
+
+You can then use the normal `mistral` provider with the `azure` qualifier and the name of your model deployment (e.g. `Mistral-Large-2411`). For example:
 
 ``` bash
 export AZUREAI_MISTRAL_API_KEY=key
-export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com
-inspect eval --model mistral/mistral-large-ctwi
+export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com/models
+inspect eval math.py --model mistral/azure/Mistral-Large-2411
+```
+
+## DeepSeek {#deepseek}
+
+To use [DeepSeek](https://www.deepseek.com/) models, install the `openai` package (which DeepSeek provides a compatible backend for) and set your credentials using the `OPENAI_API_KEY` environment variable. Then, when running inspect, use the  `--model-base-url` option to point to DeepSeek's base URL, and the `--model` option to specify a model:
+
+```bash
+pip install openai
+export OPENAI_API_KEY=your-deepseek-api-key
+inspect eval arc.py --model-base-url https://api.deepseek.com --model openai/deepseek-reasoner 
 ```
 
 ## Grok {#grok}
@@ -217,13 +276,15 @@ If you are using Anthropic models on Bedrock, you can alternatively use the [Ant
 
 ## Azure AI {#azure-ai}
 
-To use the [Azure AI](https://azure.microsoft.com/en-us/solutions/ai) provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify an [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) as the model name:
+The `azureai` provider supports models deployed on the [Azure AI Foundary](https://ai.azure.com/).
+
+To use the `azureai` provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify the name of the model you have deployed (e.g. `Llama-3.3-70B-Instruct`). For example:
 
 ``` bash
 pip install azure-ai-inference
 export AZUREAI_API_KEY=api-key
-export AZUREAI_BASE_URL=https://your-url-at.azure.com
-$ inspect eval --model azureai/llama-2-70b-chat-wnsnw
+export AZUREAI_BASE_URL=https://your-url-at.azure.com/models
+$ inspect eval math.py --model azureai/Llama-3.3-70B-Instruct
 ```
 
 For the `azureai` provider, custom model args (`-M`) are forwarded to the constructor of the `ChatCompletionsClient` class.
@@ -250,20 +311,24 @@ You can also use this option to disable tool emulation for Llama models with `em
 ## Vertex AI {#vertex-ai}
 
 ::: {.callout-note appearance="simple"}
-Vertex AI is a distinct service from Google AI, see a comparison matrix [here](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai). Make sure you are using the appropriate model provider.
+If you are using Gemini or Anthropic models on Vertex AI, we recommend you use the Google and Anthropic providers (respectively) which both support models hosted on Vertex:
+
+- [Anthropic on Vertex AI](#anthropic-on-vertex-ai)
+- [Gemini on Vertex AI](#gemini-on-vertex-ai)
+
+If you are using other models hosted on Vertex (e.g. Mistral, Llama, Gemma, etc.) then you should instead use the `vertex` provider as described below.
 :::
 
 To use the [Vertex AI](https://cloud.google.com/vertex-ai) provider, install the `google-cloud-aiplatform` package, [configure your environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1) for Vertex API access, and specify a model using the `--model` option:
 
 ``` bash
-inspect eval eval.py --model vertex/gemini-1.5-flash
+inspect eval eval.py --model vertex/mistral-large-2411
 ```
 
 The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn't use the standard `BASE_URL`/`API_KEY` approach that others do. Consequently you don't need to set these environment variables.
 
 Vertex AI also provides the same `safety_settings` outlined in the [Google](#safety-settings) provider.
 
-If you are using Anthropic on Vertex AI, you can alternatively use the [Anthropic provider](#anthropic-on-vertex-ai) as your means of access.
 
 ## Together AI {#together-ai}
 

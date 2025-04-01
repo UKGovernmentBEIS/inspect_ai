@@ -1,13 +1,19 @@
-from typing import Sequence, overload
+from typing import Sequence, cast, overload
 
 from typing_extensions import override
 
-from ._solver import Generate, Solver
+from inspect_ai.agent._agent import Agent, is_agent
+from inspect_ai.agent._as_solver import as_solver
+
+from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
 
 
-def chain(*solvers: Solver | list[Solver]) -> Solver:
-    """Compose a solver from multiple other solvers.
+@solver
+def chain(
+    *solvers: Solver | Agent | list[Solver] | list[Solver | Agent],
+) -> Solver:
+    """Compose a solver from multiple other solvers and/or agents.
 
     Solvers are executed in turn, and a solver step event
     is added to the transcript for each. If a solver returns
@@ -15,30 +21,33 @@ def chain(*solvers: Solver | list[Solver]) -> Solver:
     early.
 
     Args:
-      *solvers: One or more solvers or lists of solvers to chain together.
+      *solvers: One or more solvers or agents to chain together.
 
     Returns:
-      Solver that executes the passed solvers as a chain.
+      Solver that executes the passed solvers and agents as a chain.
     """
     # flatten lists and chains
     all_solvers: list[Solver] = []
-    for solver in solvers:
-        all_solvers.extend(unroll(solver))
+    for s in solvers:
+        all_solvers.extend(unroll(s))
 
     return Chain(all_solvers)
 
 
-def unroll(solver: Solver | list[Solver]) -> list[Solver]:
-    if isinstance(solver, Solver):
-        if isinstance(solver, Chain):
-            return unroll(solver._solvers)
-        else:
-            return [solver]
-    else:
+def unroll(
+    solver: Solver | Agent | list[Solver] | list[Solver | Agent],
+) -> list[Solver]:
+    if isinstance(solver, list):
         unrolled: list[Solver] = []
         for s in solver:
             unrolled.extend(unroll(s))
         return unrolled
+    elif is_agent(solver):
+        return [as_solver(solver)]
+    elif isinstance(solver, Chain):
+        return unroll(solver._solvers)
+    else:
+        return [cast(Solver, solver)]
 
 
 class Chain(Sequence[Solver], Solver):
@@ -72,9 +81,9 @@ class Chain(Sequence[Solver], Solver):
     ) -> TaskState:
         from ._transcript import solver_transcript
 
-        for solver in self._solvers:
-            with solver_transcript(solver, state) as st:
-                state = await solver(state, generate)
+        for slv in self._solvers:
+            with solver_transcript(slv, state) as st:
+                state = await slv(state, generate)
                 st.complete(state)
             if state.completed:
                 break

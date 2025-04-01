@@ -26,6 +26,9 @@ class ModelUsage(BaseModel):
     input_tokens_cache_read: int | None = Field(default=None)
     """Number of tokens retrieved from the cache."""
 
+    reasoning_tokens: int | None = Field(default=None)
+    """Number of tokens used for reasoning."""
+
 
 StopReason = Literal[
     "stop",
@@ -121,6 +124,10 @@ class ModelOutput(BaseModel):
     """Error message in the case of content moderation refusals."""
 
     @property
+    def empty(self) -> bool:
+        return len(self.choices) == 0
+
+    @property
     def stop_reason(self) -> StopReason:
         """First message stop reason."""
         return self.choices[0].stop_reason
@@ -150,7 +157,8 @@ class ModelOutput(BaseModel):
         else:
             self.choices.append(
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=completion), stop_reason="stop"
+                    message=ChatMessageAssistant(content=completion, model=self.model),
+                    stop_reason="stop",
                 )
             )
 
@@ -173,7 +181,9 @@ class ModelOutput(BaseModel):
             model=model,
             choices=[
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=content, source="generate"),
+                    message=ChatMessageAssistant(
+                        content=content, model=model, source="generate"
+                    ),
                     stop_reason=stop_reason,
                 )
             ],
@@ -185,8 +195,10 @@ class ModelOutput(BaseModel):
         model: str,
         tool_name: str,
         tool_arguments: dict[str, Any],
+        internal_tool_name: str | None = None,
         tool_call_id: str | None = None,
         content: str | None = None,
+        type: str = "function",
     ) -> "ModelOutput":
         """
         Returns a ModelOutput for requesting a tool call.
@@ -194,6 +206,8 @@ class ModelOutput(BaseModel):
         Args:
             model: model name
             tool_name: The name of the tool.
+            internal_tool_name: The model's internal name for the tool (if any).
+            type: The model's type for the tool. e.g. "function", "computer_use_preview"
             tool_arguments: The arguments passed to the tool.
             tool_call_id: Optional ID for the tool call. Defaults to a random UUID.
             content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
@@ -213,13 +227,15 @@ class ModelOutput(BaseModel):
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
                         content=content,
+                        model=model,
                         source="generate",
                         tool_calls=[
                             ToolCall(
                                 id=tool_call_id,
                                 function=tool_name,
+                                internal_name=internal_tool_name,
                                 arguments=tool_arguments,
-                                type="function",
+                                type=type,
                             )
                         ],
                     ),

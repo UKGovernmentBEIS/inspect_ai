@@ -20,7 +20,8 @@ def test_multiple_tool_responses_remain_adjacent():
             _modified_image_response_message(tool_a),
             _modified_image_response_message(tool_b),
             ChatMessageUser(
-                content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
+                content=tool_a.content + tool_b.content,
+                tool_call_id=["a", "b"],
             ),
         ],
     )
@@ -43,7 +44,8 @@ def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
             _modified_image_response_message(tool_a),
             _modified_image_response_message(tool_b),
             ChatMessageUser(
-                content=tool_a.content + tool_b.content, tool_call_id=["a", "b"]
+                content=tool_a.content + tool_b.content,
+                tool_call_id=["a", "b"],
             ),
             user,
         ],
@@ -51,7 +53,11 @@ def test_multiple_tool_responses_remain_adjacent_when_not_at_end_of_list():
 
 
 def execute_and_assert(input_messages: list[ChatMessage], expected: list[ChatMessage]):
-    assert tool_result_images_as_user_message(input_messages) == expected
+    # transform the messages
+    transformed = tool_result_images_as_user_message(input_messages)
+
+    # compare based on content (as id can't be known in advance)
+    assert all([t.content == e.content] for t, e in zip(transformed, expected))
 
 
 def _modified_image_response_message(message: ChatMessageTool) -> ChatMessageTool:

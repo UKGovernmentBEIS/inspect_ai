@@ -1,16 +1,15 @@
 import os
 import re
 from logging import getLogger
-from typing import Any, Callable, Generator, Literal, cast
+from typing import Any, Callable, Generator, Literal
 
 from pydantic import BaseModel
 from pydantic_core import to_json
 
-from inspect_ai._util._async import run_coroutine
+from inspect_ai._util._async import current_async_backend, run_coroutine
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.file import (
     FileInfo,
-    async_fileystem,
     file,
     filesystem,
 )
@@ -96,62 +95,6 @@ def list_eval_logs(
         return eval_logs
 
 
-async def list_eval_logs_async(
-    log_dir: str = os.environ.get("INSPECT_LOG_DIR", "./logs"),
-    formats: list[Literal["eval", "json"]] | None = None,
-    recursive: bool = True,
-    descending: bool = True,
-    fs_options: dict[str, Any] = {},
-) -> list[EvalLogInfo]:
-    """List all eval logs in a directory.
-
-    Will be async for filesystem providers that support async (e.g. s3, gcs, etc.)
-    otherwise will fallback to sync implementation.
-
-    Args:
-      log_dir (str): Log directory (defaults to INSPECT_LOG_DIR)
-      formats (Literal["eval", "json"]): Formats to list (default
-        to listing all formats)
-      recursive (bool): List log files recursively (defaults to True).
-      descending (bool): List in descending order.
-      fs_options (dict[str, Any]): Optional. Additional arguments to pass through
-          to the filesystem provider (e.g. `S3FileSystem`).
-
-    Returns:
-       List of EvalLog Info.
-    """
-    # async filesystem if we can
-    fs = filesystem(log_dir, fs_options)
-    if fs.is_async():
-        async with async_fileystem(log_dir, fs_options=fs_options) as async_fs:
-            if await async_fs._exists(log_dir):
-                # prevent caching of listings
-                async_fs.invalidate_cache(log_dir)
-                # list logs
-                if recursive:
-                    files: list[dict[str, Any]] = []
-                    async for _, _, filenames in async_fs._walk(log_dir, detail=True):
-                        files.extend(filenames.values())
-                else:
-                    files = cast(
-                        list[dict[str, Any]],
-                        await async_fs._ls(log_dir, detail=True),
-                    )
-                logs = [fs._file_info(file) for file in files]
-                # resolve to eval logs
-                return log_files_from_ls(logs, formats, descending)
-            else:
-                return []
-    else:
-        return list_eval_logs(
-            log_dir=log_dir,
-            formats=formats,
-            recursive=recursive,
-            descending=descending,
-            fs_options=fs_options,
-        )
-
-
 def write_eval_log(
     log: EvalLog,
     location: str | FileInfo | None = None,
@@ -165,6 +108,14 @@ def write_eval_log(
        format (Literal["eval", "json", "auto"]): Write to format
           (defaults to 'auto' based on `log_file` extension)
     """
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
+        raise RuntimeError(
+            "write_eval_log cannot be called from a trio async context (please use write_eval_log_async instead)"
+        )
+
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
     run_coroutine(write_eval_log_async(log, location, format))
 
 
@@ -265,8 +216,21 @@ def read_eval_log(
     Returns:
        EvalLog object read from file.
     """
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
+        raise RuntimeError(
+            "read_eval_log cannot be called from a trio async context (please use read_eval_log_async instead)"
+        )
+
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
     return run_coroutine(
-        read_eval_log_async(log_file, header_only, resolve_attachments, format)
+        read_eval_log_async(
+            log_file,
+            header_only,
+            resolve_attachments,
+            format,
+        )
     )
 
 
@@ -281,7 +245,7 @@ async def read_eval_log_async(
     Args:
        log_file (str | FileInfo): Log file to read.
        header_only (bool): Read only the header (i.e. exclude
-         the "samples" and "logging" fields). Defaults to False.
+          the "samples" and "logging" fields). Defaults to False.
        resolve_attachments (bool): Resolve attachments (e.g. images)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
@@ -321,6 +285,8 @@ async def read_eval_log_async(
 def read_eval_log_headers(
     log_files: list[str] | list[EvalLogInfo],
 ) -> list[EvalLog]:
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
     return run_coroutine(read_eval_log_headers_async(log_files))
 
 
@@ -356,6 +322,14 @@ def read_eval_log_sample(
     Raises:
        IndexError: If the passed id and epoch are not found.
     """
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
+        raise RuntimeError(
+            "read_eval_log_sample cannot be called from a trio async context (please use read_eval_log_sample_async instead)"
+        )
+
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
     return run_coroutine(
         read_eval_log_sample_async(log_file, id, epoch, resolve_attachments, format)
     )

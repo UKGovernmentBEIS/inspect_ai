@@ -7,6 +7,7 @@ import { EvalStats } from "../types/log";
 import { formatDuration } from "../utils/format";
 import { ModelTokenTable } from "./ModelTokenTable";
 
+import { FC } from "react";
 import styles from "./UsageCard.module.css";
 
 const kUsageCardBodyId = "usage-card-body";
@@ -18,7 +19,7 @@ interface UsageCardProps {
 /**
  * Renders the UsageCard component.
  */
-export const UsageCard: React.FC<UsageCardProps> = ({ stats }) => {
+export const UsageCard: FC<UsageCardProps> = ({ stats }) => {
   if (!stats) {
     return null;
   }

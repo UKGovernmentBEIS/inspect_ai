@@ -6,25 +6,26 @@
   height: 0;
   overflow-y: visible;
   overflow-x: visible;
-  z-index: 1001;
   text-align: center;
 }
 
 .container {
   width: 100%;
-  height: 2px;
+  height: 1px;
   background-color: transparent;
-  position: relative;
+  position: sticky;
   overflow: hidden;
+  z-index: 1200;
 }
 
 .animate {
   width: 5%;
-  height: 2px;
+  height: 1px;
   animation: leftToRight 2s linear infinite;
   background-color: #3b82f6;
   position: absolute;
   left: 0;
+  top: 0;
 }
 
 @keyframes leftToRight {

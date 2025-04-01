@@ -1,15 +1,15 @@
 import { filename } from "../../utils/path";
 
-import { Capabilities } from "../../api/types";
+import { FC } from "react";
 import { DownloadPanel } from "../../components/DownloadPanel";
 import { JSONPanel } from "../../components/JsonPanel";
+import { useStore } from "../../state/store";
 import styles from "./JsonTab.module.css";
 
 const kJsonMaxSize = 10000000;
 
 interface JsonTabProps {
   logFile?: string;
-  capabilities: Capabilities;
   selected: boolean;
   json: string;
 }
@@ -17,12 +17,9 @@ interface JsonTabProps {
 /**
  * Renders JSON tab
  */
-export const JsonTab: React.FC<JsonTabProps> = ({
-  logFile,
-  capabilities,
-  json,
-}) => {
-  if (logFile && json.length > kJsonMaxSize && capabilities.downloadFiles) {
+export const JsonTab: FC<JsonTabProps> = ({ logFile, json }) => {
+  const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
+  if (logFile && json.length > kJsonMaxSize && downloadFiles) {
     // This JSON file is so large we can't really productively render it
     // we should instead just provide a DL link
     const file = `${filename(logFile)}.json`;

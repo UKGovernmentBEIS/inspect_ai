@@ -1,11 +1,15 @@
-import asyncio
+import concurrent.futures
 import functools
+import gc
 import os
+import time
+from concurrent.futures import Future
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Thread
 from typing import Any, cast
 
+import anyio
 from typing_extensions import override
 from vllm import LLM, CompletionOutput, RequestOutput, SamplingParams  # type: ignore
 
@@ -24,7 +28,7 @@ from .._model_output import (
     StopReason,
     TopLogprob,
 )
-from .util import chat_api_input
+from .util import ChatAPIHandler, chat_api_input
 
 DEFAULT_START_TOKEN = "<|im_start|>"
 DEFAULT_END_TOKEN = "<|im_end|>"
@@ -47,7 +51,8 @@ class GenerateOutput:
     output_tokens: int
     total_tokens: int
     stop_reason: StopReason
-    logprobs: Logprobs | None = None
+    logprobs: Logprobs | None
+    time: float
 
 
 class VLLMAPI(ModelAPI):
@@ -131,13 +136,19 @@ class VLLMAPI(ModelAPI):
         # we get the tokenizer so we can use it to apply the model's chat template later
         self.tokenizer = self.model.get_tokenizer()
 
+    @override
+    async def close(self) -> None:
+        self.tokenizer = None
+        self.model = None
+        gc.collect()
+
     def apply_chat_template(
         self, messages: list[ChatMessage], tools: list[ToolInfo]
     ) -> str:
         # handle system message and consecutive user messages
         messages = simple_input_messages(messages)
         # convert to chat template input format
-        chat_messages = chat_api_input(messages, tools)
+        chat_messages = chat_api_input(messages, tools, ChatAPIHandler(self.model_name))
         # apply chat template
         chat = self.tokenizer.apply_chat_template(
             chat_messages,
@@ -242,7 +253,7 @@ class VLLMAPI(ModelAPI):
         choices = [
             ChatCompletionChoice(
                 message=ChatMessageAssistant(
-                    content=response.output, source="generate"
+                    content=response.output, model=self.model_name, source="generate"
                 ),
                 stop_reason=response.stop_reason,
                 logprobs=response.logprobs,
@@ -251,6 +262,7 @@ class VLLMAPI(ModelAPI):
         ]
 
         # TODO: what's the best way to calculate token usage for num_choices > 1
+        total_time = responses[0].time
         input_tokens = responses[0].input_tokens
         output_tokens = sum(response.output_tokens for response in responses)
         total_tokens = input_tokens + output_tokens
@@ -263,14 +275,14 @@ class VLLMAPI(ModelAPI):
                 output_tokens=output_tokens,
                 total_tokens=total_tokens,
             ),
+            time=total_time,
         )
 
 
 @dataclass
 class _QueueItem:
     input: GenerateInput
-    future: asyncio.Future[list[GenerateOutput]]
-    loop: asyncio.AbstractEventLoop
+    future: Future[list[GenerateOutput]]
 
 
 batch_thread: Thread | None = None
@@ -286,15 +298,16 @@ async def batched_generate(input: GenerateInput) -> list[GenerateOutput]:
         batch_thread.start()
 
     # enqueue the job
-    loop = asyncio.get_event_loop()
-    future: asyncio.Future[list[GenerateOutput]] = loop.create_future()
-    batch_queue.put(_QueueItem(input=input, future=future, loop=loop))
+    future = Future[list[GenerateOutput]]()
+    batch_queue.put(_QueueItem(input=input, future=future))
 
-    # await the job
-    await future
-
-    # return it
-    return future.result()
+    # await the future
+    while True:
+        try:
+            return future.result(timeout=0.01)
+        except concurrent.futures.TimeoutError:
+            pass
+        await anyio.sleep(1)
 
 
 def string_to_bytes(string: str) -> list[int]:
@@ -349,7 +362,7 @@ def get_stop_reason(finish_reason: str | None) -> StopReason:
 
 
 def post_process_output(
-    output: RequestOutput, i: int, num_top_logprobs: int | None
+    output: RequestOutput, i: int, num_top_logprobs: int | None, total_time: float
 ) -> GenerateOutput:
     completion = output.outputs[i]
     output_text: str = completion.text
@@ -370,14 +383,15 @@ def post_process_output(
         total_tokens=total_tokens,
         stop_reason=get_stop_reason(completion.finish_reason),
         logprobs=extract_logprobs(completion, num_top_logprobs),
+        time=total_time,
     )
 
 
 def post_process_outputs(
-    output: RequestOutput, num_top_logprobs: int | None
+    output: RequestOutput, num_top_logprobs: int | None, total_time: float
 ) -> list[GenerateOutput]:
     return [
-        post_process_output(output, i, num_top_logprobs)
+        post_process_output(output, i, num_top_logprobs, total_time)
         for i in range(len(output.outputs))
     ]
 
@@ -385,13 +399,12 @@ def post_process_outputs(
 def process_batches() -> None:
     while True:
         # drain the queue (wait until no new messages have shown up for 2 seconds)
-        inputs: list[tuple[GenerateInput, asyncio.Future[list[GenerateOutput]]]] = []
+        inputs: list[tuple[GenerateInput, Future[list[GenerateOutput]]]] = []
         while True:
             try:
                 input = batch_queue.get(
                     timeout=2
                 )  # wait 2 seconds max TODO: what's optimal wait time?
-                loop = input.loop
                 inputs.append((input.input, input.future))
                 if len(inputs) >= input.input.batch_size:
                     # max batch size reached
@@ -405,6 +418,7 @@ def process_batches() -> None:
             continue
 
         try:
+            start_time = time.monotonic()
             first_input = inputs[0][0]
             generator = first_input.generator
             num_top_logprobs = first_input.num_top_logprobs
@@ -412,16 +426,14 @@ def process_batches() -> None:
             # generate
             outputs = generator([input[0].input for input in inputs])
 
+            total_time = time.monotonic() - start_time
             for i, output in enumerate(outputs):
                 future = inputs[i][1]
 
-                # asyncio futures are not thread safe, so we need to pass the event loop
-                # down to this point, so we can mark the future as done in a thread safe manner.
-                # see: https://docs.python.org/3/library/asyncio-dev.html#concurrency-and-multithreading
-                loop.call_soon_threadsafe(
-                    future.set_result, post_process_outputs(output, num_top_logprobs)
+                future.set_result(
+                    post_process_outputs(output, num_top_logprobs, total_time),
                 )
 
         except Exception as e:
             for _, future in inputs:
-                loop.call_soon_threadsafe(future.set_exception, e)
+                future.set_exception(e)

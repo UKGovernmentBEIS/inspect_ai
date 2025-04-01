@@ -4,11 +4,17 @@ import sys
 import traceback
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type
+from typing import Any, Literal, Tuple, Type, TypedDict
 
 import click
 import tenacity
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    model_validator,
+)
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
 
@@ -28,6 +34,28 @@ from ._transcript import Event
 logger = getLogger(__name__)
 
 SCORER_PLACEHOLDER = "88F74D2C"
+
+
+class EvalConfigDefaults(TypedDict):
+    epochs: int
+    epochs_reducer: list[str]
+    fail_on_error: bool
+    sandbox_cleanup: bool
+    log_samples: bool
+    log_images: bool
+    score_display: bool
+
+
+def eval_config_defaults() -> EvalConfigDefaults:
+    return {
+        "epochs": 1,
+        "epochs_reducer": ["mean"],
+        "fail_on_error": True,
+        "sandbox_cleanup": True,
+        "log_samples": True,
+        "log_images": True,
+        "score_display": True,
+    }
 
 
 class EvalConfig(BaseModel):
@@ -58,13 +86,16 @@ class EvalConfig(BaseModel):
     """
 
     message_limit: int | None = Field(default=None)
-    """Maximum messages to allow in a chat conversation."""
+    """Maximum messages to allow per sample."""
 
     token_limit: int | None = Field(default=None)
-    """Maximum tokens to allow in a chat conversation."""
+    """Maximum tokens usage per sample."""
 
     time_limit: int | None = Field(default=None)
-    """Maximum seconds for chat conversation."""
+    """Maximum clock time per sample."""
+
+    working_limit: int | None = Field(default=None)
+    """Meximum working time per sample."""
 
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
@@ -90,6 +121,9 @@ class EvalConfig(BaseModel):
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
 
+    log_shared: int | None = Field(default=None)
+    """Interval (in seconds) for syncing sample events to log directory."""
+
     score_display: bool | None = Field(default=None)
     """Display scoring metrics realtime."""
 
@@ -113,7 +147,9 @@ class EvalConfig(BaseModel):
 class EvalSampleLimit(BaseModel):
     """Limit encontered by sample."""
 
-    type: Literal["context", "time", "message", "token", "operator", "custom"]
+    type: Literal[
+        "context", "time", "working", "message", "token", "operator", "custom"
+    ]
     """The type of limit"""
 
     limit: int
@@ -147,16 +183,16 @@ class EvalSample(BaseModel):
     setup: str | None = Field(default=None)
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
-    messages: list[ChatMessage]
+    messages: list[ChatMessage] = Field(default_factory=list)
     """Chat conversation history for sample."""
 
-    output: ModelOutput
+    output: ModelOutput = Field(default_factory=ModelOutput)
     """Model output from sample."""
 
     scores: dict[str, Score] | None = Field(default=None)
     """Scores for sample."""
 
-    metadata: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
     """Additional sample metadata."""
 
     def metadata_as(self, metadata_cls: Type[MT]) -> MT:
@@ -173,22 +209,46 @@ class EvalSample(BaseModel):
     store: dict[str, Any] = Field(default_factory=dict)
     """State at end of sample execution."""
 
-    def store_as(self, model_cls: Type[SMT]) -> SMT:
+    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
         """Pydantic model interface to the store.
 
         Args:
           model_cls: Pydantic model type (must derive from StoreModel)
+          instance: Optional instances name for store (enables multiple instances
+            of a given StoreModel type within a single sample)
 
         Returns:
-          StoreModel: Instance of model_cls bound to sample store data.
+          StoreModel: model_cls bound to sample store data.
         """
-        return model_cls(store=Store(self.store))
+        # un-namespace names for creation
+        data = {
+            k.replace(f"{model_cls.__name__}:", "", 1): v for k, v in self.store.items()
+        }
+
+        # since we are reading from the log provide a fully detached store
+        data["store"] = Store()
+
+        # provide instance if specified
+        if instance is not None:
+            data["instance"] = instance
+
+        # create the model
+        return model_cls.model_validate(data)
 
     events: list[Event] = Field(default_factory=list)
     """Events that occurred during sample execution."""
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    total_time: float | None = Field(default=None)
+    """Total time that the sample was running."""
+
+    working_time: float | None = Field(default=None)
+    """Time spent working (model generation, sandbox calls, etc.)"""
+
+    uuid: str | None = Field(default=None)
+    """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
 
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
@@ -253,7 +313,7 @@ class EvalSample(BaseModel):
             # warning will handle this)
             del values["transcript"]
 
-        return values
+        return migrate_sandbox_spec(values)
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
@@ -454,6 +514,30 @@ class EvalDataset(BaseModel):
     """Was the dataset shuffled after reading."""
 
 
+class EvalMetricDefinition(BaseModel):
+    name: str
+    """Metric name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+
+
+class EvalScorer(BaseModel):
+    name: str
+    """Scorer name"""
+
+    options: dict[str, Any] | None = Field(default=None)
+    """Scorer arguments"""
+
+    metrics: (
+        list[EvalMetricDefinition | dict[str, list[EvalMetricDefinition]]]
+        | dict[str, list[EvalMetricDefinition]]
+        | None
+    ) = Field(default=None)
+
+    metadata: dict[str, Any] | None = Field(default=None)
+    """Scorer metadata"""
+
+
 class EvalRevision(BaseModel):
     """Git revision for evaluation."""
 
@@ -487,6 +571,9 @@ class EvalSpec(BaseModel):
 
     task_file: str | None = Field(default=None)
     """Task source file."""
+
+    task_registry_name: str | None = Field(default=None)
+    """Task registry name."""
 
     task_attribs: dict[str, Any] = Field(default_factory=dict)
     """Attributes of the @task decorator."""
@@ -530,8 +617,33 @@ class EvalSpec(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
 
+    scorers: list[EvalScorer] | None = Field(default=None)
+    """Scorers and args for this eval"""
+
+    metrics: (
+        list[EvalMetricDefinition] | dict[str, list[EvalMetricDefinition]] | None
+    ) = Field(default=None)
+    """metrics and args for this eval"""
+
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
+
+    @model_validator(mode="before")
+    @classmethod
+    def read_sandbox_spec(
+        cls: Type["EvalSpec"], values: dict[str, Any]
+    ) -> dict[str, Any]:
+        return migrate_sandbox_spec(values)
+
+
+def migrate_sandbox_spec(values: dict[str, Any]) -> dict[str, Any]:
+    if "sandbox" in values:
+        sandbox = values.get("sandbox")
+        if isinstance(sandbox, list):
+            values["sandbox"] = SandboxEnvironmentSpec(
+                type=sandbox[0], config=sandbox[1]
+            )
+    return values
 
 
 def eval_error(
@@ -541,14 +653,15 @@ def eval_error(
     exc_traceback: TracebackType | None,
 ) -> EvalError:
     # get text traceback
-    traceback_text = "\n".join(
-        traceback.format_exception(exc_type, exc_value, exc_traceback)
-    )
+    traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
 
-    with open(os.devnull, "w") as f:
-        console = Console(record=True, file=f, legacy_windows=True)
-        console.print(rich_traceback(exc_type, exc_value, exc_traceback))
-        traceback_ansi = console.export_text(styles=True)
+    if not truncated:
+        with open(os.devnull, "w") as f:
+            console = Console(record=True, file=f, legacy_windows=True)
+            console.print(rich_traceback(exc_type, exc_value, exc_traceback))
+            traceback_ansi = console.export_text(styles=True)
+    else:
+        traceback_ansi = traceback_text
 
     # return error
     return EvalError(
@@ -570,6 +683,51 @@ def rich_traceback(
         width=CONSOLE_DISPLAY_WIDTH,
     )
     return rich_tb
+
+
+def truncate_traceback(
+    exc_type: Type[Any],
+    exc_value: BaseException,
+    exc_traceback: TracebackType | None,
+    max_length: int = 1048576,  # 1MB
+) -> Tuple[str, bool]:
+    tb_list = traceback.format_exception(exc_type, exc_value, exc_traceback)
+
+    # Keep the front and back of the traceback
+    header = tb_list[0]
+    error_msg = tb_list[-1]
+
+    # Join the middle parts (stack frames)
+    frames = "".join(tb_list[1:-1])
+
+    # It all fits, use it as is
+    full_tb = header + frames + error_msg
+    if len(full_tb) <= max_length:
+        return full_tb, False
+
+    ellipsis = "\n...\n"
+
+    # Minimum header size
+    header_size = min(len(header), 1024)
+
+    # Minimum frames size
+    frames_size = min(len(frames), 1024)
+
+    # Remaining space for error message
+    error_msg_size = max(0, max_length - header_size - frames_size)
+
+    def truncate_middle(text: str, size: int) -> str:
+        if len(text) <= size:
+            return text
+        half = (size - len(ellipsis)) // 2
+        return f"{text[:half]}{ellipsis}{text[-half:]}"
+
+    # Truncate each part as needed
+    truncated_header = truncate_middle(header, header_size)
+    truncated_frames = truncate_middle(frames, frames_size)
+    truncated_error = truncate_middle(error_msg, error_msg_size)
+
+    return truncated_header + truncated_frames + truncated_error, True
 
 
 class EvalStats(BaseModel):

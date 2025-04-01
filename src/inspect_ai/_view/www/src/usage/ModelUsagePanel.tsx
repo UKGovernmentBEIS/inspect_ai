@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { ModelUsage1 } from "../types/log";
 import { formatNumber } from "../utils/format";
 import styles from "./ModelUsagePanel.module.css";
@@ -13,23 +13,40 @@ interface ModelUsageRow {
   value?: number;
   secondary?: boolean;
   bordered?: boolean;
+  padded?: boolean;
 }
 
 /**
  * Renders the ModelUsagePanel component.
  */
-export const ModelUsagePanel: React.FC<ModelUsageProps> = ({ usage }) => {
+export const ModelUsagePanel: FC<ModelUsageProps> = ({ usage }) => {
   if (!usage) {
     return null;
   }
 
-  const rows: ModelUsageRow[] = [
-    {
-      label: "input",
-      value: usage.input_tokens,
+  const rows: ModelUsageRow[] = [];
+
+  if (usage.reasoning_tokens) {
+    rows.push({
+      label: "Reasoning",
+      value: usage.reasoning_tokens,
       secondary: false,
-    },
-  ];
+      bordered: true,
+    });
+
+    rows.push({
+      label: "---",
+      value: undefined,
+      secondary: false,
+      padded: true,
+    });
+  }
+
+  rows.push({
+    label: "input",
+    value: usage.input_tokens,
+    secondary: false,
+  });
 
   if (usage.input_tokens_cache_read) {
     rows.push({
@@ -71,7 +88,13 @@ export const ModelUsagePanel: React.FC<ModelUsageProps> = ({ usage }) => {
       {rows.map((row, idx) => {
         if (row.label === "---") {
           return (
-            <div key={`$usage-sep-${idx}`} className={styles.separator}></div>
+            <div
+              key={`$usage-sep-${idx}`}
+              className={clsx(
+                styles.separator,
+                row.padded ? styles.padded : undefined,
+              )}
+            ></div>
           );
         } else {
           return (

@@ -49,10 +49,11 @@ asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
-exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge"]
+exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge", "src/inspect_tool_support"]
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
+enable_error_code = "possibly-undefined"
 warn_redundant_casts = true
 warn_unused_configs = true
 # This mypy_path config is a bit odd, it's included to get mypy to resolve
@@ -83,7 +84,7 @@ ignore = ["W002", "W009"]
 [project]
 name = "inspect_ai"
 description = "Framework for large language model evaluations"
-authors = [{ name = "UK AI Safety Institute" }]
+authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT License" }
@@ -102,7 +103,7 @@ classifiers = [
 ]
 
 [project.urls]
-Documentation = "https://inspect.ai-safety-institute.org.uk/"
+Documentation = "https://inspect.aisi.org.uk/"
 "Source Code" = "https://github.com/UKGovernmentBEIS/inspect_ai"
 "Issue Tracker" = "https://github.com/UKGovernmentBEIS/inspect_ai/issues"
 
@@ -115,16 +116,19 @@ dev = [
     "aioboto3", 
     "azure-ai-inference",
     "google-cloud-aiplatform",
-    "google-generativeai", 
+    "google-genai",
     "goodfire",
     "griffe",
     "groq", 
     "ipython",
+    "markdown",
     "mistralai",
     "moto[server]",
     "mypy",
     "nbformat",
     "openai",
+    "panflute",
+    "pip",
     "pre-commit",
     "pylint",
     "pytest",
@@ -132,8 +136,9 @@ dev = [
     "pytest-cov",
     "pytest-dotenv",
     "pytest-xdist",
-    "ruff==0.9.5", # match version specified in .pre-commit-config.yaml
+    "ruff==0.9.6", # match version specified in .pre-commit-config.yaml
     "textual-dev>=0.86.2",
+    "trio",
     "types-Markdown",
     "types-PyYAML",
     "types-beautifulsoup4",
@@ -146,5 +151,5 @@ dev = [
     "types-psutil",
     "types-python-dateutil"
 ]
-doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown"]
+doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
 dist = ["twine", "build"]

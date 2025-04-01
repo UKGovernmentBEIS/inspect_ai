@@ -10,8 +10,9 @@ toc-depth: 4
 |  |  |
 |----|----|
 | [inspect_ai](inspect_ai.qmd) | Tasks, evaluation, and scoring. |
-| [inspect_ai.solver](inspect_ai.solver.qmd) | Prompting, elicitation and agents. |
+| [inspect_ai.solver](inspect_ai.solver.qmd) | Prompting and elicitation. |
 | [inspect_ai.tool](inspect_ai.tool.qmd) | Built-in and custom tool functions. |
+| [inspect_ai.agent](inspect_ai.agent.qmd) | Agent scaffols and protocol. |
 | [inspect_ai.scorer](inspect_ai.scorer.qmd) | Task scoring and metrics. |
 | [inspect_ai.model](inspect_ai.model.qmd) | Model interface and providers. |
 | [inspect_ai.dataset](inspect_ai.dataset.qmd) | Reading samples from datasets. |

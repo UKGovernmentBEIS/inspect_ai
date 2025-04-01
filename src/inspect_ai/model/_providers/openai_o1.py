@@ -40,7 +40,7 @@ async def generate_o1(
     **params: Any,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # create chatapi handler
-    handler = O1PreviewChatAPIHandler()
+    handler = O1PreviewChatAPIHandler(model)
 
     # call model
     request = dict(
@@ -69,6 +69,16 @@ async def generate_o1(
         usage=ModelUsage(
             input_tokens=completion.usage.prompt_tokens,
             output_tokens=completion.usage.completion_tokens,
+            input_tokens_cache_read=(
+                completion.usage.prompt_tokens_details.cached_tokens
+                if completion.usage.prompt_tokens_details is not None
+                else None  # openai only have cache read stats/pricing.
+            ),
+            reasoning_tokens=(
+                completion.usage.completion_tokens_details.reasoning_tokens
+                if completion.usage.completion_tokens_details is not None
+                else None
+            ),
             total_tokens=completion.usage.total_tokens,
         )
         if completion.usage
@@ -97,7 +107,7 @@ def chat_messages(
 ) -> list[ChatCompletionMessageParam]:
     # o1 does not allow system messages so convert system -> user
     messages: list[ChatMessage] = [
-        ChatMessageUser(content=message.content)
+        ChatMessageUser(id=message.id, content=message.content)
         if message.role == "system"
         else message
         for message in input
@@ -145,6 +155,9 @@ TOOL_CALL = "tool_call"
 
 
 class O1PreviewChatAPIHandler(ChatAPIHandler):
+    def __init__(self, model: str) -> None:
+        self.model = model
+
     @override
     def input_with_tools(
         self, input: list[ChatMessage], tools: list[ToolInfo]
@@ -224,12 +237,17 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
 
             # return the message
             return ChatMessageAssistant(
-                content=content, tool_calls=tool_calls, source="generate"
+                content=content,
+                tool_calls=tool_calls,
+                model=self.model,
+                source="generate",
             )
 
         # otherwise this is just an ordinary assistant message
         else:
-            return ChatMessageAssistant(content=response, source="generate")
+            return ChatMessageAssistant(
+                content=response, model=self.model, source="generate"
+            )
 
     @override
     def assistant_message(self, message: ChatMessageAssistant) -> ChatAPIMessage:

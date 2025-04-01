@@ -1,7 +1,6 @@
 import clsx from "clsx";
-import { Fragment } from "react";
+import { FC } from "react";
 import ExpandablePanel from "../../components/ExpandablePanel";
-import { MarkdownDiv } from "../../components/MarkdownDiv";
 import {
   ChatMessageAssistant,
   ChatMessageSystem,
@@ -20,7 +19,7 @@ interface ChatMessageProps {
   toolCallStyle: "compact" | "complete";
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({
+export const ChatMessage: FC<ChatMessageProps> = ({
   id,
   message,
   toolMessages,
@@ -41,29 +40,15 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         <i className={iconForMsg(message)} />
         {message.role}
       </div>
-      {message.role === "assistant" && message.reasoning ? (
-        <Fragment key={`${id}-response-label`}>
-          <div className={clsx("text-style-label", "text-style-secondary")}>
-            Reasoning
-          </div>
-          <ExpandablePanel collapse={true}>
-            <MarkdownDiv markdown={message.reasoning} />
-          </ExpandablePanel>
-        </Fragment>
-      ) : undefined}
       <div
         className={clsx(
           styles.messageContents,
           indented ? styles.indented : undefined,
         )}
       >
-        {message.role === "assistant" && message.reasoning ? (
-          <div className={clsx("text-style-label", "text-style-secondary")}>
-            Response
-          </div>
-        ) : undefined}
-        <ExpandablePanel collapse={collapse}>
+        <ExpandablePanel id={`${id}-message`} collapse={collapse} lines={30}>
           <MessageContents
+            id={`${id}-contents`}
             key={`${id}-contents`}
             message={message}
             toolMessages={toolMessages}

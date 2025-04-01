@@ -8,17 +8,19 @@ import { MessageContent } from "./MessageContent";
 import { resolveToolInput } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { ContentTool } from "../../types";
 import styles from "./MessageContents.module.css";
 
 interface MessageContentsProps {
+  id: string;
   message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
   toolMessages: ChatMessageTool[];
   toolCallStyle: "compact" | "complete";
 }
 
-export const MessageContents: React.FC<MessageContentsProps> = ({
+export const MessageContents: FC<MessageContentsProps> = ({
+  id,
   message,
   toolMessages,
   toolCallStyle,
@@ -56,6 +58,7 @@ export const MessageContents: React.FC<MessageContentsProps> = ({
       } else {
         return (
           <ToolCallView
+            id={`${id}-tool-call`}
             key={`tool-call-${idx}`}
             functionCall={functionCall}
             input={input}
@@ -98,6 +101,7 @@ const resolveToolMessage = (toolMessage?: ChatMessageTool): ContentTool[] => {
           {
             type: "text",
             text: content,
+            refusal: null,
           },
         ],
       },
@@ -112,6 +116,7 @@ const resolveToolMessage = (toolMessage?: ChatMessageTool): ContentTool[] => {
               {
                 type: "text",
                 text: con,
+                refusal: null,
               },
             ],
           } as ContentTool;

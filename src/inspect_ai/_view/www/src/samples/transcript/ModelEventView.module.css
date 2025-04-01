@@ -9,7 +9,7 @@
 
 .all {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   column-gap: 1em;
 }
 
@@ -31,8 +31,8 @@
 }
 
 .code {
-  white-space: pre-wrap;
-  word-wrap: anywhere;
+  white-space: pre-wrap !important;
+  word-wrap: anywhere !important;
 }
 
 .toolConfig {
@@ -40,4 +40,8 @@
   grid-template-columns: max-content auto;
   column-gap: 1em;
   row-gap: 0.5em;
+}
+
+.progress {
+  margin-left: 2em;
 }

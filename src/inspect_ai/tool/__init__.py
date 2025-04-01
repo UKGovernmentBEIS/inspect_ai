@@ -2,6 +2,7 @@ from inspect_ai._util.content import (
     Content,
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
@@ -19,19 +20,25 @@ from ._tool_call import (
 from ._tool_choice import ToolChoice, ToolFunction
 from ._tool_def import ToolDef
 from ._tool_info import ToolInfo
-from ._tool_params import JSONType, ToolParam, ToolParams
+from ._tool_params import ToolParam, ToolParams
 from ._tool_with import tool_with
+from ._tools._bash_session import bash_session
 from ._tools._computer import computer
 from ._tools._execute import bash, python
+from ._tools._text_editor import text_editor
+from ._tools._think import think
 from ._tools._web_browser import web_browser
 from ._tools._web_search import web_search
 
 __all__ = [
     "bash",
+    "bash_session",
     "computer",
     "python",
     "web_browser",
     "web_search",
+    "think",
+    "text_editor",
     "tool",
     "tool_with",
     "Tool",
@@ -41,6 +48,7 @@ __all__ = [
     "Content",
     "ContentAudio",
     "ContentImage",
+    "ContentReasoning",
     "ContentText",
     "ContentVideo",
     "ToolCall",
@@ -54,12 +62,18 @@ __all__ = [
     "ToolInfo",
     "ToolParam",
     "ToolParams",
-    "JSONType",
 ]
 
 _UTIL_MODULE_VERSION = "0.3.19"
+_JSON_MODULE_VERSION = "0.3.73"
 _REMOVED_IN = "0.4"
 
+relocated_module_attribute(
+    "JSONType",
+    "inspect_ai.util.JSONType",
+    _JSON_MODULE_VERSION,
+    _REMOVED_IN,
+)
 
 relocated_module_attribute(
     "ToolEnvironment",

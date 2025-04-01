@@ -1,0 +1,76 @@
+name: Build and Push Image to Docker Hub
+
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Image to build
+        required: true
+        type: choice
+        options:
+          - inspect-computer-tool
+          - inspect-web-browser-tool
+          - inspect-tool-support
+      tag:
+        description: Tag to assign to the image
+        required: true
+        type: string
+        default: latest
+      platforms:
+        description: Target platforms (comma-separated list)
+        required: true
+        type: string
+        default: linux/amd64,linux/arm64
+      push:
+        description: Push the image to Docker Hub
+        required: true
+        type: boolean
+        default: true
+      org:
+        description: Docker Hub organization
+        required: true
+        type: string
+        default: aisiuk
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    environment: docker
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Set build context path and image name
+        run: |
+          if [[ "${{ github.event.inputs.image }}" == "inspect-computer-tool" ]]; then
+            echo "BUILD_CONTEXT=src/inspect_ai/tool/_tools/_computer/_resources" >> $GITHUB_ENV
+          elif [[ "${{ github.event.inputs.image }}" == "inspect-web-browser-tool" ]]; then
+            echo "BUILD_CONTEXT=src/inspect_ai/tool/_tools/_web_browser/_resources" >> $GITHUB_ENV
+          elif [[ "${{ github.event.inputs.image }}" == "inspect-tool-support" ]]; then
+            echo "BUILD_CONTEXT=src/inspect_tool_support" >> $GITHUB_ENV
+          else
+            echo "Invalid image name '${{ github.event.inputs.image }}'"
+            exit 1
+          fi
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+        with:
+          platforms: arm64,amd64
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          install: true
+      - name: Build and (optionally) push multi-arch image
+        uses: docker/build-push-action@v4
+        with:
+          context: ${{ env.BUILD_CONTEXT }}
+          push: ${{ github.event.inputs.push }}
+          platforms: ${{ github.event.inputs.platforms }}
+          tags: ${{ github.event.inputs.org }}/${{ github.event.inputs.image }}:${{ github.event.inputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -1,6 +1,7 @@
 import math
 import os
 import tempfile
+from datetime import datetime, timezone
 
 import pytest
 from pydantic_core import PydanticSerializationError
@@ -11,6 +12,15 @@ from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log
 from inspect_ai.log._file import read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import EvalLog
+from inspect_ai.log._transcript import (
+    BaseEvent,
+    ModelEvent,
+    SandboxEvent,
+    SubtaskEvent,
+    ToolEvent,
+)
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver import (
     Generate,
     TaskState,
@@ -98,6 +108,73 @@ def test_log_location():
     check_log_location(json_log_file)
     eval_log_file = os.path.join("tests", "log", "test_eval_log", "log_streaming.eval")
     check_log_location(eval_log_file)
+
+
+def resolve_deserialized_event(
+    original: BaseEvent, deserialized: BaseEvent
+) -> BaseEvent:
+    # The id_ field is not serialized, so a new id will be assigned
+    # each time we create a new event. This forces the ids to be
+    # identical since the comparison is meaningless since the value is
+    # never serialized.
+
+    deserialized.id_ = original.id_
+    return deserialized
+
+
+def test_can_round_trip_serialize_model_event():
+    original = ModelEvent(
+        model="model",
+        input=[],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+        # Set timestamp to a timezone-aware datetime object because when serializing to
+        # JSON, the datetime is converted to a timezone-aware string.
+        # If we set the timestamp to a timezone-naive datetime object (default
+        # behaviour), the deserialized object will have a timezone-aware datetime object
+        # and the assert will fail.
+        timestamp=datetime.now(timezone.utc),
+    )
+
+    serialized = original.model_dump_json()
+    deserialized = ModelEvent.model_validate_json(serialized)
+    deserialized = resolve_deserialized_event(original, deserialized)
+
+    assert original == deserialized
+
+
+def test_can_round_trip_serialize_tool_event():
+    original = ToolEvent(
+        id="id", function="fn", arguments={}, timestamp=datetime.now(timezone.utc)
+    )
+
+    serialized = original.model_dump_json()
+    deserialized = ToolEvent.model_validate_json(serialized)
+    deserialized = resolve_deserialized_event(original, deserialized)
+
+    assert original == deserialized
+
+
+def test_can_round_trip_serialize_sandbox_event():
+    original = SandboxEvent(action="exec", timestamp=datetime.now(timezone.utc))
+
+    serialized = original.model_dump_json()
+    deserialized = SandboxEvent.model_validate_json(serialized)
+    deserialized = resolve_deserialized_event(original, deserialized)
+
+    assert original == deserialized
+
+
+def test_can_round_trip_serialize_subtask_event():
+    original = SubtaskEvent(name="name", input={}, timestamp=datetime.now(timezone.utc))
+
+    serialized = original.model_dump_json()
+    deserialized = SubtaskEvent.model_validate_json(serialized)
+    deserialized = resolve_deserialized_event(original, deserialized)
+
+    assert original == deserialized
 
 
 def check_log_location(log_file: str):

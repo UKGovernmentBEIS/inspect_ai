@@ -1,3 +1,4 @@
+import { FC } from "react";
 import { NavPills } from "../../components/NavPills.tsx";
 import { Buckets, ContentRenderer } from "../../metadata/types.ts";
 import {
@@ -25,7 +26,7 @@ export const ChatMessageRenderer: ContentRenderer = {
   render: (id, entry) => {
     return {
       rendered: (
-        <NavPills>
+        <NavPills id={`${id}-navpills`}>
           <ChatSummary title="Last Turn" id={id} messages={entry.value} />
           <ChatView title="All" id={id} messages={entry.value} />
         </NavPills>
@@ -37,7 +38,7 @@ export const ChatMessageRenderer: ContentRenderer = {
 /**
  * Represents a chat summary component that renders a list of chat messages.
  */
-export const ChatSummary: React.FC<{
+export const ChatSummary: FC<{
   id: string;
   title?: string;
   messages: (

@@ -1,7 +1,9 @@
+from test_helpers.utils import skip_if_no_openai
+
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Solver, generate, prompt_template, solver, system_message
-from inspect_ai.solver._prompt import user_message
+from inspect_ai.solver._prompt import assistant_message, user_message
 from inspect_ai.solver._solver import Generate
 from inspect_ai.solver._task_state import TaskState
 
@@ -13,6 +15,10 @@ Please answer this question.
 {variable}
 
 {prompt}
+
+{unknown}
+
+{{escaped}}
 """
 
 PARAM_VALUE = "param_value"
@@ -46,6 +52,8 @@ def check_template_variables(template_solver: Solver, index: int = 0):
 
     assert VARIABLE_VALUE in message
     assert PARAM_VALUE in message
+    assert "{unknown}" in message
+    assert "{escaped}" in message
 
     return message
 
@@ -63,3 +71,19 @@ def test_system_message_variables():
 
 def test_user_message_variables():
     check_template_variables(user_message(PROMPT_TEMPLATE, param=PARAM_VALUE), index=-2)
+
+
+@skip_if_no_openai
+def test_user_and_assistant_message():
+    ASSISTANT_MESSAGE = "Did you mean 'hello' or 'hello, world'?"
+    task = Task(
+        dataset=[Sample(input="Say hello.", target="hello")],
+        solver=[
+            assistant_message(ASSISTANT_MESSAGE),
+            user_message("I meant 'hello'"),
+        ],
+    )
+    log = eval(task, model="openai/gpt-4o-mini")[0]
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].messages[1].text == ASSISTANT_MESSAGE

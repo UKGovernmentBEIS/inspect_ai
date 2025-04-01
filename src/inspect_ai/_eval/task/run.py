@@ -1,5 +1,5 @@
-import asyncio
 import contextlib
+import functools
 import sys
 import time
 from copy import deepcopy
@@ -9,6 +9,7 @@ from logging import getLogger
 from pathlib import PurePath
 from typing import Callable, Literal
 
+import anyio
 from typing_extensions import Unpack
 
 from inspect_ai._display import (
@@ -18,7 +19,8 @@ from inspect_ai._display import (
     TaskSuccess,
     display,
 )
-from inspect_ai._display.core.display import TaskDisplay, TaskDisplayMetric
+from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
@@ -27,12 +29,16 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hooks import send_telemetry
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import (
     is_registry_object,
     registry_log_name,
     registry_unqualified_name,
 )
-from inspect_ai._util.timeouts import Timeout, timeout
+from inspect_ai._util.working import (
+    init_sample_working_limit,
+    sample_waiting_time,
+)
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -46,16 +52,17 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
+from inspect_ai.log._recorders.types import SampleSummary
 from inspect_ai.log._samples import (
     active_sample,
-    set_active_sample_message_limit,
-    set_active_sample_token_limit,
 )
 from inspect_ai.log._transcript import (
     ErrorEvent,
     SampleInitEvent,
     SampleLimitEvent,
     ScoreEvent,
+    StepEvent,
+    Transcript,
     transcript,
 )
 from inspect_ai.model import (
@@ -94,9 +101,9 @@ from .images import (
 )
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
-from .rundir import set_task_run_dir
+from .rundir import set_task_chdir
 from .sandbox import sandboxenv_context
-from .util import sample_messages, slice_dataset, task_run_dir
+from .util import sample_messages, slice_dataset
 
 py_logger = getLogger(__name__)
 
@@ -146,8 +153,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # init task context
     init_task_context(model, options.task.approval, generate_config)
 
-    # establish run_dir for duration of execution
-    with set_task_run_dir(task_run_dir(task)):
+    # establish chdir for duration of execution (if a task has chdir=True)
+    with set_task_chdir(task):
         # track stats and error
         results: EvalResults | None = None
         reductions: list[EvalSampleReductions] | None = None
@@ -182,15 +189,15 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
         if isinstance(solver, Plan):
             plan = solver
         elif isinstance(solver, Chain):
-            plan = Plan(list(solver), internal=True)
+            plan = Plan(list(solver), cleanup=task.cleanup, internal=True)
         else:
-            plan = Plan(unroll(solver), internal=True)
+            plan = Plan(unroll(solver), cleanup=task.cleanup, internal=True)
 
         # add setup solver(s) if specified
         if task.setup:
             plan.steps = unroll(task.setup) + plan.steps
 
-        # reaolve the scorer
+        # resolve the scorer
         score = score and task.scorer is not None
         scorers: list[Scorer] | None = task.scorer if (score and task.scorer) else None
         scorer_profiles = (
@@ -262,8 +269,13 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
                     # track when samples complete and update progress as we go
                     progress_results: list[dict[str, SampleScore]] = []
+
+                    def update_metrics(metrics: list[TaskDisplayMetric]) -> None:
+                        td.update_metrics(metrics)
+                        logger.update_metrics(metrics)
+
                     update_metrics_display = update_metrics_display_fn(
-                        td,
+                        update_metrics,
                         display_metrics=profile.eval_config.score_display is not False,
                     )
 
@@ -285,34 +297,6 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                             task.metrics,
                         )
 
-                    # create sample coroutines
-                    sample_coroutines = [
-                        task_run_sample(
-                            task_name=task.name,
-                            sample=sample,
-                            state=state,
-                            sandbox=sandbox,
-                            max_sandboxes=config.max_sandboxes,
-                            sandbox_cleanup=sandbox_cleanup,
-                            plan=plan,
-                            scorers=scorers,
-                            generate=generate,
-                            progress=progress,
-                            logger=logger if log_samples else None,
-                            log_images=log_images,
-                            sample_source=sample_source,
-                            sample_error=sample_error_handler,
-                            sample_complete=sample_complete,
-                            fails_on_error=(
-                                config.fail_on_error is None
-                                or config.fail_on_error is True
-                            ),
-                            time_limit=config.time_limit,
-                            semaphore=sample_semaphore,
-                        )
-                        for (sample, state) in zip(samples, states)
-                    ]
-
                     # initial progress
                     td.sample_complete(complete=0, total=len(samples))
 
@@ -325,7 +309,36 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         task.metrics,
                     )
 
-                    sample_results = await asyncio.gather(*sample_coroutines)
+                    sample_results = await tg_collect(
+                        [
+                            functools.partial(
+                                task_run_sample,
+                                task_name=task.name,
+                                sample=sample,
+                                state=state,
+                                sandbox=sandbox,
+                                max_sandboxes=config.max_sandboxes,
+                                sandbox_cleanup=sandbox_cleanup,
+                                plan=plan,
+                                scorers=scorers,
+                                generate=generate,
+                                progress=progress,
+                                logger=logger if log_samples else None,
+                                log_images=log_images,
+                                sample_source=sample_source,
+                                sample_error=sample_error_handler,
+                                sample_complete=sample_complete,
+                                fails_on_error=(
+                                    config.fail_on_error is None
+                                    or config.fail_on_error is True
+                                ),
+                                time_limit=config.time_limit,
+                                working_limit=config.working_limit,
+                                semaphore=sample_semaphore,
+                            )
+                            for (sample, state) in zip(samples, states)
+                        ]
+                    )
 
                 # compute and record metrics if we have scores
                 completed_scores = [
@@ -360,17 +373,18 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                     )
                 )
 
-            except asyncio.CancelledError:
-                # collect eval data
-                collect_eval_data(stats)
+            except anyio.get_cancelled_exc_class():
+                with anyio.CancelScope(shield=True):
+                    # collect eval data
+                    collect_eval_data(stats)
 
-                # finish w/ cancelled status
-                eval_log = await logger.log_finish(
-                    "cancelled", stats, results, reductions
-                )
+                    # finish w/ cancelled status
+                    eval_log = await logger.log_finish(
+                        "cancelled", stats, results, reductions
+                    )
 
-                # display task cancelled
-                td.complete(TaskCancelled(logger.samples_completed, stats))
+                    # display task cancelled
+                    td.complete(TaskCancelled(logger.samples_completed, stats))
 
             except BaseException as ex:
                 if options.debug_errors:
@@ -419,7 +433,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
 
 
 def update_metrics_display_fn(
-    td: TaskDisplay,
+    update_fn: Callable[[list[TaskDisplayMetric]], None],
     initial_interval: float = 0,
     min_interval: float = 0.9,
     display_metrics: bool = True,
@@ -459,7 +473,7 @@ def update_metrics_display_fn(
             )
 
             # Name, reducer, value
-            task_metrics = []
+            task_metrics: list[TaskDisplayMetric] = []
             if len(results.scores) > 0:
                 for score in results.scores:
                     for key, metric in score.metrics.items():
@@ -471,7 +485,7 @@ def update_metrics_display_fn(
                                 reducer=score.reducer,
                             )
                         )
-                td.update_metrics(task_metrics)
+                update_fn(task_metrics)
 
             # determine how long to wait before recomputing metrics
             time_end = time.perf_counter()
@@ -500,7 +514,8 @@ async def task_run_sample(
     sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     time_limit: int | None,
-    semaphore: asyncio.Semaphore | None,
+    working_limit: int | None,
+    semaphore: anyio.Semaphore | None,
 ) -> dict[str, SampleScore] | None:
     # if there is an existing sample then tick off its progress, log it, and return it
     if sample_source and sample.id is not None:
@@ -511,7 +526,7 @@ async def task_run_sample(
 
             # log if requested
             if logger:
-                await logger.log_sample(previous_sample, flush=False)
+                await logger.complete_sample(previous_sample, flush=False)
 
             # return score
             sample_scores = (
@@ -530,14 +545,23 @@ async def task_run_sample(
             return sample_scores
 
     # use semaphore if provided
-    semaphore_cm: asyncio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
+    semaphore_cm: anyio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
         semaphore if semaphore else contextlib.nullcontext()
     )
+
+    # validate that we have sample_id (mostly for the typechecker)
+    sample_id = sample.id
+    if sample_id is None:
+        raise ValueError("sample must have id to run")
 
     # initialise subtask and scoring context
     init_sample_model_usage()
     set_sample_state(state)
-    sample_transcript = init_subtask(SAMPLE_SUBTASK, state.store)
+    sample_transcript: Transcript = init_subtask(SAMPLE_SUBTASK, state.store)
+    if logger:
+        sample_transcript._subscribe(
+            lambda event: logger.log_sample_event(sample_id, state.epoch, event)
+        )
     if scorers:
         init_scoring_context(scorers, Target(sample.target))
 
@@ -551,9 +575,11 @@ async def task_run_sample(
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
         err = sample_error(ex)
-        py_logger.warning(
-            f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
-        )
+        # if we aren't raising the error then print a warning
+        if err[1] is None:
+            py_logger.warning(
+                f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
+            )
         transcript()._event(ErrorEvent(error=err[0]))
         return err
 
@@ -568,30 +594,66 @@ async def task_run_sample(
             message_limit=state.message_limit,
             token_limit=state.token_limit,
             time_limit=time_limit,
+            working_limit=working_limit,
             fails_on_error=fails_on_error,
             transcript=sample_transcript,
         ) as active,
     ):
+        start_time: float | None = None
         error: EvalError | None = None
         raise_error: BaseException | None = None
         results: dict[str, SampleScore] = {}
         try:
+            # begin init
+            transcript()._event(StepEvent(action="begin", name="init"))
+
+            # sample init event (remove file bodies as they have content or absolute paths)
+            event_sample = sample.model_copy(
+                update=dict(files={k: "" for k in sample.files.keys()})
+                if sample.files
+                else None
+            )
+            transcript()._event(
+                SampleInitEvent(sample=event_sample, state=state_jsonable(state))
+            )
+
             async with sandboxenv_cm:
+                timeout_cm: (
+                    contextlib._GeneratorContextManager[anyio.CancelScope, None, None]
+                    | contextlib.nullcontext[None]
+                ) = contextlib.nullcontext()
                 try:
                     # update active sample wth sandboxes now that we are initialised
                     active.sandboxes = await sandbox_connections()
 
+                    # end init
+                    transcript()._event(StepEvent(action="end", name="init"))
+
                     # initialise timeout context manager
                     timeout_cm = (
-                        timeout(time_limit)
+                        anyio.fail_after(time_limit)
                         if time_limit is not None
                         else contextlib.nullcontext()
                     )
 
+                    # record start time
+                    start_time = time.monotonic()
+                    init_sample_working_limit(start_time, working_limit)
+
                     # run sample w/ optional timeout
-                    async with timeout_cm:
+                    with timeout_cm:
                         # mark started
                         active.started = datetime.now().timestamp()
+
+                        if logger is not None:
+                            await logger.start_sample(
+                                SampleSummary(
+                                    id=sample_id,
+                                    epoch=state.epoch,
+                                    input=sample.input,
+                                    target=sample.target,
+                                )
+                            )
 
                         # sample init event (remove file bodies as they have content or absolute paths)
                         event_sample = sample.model_copy(
@@ -625,9 +687,9 @@ async def task_run_sample(
                     # capture most recent state for scoring
                     state = sample_state() or state
 
-                except asyncio.CancelledError as ex:
+                except anyio.get_cancelled_exc_class() as ex:
                     if active.interrupt_action:
-                        # record eve t
+                        # record event
                         transcript()._event(
                             SampleLimitEvent(
                                 type="operator",
@@ -645,6 +707,8 @@ async def task_run_sample(
                                 error, raise_error = handle_error(ex)
 
                     else:
+                        # task group provided by tg_collect will automatically
+                        # handle the cancel exception
                         raise
 
                 except SampleLimitExceededError as ex:
@@ -659,10 +723,12 @@ async def task_run_sample(
 
                     # capture most recent state for scoring
                     state = ex.state or sample_state() or state
-                    state.completed = True
 
                 except BaseException as ex:
                     error, raise_error = handle_error(ex)
+
+                # mark completed
+                state.completed = True
 
                 # set timeout for scoring. if the original timeout was hit we still
                 # want to provide opportunity for scoring, but we don't necessarily
@@ -670,18 +736,18 @@ async def task_run_sample(
                 # the cause of the timeout is a hung container and scoring requires
                 # interacting with the container). as a middle ground we use half
                 # of the original timeout value for scoring.
-                if isinstance(timeout_cm, Timeout):
-                    assert time_limit
-                    timeout_cm = timeout(time_limit / 2)
+                if time_limit is not None:
+                    timeout_cm = anyio.fail_after(time_limit / 2)
 
-                # turn off sample limits
-                set_active_sample_token_limit(None)
-                set_active_sample_message_limit(None)
+                # turn off message and token limits
+                state.message_limit = None
+                state.token_limit = None
+                set_sample_state(state)
 
                 # scoring
                 try:
                     # timeout during scoring will result in an ordinary sample error
-                    async with timeout_cm:
+                    with timeout_cm:
                         if error is None:
                             for scorer in scorers or []:
                                 scorer_name = unique_scorer_name(
@@ -722,7 +788,7 @@ async def task_run_sample(
                             # propagate results into scores
                             state.scores = {k: v.score for k, v in results.items()}
 
-                except asyncio.CancelledError:
+                except anyio.get_cancelled_exc_class():
                     if active.interrupt_action:
                         transcript()._event(
                             SampleLimitEvent(
@@ -766,6 +832,7 @@ async def task_run_sample(
 
             # log the sample
             await log_sample(
+                start_time=start_time,
                 logger=logger,
                 sample=sample,
                 state=state,
@@ -786,6 +853,7 @@ async def task_run_sample(
 
 
 async def log_sample(
+    start_time: float | None,
     logger: TaskLogger,
     sample: Sample,
     state: TaskState,
@@ -797,10 +865,13 @@ async def log_sample(
     id = sample.id
     if id is None:
         raise ValueError(
-            f"Samples without IDs cannot be logged: {sample.model_dump_json()}"
+            f"Samples without IDs cannot be logged: {to_json_str_safe(sample)}"
         )
 
     # construct sample for logging
+
+    # compute total time if we can
+    total_time = time.monotonic() - start_time if start_time is not None else None
 
     # if a limit was hit, note that in the Eval Sample
     limit = None
@@ -825,13 +896,18 @@ async def log_sample(
         output=state.output,
         scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
+        uuid=state.uuid,
         events=list(transcript().events),
         model_usage=sample_model_usage(),
+        total_time=round(total_time, 3) if total_time is not None else None,
+        working_time=round(total_time - sample_waiting_time(), 3)
+        if total_time is not None
+        else None,
         error=error,
         limit=limit,
     )
 
-    await logger.log_sample(condense_sample(eval_sample, log_images), flush=True)
+    await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
 
 
 async def resolve_dataset(
@@ -942,10 +1018,10 @@ def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
-) -> asyncio.Semaphore:
+) -> anyio.Semaphore:
     # if the user set max_samples then use that
     if config.max_samples is not None:
-        return asyncio.Semaphore(config.max_samples)
+        return anyio.Semaphore(config.max_samples)
 
     # use max_connections
     max_samples = (
@@ -957,4 +1033,4 @@ def create_sample_semaphore(
     )
 
     # return the semaphore
-    return asyncio.Semaphore(max_samples)
+    return anyio.Semaphore(max_samples)

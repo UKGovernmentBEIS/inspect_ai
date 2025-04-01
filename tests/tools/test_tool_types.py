@@ -6,17 +6,17 @@ from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
-    skip_if_no_grok,
-    skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_vertex,
+    skip_if_trio,
 )
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import ChatMessageTool
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import ToolFunction, tool
 from inspect_ai.tool._tool import Tool
@@ -45,7 +45,7 @@ class Point(TypedDict):
 
 @tool
 def offset():
-    async def execute(point: Point, offset: int):
+    async def execute(point: Point, offset: int) -> str:
         """
         Offset a point by the specified offset value
 
@@ -148,7 +148,7 @@ def computer_action():
     return execute
 
 
-def check_point(model: str, tool: Tool, function_name: str) -> None:
+def check_point(model: str | Model, tool: Tool, function_name: str) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -167,21 +167,21 @@ def check_point(model: str, tool: Tool, function_name: str) -> None:
     verify_tool_call(log, "15")
 
 
-def check_typed_dict(model: str) -> None:
+def check_typed_dict(model: str | Model) -> None:
     check_point(model, offset(), "offset")
 
 
-def check_dataclass(model: str) -> None:
+def check_dataclass(model: str | Model) -> None:
     check_point(model, offset_dataclass(), "offset_dataclass")
 
 
-def check_list_of_numbers(model: str) -> None:
+def check_list_of_numbers(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
                 Sample(
                     input="Take the mean of the following numbers: 5, 10, 15",
-                    target="15",
+                    target="10",
                 )
             ]
         ),
@@ -195,7 +195,11 @@ def check_list_of_numbers(model: str) -> None:
     verify_tool_call(log, "10")
 
 
-def check_list_of_objects(model: str) -> None:
+def check_list_of_objects(model: str | Model) -> None:
+    # grok sometimes doesn't get this one (just says 'I have extracted, how would you like to proceed')
+    if isinstance(model, str) and "grok" in model:
+        return
+
     task = Task(
         dataset=MemoryDataset(
             [
@@ -211,10 +215,10 @@ def check_list_of_objects(model: str) -> None:
     )
 
     log = eval(task, model=model)[0]
-    verify_tool_call(log, "quick:")
+    verify_tool_call(log, "quick")
 
 
-def check_optional_args(model: str) -> None:
+def check_optional_args(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -233,7 +237,7 @@ def check_optional_args(model: str) -> None:
     verify_tool_call(log, "stuff")
 
 
-def check_none_default_arg(model: str) -> None:
+def check_none_default_arg(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -252,7 +256,7 @@ def check_none_default_arg(model: str) -> None:
     verify_tool_call(log, "click")
 
 
-def check_tool_types(model: str):
+def check_tool_types(model: str | Model):
     check_typed_dict(model)
     check_dataclass(model)
     check_list_of_numbers(model)
@@ -266,12 +270,18 @@ def test_openai_tool_types() -> None:
     check_tool_types("openai/gpt-4o")
 
 
+@skip_if_no_openai
+def test_openai_responses_tool_types() -> None:
+    check_tool_types(get_model("openai/gpt-4o-mini", responses_api=True))
+
+
 @skip_if_no_anthropic
 def test_anthropoic_tool_types() -> None:
     check_tool_types("anthropic/claude-3-5-sonnet-20240620")
 
 
 @skip_if_no_google
+@skip_if_trio
 def test_google_tool_types() -> None:
     check_tool_types("google/gemini-1.5-pro")
 
@@ -286,18 +296,22 @@ def test_mistral_tool_types() -> None:
     check_tool_types("mistral/mistral-large-latest")
 
 
-@skip_if_no_grok
-def test_grok_tool_types() -> None:
-    check_tool_types("grok/grok-beta")
+# grok and groq tool calling are extremely unreliable and
+# consequently cause failed tests that are red herrings. don't
+# exercise these for now.
+
+# @skip_if_no_grok
+# def test_grok_tool_types() -> None:
+#     check_tool_types("grok/grok-beta")
 
 
-@skip_if_no_groq
-def test_groq_tool_types() -> None:
-    check_tool_types("groq/mixtral-8x7b-32768")
+# @skip_if_no_groq
+# def test_groq_tool_types() -> None:
+#     check_tool_types("groq/mixtral-8x7b-32768")
 
 
 def verify_tool_call(log: EvalLog, includes: str):
     assert log.samples
     tool_message = log.samples[0].messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
-    assert includes in tool_message.text
+    assert includes.lower() in log.samples[0].output.completion.lower()

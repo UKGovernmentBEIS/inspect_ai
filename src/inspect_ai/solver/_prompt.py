@@ -1,8 +1,12 @@
 from typing import Any
 
 from inspect_ai._util.dict import omit
-from inspect_ai.model import ChatMessageSystem
-from inspect_ai.model._chat_message import ChatMessageUser
+from inspect_ai._util.format import format_template
+from inspect_ai.model._chat_message import (
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageUser,
+)
 from inspect_ai.util import resource
 
 from ._solver import Generate, Solver, solver
@@ -32,7 +36,7 @@ def prompt_template(template: str, **params: Any) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         prompt = state.user_prompt
         kwargs = omit(state.metadata | state.store._data, ["prompt"]) | params
-        prompt.text = prompt_template.format(prompt=prompt.text, **kwargs)
+        prompt.text = format_template(prompt_template, {"prompt": prompt.text} | kwargs)
         return state
 
     return solve
@@ -63,7 +67,7 @@ def system_message(template: str, **params: Any) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         kwargs = state.metadata | state.store._data | params
         append_system_message(
-            state.messages, ChatMessageSystem(content=content.format(**kwargs))
+            state.messages, ChatMessageSystem(content=format_template(content, kwargs))
         )
         return state
 
@@ -91,7 +95,38 @@ def user_message(template: str, **params: Any) -> Solver:
 
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         kwargs = state.metadata | state.store._data | params
-        state.messages.append(ChatMessageUser(content=content.format(**kwargs)))
+        state.messages.append(ChatMessageUser(content=format_template(content, kwargs)))
+        return state
+
+    return solve
+
+
+@solver
+def assistant_message(template: str, **params: Any) -> Solver:
+    """Solver which inserts an assistant message into the conversation.
+
+    Assistant message template containing any number of optional `params`.
+    for substitution using the `str.format()` method. All values
+    contained in sample `metadata` and `store` are also automatically
+    included in the `params`.
+
+    Args:
+      template: Template for assistant message.
+      **params: Parameters to fill into the template.
+
+    Returns:
+      A solver that inserts the parameterised assistant message.
+    """
+    # read template
+    content = resource(template)
+
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        kwargs = state.metadata | state.store._data | params
+        state.messages.append(
+            ChatMessageAssistant(
+                content=format_template(content, kwargs), model=state.model.name
+            )
+        )
         return state
 
     return solve

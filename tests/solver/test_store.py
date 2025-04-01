@@ -35,11 +35,13 @@ def test_sample_store():
 
 
 def test_tool_store():
-    @tool(prompt="If you are asked to get a cookie, call the get_cookie function.")
+    @tool
     def get_cookie():
         async def exec():
             """
             Tool for getting the cookie.
+
+            If you are asked to get a cookie, call the get_cookie function.
 
             Returns: The cookie.
             """

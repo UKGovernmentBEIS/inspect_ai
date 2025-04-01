@@ -1,15 +1,21 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._basic_agent import basic_agent
-from ._bridge.bridge import bridge
+from ._bridge import bridge
 from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
-from ._human_agent.agent import human_agent
+from ._human_agent import human_agent
 from ._limit import SampleLimitExceededError
 from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
 from ._plan import Plan, plan
-from ._prompt import chain_of_thought, prompt_template, system_message, user_message
+from ._prompt import (
+    assistant_message,
+    chain_of_thought,
+    prompt_template,
+    system_message,
+    user_message,
+)
 from ._solver import Generate, Solver, SolverSpec, generate, solver
 from ._task_state import Choice, Choices, TaskState
 from ._use_tools import use_tools
@@ -26,6 +32,7 @@ __all__ = [
     "multiple_choice",
     "system_message",
     "user_message",
+    "assistant_message",
     "self_critique",
     "use_tools",
     "plan",

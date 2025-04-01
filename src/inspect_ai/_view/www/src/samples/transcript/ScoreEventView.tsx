@@ -1,11 +1,10 @@
-import { Fragment } from "react";
+import { FC, Fragment } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import { ScoreEvent, Value1 } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptEventState } from "./types";
 
 import clsx from "clsx";
 import styles from "./ScoreEventView.module.css";
@@ -13,19 +12,15 @@ import styles from "./ScoreEventView.module.css";
 interface ScoreEventViewProps {
   id: string;
   event: ScoreEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 
 /**
  * Renders the ScoreEventView component.
  */
-export const ScoreEventView: React.FC<ScoreEventViewProps> = ({
+export const ScoreEventView: FC<ScoreEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   className,
 }) => {
   const resolvedTarget = event.target
@@ -37,18 +32,10 @@ export const ScoreEventView: React.FC<ScoreEventViewProps> = ({
   return (
     <EventPanel
       id={id}
-      title="Score"
+      title={(event.intermediate ? "Intermediate " : "") + "Score"}
       className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.scorer}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <div data-name="Explanation" className={clsx(styles.explanation)}>
         {event.target ? (

@@ -6,8 +6,10 @@ import {
   ChatMessageUser,
   ContentAudio,
   ContentImage,
+  ContentReasoning,
   ContentText,
   ContentVideo,
+  Events,
   Messages,
 } from "../../types/log";
 
@@ -54,6 +56,7 @@ export const resolveMessages = (messages: Messages) => {
     | ContentImage
     | ContentAudio
     | ContentVideo
+    | ContentReasoning
   )[] = [];
   for (const systemMessage of systemMessages) {
     const contents = Array.isArray(systemMessage.content)
@@ -63,6 +66,7 @@ export const resolveMessages = (messages: Messages) => {
   }
 
   const systemMessage: ChatMessageSystem = {
+    id: "sys-message-6815A84B062A",
     role: "system",
     content: systemContent,
     source: "input",
@@ -99,14 +103,58 @@ export const iconForMsg = (
  * Normalize strings
  */
 const normalizeContent = (
-  content: ContentText | ContentImage | ContentAudio | ContentVideo | string,
-): ContentText | ContentImage | ContentAudio | ContentVideo => {
+  content:
+    | ContentText
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+    | ContentReasoning
+    | string,
+):
+  | ContentText
+  | ContentImage
+  | ContentAudio
+  | ContentVideo
+  | ContentReasoning => {
   if (typeof content === "string") {
     return {
       type: "text",
       text: content,
+      refusal: null,
     };
   } else {
     return content;
+  }
+};
+
+export const messagesFromEvents = (runningEvents: Events): Messages => {
+  const messages: Map<
+    string,
+    ChatMessageSystem | ChatMessageUser | ChatMessageAssistant | ChatMessageTool
+  > = new Map();
+
+  runningEvents
+    .filter((e) => e.event === "model")
+    .forEach((e) => {
+      for (const m of e.input) {
+        const inputMessage = m as
+          | ChatMessageSystem
+          | ChatMessageUser
+          | ChatMessageAssistant
+          | ChatMessageTool;
+        if (inputMessage.id && !messages.has(inputMessage.id)) {
+          messages.set(inputMessage.id, inputMessage);
+        }
+      }
+      const outputMessage = e.output.choices[0].message;
+      if (outputMessage.id) {
+        messages.set(outputMessage.id, outputMessage);
+      }
+    });
+
+  if (messages.entries.length > 0) {
+    return messages.values().toArray();
+  } else {
+    return [];
   }
 };

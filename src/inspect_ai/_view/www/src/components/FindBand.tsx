@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef } from "react";
+import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
 import { ApplicationIcons } from "../appearance/icons";
+import { useStore } from "../state/store";
 import "./FindBand.css";
 
-interface FindBandProps {
-  hideBand: () => void;
-}
+interface FindBandProps {}
 
-export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
+export const FindBand: FC<FindBandProps> = () => {
   const searchBoxRef = useRef<HTMLInputElement>(null);
+  const storeHideFind = useStore((state) => state.appActions.hideFind);
 
   useEffect(() => {
     setTimeout(() => {
@@ -82,15 +82,23 @@ export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
   );
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
+    (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Escape") {
-        hideBand();
+        storeHideFind();
       } else if (e.key === "Enter") {
         handleSearch(false);
       }
     },
-    [hideBand, handleSearch],
+    [storeHideFind, handleSearch],
   );
+
+  const showSearch = useCallback(() => {
+    handleSearch(true);
+  }, [handleSearch]);
+
+  const hideSearch = useCallback(() => {
+    handleSearch(false);
+  }, [handleSearch]);
 
   return (
     <div className="findBand">
@@ -105,7 +113,7 @@ export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
         type="button"
         title="Previous match"
         className="btn next"
-        onClick={() => handleSearch(true)}
+        onClick={showSearch}
       >
         <i className={ApplicationIcons.arrows.up} />
       </button>
@@ -113,7 +121,7 @@ export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
         type="button"
         title="Next match"
         className="btn prev"
-        onClick={() => handleSearch(false)}
+        onClick={hideSearch}
       >
         <i className={ApplicationIcons.arrows.down} />
       </button>
@@ -121,7 +129,7 @@ export const FindBand: React.FC<FindBandProps> = ({ hideBand }) => {
         type="button"
         title="Close"
         className="btn close"
-        onClick={hideBand}
+        onClick={storeHideFind}
       >
         <i className={ApplicationIcons.close} />
       </button>

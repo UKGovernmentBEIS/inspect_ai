@@ -7,7 +7,9 @@ from random import Random
 from typing import Any, Iterable, SupportsIndex, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
+from shortuuid import uuid
 
+from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai.dataset._dataset import MT, Sample, metadata_as
 from inspect_ai.model import (
     ChatMessage,
@@ -164,6 +166,7 @@ class TaskState:
         self._token_limit = token_limit
         self._completed = completed
         self._store = Store()
+        self._uuid = uuid()
 
         if choices:
             self.choices = Choices(choices)
@@ -333,7 +336,7 @@ class TaskState:
     def completed(self) -> bool:
         """Is the task completed.
 
-        Additionally, checks message and token limits and raises if they are exceeded.
+        Additionally, checks message and token limits and raises if they are exceeded, and also checks for an operator interrupt of the sample.
         """
         from inspect_ai.log._samples import set_active_sample_total_messages
 
@@ -356,6 +359,7 @@ class TaskState:
                 "token", value=self.token_usage, limit=self.token_limit, state=self
             )
         else:
+            check_sample_interrupt()
             return self._completed
 
     @completed.setter
@@ -371,6 +375,11 @@ class TaskState:
     scores: dict[str, Score] | None = None
     """Scores yielded by running task."""
 
+    @property
+    def uuid(self) -> str:
+        """Globally unique identifier for sample run."""
+        return self._uuid
+
     def metadata_as(self, metadata_cls: Type[MT]) -> MT:
         """Pydantic model interface to metadata.
 
@@ -385,16 +394,18 @@ class TaskState:
 
         return metadata_as(self.metadata, metadata_cls)
 
-    def store_as(self, model_cls: Type[SMT]) -> SMT:
+    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
         """Pydantic model interface to the store.
 
         Args:
           model_cls: Pydantic model type (must derive from StoreModel)
+          instance: Optional instances name for store (enables multiple instances
+            of a given StoreModel type within a single sample)
 
         Returns:
-          StoreModel: Instance of model_cls bound to current Store.
+          StoreModel: model_cls bound to sample store data.
         """
-        return model_cls(store=self.store)
+        return model_cls(store=self.store, instance=instance)
 
 
 def sample_state() -> TaskState | None:

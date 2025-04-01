@@ -1,10 +1,10 @@
-[<img width="295" src="https://inspect.ai-safety-institute.org.uk/images/aisi-logo.png" />](https://aisi.gov.uk/)
+[<img width="295" src="https://inspect.aisi.org.uk/images/aisi-logo.svg" />](https://aisi.gov.uk/)
 
-Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Safety Institute](https://aisi.gov.uk/).
+Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Security Institute](https://aisi.gov.uk/).
 
 Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g. to support new elicitation and scoring techniques) can be provided by other Python packages.
 
-To get started with Inspect, please see the documentation at <https://inspect.ai-safety-institute.org.uk/>.
+To get started with Inspect, please see the documentation at <https://inspect.aisi.org.uk/>.
 
 ***
 

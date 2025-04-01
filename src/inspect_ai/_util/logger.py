@@ -1,8 +1,6 @@
 import atexit
 import os
-import re
 from logging import (
-    DEBUG,
     INFO,
     WARNING,
     FileHandler,
@@ -44,10 +42,12 @@ TRACE_FILE_NAME = "trace.log"
 
 # log handler that filters messages to stderr and the log file
 class LogHandler(RichHandler):
-    def __init__(self, levelno: int, transcript_levelno: int) -> None:
-        super().__init__(levelno, console=rich.get_console())
+    def __init__(
+        self, capture_levelno: int, display_levelno: int, transcript_levelno: int
+    ) -> None:
+        super().__init__(capture_levelno, console=rich.get_console())
         self.transcript_levelno = transcript_levelno
-        self.display_level = WARNING
+        self.display_level = display_levelno
         # log into an external file if requested via env var
         file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
         self.file_logger = FileHandler(file_logger) if file_logger else None
@@ -77,19 +77,6 @@ class LogHandler(RichHandler):
 
     @override
     def emit(self, record: LogRecord) -> None:
-        # demote httpx and return notifications to log_level http
-        if (
-            record.name == "httpx"
-            or "http" in record.name
-            or "Retrying request" in record.getMessage()
-        ):
-            record.levelno = HTTP
-            record.levelname = HTTP_LOG_LEVEL
-
-        # skip httpx event loop is closed errors
-        if "Event loop is closed" in record.getMessage():
-            return
-
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level:
             super().emit(record)
@@ -106,10 +93,9 @@ class LogHandler(RichHandler):
         if self.trace_logger and record.levelno >= self.trace_logger_level:
             self.trace_logger.emit(record)
 
-        # eval log always gets info level and higher records
-        # eval log only gets debug or http if we opt-in
-        write = record.levelno >= self.transcript_levelno
-        notify_logger_record(record, write)
+        # eval log gets transcript level or higher
+        if record.levelno >= self.transcript_levelno:
+            log_to_transcript(record)
 
     @override
     def render_message(self, record: LogRecord, message: str) -> ConsoleRenderable:
@@ -118,9 +104,7 @@ class LogHandler(RichHandler):
 
 # initialize logging -- this function can be called multiple times
 # in the lifetime of the process (the levelno will update globally)
-def init_logger(
-    log_level: str | None = None, log_level_transcript: str | None = None
-) -> None:
+def init_logger(log_level: str | None, log_level_transcript: str | None = None) -> None:
     # backwards compatibility for 'tools'
     if log_level == "sandbox" or log_level == "tools":
         log_level = "trace"
@@ -142,7 +126,7 @@ def init_logger(
     ).upper()
     validate_level("log level", log_level)
 
-    # reolve log file level
+    # reolve transcript log level
     log_level_transcript = (
         log_level_transcript
         if log_level_transcript
@@ -154,57 +138,43 @@ def init_logger(
     levelno = getLevelName(log_level)
     transcript_levelno = getLevelName(log_level_transcript)
 
+    # set capture level for our logs (we won't actually display/write all of them)
+    capture_level = min(TRACE, levelno, transcript_levelno)
+
     # init logging handler on demand
     global _logHandler
     if not _logHandler:
-        _logHandler = LogHandler(min(DEBUG, levelno), transcript_levelno)
+        _logHandler = LogHandler(
+            capture_levelno=capture_level,
+            display_levelno=levelno,
+            transcript_levelno=transcript_levelno,
+        )
+
+        # set the global log level
+        getLogger().setLevel(log_level)
+
+        # set the log level for our package
+        getLogger(PKG_NAME).setLevel(capture_level)
+        getLogger(PKG_NAME).addHandler(_logHandler)
+        getLogger(PKG_NAME).propagate = False
+
+        # add our logger to the global handlers
         getLogger().addHandler(_logHandler)
 
-    # establish default capture level
-    capture_level = min(TRACE, levelno, transcript_levelno)
-
-    # see all the messages (we won't actually display/write all of them)
-    getLogger().setLevel(capture_level)
-    getLogger(PKG_NAME).setLevel(capture_level)
-    getLogger("httpx").setLevel(capture_level)
-    getLogger("botocore").setLevel(DEBUG)
-
-    # set the levelno on the global handler
-    _logHandler.display_level = levelno
+        # httpx currently logs all requests at the INFO level
+        # this is a bit aggressive and we already do this at
+        # our own HTTP level
+        getLogger("httpx").setLevel(WARNING)
 
 
 _logHandler: LogHandler | None = None
 
 
-def notify_logger_record(record: LogRecord, write: bool) -> None:
+def log_to_transcript(record: LogRecord) -> None:
     from inspect_ai.log._message import LoggingMessage
     from inspect_ai.log._transcript import LoggerEvent, transcript
 
-    if write:
-        transcript()._event(
-            LoggerEvent(message=LoggingMessage._from_log_record(record))
-        )
-    global _rate_limit_count
-    if (record.levelno <= INFO and re.search(r"\b429\b", record.getMessage())) or (
-        record.levelno == DEBUG
-        # See https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html#validating-retry-attempts
-        # for boto retry logic / log messages (this is tracking standard or adapative retries)
-        and "botocore.retries.standard" in record.name
-        and "Retry needed, retrying request after delay of:" in record.getMessage()
-    ):
-        _rate_limit_count = _rate_limit_count + 1
-
-
-_rate_limit_count = 0
-
-
-def init_http_rate_limit_count() -> None:
-    global _rate_limit_count
-    _rate_limit_count = 0
-
-
-def http_rate_limit_count() -> int:
-    return _rate_limit_count
+    transcript()._event(LoggerEvent(message=LoggingMessage._from_log_record(record)))
 
 
 def warn_once(logger: Logger, message: str) -> None:

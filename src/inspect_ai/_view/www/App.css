@@ -65,15 +65,15 @@ body[class^="vscode-"] .app-main-grid {
 
 /* Inspect Text Styles */
 .text-style-label {
-  text-transform: uppercase;
+  text-transform: uppercase !important;
 }
 
 .text-style-secondary {
-  color: var(--bs-secondary);
+  color: var(--bs-secondary) !important;
 }
 
 .text-style-tertiary {
-  color: var(--bs-tertiary-color);
+  color: var(--bs-tertiary-color) !important;
 }
 
 /* Inspect Font Size Styles */
@@ -335,7 +335,7 @@ body {
   padding-top: 0;
   padding-bottom: 0;
   background-color: var(--bs-light);
-  top: 2px;
+  top: 0;
 }
 
 .navbar-title-grid {
@@ -805,15 +805,21 @@ table.table.table-sm td {
   overflow: unset;
 }
 
+.markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output,
 .tool-output {
   background-color: #f8f8f8;
 }
+
+.vscode-dark .model-call pre[class*="language-"],
+.vscode-dark .markdown-content pre[class*="language-"],
 .vscode-dark pre[class*="language-"].tool-output,
 .vscode-dark .tool-output {
   background-color: #333333;
 }
 
+.model-call pre[class*="language-"],
+.markdown-content pre[class*="language-"],
 pre[class*="language-"].tool-output {
   border: none !important;
   box-shadow: none !important;

@@ -1,44 +1,68 @@
 from textwrap import dedent
 from typing import Any
 
+from openai import BaseModel
 from test_helpers.utils import skip_if_no_anthropic, skip_if_no_openai
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
+from inspect_ai.model._openai import openai_chat_tools
 from inspect_ai.scorer import includes
 from inspect_ai.solver import bridge, solver
+from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.tool._tool_params import ToolParam, ToolParams
+from inspect_ai.util._json import json_schema
 
 
-async def agent(sample: dict[str, Any]) -> dict[str, Any]:
-    from openai import AsyncOpenAI
+def agent(tools: bool):
+    async def run(sample: dict[str, Any]) -> dict[str, Any]:
+        from openai import AsyncOpenAI
 
-    client = AsyncOpenAI()
-    completion = await client.chat.completions.create(
-        model="inspect",
-        messages=sample["input"],
-        temperature=0.8,
-        top_p=0.5,
-        stop=["foo"],
-        frequency_penalty=1,
-        presence_penalty=1.5,
-        seed=42,
-        n=3,
-        logprobs=True,
-        top_logprobs=3,
-        # logit bias types are out of sync w/ api docs
-        logit_bias=dict([(42, 10), (43, -10)]),  # type: ignore[call-overload]
-        reasoning_effort="low",
-        timeout=200,
-    )
+        class Message(BaseModel):
+            text: str
 
-    return {"output": completion.choices[0].message.content}
+        client = AsyncOpenAI()
+        params = dict(
+            model="inspect",
+            messages=sample["input"],
+            temperature=0.8,
+            top_p=0.5,
+            stop=["foo"],
+            frequency_penalty=1,
+            presence_penalty=1.5,
+            seed=42,
+            n=3,
+            # logit bias types are out of sync w/ api docs
+            logit_bias=dict([(42, 10), (43, -10)]),
+            reasoning_effort="low",
+            timeout=200,
+            response_format=dict(
+                type="json_schema",
+                json_schema=dict(
+                    name="message",
+                    schema=json_schema(Message).model_dump(exclude_none=True),
+                ),
+            ),
+        )
+        if tools:
+            params["tools"] = openai_chat_tools([testing_tool_info()])
+            params["tool_choice"] = "auto"
+        else:
+            params["logprobs"] = True
+            params["top_logprobs"] = 3
+
+        completion = await client.chat.completions.create(**params)
+
+        return {"output": completion.choices[0].message.content}
+
+    return run
 
 
 @task
-def bridged_task():
+def bridged_task(tools: bool):
     return Task(
         dataset=[Sample(input="Please print the word 'hello'?", target="hello")],
-        solver=bridge(agent),
+        solver=bridge(agent(tools)),
         scorer=includes(),
     )
 
@@ -69,14 +93,17 @@ def openai_api_task():
     return Task(solver=openai_api_solver())
 
 
-def eval_bridged_task(model: str) -> str:
-    log = eval(bridged_task(), model=model)[0]
+def eval_bridged_task(model: str, tools: bool) -> str:
+    log = eval(bridged_task(tools), model=model)[0]
     assert log.status == "success"
     return log.model_dump_json(exclude_none=True, indent=2)
 
 
-def check_openai_log_json(log_json: str):
+def check_openai_log_json(log_json: str, tools: bool):
     assert r'"model": "gpt-4o"' in log_json
+    if tools:
+        assert r'"name": "testing_tool"' in log_json
+        assert r'"tool_choice": "auto"' in log_json
     assert r'"frequency_penalty": 1' in log_json
     assert dedent("""
     "stop": [
@@ -94,18 +121,23 @@ def check_openai_log_json(log_json: str):
     assert r'"temperature": 0.8' in log_json
     assert r'"top_p": 0.5' in log_json
     assert r'"n": 3' in log_json
-    assert r'"logprobs": true' in log_json
-    assert r'"top_logprobs": 3' in log_json
-    assert dedent("""
-    "logprobs": {
-      "content": [
-    """)
+    if not tools:
+        assert r'"logprobs": true' in log_json
+        assert r'"top_logprobs": 3' in log_json
+    assert r'"response_schema"' in log_json
+    assert r'"logprobs"' in log_json
 
 
 @skip_if_no_openai
 def test_bridged_agent():
-    log_json = eval_bridged_task("openai/gpt-4o")
-    check_openai_log_json(log_json)
+    log_json = eval_bridged_task("openai/gpt-4o", tools=False)
+    check_openai_log_json(log_json, tools=False)
+
+
+@skip_if_no_openai
+def test_bridged_agent_tools():
+    log_json = eval_bridged_task("openai/gpt-4o", tools=True)
+    check_openai_log_json(log_json, tools=True)
 
 
 def check_anthropic_log_json(log_json: str):
@@ -122,14 +154,14 @@ def check_anthropic_log_json(log_json: str):
 @skip_if_no_anthropic
 @skip_if_no_openai
 def test_anthropic_bridged_agent():
-    log_json = eval_bridged_task("anthropic/claude-3-haiku-20240307")
+    log_json = eval_bridged_task("anthropic/claude-3-haiku-20240307", tools=False)
     check_anthropic_log_json(log_json)
 
 
 @skip_if_no_openai
 def test_bridged_agent_context():
     logs = eval(
-        [bridged_task(), openai_api_task()],
+        [bridged_task(tools=False), openai_api_task()],
         max_tasks=2,
         model="anthropic/claude-3-haiku-20240307",
     )
@@ -138,3 +170,23 @@ def test_bridged_agent_context():
         if log.eval.task == "bridged_task":
             log_json = log.model_dump_json(exclude_none=True, indent=2)
             check_anthropic_log_json(log_json)
+
+
+def testing_tool_info() -> ToolInfo:
+    return ToolInfo(
+        name="testing_tool",
+        description="This is a testing tool.",
+        parameters=ToolParams(
+            properties={
+                "param1": ToolParam(
+                    type="string",
+                    description="This is parameter1",
+                )
+            },
+            required=["param1"],
+        ),
+    )
+
+
+if __name__ == "__main__":
+    test_bridged_agent()

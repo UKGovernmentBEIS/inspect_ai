@@ -8,6 +8,7 @@ import {
   ModelEvent,
   SampleInitEvent,
   SampleLimitEvent,
+  SandboxEvent,
   ScoreEvent,
   StateEvent,
   StepEvent,
@@ -37,7 +38,8 @@ export type EventType =
   | ToolEvent
   | InputEvent
   | ErrorEvent
-  | ApprovalEvent;
+  | ApprovalEvent
+  | SandboxEvent;
 
 export class EventNode {
   event: EventType;

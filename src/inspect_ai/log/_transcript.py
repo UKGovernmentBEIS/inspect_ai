@@ -1,22 +1,32 @@
-import asyncio
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime
 from logging import getLogger
 from typing import (
     Any,
+    Callable,
     Iterator,
     Literal,
     Sequence,
+    Type,
     TypeAlias,
+    TypeVar,
     Union,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_serializer,
+)
+from shortuuid import uuid
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange, json_changes
+from inspect_ai._util.working import sample_working_time
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
 from inspect_ai.model._chat_message import ChatMessage
@@ -40,8 +50,18 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
+    model_config = {
+        "json_schema_extra": lambda schema: schema.get("properties", {}).pop(
+            "id_", None
+        )
+    }
+    id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
+
     timestamp: datetime = Field(default_factory=datetime.now)
-    """Time at which event occurred."""
+    """Clock time at which event occurred."""
+
+    working_start: float = Field(default_factory=sample_working_time)
+    """Working time (within sample) at which the event occurred."""
 
     pending: bool | None = Field(default=None)
     """Is this event pending?"""
@@ -70,7 +90,7 @@ class SampleLimitEvent(BaseEvent):
     event: Literal["sample_limit"] = Field(default="sample_limit")
     """Event type."""
 
-    type: Literal["message", "time", "token", "operator", "custom"]
+    type: Literal["message", "time", "working", "token", "operator", "custom"]
     """Type of limit that halted processing"""
 
     message: str
@@ -133,6 +153,18 @@ class ModelEvent(BaseEvent):
     call: ModelCall | None = Field(default=None)
     """Raw call made to model API."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that model call completed (see `timestamp` for started)"""
+
+    working_time: float | None = Field(default=None)
+    """working time for model call that succeeded (i.e. was not retried)."""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        return dt.astimezone().isoformat()
+
 
 class ToolEvent(BaseEvent):
     """Call to a tool."""
@@ -152,6 +184,9 @@ class ToolEvent(BaseEvent):
     arguments: dict[str, JsonValue]
     """Arguments to function."""
 
+    internal_name: str | None = Field(default=None)
+    """Internal name for tool (if any)."""
+
     view: ToolCallContent | None = Field(default=None)
     """Custom view of tool call input."""
 
@@ -167,30 +202,50 @@ class ToolEvent(BaseEvent):
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for tool."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that tool call completed (see `timestamp` for started)"""
+
+    working_time: float | None = Field(default=None)
+    """Working time for tool call (i.e. time not spent waiting on semaphores)."""
+
+    agent: str | None = Field(default=None)
+    """Name of agent if the tool call was an agent handoff."""
+
+    failed: bool | None = Field(default=None)
+    """Did the tool call fail with a hard error?."""
+
     def _set_result(
         self,
         result: ToolResult,
         truncated: tuple[int, int] | None,
         error: ToolCallError | None,
         events: list["Event"],
+        waiting_time: float,
+        agent: str | None,
+        failed: bool | None,
     ) -> None:
         self.result = result
         self.truncated = truncated
         self.error = error
         self.events = events
         self.pending = None
+        completed = datetime.now()
+        self.completed = completed
+        self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
+        self.agent = agent
+        self.failed = failed
 
     # mechanism for operator to cancel the tool call
 
-    def _set_task(self, task: asyncio.Task[Any]) -> None:
+    def _set_cancel_fn(self, cancel_fn: Callable[[], None]) -> None:
         """Set the tool task (for possible cancellation)"""
-        self._task = task
+        self._cancel_fn = cancel_fn
 
     def _cancel(self) -> None:
         """Cancel the tool task."""
-        if self._task:
+        if self._cancel_fn and not self.cancelled:
             self._cancelled = True
-            self._task.cancel()
+            self._cancel_fn()
 
     @property
     def cancelled(self) -> bool:
@@ -200,11 +255,54 @@ class ToolEvent(BaseEvent):
     _cancelled: bool | None = None
     """Was this tool call cancelled?"""
 
-    _task: asyncio.Task[Any] | None = None
-    """Handle to task (used for cancellation)"""
+    _cancel_fn: Callable[[], None] | None = None
+    """Function which can be used to cancel the tool call."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    """Required so that we can include '_task' as a member."""
+    """Required so that we can include '_cancel_fn' as a member."""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        return dt.astimezone().isoformat()
+
+
+class SandboxEvent(BaseEvent):
+    """Sandbox execution or I/O"""
+
+    event: Literal["sandbox"] = Field(default="sandbox")
+    """Event type"""
+
+    action: Literal["exec", "read_file", "write_file"]
+    """Sandbox action"""
+
+    cmd: str | None = Field(default=None)
+    """Command (for exec)"""
+
+    options: dict[str, JsonValue] | None = Field(default=None)
+    """Options (for exec)"""
+
+    file: str | None = Field(default=None)
+    """File (for read_file and write_file)"""
+
+    input: str | None = Field(default=None)
+    """Input (for cmd and write_file). Truncated to 100 lines."""
+
+    result: int | None = Field(default=None)
+    """Result (for exec)"""
+
+    output: str | None = Field(default=None)
+    """Output (for exec and read_file). Truncated to 100 lines."""
+
+    completed: datetime | None = Field(default=None)
+    """Time that sandbox action completed (see `timestamp` for started)"""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        return dt.astimezone().isoformat()
 
 
 class ApprovalEvent(BaseEvent):
@@ -264,6 +362,9 @@ class InfoEvent(BaseEvent):
     event: Literal["info"] = Field(default="info")
     """Event type."""
 
+    source: str | None = Field(default=None)
+    """Optional source for info event."""
+
     data: JsonValue
     """Data provided with event."""
 
@@ -279,16 +380,23 @@ class ErrorEvent(BaseEvent):
 
 
 class ScoreEvent(BaseEvent):
-    """Event with sample score."""
+    """Event with score.
+
+    Can be the final score for a `Sample`, or can be an intermediate score
+    resulting from a call to `score`.
+    """
 
     event: Literal["score"] = Field(default="score")
     """Event type."""
 
     score: Score
-    """Sample score."""
+    """Score value."""
 
     target: str | list[str] | None = Field(default=None)
     """"Sample target."""
+
+    intermediate: bool = Field(default=False)
+    """Was this an intermediate scoring?"""
 
 
 class StepEvent(BaseEvent):
@@ -328,14 +436,28 @@ class SubtaskEvent(BaseEvent):
     events: list["Event"] = Field(default_factory=list)
     """Transcript of events for subtask."""
 
+    completed: datetime | None = Field(default=None)
+    """Time that subtask completed (see `timestamp` for started)"""
+
+    working_time: float | None = Field(default=None)
+    """Working time for subtask (i.e. time not spent waiting on semaphores or model retries)."""
+
+    @field_serializer("completed")
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        return dt.astimezone().isoformat()
+
 
 Event: TypeAlias = Union[
     SampleInitEvent
     | SampleLimitEvent
+    | SandboxEvent
     | StateEvent
     | StoreEvent
     | ModelEvent
     | ToolEvent
+    | SandboxEvent
     | ApprovalEvent
     | InputEvent
     | ScoreEvent
@@ -347,21 +469,27 @@ Event: TypeAlias = Union[
 ]
 """Event in a transcript."""
 
+ET = TypeVar("ET", bound=BaseEvent)
+
 
 class Transcript:
     """Transcript of events."""
 
+    _event_logger: Callable[[Event], None] | None
+
     def __init__(self, name: str = "") -> None:
         self.name = name
+        self._event_logger = None
         self._events: list[Event] = []
 
-    def info(self, data: JsonValue) -> None:
+    def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
 
         Args:
-           data (JsonValue): Data associated with the event.
+           data: Data associated with the event.
+           source: Optional event source.
         """
-        self._event(InfoEvent(data=data))
+        self._event(InfoEvent(source=source, data=data))
 
     @contextlib.contextmanager
     def step(self, name: str, type: str | None = None) -> Iterator[None]:
@@ -385,8 +513,23 @@ class Transcript:
     def events(self) -> Sequence[Event]:
         return self._events
 
+    def find_last_event(self, event_cls: Type[ET]) -> ET | None:
+        for event in reversed(self.events):
+            if isinstance(event, event_cls):
+                return event
+        return None
+
     def _event(self, event: Event) -> None:
+        if self._event_logger:
+            self._event_logger(event)
         self._events.append(event)
+
+    def _event_updated(self, event: Event) -> None:
+        if self._event_logger:
+            self._event_logger(event)
+
+    def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
+        self._event_logger = event_logger
 
 
 def transcript() -> Transcript:

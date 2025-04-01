@@ -4,6 +4,7 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_openai,
     skip_if_no_vertex,
+    skip_if_trio,
 )
 
 from inspect_ai import Task, eval, task
@@ -24,7 +25,8 @@ def audio():
 
 
 def check_audio(model):
-    eval(audio(), model)
+    log = eval(audio(), model)[0]
+    assert log.status == "success"
 
 
 @task
@@ -39,15 +41,18 @@ def video():
 
 
 def check_video(model):
-    eval(video(), model)
+    log = eval(video(), model)[0]
+    assert log.status == "success"
 
 
 @skip_if_no_google
+@skip_if_trio
 def test_media_google_audio():
     check_audio("google/gemini-1.5-flash")
 
 
 @skip_if_no_google
+@skip_if_trio
 def test_media_google_video():
     check_video("google/gemini-1.5-flash")
 

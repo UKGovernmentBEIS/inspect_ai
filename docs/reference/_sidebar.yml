@@ -44,6 +44,8 @@ website:
           href: reference/inspect_ai.solver.qmd#system_message
         - text: user_message
           href: reference/inspect_ai.solver.qmd#user_message
+        - text: assistant_message
+          href: reference/inspect_ai.solver.qmd#assistant_message
         - text: chain_of_thought
           href: reference/inspect_ai.solver.qmd#chain_of_thought
         - text: self_critique
@@ -77,12 +79,18 @@ website:
           href: reference/inspect_ai.tool.qmd#bash
         - text: python
           href: reference/inspect_ai.tool.qmd#python
-        - text: web_search
-          href: reference/inspect_ai.tool.qmd#web_search
+        - text: bash_session
+          href: reference/inspect_ai.tool.qmd#bash_session
+        - text: text_editor
+          href: reference/inspect_ai.tool.qmd#text_editor
         - text: web_browser
           href: reference/inspect_ai.tool.qmd#web_browser
         - text: computer
           href: reference/inspect_ai.tool.qmd#computer
+        - text: web_search
+          href: reference/inspect_ai.tool.qmd#web_search
+        - text: think
+          href: reference/inspect_ai.tool.qmd#think
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef
@@ -105,10 +113,47 @@ website:
           href: reference/inspect_ai.tool.qmd#toolparams
         - text: ToolParam
           href: reference/inspect_ai.tool.qmd#toolparam
-        - text: JSONType
-          href: reference/inspect_ai.tool.qmd#jsontype
         - text: tool
           href: reference/inspect_ai.tool.qmd#tool
+      - section: inspect_ai.agent
+        href: reference/inspect_ai.agent.qmd
+        contents:
+        - text: react
+          href: reference/inspect_ai.agent.qmd#react
+        - text: bridge
+          href: reference/inspect_ai.agent.qmd#bridge
+        - text: human
+          href: reference/inspect_ai.agent.qmd#human
+        - text: handoff
+          href: reference/inspect_ai.agent.qmd#handoff
+        - text: run
+          href: reference/inspect_ai.agent.qmd#run
+        - text: as_tool
+          href: reference/inspect_ai.agent.qmd#as_tool
+        - text: as_solver
+          href: reference/inspect_ai.agent.qmd#as_solver
+        - text: remove_tools
+          href: reference/inspect_ai.agent.qmd#remove_tools
+        - text: last_message
+          href: reference/inspect_ai.agent.qmd#last_message
+        - text: MessageFilter
+          href: reference/inspect_ai.agent.qmd#messagefilter
+        - text: Agent
+          href: reference/inspect_ai.agent.qmd#agent
+        - text: AgentState
+          href: reference/inspect_ai.agent.qmd#agentstate
+        - text: agent
+          href: reference/inspect_ai.agent.qmd#agent
+        - text: agent_with
+          href: reference/inspect_ai.agent.qmd#agent_with
+        - text: AgentPrompt
+          href: reference/inspect_ai.agent.qmd#agentprompt
+        - text: AgentAttempts
+          href: reference/inspect_ai.agent.qmd#agentattempts
+        - text: AgentContinue
+          href: reference/inspect_ai.agent.qmd#agentcontinue
+        - text: AgentSubmit
+          href: reference/inspect_ai.agent.qmd#agentsubmit
       - section: inspect_ai.scorer
         href: reference/inspect_ai.scorer.qmd
         contents:
@@ -187,8 +232,12 @@ website:
           href: reference/inspect_ai.model.qmd#generateconfig
         - text: GenerateConfigArgs
           href: reference/inspect_ai.model.qmd#generateconfigargs
+        - text: ResponseSchema
+          href: reference/inspect_ai.model.qmd#responseschema
         - text: ModelOutput
           href: reference/inspect_ai.model.qmd#modeloutput
+        - text: ModelConversation
+          href: reference/inspect_ai.model.qmd#modelconversation
         - text: ModelUsage
           href: reference/inspect_ai.model.qmd#modelusage
         - text: StopReason
@@ -211,12 +260,18 @@ website:
           href: reference/inspect_ai.model.qmd#content
         - text: ContentText
           href: reference/inspect_ai.model.qmd#contenttext
+        - text: ContentReasoning
+          href: reference/inspect_ai.model.qmd#contentreasoning
         - text: ContentImage
           href: reference/inspect_ai.model.qmd#contentimage
         - text: ContentAudio
           href: reference/inspect_ai.model.qmd#contentaudio
         - text: ContentVideo
           href: reference/inspect_ai.model.qmd#contentvideo
+        - text: execute_tools
+          href: reference/inspect_ai.model.qmd#execute_tools
+        - text: ExecuteToolsResult
+          href: reference/inspect_ai.model.qmd#executetoolsresult
         - text: Logprob
           href: reference/inspect_ai.model.qmd#logprob
         - text: Logprobs
@@ -282,8 +337,12 @@ website:
           href: reference/inspect_ai.log.qmd#list_eval_logs
         - text: write_eval_log
           href: reference/inspect_ai.log.qmd#write_eval_log
+        - text: write_eval_log_async
+          href: reference/inspect_ai.log.qmd#write_eval_log_async
         - text: read_eval_log
           href: reference/inspect_ai.log.qmd#read_eval_log
+        - text: read_eval_log_async
+          href: reference/inspect_ai.log.qmd#read_eval_log_async
         - text: read_eval_log_sample
           href: reference/inspect_ai.log.qmd#read_eval_log_sample
         - text: read_eval_log_samples
@@ -350,6 +409,8 @@ website:
           href: reference/inspect_ai.log.qmd#modelevent
         - text: ToolEvent
           href: reference/inspect_ai.log.qmd#toolevent
+        - text: SandboxEvent
+          href: reference/inspect_ai.log.qmd#sandboxevent
         - text: ApprovalEvent
           href: reference/inspect_ai.log.qmd#approvalevent
         - text: InputEvent
@@ -387,6 +448,8 @@ website:
           href: reference/inspect_ai.util.qmd#subprocess
         - text: ExecResult
           href: reference/inspect_ai.util.qmd#execresult
+        - text: display_counter
+          href: reference/inspect_ai.util.qmd#display_counter
         - text: display_type
           href: reference/inspect_ai.util.qmd#display_type
         - text: DisplayType
@@ -415,6 +478,12 @@ website:
           href: reference/inspect_ai.util.qmd#sandboxconnection
         - text: sandboxenv
           href: reference/inspect_ai.util.qmd#sandboxenv
+        - text: JSONType
+          href: reference/inspect_ai.util.qmd#jsontype
+        - text: JSONSchema
+          href: reference/inspect_ai.util.qmd#jsonschema
+        - text: json_schema
+          href: reference/inspect_ai.util.qmd#json_schema
     - section: Inspect CLI
       href: reference/inspect_eval.qmd
       contents:

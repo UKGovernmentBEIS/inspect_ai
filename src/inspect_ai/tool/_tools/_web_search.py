@@ -1,7 +1,7 @@
-import asyncio
 import os
-from typing import Literal, Protocol, cast, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
+import anyio
 import httpx
 from bs4 import BeautifulSoup, NavigableString
 from tenacity import (
@@ -13,7 +13,7 @@ from tenacity import (
 )
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.retry import httpx_should_retry, log_retry_attempt
+from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
 
 from .._tool import Tool, ToolResult, tool
@@ -23,6 +23,17 @@ DEFAULT_RELEVANCE_PROMPT = """I am trying to answer the following question and n
 Question: {question}
 Page Content: {text}
 """
+
+
+class SearchLink:
+    def __init__(self, url: str, snippet: str) -> None:
+        self.url = url
+        self.snippet = snippet
+
+
+@runtime_checkable
+class SearchProvider(Protocol):
+    async def __call__(self, query: str, start_idx: int) -> list[SearchLink]: ...
 
 
 @tool
@@ -41,7 +52,7 @@ def web_search(
     A web search is conducted using the specified provider, the results are parsed for relevance
     using the specified model, and the top 'num_results' relevant pages are returned.
 
-    See further documentation at <https://inspect.ai-safety-institute.org.uk/tools.html#sec-web-search>.
+    See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-search>.
 
     Args:
       provider: Search provider (defaults to "google", currently
@@ -84,16 +95,22 @@ def web_search(
             async with concurrency(f"{provider}_web_search", max_connections):
                 links = await search_provider(query, start_idx=search_calls * 10)
 
-            # Extract and summarize each page individually
-            pages = await asyncio.gather(
-                *[page_if_relevant(link.url, query, model, client) for link in links],
-                return_exceptions=True,
-            )
-            for page, link in zip(pages, links):
-                if page and not isinstance(page, Exception):
-                    page_contents.append(cast(str, page))
-                    urls.append(link.url)
-                    snippets.append(link.snippet)
+            async with anyio.create_task_group() as tg:
+
+                async def process_link(link: SearchLink) -> None:
+                    try:
+                        page = await page_if_relevant(link.url, query, model, client)
+                        if page:
+                            page_contents.append(page)
+                            urls.append(link.url)
+                            snippets.append(link.snippet)
+                    # exceptions fetching pages are very common!
+                    except Exception:
+                        pass
+
+                for lk in links:
+                    tg.start_soon(process_link, lk)
+
             search_calls += 1
 
         all_page_contents = "\n\n".join(page_contents)
@@ -168,23 +185,12 @@ async def page_if_relevant(
         return None
 
 
-class SearchLink:
-    def __init__(self, url: str, snippet: str) -> None:
-        self.url = url
-        self.snippet = snippet
-
-
-@runtime_checkable
-class SearchProvider(Protocol):
-    async def __call__(self, query: str, start_idx: int) -> list[SearchLink]: ...
-
-
 def google_search_provider(client: httpx.AsyncClient) -> SearchProvider:
     google_api_key = os.environ.get("GOOGLE_CSE_API_KEY", None)
     google_cse_id = os.environ.get("GOOGLE_CSE_ID", None)
     if not google_api_key or not google_cse_id:
         raise PrerequisiteError(
-            "GOOGLE_CSE_ID and/or GOOGLE_CSE_API_KEY not set in the environment. Please ensure these variables are defined to use Google Custom Search with the web_search tool.\n\nLearn more about the Google web search provider at https://inspect.ai-safety-institute.org.uk/tools.html#google-provider"
+            "GOOGLE_CSE_ID and/or GOOGLE_CSE_API_KEY not set in the environment. Please ensure these variables are defined to use Google Custom Search with the web_search tool.\n\nLearn more about the Google web search provider at https://inspect.aisi.org.uk/tools.html#google-provider"
         )
 
     async def search(query: str, start_idx: int) -> list[SearchLink]:
@@ -204,7 +210,7 @@ def google_search_provider(client: httpx.AsyncClient) -> SearchProvider:
             wait=wait_exponential_jitter(),
             stop=stop_after_attempt(5) | stop_after_delay(60),
             retry=retry_if_exception(httpx_should_retry),
-            before_sleep=log_retry_attempt(search_url),
+            before_sleep=log_httpx_retry_attempt(search_url),
         )
         async def execute_search() -> httpx.Response:
             return await client.get(search_url)

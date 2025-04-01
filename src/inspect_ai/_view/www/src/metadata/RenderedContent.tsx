@@ -1,3 +1,4 @@
+import JSON5 from "json5";
 import { ApplicationIcons } from "../appearance/icons";
 
 import { ANSIDisplay } from "../components/AnsiDisplay";
@@ -6,7 +7,9 @@ import { formatNumber } from "../utils/format";
 import { MetaDataView } from "./MetaDataView";
 
 import clsx from "clsx";
-import React, { Fragment, JSX } from "react";
+import { FC, Fragment, isValidElement, JSX, ReactNode } from "react";
+import JSONPanel from "../components/JsonPanel";
+import { isJson } from "../utils/json";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer } from "./types";
 
@@ -18,7 +21,7 @@ interface RenderedContentProps {
 /**
  * Renders content based on its type using registered content renderers.
  */
-export const RenderedContent: React.FC<RenderedContentProps> = ({
+export const RenderedContent: FC<RenderedContentProps> = ({
   id,
   entry,
 }): JSX.Element => {
@@ -40,8 +43,7 @@ export const RenderedContent: React.FC<RenderedContentProps> = ({
 
   if (renderer) {
     const { rendered } = renderer.render(id, entry);
-    // Check if rendered is already a valid ReactNode (JSX.Element)
-    if (rendered !== undefined && React.isValidElement(rendered)) {
+    if (rendered !== undefined && isValidElement(rendered)) {
       return rendered;
     }
   }
@@ -77,6 +79,20 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return {
         rendered: <ANSIDisplay output={entry.value} />,
       };
+    },
+  },
+  JsonString: {
+    bucket: Buckets.first,
+    canRender: (entry) => {
+      if (typeof entry.value === "string") {
+        const trimmed = entry.value.trim();
+        return isJson(trimmed);
+      }
+      return false;
+    },
+    render: (_id, entry) => {
+      const obj = JSON5.parse(entry.value);
+      return { rendered: <JSONPanel data={obj as Record<string, unknown>} /> };
     },
   },
   Model: {
@@ -132,9 +148,11 @@ const contentRenderers: Record<string, ContentRenderer> = {
       const isArray = Array.isArray(entry.value);
       if (isArray) {
         const types = new Set(
-          entry.value.map((e: unknown) => {
-            return typeof e;
-          }),
+          entry.value
+            .filter((e: unknown) => e !== null)
+            .map((e: unknown) => {
+              return typeof e;
+            }),
         );
         return types.size === 1;
       } else {
@@ -166,7 +184,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return typeof entry.value === "object" && entry.name === "web_search";
     },
     render: (_id, entry) => {
-      const results: React.ReactNode[] = [];
+      const results: ReactNode[] = [];
       results.push(
         <div className={styles.query}>
           <i className={ApplicationIcons.search}></i> {entry.value.query}
@@ -234,17 +252,6 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return typeof entry.value === "object";
     },
     render: (id, entry) => {
-      // Generate a json preview
-      const summary = [];
-      const keys = Object.keys(entry.value);
-      if (keys.length > 4) {
-        summary.push(...keys.slice(0, 2));
-        summary.push("...");
-        summary.push(...keys.slice(keys.length - 2));
-      } else {
-        summary.push(...keys);
-      }
-
       return {
         rendered: (
           <MetaDataView

@@ -187,7 +187,7 @@ def _make_usage(ctx: click.Context) -> Iterator[str]:
     # Gets the usual 'Usage' string without the prefix.
     formatter = ctx.make_formatter()
     pieces = ctx.command.collect_usage_pieces(ctx)
-    formatter.write_usage(ctx.command_path, " ".join(pieces), prefix="")
+    formatter.write_usage(ctx.command_path.replace("_", "-"), " ".join(pieces), prefix="")
     usage = formatter.getvalue().rstrip("\n")
 
     yield "#### Usage"

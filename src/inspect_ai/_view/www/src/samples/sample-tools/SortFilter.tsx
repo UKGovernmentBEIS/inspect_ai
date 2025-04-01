@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { ChangeEvent, FC, useCallback } from "react";
 import { SampleSummary } from "../../api/types";
 import {
   kEpochAscVal,
@@ -8,6 +9,7 @@ import {
   kScoreAscVal,
   kScoreDescVal,
 } from "../../constants";
+import { ScoreLabel } from "../../types";
 import { isNumeric } from "../../utils/type";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import styles from "./SortFilter.module.css";
@@ -18,11 +20,7 @@ interface SortFilterProps {
   epochs: number;
 }
 
-export const SortFilter: React.FC<SortFilterProps> = ({
-  sort,
-  setSort,
-  epochs,
-}) => {
+export const SortFilter: FC<SortFilterProps> = ({ sort, setSort, epochs }) => {
   const options = [
     { label: "sample asc", val: kSampleAscVal },
     { label: "sample desc", val: kSampleDescVal },
@@ -45,6 +43,15 @@ export const SortFilter: React.FC<SortFilterProps> = ({
     label: "score desc",
     val: kScoreDescVal,
   });
+
+  const handleChange = useCallback(
+    (e: ChangeEvent<HTMLSelectElement>) => {
+      const sel = e.target as HTMLSelectElement;
+      setSort(sel.value);
+    },
+    [setSort],
+  );
+
   return (
     <div className={styles.flex}>
       <span
@@ -62,10 +69,7 @@ export const SortFilter: React.FC<SortFilterProps> = ({
         className={clsx("form-select", "form-select-sm", "text-size-smaller")}
         aria-label=".sort-filter-label"
         value={sort}
-        onChange={(e) => {
-          const sel = e.target as HTMLSelectElement;
-          setSort(sel.value);
-        }}
+        onChange={handleChange}
       >
         {options.map((option) => {
           return (
@@ -105,8 +109,13 @@ export const sortSamples = (
   sort: string,
   samples: SampleSummary[],
   samplesDescriptor: SamplesDescriptor,
-): { sorted: SampleSummary[]; order: "asc" | "desc" } => {
+  score?: ScoreLabel,
+): SampleSummary[] => {
   const sortedSamples = samples.sort((a: SampleSummary, b: SampleSummary) => {
+    const scoreDescriptor = score
+      ? samplesDescriptor.evalDescriptor.scoreDescriptor(score)
+      : undefined;
+
     switch (sort) {
       case kSampleAscVal: {
         const result = sortId(a, b);
@@ -137,50 +146,38 @@ export const sortSamples = (
         if (result !== 0) {
           return result;
         } else {
-          return sortId(a, b);
+          return sortId(b, a);
         }
       }
 
       case kScoreAscVal: {
-        const aScore = samplesDescriptor.selectedScore(a);
-        const bScore = samplesDescriptor.selectedScore(b);
+        const aScore = samplesDescriptor.evalDescriptor.score(a, score);
+        const bScore = samplesDescriptor.evalDescriptor.score(b, score);
         if (
           aScore === undefined ||
           bScore === undefined ||
-          samplesDescriptor.selectedScoreDescriptor == undefined
+          scoreDescriptor === undefined
         ) {
           return 0;
         }
-        return samplesDescriptor.selectedScoreDescriptor.compare(
-          aScore,
-          bScore,
-        );
+        return scoreDescriptor?.compare(aScore, bScore);
       }
       case kScoreDescVal: {
-        const aScore = samplesDescriptor.selectedScore(a);
-        const bScore = samplesDescriptor.selectedScore(b);
+        const aScore = samplesDescriptor.evalDescriptor.score(a, score);
+        const bScore = samplesDescriptor.evalDescriptor.score(b, score);
         if (
           aScore === undefined ||
           bScore === undefined ||
-          samplesDescriptor.selectedScoreDescriptor == undefined
+          scoreDescriptor == undefined
         ) {
           return 0;
         }
 
-        return samplesDescriptor.selectedScoreDescriptor.compare(
-          aScore,
-          bScore,
-        );
+        return scoreDescriptor?.compare(bScore, aScore);
       }
       default:
         return 0;
     }
   });
-  return {
-    sorted: sortedSamples,
-    order:
-      sort === kSampleAscVal || sort === kEpochAscVal || sort === kScoreAscVal
-        ? "asc"
-        : "desc",
-  };
+  return sortedSamples;
 };

@@ -24,7 +24,7 @@ logger = getLogger(__name__)
 
 DEFAULT_SYSTEM_MESSAGE = """
 You are a helpful assistant attempting to submit the correct answer. You have
-several functions available to help with finding the answer. Each message may
+several functions available to help with finding the answer. Each message
 may perform one function call. You will see the result of the function right
 after sending the message. If you need to perform multiple actions, you can
 always send more messages with subsequent function calls. Do some reasoning
@@ -206,13 +206,11 @@ def basic_agent(
                             # exit if we are at max_attempts
                             attempts += 1
                             if attempts >= max_attempts:
-                                state.completed = True
                                 break
 
                             # exit if the submission is successful
                             answer_scores = await score(state)
                             if score_value_fn(answer_scores[0].value) == 1.0:
-                                state.completed = True
                                 break
 
                             # otherwise notify the model that it was incorrect and continue

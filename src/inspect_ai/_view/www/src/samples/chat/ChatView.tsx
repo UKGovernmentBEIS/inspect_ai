@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { Messages } from "../../types/log";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { resolveMessages } from "./messages";
@@ -16,7 +17,7 @@ interface ChatViewProps {
 /**
  * Renders the ChatView component.
  */
-export const ChatView: React.FC<ChatViewProps> = ({
+export const ChatView: FC<ChatViewProps> = ({
   id,
   messages,
   toolCallStyle = "complete",

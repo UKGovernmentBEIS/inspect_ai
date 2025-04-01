@@ -20,7 +20,7 @@ website:
    bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
-   site-url: https://inspect.ai-safety-institute.org.uk/
+   site-url: https://inspect.aisi.org.uk/
    repo-actions: [issue]
    twitter-card:
       title: "Inspect"
@@ -35,7 +35,7 @@ website:
       title: "Inspect AI"
       background: light
       search: true
-      logo: images/aisi-logo.png
+      logo: images/aisi-logo.svg
       logo-href: https://www.aisi.gov.uk/     
       left:      
           - text: "User Guide"
@@ -70,6 +70,12 @@ website:
                - tools.qmd
                - scorers.qmd
 
+         - section: "Tools"
+           contents:
+               - tools.qmd
+               - tools-custom.qmd
+               - tools-standard.qmd
+
          - section: "Models"
            contents:
                - models.qmd
@@ -78,12 +84,15 @@ website:
                - caching.qmd
                - multimodal.qmd
                - reasoning.qmd
+               - structured.qmd
 
          - section: "Agents"
            contents:
                - agents.qmd
                - sandboxing.qmd
                - agents-api.qmd
+               - text: "Agent Protocol"
+                 href: agent-protocol.qmd
                - agent-bridge.qmd
                - human-agent.qmd
                - approval.qmd
@@ -102,7 +111,7 @@ website:
 
    page-footer: 
       left: 
-         - text: UK AI Safety Institute
+         - text: UK AI Security Institute
            href: https://aisi.gov.uk/
       center: 
          - text: Code
@@ -116,8 +125,8 @@ website:
        
       right:
          - icon: twitter
-           href: https://twitter.com/AISafetyInst
-           aria-label: UK AI Safety Institute Twitter
+           href: https://x.com/AISecurityInst
+           aria-label: UK AI Security Institute Twitter
          - icon: github
            href: https://github.com/UKGovernmentBEIS/inspect_ai/
            aria-label: Inspect on GitHub

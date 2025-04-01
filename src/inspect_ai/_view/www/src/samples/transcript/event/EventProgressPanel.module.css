@@ -1,0 +1,23 @@
+.panel {
+  display: flex;
+  justify-content: center;
+  padding-top: 1em;
+  padding-bottom: 1em;
+}
+
+.container {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.3em;
+}
+
+.spinner {
+  height: 15px;
+  width: 14px;
+  border-width: 2px;
+  color: var(--bs-secondary);
+}
+
+.text {
+  margin-top: -2px;
+}

@@ -1,7 +1,6 @@
 import hashlib
 import logging
-from copy import deepcopy
-from typing import Any, Callable, Literal, NamedTuple, Set, cast
+from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
 from pydantic_core import to_json
@@ -17,6 +16,8 @@ from typing_extensions import Unpack
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
+from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai.agent._agent import Agent
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
@@ -34,11 +35,14 @@ from inspect_ai.model import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
+from inspect_ai.util._display import display_type_initialized, init_display_type
 
-from .eval import eval, eval_init
-from .loader import ResolvedTask, resolve_task_args
-from .task import Epochs, Tasks
-from .task.task import PreviousTask, Task
+from .eval import eval, eval_init, eval_resolve_tasks
+from .loader import resolve_task_args
+from .task import Epochs
+from .task.resolved import ResolvedTask
+from .task.task import PreviousTask
+from .task.tasks import Tasks
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +60,15 @@ def eval_set(
     retry_wait: float | None = None,
     retry_connections: float | None = None,
     retry_cleanup: bool | None = None,
-    model: str | Model | list[str] | list[Model] | None = None,
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    solver: Solver | list[Solver] | SolverSpec | None = None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
@@ -79,6 +84,7 @@ def eval_set(
     message_limit: int | None = None,
     token_limit: int | None = None,
     time_limit: int | None = None,
+    working_limit: int | None = None,
     max_samples: int | None = None,
     max_tasks: int | None = None,
     max_subprocesses: int | None = None,
@@ -86,6 +92,7 @@ def eval_set(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | int | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -106,9 +113,9 @@ def eval_set(
             (defaults to 0.5)
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
-        model: Model(s) for
-            evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
-            environment variable.
+        model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
+            environment variable. Specify `None` to define no default model(s), which will
+            leave model usage entirely up to tasks.
         model_base_url: Base URL for communicating
             with the model API.
         model_args: Model creation args
@@ -122,6 +129,7 @@ def eval_set(
         solver: Alternative solver(s) for
             evaluating task(s). ptional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
+        metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
@@ -146,11 +154,14 @@ def eval_set(
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
-        time_limit: Limit on time (in seconds) for execution of each sample.
+        time_limit: Limit on clock time (in seconds) for samples.
+        working_limit: Limit on working time (in seconds) for sample. Working
+            time includes model generation, tool calls, etc. but does not include
+            time spent waiting on retries or shared resources.
         max_samples: Maximum number of samples to run in parallel
             (default is max_connections)
         max_tasks: Maximum number of tasks to run in parallel
-            (default is 1)
+            (defaults to number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -161,6 +172,9 @@ def eval_set(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Sync sample events to log directory so that users on other systems
+            can see log updates in realtime (defaults to no syncing). Specify `True`
+            to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         bundle_dir: If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite: Whether to overwrite files in the bundle_dir.
@@ -173,13 +187,11 @@ def eval_set(
     """
 
     # helper function to run a set of evals
-    def run_eval(
-        tasks: list[Task] | list[PreviousTask], models: list[Model]
-    ) -> list[EvalLog]:
+    def run_eval(tasks: list[ResolvedTask] | list[PreviousTask]) -> list[EvalLog]:
         # run evals
         results = eval(
             tasks=tasks,
-            model=models,
+            model=None,  # ResolvedTask/PreviousTask already carries its model
             model_base_url=model_base_url,
             model_args=model_args,
             task_args=task_args,
@@ -187,6 +199,7 @@ def eval_set(
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
             tags=tags,
+            metadata=metadata,
             trace=trace,
             display=display,
             approval=approval,
@@ -202,6 +215,7 @@ def eval_set(
             message_limit=message_limit,
             token_limit=token_limit,
             time_limit=time_limit,
+            working_limit=working_limit,
             max_samples=max_samples,
             max_tasks=max_tasks,
             max_subprocesses=max_subprocesses,
@@ -209,6 +223,7 @@ def eval_set(
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
+            log_shared=log_shared,
             score=score,
             **kwargs,
         )
@@ -226,58 +241,32 @@ def eval_set(
         # return results
         return results
 
-    # helper function to run a list of task groups
-    def run_task_groups(
-        task_groups: list[TaskGroup],
-        run_tasks: Callable[[list[ResolvedTask]], list[Task] | list[PreviousTask]],
-    ) -> list[EvalLog]:
-        logs: list[EvalLog] = []
-        for task_group in task_groups:
-            # alias
-            group_models, group_tasks = task_group
+    # initialise display (otherwise eval_init will set it to full)
+    if not display_type_initialized():
+        display = init_display_type(display)
+    if display == "conversation":
+        raise RuntimeError("eval_set cannot be used with conversation display.")
 
-            # info log
-            logger.info(
-                f"eval_set (running task group): {','.join([task.task.name for task in group_tasks])}: {group_models}"
-            )
-
-            # run the evals
-            logs.extend(
-                run_eval(
-                    tasks=run_tasks(group_tasks),
-                    models=group_models.models,
-                )
-            )
-
-        return logs
-
-    # resolve tasks
-    models, _, resolved_tasks = eval_init(
-        tasks=tasks,
+    # initialize eval
+    models, _ = eval_init(
         model=model,
         model_base_url=model_base_url,
         model_args=model_args,
-        task_args=task_args,
-        sandbox=sandbox,
         max_subprocesses=max_subprocesses,
         log_level=log_level,
         log_level_transcript=log_level_transcript,
         **kwargs,
     )
 
-    # ensure log_dir and list all logs
+    # ensure log_dir
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
-
-    # validate that:
-    #  (1) All tasks have a unique identifier
-    #  (2) All logs have identifiers that map to tasks
-    validate_eval_set_prerequisites(resolved_tasks, list_all_eval_logs(log_dir))
 
     # resolve some parameters
     retry_connections = retry_connections or 0.5
     retry_cleanup = retry_cleanup is not False
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
+    max_tasks = max_tasks if max_tasks is not None else len(models)
 
     # prepare console/status
     console = rich.get_console()
@@ -313,10 +302,20 @@ def eval_set(
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
+        # resolve tasks
+        resolved_tasks = eval_resolve_tasks(
+            tasks, task_args, models, GenerateConfig(**kwargs), sandbox
+        )
+
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)
+
+        # validate that:
+        #  (1) All tasks have a unique identifier
+        #  (2) All logs have identifiers that map to tasks
+        validate_eval_set_prerequisites(resolved_tasks, all_logs)
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
@@ -326,15 +325,11 @@ def eval_set(
         pending_tasks = [
             task[1] for task in all_tasks if task[0] not in log_task_identifiers
         ]
-        task_groups = schedule_pending_tasks(pending_tasks)
 
         # we have some pending tasks yet to run, run them
-        if len(task_groups) > 0:
+        if len(pending_tasks) > 0:
             # run the tasks
-            run_logs = run_task_groups(
-                task_groups=task_groups,
-                run_tasks=lambda tasks: [task.task for task in tasks],
-            )
+            run_logs = run_eval(pending_tasks)
 
             # if this was the entire list of resolved tasks, return results
             if len(pending_tasks) == len(all_tasks):
@@ -360,42 +355,10 @@ def eval_set(
                     for task in resolved_tasks
                     if task_identifier(task) in failed_task_identifiers
                 ]
-                task_groups = schedule_retry_tasks(failed_tasks)
 
-                # execute task groups (run previous task so we get the samples from the log)
-                def run_previous_tasks(tasks: list[ResolvedTask]) -> list[PreviousTask]:
-                    def task_to_failed_log(task: ResolvedTask) -> Log:
-                        resolved_task_identifier = task_identifier(task)
-                        return next(
-                            log
-                            for log in failed_logs
-                            if log.task_identifier == resolved_task_identifier
-                        )
-
-                    previous_tasks: list[PreviousTask] = []
-                    for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-                        # NOTE: we used to try to recreate registry objects by
-                        # by just passing the task name, but that didn't work
-                        # when evals were run from another directory. we may
-                        # want to bring this back but we'd need to resolve the
-                        # directory issues.
-
-                        # deepcopy so the same instance is not run twice
-                        prev_task = deepcopy(task.task)
-
-                        previous_tasks.append(
-                            PreviousTask(
-                                id=log.header.eval.task_id,
-                                task=prev_task,
-                                task_args=resolve_task_args(task.task),
-                                log=read_eval_log(log.info),
-                            )
-                        )
-
-                    return previous_tasks
-
-                retried_logs = run_task_groups(
-                    task_groups=task_groups, run_tasks=run_previous_tasks
+                # run previous tasks (no models passed b/c previous task already carries its model)
+                retried_logs = run_eval(
+                    tasks=as_previous_tasks(failed_tasks, failed_logs)
                 )
 
                 # return success
@@ -436,6 +399,39 @@ def eval_set(
 
     # return status + results
     return success, results
+
+
+# convert resolved tasks to previous tasks
+def as_previous_tasks(
+    tasks: list[ResolvedTask], failed_logs: list[Log]
+) -> list[PreviousTask]:
+    def task_to_failed_log(task: ResolvedTask) -> Log:
+        resolved_task_identifier = task_identifier(task)
+        return next(
+            log
+            for log in failed_logs
+            if log.task_identifier == resolved_task_identifier
+        )
+
+    previous_tasks: list[PreviousTask] = []
+    for task, log in zip(tasks, map(task_to_failed_log, tasks)):
+        # NOTE: we used to try to recreate registry objects by
+        # by just passing the task name, but that didn't work
+        # when evals were run from another directory. we may
+        # want to bring this back but we'd need to resolve the
+        # directory issues.
+
+        previous_tasks.append(
+            PreviousTask(
+                id=log.header.eval.task_id,
+                task=task.task,
+                task_args=resolve_task_args(task.task),
+                model=task.model,
+                log=read_eval_log(log.info),
+            )
+        )
+
+    return previous_tasks
 
 
 # filters to determine when we are done
@@ -569,7 +565,7 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
         task_args = task.eval.task_args
-        model = task.eval.model
+        model = str(task.eval.model)
 
     # hash for task args
     task_args_hash = hashlib.sha256(
@@ -610,80 +606,6 @@ class ModelList:
         model_names = [str(model) for model in self.models]
         model_names.sort()
         return ",".join(model_names)
-
-
-class TaskGroup(NamedTuple):
-    models: ModelList
-    tasks: list[ResolvedTask]
-
-
-# group into models => tasks for maximum parallelism
-def schedule_pending_tasks(pending_tasks: list[ResolvedTask]) -> list[TaskGroup]:
-    # build a map of task identifiers and the models they target
-    task_id_model_targets: dict[str, ModelList] = {}
-    for pending_task in pending_tasks:
-        task_id = task_identifier_without_model(task_identifier(pending_task))
-        if task_id not in task_id_model_targets:
-            task_id_model_targets[task_id] = ModelList([])
-        if pending_task.model not in task_id_model_targets[task_id].models:
-            task_id_model_targets[task_id].models.append(pending_task.model)
-
-    # build a list of unique model targets
-    unique_model_targets: Set[ModelList] = set(task_id_model_targets.values())
-
-    # create schedule
-    schedule: list[TaskGroup] = [
-        TaskGroup(models=model_target, tasks=[])
-        for model_target in unique_model_targets
-    ]
-
-    for models, tasks in schedule:
-        # which task ids have this set of models
-        task_ids: list[str] = []
-        for task_id, task_models in task_id_model_targets.items():
-            if task_models == models:
-                task_ids.append(task_id)
-
-        # find a task for each of these ids
-        for task_id in task_ids:
-            tasks.append(
-                next(
-                    (
-                        task
-                        for task in pending_tasks
-                        if task_id
-                        == task_identifier_without_model(task_identifier(task))
-                    )
-                )
-            )
-
-    # deterministic return order
-    schedule.sort(key=lambda x: str(x[0]))
-
-    return schedule
-
-
-# group into model => tasks (can't do multiple models b/c these are PreviousTask
-# instances (and therefore model/task pair specific -- we don't want to create
-# multiple instances of these tasks)
-def schedule_retry_tasks(retry_tasks: list[ResolvedTask]) -> list[TaskGroup]:
-    # build a list of unique model targets
-    unique_model_targets: Set[ModelList] = set()
-    for retry_task in retry_tasks:
-        unique_model_targets.add(ModelList([retry_task.model]))
-
-    # create a task group for reach model target
-    schedule: list[TaskGroup] = []
-    for model_target in unique_model_targets:
-        group_tasks = [
-            task for task in retry_tasks if ModelList([task.model]) == model_target
-        ]
-        schedule.append(TaskGroup(model_target, group_tasks))
-
-    # deterministic return order
-    schedule.sort(key=lambda x: str(x[0]))
-
-    return schedule
 
 
 def starting_max_connections(models: list[Model], config: GenerateConfig) -> int:

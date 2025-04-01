@@ -7,6 +7,7 @@ from httpcore import ReadTimeout
 from httpx import ReadTimeout as AsyncReadTimeout
 from mistralai import (
     ContentChunk,
+    DocumentURLChunk,
     FunctionCall,
     FunctionName,
     ImageURL,
@@ -22,6 +23,12 @@ from mistralai.models import (
     ChatCompletionChoice as MistralChatCompletionChoice,
 )
 from mistralai.models import Function as MistralFunction
+from mistralai.models import (
+    JSONSchema as MistralJSONSchema,
+)
+from mistralai.models import (
+    ResponseFormat as MistralResponseFormat,
+)
 from mistralai.models import SDKError
 from mistralai.models import SystemMessage as MistralSystemMessage
 from mistralai.models import Tool as MistralTool
@@ -38,11 +45,9 @@ from typing_extensions import override
 
 # TODO: Migration guide:
 # https://github.com/mistralai/client-python/blob/main/MIGRATION.md
-from inspect_ai._util.constants import (
-    DEFAULT_TIMEOUT,
-    NO_CONTENT,
-)
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -61,6 +66,7 @@ from .._model_output import (
     StopReason,
 )
 from .util import environment_prerequisite_error, model_base_url
+from .util.hooks import HttpxHooks
 
 AZURE_MISTRAL_API_KEY = "AZURE_MISTRAL_API_KEY"
 AZUREAI_MISTRAL_API_KEY = "AZUREAI_MISTRAL_API_KEY"
@@ -76,6 +82,14 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            self.service: str | None = parts[0]
+            model_name = "/".join(parts[1:])
+        else:
+            self.service = None
+
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -88,35 +102,43 @@ class MistralAPI(ModelAPI):
             config=config,
         )
 
-        # resolve api_key -- look for mistral then azure
+        # resolve api_key
         if not self.api_key:
-            self.api_key = os.environ.get(MISTRAL_API_KEY, None)
-            if self.api_key:
-                base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
-            else:
+            if self.is_azure():
                 self.api_key = os.environ.get(
                     AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
                 )
-                if not self.api_key:
-                    raise environment_prerequisite_error(
-                        "Mistral", [MISTRAL_API_KEY, AZUREAI_MISTRAL_API_KEY]
-                    )
-                base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
-                if not base_url:
+            else:
+                self.api_key = os.environ.get(MISTRAL_API_KEY, None)
+
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "Mistral", [MISTRAL_API_KEY, AZUREAI_MISTRAL_API_KEY]
+                )
+
+        if not self.base_url:
+            if self.is_azure():
+                self.base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
+                if not self.base_url:
                     raise ValueError(
                         "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
                         + " environment variable or the --model-base-url CLI flag to set the base URL."
                     )
+            else:
+                self.base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
 
-        if base_url:
-            model_args["server_url"] = base_url
+        if self.base_url:
+            model_args["server_url"] = self.base_url
 
-        # create client
-        self.client = Mistral(
-            api_key=self.api_key,
-            timeout_ms=(config.timeout if config.timeout else DEFAULT_TIMEOUT) * 1000,
-            **model_args,
-        )
+        self.model_args = model_args
+
+    def is_azure(self) -> bool:
+        return self.service == "azure"
+
+    @override
+    async def close(self) -> None:
+        # client is created and destroyed in generate
+        pass
 
     async def generate(
         self,
@@ -125,59 +147,100 @@ class MistralAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # build request
-        request: dict[str, Any] = dict(
-            model=self.model_name,
-            messages=await mistral_chat_messages(input),
-            tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
-            tool_choice=(
-                mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
-            ),
-        )
-        if config.temperature is not None:
-            request["temperature"] = config.temperature
-        if config.top_p is not None:
-            request["top_p"] = config.top_p
-        if config.max_tokens is not None:
-            request["max_tokens"] = config.max_tokens
-        if config.seed is not None:
-            request["random_seed"] = config.seed
+        # create client
+        with Mistral(api_key=self.api_key, **self.model_args) as client:
+            # create time tracker
+            http_hooks = HttpxHooks(client.sdk_configuration.async_client)
 
-        # send request
-        try:
-            response = await self.client.chat.complete_async(**request)
-        except SDKError as ex:
-            if ex.status_code == 400:
-                return self.handle_bad_request(ex), mistral_model_call(request, None)
-            else:
-                raise ex
-
-        if response is None:
-            raise RuntimeError("Mistral model did not return a response from generate.")
-
-        # return model output (w/ tool calls if they exist)
-        choices = completion_choices_from_response(response, tools)
-        return ModelOutput(
-            model=response.model,
-            choices=choices,
-            usage=ModelUsage(
-                input_tokens=response.usage.prompt_tokens,
-                output_tokens=(
-                    response.usage.completion_tokens
-                    if response.usage.completion_tokens
-                    else response.usage.total_tokens - response.usage.prompt_tokens
+            # build request
+            request_id = http_hooks.start_request()
+            request: dict[str, Any] = dict(
+                model=self.model_name,
+                messages=await mistral_chat_messages(input),
+                tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
+                tool_choice=(
+                    mistral_chat_tool_choice(tool_choice) if len(tools) > 0 else None
                 ),
-                total_tokens=response.usage.total_tokens,
-            ),
-        ), mistral_model_call(request, response)
+                http_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+            )
+            if config.temperature is not None:
+                request["temperature"] = config.temperature
+            if config.top_p is not None:
+                request["top_p"] = config.top_p
+            if config.max_tokens is not None:
+                request["max_tokens"] = config.max_tokens
+            if config.seed is not None:
+                request["random_seed"] = config.seed
+            if config.response_schema is not None:
+                request["response_format"] = MistralResponseFormat(
+                    type="json_schema",
+                    json_schema=MistralJSONSchema(
+                        name=config.response_schema.name,
+                        description=config.response_schema.description,
+                        schema_definition=config.response_schema.json_schema.model_dump(
+                            exclude_none=True
+                        ),
+                        strict=config.response_schema.strict,
+                    ),
+                )
+
+            # prepare response for inclusion in model call
+            response: dict[str, Any] = {}
+
+            def model_call() -> ModelCall:
+                req = request.copy()
+                req.update(
+                    messages=[message.model_dump() for message in req["messages"]]
+                )
+                if req.get("tools", None) is not None:
+                    req["tools"] = [tool.model_dump() for tool in req["tools"]]
+
+                return ModelCall.create(
+                    request=req,
+                    response=response,
+                    time=http_hooks.end_request(request_id),
+                )
+
+            # send request
+            try:
+                completion = await client.chat.complete_async(**request)
+                response = completion.model_dump()
+            except SDKError as ex:
+                if ex.status_code == 400:
+                    return self.handle_bad_request(ex), model_call()
+                else:
+                    raise ex
+
+            if completion is None:
+                raise RuntimeError(
+                    "Mistral model did not return a response from generate."
+                )
+
+            # return model output (w/ tool calls if they exist)
+            choices = completion_choices_from_response(completion, tools)
+            return ModelOutput(
+                model=completion.model,
+                choices=choices,
+                usage=ModelUsage(
+                    input_tokens=completion.usage.prompt_tokens,
+                    output_tokens=(
+                        completion.usage.completion_tokens
+                        if completion.usage.completion_tokens
+                        else completion.usage.total_tokens
+                        - completion.usage.prompt_tokens
+                    ),
+                    total_tokens=completion.usage.total_tokens,
+                ),
+            ), model_call()
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return (
-            isinstance(ex, SDKError)
-            and ex.status_code == 429
-            or isinstance(ex, ReadTimeout | AsyncReadTimeout)
-        )
+    def should_retry(self, ex: Exception) -> bool:
+        if isinstance(ex, SDKError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, ReadTimeout | AsyncReadTimeout):
+            return True
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
@@ -201,7 +264,7 @@ def mistral_model_call(
     request.update(messages=[message.model_dump() for message in request["messages"]])
     if request.get("tools", None) is not None:
         request["tools"] = [tool.model_dump() for tool in request["tools"]]
-    return ModelCall(
+    return ModelCall.create(
         request=request, response=response.model_dump() if response else {}
     )
 
@@ -220,10 +283,9 @@ def mistral_function(tool: ToolInfo) -> MistralFunction:
     return MistralFunction(
         name=tool.name,
         description=tool.description,
-        parameters={
-            k: v.model_dump(exclude={"additionalProperties"}, exclude_none=True)
-            for k, v in tool.parameters.properties.items()
-        },
+        parameters=tool.parameters.model_dump(
+            exclude={"additionalProperties"}, exclude_none=True
+        ),
     )
 
 
@@ -392,7 +454,7 @@ def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCal
 
 
 def completion_choice(
-    choice: MistralChatCompletionChoice, tools: list[ToolInfo]
+    model: str, choice: MistralChatCompletionChoice, tools: list[ToolInfo]
 ) -> ChatCompletionChoice:
     message = choice.message
     if message:
@@ -403,6 +465,7 @@ def completion_choice(
                 tool_calls=chat_tool_calls(message.tool_calls, tools)
                 if message.tool_calls
                 else None,
+                model=model,
                 source="generate",
             ),
             stop_reason=(
@@ -429,6 +492,8 @@ def completion_content_chunk(content: ContentChunk) -> Content:
         raise TypeError("ReferenceChunk content is not supported by Inspect.")
     elif isinstance(content, TextChunk):
         return ContentText(text=content.text)
+    elif isinstance(content, DocumentURLChunk):
+        return ContentText(text=content.document_url)
     else:
         if isinstance(content.image_url, str):
             return ContentImage(image=content.image_url)
@@ -447,7 +512,10 @@ def completion_choices_from_response(
     if response.choices is None:
         return []
     else:
-        return [completion_choice(choice, tools) for choice in response.choices]
+        return [
+            completion_choice(response.model, choice, tools)
+            for choice in response.choices
+        ]
 
 
 def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:

@@ -10,20 +10,18 @@ import {
 } from "../../../types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "../event/EventPanel";
-import { TranscriptEventState } from "../types";
 import { StateDiffView } from "./StateDiffView";
 import {
   RenderableChangeTypes,
   StoreSpecificRenderableTypes,
 } from "./StateEventRenderers";
 
+import { FC, useMemo } from "react";
 import styles from "./StateEventView.module.css";
 
 interface StateEventViewProps {
   id: string;
   event: StateEvent | StoreEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   isStore?: boolean;
   className?: string | string[];
 }
@@ -31,27 +29,35 @@ interface StateEventViewProps {
 /**
  * Renders the StateEventView component.
  */
-export const StateEventView: React.FC<StateEventViewProps> = ({
+export const StateEventView: FC<StateEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   isStore = false,
   className,
 }) => {
-  const summary = summarizeChanges(event.changes);
+  const summary = useMemo(() => {
+    return summarizeChanges(event.changes);
+  }, [event.changes]);
 
   // Synthesize objects for comparison
-  const [before, after] = synthesizeComparable(event.changes);
+  const [before, after] = useMemo(() => {
+    try {
+      return synthesizeComparable(event.changes);
+    } catch (e) {
+      console.error(
+        "Unable to synthesize comparable object to display state diffs.",
+        e,
+      );
+      return [{}, {}];
+    }
+  }, [event.changes]);
 
   // This clone is important since the state is used by react as potential values that are rendered
   // and as a result may be decorated with additional properties, etc..., resulting in DOM elements
   // appearing attached to state.
-  const changePreview = generatePreview(
-    event.changes,
-    structuredClone(after),
-    isStore,
-  );
+  const changePreview = useMemo(() => {
+    return generatePreview(event.changes, structuredClone(after), isStore);
+  }, [event.changes, after, isStore]);
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
 
@@ -63,14 +69,6 @@ export const StateEventView: React.FC<StateEventViewProps> = ({
       subTitle={formatDateTime(new Date(event.timestamp))}
       text={!changePreview ? summary : undefined}
       collapse={changePreview === undefined ? true : undefined}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       {changePreview ? (
         <div data-name="Summary" className={clsx(styles.summary)}>
@@ -100,59 +98,71 @@ const generatePreview = (
     ...RenderableChangeTypes,
     ...(isStore ? StoreSpecificRenderableTypes : []),
   ]) {
-    // Note that we currently only have renderers that depend upon
-    // add, remove, replace, but we should likely add
-    // move, copy, test
-    const requiredMatchCount =
-      changeType.signature.remove.length +
-      changeType.signature.replace.length +
-      changeType.signature.add.length;
-    let matchingOps = 0;
-    for (const change of changes) {
-      const op = change.op;
-      switch (op) {
-        case "add":
-          if (changeType.signature.add && changeType.signature.add.length > 0) {
-            changeType.signature.add.forEach((signature) => {
-              if (change.path.match(signature)) {
-                matchingOps++;
-              }
-            });
-          }
-          break;
-        case "remove":
-          if (
-            changeType.signature.remove &&
-            changeType.signature.remove.length > 0
-          ) {
-            changeType.signature.remove.forEach((signature) => {
-              if (change.path.match(signature)) {
-                matchingOps++;
-              }
-            });
-          }
-          break;
-        case "replace":
-          if (
-            changeType.signature.replace &&
-            changeType.signature.replace.length > 0
-          ) {
-            changeType.signature.replace.forEach((signature) => {
-              if (change.path.match(signature)) {
-                matchingOps++;
-              }
-            });
-          }
-          break;
+    if (changeType.signature) {
+      // Note that we currently only have renderers that depend upon
+      // add, remove, replace, but we should likely add
+      // move, copy, test
+      const requiredMatchCount =
+        changeType.signature.remove.length +
+        changeType.signature.replace.length +
+        changeType.signature.add.length;
+      let matchingOps = 0;
+      for (const change of changes) {
+        const op = change.op;
+        switch (op) {
+          case "add":
+            if (
+              changeType.signature.add &&
+              changeType.signature.add.length > 0
+            ) {
+              changeType.signature.add.forEach((signature) => {
+                if (change.path.match(signature)) {
+                  matchingOps++;
+                }
+              });
+            }
+            break;
+          case "remove":
+            if (
+              changeType.signature.remove &&
+              changeType.signature.remove.length > 0
+            ) {
+              changeType.signature.remove.forEach((signature) => {
+                if (change.path.match(signature)) {
+                  matchingOps++;
+                }
+              });
+            }
+            break;
+          case "replace":
+            if (
+              changeType.signature.replace &&
+              changeType.signature.replace.length > 0
+            ) {
+              changeType.signature.replace.forEach((signature) => {
+                if (change.path.match(signature)) {
+                  matchingOps++;
+                }
+              });
+            }
+            break;
+        }
       }
-    }
-    if (matchingOps === requiredMatchCount) {
-      const el = changeType.render(changes, resolvedState);
-      results.push(el);
-      // Only one renderer can process a change
-      // TODO: consider changing this to allow many handlers to render (though then we sort of need
-      // to match the renderer to the key (e.g. a rendered for `tool_choice` a renderer for `tools` etc..))
-      break;
+      if (matchingOps === requiredMatchCount) {
+        const el = changeType.render(changes, resolvedState);
+        results.push(el);
+        // Only one renderer can process a change
+        // TODO: consider changing this to allow many handlers to render (though then we sort of need
+        // to match the renderer to the key (e.g. a rendered for `tool_choice` a renderer for `tools` etc..))
+        break;
+      }
+    } else if (changeType.match) {
+      const matches = changeType.match(changes);
+      if (matches) {
+        const el = changeType.render(changes, resolvedState);
+        results.push(el);
+        break;
+      }
     }
   }
   return results.length > 0 ? results : undefined;
@@ -243,6 +253,10 @@ const synthesizeComparable = (changes: Changes) => {
         setPath(before, change.path, change.value);
         break;
       case "replace":
+        // 'Fill in' arrays with empty strings to ensure there is no unnecessary diff
+        initializeArrays(before, change.path);
+        initializeArrays(after, change.path);
+
         setPath(before, change.path, change.replaced);
         setPath(after, change.path, change.value);
         break;
@@ -262,20 +276,43 @@ function setPath(
   value: unknown,
 ): void {
   const keys = parsePath(path);
-  let current: Record<string, unknown> = target;
+  let current: Record<string, unknown> | unknown[] = target;
 
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i];
-    if (!(key in current)) {
-      // If the next key is a number, create an array, otherwise an object
-      current[key] = isArrayIndex(keys[i + 1]) ? [] : {};
+
+    if (Array.isArray(current)) {
+      const numericIndex = getIndex(key);
+      current[numericIndex] = isArrayIndex(keys[i + 1]) ? [] : {};
+      current = current[numericIndex] as
+        | Record<string, unknown>
+        | Array<unknown>;
+    } else {
+      if (!(key in current)) {
+        // If the next key is a number, create an array, otherwise an object
+        current[key] = isArrayIndex(keys[i + 1]) ? [] : {};
+      }
+      current = current[key] as Record<string, unknown> | Array<unknown>;
     }
-    current = current[key] as Record<string, unknown>;
   }
 
   const lastKey = keys[keys.length - 1];
-  current[lastKey] = value;
+  if (Array.isArray(current)) {
+    const numericIndex = getIndex(lastKey);
+    current[numericIndex] = value;
+  } else {
+    current[lastKey] = value;
+  }
 }
+
+const getIndex = (key: string): number => {
+  const numericIndex = isArrayIndex(key) ? parseInt(key) : undefined;
+  if (numericIndex === undefined) {
+    throw new Error(`The key ${key} isn't a valid Array index!`);
+  }
+
+  return numericIndex;
+};
 
 /**
  * Places structure in an object (without placing values)

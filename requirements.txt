@@ -1,10 +1,11 @@
 aiohttp>=3.9.0
-anyio>=4.4.0 # not directly required, pinned by Snyk to avoid a vulnerability
+anyio>=4.8.0
 beautifulsoup4
 click>=8.1.3
 debugpy
 docstring-parser>=0.16
-fsspec>=2021.09.0
+exceptiongroup>=1.0.2; python_version < '3.11'
+fsspec>=2023.1.0,<=2024.12.0 # align with hf datasets to prevent pip errors
 httpx
 ijson>=3.2.0
 jsonlines>=3.0.0
@@ -18,10 +19,11 @@ psutil
 pydantic>=2
 python-dotenv>=0.16.0
 pyyaml
-rich>=13.3.3
+rich>=13.3.3,<14.0.0 # https://github.com/Textualize/rich/issues/3682
 s3fs>=2023
 semver>=3.0.0
 shortuuid
+sniffio
 tenacity
 textual>=0.86.2
 typing_extensions>=4.9.0

@@ -69,6 +69,23 @@ As with the `inspect trace dump` command, you can apply a filter when listing an
 inspect trace anomalies --filter model
 ```
 
+## HTTP Requests
+
+You can view all of the HTTP requests for the current (or most recent) evaluation run using the `inspect trace http` command. For example:
+
+``` bash
+inspect trace http           # show all http requests
+inspect trace http --failed  # show only failed requests
+```
+
+The `--filter` parameter also works here, for example:
+
+```bash
+inspect trace http --failed --filter bedrock
+```
+
+
+
 ## Tracing API {#tracing-api}
 
 In addition to the standard set of actions which are trace logged, you can do your own custom trace logging using the `trace_action()` and `trace_message()` APIs. Trace logging is a great way to make sure that logging context is *always captured* (since the last 10 trace logs are always available) without cluttering up the console or eval transcripts.

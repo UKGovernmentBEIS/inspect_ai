@@ -7,10 +7,12 @@ from test_helpers.utils import (
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_vertex,
+    skip_if_trio,
 )
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import json_dataset
+from inspect_ai.model._model import get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, system_message
 
@@ -35,6 +37,7 @@ def check_images(model):
 
 
 @skip_if_no_google
+@skip_if_trio
 def test_google_images():
     check_images("google/gemini-1.5-flash")
 
@@ -42,6 +45,11 @@ def test_google_images():
 @skip_if_no_openai
 def test_openai_images():
     check_images("openai/gpt-4o")
+
+
+@skip_if_no_openai
+def test_openai_responses_images():
+    check_images(get_model("openai/gpt-4o", responses_api=True))
 
 
 @skip_if_no_vertex

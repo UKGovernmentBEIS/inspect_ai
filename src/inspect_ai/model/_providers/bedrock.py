@@ -1,16 +1,14 @@
 import base64
+from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_TIMEOUT,
-)
+from inspect_ai._util._async import current_async_backend
+from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.error import pip_dependency_error
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.tool import ToolChoice, ToolInfo
@@ -31,6 +29,9 @@ from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
 )
+from .util.hooks import ConverseHooks
+
+logger = getLogger(__name__)
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -244,6 +245,12 @@ class BedrockAPI(ModelAPI):
             config=config,
         )
 
+        # raise if we are using trio
+        if current_async_backend() == "trio":
+            raise PrerequisiteError(
+                "ERROR: The bedrock provider does not work with the trio async backend."
+            )
+
         # save model_args
         self.model_args = model_args
 
@@ -256,8 +263,16 @@ class BedrockAPI(ModelAPI):
             # Create a shared session to be used when generating
             self.session = aioboto3.Session()
 
+            # create time tracker
+            self._http_hooks = ConverseHooks(self.session)
+
         except ImportError:
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
+
+    @override
+    async def close(self) -> None:
+        # client is created/destroyed each time in generate()
+        pass
 
     @override
     def connection_key(self) -> str:
@@ -279,15 +294,25 @@ class BedrockAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         from botocore.exceptions import ClientError
 
         # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
-            if ex.response["Error"]["Code"] == "ThrottlingException":
-                return True
-
-        return super().is_rate_limit(ex)
+            error_code = ex.response.get("Error", {}).get("Code", "")
+            return error_code in [
+                "ThrottlingException",
+                "RequestLimitExceeded",
+                "Throttling",
+                "RequestThrottled",
+                "TooManyRequestsException",
+                "ProvisionedThroughputExceededException",
+                "TransactionInProgressException",
+                "RequestTimeout",
+                "ServiceUnavailable",
+            ]
+        else:
+            return False
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -308,18 +333,13 @@ class BedrockAPI(ModelAPI):
         from botocore.exceptions import ClientError
 
         # The bedrock client
+        request_id = self._http_hooks.start_request()
         async with self.session.client(  # type: ignore[call-overload]
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
-                connect_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                read_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                retries=dict(
-                    max_attempts=config.max_retries
-                    if config.max_retries
-                    else DEFAULT_MAX_RETRIES,
-                    mode="adaptive",
-                ),
+                retries=dict(mode="adaptive"),
+                user_agent_extra=self._http_hooks.user_agent_extra(request_id),
             ),
             **self.model_args,
         ) as client:
@@ -359,6 +379,7 @@ class BedrockAPI(ModelAPI):
                         request.model_dump(exclude_none=True)
                     ),
                     response=response,
+                    time=self._http_hooks.end_request(request_id),
                 )
 
             try:
@@ -444,7 +465,7 @@ def model_output_from_response(
     # resolve choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=content, tool_calls=tool_calls, source="generate"
+            content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
         stop_reason=message_stop_reason(response.stopReason),
     )

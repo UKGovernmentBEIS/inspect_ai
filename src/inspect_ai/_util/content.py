@@ -12,6 +12,28 @@ class ContentText(BaseModel):
     text: str
     """Text content."""
 
+    refusal: bool | None = Field(default=None)
+    """Was this a refusal message?"""
+
+
+class ContentReasoning(BaseModel):
+    """Reasoning content.
+
+    See the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.
+    """
+
+    type: Literal["reasoning"] = Field(default="reasoning")
+    """Type."""
+
+    reasoning: str
+    """Reasoning content."""
+
+    signature: str | None = Field(default=None)
+    """Signature for reasoning content (used by some models to ensure that reasoning content is not modified for replay)"""
+
+    redacted: bool = Field(default=False)
+    """Indicates that the explicit content of this reasoning block has been redacted."""
+
 
 class ContentImage(BaseModel):
     """Image content."""
@@ -55,5 +77,5 @@ class ContentVideo(BaseModel):
     """Format of video data ('mp4', 'mpeg', or 'mov')"""
 
 
-Content = Union[ContentText, ContentImage, ContentAudio, ContentVideo]
+Content = Union[ContentText, ContentReasoning, ContentImage, ContentAudio, ContentVideo]
 """Content sent to or received from a model."""

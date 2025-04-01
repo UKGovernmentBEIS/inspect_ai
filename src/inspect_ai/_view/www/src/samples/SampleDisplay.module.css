@@ -9,7 +9,7 @@
 .metadataPanel {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 1em;
   padding-left: 0;
   margin-top: 0.5em;
@@ -26,4 +26,16 @@
 
 .noTop {
   margin-top: 0;
+}
+
+.timePanel {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  grid-template-rows: auto;
+  column-gap: 0.5em;
+  min-width: 200px;
+}
+
+.chat {
+  padding-top: 1em;
 }

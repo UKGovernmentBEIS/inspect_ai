@@ -8,7 +8,7 @@ from inspect_ai.model import (
 )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_github_action
 @skip_if_no_vllm
 async def test_vllm_api() -> None:

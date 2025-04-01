@@ -1,23 +1,31 @@
 import { clsx } from "clsx";
 
+import { FC, useCallback } from "react";
 import { ApplicationIcons } from "../appearance/icons";
+import { useMessageVisibility } from "../state/hooks";
 import "./MessageBand.css";
 
 interface MessageBandProps {
+  id: string;
   message: string;
-  hidden: boolean;
-  setHidden: (hidden: boolean) => void;
+  scope?: "sample" | "eval";
   type: "info" | "warning" | "error";
 }
 
-export const MessageBand: React.FC<MessageBandProps> = ({
+export const MessageBand: FC<MessageBandProps> = ({
+  id,
   message,
-  hidden,
-  setHidden,
   type,
+  scope = "eval",
 }) => {
   const className: string[] = [type];
-  if (hidden) {
+
+  const [visible, setVisible] = useMessageVisibility(id, scope);
+  const handleClick = useCallback(() => {
+    setVisible(false);
+  }, [setVisible]);
+
+  if (!visible) {
     className.push("hidden");
   }
 
@@ -28,9 +36,7 @@ export const MessageBand: React.FC<MessageBandProps> = ({
       <button
         className={clsx("btn", "message-band-btn", type)}
         title="Close"
-        onClick={() => {
-          setHidden(true);
-        }}
+        onClick={handleClick}
       >
         <i className={ApplicationIcons.close}></i>
       </button>

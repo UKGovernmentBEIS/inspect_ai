@@ -7,6 +7,8 @@ import { ScorerDetailView } from "./ScorerDetailView";
 import { SolversDetailView } from "./SolverDetailView";
 
 import clsx from "clsx";
+import { FC, ReactNode } from "react";
+import { kModelNone } from "../constants";
 import styles from "./PlanDetailView.module.css";
 
 interface PlanDetailViewProps {
@@ -15,7 +17,7 @@ interface PlanDetailViewProps {
   scores?: EvalScore[];
 }
 
-export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
+export const PlanDetailView: FC<PlanDetailViewProps> = ({
   evaluation,
   plan,
   scores,
@@ -70,7 +72,7 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
     taskInformation["Tags"] = evaluation.tags.join(", ");
   }
 
-  if (evaluation?.model) {
+  if (evaluation?.model && evaluation.model !== kModelNone) {
     config["model"] = evaluation.model;
   }
 
@@ -79,16 +81,21 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
   }
 
   if (evaluation?.sandbox) {
-    config["sandbox"] = evaluation.sandbox[0];
-    if (evaluation.sandbox[1]) {
-      config["sandbox_config"] = evaluation.sandbox[1];
+    if (Array.isArray(evaluation?.sandbox)) {
+      config["sandbox"] = evaluation.sandbox[0];
+      if (evaluation.sandbox[1]) {
+        config["sandbox_config"] = evaluation.sandbox[1];
+      }
+    } else {
+      config["sandbox"] = evaluation?.sandbox.type;
+      config["sandbox_config"] = evaluation?.sandbox.config;
     }
   }
 
   const taskColumns: {
     title: string;
     className: string | string[];
-    contents: React.ReactNode;
+    contents: ReactNode;
   }[] = [];
   taskColumns.push({
     title: "Dataset",
@@ -145,7 +152,7 @@ export const PlanDetailView: React.FC<PlanDetailViewProps> = ({
   const metadataColumns: {
     title: string;
     className: string;
-    contents: React.ReactNode;
+    contents: ReactNode;
   }[] = [];
   const cols = colCount(
     metadataColumns,
@@ -297,14 +304,10 @@ const colCount = (...other: unknown[]) => {
 interface PlanColumnProps {
   title: string;
   className: string | string[];
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
-const PlanColumn: React.FC<PlanColumnProps> = ({
-  title,
-  className,
-  children,
-}) => {
+const PlanColumn: FC<PlanColumnProps> = ({ title, className, children }) => {
   return (
     <div className={clsx(className)}>
       <div

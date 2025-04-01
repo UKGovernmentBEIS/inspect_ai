@@ -3,7 +3,7 @@ import "prismjs/components/prism-json";
 import "prismjs/components/prism-python";
 
 import clsx from "clsx";
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { FC, Fragment, useMemo } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../metadata/MetaDataGrid";
 import {
@@ -14,48 +14,32 @@ import {
   Tools1,
 } from "../../types/log";
 import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
-import {
-  formatDateTime,
-  formatNumber,
-  formatPrettyDecimal,
-} from "../../utils/format";
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
-import { TranscriptEventState } from "./types";
 
-import { highlightElement } from "prismjs";
+import { PulsingDots } from "../../components/PulsingDots";
+import { usePrismHighlight } from "../../state/hooks";
 import styles from "./ModelEventView.module.css";
+import { EventTimingPanel } from "./event/EventTimingPanel";
+import { formatTiming, formatTitle } from "./event/utils";
 
 interface ModelEventViewProps {
   id: string;
   event: ModelEvent;
-  eventState: TranscriptEventState;
-  setEventState: (state: TranscriptEventState) => void;
   className?: string | string[];
 }
 
 /**
  * Renders the StateEventView component.
  */
-export const ModelEventView: React.FC<ModelEventViewProps> = ({
+export const ModelEventView: FC<ModelEventViewProps> = ({
   id,
   event,
-  eventState,
-  setEventState,
   className,
 }) => {
   const totalUsage = event.output.usage?.total_tokens;
   const callTime = event.output.time;
-
-  const subItems = [];
-  if (totalUsage) {
-    subItems.push(`${formatNumber(totalUsage)} tokens`);
-  }
-  if (callTime) {
-    subItems.push(`${formatPrettyDecimal(callTime)} sec`);
-  }
-  const subtitle = subItems.length > 0 ? `(${subItems.join(", ")})` : "";
 
   // Note: despite the type system saying otherwise, this has appeared empircally
   // to sometimes be undefined
@@ -83,17 +67,9 @@ export const ModelEventView: React.FC<ModelEventViewProps> = ({
     <EventPanel
       id={id}
       className={className}
-      title={`Model Call: ${event.model} ${subtitle}`}
-      subTitle={formatDateTime(new Date(event.timestamp))}
+      title={formatTitle(`Model Call: ${event.model}`, totalUsage, callTime)}
+      subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
-      selectedNav={eventState.selectedNav || ""}
-      setSelectedNav={(selectedNav) => {
-        setEventState({ ...eventState, selectedNav });
-      }}
-      collapsed={eventState.collapsed}
-      setCollapsed={(collapsed) => {
-        setEventState({ ...eventState, collapsed });
-      }}
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView
@@ -103,6 +79,11 @@ export const ModelEventView: React.FC<ModelEventViewProps> = ({
           numbered={false}
           toolCallStyle="compact"
         />
+        {event.pending ? (
+          <div className={clsx(styles.progress)}>
+            <PulsingDots subtle={false} size="medium" />
+          </div>
+        ) : undefined}
       </div>
       <div data-name="All" className={styles.container}>
         <div className={styles.all}>
@@ -114,6 +95,15 @@ export const ModelEventView: React.FC<ModelEventViewProps> = ({
             {event.output.usage !== null ? (
               <ModelUsagePanel usage={event.output.usage} />
             ) : undefined}
+          </EventSection>
+
+          <EventSection title="Timing" className={styles.tableSelection}>
+            <EventTimingPanel
+              timestamp={event.timestamp}
+              completed={event.completed}
+              working_start={event.working_start}
+              working_time={event.working_time}
+            />
           </EventSection>
 
           <EventSection
@@ -150,7 +140,7 @@ interface APIViewProps {
   className?: string | string[];
 }
 
-export const APIView: React.FC<APIViewProps> = ({ call, className }) => {
+export const APIView: FC<APIViewProps> = ({ call, className }) => {
   if (!call) {
     return null;
   }
@@ -172,28 +162,21 @@ interface APICodeCellProps {
   contents: Request | Response;
 }
 
-export const APICodeCell: React.FC<APICodeCellProps> = ({ id, contents }) => {
+export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
+  const sourceCode = useMemo(() => {
+    return JSON.stringify(contents, undefined, 2);
+  }, [contents]);
+  const prismParentRef = usePrismHighlight(sourceCode);
+
   if (!contents) {
     return null;
   }
 
-  const codeRef = useRef<HTMLElement>(null);
-  const sourceCode = useMemo(() => {
-    return JSON.stringify(contents, undefined, 2);
-  }, [contents]);
-
-  useEffect(() => {
-    if (codeRef.current) {
-      highlightElement(codeRef.current);
-    }
-  }, [codeRef.current, contents]);
-
   return (
-    <div>
-      <pre className={styles.codePre}>
+    <div ref={prismParentRef} className={clsx("model-call")}>
+      <pre className={clsx(styles.codePre)}>
         <code
           id={id}
-          ref={codeRef}
           className={clsx("language-json", styles.code, "text-size-small")}
         >
           {sourceCode}
@@ -207,7 +190,7 @@ interface ToolConfigProps {
   tools: Tools1;
 }
 
-const ToolsConfig: React.FC<ToolConfigProps> = ({ tools }) => {
+const ToolsConfig: FC<ToolConfigProps> = ({ tools }) => {
   const toolEls = tools.map((tool, idx) => {
     return (
       <Fragment key={`${tool.name}-${idx}`}>

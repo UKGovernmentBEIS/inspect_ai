@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { FC } from "react";
 import { ContentImage, ContentText } from "../../../types/log";
 import styles from "./ToolOutput.module.css";
 
@@ -9,7 +10,7 @@ interface ToolOutputProps {
 /**
  * Renders the ToolOutput component.
  */
-export const ToolOutput: React.FC<ToolOutputProps> = ({ output }) => {
+export const ToolOutput: FC<ToolOutputProps> = ({ output }) => {
   // If there is no output, don't show the tool
   if (!output) {
     return null;
@@ -51,9 +52,9 @@ interface ToolTextOutputProps {
 /**
  * Renders the ToolTextOutput component.
  */
-const ToolTextOutput: React.FC<ToolTextOutputProps> = ({ text }) => {
+const ToolTextOutput: FC<ToolTextOutputProps> = ({ text }) => {
   return (
-    <pre className={clsx(styles.textOutput)}>
+    <pre className={clsx(styles.textOutput, "tool-output")}>
       <code className={clsx("sourceCode", styles.textCode)}>{text.trim()}</code>
     </pre>
   );

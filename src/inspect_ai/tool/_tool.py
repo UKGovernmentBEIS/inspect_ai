@@ -14,11 +14,13 @@ from typing import (
 from inspect_ai._util.content import (
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
     ContentVideo,
 )
 from inspect_ai._util.registry import (
     RegistryInfo,
+    is_registry_object,
     registry_add,
     registry_name,
     registry_tag,
@@ -35,10 +37,11 @@ ToolResult = (
     | float
     | bool
     | ContentText
+    | ContentReasoning
     | ContentImage
     | ContentAudio
     | ContentVideo
-    | list[ContentText | ContentImage | ContentAudio | ContentVideo]
+    | list[ContentText | ContentReasoning | ContentImage | ContentAudio | ContentVideo]
 )
 """Valid types for results from tool calls."""
 
@@ -198,7 +201,25 @@ def tool(
         # wrap instantiations of scorer so they carry registry info and metrics
         @wraps(tool_type)
         def tool_wrapper(*args: P.args, **kwargs: P.kwargs) -> Tool:
+            # create the tool
             tool = tool_type(*args, **kwargs)
+
+            # this might already have registry info, in that case
+            # capture it and use it as defaults
+            from inspect_ai.tool._tool_def import tool_registry_info
+
+            tool_parallel = parallel
+            tool_viewer = viewer
+            tool_model_input = model_input
+            if is_registry_object(tool):
+                _, _, reg_parallel, reg_viewer, reg_model_input = tool_registry_info(
+                    tool
+                )
+                tool_parallel = parallel and reg_parallel
+                tool_viewer = viewer or reg_viewer
+                tool_model_input = model_input or reg_model_input
+
+            # tag the object
             registry_tag(
                 tool_type,
                 tool,
@@ -207,10 +228,11 @@ def tool(
                     name=tool_name,
                     metadata={
                         TOOL_PROMPT: prompt,
-                        TOOL_PARALLEL: parallel,
-                        TOOL_VIEWER: viewer,
+                        TOOL_PARALLEL: tool_parallel,
+                        TOOL_VIEWER: tool_viewer,
                         TOOL_MODEL_INPUT: (
-                            model_input or getattr(tool, TOOL_INIT_MODEL_INPUT, None)
+                            tool_model_input
+                            or getattr(tool, TOOL_INIT_MODEL_INPUT, None)
                         ),
                     },
                 ),
