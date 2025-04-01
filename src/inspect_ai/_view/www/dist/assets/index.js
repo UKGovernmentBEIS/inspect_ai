@@ -74922,8 +74922,14 @@ ${events}
           componentProps: {
             running: evalStatus === "started"
           },
-          tools: () => !samplesDescriptor ? void 0 : totalSampleCount === 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreFilterTools, {}) : [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(SampleTools, { samples: sampleSummaries || [] }, "sample-tools"),
+          tools: () => !samplesDescriptor ? void 0 : totalSampleCount === 1 ? [/* @__PURE__ */ jsxRuntimeExports.jsx(ScoreFilterTools, {})] : [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SampleTools,
+              {
+                samples: sampleSummaries || []
+              },
+              "sample-tools"
+            ),
             evalStatus === "started" && !streamSamples && /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolButton,
               {
@@ -74933,7 +74939,7 @@ ${events}
               },
               "refresh"
             )
-          ].filter(Boolean)
+          ]
         };
       }, [
         evalStatus,

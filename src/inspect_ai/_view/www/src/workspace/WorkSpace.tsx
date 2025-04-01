@@ -131,21 +131,24 @@ export const useSamplesTabConfig = (
         running: evalStatus === "started",
       },
       tools: () =>
-        !samplesDescriptor ? undefined : totalSampleCount === 1 ? (
-          <ScoreFilterTools />
-        ) : (
-          [
-            <SampleTools samples={sampleSummaries || []} key="sample-tools" />,
-            evalStatus === "started" && !streamSamples && (
-              <ToolButton
-                key="refresh"
-                label="Refresh"
-                icon={ApplicationIcons.refresh}
-                onClick={refreshLog}
-              />
-            ),
-          ].filter(Boolean)
-        ),
+        !samplesDescriptor
+          ? undefined
+          : totalSampleCount === 1
+            ? [<ScoreFilterTools />]
+            : [
+                <SampleTools
+                  samples={sampleSummaries || []}
+                  key="sample-tools"
+                />,
+                evalStatus === "started" && !streamSamples && (
+                  <ToolButton
+                    key="refresh"
+                    label="Refresh"
+                    icon={ApplicationIcons.refresh}
+                    onClick={refreshLog}
+                  />
+                ),
+              ],
     };
   }, [
     evalStatus,
