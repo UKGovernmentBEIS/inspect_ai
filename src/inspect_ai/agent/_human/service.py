@@ -1,3 +1,4 @@
+from inspect_ai.agent._human.commands.clock import clock_action_event
 from inspect_ai.model import ModelOutput
 from inspect_ai.util._sandbox import sandbox
 from inspect_ai.util._sandbox.service import sandbox_service
@@ -14,6 +15,9 @@ async def run_human_agent_service(
     # initialise agent state
     instructions = "\n\n".join([message.text for message in state.messages]).strip()
     agent_state = HumanAgentState(instructions=instructions)
+
+    # record that clock is paused
+    clock_action_event("pause", agent_state)
 
     # extract service methods from commands
     methods = {
