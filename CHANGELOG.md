@@ -9,6 +9,7 @@
 - Eval Set: Resolve tasks before each pass (ensure that each pass runs against an entirely new task instance).
 - Eval Retry: Ability to retry any task in the registry, even if it has a custom `name` (save `registry_name` separately).
 - Typed Store: Raise error if attempting to embed a `StoreModel` within another `StoreModel`.
+- Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.

@@ -310,7 +310,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # write the file
         if isinstance(contents, str):
             result = await self.exec(
-                ["sh", "-e", "-c", 'tee -- "$1"', "write_file_script", file],
+                [
+                    "sh",
+                    "-e",
+                    "-c",
+                    'tee -- "$1" > /dev/null',
+                    "write_file_script",
+                    file,
+                ],
                 input=contents,
                 timeout=TIMEOUT,
             )
