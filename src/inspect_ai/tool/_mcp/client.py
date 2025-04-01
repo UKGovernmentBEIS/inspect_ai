@@ -1,4 +1,6 @@
 import hashlib
+import hmac
+import os
 from contextvars import ContextVar
 from copy import copy
 from logging import getLogger
@@ -42,8 +44,10 @@ def mcp_sse_client(
     from ._mcp import create_sse_client
 
     # unique key for this call (keep url unhashed for logging)
-    options = hashlib.sha256(
-        f"{headers}{timeout}{sse_read_timeout}".encode()
+    options = hmac.new(
+        key=os.urandom(16),
+        msg=f"{headers}{timeout}{sse_read_timeout}".encode(),
+        digestmod=hashlib.sha256,
     ).hexdigest()
     key = f"url={url},options={options}"
 
@@ -99,8 +103,10 @@ def mcp_stdio_client(
     from ._mcp import create_stdio_client
 
     # unique key for this call (keep command and args unhashed for logging)
-    options = hashlib.sha256(
-        f"{cwd}{env}{encoding}{encoding_error_handler}".encode()
+    options = hmac.new(
+        key=os.urandom(16),
+        msg=f"{cwd}{env}{encoding}{encoding_error_handler}".encode(),
+        digestmod=hashlib.sha256,
     ).hexdigest()
     key = f"command={command},args={args},options={options}"
 
