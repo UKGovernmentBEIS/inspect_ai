@@ -12,10 +12,7 @@ from inspect_ai.agent._aide._agent_components import (
     parse_exec_result,
     search_policy,
 )
-from inspect_ai.agent._aide._data_models import (
-    AideState,
-    AideConfig
-)
+from inspect_ai.agent._aide._data_models import AideConfig, AideState
 from inspect_ai.agent._aide._tree_export import generate_tree
 from inspect_ai.agent._aide._utils import (
     get_data_preview_in_container,
@@ -87,7 +84,10 @@ def submit() -> Tool:
 
     return execute
 
-def initialize_aide_state(instance: str, agent_state: AgentState, **aide_config_kwargs) -> AideState:
+
+def initialize_aide_state(
+    instance: str, agent_state: AgentState, **aide_config_kwargs
+) -> AideState:
     """Initialize the AIDE state."""
     aide_state = store_as(AideState, instance=instance)
     aide_state.instance = instance
@@ -97,7 +97,6 @@ def initialize_aide_state(instance: str, agent_state: AgentState, **aide_config_
         raise ValueError("No task description found in state.")
     aide_state.task_description = task_description
     # raise error if any kwargs are passed not in aide_state.config.__fields__
-    x = aide_state.config.model_fields_set
     for key in aide_config_kwargs.keys():
         if key not in AideConfig.model_fields:
             raise ValueError(f"Invalid config key: {key}")
@@ -107,6 +106,7 @@ def initialize_aide_state(instance: str, agent_state: AgentState, **aide_config_
         setattr(aide_state.config, key, value)
 
     return aide_state
+
 
 @agent
 def aide_agent(instance: str | None = uuid(), **aide_config_kwargs) -> Agent:
