@@ -18,7 +18,6 @@ title: "inspect_ai.tool"
 ### mcp_tools
 ### mcp_sse_client
 ### mcp_stdio_client
-### mcp_sandbox_client
 ### McpClient
 
 ## Dynamic 

@@ -33,9 +33,9 @@ def mcp_sse_client(
         McpClient: Client for MCP Server
     """
     verfify_mcp_package()
-    from ._mcp import McpSSEClient
+    from ._mcp import create_sse_client
 
-    return McpSSEClient(url, headers, timeout, sse_read_timeout)
+    return create_sse_client(url, headers, timeout, sse_read_timeout)
 
 
 def mcp_stdio_client(
@@ -72,25 +72,11 @@ def mcp_stdio_client(
         McpClient: Client for MCP Server
     """
     verfify_mcp_package()
-    from ._mcp import McpStdioClient
+    from ._mcp import create_stdio_client
 
-    return McpStdioClient(command, args, cwd, env, encoding, encoding_error_handler)
-
-
-def mcp_sandbox_client(memoize: bool = True) -> McpClient:
-    """Sandbox Model Context Protocol Client."
-
-    Args:
-        memoize: Use/store a cached version of the client interface based on
-            the parameters to `mcp_sandbox_client()`
-
-    Returns:
-        McpClient: Client for MCP Serve:
-    """
-    verfify_mcp_package()
-    from ._mcp import McpSandboxClient
-
-    return McpSandboxClient()
+    return create_stdio_client(
+        command, args, cwd, env, encoding, encoding_error_handler
+    )
 
 
 def verfify_mcp_package() -> None:
