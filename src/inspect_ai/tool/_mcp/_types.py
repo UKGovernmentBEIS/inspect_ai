@@ -2,6 +2,8 @@ import abc
 from logging import getLogger
 from types import TracebackType
 
+from inspect_ai.tool._tool import Tool
+
 logger = getLogger(__name__)
 
 
@@ -30,6 +32,12 @@ class McpClient(abc.ABC):
             except Exception as ex:
                 logger.warning(f"Unexpected error closing MCP client: {ex}")
             self._closed = True
+
+    @abc.abstractmethod
+    async def initialize(self) -> None: ...
+
+    @abc.abstractmethod
+    async def list_tools(self) -> list[Tool]: ...
 
     @abc.abstractmethod
     async def close(self) -> None:
