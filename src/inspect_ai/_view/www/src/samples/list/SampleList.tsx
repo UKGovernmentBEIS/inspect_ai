@@ -148,7 +148,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         return null;
       }
     },
-    [showSample],
+    [showSample, gridColumnsTemplate],
   );
 
   const { input, limit, answer, target } = gridColumns(samplesDescriptor);

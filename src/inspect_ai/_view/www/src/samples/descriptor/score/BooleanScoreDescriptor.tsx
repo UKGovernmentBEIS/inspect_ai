@@ -15,7 +15,7 @@ export const booleanScoreDescriptor = (): ScoreDescriptor => {
           className={clsx(
             styles.circle,
             "text-size-small",
-            score ? "green" : "red",
+            score ? styles.green : styles.red,
           )}
         >
           {String(score)}

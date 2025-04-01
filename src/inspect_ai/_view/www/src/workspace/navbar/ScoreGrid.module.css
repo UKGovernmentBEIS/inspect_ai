@@ -1,0 +1,35 @@
+.table {
+  margin-bottom: 0;
+}
+
+.scorer,
+.value {
+  padding-top: 0.2em !important;
+  padding-bottom: 0.2em !important;
+}
+
+.label,
+.value {
+  text-align: center;
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
+.label {
+  font-weight: 400;
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
+.scorer {
+  font-weight: 400;
+}
+
+.groupSeparator {
+  padding-top: 2em;
+  border-bottom: hidden;
+}
+
+.tableBody {
+  border-top-color: var(--bs-light-border-subtle);
+}
