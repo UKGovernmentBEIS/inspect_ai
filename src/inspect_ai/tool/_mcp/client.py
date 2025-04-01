@@ -23,7 +23,7 @@ logger = getLogger(__name__)
 # problems if tasks are created and then NOT passed to eval, and then used later)
 # workaround for this is memoize=False
 
-# TODO: possible atexit handler or __del__ method
+# TODO: possible atexit handler or __del__ method. we could play w/ using weakref, etc.
 
 
 def mcp_sse_client(
