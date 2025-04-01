@@ -15,6 +15,17 @@ from ._types import McpClient
 logger = getLogger(__name__)
 
 
+# TODO: McpServer rather than McpClient
+
+# TODO: tool filtering and renaming
+
+# TODO: explain default cleanup semantics of cleanup_mcp_clients() (only causes
+# problems if tasks are created and then NOT passed to eval, and then used later)
+# workaround for this is memoize=False
+
+# TODO: possible atexit handler or __del__ method
+
+
 def mcp_sse_client(
     *,
     url: str,
