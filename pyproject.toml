@@ -122,6 +122,7 @@ dev = [
     "groq", 
     "ipython",
     "markdown",
+    "mcp",
     "mistralai",
     "moto[server]",
     "mypy",

@@ -9,10 +9,10 @@ from inspect_ai._util.content import (
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._mcp import (
-    McpServer,
-    mcp_server_local,
-    mcp_server_remote,
-    mcp_server_sandbox,
+    McpClient,
+    mcp_sandbox_client,
+    mcp_sse_client,
+    mcp_stdio_client,
     mcp_tools,
 )
 from ._tool import Tool, ToolError, ToolResult, tool
@@ -53,10 +53,10 @@ __all__ = [
     "ToolError",
     "ToolResult",
     "mcp_tools",
-    "mcp_server_local",
-    "mcp_server_remote",
-    "mcp_server_sandbox",
-    "McpServer",
+    "mcp_stdio_client",
+    "mcp_sse_client",
+    "mcp_sandbox_client",
+    "McpClient",
     "Content",
     "ContentAudio",
     "ContentImage",

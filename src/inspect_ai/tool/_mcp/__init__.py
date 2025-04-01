@@ -1,10 +1,11 @@
-from .server import McpServer, mcp_server_local, mcp_server_remote, mcp_server_sandbox
+from ._types import McpClient
+from .client import mcp_sandbox_client, mcp_sse_client, mcp_stdio_client
 from .tools import mcp_tools
 
 __all__ = [
     "mcp_tools",
-    "mcp_server_local",
-    "mcp_server_remote",
-    "mcp_server_sandbox",
-    "McpServer",
+    "mcp_stdio_client",
+    "mcp_sse_client",
+    "mcp_sandbox_client",
+    "McpClient",
 ]

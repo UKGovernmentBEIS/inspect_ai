@@ -16,10 +16,10 @@ title: "inspect_ai.tool"
 ## MCP
 
 ### mcp_tools
-### mcp_server_local
-### mcp_server_remote
-### mcp_server_sandbox
-### McpServer
+### mcp_sse_client
+### mcp_stdio_client
+### mcp_sandbox_client
+### McpClient
 
 ## Dynamic 
 

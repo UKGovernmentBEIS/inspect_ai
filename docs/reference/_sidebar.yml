@@ -91,6 +91,16 @@ website:
           href: reference/inspect_ai.tool.qmd#web_search
         - text: think
           href: reference/inspect_ai.tool.qmd#think
+        - text: mcp_tools
+          href: reference/inspect_ai.tool.qmd#mcp_tools
+        - text: mcp_sse_client
+          href: reference/inspect_ai.tool.qmd#mcp_sse_client
+        - text: mcp_stdio_client
+          href: reference/inspect_ai.tool.qmd#mcp_stdio_client
+        - text: mcp_sandbox_client
+          href: reference/inspect_ai.tool.qmd#mcp_sandbox_client
+        - text: McpClient
+          href: reference/inspect_ai.tool.qmd#mcpclient
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef
