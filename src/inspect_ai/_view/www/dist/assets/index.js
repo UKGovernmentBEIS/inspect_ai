@@ -20036,9 +20036,13 @@ self.onmessage = function (e) {
       }
     );
     ToolButton.displayName = "ToolButton";
-    const circle$1 = "_circle_upui3_1";
+    const circle$1 = "_circle_qymy9_1";
+    const green$1 = "_green_qymy9_12";
+    const red$1 = "_red_qymy9_18";
     const styles$1b = {
-      circle: circle$1
+      circle: circle$1,
+      green: green$1,
+      red: red$1
     };
     const booleanScoreDescriptor = () => {
       return {
@@ -20053,7 +20057,7 @@ self.onmessage = function (e) {
               className: clsx(
                 styles$1b.circle,
                 "text-size-small",
-                score2 ? "green" : "red"
+                score2 ? styles$1b.green : styles$1b.red
               ),
               children: String(score2)
             }
@@ -35112,7 +35116,7 @@ self.onmessage = function (e) {
           return "null";
         } else if (score22 === void 0) {
           return "";
-        } else if (score22 && descriptor && descriptor.render) {
+        } else if (descriptor && descriptor.render) {
           return descriptor.render(score22);
         } else {
           return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: String(score22) });

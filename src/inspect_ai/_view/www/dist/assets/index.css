@@ -15702,24 +15702,24 @@ ul.jsondiffpatch-textdiff {
 .tool-button i {
   margin-right: 0.5em;
 }
-._circle_upui3_1 {
+._circle_qymy9_1 {
   font-family: "Consola Regular";
-  width: 20px;
-  height: 20px;
+  width: 40px;
+  height: 30px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  border-radius: 50%;
+  border-radius: 15px;
   padding-top: 1px;
 }
 
-._green_upui3_12 {
+._green_qymy9_12 {
   background-color: var(--bs-success);
   border-color: var(--bs-success);
   color: var(--bs-body-bg);
 }
 
-._red_upui3_18 {
+._red_qymy9_18 {
   background-color: var(--bs-danger);
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
