@@ -14,7 +14,7 @@ from mcp.types import (
     TextResourceContents,
 )
 
-from inspect_ai._util.content import Content, ContentText
+from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
@@ -60,10 +60,8 @@ class McpClientImpl(McpClient):
                 result = await self.session.call_tool(mcp_tool.name, kwargs)
                 if result.isError:
                     raise ToolError(tool_result_as_text(result.content))
-                else:
-                    pass
 
-                return ""
+                return tool_result_as_content_list(result.content)
 
             tool_defs.append(
                 ToolDef(
@@ -142,9 +140,9 @@ def tool_result_as_content_list(
         if isinstance(c, TextContent):
             content_list.append(ContentText(text=c.text))
         elif isinstance(c, ImageContent):
-            # content_list.append(ContentImage(image=))
-            ## TODO
-            pass
+            content_list.append(
+                ContentImage(image=f"data:image/{c.mimeType};base64,{c.data}")
+            )
         elif isinstance(c.resource, TextResourceContents):
             content_list.append(ContentText(text=c.resource.text))
 
