@@ -3,12 +3,13 @@
 - [Agent](https://inspect.aisi.org.uk/agent-protocol.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
 - Model API: New `execute_tools()` function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
 - Model API: `generate_loop()` method for calling generate with a tool use loop.
-- Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
+- Scoring: New `grouped` metric, which computes a metric for a list of scores grouped by a value in sample metadata.
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
 - Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
 - Eval Set: Resolve tasks before each pass (ensure that each pass runs against an entirely new task instance).
 - Eval Retry: Ability to retry any task in the registry, even if it has a custom `name` (save `registry_name` separately).
 - Human Agent: Start task with clock paused and then automatically start it on container logins.
+- Typed Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
 - Typed Store: Raise error if attempting to embed a `StoreModel` within another `StoreModel`.
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
