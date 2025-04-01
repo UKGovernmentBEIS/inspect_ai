@@ -11,10 +11,9 @@ from inspect_ai.tool import bash
 def hello_world_simple_react_agent() -> Task:
     return Task(
         dataset=[Sample(input="Say hello world", target="hello world")],
-        plan=basic_agent(tools=[bash()]),
+        solver=basic_agent(tools=[bash()], message_limit=5),
         scorer=includes(),
         sandbox="docker",
-        name=uuid(),
     )
 
 
