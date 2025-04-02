@@ -27,6 +27,7 @@
 - Bugfix: Handle process lookup errors that can occur during timeout race conditions.
 - Bugfix: Correctly capture and return logs from `eval()` when a cancellation occurs.
 - Bugfix: Correctly handle custom `api_version` model argument for OpenAI on Azure.
+- Bugfix: Correct handling for `None` passed to tool call by model for optional parameters.
 
 ## v0.3.82 (02 April 2025)
 
