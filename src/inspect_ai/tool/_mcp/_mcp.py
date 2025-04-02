@@ -1,7 +1,8 @@
+import contextlib
 from contextlib import AsyncExitStack, _AsyncGeneratorContextManager
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, Literal, TypeAlias
+from typing import Any, AsyncIterator, Callable, Literal, TypeAlias
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp.client.session import ClientSession
@@ -17,6 +18,7 @@ from mcp.types import (
 from mcp.types import (
     Tool as MCPTool,
 )
+from typing_extensions import override
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult
@@ -33,73 +35,89 @@ MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
 ]
 
 
-class MCPServerSession(MCPServer):
-    def __init__(
-        self,
-        client: MCPServerContext,
-    ) -> None:
+class MCPServerImpl(MCPServer):
+    def __init__(self, client: Callable[[], MCPServerContext]) -> None:
         super().__init__()
         self._client = client
         self._session: ClientSession | None = None
+        self._exit_stack: AsyncExitStack | None = None
+
+    @override
+    async def connect(self) -> None:
+        assert self._session is None
+        assert self._exit_stack is None
         self._exit_stack = AsyncExitStack()
+        await self._exit_stack.__aenter__()
+        read, write = await self._exit_stack.enter_async_context(self._client())
+        self._session = await self._exit_stack.enter_async_context(
+            ClientSession(read, write)
+        )
+        await self._session.initialize()
 
-    @property
-    def session(self) -> ClientSession:
-        if self._session is None:
-            raise RuntimeError("Attempted to access session before it is initialized")
-        return self._session
-
-    async def initialize(self) -> None:
-        await self._ensure_session()
+    @override
+    async def close(self) -> None:
+        assert self._session is not None
+        assert self._exit_stack is not None
+        try:
+            await self._exit_stack.aclose()
+        finally:
+            self._session = None
+            self._exit_stack = None
 
     async def list_tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
-        await self._ensure_session()
+        async with self._client_session() as session:
+            # function for filtering tools
+            def include_tool(tool: MCPTool) -> bool:
+                if tools == "all":
+                    return True
+                else:
+                    return any([fnmatch(tool.name, t) for t in tools])
 
-        # function for filtering tools
-        def include_tool(tool: MCPTool) -> bool:
-            if tools == "all":
-                return True
-            else:
-                return any([fnmatch(tool.name, t) for t in tools])
+            # get the underlying tools on the server
+            mcp_tools = (await session.list_tools()).tools
 
-        # get the underlying tools on the server
-        mcp_tools = (await self.session.list_tools()).tools
+            # filter them
+            mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
 
-        # filter them
-        mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
+            # dynamically create tools
+            tool_defs: list[ToolDef] = []
+            for mcp_tool in mcp_tools:
 
-        # dynamically create tools
-        tool_defs: list[ToolDef] = []
-        for mcp_tool in mcp_tools:
+                async def execute(**kwargs: Any) -> ToolResult:
+                    async with self._client_session() as tool_session:
+                        result = await tool_session.call_tool(mcp_tool.name, kwargs)
+                        if result.isError:
+                            raise ToolError(tool_result_as_text(result.content))
 
-            async def execute(**kwargs: Any) -> ToolResult:
-                result = await self.session.call_tool(mcp_tool.name, kwargs)
-                if result.isError:
-                    raise ToolError(tool_result_as_text(result.content))
+                        return tool_result_as_content_list(result.content)
 
-                return tool_result_as_content_list(result.content)
+                # get parameters (fill in missing ones)
+                parameters = ToolParams.model_validate(mcp_tool.inputSchema)
+                for name, param in parameters.properties.items():
+                    param.description = param.description or name
 
-            tool_defs.append(
-                ToolDef(
-                    execute,
-                    name=mcp_tool.name,
-                    description=mcp_tool.description,
-                    parameters=ToolParams.model_validate(mcp_tool.inputSchema),
+                tool_defs.append(
+                    ToolDef(
+                        execute,
+                        name=mcp_tool.name,
+                        description=mcp_tool.description,
+                        parameters=parameters,
+                    )
                 )
-            )
 
-        return [tool_def.as_tool() for tool_def in tool_defs]
+            return [tool_def.as_tool() for tool_def in tool_defs]
 
-    async def close(self) -> None:
-        await self._exit_stack.aclose()
-
-    async def _ensure_session(self) -> None:
-        if self._session is None:
-            streams = await self._exit_stack.enter_async_context(self._client)
-            self._session = await self._exit_stack.enter_async_context(
-                ClientSession(*streams)
-            )
-            await self._session.initialize()
+    # if we have been entered as a context manager then return that session,
+    # otherwise, create a brand new session from the client
+    @contextlib.asynccontextmanager
+    async def _client_session(self) -> AsyncIterator[ClientSession]:
+        if self._session is not None:
+            yield self._session
+        else:
+            async with self._client() as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    yield session
 
 
 def create_server_sse(
@@ -108,7 +126,7 @@ def create_server_sse(
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
-    return MCPServerSession(sse_client(url, headers, timeout, sse_read_timeout))
+    return MCPServerImpl(lambda: sse_client(url, headers, timeout, sse_read_timeout))
 
 
 def create_server_stdio(
@@ -119,8 +137,8 @@ def create_server_stdio(
     encoding: str = "utf-8",
     encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
 ) -> MCPServer:
-    return MCPServerSession(
-        stdio_client(
+    return MCPServerImpl(
+        lambda: stdio_client(
             StdioServerParameters(
                 command=command,
                 args=args,

@@ -1,8 +1,3 @@
-import hashlib
-import hmac
-import os
-from contextvars import ContextVar
-from copy import copy
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal
@@ -21,7 +16,6 @@ def mcp_server_sse(
     headers: dict[str, Any] | None = None,
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
-    memoize: bool = True,
 ) -> MCPServer:
     """MCP Server (SSE).
 
@@ -42,27 +36,7 @@ def mcp_server_sse(
     verfify_mcp_package()
     from ._mcp import create_server_sse
 
-    # unique key for this call (keep url unhashed for logging)
-    options = hmac.new(
-        key=os.urandom(16),
-        msg=f"{headers}{timeout}{sse_read_timeout}".encode(),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
-    key = f"url={url},options={options}"
-
-    # if we are memoizing then lookup in the cache first
-    if memoize:
-        client = cached_mcp_server(key)
-        if client is not None:
-            return client
-
-    # create the client and add it to the cache if we are memoizing
-    client = create_server_sse(url, headers, timeout, sse_read_timeout)
-    if memoize:
-        cache_mcp_server(key, client)
-
-    # return the client
-    return client
+    return create_server_sse(url, headers, timeout, sse_read_timeout)
 
 
 def mcp_server_stdio(
@@ -73,7 +47,6 @@ def mcp_server_stdio(
     env: dict[str, str] | None = None,
     encoding: str = "utf-8",
     encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
-    memoize: bool = True,
 ) -> MCPServer:
     """MCP Server (Stdio).
 
@@ -101,29 +74,10 @@ def mcp_server_stdio(
     verfify_mcp_package()
     from ._mcp import create_server_stdio
 
-    # unique key for this call (keep command and args unhashed for logging)
-    options = hmac.new(
-        key=os.urandom(16),
-        msg=f"{cwd}{env}{encoding}{encoding_error_handler}".encode(),
-        digestmod=hashlib.sha256,
-    ).hexdigest()
-    key = f"command={command},args={args},options={options}"
-
-    # if we are memoizing then lookup in the cache first
-    if memoize:
-        client = cached_mcp_server(key)
-        if client is not None:
-            return client
-
     # create the client and add it to the cache if we are memoizing
-    client = create_server_stdio(
+    return create_server_stdio(
         command, args, cwd, env, encoding, encoding_error_handler
     )
-    if memoize:
-        cache_mcp_server(key, client)
-
-    # return the client
-    return client
 
 
 def verfify_mcp_package() -> None:
@@ -139,42 +93,3 @@ def verfify_mcp_package() -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-
-
-def init_mcp_servers() -> None:
-    _mcp_servers.set({})
-
-
-async def cleanup_mcp_servers() -> None:
-    # don't cleanup context bound servers
-    remove_context_bound_mcp_servers()
-
-    mcp_servers = copy(_mcp_servers.get())
-    _mcp_servers.set({})
-    for key, client in mcp_servers.items():
-        try:
-            await client.close()
-        except Exception as ex:
-            logger.warning(f"Unexpected error closing MCP client ({key}): {ex}")
-
-
-def cache_mcp_server(key: str, server: MCPServer) -> None:
-    _mcp_servers.get()[key] = server
-
-
-def cached_mcp_server(key: str) -> MCPServer | None:
-    # clean out context bound mcp clients before accessing the cache
-    remove_context_bound_mcp_servers()
-
-    # read from the cache
-    return _mcp_servers.get().get(key, None)
-
-
-def remove_context_bound_mcp_servers() -> None:
-    mcp_servers = _mcp_servers.get()
-    for k in list(mcp_servers.keys()):
-        if mcp_servers[k]._context_bound:
-            del mcp_servers[k]
-
-
-_mcp_servers: ContextVar[dict[str, MCPServer]] = ContextVar("_mcp_servers", default={})

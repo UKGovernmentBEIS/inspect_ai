@@ -8,17 +8,11 @@ from inspect_ai.tool._tool import Tool
 logger = getLogger(__name__)
 
 
-class MCPServer(abc.ABC):
+class MCPServer:
     """Model Context Protocol server interface."""
 
-    def __init__(self) -> None:
-        # state indicating whether our lifetime is bound by a context manager
-        self._context_bound = False
-        # have we been closed
-        self._closed = False
-
     async def __aenter__(self: "MCPServer") -> "MCPServer":
-        self._context_bound = True
+        await self.connect()
         return self
 
     async def __aexit__(
@@ -27,22 +21,15 @@ class MCPServer(abc.ABC):
         exc: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        if not self._closed:
-            try:
-                await self.close()
-            except Exception as ex:
-                logger.warning(f"Unexpected error closing MCP server: {ex}")
-            self._closed = True
+        await self.close()
 
     @abc.abstractmethod
-    async def initialize(self) -> None: ...
+    async def connect(self) -> None: ...
+
+    @abc.abstractmethod
+    async def close(self) -> None: ...
 
     @abc.abstractmethod
     async def list_tools(
         self, tools: Literal["all"] | list[str] = "all"
     ) -> list[Tool]: ...
-
-    @abc.abstractmethod
-    async def close(self) -> None:
-        """Close the server interface."""
-        ...
