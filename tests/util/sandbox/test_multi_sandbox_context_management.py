@@ -9,7 +9,7 @@ from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver, use_tools
 from inspect_ai.tool import Tool, tool
 from inspect_ai.util import sandbox
-from inspect_ai.util._sandbox.context import sandbox_default_environment
+from inspect_ai.util._sandbox.context import sandbox_default
 
 CURRENT_DIRECTORY = Path(__file__).resolve().parent
 
@@ -55,7 +55,7 @@ def act_in_environment(
     environment_name: str | None = None,
 ) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        with sandbox_default_environment(environment_name):
+        with sandbox_default(environment_name or "default"):
             return await generate(state, tool_calls="single")
 
     return solve

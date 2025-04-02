@@ -157,6 +157,8 @@ async def init_sandbox_environments_sample(
         # set context
         sandbox_environments_context_var.set(environments)
         sandbox_with_environments_context_var.set({})
+        default_name = next(iter(environments.keys()))
+        sandbox_default_context_var.set(default_name)
 
         # return environments
         return environments
@@ -261,9 +263,9 @@ def validate_sandbox_environments(
 
 
 @contextmanager
-def sandbox_default_environment(name: str | None = None) -> Iterator[None]:
+def sandbox_default(name: str) -> Iterator[None]:
     """Set the default sandbox environment for the current context."""
-    token = sandbox_default_context_var.set(name or "default")
+    token = sandbox_default_context_var.set(name)
     try:
         yield
     finally:
@@ -278,4 +280,4 @@ sandbox_with_environments_context_var = ContextVar[dict[str, SandboxEnvironment]
     "sandbox_with_environments"
 )
 
-sandbox_default_context_var = ContextVar[str]("sandbox_default", default="default")
+sandbox_default_context_var = ContextVar[str]("sandbox_default")
