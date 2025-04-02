@@ -131,9 +131,20 @@ class ModelAPI(abc.ABC):
         # set any explicitly specified api key
         self.api_key = api_key
 
-    async def close(self) -> None:
-        """Close method for closing any client allocated for the model."""
-        pass
+    async def aclose(self) -> None:
+        """Async close method for closing any client allocated for the model."""
+        self.close()
+
+    def close(self) -> None:
+        """Sync close method for closing any client allocated for the model."""
+        # if this is is called and aclose is implemented by a subclass then
+        # raise a runtime error (as this model reuqires async close)
+        aclose_method = getattr(self.__class__, "aclose")
+        base_aclose_method = getattr(ModelAPI, "aclose")
+        if aclose_method != base_aclose_method:
+            raise RuntimeError(
+                f"{self.__class__.__name__} models require an async close / context manager."
+            )
 
     @abc.abstractmethod
     async def generate(
@@ -263,9 +274,22 @@ class Model:
         # get hit before score() or eval() so we activate nest_asyncio
         platform_init()
 
-    async def __aenter__(self: "Model") -> "Model":
+    def __enter__(self: "Model") -> "Model":
         self._context_bound = True
         return self
+
+    async def __aenter__(self: "Model") -> "Model":
+        return self.__enter__()
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if not self._closed:
+            self.api.close()
+            self._closed = True
 
     async def __aexit__(
         self,
@@ -274,7 +298,7 @@ class Model:
         exc_tb: TracebackType | None,
     ) -> None:
         if not self._closed:
-            await self.api.close()
+            await self.api.aclose()
             self._closed = True
 
     @property

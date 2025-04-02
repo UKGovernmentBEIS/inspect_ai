@@ -183,11 +183,6 @@ class GoogleGenAIAPI(ModelAPI):
         # save model args
         self.model_args = model_args
 
-    @override
-    async def close(self) -> None:
-        # GenerativeModel uses a cached/shared client so there is no 'close'
-        pass
-
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
