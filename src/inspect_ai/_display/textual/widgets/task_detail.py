@@ -49,28 +49,16 @@ class TaskDetail(Widget):
     def __init__(
         self,
         *,
-        profile: TaskProfile,
         hidden: bool = True,
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
         super().__init__(id=id, classes=classes)
-        print(profile.log_location)
         self.hidden = hidden
         self.existing_metrics: dict[str, TaskMetrics] = {}
         self.grid = Grid()
         self.by_reducer: dict[str | None, dict[str, list[TaskMetric]]] = {}
         self.metrics: list[TaskDisplayMetric] = []
-        self.profile = profile
-        self.link = VSCodeLink(
-            "Open Log Viewer", id=OPEN_VIEWER_LINK_ID, classes="inset"
-        )
-        self.link.commands = [
-            VSCodeCommand(
-                command="inspect.openLogViewer",
-                args=[profile.log_location] if profile.log_location else [],
-            )
-        ]
 
     def watch_hidden(self, hidden: bool) -> None:
         """React to changes in the `visible` property."""
@@ -80,9 +68,6 @@ class TaskDetail(Widget):
             self.remove_class("hidden")
 
     def compose(self) -> ComposeResult:
-        if can_execute_vscode_commands():
-            yield self.link
-        yield Static("Metrics", classes="section_title inset")
         yield self.grid
 
     def on_mount(self) -> None:

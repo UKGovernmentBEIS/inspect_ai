@@ -196,9 +196,7 @@ class TaskProgressView(Widget):
         self.task_progress = TaskProgress(self.progress_bar)
 
         self.toggle = Toggle()
-        self.task_detail = TaskDetail(
-            id="task-detail", classes="hidden", profile=task.profile
-        )
+        self.task_detail = TaskDetail(id="task-detail", classes="hidden")
 
         self.sample_count_width: int = sample_count_width
         self.display_metrics = display_metrics
