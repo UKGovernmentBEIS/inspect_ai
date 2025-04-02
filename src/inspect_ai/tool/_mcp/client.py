@@ -16,8 +16,12 @@ logger = getLogger(__name__)
 
 
 # TODO: McpServer rather than McpClient
+# TODO: mcp_server_local (or mcp_server_stdin or mcp_server)
 
 # TODO: tool filtering and renaming
+
+# TODO: Can we avoid the await in listing of tools? Need to put back in the init_ for eval_async
+# TODO: Sequence of Tool | ToolDef | ToolSource
 
 # TODO: explain default cleanup semantics of cleanup_mcp_clients() (only causes
 # problems if tasks are created and then NOT passed to eval, and then used later)
