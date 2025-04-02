@@ -19,6 +19,11 @@
   justify-content: center;
 }
 
+.centerValue {
+  display: flex;
+  align-items: center;
+}
+
 .wrap {
   word-wrap: anywhere;
 }
@@ -29,4 +34,5 @@
 
 .value {
   flex-direction: column;
+  padding-top: 0.1em;
 }

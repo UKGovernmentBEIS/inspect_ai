@@ -182,8 +182,12 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     fi
     """).lstrip()
 
+    CLOCK = dedent("""
+    task start
+    """).lstrip()
+
     # return .bashrc
-    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, INSTRUCTIONS])
+    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, INSTRUCTIONS, CLOCK])
 
 
 def human_agent_install_sh() -> str:

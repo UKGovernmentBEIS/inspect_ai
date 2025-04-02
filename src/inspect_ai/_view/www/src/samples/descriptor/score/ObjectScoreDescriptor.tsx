@@ -35,7 +35,7 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
 
       const scores: JSX.Element[] = [];
       const keys = Object.keys(score);
-      keys.forEach((key, index) => {
+      keys.forEach((key) => {
         if (typeof score !== "object" || Array.isArray(score)) {
           throw new Error(
             "Unexpected us of object score descriptor for non-score object",
@@ -50,23 +50,22 @@ export const objectScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
                   : parseFloat(value === true ? "1" : value),
               )
             : String(value);
+
         scores.push(
-          <div
-            key={`score-value-${index}`}
-            className={clsx(
-              styles.container,
-              index + 1 < keys.length ? styles.padded : undefined,
-            )}
-          >
+          <>
             <div className={clsx(styles.key, "text-size-smaller")}>{key}</div>
-            <div className={clsx(styles.value, "text-size-large")}>
+            <div className={clsx(styles.value, "text-size-base")}>
               {formattedValue}
             </div>
-          </div>,
+          </>,
         );
       });
 
-      return scores;
+      return (
+        <div key={`score-value`} className={clsx(styles.container)}>
+          {scores}
+        </div>
+      );
     },
   };
 };
