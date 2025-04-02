@@ -147,18 +147,18 @@ async def init_sandbox_environments_sample(
     environments = {k: SandboxEnvironmentProxy(v) for k, v in environments.items()}
 
     try:
+        # set context
+        sandbox_environments_context_var.set(environments)
+        sandbox_with_environments_context_var.set({})
+        default_name = next(iter(environments.keys()))
+        sandbox_default_context_var.set(default_name)
+
         # copy files into environments
         await copy_sandbox_environment_files(files, environments)
 
         # run setup script
         if setup:
             await setup_sandbox_environment(setup, environments)
-
-        # set context
-        sandbox_environments_context_var.set(environments)
-        sandbox_with_environments_context_var.set({})
-        default_name = next(iter(environments.keys()))
-        sandbox_default_context_var.set(default_name)
 
         # return environments
         return environments
