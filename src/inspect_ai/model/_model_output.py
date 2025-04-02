@@ -206,7 +206,6 @@ class ModelOutput(BaseModel):
             model: model name
             tool_name: The name of the tool.
             internal: The model's internal info for the tool (if any).
-            type: The model's type for the tool. e.g. "function", "computer_use_preview"
             tool_arguments: The arguments passed to the tool.
             tool_call_id: Optional ID for the tool call. Defaults to a random UUID.
             content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
