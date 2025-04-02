@@ -205,6 +205,8 @@ These sections cover defining custom tools as well as Inspect's standard built-i
 
 - [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
 
+- [Tool Approval](approval.qmd) enables you to create fine-grained policies for approving tool calls made by models.
+
 
 These sections cover how to use various language models with Inspect:
 
@@ -232,8 +234,6 @@ These sections describe how to create agent evaluations with Inspect:
 -   [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd party frameworks like AutoGen or LangChain with Inspect.
 
 -   [Human Agent](human-agent.qmd) is a solver that enables human baselining on computing tasks.
-
--   [Approval](approval.qmd) enable you to create fine-grained policies for approving tool calls made by model agents.
 
 These sections discuss more advanced features and workflows. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
 

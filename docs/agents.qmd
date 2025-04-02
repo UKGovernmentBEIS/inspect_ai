@@ -132,4 +132,3 @@ See these additioanl articles to learn more about creating agent evaluations wit
 
 -   [Human Agent](human-agent.qmd) is a solver that enables human baselining on computing tasks.
 
--   [Approval](approval.qmd) enable you to create fine-grained policies for approving tool calls made by model agents.
