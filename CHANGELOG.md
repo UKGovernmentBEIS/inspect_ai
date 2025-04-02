@@ -1,6 +1,7 @@
 ## v0.3.82 (02 April 2025)
 
 - Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.
+- Bugfix: Eval now properly exits when `max_tasks` is greater than total tasks.
 
 ## v0.3.81 (30 March 2025)
 
