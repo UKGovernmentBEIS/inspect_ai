@@ -1,6 +1,6 @@
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest
+    image: aisiuk/inspect-computer-tool
     init: true
 
     # You can vnc into each container by using the following port mapping which will 
