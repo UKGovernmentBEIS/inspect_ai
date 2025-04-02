@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from pydantic_core import to_json
 from typing_extensions import override
 
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.content import (
     ContentAudio,
     ContentImage,
@@ -23,7 +23,6 @@ from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.scorer._metric import Score
 
 from .._log import (
     EvalLog,
@@ -36,18 +35,9 @@ from .._log import (
     sort_samples,
 )
 from .file import FileRecorder
+from .types import SampleSummary
 
 logger = getLogger(__name__)
-
-
-class SampleSummary(BaseModel):
-    id: int | str
-    epoch: int
-    input: str | list[ChatMessage]
-    target: str | list[str]
-    scores: dict[str, Score] | None = Field(default=None)
-    error: str | None = Field(default=None)
-    limit: str | None = Field(default=None)
 
 
 class LogStart(BaseModel):
@@ -224,7 +214,9 @@ class EvalRecorder(FileRecorder):
             with ZipFile(z, mode="r") as zip:
                 try:
                     with zip.open(_sample_filename(id, epoch), "r") as f:
-                        return EvalSample(**json.load(f))
+                        return EvalSample.model_validate(
+                            json.load(f), context=DESERIALIZING_CONTEXT
+                        )
                 except KeyError:
                     raise IndexError(
                         f"Sample id {id} for epoch {epoch} not found in log {location}"
@@ -329,6 +321,7 @@ class ZipLogFile:
                         epoch=sample.epoch,
                         input=text_inputs(sample.input),
                         target=sample.target,
+                        completed=True,
                         scores=sample.scores,
                         error=sample.error.message
                         if sample.error is not None
@@ -414,7 +407,10 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
         if REDUCTIONS_JSON in zip.namelist():
             with zip.open(REDUCTIONS_JSON, "r") as f:
                 reductions = [
-                    EvalSampleReductions(**reduction) for reduction in json.load(f)
+                    EvalSampleReductions.model_validate(
+                        reduction, context=DESERIALIZING_CONTEXT
+                    )
+                    for reduction in json.load(f)
                 ]
                 if evalLog.results is not None:
                     evalLog.reductions = reductions
@@ -425,7 +421,11 @@ def _read_log(log: BinaryIO, location: str, header_only: bool = False) -> EvalLo
             for name in zip.namelist():
                 if name.startswith(f"{SAMPLES_DIR}/") and name.endswith(".json"):
                     with zip.open(name, "r") as f:
-                        samples.append(EvalSample(**json.load(f)))
+                        samples.append(
+                            EvalSample.model_validate(
+                                json.load(f), context=DESERIALIZING_CONTEXT
+                            ),
+                        )
             sort_samples(samples)
             evalLog.samples = samples
         return evalLog
@@ -452,7 +452,10 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
     if SUMMARIES_JSON in zip.namelist():
         summaries_raw = _read_json(zip, SUMMARIES_JSON)
         if isinstance(summaries_raw, list):
-            return [SampleSummary(**value) for value in summaries_raw]
+            return [
+                SampleSummary.model_validate(value, context=DESERIALIZING_CONTEXT)
+                for value in summaries_raw
+            ]
         else:
             raise ValueError(
                 f"Expected a list of summaries when reading {SUMMARIES_JSON}"
@@ -464,7 +467,14 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
             summary_path = _journal_summary_path(summary_file)
             summary = _read_json(zip, summary_path)
             if isinstance(summary, list):
-                summaries.extend([SampleSummary(**value) for value in summary])
+                summaries.extend(
+                    [
+                        SampleSummary.model_validate(
+                            value, context=DESERIALIZING_CONTEXT
+                        )
+                        for value in summary
+                    ]
+                )
             else:
                 raise ValueError(
                     f"Expected a list of summaries when reading {summary_file}"
@@ -476,12 +486,12 @@ def _read_header(zip: ZipFile, location: str) -> EvalLog:
     # first see if the header is here
     if HEADER_JSON in zip.namelist():
         with zip.open(HEADER_JSON, "r") as f:
-            log = EvalLog(**json.load(f))
+            log = EvalLog.model_validate(json.load(f), context=DESERIALIZING_CONTEXT)
             log.location = location
             return log
     else:
         with zip.open(_journal_path(START_JSON), "r") as f:
-            start = LogStart(**json.load(f))
+            start = LogStart.model_validate(json.load(f), context=DESERIALIZING_CONTEXT)
         return EvalLog(
             version=start.version, eval=start.eval, plan=start.plan, location=location
         )

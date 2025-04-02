@@ -14,7 +14,14 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_serializer,
+)
+from shortuuid import uuid
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
@@ -43,6 +50,13 @@ logger = getLogger(__name__)
 
 
 class BaseEvent(BaseModel):
+    model_config = {
+        "json_schema_extra": lambda schema: schema.get("properties", {}).pop(
+            "id_", None
+        )
+    }
+    id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
+
     timestamp: datetime = Field(default_factory=datetime.now)
     """Clock time at which event occurred."""
 
@@ -146,7 +160,7 @@ class ModelEvent(BaseEvent):
     """working time for model call that succeeded (i.e. was not retried)."""
 
     @field_serializer("completed")
-    def serialize_completed(self, dt: datetime) -> str:
+    def serialize_completed(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
         return dt.astimezone().isoformat()
@@ -170,6 +184,9 @@ class ToolEvent(BaseEvent):
     arguments: dict[str, JsonValue]
     """Arguments to function."""
 
+    internal_name: str | None = Field(default=None)
+    """Internal name for tool (if any)."""
+
     view: ToolCallContent | None = Field(default=None)
     """Custom view of tool call input."""
 
@@ -191,6 +208,12 @@ class ToolEvent(BaseEvent):
     working_time: float | None = Field(default=None)
     """Working time for tool call (i.e. time not spent waiting on semaphores)."""
 
+    agent: str | None = Field(default=None)
+    """Name of agent if the tool call was an agent handoff."""
+
+    failed: bool | None = Field(default=None)
+    """Did the tool call fail with a hard error?."""
+
     def _set_result(
         self,
         result: ToolResult,
@@ -198,6 +221,8 @@ class ToolEvent(BaseEvent):
         error: ToolCallError | None,
         events: list["Event"],
         waiting_time: float,
+        agent: str | None,
+        failed: bool | None,
     ) -> None:
         self.result = result
         self.truncated = truncated
@@ -207,6 +232,8 @@ class ToolEvent(BaseEvent):
         completed = datetime.now()
         self.completed = completed
         self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
+        self.agent = agent
+        self.failed = failed
 
     # mechanism for operator to cancel the tool call
 
@@ -235,7 +262,9 @@ class ToolEvent(BaseEvent):
     """Required so that we can include '_cancel_fn' as a member."""
 
     @field_serializer("completed")
-    def serialize_completed(self, dt: datetime) -> str:
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
         return dt.astimezone().isoformat()
 
 
@@ -270,7 +299,9 @@ class SandboxEvent(BaseEvent):
     """Time that sandbox action completed (see `timestamp` for started)"""
 
     @field_serializer("completed")
-    def serialize_completed(self, dt: datetime) -> str:
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
         return dt.astimezone().isoformat()
 
 
@@ -412,7 +443,9 @@ class SubtaskEvent(BaseEvent):
     """Working time for subtask (i.e. time not spent waiting on semaphores or model retries)."""
 
     @field_serializer("completed")
-    def serialize_completed(self, dt: datetime) -> str:
+    def serialize_completed(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
         return dt.astimezone().isoformat()
 
 
@@ -442,8 +475,11 @@ ET = TypeVar("ET", bound=BaseEvent)
 class Transcript:
     """Transcript of events."""
 
+    _event_logger: Callable[[Event], None] | None
+
     def __init__(self, name: str = "") -> None:
         self.name = name
+        self._event_logger = None
         self._events: list[Event] = []
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
@@ -484,7 +520,16 @@ class Transcript:
         return None
 
     def _event(self, event: Event) -> None:
+        if self._event_logger:
+            self._event_logger(event)
         self._events.append(event)
+
+    def _event_updated(self, event: Event) -> None:
+        if self._event_logger:
+            self._event_logger(event)
+
+    def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
+        self._event_logger = event_logger
 
 
 def transcript() -> Transcript:

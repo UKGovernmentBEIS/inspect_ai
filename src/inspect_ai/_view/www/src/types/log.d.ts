@@ -13,6 +13,7 @@ export type Task = string;
 export type TaskId = string;
 export type TaskVersion = number;
 export type TaskFile = string | null;
+export type TaskRegistryName = string | null;
 export type Solver = string | null;
 export type SolverArgs = {} | null;
 export type Tags = string[] | null;
@@ -44,6 +45,7 @@ export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
 export type LogImages = boolean | null;
 export type LogBuffer = number | null;
+export type LogShared = number | null;
 export type ScoreDisplay = boolean | null;
 export type Type1 = "git";
 export type Origin = string;
@@ -148,7 +150,7 @@ export type Input =
       | ChatMessageAssistant
       | ChatMessageTool
     )[];
-export type Id1 = string;
+export type Id1 = string | null;
 export type Content =
   | string
   | (
@@ -160,6 +162,7 @@ export type Content =
     )[];
 export type Type3 = "text";
 export type Text = string;
+export type Refusal = boolean | null;
 export type Type4 = "reasoning";
 export type Reasoning = string;
 export type Signature = string | null;
@@ -175,7 +178,7 @@ export type Video = string;
 export type Format1 = "mp4" | "mpeg" | "mov";
 export type Source = ("input" | "generate") | null;
 export type Role = "system";
-export type Id2 = string;
+export type Id2 = string | null;
 export type Content1 =
   | string
   | (
@@ -188,7 +191,7 @@ export type Content1 =
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
 export type ToolCallId = string[] | null;
-export type Id3 = string;
+export type Id3 = string | null;
 export type Content2 =
   | string
   | (
@@ -203,12 +206,14 @@ export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
 export type Id4 = string;
 export type Function = string;
-export type Type8 = "function";
+export type Type8 = string;
+export type InternalName = string | null;
 export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
-export type Id5 = string;
+export type Model1 = string | null;
+export type Id5 = string | null;
 export type Content4 =
   | string
   | (
@@ -222,6 +227,7 @@ export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
+export type InternalName1 = string | null;
 export type Type9 =
   | "parsing"
   | "timeout"
@@ -243,7 +249,7 @@ export type Messages = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Model1 = string;
+export type Model2 = string;
 export type StopReason =
   | "stop"
   | "max_tokens"
@@ -342,7 +348,7 @@ export type Timestamp5 = string;
 export type WorkingStart5 = number;
 export type Pending5 = boolean | null;
 export type Event5 = "model";
-export type Model2 = string;
+export type Model3 = string;
 export type Input3 = (
   | ChatMessageSystem
   | ChatMessageUser
@@ -369,6 +375,7 @@ export type Event6 = "tool";
 export type Type12 = "function";
 export type Id7 = string;
 export type Function2 = string;
+export type InternalName2 = string | null;
 export type Result1 =
   | string
   | number
@@ -490,6 +497,8 @@ export type Events1 = (
 )[];
 export type Completed3 = string | null;
 export type WorkingTime2 = number | null;
+export type Agent = string | null;
+export type Failed = boolean | null;
 export type Events = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -562,6 +571,7 @@ export interface EvalSpec {
   task_id: TaskId;
   task_version: TaskVersion;
   task_file: TaskFile;
+  task_registry_name: TaskRegistryName;
   task_attribs: TaskAttribs;
   task_args: TaskArgs;
   solver: Solver;
@@ -624,6 +634,7 @@ export interface EvalConfig {
   log_samples: LogSamples;
   log_images: LogImages;
   log_buffer: LogBuffer;
+  log_shared: LogShared;
   score_display: ScoreDisplay;
 }
 export interface ApprovalPolicyConfig {
@@ -850,6 +861,7 @@ export interface ChatMessageSystem {
 export interface ContentText {
   type: Type3;
   text: Text;
+  refusal: Refusal;
 }
 /**
  * Reasoning content.
@@ -905,12 +917,14 @@ export interface ChatMessageAssistant {
   source: Source2;
   role: Role2;
   tool_calls: ToolCalls;
+  model: Model1;
 }
 export interface ToolCall {
   id: Id4;
   function: Function;
   arguments: Arguments;
   type: Type8;
+  internal_name: InternalName;
   parse_error: ParseError;
   view: ToolCallContent | null;
 }
@@ -933,6 +947,7 @@ export interface ChatMessageTool {
   role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
+  internal_name: InternalName1;
   error: ToolCallError | null;
 }
 export interface ToolCallError {
@@ -943,7 +958,7 @@ export interface ToolCallError {
  * Output from model generation.
  */
 export interface ModelOutput {
-  model: Model1;
+  model: Model2;
   choices: Choices1;
   usage: ModelUsage1 | null;
   time: Time;
@@ -1087,7 +1102,7 @@ export interface ModelEvent {
   working_start: WorkingStart5;
   pending: Pending5;
   event: Event5;
-  model: Model2;
+  model: Model3;
   input: Input3;
   tools: Tools1;
   tool_choice: ToolChoice;
@@ -1201,6 +1216,7 @@ export interface ToolEvent {
   id: Id7;
   function: Function2;
   arguments: Arguments1;
+  internal_name: InternalName2;
   view: ToolCallContent | null;
   result: Result1;
   truncated: Truncated;
@@ -1208,6 +1224,8 @@ export interface ToolEvent {
   events: Events1;
   completed: Completed3;
   working_time: WorkingTime2;
+  agent: Agent;
+  failed: Failed;
 }
 export interface Arguments1 {
   [k: string]: JsonValue;

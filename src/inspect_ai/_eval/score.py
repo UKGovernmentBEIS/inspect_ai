@@ -7,8 +7,8 @@ import anyio
 
 from inspect_ai._display import display
 from inspect_ai._eval.loader import scorer_from_spec
-from inspect_ai._util._async import tg_collect
-from inspect_ai._util.platform import platform_init
+from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
+from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import registry_create, registry_unqualified_name
 from inspect_ai.log import (
     EvalLog,
@@ -56,7 +56,17 @@ def score(
     # resolve scorers into a list
     scorers = [scorers] if isinstance(scorers, Scorer) else scorers
 
-    return anyio.run(score_async, log, scorers, epochs_reducer, action)
+    if running_in_notebook():
+        return run_coroutine(score_async(log, scorers, epochs_reducer, action))
+    else:
+        return anyio.run(
+            score_async,
+            log,
+            scorers,
+            epochs_reducer,
+            action,
+            backend=configured_async_backend(),
+        )
 
 
 async def score_async(

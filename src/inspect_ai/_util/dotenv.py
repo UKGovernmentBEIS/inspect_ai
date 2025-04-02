@@ -52,6 +52,9 @@ def init_dotenv() -> None:
         if inspect_log_dir:
             os.environ[INSPECT_LOG_DIR_VAR] = inspect_log_dir
 
+        # re-apply any env vars specified at the cli w/ --env
+        apply_cli_env()
+
 
 @contextlib.contextmanager
 def dotenv_environ(
@@ -76,3 +79,17 @@ def dotenv_environ(
     finally:
         os.environ.update(update_after)
         [os.environ.pop(k) for k in remove_after]
+
+
+_cli_env: dict[str, Any] = {}
+
+
+def init_cli_env(env: dict[str, Any]) -> None:
+    global _cli_env
+    _cli_env = env
+    apply_cli_env()
+
+
+def apply_cli_env() -> None:
+    for var, value in _cli_env.items():
+        os.environ[var] = str(value)

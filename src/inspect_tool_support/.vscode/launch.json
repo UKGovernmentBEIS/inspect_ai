@@ -1,0 +1,31 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Debug multi_tool cli",
+      "type": "python",
+      "request": "launch",
+      "module": "inspect_tool_support",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/src/eric_testing/src",
+      "args": ["${input:requestArg}"]
+    },
+    {
+      "name": "Python: Debug server.py",
+      "type": "python",
+      "request": "launch",
+      "module": "inspect_tool_support._cli.server",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/src",
+      "justMyCode": false
+    }
+  ],
+  "inputs": [
+    {
+      "id": "requestArg",
+      "type": "promptString",
+      "description": "Enter JSON RPC 2.0 request string for multi_tool_v1.py",
+      "default": ""
+    }
+  ]
+}

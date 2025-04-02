@@ -1,8 +1,9 @@
+import asyncio
 import inspect
 import os
 import sys
 from logging import Logger
-from typing import Any, Awaitable, Callable, Literal, TypeVar, cast
+from typing import Any, Awaitable, Callable, Coroutine, Literal, TypeVar, cast
 
 import anyio
 import nest_asyncio  # type: ignore
@@ -102,6 +103,29 @@ def init_nest_asyncio() -> None:
     if not _initialised_nest_asyncio:
         nest_asyncio.apply()
         _initialised_nest_asyncio = True
+
+
+def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
+    from inspect_ai._util.platform import running_in_notebook
+
+    if current_async_backend() == "trio":
+        raise RuntimeError("run_coroutine cannot be used with trio")
+
+    if running_in_notebook():
+        init_nest_asyncio()
+        return asyncio.run(coroutine)
+    else:
+        try:
+            # this will throw if there is no running loop
+            asyncio.get_running_loop()
+
+            # initialiase nest_asyncio then we are clear to run
+            init_nest_asyncio()
+            return asyncio.run(coroutine)
+
+        except RuntimeError:
+            # No running event loop so we are clear to run
+            return asyncio.run(coroutine)
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:

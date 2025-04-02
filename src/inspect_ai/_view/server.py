@@ -5,7 +5,7 @@ import os
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Awaitable, Callable, Literal, cast
+from typing import Any, AsyncIterator, Awaitable, Callable, Literal, TypeVar, cast
 
 import fsspec  # type: ignore
 from aiohttp import web
@@ -25,6 +25,7 @@ from inspect_ai.log._file import (
     read_eval_log_async,
     read_eval_log_headers_async,
 )
+from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 
 from .notify import view_last_eval_time
 
@@ -57,8 +58,7 @@ def view_server(
     @routes.get("/api/logs/{log}")
     async def api_log(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
-        file = urllib.parse.unquote(file)
+        file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
 
         # header_only is based on a size threshold
@@ -68,8 +68,7 @@ def view_server(
     @routes.get("/api/log-size/{log}")
     async def api_log_size(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
-        file = urllib.parse.unquote(file)
+        file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
 
         return await log_size_response(file)
@@ -77,8 +76,7 @@ def view_server(
     @routes.get("/api/log-delete/{log}")
     async def api_log_delete(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
-        file = urllib.parse.unquote(file)
+        file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
 
         return await log_delete_response(file)
@@ -86,8 +84,7 @@ def view_server(
     @routes.get("/api/log-bytes/{log}")
     async def api_log_bytes(request: web.Request) -> web.Response:
         # log file requested
-        file = request.match_info["log"]
-        file = urllib.parse.unquote(file)
+        file = normalize_uri(request.match_info["log"])
         validate_log_file_request(file)
 
         # header_only is based on a size threshold
@@ -106,7 +103,7 @@ def view_server(
         if authorization:
             request_log_dir = request.query.getone("log_dir", None)
             if request_log_dir:
-                request_log_dir = urllib.parse.unquote(request_log_dir)
+                request_log_dir = normalize_uri(request_log_dir)
             else:
                 request_log_dir = log_dir
         else:
@@ -121,7 +118,7 @@ def view_server(
     @routes.get("/api/log-headers")
     async def api_log_headers(request: web.Request) -> web.Response:
         files = request.query.getall("file", [])
-        files = [urllib.parse.unquote(file) for file in files]
+        files = [normalize_uri(file) for file in files]
         map(validate_log_file_request, files)
         return await log_headers_response(files)
 
@@ -134,6 +131,60 @@ def view_server(
             else []
         )
         return web.json_response(actions)
+
+    @routes.get("/api/pending-samples")
+    async def api_pending_samples(request: web.Request) -> web.Response:
+        # log file requested
+        file = query_param_required("log", request, str)
+
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        # see if there is an etag
+        client_etag = request.headers.get("If-None-Match")
+
+        # get samples and respond
+        buffer = sample_buffer(file)
+        samples = buffer.get_samples(client_etag)
+        if samples == "NotModified":
+            return web.Response(status=304)
+        elif samples is None:
+            return web.Response(status=404)
+        else:
+            return web.Response(
+                body=samples.model_dump_json(), headers={"ETag": samples.etag}
+            )
+
+    @routes.get("/api/pending-sample-data")
+    async def api_sample_events(request: web.Request) -> web.Response:
+        # log file requested
+        file = query_param_required("log", request, str)
+
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        # sample id information
+        id = query_param_required("id", request, str)
+        epoch = query_param_required("epoch", request, int)
+
+        # get sync info
+        after_event_id = query_param_optional("last-event-id", request, int)
+        after_attachment_id = query_param_optional("after-attachment-id", request, int)
+
+        # get samples and responsd
+        buffer = sample_buffer(file)
+        sample_data = buffer.get_sample_data(
+            id=id,
+            epoch=epoch,
+            after_event_id=after_event_id,
+            after_attachment_id=after_attachment_id,
+        )
+
+        # respond
+        if sample_data is None:
+            return web.Response(status=404)
+        else:
+            return web.Response(body=sample_data.model_dump_json())
 
     # optional auth middleware
     @web.middleware
@@ -164,6 +215,28 @@ def view_server(
         access_log_format='%a %t "%r" %s %b (%Tf)',
         shutdown_timeout=1,
     )
+
+
+def normalize_uri(uri: str) -> str:
+    """Normalize incoming URIs to a consistent format."""
+    # Decode any URL-encoded characters
+    parsed = urllib.parse.urlparse(urllib.parse.unquote(uri))
+
+    if parsed.scheme != "file":
+        # If this isn't a file uri, just unquote it
+        return urllib.parse.unquote(uri)
+
+    else:
+        # If this is a file uri, see whether we should process triple slashes
+        # down to double slashes
+        path = parsed.path
+
+        # Detect and normalize Windows-style file URIs
+        if path.startswith("/") and len(path) > 3 and path[2] == ":":
+            # Strip leading `/` before drive letter
+            path = path[1:]
+
+        return f"file://{path}"
 
 
 def log_listing_response(logs: list[EvalLogInfo], log_dir: str) -> web.Response:
@@ -412,3 +485,60 @@ async def async_fileystem(
     else:
         options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
         yield fsspec.filesystem(protocol, **options)
+
+
+T = TypeVar("T")  # Define type variable
+
+
+def query_param_required(
+    key: str, request: web.Request, converter: Callable[[str], T]
+) -> T:
+    """
+    Generic parameter validation function.
+
+    Args:
+        key: Parameter key to look up
+        request: aiohttp Request object
+        converter: Function to convert the string parameter to type T
+
+    Returns:
+        Converted parameter value of type T
+
+    Raises:
+        HTTPBadRequest: If parameter is missing or invalid
+    """
+    value = request.query.get(key)
+    if value is None:
+        raise web.HTTPBadRequest(text=f"Missing parameter {key}")
+
+    try:
+        return converter(value)
+    except ValueError:
+        raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")
+
+
+def query_param_optional(
+    key: str, request: web.Request, converter: Callable[[str], T]
+) -> T | None:
+    """
+    Generic parameter validation function.
+
+    Args:
+        key: Parameter key to look up
+        request: aiohttp Request object
+        converter: Function to convert the string parameter to type T
+
+    Returns:
+        Converted parameter value of type T
+
+    Raises:
+        HTTPBadRequest: If parameter is missing or invalid
+    """
+    value = request.query.get(key)
+    if value is None:
+        return None
+
+    try:
+        return converter(value)
+    except ValueError:
+        raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")

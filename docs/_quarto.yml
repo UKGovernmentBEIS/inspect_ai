@@ -20,7 +20,7 @@ website:
    bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
-   site-url: https://inspect.ai-safety-institute.org.uk/
+   site-url: https://inspect.aisi.org.uk/
    repo-actions: [issue]
    twitter-card:
       title: "Inspect"
@@ -70,6 +70,12 @@ website:
                - tools.qmd
                - scorers.qmd
 
+         - section: "Tools"
+           contents:
+               - tools.qmd
+               - tools-custom.qmd
+               - tools-standard.qmd
+
          - section: "Models"
            contents:
                - models.qmd
@@ -85,6 +91,8 @@ website:
                - agents.qmd
                - sandboxing.qmd
                - agents-api.qmd
+               - text: "Agent Protocol"
+                 href: agent-protocol.qmd
                - agent-bridge.qmd
                - human-agent.qmd
                - approval.qmd

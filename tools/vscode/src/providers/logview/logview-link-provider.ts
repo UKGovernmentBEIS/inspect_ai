@@ -59,7 +59,7 @@ export const logviewTerminalLinkProvider = () => {
   };
 };
 
-const resolveLogFile = async (link: string) => {
+export const resolveLogFile = async (link: string) => {
   if (/^[a-z0-9]+:\/\//.test(link)) {
     // This is a Uri - just parse it and return
     // (e.g. S3 url)

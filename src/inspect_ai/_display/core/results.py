@@ -131,9 +131,14 @@ def task_stats(stats: EvalStats) -> RenderableType:
         else:
             input_tokens = f"[bold]I: [/bold]{usage.input_tokens:,}"
 
+        if usage.reasoning_tokens is not None:
+            reasoning_tokens = f", [bold]R: [/bold]{usage.reasoning_tokens:,}"
+        else:
+            reasoning_tokens = ""
+
         table.add_row(
             Text(model, style="bold"),
-            f"  {usage.total_tokens:,} tokens [{input_tokens}, [bold]O: [/bold]{usage.output_tokens:,}]",
+            f"  {usage.total_tokens:,} tokens [{input_tokens}, [bold]O: [/bold]{usage.output_tokens:,}{reasoning_tokens}]",
             style=theme.light,
         )
 
@@ -175,7 +180,7 @@ def task_metric(metrics: list[TaskDisplayMetric], width: int | None = None) -> s
     )
 
     metric = metrics[0]
-    if np.isnan(metric.value):
+    if metric.value is None or np.isnan(metric.value):
         value = " n/a"
     else:
         value = f"{metric.value:.2f}"

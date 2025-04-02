@@ -1,6 +1,6 @@
 import contextlib
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Awaitable, Callable, Iterator
+from typing import Any, AsyncIterator, Callable, Coroutine, Iterator
 
 import anyio
 import rich
@@ -11,8 +11,9 @@ from rich.progress import Progress as RProgress
 from rich.table import Table
 from typing_extensions import override
 
-from inspect_ai._util._async import configured_async_backend
+from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
+from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.log._transcript import InputEvent, transcript
 from inspect_ai.util._display import display_type
 from inspect_ai.util._throttle import throttle
@@ -74,8 +75,11 @@ class RichDisplay(Display):
             yield RichProgress(total, progress)
 
     @override
-    def run_task_app(self, main: Callable[[], Awaitable[TR]]) -> TR:
-        return anyio.run(main, backend=configured_async_backend())
+    def run_task_app(self, main: Callable[[], Coroutine[None, None, TR]]) -> TR:
+        if running_in_notebook():
+            return run_coroutine(main())
+        else:
+            return anyio.run(main, backend=configured_async_backend())
 
     @override
     @contextlib.contextmanager

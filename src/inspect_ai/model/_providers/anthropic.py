@@ -1,21 +1,14 @@
 import functools
 import os
 import re
-import sys
 from copy import copy
 from logging import getLogger
-from typing import Any, Literal, Optional, Tuple, TypedDict, cast
+from typing import Any, Literal, NamedTuple, Optional, Tuple, cast
 
-from inspect_ai._util.http import is_retryable_http_status
-
-from .util.hooks import HttpxHooks
-
-if sys.version_info >= (3, 11):
-    from typing import NotRequired
-else:
-    from typing_extensions import NotRequired
-
+import httpcore
+import httpx
 from anthropic import (
+    APIConnectionError,
     APIStatusError,
     APITimeoutError,
     AsyncAnthropic,
@@ -35,19 +28,19 @@ from anthropic.types import (
     TextBlockParam,
     ThinkingBlock,
     ThinkingBlockParam,
+    ToolBash20250124Param,
     ToolParam,
     ToolResultBlockParam,
+    ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
     message_create_params,
 )
+from anthropic.types.beta import BetaToolComputerUse20250124Param
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
-    BASE_64_DATA_REMOVED,
-    NO_CONTENT,
-)
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED, NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -55,6 +48,7 @@ from inspect_ai._util.content import (
     ContentText,
 )
 from inspect_ai._util.error import exception_message
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
@@ -66,10 +60,13 @@ from .._model import ModelAPI
 from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .util import environment_prerequisite_error, model_base_url
+from .util.hooks import HttpxHooks
 
 logger = getLogger(__name__)
 
 ANTHROPIC_API_KEY = "ANTHROPIC_API_KEY"
+
+INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
 
 class AnthropicAPI(ModelAPI):
@@ -89,7 +86,7 @@ class AnthropicAPI(ModelAPI):
         else:
             self.service = None
 
-        # collect gemerate model_args (then delete them so we can pass the rest on)
+        # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
             nonlocal model_args
             value = model_args.get(name, None)
@@ -156,7 +153,7 @@ class AnthropicAPI(ModelAPI):
         self._http_hooks = HttpxHooks(self.client._client)
 
     @override
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         await self.client.close()
 
     def is_bedrock(self) -> bool:
@@ -189,14 +186,11 @@ class AnthropicAPI(ModelAPI):
 
         # generate
         try:
-            (
-                system_param,
-                tools_param,
-                messages,
-                computer_use,
-            ) = await self.resolve_chat_input(input, tools, config)
+            system_param, tools_param, messages = await self.resolve_chat_input(
+                input, tools, config
+            )
 
-            # prepare request params (assembed this way so we can log the raw model call)
+            # prepare request params (assembled this way so we can log the raw model call)
             request = dict(messages=messages)
 
             # system messages and tools
@@ -214,7 +208,13 @@ class AnthropicAPI(ModelAPI):
 
             # extra headers (for time tracker and computer use)
             extra_headers = headers | {HttpxHooks.REQUEST_ID_HEADER: request_id}
-            if computer_use:
+            if any(
+                tool.get("type", None) == "computer_20250124" for tool in tools_param
+            ):
+                # From: https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#claude-3-7-sonnet-beta-flag
+                # Note: The Bash (bash_20250124) and Text Editor (text_editor_20250124)
+                # tools are generally available for Claude 3.5 Sonnet (new) as well and
+                # can be used without the computer use beta header.
                 betas.append("computer-use-2025-01-24")
             if len(betas) > 0:
                 extra_headers["anthropic-beta"] = ",".join(betas)
@@ -236,7 +236,9 @@ class AnthropicAPI(ModelAPI):
             response = message.model_dump()
 
             # extract output
-            output = model_output_from_message(message, tools)
+            output = await model_output_from_message(
+                self.client, self.model_name, message, tools
+            )
 
             # return output and call
             return output, model_call()
@@ -325,7 +327,13 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APITimeoutError):
+        elif isinstance(
+            ex,
+            APIConnectionError
+            | APITimeoutError
+            | httpx.RemoteProtocolError
+            | httpcore.RemoteProtocolError,
+        ):
             return True
         else:
             return False
@@ -393,9 +401,7 @@ class AnthropicAPI(ModelAPI):
         input: list[ChatMessage],
         tools: list[ToolInfo],
         config: GenerateConfig,
-    ) -> Tuple[
-        list[TextBlockParam] | None, list["ToolParamDef"], list[MessageParam], bool
-    ]:
+    ) -> Tuple[list[TextBlockParam] | None, list["ToolParamDef"], list[MessageParam]]:
         # extract system message
         system_messages, messages = split_system_messages(input, config)
 
@@ -408,7 +414,7 @@ class AnthropicAPI(ModelAPI):
         )
 
         # tools
-        tools_params, computer_use = self.tool_params_for_tools(tools, config)
+        tools_params = [self.tool_param_for_tool_info(tool, config) for tool in tools]
 
         # system messages
         if len(system_messages) > 0:
@@ -458,40 +464,35 @@ class AnthropicAPI(ModelAPI):
                     add_cache_control(cast(dict[str, Any], content[-1]))
 
         # return chat input
-        return system_param, tools_params, message_params, computer_use
+        return system_param, tools_params, message_params
 
-    def tool_params_for_tools(
-        self, tools: list[ToolInfo], config: GenerateConfig
-    ) -> tuple[list["ToolParamDef"], bool]:
-        # tool params and computer_use bit to return
-        tool_params: list["ToolParamDef"] = []
-        computer_use = False
+    def tool_param_for_tool_info(
+        self, tool: ToolInfo, config: GenerateConfig
+    ) -> "ToolParamDef":
+        # Use a native tool implementation when available. Otherwise, use the
+        # standard tool implementation
+        return self.maybe_native_tool_param(tool, config) or ToolParam(
+            name=tool.name,
+            description=tool.description,
+            input_schema=tool.parameters.model_dump(exclude_none=True),
+        )
 
-        # for each tool, check if it has a native computer use implementation and use that
-        # when available (noting that we need to set the computer use request header)
-        for tool in tools:
-            computer_use_tool = (
+    def maybe_native_tool_param(
+        self, tool: ToolInfo, config: GenerateConfig
+    ) -> Optional["ToolParamDef"]:
+        return (
+            (
                 self.computer_use_tool_param(tool)
-                if config.internal_tools is not False
-                else None
+                or self.text_editor_tool_param(tool)
+                or self.bash_tool_param(tool)
             )
-            if computer_use_tool:
-                tool_params.append(computer_use_tool)
-                computer_use = True
-            else:
-                tool_params.append(
-                    ToolParam(
-                        name=tool.name,
-                        description=tool.description,
-                        input_schema=tool.parameters.model_dump(exclude_none=True),
-                    )
-                )
-
-        return tool_params, computer_use
+            if config.internal_tools is not False
+            else None
+        )
 
     def computer_use_tool_param(
         self, tool: ToolInfo
-    ) -> Optional["ComputerUseToolParam"]:
+    ) -> Optional[BetaToolComputerUse20250124Param]:
         # check for compatible 'computer' tool
         if tool.name == "computer" and (
             sorted(tool.parameters.properties.keys())
@@ -513,7 +514,7 @@ class AnthropicAPI(ModelAPI):
                     "Use of Anthropic's native computer use support is not enabled in Claude 3.5. Please use 3.7 or later to leverage the native support.",
                 )
                 return None
-            return ComputerUseToolParam(
+            return BetaToolComputerUse20250124Param(
                 type="computer_20250124",
                 name="computer",
                 # Note: The dimensions passed here for display_width_px and display_height_px should
@@ -530,23 +531,58 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
+    def text_editor_tool_param(
+        self, tool: ToolInfo
+    ) -> Optional[ToolTextEditor20250124Param]:
+        # check for compatible 'text editor' tool
+        if tool.name == "text_editor" and (
+            sorted(tool.parameters.properties.keys())
+            == sorted(
+                [
+                    "command",
+                    "file_text",
+                    "insert_line",
+                    "new_str",
+                    "old_str",
+                    "path",
+                    "view_range",
+                ]
+            )
+        ):
+            return ToolTextEditor20250124Param(
+                type="text_editor_20250124", name="str_replace_editor"
+            )
+        # not a text_editor tool
+        else:
+            return None
 
-# native anthropic tool definitions for computer use beta
-# https://docs.anthropic.com/en/docs/build-with-claude/computer-use
-class ComputerUseToolParam(TypedDict):
-    type: str
-    name: str
-    display_width_px: NotRequired[int]
-    display_height_px: NotRequired[int]
-    display_number: NotRequired[int]
+    def bash_tool_param(self, tool: ToolInfo) -> Optional[ToolBash20250124Param]:
+        # check for compatible 'bash' tool
+        if tool.name == "bash_session" and (
+            sorted(tool.parameters.properties.keys()) == sorted(["command", "restart"])
+        ):
+            return ToolBash20250124Param(type="bash_20250124", name="bash")
+        # not a bash tool
+        else:
+            return None
 
 
-# tools can be either a stock tool param or a special computer use tool param
-ToolParamDef = ToolParam | ComputerUseToolParam
+# tools can be either a stock tool param or a special Anthropic native use tool param
+ToolParamDef = (
+    ToolParam
+    | BetaToolComputerUse20250124Param
+    | ToolTextEditor20250124Param
+    | ToolBash20250124Param
+)
 
 
 def add_cache_control(
-    param: TextBlockParam | ToolParam | ComputerUseToolParam | dict[str, Any],
+    param: TextBlockParam
+    | ToolParam
+    | BetaToolComputerUse20250124Param
+    | ToolTextEditor20250124Param
+    | ToolBash20250124Param
+    | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
 
@@ -555,10 +591,10 @@ def consecutive_user_message_reducer(
     messages: list[MessageParam],
     message: MessageParam,
 ) -> list[MessageParam]:
-    return consective_message_reducer(messages, message, "user")
+    return consecutive_message_reducer(messages, message, "user")
 
 
-def consective_message_reducer(
+def consecutive_message_reducer(
     messages: list[MessageParam],
     message: MessageParam,
     role: Literal["user", "assistant"],
@@ -571,6 +607,7 @@ def consective_message_reducer(
 
 
 def combine_messages(a: MessageParam, b: MessageParam) -> MessageParam:
+    # TODO: Fix this code as it currently drops interesting properties when combining
     role = a["role"]
     a_content = a["content"]
     b_content = b["content"]
@@ -690,7 +727,7 @@ async def message_param(message: ChatMessage) -> MessageParam:
                 ToolUseBlockParam(
                     type="tool_use",
                     id=tool_call.id,
-                    name=tool_call.function,
+                    name=tool_call.internal_name or tool_call.function,
                     input=tool_call.arguments,
                 )
             )
@@ -714,9 +751,15 @@ async def message_param(message: ChatMessage) -> MessageParam:
         )
 
 
-def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelOutput:
+async def model_output_from_message(
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
+    model: str,
+    message: Message,
+    tools: list[ToolInfo],
+) -> ModelOutput:
     # extract content and tool calls
     content: list[Content] = []
+    reasoning_tokens = 0
     tool_calls: list[ToolCall] | None = None
 
     for content_block in message.content:
@@ -731,11 +774,13 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
             content.append(ContentText(type="text", text=content_text))
         elif isinstance(content_block, ToolUseBlock):
             tool_calls = tool_calls or []
+            info = maybe_mapped_call_info(content_block.name, tools)
             tool_calls.append(
                 ToolCall(
-                    type="function",
+                    type=info.internal_type,
                     id=content_block.id,
-                    function=content_block.name,
+                    function=info.inspect_name,
+                    internal_name=info.internal_name,
                     arguments=content_block.model_dump().get("input", {}),
                 )
             )
@@ -744,6 +789,9 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
                 ContentReasoning(reasoning=content_block.data, redacted=True)
             )
         elif isinstance(content_block, ThinkingBlock):
+            reasoning_tokens += await count_tokens(
+                client, model, content_block.thinking
+            )
             content.append(
                 ContentReasoning(
                     reasoning=content_block.thinking, signature=content_block.signature
@@ -753,7 +801,7 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
     # resolve choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=content, tool_calls=tool_calls, source="generate"
+            content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
         stop_reason=message_stop_reason(message),
     )
@@ -767,6 +815,7 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
         + (input_tokens_cache_write or 0)
         + (input_tokens_cache_read or 0)
         + message.usage.output_tokens
+        + reasoning_tokens
     )
     return ModelOutput(
         model=message.model,
@@ -777,7 +826,39 @@ def model_output_from_message(message: Message, tools: list[ToolInfo]) -> ModelO
             total_tokens=total_tokens,
             input_tokens_cache_write=input_tokens_cache_write,
             input_tokens_cache_read=input_tokens_cache_read,
+            reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
         ),
+    )
+
+
+class CallInfo(NamedTuple):
+    internal_name: str | None
+    internal_type: str
+    inspect_name: str
+
+
+def maybe_mapped_call_info(tool_called: str, tools: list[ToolInfo]) -> CallInfo:
+    """
+    Return call info - potentially transformed by native tool mappings.
+
+    Anthropic prescribes names for their native tools - `computer`, `bash`, and
+    `str_replace_editor`. For a variety of reasons, Inspect's tool names to not
+    necessarily conform to internal names. Anthropic also provides specific tool
+    types for these built-in tools.
+    """
+    mappings = (
+        (INTERNAL_COMPUTER_TOOL_NAME, "computer_20250124", "computer"),
+        ("str_replace_editor", "text_editor_20250124", "text_editor"),
+        ("bash", "bash_20250124", "bash_session"),
+    )
+
+    return next(
+        (
+            CallInfo(entry[0], entry[1], entry[2])
+            for entry in mappings
+            if entry[0] == tool_called and any(tool.name == entry[2] for tool in tools)
+        ),
+        CallInfo(None, "function", tool_called),
     )
 
 
@@ -840,6 +921,26 @@ async def message_param_content(
         raise RuntimeError(
             "Anthropic models do not currently support audio or video inputs."
         )
+
+
+async def count_tokens(
+    client: AsyncAnthropic | AsyncAnthropicBedrock | AsyncAnthropicVertex,
+    model: str,
+    text: str,
+) -> int:
+    try:
+        response = await client.messages.count_tokens(
+            model=model,
+            messages=[{"role": "user", "content": text}],
+        )
+        return response.input_tokens
+    except Exception as e:
+        logger.warning(
+            f"Error counting tokens (falling back to estimated tokens): {str(e)}"
+        )
+        words = text.split()
+        estimated_tokens = int(len(words) * 1.3)
+        return estimated_tokens
 
 
 def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:

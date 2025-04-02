@@ -70,8 +70,6 @@ from inspect_ai.model import (
     TopLogprob,
 )
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._providers.util import model_base_url
-from inspect_ai.model._providers.util.hooks import HttpHooks, urllib3_hooks
 from inspect_ai.tool import (
     ToolCall,
     ToolChoice,
@@ -80,6 +78,9 @@ from inspect_ai.tool import (
     ToolParam,
     ToolParams,
 )
+
+from .util import model_base_url
+from .util.hooks import HttpHooks, HttpxHooks
 
 logger = getLogger(__name__)
 
@@ -177,20 +178,10 @@ class GoogleGenAIAPI(ModelAPI):
                 self.api_key = os.environ.get(GOOGLE_API_KEY, None)
 
             # custom base_url
-            base_url = model_base_url(base_url, "GOOGLE_BASE_URL")
+            self.base_url = model_base_url(self.base_url, "GOOGLE_BASE_URL")
 
-        # create client
-        self.client = Client(
-            vertexai=self.is_vertex(),
-            api_key=self.api_key,
-            http_options={"base_url": base_url},
-            **model_args,
-        )
-
-    @override
-    async def close(self) -> None:
-        # GenerativeModel uses a cached/shared client so there is no 'close'
-        pass
+        # save model args
+        self.model_args = model_args
 
     def is_vertex(self) -> bool:
         return self.service == "vertex"
@@ -202,11 +193,20 @@ class GoogleGenAIAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        # generate request_id
-        request_id = urllib3_hooks().start_request()
+        # create client
+        client = Client(
+            vertexai=self.is_vertex(),
+            api_key=self.api_key,
+            http_options={"base_url": self.base_url},
+            **self.model_args,
+        )
+
+        # create hooks and allocate request
+        http_hooks = HttpxHooks(client._api_client._async_httpx_client)
+        request_id = http_hooks.start_request()
 
         # Create google-genai types.
-        gemini_contents = await as_chat_messages(self.client, input)
+        gemini_contents = await as_chat_messages(client, input)
         gemini_tools = chat_tools(tools) if len(tools) > 0 else None
         gemini_tool_config = chat_tool_config(tool_choice) if len(tools) > 0 else None
         parameters = GenerateContentConfig(
@@ -222,9 +222,7 @@ class GoogleGenAIAPI(ModelAPI):
             safety_settings=safety_settings_to_list(self.safety_settings),
             tools=gemini_tools,
             tool_config=gemini_tool_config,
-            system_instruction=await extract_system_message_as_parts(
-                self.client, input
-            ),
+            system_instruction=await extract_system_message_as_parts(client, input),
         )
         if config.response_schema is not None:
             parameters.response_mime_type = "application/json"
@@ -242,11 +240,11 @@ class GoogleGenAIAPI(ModelAPI):
                 tools=gemini_tools,
                 tool_config=gemini_tool_config,
                 response=response,
-                time=urllib3_hooks().end_request(request_id),
+                time=http_hooks.end_request(request_id),
             )
 
         try:
-            response = await self.client.aio.models.generate_content(
+            response = await client.aio.models.generate_content(
                 model=self.model_name,
                 contents=gemini_contents,
                 config=parameters,
@@ -254,9 +252,10 @@ class GoogleGenAIAPI(ModelAPI):
         except ClientError as ex:
             return self.handle_client_error(ex), model_call()
 
+        model_name = response.model_version or self.model_name
         output = ModelOutput(
-            model=self.model_name,
-            choices=completion_choices_from_candidates(response),
+            model=model_name,
+            choices=completion_choices_from_candidates(model_name, response),
             usage=usage_metadata_to_model_usage(response.usage_metadata),
         )
 
@@ -264,22 +263,8 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def should_retry(self, ex: Exception) -> bool:
-        import requests  # type: ignore
-
-        # standard http errors
-        if isinstance(ex, APIError):
-            return is_retryable_http_status(ex.status)
-
-        # low-level requests exceptions
-        elif isinstance(ex, requests.exceptions.RequestException):
-            return isinstance(
-                ex,
-                (
-                    requests.exceptions.ConnectionError
-                    | requests.exceptions.ConnectTimeout
-                    | requests.exceptions.ChunkedEncodingError
-                ),
-            )
+        if isinstance(ex, APIError) and ex.code is not None:
+            return is_retryable_http_status(ex.code)
         else:
             return False
 
@@ -557,7 +542,9 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
         )
 
 
-def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
+def completion_choice_from_candidate(
+    model: str, candidate: Candidate
+) -> ChatCompletionChoice:
     # content can be None when the finish_reason is SAFETY
     if candidate.content is None:
         content = ""
@@ -607,6 +594,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         message=ChatMessageAssistant(
             content=choice_content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
+            model=model,
             source="generate",
         ),
         stop_reason=stop_reason,
@@ -635,19 +623,22 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
 
 
 def completion_choices_from_candidates(
+    model: str,
     response: GenerateContentResponse,
 ) -> list[ChatCompletionChoice]:
     candidates = response.candidates
     if candidates:
         candidates_list = sorted(candidates, key=lambda c: c.index)
         return [
-            completion_choice_from_candidate(candidate) for candidate in candidates_list
+            completion_choice_from_candidate(model, candidate)
+            for candidate in candidates_list
         ]
     elif response.prompt_feedback:
         return [
             ChatCompletionChoice(
                 message=ChatMessageAssistant(
                     content=prompt_feedback_to_content(response.prompt_feedback),
+                    model=model,
                     source="generate",
                 ),
                 stop_reason="content_filter",

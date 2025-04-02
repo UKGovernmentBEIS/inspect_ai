@@ -3,7 +3,7 @@ import importlib
 import pytest
 from pydantic_core import to_jsonable_python
 from test_helpers.tools import list_files
-from test_helpers.utils import ensure_test_package_installed
+from test_helpers.utils import ensure_test_package_installed, skip_if_trio
 
 from inspect_ai import Task, eval_async
 from inspect_ai.dataset import Sample
@@ -13,7 +13,8 @@ from inspect_ai.solver import generate, use_tools
 from inspect_ai.util import SandboxEnvironmentSpec
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
+@skip_if_trio
 async def test_extension_model():
     # ensure the package is installed
     ensure_test_package_installed()
@@ -87,6 +88,14 @@ def test_can_roundtrip_specialised_config():
     assert recreated == spec
     assert recreated.config == spec.config
     assert isinstance(recreated.config, PodmanSandboxEnvironmentConfig)
+
+
+def test_can_load_log_file_for_unavailable_sandbox_environment():
+    json_str = """{"type":"unavailable","config":{"key":"value"}}"""
+
+    recreated = SandboxEnvironmentSpec.model_validate_json(json_str)
+
+    assert isinstance(recreated.config, dict)
 
 
 def test_supports_str_config():

@@ -293,6 +293,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     async def write_file(self, file: str, contents: str | bytes) -> None:
+        # defualt timeout for write_file operations
+        TIMEOUT = 180
+
         # resolve relative file paths
         file = self.container_file(file)
 
@@ -307,8 +310,16 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # write the file
         if isinstance(contents, str):
             result = await self.exec(
-                ["sh", "-e", "-c", 'tee -- "$1"', "write_file_script", file],
+                [
+                    "sh",
+                    "-e",
+                    "-c",
+                    'tee -- "$1" > /dev/null',
+                    "write_file_script",
+                    file,
+                ],
                 input=contents,
+                timeout=TIMEOUT,
             )
         else:
             base64_contents = base64.b64encode(contents).decode("US-ASCII")
@@ -322,6 +333,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     file,
                 ],
                 input=base64_contents,
+                timeout=TIMEOUT,
             )
         if result.returncode != 0:
             if "permission denied" in result.stderr.casefold():

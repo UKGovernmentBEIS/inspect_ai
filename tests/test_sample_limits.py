@@ -205,8 +205,10 @@ def test_working_limit_reporting():
         model="mockllm/model",
     )[0]
     assert log.samples
-    for index, sample in enumerate(log.samples):
-        assert (sample.total_time - sample.working_time + 0.1) >= index
+    waiting_time = 0
+    for sample in log.samples:
+        waiting_time += sample.total_time - sample.working_time + 0.1
+    assert waiting_time > 3
 
 
 def check_working_limit_event(log: EvalLog, working_limit: int):

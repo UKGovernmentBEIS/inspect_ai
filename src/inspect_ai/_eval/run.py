@@ -1,9 +1,9 @@
-import functools
 import logging
 import os
 import sys
 from typing import Any, Awaitable, Callable, Set, cast
 
+from inspect_ai._eval.task.task import Task
 from inspect_ai._util.trace import trace_action
 
 if sys.version_info < (3, 11):
@@ -19,7 +19,6 @@ from inspect_ai._display.core.active import (
     init_task_screen,
 )
 from inspect_ai._display.core.display import TaskSpec
-from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
@@ -44,11 +43,11 @@ from inspect_ai.util._sandbox.environment import (
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
 from .loader import (
-    ResolvedTask,
     as_solver_spec,
     solver_from_spec,
 )
 from .task.log import TaskLogger
+from .task.resolved import ResolvedTask
 from .task.run import TaskRunOptions, task_run
 from .task.rundir import task_run_dir_switching
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
@@ -64,10 +63,10 @@ async def eval_run(
     eval_config: EvalConfig,
     eval_sandbox: SandboxEnvironmentType | None,
     recorder: Recorder,
-    model_args: dict[str, Any],
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     debug_errors: bool = False,
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -82,6 +81,7 @@ async def eval_run(
     eval_wd = os.getcwd()
 
     # ensure sample ids
+    task: Task | None = None
     for resolved_task in tasks:
         # add sample ids to dataset if they aren't there (start at 1 not 0)
         task = resolved_task.task
@@ -91,6 +91,8 @@ async def eval_run(
 
         # Ensure sample ids are unique
         ensure_unique_ids(task.dataset)
+
+    assert task, "Must encounter a task"
 
     # run startup pass for the sandbox environments
     shutdown_sandbox_environments: Callable[[], Awaitable[None]] | None = None
@@ -111,16 +113,6 @@ async def eval_run(
         eval_solver = None
         eval_solver_spec = None
 
-    # resolve the task scorers
-    eval_scorer_specs = (
-        [as_scorer_spec(scorer) for scorer in task.scorer]
-        if task.scorer is not None
-        else None
-    )
-
-    # resolve task metrics
-    eval_metrics = to_metric_specs(task.metrics) if task.metrics is not None else None
-
     try:
         # create run tasks
         task_run_options: list[TaskRunOptions] = []
@@ -132,6 +124,18 @@ async def eval_run(
                 # value specified from eval() or the CLI)
                 task = resolved_task.task
                 task_eval_config = eval_config.model_copy()
+
+                # resolve the task scorers
+                eval_scorer_specs = (
+                    [as_scorer_spec(scorer) for scorer in task.scorer]
+                    if task.scorer is not None
+                    else None
+                )
+
+                # resolve task metrics
+                eval_metrics = (
+                    to_metric_specs(task.metrics) if task.metrics is not None else None
+                )
 
                 # epochs
                 if task_eval_config.epochs is None:
@@ -189,6 +193,7 @@ async def eval_run(
                     task_name=task.name,
                     task_version=task.version,
                     task_file=resolved_task.task_file,
+                    task_registry_name=resolved_task.task.registry_name,
                     task_id=resolved_task.id if resolved_task.id else uuid(),
                     run_id=run_id,
                     solver=eval_solver_spec,
@@ -200,9 +205,9 @@ async def eval_run(
                     sandbox=resolved_task.sandbox,
                     task_attribs=task.attribs,
                     task_args=resolved_task.task_args,
-                    model_args=model_args,
+                    model_args=resolved_task.model.model_args,
                     eval_config=task_eval_config,
-                    metadata=task.metadata,
+                    metadata=((metadata or {}) | (task.metadata or {})) or None,
                     recorder=recorder,
                 )
                 await logger.init()
@@ -353,17 +358,13 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                         "Run Task",
                         f"task: {task_options.task.name} ({task_options.model})",
                     ):
-                        tg_results = await tg_collect(
-                            [functools.partial(task_run, task_options)]
-                        )
-                    # check for empty results list (indicates cancellation)
-                    if len(tg_results) == 0:
-                        # task was cancelled, break out of the worker loop
-                        result = None
+                        async with anyio.create_task_group() as tg:
 
-                    else:
-                        result = tg_results[0]
-                        results.append(result)
+                            async def run_task() -> None:
+                                result = await task_run(task_options)
+                                results.append(result)
+
+                            tg.start_soon(run_task)
 
                 except Exception as ex:
                     # errors generally don't escape from tasks (the exception being if an error
@@ -401,12 +402,15 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         # Use anyio task group instead of manual task management
         try:
             async with anyio.create_task_group() as tg:
+                # computer number of workers (never more than total_tasks)
+                num_workers = min(parallel, total_tasks)
+
                 # start worker tasks
-                for _ in range(parallel):
+                for _ in range(num_workers):
                     tg.start_soon(worker)
 
                 # enqueue initial set of tasks
-                for _ in range(min(parallel, total_tasks)):
+                for _ in range(num_workers):
                     await enque_next_task()
         except anyio.get_cancelled_exc_class():
             pass

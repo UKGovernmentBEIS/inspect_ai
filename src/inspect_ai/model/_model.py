@@ -6,7 +6,7 @@ import logging
 import os
 import time
 from contextvars import ContextVar
-from copy import deepcopy
+from copy import copy, deepcopy
 from datetime import datetime
 from types import TracebackType
 from typing import Any, AsyncIterator, Callable, Literal, Type, cast
@@ -33,6 +33,7 @@ from inspect_ai._util.content import (
 from inspect_ai._util.hooks import init_hooks, override_api_key, send_telemetry
 from inspect_ai._util.interrupt import check_sample_interrupt
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -48,7 +49,12 @@ from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
-from ._call_tools import disable_parallel_tools, tool_call_view, tools_info
+from ._call_tools import (
+    disable_parallel_tools,
+    execute_tools,
+    tool_call_view,
+    tools_info,
+)
 from ._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -56,7 +62,10 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._conversation import conversation_assistant_error, conversation_assistant_message
+from ._display import (
+    display_conversation_assistant,
+    display_conversation_assistant_error,
+)
 from ._generate_config import (
     GenerateConfig,
     active_generate_config,
@@ -77,7 +86,7 @@ class ModelAPI(abc.ABC):
     by the user. You can then pass these on to the approriate place in
     your model initialisation code (for example, here is what many
     of the built-in providers do with the `model_args` passed to them:
-    https://inspect.ai-safety-institute.org.uk/models.html#model-args)
+    https://inspect.aisi.org.uk/models.html#model-args)
     """
 
     def __init__(
@@ -122,9 +131,20 @@ class ModelAPI(abc.ABC):
         # set any explicitly specified api key
         self.api_key = api_key
 
-    async def close(self) -> None:
-        """Close method for closing any client allocated for the model."""
-        pass
+    async def aclose(self) -> None:
+        """Async close method for closing any client allocated for the model."""
+        self.close()
+
+    def close(self) -> None:
+        """Sync close method for closing any client allocated for the model."""
+        # if this is is called and aclose is implemented by a subclass then
+        # raise a runtime error (as this model reuqires async close)
+        aclose_method = getattr(self.__class__, "aclose")
+        base_aclose_method = getattr(ModelAPI, "aclose")
+        if aclose_method != base_aclose_method:
+            raise RuntimeError(
+                f"{self.__class__.__name__} models require an async close / context manager."
+            )
 
     @abc.abstractmethod
     async def generate(
@@ -232,15 +252,19 @@ class Model:
     config: GenerateConfig
     """Generation config."""
 
-    def __init__(self, api: ModelAPI, config: GenerateConfig) -> None:
+    def __init__(
+        self, api: ModelAPI, config: GenerateConfig, model_args: dict[str, Any] = {}
+    ) -> None:
         """Create a model.
 
         Args:
            api: Model API provider.
            config: Model configuration.
+           model_args: Optional model args
         """
         self.api = api
         self.config = config
+        self.model_args = model_args
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -250,9 +274,22 @@ class Model:
         # get hit before score() or eval() so we activate nest_asyncio
         platform_init()
 
-    async def __aenter__(self: "Model") -> "Model":
+    def __enter__(self: "Model") -> "Model":
         self._context_bound = True
         return self
+
+    async def __aenter__(self: "Model") -> "Model":
+        return self.__enter__()
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        if not self._closed:
+            self.api.close()
+            self._closed = True
 
     async def __aexit__(
         self,
@@ -261,7 +298,7 @@ class Model:
         exc_tb: TracebackType | None,
     ) -> None:
         if not self._closed:
-            await self.api.close()
+            await self.api.aclose()
             self._closed = True
 
     @property
@@ -368,6 +405,55 @@ class Model:
             # return output
             return output
 
+    async def generate_loop(
+        self,
+        input: str | list[ChatMessage],
+        tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef] = [],
+        config: GenerateConfig = GenerateConfig(),
+        cache: bool | CachePolicy = False,
+    ) -> tuple[list[ChatMessage], ModelOutput]:
+        """Generate output from the model, looping as long as the model calls tools.
+
+        Similar to `generate()`, but runs in a loop resolving model tool calls.
+        The loop terminates when the model stops calling tools. The final `ModelOutput`
+        as well the message list for the conversation are returned as a tuple.
+
+        Args:
+          input: Chat message input (if a `str` is passed it is converted
+            to a `ChatMessageUser`).
+          tools: Tools available for the model to call.
+          config: Model configuration.
+          cache: Caching behavior for generate responses (defaults to no caching).
+
+        Returns:
+           Tuple of list[ChatMessage], ModelOutput
+        """
+        # initialise messages
+        input = [ChatMessageUser(content=input)] if isinstance(input, str) else input
+        messages = copy(input)
+        while True:
+            # call model
+            output = await self.generate(
+                input=messages,
+                tools=tools,  # type:ignore[arg-type]
+                config=config,
+                cache=cache,
+            )
+
+            # append to new messages
+            messages.append(output.message)
+
+            # make tool calls or terminate if there are none
+            if output.message.tool_calls:
+                tools_messages, tools_output = await execute_tools(
+                    messages, tools, config.max_tool_output
+                )
+                messages.extend(tools_messages)
+                if tools_output is not None:
+                    output = tools_output
+            else:
+                return messages[len(input) :], output
+
     async def _generate(
         self,
         input: list[ChatMessage],
@@ -449,6 +535,7 @@ class Model:
         async def generate() -> ModelOutput:
             check_sample_interrupt()
 
+            cache_entry: CacheEntry | None
             if cache:
                 if isinstance(cache, CachePolicy):
                     policy = cache
@@ -476,6 +563,8 @@ class Model:
                         call=None,
                     )
                     return existing
+            else:
+                cache_entry = None
 
             # verify that model apis are allowed
             self.verify_model_apis()
@@ -545,7 +634,7 @@ class Model:
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
                 )
 
-            if cache:
+            if cache and cache_entry:
                 cache_store(entry=cache_entry, output=output)
 
             return output
@@ -656,14 +745,15 @@ class Model:
             # trace
             if isinstance(result, ModelOutput):
                 if result.choices:
-                    conversation_assistant_message(input, result.choices[0].message)
+                    display_conversation_assistant(input, result.choices[0].message)
                 event.output = result
             else:
-                conversation_assistant_error(result)
+                display_conversation_assistant_error(result)
                 event.error = repr(result)
 
             event.call = updated_call
             event.pending = None
+            transcript()._event_updated(event)
 
         # if we have output then complete it now
         if output:
@@ -773,6 +863,10 @@ def get_model(
     if isinstance(model, Model):
         return model
 
+    # next see if this is the special "none" model
+    if model == "none":
+        model = "none/none"
+
     # now try finding an 'ambient' model (active or env var)
     if model is None:
         # return active_model if there is one
@@ -835,7 +929,7 @@ def get_model(
             config=config,
             **model_args,
         )
-        m = Model(modelapi_instance, config)
+        m = Model(modelapi_instance, config, model_args)
         if memoize:
             _models[model_cache_key] = m
         return m
@@ -860,17 +954,25 @@ def cached_model(key: str) -> Model | None:
 
 
 def resolve_models(
-    model: str | Model | list[str] | list[Model] | None,
+    model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] = dict(),
     config: GenerateConfig = GenerateConfig(),
 ) -> list[Model]:
+    # resolve NotGiven to current INSPECT_EVAL_MODEL
+    if isinstance(model, NotGiven):
+        model = os.getenv("INSPECT_EVAL_MODEL", None)
+
+    # resolve None to NoModel
+    if model is None:
+        return [get_model("none")]
+
     # reflect back a plain model
     if isinstance(model, Model):
         return [model]
 
     # helper to resolve model of various types
-    def resolve_model(m: str | Model | None) -> Model:
+    def resolve_model(m: str | Model) -> Model:
         return get_model(
             model=m,
             base_url=model_base_url,
@@ -878,11 +980,8 @@ def resolve_models(
             **model_args,
         )
 
-    # resolve None and str to list
-    if model is None or isinstance(model, str):
-        model = model or os.getenv("INSPECT_EVAL_MODEL", None)
-        if model is None:
-            raise ValueError("No model specified (and no INSPECT_EVAL_MODEL defined)")
+    # str to list
+    if isinstance(model, str):
         model = [m.strip() for m in model.split(",")]
 
     # resolve models
@@ -1098,6 +1197,7 @@ def tool_result_images_reducer(
                     content=edited_tool_message_content,
                     tool_call_id=message.tool_call_id,
                     function=message.function,
+                    internal_name=message.internal_name,
                 )
             ],
             pending_content + new_user_message_content,
@@ -1236,7 +1336,7 @@ def active_model() -> Model | None:
 
 
 # shared contexts for asyncio tasks
-active_model_context_var: ContextVar[Model] = ContextVar("active_model")
+active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
 
 def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:

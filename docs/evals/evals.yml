@@ -3,29 +3,29 @@
   - Coding
   contributors:
   - adil-a
-  description: 'Measures the functional correctness of synthesizing programs from
-    docstrings.
+  description: 'Assesses how accurately language models can write correct Python functions
+    based solely on natural-language instructions provided as docstrings.
 
     '
   group: Coding
   path: src/inspect_evals/humaneval
   tasks:
   - humaneval
-  title: 'HumanEval: Evaluating Large Language Models Trained on Code'
+  title: 'HumanEval: Python Function Generation from Instructions'
 - arxiv: https://arxiv.org/abs/2108.07732
   categories:
   - Coding
   contributors:
   - jddantes
-  description: 'Measures the ability to synthesize short Python programs from natural
-    language descriptions.
+  description: 'Measures the ability of language models to generate short Python programs
+    from simple natural-language descriptions, testing basic coding proficiency.
 
     '
   group: Coding
   path: src/inspect_evals/mbpp
   tasks:
   - mbpp
-  title: 'MBPP: Mostly Basic Python Problems'
+  title: 'MBPP: Basic Python Coding Challenges'
 - arxiv: https://arxiv.org/abs/2310.06770
   categories:
   - Coding
@@ -33,8 +33,9 @@
   contributors:
   - max-kaufmann
   dependency: swe_bench
-  description: 'Software engineering problems drawn from real GitHub issues and corresponding
-    pull requests across 12 popular Python repositories.
+  description: 'Evaluates AI''s ability to resolve genuine software engineering issues
+    sourced from 12 popular Python GitHub repositories, reflecting realistic coding
+    and debugging scenarios.
 
     '
   group: Coding
@@ -43,7 +44,27 @@
   - Agent
   tasks:
   - swe_bench
+  - swe_bench_verified_mini
   title: 'SWE-bench Verified: Resolving Real-World GitHub Issues'
+- arxiv: https://arxiv.org/abs/2410.07095
+  categories:
+  - Coding
+  - Agent
+  contributors:
+  - samm393
+  dependency: mle_bench
+  description: 'Machine learning tasks drawn from 75 Kaggle competitions.
+
+    '
+  group: Coding
+  path: src/inspect_evals/mle_bench
+  tags:
+  - Agent
+  tasks:
+  - mle_bench
+  - mle_bench_full
+  - mle_bench_lite
+  title: 'MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering'
 - arxiv: https://arxiv.org/abs/2211.11501
   categories:
   - Coding
@@ -87,6 +108,56 @@
   - class_eval
   title: 'ClassEval: A Manually-Crafted Benchmark for Evaluating LLMs on Class-level
     Code Generation'
+- arxiv: https://arxiv.org/abs/2407.13168
+  categories:
+  - Coding
+  contributors:
+  - xantheocracy
+  dependency: scicode
+  description: 'SciCode tests the ability of language models to generate code to solve
+    scientific research problems. It assesses models on 65 problems from mathematics,
+    physics, chemistry, biology, and materials science.
+
+    '
+  group: Coding
+  path: src/inspect_evals/scicode
+  tasks:
+  - scicode
+  title: 'SciCode: A Research Coding Benchmark Curated by Scientists'
+- arxiv: https://arxiv.org/pdf/2105.09938v3
+  categories:
+  - Coding
+  contributors:
+  - camtice
+  description: 'APPS is a dataset for evaluating model performance on Python programming
+    tasks across three difficulty levels consisting of 1,000 at introductory, 3,000
+    at interview, and 1,000 at competition level. The dataset consists of an additional
+    5,000 training samples, for a total of 10,000 total samples. We evaluate on questions
+    from the test split, which consists of programming problems commonly found in
+    coding interviews.
+
+    '
+  group: Coding
+  path: src/inspect_evals/apps
+  tasks:
+  - apps
+  title: 'APPS: Automated Programming Progress Standard'
+- arxiv: https://arxiv.org/abs/2409.11363
+  categories:
+  - Coding
+  - Agent
+  contributors:
+  - enerrio
+  dependency: core_bench
+  description: Evaluate how well an LLM Agent is at computationally reproducing the
+    results of a set of scientific papers.
+  group: Coding
+  path: src/inspect_evals/core_bench
+  tags:
+  - Agent
+  tasks:
+  - core_bench
+  title: CORE-Bench
 - arxiv: https://arxiv.org/abs/2311.12983
   categories:
   - Assistants
@@ -115,8 +186,9 @@
   - Agent
   contributors:
   - epatey
-  description: 'Benchmark for multimodal agents for open-ended tasks in real computer
-    environments.
+  description: 'Tests AI agents'' ability to perform realistic, open-ended tasks within
+    simulated computer environments, requiring complex interaction across multiple
+    input modalities.
 
     '
   group: Assistants
@@ -126,13 +198,14 @@
   tasks:
   - osworld
   - osworld_small
-  title: OSWorld
+  title: 'OSWorld: Multimodal Computer Interaction Tasks'
 - arxiv: https://arxiv.org/abs/2407.15711
   categories:
   - Assistants
   - Agent
   contributors:
   - nlpet
+  - caspardh
   description: 'Tests whether AI agents can perform real-world time-consuming tasks
     on the web.
 
@@ -142,8 +215,41 @@
   tags:
   - Agent
   tasks:
-  - assistant_bench
+  - assistant_bench_closed_book_zero_shot
+  - assistant_bench_closed_book_one_shot
+  - assistant_bench_web_search_zero_shot
+  - assistant_bench_web_search_one_shot
+  - assistant_bench_web_browser
   title: 'AssistantBench: Can Web Agents Solve Realistic and Time-Consuming Tasks?'
+- arxiv: https://arxiv.org/abs/2310.13548
+  categories:
+  - Assistants
+  contributors:
+  - alexdzm
+  description: 'Evaluate sycophancy of language models across a variety of free-form
+    text-generation tasks.
+
+    '
+  group: Assistants
+  path: src/inspect_evals/sycophancy
+  tasks:
+  - sycophancy
+  title: Sycophancy Eval
+- arxiv: https://arxiv.org/abs/2306.06070
+  categories:
+  - Assistants
+  contributors:
+  - dr3s
+  dependency: mind2web
+  description: 'A dataset for developing and evaluating generalist agents for the
+    web that can follow language instructions to complete complex tasks on any website.
+
+    '
+  group: Assistants
+  path: src/inspect_evals/mind2web
+  tasks:
+  - mind2web
+  title: 'Mind2Web: Towards a Generalist Agent for the Web'
 - arxiv: https://arxiv.org/abs/2408.08926
   categories:
   - Cybersecurity
@@ -153,9 +259,9 @@
   - sam-deverett-dsit
   - kola-aisi
   - pgiav
-  description: '40 professional-level Capture the Flag (CTF) tasks from 4 distinct
-    CTF competitions, chosen to be recent, meaningful, and spanning a wide range of
-    difficulties.
+  description: 'Tests language models on cybersecurity skills using 40 practical,
+    professional-level challenges taken from cybersecurity competitions, designed
+    to cover various difficulty levels and security concepts.
 
     '
   group: Cybersecurity
@@ -164,8 +270,7 @@
   - Agent
   tasks:
   - cybench
-  title: 'Cybench: A Framework for Evaluating Cybersecurity Capabilities and Risks
-    of Language Models'
+  title: 'Cybench: Capture-The-Flag Cybersecurity Challenges'
 - arxiv: https://arxiv.org/abs/2402.07688
   categories:
   - Cybersecurity
@@ -192,26 +297,42 @@
   - Cybersecurity
   contributors:
   - its-emile
-  description: 'Evaluates Large Language Models for risky capabilities in cybersecurity.
+  description: 'Assesses language models for cybersecurity risks, specifically testing
+    their potential to misuse programming interpreters, vulnerability to malicious
+    prompt injections, and capability to exploit known software vulnerabilities.
 
     '
   group: Cybersecurity
   path: src/inspect_evals/cyberseceval_2
   tasks:
-  - cse2_interpreter_abuse
-  - cse2_prompt_injection
-  - cse2_vulnerability_exploit
-  title: 'CyberSecEval_2: A Wide-Ranging Cybersecurity Evaluation Suite for Large
-    Language Models'
+  - cyse2_interpreter_abuse
+  - cyse2_prompt_injection
+  - cyse2_vulnerability_exploit
+  title: 'CyberSecEval_2: Cybersecurity Risk and Vulnerability Evaluation'
+- arxiv: https://arxiv.org/abs/2312.04724
+  categories:
+  - Cybersecurity
+  contributors:
+  - onionymous
+  description: 'Evaluates Large Language Models for cybersecurity risk to third parties,
+    application developers and end users.
+
+    '
+  group: Cybersecurity
+  path: src/inspect_evals/cyberseceval_3
+  tasks:
+  - cyse3_visual_prompt_injection
+  title: 'CYBERSECEVAL 3: Advancing the Evaluation of Cybersecurity Risks and Capabilities
+    in Large Language Models'
 - arxiv: https://arxiv.org/abs/2306.14898
   categories:
   - Cybersecurity
   - Agent
   contributors:
   - jjallaire
-  description: 'Measure expertise in coding, cryptography (i.e. binary exploitation,
-    forensics), reverse engineering, and recognizing security vulnerabilities. Demonstrates
-    tool use and sandboxing untrusted model code.
+  description: 'Tests AI''s ability in coding, cryptography, reverse engineering,
+    and vulnerability identification through practical capture-the-flag (CTF) cybersecurity
+    scenarios.
 
     '
   group: Cybersecurity
@@ -220,7 +341,7 @@
   - Agent
   tasks:
   - gdm_intercode_ctf
-  title: 'InterCode: Capture the Flag'
+  title: 'InterCode: Security and Coding Capture-the-Flag Challenges'
 - arxiv: https://arxiv.org/abs/2403.13793
   categories:
   - Cybersecurity
@@ -266,9 +387,9 @@
   - matthewreed26
   description: '"Security Question Answering" dataset to assess LLMs'' understanding
     and application of security principles. SecQA has "v1" and "v2" datasets of multiple-choice
-    questions that aim to provide two levels of cybersecurity evaluation criteria.  The
-    questions were generated by GPT-4 based on the "Computer Systems Security: Planning
-    for Success" textbook and vetted by humans.
+    questions that aim to provide two levels of cybersecurity evaluation criteria.
+    The questions were generated by GPT-4 based on the "Computer Systems Security:
+    Planning for Success" textbook and vetted by humans.
 
     '
   group: Cybersecurity
@@ -280,6 +401,28 @@
   - sec_qa_v2_5_shot
   title: 'SecQA: A Concise Question-Answering Dataset for Evaluating Large Language
     Models in Computer Security'
+- arxiv: https://arxiv.org/abs/2407.10362
+  categories:
+  - Safeguards
+  contributors:
+  - matthewreed26
+  description: 'Tests LLMs and LLM-augmented agents abilities to answer questions
+    on scientific research workflows in domains like chemistry, biology, materials
+    science, as well as more general science tasks
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/lab_bench
+  tasks:
+  - lab_bench_litqa
+  - lab_bench_suppqa
+  - lab_bench_figqa
+  - lab_bench_tableqa
+  - lab_bench_dbqa
+  - lab_bench_protocolqa
+  - lab_bench_seqqa
+  - lab_bench_cloning_scenarios
+  title: 'LAB-Bench: Measuring Capabilities of Language Models for Biology Research'
 - arxiv: https://arxiv.org/abs/2410.09024
   categories:
   - Safeguards
@@ -289,8 +432,9 @@
   - EricWinsorDSIT
   - max-andr
   - xanderdavies
-  description: 'Diverse set of 110 explicitly malicious agent tasks (440 with augmentations),
-    covering 11 harm categories including fraud, cybercrime, and harassment.
+  description: 'Assesses whether AI agents might engage in harmful activities by testing
+    their responses to malicious prompts in areas like cybercrime, harassment, and
+    fraud, aiming to ensure safe behavior.
 
     '
   group: Safeguards
@@ -300,7 +444,7 @@
   tasks:
   - agentharm
   - agentharm_benign
-  title: 'AgentHarm: A Benchmark for Measuring Harmfulness of LLM Agents'
+  title: 'AgentHarm: Harmfulness Potential in AI Agents'
 - arxiv: https://arxiv.org/abs/2403.03218
   categories:
   - Safeguards
@@ -318,6 +462,20 @@
   - wmdp_chem
   - wmdp_cyber
   title: 'WMDP: Measuring and Reducing Malicious Use With Unlearning'
+- arxiv: https://arxiv.org/abs/2402.10260
+  categories:
+  - Safeguards
+  contributors:
+  - viknat
+  description: 'A benchmark that evaluates the susceptibility of LLMs to various jailbreak
+    attacks.
+
+    '
+  group: Safeguards
+  path: src/inspect_evals/strong_reject
+  tasks:
+  - strong_reject
+  title: 'StrongREJECT: Measuring LLM susceptibility to jailbreak attacks'
 - arxiv: https://arxiv.org/abs/2103.03874
   categories:
   - Mathematics
@@ -338,24 +496,24 @@
   - Mathematics
   contributors:
   - jjallaire
-  description: 'Dataset of 8.5K high quality linguistically diverse grade school math
-    word problems.
+  description: 'Measures how effectively language models solve realistic, linguistically
+    rich math word problems suitable for grade-school-level mathematics.
 
     '
   group: Mathematics
   path: src/inspect_evals/gsm8k
   tasks:
   - gsm8k
-  title: 'GSM8K: Training Verifiers to Solve Math Word Problems'
+  title: 'GSM8K: Grade School Math Word Problems'
 - arxiv: https://arxiv.org/abs/2310.02255
   categories:
   - Mathematics
   - Multimodal
   contributors:
   - ShivMunagala
-  description: 'Diverse mathematical and visual tasks that require fine-grained, deep
-    visual understanding and compositional reasoning. Demonstrates multimodal inputs
-    and custom scorers.
+  description: 'Tests AI models on math problems that involve interpreting visual
+    elements like diagrams and charts, requiring detailed visual comprehension and
+    logical reasoning.
 
     '
   group: Mathematics
@@ -364,7 +522,7 @@
   - Multimodal
   tasks:
   - mathvista
-  title: 'MathVista: Evaluating Mathematical Reasoning in Visual Contexts'
+  title: 'MathVista: Visual Math Problem-Solving'
 - arxiv: https://arxiv.org/abs/2210.03057
   categories:
   - Mathematics
@@ -379,6 +537,20 @@
   tasks:
   - mgsm
   title: 'MGSM: Multilingual Grade School Math'
+- arxiv: https://huggingface.co/datasets/Maxwell-Jia/AIME_2024
+  categories:
+  - Mathematics
+  contributors:
+  - tamazgadaev
+  description: 'A benchmark for evaluating AI''s ability to solve challenging mathematics
+    problems from AIME - a prestigious high school mathematics competition.
+
+    '
+  group: Mathematics
+  path: src/inspect_evals/aime2024
+  tasks:
+  - aime2024
+  title: 'AIME 2024: Problems from the American Invitational Mathematics Examination'
 - arxiv: https://arxiv.org/abs/2312.14135
   categories:
   - Reasoning
@@ -417,29 +589,30 @@
   - Reasoning
   contributors:
   - jjallaire
-  description: 'Evaluting commonsense natural language inference: given an event description
-    such as "A woman sits at a piano," a machine must select the most likely followup.
+  description: 'Tests models'' commonsense reasoning abilities by asking them to select
+    the most likely next step or continuation for a given everyday situation.
 
     '
   group: Reasoning
   path: src/inspect_evals/hellaswag
   tasks:
   - hellaswag
-  title: 'HellaSwag: Can a Machine Really Finish Your Sentence?'
+  title: 'HellaSwag: Commonsense Event Continuation'
 - arxiv: https://arxiv.org/abs/1911.11641
   categories:
   - Reasoning
   contributors:
   - seddy-aisi
-  description: 'Measure physical commonsense reasoning (e.g. "To apply eyeshadow without
-    a brush, should I use a cotton swab or a toothpick?")
+  description: 'Measures the model''s ability to apply practical, everyday commonsense
+    reasoning about physical objects and scenarios through simple decision-making
+    questions.
 
     '
   group: Reasoning
   path: src/inspect_evals/piqa
   tasks:
   - piqa
-  title: 'PIQA: Reasoning about Physical Commonsense in Natural Language'
+  title: 'PIQA: Physical Commonsense Reasoning Test'
 - arxiv: https://arxiv.org/abs/2402.13718
   categories:
   - Reasoning
@@ -468,16 +641,15 @@
   - Reasoning
   contributors:
   - JoschkaCBraun
-  description: 'Suite of 23 challenging BIG-Bench tasks for which prior language model
-    evaluations did not outperform the average human-rater.
+  description: 'Tests AI models on a suite of 23 challenging BIG-Bench tasks that
+    previously proved difficult even for advanced language models to solve.
 
     '
   group: Reasoning
   path: src/inspect_evals/bbh
   tasks:
   - bbh
-  title: 'BBH: Challenging BIG-Bench Tasks and Whether Chain-of-Thought Can Solve
-    Them'
+  title: 'BBH: Challenging BIG-Bench Tasks'
 - arxiv: https://arxiv.org/abs/1905.10044
   categories:
   - Reasoning
@@ -562,9 +734,9 @@
   - Multimodal
   contributors:
   - shaheenahmedc
-  description: 'Multimodal questions from college exams, quizzes, and textbooks, covering
-    six core disciplinestasks, demanding college-level subject knowledge and deliberate
-    reasoning. Demonstrates multimodel inputs.
+  description: 'Assesses multimodal AI models on challenging college-level questions
+    covering multiple academic subjects, requiring detailed visual interpretation,
+    in-depth reasoning, and both multiple-choice and open-ended answering abilities.
 
     '
   group: Reasoning
@@ -574,8 +746,7 @@
   tasks:
   - mmmu_multiple_choice
   - mmmu_open
-  title: 'MMMU: A Massive Multi-discipline Multimodal Understanding and Reasoning
-    Benchmark'
+  title: 'MMMU: Multimodal College-Level Understanding and Reasoning'
 - arxiv: https://arxiv.org/abs/1606.05250
   categories:
   - Reasoning
@@ -598,16 +769,15 @@
   contributors:
   - adil-a
   dependency: ifeval
-  description: 'Evaluates the ability to follow a set of "verifiable instructions"
-    such as "write in more than 400 words" and "mention the keyword of AI at least
-    3 times. Demonstrates custom scoring.
+  description: 'Evaluates how well language models can strictly follow detailed instructions,
+    such as writing responses with specific word counts or including required keywords.
 
     '
   group: Reasoning
   path: src/inspect_evals/ifeval
   tasks:
   - ifeval
-  title: 'IFEval: Instruction-Following Evaluation for Large Language Models'
+  title: 'IFEval: Instruction-Following Evaluation'
 - arxiv: https://arxiv.org/abs/2310.16049
   categories:
   - Reasoning
@@ -672,38 +842,39 @@
   - Knowledge
   contributors:
   - xeon27
-  description: 'An enhanced dataset designed to extend the mostly knowledge-driven
-    MMLU benchmark by integrating more challenging, reasoning-focused questions and
-    expanding the choice set from four to ten options.
+  description: 'An advanced benchmark that tests both broad knowledge and reasoning
+    capabilities across many subjects, featuring challenging questions and multiple-choice
+    answers with increased difficulty and complexity.
 
     '
   group: Knowledge
   path: src/inspect_evals/mmlu_pro
   tasks:
   - mmlu_pro
-  title: 'MMLU-Pro: A More Robust and Challenging Multi-Task Language Understanding
-    Benchmark'
+  title: 'MMLU-Pro: Advanced Multitask Knowledge and Reasoning Evaluation'
 - arxiv: https://arxiv.org/abs/2311.12022
   categories:
   - Knowledge
   contributors:
   - jjallaire
-  description: 'Challenging dataset of 448 multiple-choice questions written by domain
-    experts in biology, physics, and chemistry (experts at PhD level in the corresponding
-    domains reach 65% accuracy).
+  description: 'Contains challenging multiple-choice questions created by domain experts
+    in biology, physics, and chemistry, designed to test advanced scientific understanding
+    beyond basic internet searches. Experts at PhD level in the corresponding domains
+    reach 65% accuracy.
 
     '
   group: Knowledge
   path: src/inspect_evals/gpqa
   tasks:
   - gpqa_diamond
-  title: 'GPQA: A Graduate-Level Google-Proof Q&A Benchmark'
+  title: 'GPQA: Graduate-Level STEM Knowledge Challenge'
 - arxiv: https://arxiv.org/abs/1811.00937
   categories:
   - Knowledge
   contributors:
   - jjallaire
-  description: 'Measure question answering with commonsense prior knowledge.
+  description: 'Evaluates an AI model''s ability to correctly answer everyday questions
+    that rely on basic commonsense knowledge and understanding of the world.
 
     '
   group: Knowledge
@@ -746,8 +917,7 @@
   - Knowledge
   contributors:
   - MattFisher
-  description: 'Novel biomedical question answering (QA) dataset collected from PubMed
-    abstracts.
+  description: 'Biomedical question answering (QA) dataset collected from PubMed abstracts.
 
     '
   group: Knowledge
@@ -758,6 +928,8 @@
 - arxiv: https://arxiv.org/abs/2304.06364
   categories:
   - Knowledge
+  contributors:
+  - bouromain
   description: 'AGIEval is a human-centric benchmark specifically designed to evaluate
     the general abilities of foundation models in tasks pertinent to human cognition
     and problem-solving.
@@ -776,22 +948,24 @@
   - agie_sat_en_without_passage
   - agie_sat_math
   title: 'AGIEval: A Human-Centric Benchmark for Evaluating Foundation Models'
-- arxiv: https://arxiv.org/abs/2407.13168
+- arxiv: https://arxiv.org/abs/2406.19314
   categories:
-  - Coding
+  - Knowledge
   contributors:
-  - xantheocracy
-  dependency: scicode
-  description: 'SciCode tests the ability of language models to generate code to solve
-    scientific research problems. It assesses models on 65 problems from mathematics,
-    physics, chemistry, biology, and materials science.
+  - anaoaktree
+  dependency: livebench
+  description: 'LiveBench is a benchmark designed with test set contamination and
+    objective evaluation in mind by releasing new questions regularly, as well as
+    having questions based on recently-released datasets. Each question has verifiable,
+    objective ground-truth answers, allowing hard questions to be scored accurately
+    and automatically, without the use of an LLM judge.
 
     '
-  group: Coding
-  path: src/inspect_evals/scicode
+  group: Knowledge
+  path: src/inspect_evals/livebench
   tasks:
-  - scicode
-  title: 'SciCode: A Research Coding Benchmark Curated by Scientists'
+  - livebench
+  title: 'LiveBench: A Challenging, Contamination-Free LLM Benchmark'
 - categories:
   - Knowledge
   contributors:
@@ -808,4 +982,65 @@
   path: src/inspect_evals/onet
   tasks:
   - onet_m6
-  title: O-NET
+  title: 'O-NET: A high-school student knowledge test'
+- arxiv: https://arxiv.org/abs/2501.14249
+  categories:
+  - Knowledge
+  contributors:
+  - SasankYadati
+  description: 'Humanity''s Last Exam (HLE) is a multi-modal benchmark at the frontier
+    of human knowledge, designed to be the final closed-ended academic benchmark of
+    its kind with broad subject coverage. Humanity''s Last Exam consists of 3,000
+    questions across dozens of subjects, including mathematics, humanities, and the
+    natural sciences. HLE is developed globally by subject-matter experts and consists
+    of multiple-choice and short-answer questions suitable for automated grading.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/hle
+  tasks:
+  - hle
+  title: Humanity's Last Exam
+- arxiv: https://arxiv.org/abs/2411.04368
+  categories:
+  - Knowledge
+  contributors:
+  - osc245
+  description: 'A benchmark that evaluates the ability of language models to answer
+    short, fact-seeking questions.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/simpleqa
+  tasks:
+  - simpleqa
+  title: 'SimpleQA: Measuring short-form factuality in large language models'
+- arxiv: https://arxiv.org/pdf/2407.17436
+  categories:
+  - Knowledge
+  contributors:
+  - l1990790120
+  description: 'A safety benchmark evaluating language models against risk categories
+    derived from government regulations and company policies.
+
+    '
+  group: Knowledge
+  path: src/inspect_evals/air_bench
+  tasks:
+  - air_bench
+  title: 'AIR Bench: AI Risk Benchmark'
+- arxiv: https://arxiv.org/pdf/2408.02718
+  categories:
+  - Multimodal
+  contributors:
+  - Esther-Guo
+  description: A comprehensive dataset designed to evaluate Large Vision-Language
+    Models (LVLMs) across a wide range of multi-image tasks. The dataset encompasses
+    7 types of multi-image relationships, 52 tasks, 77K images, and 11K meticulously
+    curated multiple-choice questions.
+  group: Multimodal
+  path: src/inspect_evals/mmiu
+  tasks:
+  - mmiu
+  title: 'MMIU: Multimodal Multi-image Understanding for Evaluating Large Vision-Language
+    Models'

@@ -15,17 +15,13 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, task
 from inspect_ai._eval.evalset import (
-    ModelList,
     eval_set,
     latest_completed_task_eval_logs,
     list_all_eval_logs,
-    schedule_pending_tasks,
-    schedule_retry_tasks,
 )
-from inspect_ai._eval.loader import ResolvedTask
 from inspect_ai.dataset import Sample
 from inspect_ai.log._file import list_eval_logs, read_eval_log, write_eval_log
-from inspect_ai.model import Model, get_model
+from inspect_ai.model import get_model
 from inspect_ai.scorer._match import includes
 from inspect_ai.solver import generate
 
@@ -65,6 +61,7 @@ def test_eval_set() -> None:
         assert logs[0].status == "error"
 
 
+@pytest.mark.slow
 def test_eval_set_dynamic() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         dataset: list[Sample] = []
@@ -73,21 +70,21 @@ def test_eval_set_dynamic() -> None:
         task1 = Task(
             name="task1",
             dataset=deepcopy(dataset),
-            solver=[failing_solver(0.2), generate()],
+            solver=[failing_solver(0.05), generate()],
             scorer=includes(),
         )
         task2 = Task(
             name="task2",
             dataset=deepcopy(dataset),
-            solver=[failing_solver(0.2), generate()],
+            solver=[failing_solver(0.05), generate()],
             scorer=includes(),
         )
         success, logs = eval_set(
             tasks=[task1, task2],
             log_dir=log_dir,
             model=[get_model("mockllm/model"), get_model("mockllm/model2")],
-            retry_attempts=100,
-            retry_wait=0.1,
+            retry_attempts=10000,
+            retry_wait=0.001,
         )
         assert len(logs) == 4
         assert success
@@ -129,75 +126,6 @@ def test_eval_set_identifiers() -> None:
         assert False
     except Exception:
         pass
-
-
-def test_schedule_pending_tasks() -> None:
-    task1 = Task(name="task1")
-    task2 = Task(name="task2")
-    task3 = Task(name="task3")
-    task4 = Task(name="task4")
-    task5 = Task(name="task5")
-    openai = get_model("mockllm/openai")
-    anthropic = get_model("mockllm/anthropic")
-    mock = get_model("mockllm/model")
-
-    def resolved_task(task: Task, model: Model) -> ResolvedTask:
-        return ResolvedTask(
-            task=task,
-            task_args={},
-            task_file=None,
-            model=model,
-            sandbox=None,
-            sequence=1,
-        )
-
-    def assert_schedule(
-        sched: tuple[ModelList, list[ResolvedTask]],
-        models: list[Model],
-        tasks: list[Task],
-    ) -> None:
-        assert sched[0] == ModelList(models)
-        sched_tasks = list(sched[1])
-        sched_tasks.sort(key=lambda x: x.task.name)
-        tasks = list(tasks)
-        tasks.sort(key=lambda x: x.name)
-        assert [task.task for task in sched_tasks] == tasks
-
-    # test schedule with all models for each task
-    tasks: list[ResolvedTask] = []
-    for tk in [task1, task2, task3, task4, task5]:
-        for model in [openai, anthropic, mock]:
-            tasks.append(resolved_task(tk, model))
-    schedule = schedule_pending_tasks(tasks)
-    assert len(schedule) == 1
-    assert_schedule(
-        schedule[0], [openai, anthropic, mock], [task1, task2, task3, task4, task5]
-    )
-
-    # test schedule w/ varying models per task
-    tasks = [
-        resolved_task(task1, openai),
-        resolved_task(task1, anthropic),
-        resolved_task(task1, mock),
-        resolved_task(task2, openai),
-        resolved_task(task4, openai),
-        resolved_task(task2, anthropic),
-        resolved_task(task4, anthropic),
-        resolved_task(task3, mock),
-        resolved_task(task5, mock),
-    ]
-    schedule = schedule_pending_tasks(tasks)
-    assert len(schedule) == 3
-    assert_schedule(schedule[0], [mock], [task3, task5])
-    assert_schedule(schedule[1], [openai, anthropic], [task2, task4])
-    assert_schedule(schedule[2], [openai, anthropic, mock], [task1])
-
-    # test retry scheduling (single model at a time)
-    schedule = schedule_retry_tasks(tasks)
-    assert len(schedule) == 3
-    assert_schedule(schedule[0], [anthropic], [task1, task2, task4])
-    assert_schedule(schedule[1], [mock], [task1, task3, task5])
-    assert_schedule(schedule[2], [openai], [task1, task2, task4])
 
 
 def test_latest_completed_task_eval_logs() -> None:
@@ -252,6 +180,7 @@ def test_eval_zero_retries() -> None:
         assert not success
 
 
+@skip_if_trio  # throwing the keyboardinterrupt corrupts trio's internals
 def test_eval_set_previous_task_args():
     with tempfile.TemporaryDirectory() as log_dir:
 

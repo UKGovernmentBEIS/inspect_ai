@@ -1,5 +1,6 @@
 import pytest
 from test_helpers.utils import (
+    skip_if_no_google,
     skip_if_no_openai,
     skip_if_no_openai_package,
     skip_if_trio,
@@ -69,6 +70,28 @@ async def test_context_manager():
 
     # Verify the model was closed
     assert hasattr(model, "_closed") and model._closed
+
+
+@pytest.mark.anyio
+@skip_if_no_openai
+async def test_context_manager_async_required():
+    with pytest.raises(RuntimeError, match="require an async close"):
+        with get_model("openai/gpt-4o-mini") as model:
+            await model.generate("Say hello")
+
+
+@pytest.mark.anyio
+@skip_if_no_google
+async def test_context_manager_no_close():
+    # use with sync context mananger
+    with get_model("google/gemini-2.0-flash") as model:
+        output = await model.generate("Say hello")
+        assert "hello" in output.completion.lower()
+
+    # use with async context manager
+    async with get_model("google/gemini-2.0-flash") as model:
+        output = await model.generate("Say hello")
+        assert "hello" in output.completion.lower()
 
 
 @pytest.mark.anyio

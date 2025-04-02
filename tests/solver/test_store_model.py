@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
@@ -32,13 +34,24 @@ def test_store_model_basic():
     assert log.status == "success"
 
 
-def test_store_model_log():
+def test_store_model_log() -> None:
+    class Step(BaseModel):
+        response: dict[str, Any]
+        results: list[dict[str, Any]]
+
+    class Trajectory(StoreModel):
+        x: int = Field(default=5)
+        y: str = Field(default="default_y")
+        z: float = Field(default=1.23)
+        steps: list[Step] = Field(default_factory=list)
+
     @solver
     def model_log():
         async def solve(state, generate):
-            model = MyModel()
+            model = Trajectory()
             model.x = 1
             model.y = "a"
+            model.steps.append(Step(response={"foo": "bar"}, results=[{"foo": "bar"}]))
             return state
 
         return solve
@@ -48,18 +61,19 @@ def test_store_model_log():
 
     # reconstruct the store from the sample
     store = Store(log.samples[0].store)
-    assert store.get("MyModel:x") == 1
-    assert store.get("MyModel:y") == "a"
+    assert store.get("Trajectory:x") == 1
+    assert store.get("Trajectory:y") == "a"
 
     # reconstruct the store model from the sample
-    my_model = MyModel(store=store)
+    my_model = Trajectory(store=store)
     assert my_model.x == 1
     assert my_model.y == "a"
 
     # access the store model via store_as
-    my_model = log.samples[0].store_as(MyModel)
+    my_model = log.samples[0].store_as(Trajectory)
     assert my_model.x == 1
     assert my_model.y == "a"
+    assert isinstance(my_model.steps[0], Step)
 
 
 def test_store_model_assignment():
@@ -158,6 +172,18 @@ def test_store_model_multiple_instances_same_store():
     assert model1.y == "shared"
 
 
+def test_store_multiple_model_instances_context():
+    store = Store()
+    model1 = MyModel(store=store, instance="m1")
+    model2 = MyModel(store=store, instance="m2")
+
+    model1.x = 42
+    assert model2.x != 42
+
+    model2.y = "shared"
+    assert model1.y != "shared"
+
+
 def test_store_model_deletion():
     store = Store()
     model = MyModel(store=store)
@@ -249,3 +275,20 @@ def test_store_model_inheritance():
     base = MyModel(store=store)
     base.x = 100
     assert derived.x == 42  # Should not be affected by base model
+
+
+class IllegalModel(StoreModel):
+    my_model: MyModel = Field(default_factory=MyModel)
+
+
+class IllegalModel2(StoreModel):
+    my_model: MyModel | None = None
+
+
+def test_error_on_embed_store_model():
+    with pytest.raises(TypeError):
+        IllegalModel()
+
+    illegal = IllegalModel2()
+    with pytest.raises(TypeError):
+        illegal.my_model = MyModel()

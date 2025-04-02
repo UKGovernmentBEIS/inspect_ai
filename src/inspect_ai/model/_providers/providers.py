@@ -94,11 +94,7 @@ def vertex() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-genai"
-    MIN_VERSION = "1.2.0"
-
-    # workaround log spam
-    # https://github.com/ray-project/ray/issues/24917
-    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "0"
+    MIN_VERSION = "1.8.0"
 
     # verify we have the package
     try:
@@ -148,7 +144,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.5.1"
+    MIN_VERSION = "1.6.0"
 
     # verify we have the package
     try:
@@ -271,6 +267,13 @@ def sglang() -> type[ModelAPI]:
     return SGLangAPI
 
 
+@modelapi(name="none")
+def none() -> type[ModelAPI]:
+    from .none import NoModel
+
+    return NoModel
+
+
 @modelapi("goodfire")
 def goodfire() -> type[ModelAPI]:
     """Get the Goodfire API provider."""
@@ -296,7 +299,7 @@ def goodfire() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.58.1"
+    MIN_VERSION = "1.68.0"
 
     # verify we have the package
     try:

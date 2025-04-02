@@ -1,43 +1,110 @@
 export const asyncJsonParse = async (text: string): Promise<any> => {
+  // Encode the input text
   const encoder = new TextEncoder();
   const encodedText = encoder.encode(text);
+
+  // Create a worker from the inline script
   const blob = new Blob([kWorkerCode], { type: "application/javascript" });
   const blobURL = URL.createObjectURL(blob);
   const worker = new Worker(blobURL);
+
   try {
     const result = new Promise((resolve, reject) => {
       worker.onmessage = function (e) {
         if (e.data.success) {
-          resolve(e.data.result);
+          if (e.data.serialized) {
+            // Deserialize the result if it was sent as a transferable
+            const decoder = new TextDecoder();
+            const resultString = decoder.decode(e.data.result);
+            resolve(JSON.parse(resultString));
+          } else {
+            resolve(e.data.result);
+          }
         } else {
-          reject(new Error(e.data.error));
+          const error = new Error(e.data.error);
+          if (e.data.stack) {
+            error.stack = e.data.stack;
+          }
+          reject(error);
         }
       };
+
       worker.onerror = function (error) {
-        reject(new Error(error.message));
+        reject(new Error(`Worker error: ${error.message}`));
       };
     });
-    worker.postMessage({ scriptContent: kJson5ScriptBase64, encodedText }, [
-      encodedText.buffer,
-    ]);
+
+    // Transfer the encoded text buffer to the worker
+    worker.postMessage(
+      {
+        scriptContent: kJson5ScriptBase64,
+        encodedText,
+      },
+      [encodedText.buffer],
+    );
+
     return await result;
   } finally {
+    // Clean up resources
     worker.terminate();
     URL.revokeObjectURL(blobURL);
   }
 };
 
 const kWorkerCode = `
+// Store the JSON5 parser once loaded
+let JSON5 = null;
+
 self.onmessage = function (e) {
-  eval(atob(e.data.scriptContent));
-  const { encodedText } = e.data;
-  const decoder = new TextDecoder();
-  const text = decoder.decode(encodedText);
+  const { encodedText, scriptContent } = e.data;
+  
   try {
-    const result = JSON.parse(text);
-    postMessage({ success: true, result });
+    // Only load the JSON5 script if we haven't done so yet
+    if (!JSON5) {
+      const script = atob(scriptContent);
+
+      new Function(script)();
+      // Verify it was loaded properly
+      if (typeof self.JSON5 !== 'object' || typeof self.JSON5.parse !== 'function') {
+        throw new Error('Failed to initialize JSON5 parser');
+      }
+      JSON5 = self.JSON5;
+    }
+    
+    // Decode the text using TextDecoder
+    const decoder = new TextDecoder();
+    const text = decoder.decode(encodedText);
+    
+    // Parse with JSON5
+    const result = JSON5.parse(text);
+    
+    if (result && typeof result === 'object' && 
+        (Array.isArray(result) ? result.length > 10000 : Object.keys(result).length > 10000)) {
+      
+      // Large result, use transferrable object
+      const resultString = JSON.stringify(result);
+      const encoder = new TextEncoder();
+      const serialized = encoder.encode(resultString);
+      
+      postMessage({
+        success: true, 
+        serialized: true,
+        result: serialized
+      }, [serialized.buffer]);
+    } else {
+      // Small results, send directly
+      postMessage({ 
+        success: true, 
+        serialized: false, 
+        result: result 
+      });
+    }
   } catch (err) {
-    postMessage({ success: false, error: err.message });
+    postMessage({ 
+      success: false, 
+      error: err.message,
+      stack: err.stack || ''
+    });
   }
 };`;
 

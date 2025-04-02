@@ -5,6 +5,7 @@ from typing import Any, Callable, Literal, TypedDict, TypeGuard, cast
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
 
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.package import get_installed_package_name
 
 from .constants import PKG_NAME
@@ -20,6 +21,7 @@ RegistryType = Literal[
     "scorer",
     "metric",
     "tool",
+    "agent",
     "sandboxenv",
     "score_reducer",
     "approver",
@@ -198,13 +200,15 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
     def with_registry_info(o: object) -> object:
         return set_registry_info(o, registry_info(obj))
 
-    # instantiate registry objects
+    # instantiate registry and model objects
     for param in kwargs.keys():
         value = kwargs[param]
         if is_registry_dict(value):
             kwargs[param] = registry_create(
                 value["type"], value["name"], **value["params"]
             )
+        elif is_model_dict(value):
+            kwargs[param] = model_create_from_dict(value)
 
     if isclass(obj):
         return with_registry_info(obj(**kwargs))
@@ -380,6 +384,8 @@ def is_registry_dict(o: object) -> TypeGuard[RegistryDict]:
 
 
 def registry_value(o: object) -> Any:
+    from inspect_ai.model._model import Model
+
     # treat tuple as list
     if isinstance(o, tuple):
         o = list(o)
@@ -390,10 +396,17 @@ def registry_value(o: object) -> Any:
     elif isinstance(o, dict):
         return {k: registry_value(v) for k, v in o.items()}
     elif has_registry_params(o):
-        return dict(
+        return RegistryDict(
             type=registry_info(o).type,
             name=registry_log_name(o),
             params=registry_params(o),
+        )
+    elif isinstance(o, Model):
+        return ModelDict(
+            model=str(o),
+            config=jsonable_python(o.config),
+            base_url=o.api.base_url,
+            model_args=o.model_args,
         )
     else:
         return o
@@ -401,3 +414,32 @@ def registry_value(o: object) -> Any:
 
 def registry_create_from_dict(d: RegistryDict) -> object:
     return registry_create(d["type"], d["name"], **d["params"])
+
+
+class ModelDict(TypedDict):
+    model: str
+    config: dict[str, Any]
+    base_url: str | None
+    model_args: dict[str, Any]
+
+
+def is_model_dict(o: object) -> TypeGuard[ModelDict]:
+    return (
+        isinstance(o, dict)
+        and "model" in o
+        and "config" in o
+        and "base_url" in o
+        and "model_args" in o
+    )
+
+
+def model_create_from_dict(d: ModelDict) -> object:
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._model import get_model
+
+    return get_model(
+        d["model"],
+        config=GenerateConfig(**d["config"]),
+        base_url=d["base_url"],
+        **d["model_args"],
+    )
