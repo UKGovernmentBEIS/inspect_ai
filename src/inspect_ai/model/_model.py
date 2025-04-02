@@ -260,9 +260,6 @@ class Model:
         exc: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        print("=" * 50)
-        print("Closing model")
-        print("=" * 50)
         if not self._closed:
             await self.api.close()
             self._closed = True
