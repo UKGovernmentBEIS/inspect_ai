@@ -22,6 +22,7 @@
 - Inspect View: Properly handle filtering of dictionary scores.
 - Inspect View: Render math in model input and output using katex.
 - Inspect View: Improve sample score rendering (single scoring tab with scores rendered in a table).
+- Bugfix: Eval now properly exits when `max_tasks` is greater than total tasks.
 - Bugfix: Support for calling the `score()` function within Jupyter notebooks.
 - Bugfix: Handle process lookup errors that can occur during timeout race conditions.
 - Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.
