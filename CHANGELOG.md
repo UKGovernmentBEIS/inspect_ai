@@ -16,6 +16,7 @@
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
 - Inspect View: Render messages in `user` and `assistant` solver events.
 - Inspect View: Improved support for display of nested arrays.
+- Bugfix: Eval now properly exits when `max_tasks` is greater than total tasks.
 - Bugfix: Support for calling the `score()` function within Jupyter notebooks.
 - Bugfix: Handle process lookup errors that can occur during timeout race conditions.
 - Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.

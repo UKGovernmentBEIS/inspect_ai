@@ -402,12 +402,15 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
         # Use anyio task group instead of manual task management
         try:
             async with anyio.create_task_group() as tg:
+                # computer number of workers (never more than total_tasks)
+                num_workers = min(parallel, total_tasks)
+
                 # start worker tasks
-                for _ in range(parallel):
+                for _ in range(num_workers):
                     tg.start_soon(worker)
 
                 # enqueue initial set of tasks
-                for _ in range(min(parallel, total_tasks)):
+                for _ in range(num_workers):
                     await enque_next_task()
         except anyio.get_cancelled_exc_class():
             pass
