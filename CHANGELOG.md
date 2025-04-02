@@ -4,6 +4,7 @@
 - Model API: New `execute_tools()` function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
 - Model API: `generate_loop()` method for calling generate with a tool use loop.
 - Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
+- Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
 - Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
 - Scoring: New `grouped` metric, which computes a metric for a list of scores grouped by a value in sample metadata.
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.

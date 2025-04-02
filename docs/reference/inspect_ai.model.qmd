@@ -10,6 +10,7 @@ title: "inspect_ai.model"
 ### GenerateConfigArgs
 ### ResponseSchema
 ### ModelOutput
+### ModelCall
 ### ModelConversation
 ### ModelUsage
 ### StopReason
