@@ -26,11 +26,11 @@ The [Model Context Protocol](https://modelcontextprotocol.io/introduction) is a 
 
 Tools exposed by MCP servers can be easily integrated into Inspect. Learn more in the article on [MCP Tools](tools-mcp.qmd). 
 
-## Defining Tools
-
-Here we'll describe the basics of defining and using a custom tool. See the [Custom Tools](tools-custom.qmd) article for details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions. 
+## Custom Tools
 
 {{< include _tools-basics.md >}}
+
+ See the [Custom Tools](tools-custom.qmd) article for details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions. 
 
 ## Learning More
 
