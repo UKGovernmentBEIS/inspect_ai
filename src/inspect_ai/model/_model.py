@@ -210,7 +210,7 @@ class ModelAPI(abc.ABC):
         """Tool results can contain images"""
         return False
 
-    def forbids_computer_tool_screenshot_truncation(self) -> bool:
+    def disable_computer_screenshot_truncation(self) -> bool:
         """Some models do not support truncation of computer screenshots."""
         return False
 
@@ -480,7 +480,7 @@ class Model:
             tdefs,
             input,
             ToolCallModelInputHints(
-                forbids_computer_screenshot_truncation=self.api.forbids_computer_tool_screenshot_truncation()
+                disable_computer_screenshot_truncation=self.api.disable_computer_screenshot_truncation()
             ),
         )
 

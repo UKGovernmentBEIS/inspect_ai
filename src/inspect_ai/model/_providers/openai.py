@@ -190,7 +190,7 @@ class OpenAIAPI(ModelAPI):
         return self.is_o1_pro() or self.is_computer_use_preview()
 
     @override
-    def forbids_computer_tool_screenshot_truncation(self) -> bool:
+    def disable_computer_screenshot_truncation(self) -> bool:
         # Because ComputerCallOutput has a required output field of type
         # ResponseComputerToolCallOutputScreenshot, we must have an image in
         # order to provide a valid tool call response. Therefore, we cannot

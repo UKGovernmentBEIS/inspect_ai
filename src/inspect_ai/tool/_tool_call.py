@@ -83,7 +83,7 @@ class ToolCallModelInputHints(TypedDict):
     # This type is a little sketchy but it allows tools to customize their
     # input hook behavior based on model limitations without creating a tight
     # coupling to the model provider.
-    forbids_computer_screenshot_truncation: bool
+    disable_computer_screenshot_truncation: bool
     """The model does not support the truncation/redaction of computer screenshots."""
 
 
