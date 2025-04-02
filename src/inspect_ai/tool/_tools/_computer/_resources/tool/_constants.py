@@ -12,6 +12,8 @@ Action = Literal[
     "left_click_drag",
     "right_click",
     "middle_click",
+    "back_click",
+    "forward_click",
     "double_click",
     "triple_click",
     "scroll",

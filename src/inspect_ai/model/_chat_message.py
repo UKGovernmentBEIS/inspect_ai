@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, JsonValue, model_validator
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
@@ -25,6 +25,9 @@ class ChatMessageBase(BaseModel):
 
     source: Literal["input", "generate"] | None = Field(default=None)
     """Source of message."""
+
+    internal: JsonValue | None = Field(default=None)
+    """Model provider specific payload - typically used to aid transformation back to model types."""
 
     def model_post_init(self, __context: Any) -> None:
         # check if deserializing
@@ -160,9 +163,6 @@ class ChatMessageTool(ChatMessageBase):
 
     function: str | None = Field(default=None)
     """Name of function called."""
-
-    internal_name: str | None = Field(default=None)
-    """Internal name for tool (if any)."""
 
     error: ToolCallError | None = Field(default=None)
     """Error which occurred during tool call."""

@@ -116,11 +116,6 @@ class VertexAPI(ModelAPI):
 
         self.model = GenerativeModel(model_name)
 
-    @override
-    async def close(self) -> None:
-        # GenerativeModel uses a cached/shared client so there is no 'close'
-        pass
-
     async def generate(
         self,
         input: list[ChatMessage],
@@ -398,7 +393,6 @@ def completion_choice_from_candidate(
             function_call = MessageToDict(getattr(part.function_call, "_pb"))
             tool_calls.append(
                 ToolCall(
-                    type="function",
                     id=function_call["name"],
                     function=function_call["name"],
                     arguments=function_call["args"],

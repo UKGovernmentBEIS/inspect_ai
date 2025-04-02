@@ -183,11 +183,6 @@ class GoogleGenAIAPI(ModelAPI):
         # save model args
         self.model_args = model_args
 
-    @override
-    async def close(self) -> None:
-        # GenerativeModel uses a cached/shared client so there is no 'close'
-        pass
-
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
@@ -575,7 +570,6 @@ def completion_choice_from_candidate(
             if part.function_call:
                 tool_calls.append(
                     ToolCall(
-                        type="function",
                         id=part.function_call.name,
                         function=part.function_call.name,
                         arguments=part.function_call.args,

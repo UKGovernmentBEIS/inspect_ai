@@ -135,11 +135,6 @@ class MistralAPI(ModelAPI):
     def is_azure(self) -> bool:
         return self.service == "azure"
 
-    @override
-    async def close(self) -> None:
-        # client is created and destroyed in generate
-        pass
-
     async def generate(
         self,
         input: list[ChatMessage],
@@ -448,9 +443,7 @@ def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCal
             id, tool_call.function.name, tool_call.function.arguments, tools
         )
     else:
-        return ToolCall(
-            id, tool_call.function.name, tool_call.function.arguments, type="function"
-        )
+        return ToolCall(id, tool_call.function.name, tool_call.function.arguments)
 
 
 def completion_choice(

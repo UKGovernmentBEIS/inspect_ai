@@ -270,11 +270,6 @@ class BedrockAPI(ModelAPI):
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
 
     @override
-    async def close(self) -> None:
-        # client is created/destroyed each time in generate()
-        pass
-
-    @override
     def connection_key(self) -> str:
         return self.model_name
 
@@ -454,7 +449,6 @@ def model_output_from_response(
             tool_calls.append(
                 ToolCall(
                     id=c.toolUse.toolUseId,
-                    type="function",
                     function=c.toolUse.name,
                     arguments=cast(dict[str, Any], c.toolUse.input or {}),
                 )

@@ -4,7 +4,7 @@ If you don't have a custom Dockerfile, you can alternatively use the pre-built `
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
-    image: aisiuk/inspect-tool-support:latest
+    image: aisiuk/inspect-tool-support
     init: true
 ```
 
