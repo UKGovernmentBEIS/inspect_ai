@@ -259,13 +259,14 @@
         },
         "internal": {
           "anyOf": [
-            {},
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Internal"
+          "default": null
         },
         "role": {
           "const": "assistant",
@@ -377,13 +378,14 @@
         },
         "internal": {
           "anyOf": [
-            {},
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Internal"
+          "default": null
         },
         "role": {
           "const": "system",
@@ -466,13 +468,14 @@
         },
         "internal": {
           "anyOf": [
-            {},
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Internal"
+          "default": null
         },
         "role": {
           "const": "tool",
@@ -593,13 +596,14 @@
         },
         "internal": {
           "anyOf": [
-            {},
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Internal"
+          "default": null
         },
         "role": {
           "const": "user",
@@ -4560,13 +4564,14 @@
         },
         "internal": {
           "anyOf": [
-            {},
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Internal"
+          "default": null
         },
         "parse_error": {
           "anyOf": [
@@ -4758,13 +4763,14 @@
         },
         "internal": {
           "anyOf": [
-            {},
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
             {
               "type": "null"
             }
           ],
-          "default": null,
-          "title": "Internal"
+          "default": null
         },
         "view": {
           "anyOf": [

@@ -30,6 +30,7 @@ from openai.types.responses.response_create_params import (
 )
 from openai.types.responses.response_input_item_param import FunctionCallOutput, Message
 from openai.types.responses.response_reasoning_item_param import Summary
+from pydantic import JsonValue
 
 from inspect_ai._util.content import (
     Content,
@@ -278,7 +279,7 @@ def _chat_message_assistant_from_openai_response(
         ChatMessageAssistant(
             id=response.id,
             content=message_content,
-            internal=internal,
+            internal=cast(JsonValue, internal),
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
             model=model,
             source="generate",
@@ -349,7 +350,7 @@ def _openai_input_items_from_chat_message_assistant(
 
 
 def _model_tool_call_for_internal(
-    internal: object | None,
+    internal: JsonValue | None,
 ) -> ResponseFunctionToolCall | ResponseComputerToolCall:
     assert isinstance(internal, dict), "OpenAI internal must be a dict"
     # TODO: Stop runtime validating these over and over once the code is stable

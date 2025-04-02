@@ -1,7 +1,7 @@
 import uuid
 from typing import Any, Literal, Type
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from inspect_ai.tool._tool_call import ToolCall
 
@@ -195,7 +195,7 @@ class ModelOutput(BaseModel):
         model: str,
         tool_name: str,
         tool_arguments: dict[str, Any],
-        internal: object | None = None,
+        internal: JsonValue | None = None,
         tool_call_id: str | None = None,
         content: str | None = None,
     ) -> "ModelOutput":

@@ -34337,7 +34337,8 @@ self.onmessage = function (e) {
         id: "sys-message-6815A84B062A",
         role: "system",
         content: systemContent,
-        source: "input"
+        source: "input",
+        internal: null
       };
       if (systemMessage && systemMessage.content.length > 0) {
         collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
