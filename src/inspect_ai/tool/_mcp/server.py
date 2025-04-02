@@ -149,6 +149,9 @@ def init_mcp_servers() -> None:
 
 
 async def cleanup_mcp_servers() -> None:
+    # don't cleanup context bound servers
+    remove_context_bound_mcp_servers()
+
     mcp_servers = copy(_mcp_servers.get())
     _mcp_servers.set({})
     for key, client in mcp_servers.items():
@@ -164,13 +167,17 @@ def cache_mcp_server(key: str, server: MCPServer) -> None:
 
 def cached_mcp_server(key: str) -> MCPServer | None:
     # clean out context bound mcp clients before accessing the cache
+    remove_context_bound_mcp_servers()
+
+    # read from the cache
+    return _mcp_servers.get().get(key, None)
+
+
+def remove_context_bound_mcp_servers() -> None:
     mcp_servers = _mcp_servers.get()
     for k in list(mcp_servers.keys()):
         if mcp_servers[k]._context_bound:
             del mcp_servers[k]
-
-    # read from the cache
-    return mcp_servers.get(key, None)
 
 
 _mcp_servers: ContextVar[dict[str, MCPServer]] = ContextVar("_mcp_servers", default={})
