@@ -87,7 +87,7 @@ class ExecuteToolsResult(NamedTuple):
 
 async def execute_tools(
     messages: list[ChatMessage],
-    tools: Sequence[Tool | ToolDef | ToolSource],
+    tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
     max_output: int | None = None,
 ) -> ExecuteToolsResult:
     """Perform tool calls in the last assistant message.
@@ -506,13 +506,14 @@ def tools_info(
 
 
 def disable_parallel_tools(
-    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource],
+    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
 ) -> bool:
-    for tool in tools:
-        if isinstance(tool, Tool):
-            tool = ToolDef(tool)
-        if isinstance(tool, ToolDef) and not tool.parallel:
-            return True
+    if not isinstance(tools, ToolSource):
+        for tool in tools:
+            if isinstance(tool, Tool):
+                tool = ToolDef(tool)
+            if isinstance(tool, ToolDef) and not tool.parallel:
+                return True
     return False
 
 

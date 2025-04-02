@@ -48,7 +48,7 @@ class MCPServerImpl(MCPServer):
     async def initialize(self) -> None:
         await self._ensure_session()
 
-    async def list_tools(self) -> list[Tool]:
+    async def list_tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
         await self._ensure_session()
 
         mcp_tools = (await self.session.list_tools()).tools

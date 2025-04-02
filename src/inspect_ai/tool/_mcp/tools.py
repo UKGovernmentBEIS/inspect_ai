@@ -1,24 +1,33 @@
 from typing import Literal
 
-from .._tool import Tool
+from .._tool import Tool, ToolSource
 from ._types import MCPServer
 
 
-async def mcp_tools(
-    client: MCPServer,
+def mcp_tools(
+    server: MCPServer,
     tools: Literal["all"] | list[str] = "all",
-    rename: dict[str, str] | None = None,
-) -> list[Tool]:
-    """Tools from Model Context Protocol server.
+) -> ToolSource:
+    """Tools from MCP server.
 
     Args:
-       client: Model Context Protocol client (created with
-          `mcp_sse_client()` or `mcp_stdio_client()`.
+       server: MCP server (created with `mcp_server_stdio()` or `mcp_server_sse()`.
        tools: List of tool names (or globs) (defaults to "all")
           which returns all tools.
-       rename: Optionally rename tools.
 
     Returns:
-       List of tools.
+       ToolSource: Source for specified MCP server tools.
     """
-    return await client.list_tools()
+    return MCPToolSource(server, tools)
+
+
+class MCPToolSource(ToolSource):
+    def __init__(self, server: MCPServer, tools: Literal["all"] | list[str]) -> None:
+        self._server = server
+        self._tools = tools
+        self._cached_tool_list: list[Tool] | None = None
+
+    async def tools(self) -> list[Tool]:
+        if self._cached_tool_list is None:
+            self._cached_tool_list = await self._server.list_tools(self._tools)
+        return self._cached_tool_list

@@ -299,7 +299,7 @@ class Model:
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] = [],
+        tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
@@ -392,7 +392,7 @@ class Model:
     async def generate_loop(
         self,
         input: str | list[ChatMessage],
-        tools: Sequence[Tool | ToolDef | ToolSource] = [],
+        tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource = [],
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
     ) -> tuple[list[ChatMessage], ModelOutput]:
@@ -441,13 +441,17 @@ class Model:
     async def _generate(
         self,
         input: list[ChatMessage],
-        tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource],
+        tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
     ) -> ModelOutput:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice else "auto"
+
+        # resolve top level tool source
+        if isinstance(tools, ToolSource):
+            tools = await tools.tools()
 
         # resolve tool sources
         resolved_tools: list[Tool | ToolDef | ToolInfo] = []

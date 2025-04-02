@@ -1,6 +1,7 @@
 import abc
 from logging import getLogger
 from types import TracebackType
+from typing import Literal
 
 from inspect_ai.tool._tool import Tool
 
@@ -37,7 +38,9 @@ class MCPServer(abc.ABC):
     async def initialize(self) -> None: ...
 
     @abc.abstractmethod
-    async def list_tools(self) -> list[Tool]: ...
+    async def list_tools(
+        self, tools: Literal["all"] | list[str] = "all"
+    ) -> list[Tool]: ...
 
     @abc.abstractmethod
     async def close(self) -> None:

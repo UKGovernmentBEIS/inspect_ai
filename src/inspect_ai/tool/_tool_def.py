@@ -166,8 +166,11 @@ def apply_description_overrides(target: ToolParams, overrides: dict[str, str]) -
 
 
 async def tool_defs(
-    tools: Sequence[Tool | ToolDef | ToolSource],
+    tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
 ) -> list[ToolDef]:
+    if isinstance(tools, ToolSource):
+        tools = await tools.tools()
+
     tool_defs: list[ToolDef] = []
     for tool in tools:
         if isinstance(tool, ToolSource):

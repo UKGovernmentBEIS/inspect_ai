@@ -13,6 +13,6 @@ async def test_mcp_server_stdio():
     ) as client:
         _, output = await get_model("openai/gpt-4o").generate_loop(
             "Use the fetch tool to read the website at https://example.com/, then please tell me what is there.",
-            tools=await mcp_tools(client),
+            tools=mcp_tools(client),
         )
         assert "example.com" in output.completion
