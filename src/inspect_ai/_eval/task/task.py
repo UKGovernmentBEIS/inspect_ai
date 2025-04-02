@@ -20,6 +20,7 @@ from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._task_state import TaskState
+from inspect_ai.tool._mcp._types import MCPServer
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -54,6 +55,7 @@ class Task:
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
         model: str | Model | None = None,
         config: GenerateConfig = GenerateConfig(),
+        mcp_servers: dict[str, MCPServer] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         approval: str | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
@@ -80,6 +82,7 @@ class Task:
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
             model: Default model for task (Optional, defaults to eval model).
             config: Model generation config.
+            mcp_servers: Named Model Context Protocol servers for task (access with e.g. `mcp_tools("myserver")`)
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
             approval: Tool use approval policies.
                 Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.
@@ -136,6 +139,7 @@ class Task:
         self.metrics = metrics
         self.model = resolve_model(model)
         self.config = config
+        self.mcp_servers = mcp_servers
         self.sandbox = resolve_sandbox_environment(sandbox)
         self.approval = resolve_approval(approval)
         epochs = resolve_epochs(epochs)
@@ -185,6 +189,7 @@ def task_with(
     metrics: list[Metric] | dict[str, list[Metric]] | None | NotGiven = NOT_GIVEN,
     model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
+    mcp_servers: dict[str, MCPServer] | None | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     approval: str | list[ApprovalPolicy] | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
@@ -215,6 +220,7 @@ def task_with(
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
         model: Default model for task (Optional, defaults to eval model).
         config: Model generation config.
+        mcp_servers: Named Model Context Protocol servers for task (access with e.g. `mcp_tools("myserver")`)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         approval: Tool use approval policies.
             Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.
@@ -257,6 +263,8 @@ def task_with(
         task.model = resolve_model(model)
     if not isinstance(config, NotGiven):
         task.config = config
+    if not isinstance(mcp_servers, NotGiven):
+        task.mcp_servers = mcp_servers
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
     if not isinstance(approval, NotGiven):

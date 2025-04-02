@@ -51,7 +51,28 @@ def git_task():
 
 @skip_if_no_openai
 @skip_if_no_mcp_git_package
-def test_mcp_filter():
+def test_mcp_use_server_by_instance():
     log = eval(git_task(), model="openai/gpt-4o")[0]
+    assert log.status == "success"
+    assert log.samples
+
+
+@task
+def git_task_with_mcp_servers():
+    git_server = mcp_server_stdio(
+        command="python3", args=["-m", "mcp_server_git", "--repository", "."]
+    )
+
+    return Task(
+        dataset=[Sample("What is the status of the git working tree?")],
+        solver=[use_tools(mcp_tools("git")), generate()],
+        mcp_servers={"git": git_server},
+    )
+
+
+@skip_if_no_openai
+@skip_if_no_mcp_git_package
+def test_mcp_use_server_by_name():
+    log = eval(git_task_with_mcp_servers(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples

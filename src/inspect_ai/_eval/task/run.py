@@ -151,7 +151,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
     # init task context
-    init_task_context(model, options.task.approval, generate_config)
+    mcp_servers = options.task.mcp_servers or {}
+    init_task_context(model, options.task.approval, generate_config, mcp_servers)
 
     # establish chdir for duration of execution (if a task has chdir=True)
     with set_task_chdir(task):
@@ -309,36 +310,42 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         task.metrics,
                     )
 
-                    sample_results = await tg_collect(
-                        [
-                            functools.partial(
-                                task_run_sample,
-                                task_name=task.name,
-                                sample=sample,
-                                state=state,
-                                sandbox=sandbox,
-                                max_sandboxes=config.max_sandboxes,
-                                sandbox_cleanup=sandbox_cleanup,
-                                plan=plan,
-                                scorers=scorers,
-                                generate=generate,
-                                progress=progress,
-                                logger=logger if log_samples else None,
-                                log_images=log_images,
-                                sample_source=sample_source,
-                                sample_error=sample_error_handler,
-                                sample_complete=sample_complete,
-                                fails_on_error=(
-                                    config.fail_on_error is None
-                                    or config.fail_on_error is True
-                                ),
-                                time_limit=config.time_limit,
-                                working_limit=config.working_limit,
-                                semaphore=sample_semaphore,
-                            )
-                            for (sample, state) in zip(samples, states)
-                        ]
-                    )
+                    # run with mcp servers
+                    async with contextlib.AsyncExitStack() as stack:
+                        # Enter all mcp_server context managers
+                        for cm in mcp_servers.values():
+                            await stack.enter_async_context(cm)
+
+                        sample_results = await tg_collect(
+                            [
+                                functools.partial(
+                                    task_run_sample,
+                                    task_name=task.name,
+                                    sample=sample,
+                                    state=state,
+                                    sandbox=sandbox,
+                                    max_sandboxes=config.max_sandboxes,
+                                    sandbox_cleanup=sandbox_cleanup,
+                                    plan=plan,
+                                    scorers=scorers,
+                                    generate=generate,
+                                    progress=progress,
+                                    logger=logger if log_samples else None,
+                                    log_images=log_images,
+                                    sample_source=sample_source,
+                                    sample_error=sample_error_handler,
+                                    sample_complete=sample_complete,
+                                    fails_on_error=(
+                                        config.fail_on_error is None
+                                        or config.fail_on_error is True
+                                    ),
+                                    time_limit=config.time_limit,
+                                    working_limit=config.working_limit,
+                                    semaphore=sample_semaphore,
+                                )
+                                for (sample, state) in zip(samples, states)
+                            ]
+                        )
 
                 # compute and record metrics if we have scores
                 completed_scores = [
