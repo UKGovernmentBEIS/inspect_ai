@@ -3,12 +3,12 @@ from logging import getLogger
 from types import TracebackType
 from typing import Literal
 
-from inspect_ai.tool._tool import Tool
+from .._tool import Tool, ToolSource
 
 logger = getLogger(__name__)
 
 
-class MCPServer:
+class MCPServer(ToolSource):
     """Model Context Protocol server interface."""
 
     async def __aenter__(self: "MCPServer") -> "MCPServer":
@@ -33,3 +33,6 @@ class MCPServer:
     async def list_tools(
         self, tools: Literal["all"] | list[str] = "all"
     ) -> list[Tool]: ...
+
+    async def tools(self) -> list[Tool]:
+        return await self.list_tools()
