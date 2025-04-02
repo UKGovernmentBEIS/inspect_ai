@@ -65,7 +65,7 @@ def git_task_with_mcp_servers():
 
     return Task(
         dataset=[Sample("What is the status of the git working tree?")],
-        solver=[use_tools(mcp_tools("git")), generate()],
+        solver=[use_tools(mcp_tools("git", tools="*_status")), generate()],
         mcp_servers={"git": git_server},
     )
 
