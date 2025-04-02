@@ -25,7 +25,7 @@ from inspect_ai.log._file import (
     read_eval_log_async,
     read_eval_log_headers_async,
 )
-from inspect_ai.log._recorders.buffer.buffer import sample_buffer
+from inspect_ai.log._recorders.buffer.buffer import running_tasks, sample_buffer
 
 from .notify import view_last_eval_time
 
@@ -186,6 +186,22 @@ def view_server(
         else:
             return web.Response(body=sample_data.model_dump_json())
 
+    @routes.get("/api/running-tasks")
+    async def api_running_tasks(request: web.Request) -> web.Response:
+        # log dir can optionally be overridden by the request
+        if authorization:
+            request_log_dir = request.query.getone("log_dir", None)
+            if request_log_dir:
+                request_log_dir = normalize_uri(request_log_dir)
+            else:
+                request_log_dir = log_dir
+        else:
+            request_log_dir = log_dir
+
+        # list running tasks
+        tasks = running_tasks(request_log_dir)
+        return await running_task_response(tasks, request_log_dir)
+
     # optional auth middleware
     @web.middleware
     async def authorize(
@@ -323,6 +339,11 @@ async def log_bytes_response(log_file: str, start: int, end: int) -> web.Respons
 async def log_headers_response(files: list[str]) -> web.Response:
     headers = await read_eval_log_headers_async(files)
     return web.json_response(to_jsonable_python(headers, exclude_none=True))
+
+
+async def running_task_response(files: list[str], log_dir: str) -> web.Response:
+    response = dict(log_dir=aliased_path(log_dir), tasks=files)
+    return web.json_response(response)
 
 
 class WWWResource(web.StaticResource):
