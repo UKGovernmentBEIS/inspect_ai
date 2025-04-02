@@ -35,6 +35,7 @@ from ._model import (
     ModelName,
     get_model,
 )
+from ._model_call import ModelCall
 from ._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -65,6 +66,7 @@ __all__ = [
     "ChatMessageAssistant",
     "ChatMessageTool",
     "ChatCompletionChoice",
+    "ModelCall",
     "ModelOutput",
     "ModelConversation",
     "Logprobs",
