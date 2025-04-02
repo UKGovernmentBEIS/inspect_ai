@@ -15,9 +15,6 @@ from ._types import MCPServer
 logger = getLogger(__name__)
 
 
-# TODO: tool filtering and renaming
-
-
 def mcp_server_sse(
     *,
     url: str,

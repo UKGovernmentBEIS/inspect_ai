@@ -1,4 +1,5 @@
 from contextlib import AsyncExitStack, _AsyncGeneratorContextManager
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Literal, TypeAlias
 
@@ -12,6 +13,9 @@ from mcp.types import (
     JSONRPCMessage,
     TextContent,
     TextResourceContents,
+)
+from mcp.types import (
+    Tool as MCPTool,
 )
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
@@ -29,7 +33,7 @@ MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
 ]
 
 
-class MCPServerImpl(MCPServer):
+class MCPServerSession(MCPServer):
     def __init__(
         self,
         client: MCPServerContext,
@@ -51,8 +55,20 @@ class MCPServerImpl(MCPServer):
     async def list_tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
         await self._ensure_session()
 
+        # function for filtering tools
+        def include_tool(tool: MCPTool) -> bool:
+            if tools == "all":
+                return True
+            else:
+                return any([fnmatch(tool.name, t) for t in tools])
+
+        # get the underlying tools on the server
         mcp_tools = (await self.session.list_tools()).tools
 
+        # filter them
+        mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
+
+        # dynamically create tools
         tool_defs: list[ToolDef] = []
         for mcp_tool in mcp_tools:
 
@@ -92,7 +108,7 @@ def create_server_sse(
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
-    return MCPServerImpl(sse_client(url, headers, timeout, sse_read_timeout))
+    return MCPServerSession(sse_client(url, headers, timeout, sse_read_timeout))
 
 
 def create_server_stdio(
@@ -103,7 +119,7 @@ def create_server_stdio(
     encoding: str = "utf-8",
     encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
 ) -> MCPServer:
-    return MCPServerImpl(
+    return MCPServerSession(
         stdio_client(
             StdioServerParameters(
                 command=command,
