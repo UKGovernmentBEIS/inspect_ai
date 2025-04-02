@@ -9,10 +9,15 @@ logger = getLogger(__name__)
 
 
 class MCPServer(ToolSource):
-    """Model Context Protocol server interface."""
+    """Model Context Protocol server interface.
+
+    `MCPServer` can be passed in the `tools` argument as a source of tools
+    (use the `mcp_tools()` function to filter the list of tools)
+
+    """
 
     async def __aenter__(self: "MCPServer") -> "MCPServer":
-        await self.connect()
+        await self._connect()
         return self
 
     async def __aexit__(
@@ -21,18 +26,18 @@ class MCPServer(ToolSource):
         exc: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        await self.close()
-
-    @abc.abstractmethod
-    async def connect(self) -> None: ...
-
-    @abc.abstractmethod
-    async def close(self) -> None: ...
-
-    @abc.abstractmethod
-    async def list_tools(
-        self, tools: Literal["all"] | list[str] = "all"
-    ) -> list[Tool]: ...
+        await self._close()
 
     async def tools(self) -> list[Tool]:
-        return await self.list_tools()
+        return await self._list_tools()
+
+    @abc.abstractmethod
+    async def _connect(self) -> None: ...
+
+    @abc.abstractmethod
+    async def _close(self) -> None: ...
+
+    @abc.abstractmethod
+    async def _list_tools(
+        self, tools: Literal["all"] | list[str] = "all"
+    ) -> list[Tool]: ...

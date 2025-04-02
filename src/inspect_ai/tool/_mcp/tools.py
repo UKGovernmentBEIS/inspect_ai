@@ -48,7 +48,7 @@ class MCPToolSource(ToolSource):
             server = self._server
 
         if self._cached_tool_list is None:
-            self._cached_tool_list = await server.list_tools(self._tools)
+            self._cached_tool_list = await server._list_tools(self._tools)
         return self._cached_tool_list
 
 

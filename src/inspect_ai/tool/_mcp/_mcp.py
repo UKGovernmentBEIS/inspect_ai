@@ -43,7 +43,7 @@ class MCPServerImpl(MCPServer):
         self._exit_stack: AsyncExitStack | None = None
 
     @override
-    async def connect(self) -> None:
+    async def _connect(self) -> None:
         assert self._session is None
         assert self._exit_stack is None
         self._exit_stack = AsyncExitStack()
@@ -55,7 +55,7 @@ class MCPServerImpl(MCPServer):
         await self._session.initialize()
 
     @override
-    async def close(self) -> None:
+    async def _close(self) -> None:
         assert self._session is not None
         assert self._exit_stack is not None
         try:
@@ -64,7 +64,9 @@ class MCPServerImpl(MCPServer):
             self._session = None
             self._exit_stack = None
 
-    async def list_tools(self, tools: Literal["all"] | list[str] = "all") -> list[Tool]:
+    async def _list_tools(
+        self, tools: Literal["all"] | list[str] = "all"
+    ) -> list[Tool]:
         async with self._client_session() as session:
             # function for filtering tools
             def include_tool(tool: MCPTool) -> bool:
