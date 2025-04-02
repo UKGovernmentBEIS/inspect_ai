@@ -1,6 +1,7 @@
 import re
 
 from pydantic import BaseModel, Field
+from shortuuid import uuid
 
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
@@ -31,22 +32,30 @@ class CrawlerResult(BaseModel):
     error: str | None = None
 
 
-def web_browser(interactive: bool = True) -> list[Tool]:
+def web_browser(
+    *, interactive: bool = True, instance: str | None = uuid()
+) -> list[Tool]:
     """Tools used for web browser navigation.
 
-     See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
+    By default, a separate web browser process is created within the sandbox for each
+    call to `web_browser()`. You can modify this behavior by passing `instance=None`
+    (which will result in a single web browser for the entire sample) or use other
+    `instance` values that implement another scheme).
+
+    See complete documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-browser>.
 
     Args:
        interactive: Provide interactive tools (enable
           clicking, typing, and submitting forms). Defaults
           to True.
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        List of tools used for web browser navigation.
 
     """
     # start with go tool (excluding interactive docs if necessary)
-    go = web_browser_go()
+    go = web_browser_go(instance)
     if not interactive:
         go = go_without_interactive_docs(go)
     tools = [go]
@@ -54,23 +63,26 @@ def web_browser(interactive: bool = True) -> list[Tool]:
     # add interactive tools if requested
     if interactive:
         tools = tools + [
-            web_browser_click(),
-            web_browser_type_submit(),
-            web_browser_type(),
+            tool_with_web_at_viewer(web_browser_click(instance), instance),
+            tool_with_web_at_viewer(web_browser_type_submit(instance), instance),
+            tool_with_web_at_viewer(web_browser_type(instance), instance),
         ]
 
     # add navigational tools
     return tools + [
-        web_browser_scroll(),
-        web_browser_back(),
-        web_browser_forward(),
-        web_browser_refresh(),
+        web_browser_scroll(instance),
+        web_browser_back(instance),
+        web_browser_forward(instance),
+        web_browser_refresh(instance),
     ]
 
 
 @tool(parallel=False)
-def web_browser_go() -> Tool:
+def web_browser_go(instance: str | None = None) -> Tool:
     """Web Browser tool for navigation to a URL.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser navigation tool.
@@ -102,7 +114,7 @@ def web_browser_go() -> Tool:
         Returns:
           Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await _web_browser_cmd("web_go", locals())
+        return await _web_browser_cmd("web_go", instance, locals())
 
     return execute
 
@@ -126,35 +138,43 @@ class WebBrowserStore(StoreModel):
     session_id: str = Field(default_factory=str)
 
 
-def web_at_viewer(call: ToolCall) -> ToolCallView:
-    # get the web accessibility tree, if we have it create a view from it
-    web_at = store_as(WebBrowserStore).web_at
-    element_id = call.arguments.get("element_id", 0)
-    if web_at and element_id:
-        lines = web_at.splitlines()
-        pattern = re.compile(rf"^\s+\[{element_id}\] .*$")
-        for i, line in enumerate(lines):
-            if pattern.match(line):
-                snippet = (
-                    lines[0:1]
-                    + ["  ..."]
-                    + lines[max(i - 2, 1) : i]
-                    + [line.replace(" ", "*", 1)]
-                    + lines[i + 1 : min(i + 3, len(lines))]
-                    + ["  ..."]
-                )
+def tool_with_web_at_viewer(tool: Tool, instance: str | None = None) -> Tool:
+    def web_at_viewer(call: ToolCall) -> ToolCallView:
+        # get the web accessibility tree, if we have it create a view from it
+        web_at = store_as(WebBrowserStore, instance=instance).web_at
+        element_id = call.arguments.get("element_id", 0)
+        if web_at and element_id:
+            lines = web_at.splitlines()
+            pattern = re.compile(rf"^\s+\[{element_id}\] .*$")
+            for i, line in enumerate(lines):
+                if pattern.match(line):
+                    snippet = (
+                        lines[0:1]
+                        + ["  ..."]
+                        + lines[max(i - 2, 1) : i]
+                        + [line.replace(" ", "*", 1)]
+                        + lines[i + 1 : min(i + 3, len(lines))]
+                        + ["  ..."]
+                    )
 
-                return ToolCallView(
-                    context=ToolCallContent(format="text", content="\n".join(snippet))
-                )
+                    return ToolCallView(
+                        context=ToolCallContent(
+                            format="text", content="\n".join(snippet)
+                        )
+                    )
 
-    # no view found
-    return ToolCallView()
+        # no view found
+        return ToolCallView()
+
+    return tool_with(tool, viewer=web_at_viewer)
 
 
-@tool(viewer=web_at_viewer, parallel=False)
-def web_browser_click() -> Tool:
+@tool(parallel=False)
+def web_browser_click(instance: str | None = None) -> Tool:
     """Web Browser tool for clicking an element on a web page.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser clicking tool.
@@ -182,14 +202,17 @@ def web_browser_click() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await _web_browser_cmd("web_click", locals())
+        return await _web_browser_cmd("web_click", instance, locals())
 
     return execute
 
 
-@tool(viewer=web_at_viewer, parallel=False)
-def web_browser_type_submit() -> Tool:
+@tool(parallel=False)
+def web_browser_type_submit(instance: str | None = None) -> Tool:
     """Web Browser tool for typing and submitting input.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser type and submit tool.
@@ -220,14 +243,17 @@ def web_browser_type_submit() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await _web_browser_cmd("web_type_submit", locals())
+        return await _web_browser_cmd("web_type_submit", instance, locals())
 
     return execute
 
 
-@tool(viewer=web_at_viewer, parallel=False)
-def web_browser_type() -> Tool:
+@tool(parallel=False)
+def web_browser_type(instance: str | None = None) -> Tool:
     """Web Browser tool for typing into inputs.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser typing tool.
@@ -258,14 +284,17 @@ def web_browser_type() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await _web_browser_cmd("web_type", locals())
+        return await _web_browser_cmd("web_type", instance, locals())
 
     return execute
 
 
 @tool(parallel=False)
-def web_browser_scroll() -> Tool:
+def web_browser_scroll(instance: str | None = None) -> Tool:
     """Web Browser tool for scrolling up or down one page.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser scrolling tool.
@@ -288,14 +317,17 @@ def web_browser_scroll() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await _web_browser_cmd("web_scroll", locals())
+        return await _web_browser_cmd("web_scroll", instance, locals())
 
     return execute
 
 
 @tool(parallel=False)
-def web_browser_back() -> Tool:
+def web_browser_back(instance: str | None = None) -> Tool:
     """Web Browser tool for navigating back in the browser history.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser back navigation tool.
@@ -309,14 +341,17 @@ def web_browser_back() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await _web_browser_cmd("web_back", locals())
+        return await _web_browser_cmd("web_back", instance, locals())
 
     return execute
 
 
 @tool(parallel=False)
-def web_browser_forward() -> Tool:
+def web_browser_forward(instance: str | None = None) -> Tool:
     """Web Browser tool for navigating forward in the browser history.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser forward navigation tool.
@@ -330,14 +365,17 @@ def web_browser_forward() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await _web_browser_cmd("web_forward", locals())
+        return await _web_browser_cmd("web_forward", instance, locals())
 
     return execute
 
 
 @tool(parallel=False)
-def web_browser_refresh() -> Tool:
+def web_browser_refresh(instance: str | None = None) -> Tool:
     """Web Browser tool for refreshing the current page.
+
+    Args:
+       instance: Instance id (each unique instance id has its own web browser process)
 
     Returns:
        Web browser page refresh tool.
@@ -351,23 +389,28 @@ def web_browser_refresh() -> Tool:
         Returns:
            Web accessibility tree of the visible elements of the web page. The element_id of each element is displayed in brackets at the beginning of the line.
         """
-        return await _web_browser_cmd("web_refresh", locals())
+        return await _web_browser_cmd("web_refresh", instance, locals())
 
     return execute
 
 
-async def _web_browser_cmd(tool_name: str, params: dict[str, object]) -> ToolResult:
+async def _web_browser_cmd(
+    tool_name: str, instance: str | None, params: dict[str, object]
+) -> ToolResult:
     try:
         sandbox_env = await tool_container_sandbox("web browser")
     except PrerequisiteError as e:
         # The user may have the old, incompatible, sandbox. If so, use that and
         # execute the old compatible code.
         try:
-            return await old_web_browser_cmd(tool_name, *params)
+            return await old_web_browser_cmd(
+                tool_name, *(str(value) for value in params.values())
+            )
         except PrerequisiteError:
             raise e
 
-    store = store_as(WebBrowserStore)
+    # bind to store (use instance id if provided)
+    store = store_as(WebBrowserStore, instance=instance)
 
     if not store.session_id:
         store.session_id = (
@@ -395,10 +438,8 @@ async def _web_browser_cmd(tool_name: str, params: dict[str, object]) -> ToolRes
             line.partition("data:image/png;base64")[0] for line in web_at_lines
         ]
 
-        store_as(WebBrowserStore).main_content = (
-            main_content or "(no main text summary)"
-        )
-        store_as(WebBrowserStore).web_at = web_at
+        store.main_content = main_content or "(no main text summary)"
+        store.web_at = web_at
 
         web_at = "\n".join(web_at_lines)
         return (

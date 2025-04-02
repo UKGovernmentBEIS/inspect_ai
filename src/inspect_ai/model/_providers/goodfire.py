@@ -227,7 +227,8 @@ class GoodfireAPI(ModelAPI):
                 choices=[
                     ChatCompletionChoice(
                         message=ChatMessageAssistant(
-                            content=response_dict["choices"][0]["message"]["content"]
+                            content=response_dict["choices"][0]["message"]["content"],
+                            model=self.model_name,
                         ),
                         stop_reason="stop",
                     )

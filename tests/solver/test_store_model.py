@@ -172,6 +172,18 @@ def test_store_model_multiple_instances_same_store():
     assert model1.y == "shared"
 
 
+def test_store_multiple_model_instances_context():
+    store = Store()
+    model1 = MyModel(store=store, instance="m1")
+    model2 = MyModel(store=store, instance="m2")
+
+    model1.x = 42
+    assert model2.x != 42
+
+    model2.y = "shared"
+    assert model1.y != "shared"
+
+
 def test_store_model_deletion():
     store = Store()
     model = MyModel(store=store)
@@ -263,3 +275,20 @@ def test_store_model_inheritance():
     base = MyModel(store=store)
     base.x = 100
     assert derived.x == 42  # Should not be affected by base model
+
+
+class IllegalModel(StoreModel):
+    my_model: MyModel = Field(default_factory=MyModel)
+
+
+class IllegalModel2(StoreModel):
+    my_model: MyModel | None = None
+
+
+def test_error_on_embed_store_model():
+    with pytest.raises(TypeError):
+        IllegalModel()
+
+    illegal = IllegalModel2()
+    with pytest.raises(TypeError):
+        illegal.my_model = MyModel()

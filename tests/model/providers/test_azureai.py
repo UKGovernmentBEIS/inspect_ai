@@ -26,7 +26,7 @@ async def test_azureai_api_repeat_eval() -> None:
 
 def get_azureai_model() -> Model:
     return get_model(
-        model="azureai/Meta-Llama-3-1-405B-Instruct-twe",
+        model="azureai/Llama-3.3-70B-Instruct",
         azure=True,
         config=GenerateConfig(
             frequency_penalty=0.0,

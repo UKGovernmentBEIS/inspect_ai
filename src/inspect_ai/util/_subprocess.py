@@ -117,14 +117,15 @@ async def subprocess(
     async def run_command() -> AsyncGenerator[
         Union[Process, ExecResult[str], ExecResult[bytes]], None
     ]:
-        async with await open_process(
+        process = await open_process(
             args,
             stdin=PIPE if input else DEVNULL,
             stdout=PIPE if capture_output else None,
             stderr=PIPE if capture_output else None,
             cwd=cwd,
             env={**os.environ, **env},
-        ) as process:
+        )
+        try:
             # yield the process so the caller has a handle to it
             yield process
 
@@ -173,6 +174,15 @@ async def subprocess(
                     stdout=stdout if capture_output else bytes(),
                     stderr=stderr if capture_output else bytes(),
                 )
+        finally:
+            try:
+                await process.aclose()
+            except ProcessLookupError:
+                # the anyio ansycio backend calls process.kill() from within
+                # its aclose() method without an enclosing exception handler
+                # (which in turn can throw ProcessLookupError if the process
+                # is already gone)
+                pass
 
     # wrapper for run command that implements timeout
     async def run_command_timeout() -> Union[ExecResult[str], ExecResult[bytes]]:
@@ -181,7 +191,7 @@ async def subprocess(
             proc = cast(Process, await anext(rc))
 
             # await result wrapped in timeout handler if requested
-            if timeout:
+            if timeout is not None:
                 try:
                     with anyio.fail_after(timeout):
                         result = await anext(rc)

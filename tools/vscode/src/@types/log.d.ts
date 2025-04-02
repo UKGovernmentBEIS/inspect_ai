@@ -13,6 +13,7 @@ export type Task = string;
 export type TaskId = string;
 export type TaskVersion = number;
 export type TaskFile = string | null;
+export type TaskRegistryName = string | null;
 export type Solver = string | null;
 export type SolverArgs = {} | null;
 export type Tags = string[] | null;
@@ -161,6 +162,7 @@ export type Content =
     )[];
 export type Type3 = "text";
 export type Text = string;
+export type Refusal = boolean | null;
 export type Type4 = "reasoning";
 export type Reasoning = string;
 export type Signature = string | null;
@@ -210,6 +212,7 @@ export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
+export type Model1 = string | null;
 export type Id5 = string | null;
 export type Content4 =
   | string
@@ -246,7 +249,7 @@ export type Messages = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Model1 = string;
+export type Model2 = string;
 export type StopReason =
   | "stop"
   | "max_tokens"
@@ -345,7 +348,7 @@ export type Timestamp5 = string;
 export type WorkingStart5 = number;
 export type Pending5 = boolean | null;
 export type Event5 = "model";
-export type Model2 = string;
+export type Model3 = string;
 export type Input3 = (
   | ChatMessageSystem
   | ChatMessageUser
@@ -494,6 +497,8 @@ export type Events1 = (
 )[];
 export type Completed3 = string | null;
 export type WorkingTime2 = number | null;
+export type Agent = string | null;
+export type Failed = boolean | null;
 export type Events = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -566,6 +571,7 @@ export interface EvalSpec {
   task_id: TaskId;
   task_version: TaskVersion;
   task_file: TaskFile;
+  task_registry_name: TaskRegistryName;
   task_attribs: TaskAttribs;
   task_args: TaskArgs;
   solver: Solver;
@@ -855,6 +861,7 @@ export interface ChatMessageSystem {
 export interface ContentText {
   type: Type3;
   text: Text;
+  refusal: Refusal;
 }
 /**
  * Reasoning content.
@@ -910,6 +917,7 @@ export interface ChatMessageAssistant {
   source: Source2;
   role: Role2;
   tool_calls: ToolCalls;
+  model: Model1;
 }
 export interface ToolCall {
   id: Id4;
@@ -950,7 +958,7 @@ export interface ToolCallError {
  * Output from model generation.
  */
 export interface ModelOutput {
-  model: Model1;
+  model: Model2;
   choices: Choices1;
   usage: ModelUsage1 | null;
   time: Time;
@@ -1094,7 +1102,7 @@ export interface ModelEvent {
   working_start: WorkingStart5;
   pending: Pending5;
   event: Event5;
-  model: Model2;
+  model: Model3;
   input: Input3;
   tools: Tools1;
   tool_choice: ToolChoice;
@@ -1216,6 +1224,8 @@ export interface ToolEvent {
   events: Events1;
   completed: Completed3;
   working_time: WorkingTime2;
+  agent: Agent;
+  failed: Failed;
 }
 export interface Arguments1 {
   [k: string]: JsonValue;

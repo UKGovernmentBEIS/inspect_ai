@@ -141,6 +141,6 @@ class CloudFlareAPI(ModelAPI):
 
     def chat_api_handler(self) -> ChatAPIHandler:
         if "llama" in self.model_name.lower():
-            return Llama31Handler()
+            return Llama31Handler(self.model_name)
         else:
-            return ChatAPIHandler()
+            return ChatAPIHandler(self.model_name)

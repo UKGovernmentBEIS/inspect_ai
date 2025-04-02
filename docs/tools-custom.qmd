@@ -97,6 +97,101 @@ The following instance methods are available to tools that need to interact with
 
 See the documentation on [Sandbox Environments](sandboxing.qmd) for additional details.
 
+## Stateful Tools
+
+Some tools need to retain state across invocations (for example, the `bash_session()` and `web_browser()` tools both interact with a stateful remote process). You can create stateful tools by using the `store_as()` function to access discrete storage for your tool and/or speicfic instances of your tool.
+
+For example, imagine we were creating a `web_surfer()` tool that builds  on the `web_browser()` tool to complete sequences of browser actions in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history and browser state.
+
+Here's the complete source code for this tool. 
+
+```python
+from textwrap import dedent
+
+from pydantic import Field
+from shortuuid import uuid
+
+from inspect_ai.model import (
+  ChatMessage, ChatMessageSystem, ChatMessageUser, get_model
+)
+from inspect_ai.tool import Tool, tool, web_browser
+from inspect_ai.util import StoreModel, store_as
+
+class WebSurferState(StoreModel):
+    messages: list[ChatMessage] = Field(default_factory=list)
+
+@tool
+def web_surfer(instance: str | None = uuid()) -> Tool:
+    """Web surfer tool for researching topics.
+
+    The web_surfer tool builds on the web_browser tool to complete
+    sequences of web_browser actions in service of researching a topic.
+    Input can either be requests to do research or questions about 
+    previous research.
+    """
+
+    async def execute(input: str, clear_history: bool = False) -> str:
+        """Use the web to research a topic.
+
+        You may ask the web surfer any question. These questions can 
+        either prompt new web searches or be clarifying or follow up 
+        questions about previous web searches.
+
+        Args:
+           input: Message to the web surfer. This can be a prompt to
+              do research or a question about previous research.
+           clear_history: Clear memory of previous searches.
+
+        Returns:
+           Answer to research prompt or question.
+        """
+        # keep track of message history in the store
+        surfer_state = store_as(WebSurferState, instance=instance)
+
+        # clear history if requested.
+        if clear_history:
+            surfer_state.messages.clear()
+
+        # provide system prompt if we are at the beginning
+        if len(surfer_state.messages) == 0:
+            surfer_state.messages.append(
+                ChatMessageSystem(
+                    content=dedent("""
+                You are a helpful assistant that can use a browser
+                to answer questions. You don't need to answer the 
+                questions with a single web browser request, rather,
+                you can perform searches, follow links, backtrack, 
+                and otherwise use the browser to its fullest 
+                capability to help answer the question.
+
+                In some cases questions will be about your previous
+                web searches, in those cases you don't always need
+                to use the web browser tool but can answer by 
+                consulting previous conversation messages.
+                """)
+                )
+            )
+
+        # append the latest question
+        surfer_state.messages.append(ChatMessageUser(content=input))
+
+        # run tool loop with web browser
+        messages, output = await get_model().generate_loop(
+            surfer_state.messages, tools=web_browser(instance=instance)
+        )
+
+        # update state
+        surfer_state.messages.extend(messages)
+
+        # return response
+        return output.completion
+
+    return execute
+```
+
+Note that we use an `instance` parameter (which defaults to `uuid()`) to ensure that each call to the `web_surfer()` function creates its own instance of the tool. We then pass this `instance` to the `store_as()` function (to store our own tool's message history) and the `web_browser()` function (so that we also provision a unique browser for the web surfer session).
+
+
 ## Tool Choice
 
 By default models will use a tool if they think it's appropriate for the given task. You can override this behaviour using the `tool_choice` parameter of the `use_tools()` Solver. For example:
@@ -151,11 +246,13 @@ my_add = tool_with(
 You need not provide all of the parameters shown above, for example here are some examples where we modify just the main tool description or only a single parameter:
 
 ``` python
-my_add = tool_with(add(), description="a tool to add numbers")
-my_add = tool_with(add(), parameters={"x": "the x argument"})
+my_add1 = tool_with(add(), description="a tool to add numbers")
+my_add2 = tool_with(add(), parameters={"x": "the x argument"})
 ```
 
-Note that the `tool_with()` function returns a copy of the passed tool with modified descriptions (the passed tool retains its original descriptions).
+Note that `tool_with()` function modifies the passed tool in-place, so if you want to create multiple variations of a single tool using `tool_with()` you should create the underlying tool multiple times, once for each call to `tool_with()` (this is demonsrated in the example above).
+
+
 
 ## Dynamic Tools {#sec-dynamic-tools}
 
@@ -196,3 +293,4 @@ If on the other hand you want to get the `ToolDef` for an existing tool (e.g. to
 from inspect_ai.tool import ToolDef, bash
 bash_def = ToolDef(bash())
 ```
+

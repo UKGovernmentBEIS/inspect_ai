@@ -41,6 +41,8 @@ See the [Agents](#sec-agents) section for more details on how to build evaluatio
 
 The `bash_session()` tool provides a bash shell that retains its state across calls from the model (as distinct from the `bash()` tool which executes each command in a fresh session). The prompt, working directory, and environment variables are all retained across calls. The tool also supports a `restart` action that enables the model to reset its state and work in a fresh session.
 
+Note that a separate bash process is created within the sandbox for each instance of the bash session tool. See the `bash_session()` reference docs for details on customizing this behavior.
+
 ### Configuration
 
 Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code. In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
@@ -125,6 +127,7 @@ The schema for the `text_editor()` tool is based on the standard Anthropic [text
 
 The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
+
 ### Configuration
 
 Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
@@ -167,7 +170,9 @@ def browser_task():
     )
 ```
 
-Note that unlike some other tool functions like `bash()`, the `web_browser()` function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to `use_tools()`.
+Unlike some other tool functions like `bash()`, the `web_browser()` function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to `use_tools()`.
+
+Note that a separate web browser process is created within the sandbox for each instance of the web browser tool. See the `web_browser()` reference docs for details on customizing this behavior.
 
 ### Browsing
 

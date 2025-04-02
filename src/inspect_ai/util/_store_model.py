@@ -15,6 +15,7 @@ class StoreModel(BaseModel):
     """
 
     store: Store = Field(exclude=True, default_factory=store)
+    instance: str | None = Field(exclude=True, default=None)
 
     def model_post_init(self, __context: Any) -> None:
         for name in self.model_fields.keys():
@@ -28,12 +29,18 @@ class StoreModel(BaseModel):
             elif name in self.__dict__.keys():
                 self.store.set(ns_name, self.__dict__[name])
 
+            # validate that we aren't using a nested StoreModel
+            self._validate_value(name, self.__dict__[name])
+
     def __getattribute__(self, name: str) -> Any:
         # sidestep dunders and pydantic fields
         if name.startswith("__") or name.startswith("model_"):
             return object.__getattribute__(self, name)
-        # handle model_fields (except 'store') by reading the store
-        elif name in object.__getattribute__(self, "model_fields") and name != "store":
+        # handle model_fields (except 'store' and 'namespace') by reading the store
+        elif name in object.__getattribute__(self, "model_fields") and name not in [
+            "store",
+            "instance",
+        ]:
             store_key = self._ns_name(name)
             if store_key in self.store:
                 return self.store.get(store_key)
@@ -44,6 +51,7 @@ class StoreModel(BaseModel):
             return super().__getattribute__(name)
 
     def __setattr__(self, name: str, value: Any) -> None:
+        self._validate_value(name, value)
         if name in self.model_fields:
             # validate with the new value (can throw ValidationError)
             temp_data = self.store._data.copy()
@@ -86,11 +94,23 @@ class StoreModel(BaseModel):
         # perform validation
         self.__class__.model_validate(validate)
 
+    def _validate_value(self, name: str, value: Any) -> None:
+        # validate that we aren't using a nested StoreModel
+        if isinstance(value, StoreModel):
+            raise TypeError(
+                f"{name} is a StoreModel and you may not embed a StoreModel "
+                "inside another StoreModel (derive from BaseModel for fields in a StoreModel)."
+            )
+
     def _ns_name(self, name: str) -> str:
-        return f"{self.__class__.__name__}:{name}"
+        namespace = f"{self.instance}:" if self.instance is not None else ""
+        return f"{self.__class__.__name__}:{namespace}{name}"
 
     def _un_ns_name(self, name: str) -> str:
-        return name.replace(f"{self.__class__.__name__}:", "", 1)
+        name = name.replace(f"{self.__class__.__name__}:", "", 1)
+        if self.instance:
+            name = name.replace(f"{self.instance}:", "", 1)
+        return name
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -98,13 +118,16 @@ class StoreModel(BaseModel):
 SMT = TypeVar("SMT", bound=StoreModel)
 
 
-def store_as(model_cls: Type[SMT]) -> SMT:
+def store_as(model_cls: Type[SMT], instance: str | None = None) -> SMT:
     """Get a Pydantic model interface to the store.
 
     Args:
       model_cls: Pydantic model type (must derive from StoreModel)
+      instance: Optional instance name for store (enables multiple instances
+        of a given StoreModel type within a single sample)
+
 
     Returns:
-      StoreModel: Instance of model_cls bound to current Store.
+      StoreModel: model_cls bound to current Store.
     """
-    return model_cls(store=store())
+    return model_cls(store=store(), instance=instance)

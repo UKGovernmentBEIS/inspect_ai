@@ -21,6 +21,8 @@ class Activity(StoreModel):
 
 Note that we define defaults for all fields. This is generally required so that you can initialise your Pydantic model from an empty store. For collections (`list` and `dict`) you should use `default_factory` so that each instance gets its own default.
 
+There are two special field names that you cannot use in your `StoreModel`: the `store` field is used as a reference to the underlying `Store` and the optional `instance` field is used to provide a scope for use of multiple instances of a store model within a sample.
+
 #### Usage
 
 Use the `store_as()` function to get a typesafe interface to the store based on your model:
@@ -39,6 +41,16 @@ activity = store_as(Activity)
 Note that all instances of `Activity` created within a running sample share the same sample `Store` so can see each other's changes. For example, you can call `state.store_as()` in multiple solvers and/or scorers and it will resolve to the same sample-scoped instance. 
 
 The names used in the underlying `Store` are namespaced to prevent collisions with other `Store` accessors. For example, the `active` field in the `Activity` class is written to the store with the name `Activity:active`.
+
+#### Namespaces
+
+If you need to create multiple instances of a `StoreModel` within a sample, you can use the `instance` parameter to deliniate multiple named instances. For example:
+
+```python
+red_activity = state.store_as(Activity, instance="red_team")
+blue_activity = state.store_as(Activity, instance="blue_team")
+```
+
 
 #### Explicit Store
 

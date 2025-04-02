@@ -128,10 +128,14 @@ class OpenAIAPI(ModelAPI):
                 )
 
             # resolve version
-            api_version = os.environ.get(
-                "AZUREAI_OPENAI_API_VERSION",
-                os.environ.get("OPENAI_API_VERSION", "2025-02-01-preview"),
-            )
+            if model_args.get("api_version") is not None:
+                # use slightly complicated logic to allow for "api_version" to be removed
+                api_version = model_args.pop("api_version")
+            else:
+                api_version = os.environ.get(
+                    "AZUREAI_OPENAI_API_VERSION",
+                    os.environ.get("OPENAI_API_VERSION", "2025-02-01-preview"),
+                )
 
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
                 api_key=self.api_key,

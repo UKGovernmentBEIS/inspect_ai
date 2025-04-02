@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Generator
 
 import pytest
-from test_helpers.tool_call_utils import get_tool_calls, get_tool_response
+from test_helpers.tool_call_utils import find_tool_call
 from test_helpers.tools import command_exec, list_files, read_file
 from test_helpers.utils import skip_if_no_docker
 
@@ -12,11 +12,6 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
-
-
-def find_tool_call(result, tool_call_id: str):
-    messages = result.samples[0].messages
-    return get_tool_response(messages, get_tool_calls(messages, tool_call_id)[0])
 
 
 def test_sandbox_environment_read_file():

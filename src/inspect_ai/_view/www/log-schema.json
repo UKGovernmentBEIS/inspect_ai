@@ -277,6 +277,18 @@
           ],
           "default": null,
           "title": "Tool Calls"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
         }
       },
       "required": [
@@ -284,7 +296,8 @@
         "content",
         "source",
         "role",
-        "tool_calls"
+        "tool_calls",
+        "model"
       ],
       "title": "ChatMessageAssistant",
       "type": "object",
@@ -708,11 +721,24 @@
         "text": {
           "title": "Text",
           "type": "string"
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Refusal"
         }
       },
       "required": [
         "type",
-        "text"
+        "text",
+        "refusal"
       ],
       "title": "ContentText",
       "type": "object",
@@ -2112,6 +2138,18 @@
           "default": null,
           "title": "Task File"
         },
+        "task_registry_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Registry Name"
+        },
         "task_attribs": {
           "title": "Task Attribs",
           "type": "object"
@@ -2273,6 +2311,7 @@
         "task_id",
         "task_version",
         "task_file",
+        "task_registry_name",
         "task_attribs",
         "task_args",
         "solver",
@@ -4880,6 +4919,30 @@
           ],
           "default": null,
           "title": "Working Time"
+        },
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "failed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failed"
         }
       },
       "required": [
@@ -4898,7 +4961,9 @@
         "error",
         "events",
         "completed",
-        "working_time"
+        "working_time",
+        "agent",
+        "failed"
       ],
       "title": "ToolEvent",
       "type": "object",

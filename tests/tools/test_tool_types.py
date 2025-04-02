@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_vertex,
     skip_if_trio,
@@ -290,14 +291,14 @@ def test_vertex_tool_types():
     check_tool_types("vertex/gemini-1.5-flash")
 
 
-# mistral, grok, and groq tool calling is extremely unreliable and
+@skip_if_no_mistral
+def test_mistral_tool_types() -> None:
+    check_tool_types("mistral/mistral-large-latest")
+
+
+# grok and groq tool calling are extremely unreliable and
 # consequently cause failed tests that are red herrings. don't
 # exercise these for now.
-
-# @skip_if_no_mistral
-# def test_mistral_tool_types() -> None:
-#     check_tool_types("mistral/mistral-large-latest")
-
 
 # @skip_if_no_grok
 # def test_grok_tool_types() -> None:
@@ -313,4 +314,4 @@ def verify_tool_call(log: EvalLog, includes: str):
     assert log.samples
     tool_message = log.samples[0].messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
-    assert includes in log.samples[0].output.completion
+    assert includes.lower() in log.samples[0].output.completion.lower()
