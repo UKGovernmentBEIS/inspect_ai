@@ -7,6 +7,7 @@ from ._types import MCPServer
 
 def mcp_tools(
     server: MCPServer | str,
+    *,
     tools: Literal["all"] | list[str] = "all",
 ) -> ToolSource:
     """Tools from MCP server.

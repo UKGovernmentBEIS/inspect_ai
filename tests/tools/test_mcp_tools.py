@@ -45,13 +45,13 @@ def git_task():
 
     return Task(
         dataset=[Sample("What is the status of the git working tree?")],
-        solver=[use_tools(mcp_tools(git_server)), generate()],
+        solver=[use_tools(mcp_tools(git_server, tools=["*_status"])), generate()],
     )
 
 
 @skip_if_no_openai
 @skip_if_no_mcp_git_package
-def test_mcp_use_server_by_instance():
+def test_mcp_filter():
     log = eval(git_task(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
