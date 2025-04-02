@@ -33,6 +33,7 @@ from .._model_call import ModelCall
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
+    is_computer_use_preview,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
@@ -45,10 +46,7 @@ from .._openai import (
     openai_media_filter,
 )
 from .openai_o1 import generate_o1
-from .util import (
-    environment_prerequisite_error,
-    model_base_url,
-)
+from .util import environment_prerequisite_error, model_base_url
 
 logger = getLogger(__name__)
 
@@ -77,9 +75,6 @@ class OpenAIAPI(ModelAPI):
         else:
             self.service = None
 
-        # note whether we are forcing the responses_api
-        self.responses_api = True if responses_api else False
-
         # call super
         super().__init__(
             model_name=model_name,
@@ -87,6 +82,11 @@ class OpenAIAPI(ModelAPI):
             api_key=api_key,
             api_key_vars=[OPENAI_API_KEY, AZURE_OPENAI_API_KEY, AZUREAI_OPENAI_API_KEY],
             config=config,
+        )
+
+        # note whether we are forcing the responses_api
+        self.responses_api = (
+            responses_api or self.is_o1_pro() or self.is_computer_use_preview()
         )
 
         # resolve api_key
@@ -170,12 +170,32 @@ class OpenAIAPI(ModelAPI):
     def is_o1_preview(self) -> bool:
         return is_o1_preview(self.model_name)
 
+    def is_computer_use_preview(self) -> bool:
+        return is_computer_use_preview(self.model_name)
+
     def is_gpt(self) -> bool:
         return is_gpt(self.model_name)
 
     @override
     async def aclose(self) -> None:
         await self.client.close()
+
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return not self.responses_api
+
+    @override
+    def tool_result_images(self) -> bool:
+        # o1-pro, o1, and computer_use_preview support image inputs (but we're not strictly supporting o1)
+        return self.is_o1_pro() or self.is_computer_use_preview()
+
+    @override
+    def disable_computer_screenshot_truncation(self) -> bool:
+        # Because ComputerCallOutput has a required output field of type
+        # ResponseComputerToolCallOutputScreenshot, we must have an image in
+        # order to provide a valid tool call response. Therefore, we cannot
+        # support image truncation.
+        return True
 
     async def generate(
         self,
@@ -192,7 +212,7 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 **self.completion_params(config, False),
             )
-        elif self.is_o1_pro() or self.responses_api:
+        elif self.responses_api:
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,

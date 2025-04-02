@@ -67,7 +67,6 @@ website:
                - tasks.qmd
                - datasets.qmd
                - solvers.qmd
-               - tools.qmd
                - scorers.qmd
 
          - section: "Tools"
@@ -75,6 +74,7 @@ website:
                - tools.qmd
                - tools-custom.qmd
                - tools-standard.qmd
+               - approval.qmd
 
          - section: "Models"
            contents:
@@ -95,7 +95,6 @@ website:
                  href: agent-protocol.qmd
                - agent-bridge.qmd
                - human-agent.qmd
-               - approval.qmd
 
          - section: "Advanced"
            contents:

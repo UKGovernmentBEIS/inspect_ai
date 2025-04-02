@@ -570,7 +570,6 @@ def completion_choice_from_candidate(
             if part.function_call:
                 tool_calls.append(
                     ToolCall(
-                        type="function",
                         id=part.function_call.name,
                         function=part.function_call.name,
                         arguments=part.function_call.args,

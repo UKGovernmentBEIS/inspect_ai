@@ -187,7 +187,6 @@ def parse_tool_call_content(content: str, tools: list[ToolInfo]) -> ToolCall:
             id="unknown",
             function="unknown",
             arguments={},
-            type="function",
             parse_error=parse_error,
         )
 

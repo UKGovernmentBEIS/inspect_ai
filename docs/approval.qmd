@@ -1,5 +1,5 @@
 ---
-title: Approval 
+title: Tool Approval 
 ---
 
 ## Overview

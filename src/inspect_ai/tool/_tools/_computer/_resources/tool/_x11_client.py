@@ -153,6 +153,19 @@ class X11Client:
     ) -> ToolResult:
         return await self._mouse_move_and("middle_click", coordinate, text)
 
+    # https://wiki.archlinux.org/title/Mouse_buttons#Thumb_buttons_-_forward_and_back
+    # suggests that, although not in any spec, the de facto standard is 8 for
+    # back and 9 for forward.
+    async def back_click(
+        self, coordinate: tuple[int, int] | None, text: str | None
+    ) -> ToolResult:
+        return await self._mouse_move_and("back_click", coordinate, text)
+
+    async def forward_click(
+        self, coordinate: tuple[int, int] | None, text: str | None
+    ) -> ToolResult:
+        return await self._mouse_move_and("forward_click", coordinate, text)
+
     async def double_click(
         self, coordinate: tuple[int, int] | None, text: str | None
     ) -> ToolResult:
@@ -215,6 +228,8 @@ class X11Client:
             "left_click",
             "right_click",
             "middle_click",
+            "back_click",
+            "forward_click",
             "double_click",
             "triple_click",
         ],
@@ -233,6 +248,8 @@ class X11Client:
             "left_click": "1",
             "right_click": "3",
             "middle_click": "2",
+            "back_click": "8",
+            "forward_click": "9",
             "double_click": "--repeat 2 --delay 300 1",
             "triple_click": "--repeat 3 --delay 300 1",
         }[action]

@@ -207,7 +207,6 @@ async def execute_tools(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
-                internal_name=call.internal_name,
                 result=content,
                 truncated=truncated,
                 view=call.view,
@@ -226,8 +225,8 @@ async def execute_tools(
                                     content=content,
                                     tool_call_id=call.id,
                                     function=call.function,
-                                    internal_name=call.internal_name,
                                     error=tool_error,
+                                    internal=call.internal,
                                 )
                             ]
                             + messages,
@@ -251,8 +250,8 @@ async def execute_tools(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
-                internal_name=call.internal_name,
                 view=call.view,
+                internal=call.internal,
                 pending=True,
             )
             transcript()._event(event)
@@ -277,7 +276,6 @@ async def execute_tools(
                 tool_message = ChatMessageTool(
                     content="",
                     function=call.function,
-                    internal_name=call.internal_name,
                     tool_call_id=call.id,
                     error=ToolCallError(
                         "timeout", "Command timed out before completing."
@@ -287,7 +285,6 @@ async def execute_tools(
                     id=call.id,
                     function=call.function,
                     arguments=call.arguments,
-                    internal_name=call.internal_name,
                     result=tool_message.content,
                     truncated=None,
                     view=call.view,
@@ -414,7 +411,7 @@ async def agent_handoff(
             content=tool_result,
             tool_call_id=call.id,
             function=call.function,
-            internal_name=call.internal_name,
+            internal=call.internal,
         )
     )
 
@@ -731,7 +728,6 @@ def parse_tool_call(
         id=id,
         function=function,
         arguments=arguments_dict,
-        type="function",
         parse_error=error,
     )
 
