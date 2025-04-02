@@ -1,8 +1,14 @@
-from test_helpers.utils import skip_if_no_mcp_fetch_package
+from test_helpers.utils import (
+    skip_if_no_mcp_fetch_package,
+    # skip_if_no_mcp_git_package,
+    # skip_if_no_openai,
+)
 
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
-from inspect_ai.tool import mcp_server_stdio, mcp_tools
-from inspect_ai.tool._mcp._types import MCPServer
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import MCPServer, mcp_server_stdio, mcp_tools
 
 
 @skip_if_no_mcp_fetch_package
@@ -29,3 +35,23 @@ async def check_fetch_server(server: MCPServer):
         tools=mcp_tools(server),
     )
     assert "example.com" in output.completion
+
+
+@task
+def git_task():
+    git_server = mcp_server_stdio(
+        command="python3", args=["-m", "mcp_server_git", "--repository", "."]
+    )
+
+    return Task(
+        dataset=[Sample("What is the status of the git working tree?")],
+        solver=[use_tools(mcp_tools(git_server)), generate()],
+    )
+
+
+# @skip_if_no_openai
+# @skip_if_no_mcp_git_package
+# def test_mcp_filter():
+#     log = eval(git_task(), model="openai/gpt-4o")[0]
+#     assert log.status == "success"
+#     assert log.samples

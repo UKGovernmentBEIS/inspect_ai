@@ -123,7 +123,6 @@ dev = [
     "ipython",
     "markdown",
     "mcp",
-    "mcp-server-fetch",
     "mistralai",
     "moto[server]",
     "mypy",
@@ -153,5 +152,6 @@ dev = [
     "types-psutil",
     "types-python-dateutil"
 ]
+dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
 dist = ["twine", "build"]
