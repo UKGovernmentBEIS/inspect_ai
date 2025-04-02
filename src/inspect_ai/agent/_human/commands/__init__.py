@@ -1,5 +1,4 @@
-from inspect_ai.solver._task_state import TaskState
-
+from ..._agent import AgentState
 from .clock import StartCommand, StopCommand
 from .command import HumanAgentCommand
 from .instructions import InstructionsCommand
@@ -10,7 +9,7 @@ from .submit import QuitCommand, SubmitCommand, ValidateCommand
 
 
 def human_agent_commands(
-    state: TaskState,
+    state: AgentState,
     answer: bool | str,
     intermediate_scoring: bool,
     record_session: bool,

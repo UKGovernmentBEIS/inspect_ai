@@ -394,16 +394,18 @@ class TaskState:
 
         return metadata_as(self.metadata, metadata_cls)
 
-    def store_as(self, model_cls: Type[SMT]) -> SMT:
+    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
         """Pydantic model interface to the store.
 
         Args:
           model_cls: Pydantic model type (must derive from StoreModel)
+          instance: Optional instances name for store (enables multiple instances
+            of a given StoreModel type within a single sample)
 
         Returns:
-          StoreModel: Instance of model_cls bound to current Store.
+          StoreModel: model_cls bound to sample store data.
         """
-        return model_cls(store=self.store)
+        return model_cls(store=self.store, instance=instance)
 
 
 def sample_state() -> TaskState | None:

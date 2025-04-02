@@ -1,19 +1,23 @@
+from inspect_ai.agent._human.commands.clock import clock_action_event
 from inspect_ai.model import ModelOutput
 from inspect_ai.util._sandbox import sandbox
 from inspect_ai.util._sandbox.service import sandbox_service
 
-from .._task_state import TaskState
+from .._agent import AgentState
 from .commands.command import HumanAgentCommand
 from .state import HumanAgentState
 from .view import HumanAgentView
 
 
 async def run_human_agent_service(
-    state: TaskState, commands: list[HumanAgentCommand], view: HumanAgentView | None
-) -> TaskState:
+    state: AgentState, commands: list[HumanAgentCommand], view: HumanAgentView | None
+) -> AgentState:
     # initialise agent state
     instructions = "\n\n".join([message.text for message in state.messages]).strip()
     agent_state = HumanAgentState(instructions=instructions)
+
+    # record that clock is stopped
+    clock_action_event("stop", agent_state)
 
     # extract service methods from commands
     methods = {

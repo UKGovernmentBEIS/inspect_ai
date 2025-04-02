@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Any, Awaitable, Callable, Sequence, cast
@@ -9,6 +8,8 @@ from typing_extensions import TypedDict, Unpack
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai._util.registry import is_registry_object, registry_info
+from inspect_ai.agent._agent import Agent, is_agent
+from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, approval_policies_from_config
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.log import EvalLog
@@ -47,7 +48,7 @@ class Task:
         self,
         dataset: Dataset | Sequence[Sample] | None = None,
         setup: Solver | list[Solver] | None = None,
-        solver: Solver | list[Solver] = generate(),
+        solver: Solver | Agent | list[Solver] = generate(),
         cleanup: Callable[[TaskState], Awaitable[None]] | None = None,
         scorer: Scorer | list[Scorer] | None = None,
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
@@ -159,6 +160,13 @@ class Task:
             return "task"
 
     @property
+    def registry_name(self) -> str | None:
+        if is_registry_object(self):
+            return registry_info(self).name
+        else:
+            return None
+
+    @property
     def attribs(self) -> dict[str, Any]:
         if is_registry_object(self):
             return cast(dict[str, Any], registry_info(self).metadata.get("attribs", {}))
@@ -191,8 +199,12 @@ def task_with(
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
+    This function modifies the passed task in place and returns it.
+    If you want to create multiple variations of a single task using
+    `task_with()` you should create the underlying task multiple times.
+
     Args:
-        task: Task to adapt (it is deep copied prior to mutating options)
+        task: Task to adapt
         dataset: Dataset to evaluate
         setup: Setup step (always run even when the main `solver` is replaced).
         solver: Solver or list of solvers. Defaults to generate(), a normal call to the model.
@@ -227,11 +239,8 @@ def task_with(
         metadata:  Additional metadata to associate with the task.
 
     Returns:
-        Task: Task adapted with alternate options.
+        Task: Passed `task` with modifications.
     """
-    # deep copy the task
-    task = deepcopy(task)
-
     if not isinstance(dataset, NotGiven):
         task.dataset = resolve_dataset(dataset)
     if not isinstance(setup, NotGiven):
@@ -340,8 +349,13 @@ def resolve_dataset(dataset: Dataset | Sequence[Sample] | None) -> Dataset:
     return dataset if isinstance(dataset, Dataset) else MemoryDataset(list(dataset))
 
 
-def resolve_solver(solver: Solver | list[Solver]) -> Solver:
-    return chain(solver) if isinstance(solver, list) else solver
+def resolve_solver(solver: Solver | Agent | list[Solver]) -> Solver:
+    if isinstance(solver, list):
+        return chain(solver)
+    elif is_agent(solver):
+        return as_solver(solver)
+    else:
+        return cast(Solver, solver)
 
 
 def resolve_model(model: str | Model | None) -> Model | None:

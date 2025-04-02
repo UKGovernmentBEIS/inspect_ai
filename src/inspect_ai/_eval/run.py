@@ -1,4 +1,3 @@
-import functools
 import logging
 import os
 import sys
@@ -20,7 +19,6 @@ from inspect_ai._display.core.active import (
     init_task_screen,
 )
 from inspect_ai._display.core.display import TaskSpec
-from inspect_ai._util._async import tg_collect
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
@@ -195,6 +193,7 @@ async def eval_run(
                     task_name=task.name,
                     task_version=task.version,
                     task_file=resolved_task.task_file,
+                    task_registry_name=resolved_task.task.registry_name,
                     task_id=resolved_task.id if resolved_task.id else uuid(),
                     run_id=run_id,
                     solver=eval_solver_spec,
@@ -359,17 +358,13 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                         "Run Task",
                         f"task: {task_options.task.name} ({task_options.model})",
                     ):
-                        tg_results = await tg_collect(
-                            [functools.partial(task_run, task_options)]
-                        )
-                    # check for empty results list (indicates cancellation)
-                    if len(tg_results) == 0:
-                        # task was cancelled, break out of the worker loop
-                        result = None
+                        async with anyio.create_task_group() as tg:
 
-                    else:
-                        result = tg_results[0]
-                        results.append(result)
+                            async def run_task() -> None:
+                                result = await task_run(task_options)
+                                results.append(result)
+
+                            tg.start_soon(run_task)
 
                 except Exception as ex:
                     # errors generally don't escape from tasks (the exception being if an error

@@ -3,7 +3,6 @@ from textwrap import dedent
 
 from inspect_ai.util import sandbox
 
-from .._task_state import TaskState
 from .commands.command import HumanAgentCommand
 
 INSTALL_DIR = "human_agent_install"
@@ -18,7 +17,7 @@ RECORD_SESSION_DIR = "/var/tmp/user-sessions"
 
 
 async def install_human_agent(
-    state: TaskState, commands: list[HumanAgentCommand], record_session: bool
+    commands: list[HumanAgentCommand], record_session: bool
 ) -> None:
     # see if we have already installed
     if not (await sandbox().exec(["mkdir", HUMAN_AGENT_DIR])).success:
@@ -183,8 +182,12 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     fi
     """).lstrip()
 
+    CLOCK = dedent("""
+    task start
+    """).lstrip()
+
     # return .bashrc
-    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, INSTRUCTIONS])
+    return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, INSTRUCTIONS, CLOCK])
 
 
 def human_agent_install_sh() -> str:

@@ -9,6 +9,7 @@ import { TranscriptView } from "./TranscriptView";
 import clsx from "clsx";
 import { FC, useMemo } from "react";
 import { PulsingDots } from "../../components/PulsingDots";
+import { ChatView } from "../chat/ChatView";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
 
@@ -34,10 +35,19 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
     [event.function, event.arguments],
   );
 
-  // Find an approval if there is one
-  const approvalEvent = event.events.find((e) => {
-    return e.event === "approval";
-  });
+  const { approvalEvent, lastModelEvent } = useMemo(() => {
+    // Find an approval if there is one
+    const approvalEvent = event.events.find((e) => {
+      return e.event === "approval";
+    });
+
+    // Find a model message to render, if there is one
+    const lastModelEvent = [...event.events].reverse().find((e) => {
+      return e.event === "model";
+    });
+
+    return { approvalEvent, lastModelEvent };
+  }, [event.events]);
 
   const title = `Tool: ${event.view?.title || event.function}`;
   return (
@@ -58,6 +68,16 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
           mode="compact"
           view={event.view ? event.view : undefined}
         />
+
+        {lastModelEvent && lastModelEvent.event === "model" ? (
+          <ChatView
+            id={`${id}-toolcall-chatmessage`}
+            messages={lastModelEvent.output.choices.map((m) => m.message)}
+            numbered={false}
+            toolCallStyle="compact"
+          />
+        ) : undefined}
+
         {approvalEvent ? (
           <ApprovalEventView
             event={approvalEvent}
@@ -76,6 +96,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
         <TranscriptView
           id={`${id}-subtask`}
           data-name="Transcript"
+          data-default={event.failed || event.agent ? true : null}
           events={event.events}
           depth={depth + 1}
         />

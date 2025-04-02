@@ -62,7 +62,7 @@ def test_completion_choice_malformed_function_call():
         safety_ratings=None,
     )
 
-    choice = completion_choice_from_candidate(candidate)
+    choice = completion_choice_from_candidate("", candidate)
 
     # Verify the conversion
     assert choice.message.content == ""  # Empty content for malformed calls

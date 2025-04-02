@@ -19,6 +19,7 @@ from ._metric import (
     value_to_float,
 )
 from ._metrics.accuracy import accuracy
+from ._metrics.grouped import grouped
 from ._metrics.mean import mean
 from ._metrics.std import bootstrap_stderr, std, stderr, var
 from ._model import model_graded_fact, model_graded_qa
@@ -58,6 +59,7 @@ __all__ = [
     "std",
     "stderr",
     "mean",
+    "grouped",
     "var",
     "Metric",
     "MetricProtocol",

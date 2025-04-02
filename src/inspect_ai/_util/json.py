@@ -8,7 +8,8 @@ import jsonpatch
 from pydantic import BaseModel, Field, JsonValue
 from pydantic_core import to_json, to_jsonable_python
 
-from inspect_ai.util._json import JSONType
+JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
+"""Valid types within JSON schema."""
 
 
 def jsonable_python(x: Any) -> Any:

@@ -1,5 +1,7 @@
 from typing import Any, Callable, cast
 
+import pytest
+
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import registry_info
@@ -24,6 +26,7 @@ from inspect_ai.scorer._metric import (
     SampleScore,
     metric_create,
 )
+from inspect_ai.scorer._metrics import grouped
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
@@ -382,3 +385,126 @@ def test_clustered_stderr():
         ]
     )
     assert round(se, 3) == 0.645
+
+
+def test_grouped_mean_single():
+    metric = grouped(mean(), group_key="group")
+    result = metric(
+        [
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=4), sample_metadata={"group": "A"}),
+        ]
+    )
+    assert result["A"] == 2.0
+    assert result["all"] == 2.0
+
+
+def test_grouped_mean_multiple():
+    metric = grouped(mean(), group_key="group")
+    result = metric(
+        [
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=4), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=2), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=6), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=10), sample_metadata={"group": "B"}),
+        ]
+    )
+    assert result["A"] == 2.0
+    assert result["B"] == 6.0
+    assert result["all"] == 4.0
+
+
+def test_grouped_mean_error():
+    metric = grouped(mean(), group_key="group")
+    with pytest.raises(ValueError):
+        metric(
+            [
+                SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+                SampleScore(score=Score(value=1)),
+                SampleScore(score=Score(value=4), sample_metadata={"group": "A"}),
+                SampleScore(score=Score(value=2), sample_metadata={"group": "B"}),
+                SampleScore(score=Score(value=6), sample_metadata={"group": "B"}),
+                SampleScore(score=Score(value=10), sample_metadata={"group": "B"}),
+            ]
+        )
+
+
+def test_grouped_accuracy():
+    metric = grouped(accuracy(), group_key="group")
+    result = metric(
+        [
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "B"}),
+        ]
+    )
+
+    assert result["A"] == 0.25
+    assert result["B"] == 0.75
+    assert result["all"] == 0.5
+
+
+def test_grouped_accuracy_groups():
+    metric = grouped(accuracy(), group_key="group", all="groups")
+    result = metric(
+        [
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "C"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "C"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "D"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "D"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "D"}),
+        ]
+    )
+
+    assert result["A"] == 0.0
+    assert result["B"] == 0.5
+    assert result["C"] == 0.5
+    assert result["D"] == 1.0
+    assert result["all"] == 0.5
+
+
+def test_no_all():
+    metric = grouped(accuracy(), group_key="group", all=False)
+    result = metric(
+        [
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value="I"), sample_metadata={"group": "C"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "C"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "D"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "D"}),
+            SampleScore(score=Score(value="C"), sample_metadata={"group": "D"}),
+        ]
+    )
+
+    assert all(key in result for key in ["A", "B", "C", "D"])
+    assert "all" not in result
+
+
+def test_custom_all():
+    metric = grouped(mean(), group_key="group", all_label="custom_all")
+    result = metric(
+        [
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=1), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=4), sample_metadata={"group": "A"}),
+            SampleScore(score=Score(value=2), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=6), sample_metadata={"group": "B"}),
+            SampleScore(score=Score(value=10), sample_metadata={"group": "B"}),
+        ]
+    )
+    assert result["A"] == 2.0
+    assert result["B"] == 6.0
+    assert result["custom_all"] == 4.0

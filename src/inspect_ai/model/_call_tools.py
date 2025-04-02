@@ -1,7 +1,7 @@
 import inspect
 import json
-import sys
 import types
+from copy import copy
 from dataclasses import is_dataclass
 from logging import getLogger
 from textwrap import dedent
@@ -16,14 +16,12 @@ from typing import (
     Tuple,
     Type,
     Union,
+    cast,
     get_args,
     get_origin,
     get_type_hints,
     is_typeddict,
 )
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import ExceptionGroup
 
 import anyio
 import yaml
@@ -39,42 +37,67 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
-from inspect_ai.model._conversation import conversation_tool_mesage
+from inspect_ai.model._display import display_conversation_message
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
-from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError
+from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 
-from ._chat_message import ChatMessageAssistant, ChatMessageTool
+from ._chat_message import (
+    ChatMessage,
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageTool,
+    ChatMessageUser,
+)
 from ._generate_config import active_generate_config
 
 logger = getLogger(__name__)
 
 
-async def call_tools(
-    message: ChatMessageAssistant,
+class ExecuteToolsResult(NamedTuple):
+    """Result from executing tools in the last assistant message.
+
+    In conventional tool calling scenarios there will be only a list
+    of `ChatMessageTool` appended and no-output. However, if there
+    are `handoff()` tools (used in multi-agent systems) then other
+    messages may be appended and an `output` may be available as well.
+    """
+
+    messages: list[ChatMessage]
+    """Messages added to conversation."""
+
+    output: ModelOutput | None = None
+    """Model output if a generation occurred within the conversation."""
+
+
+async def execute_tools(
+    messages: list[ChatMessage],
     tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
     max_output: int | None = None,
-) -> list[ChatMessageTool]:
-    """Perform tool calls in assistant message.
+) -> ExecuteToolsResult:
+    """Perform tool calls in the last assistant message.
 
     Args:
-       message (ChatMessageAssistant): Assistant message
+       messages: Current message list
        tools (list[Tool]): Available tools
        max_output (int | None): Maximum output length (in bytes).
           Defaults to max_tool_output from active GenerateConfig
           (16 * 1024 by default).
 
     Returns:
-       List of tool calls
+       Messages added to the conversation and final model output (if any)
     """
-    if message.tool_calls:
+    message = messages[-1]
+    if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         from inspect_ai.log._transcript import (
             ToolEvent,
             Transcript,
@@ -87,16 +110,25 @@ async def call_tools(
 
         async def call_tool_task(
             call: ToolCall,
-            send_stream: MemoryObjectSendStream[tuple[ChatMessageTool, ToolEvent]],
+            conversation: list[ChatMessage],
+            send_stream: MemoryObjectSendStream[
+                tuple[ExecuteToolsResult, ToolEvent, Exception | None]
+            ],
         ) -> None:
             # create a transript for this call
             init_transcript(Transcript(name=call.function))
 
-            result: Any = ""
+            result: ToolResult = ""
+            messages: list[ChatMessage] = []
+            output: ModelOutput | None = None
+            agent: str | None = None
             tool_error: ToolCallError | None = None
+            tool_exception: Exception | None = None
             try:
                 with track_store_changes():
-                    result = await call_tool(tdefs, message.text, call)
+                    result, messages, output, agent = await call_tool(
+                        tdefs, message.text, call, conversation
+                    )
             except TimeoutError:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
@@ -133,6 +165,8 @@ async def call_tools(
                 tool_error = ToolCallError("approval", ex.message)
             except ToolError as ex:
                 tool_error = ToolCallError("unknown", ex.message)
+            except Exception as ex:
+                tool_exception = ex
 
             # massage result, leave list[Content] alone, convert all other
             # types to string as that is what the model APIs accept
@@ -173,25 +207,34 @@ async def call_tools(
                 view=call.view,
                 error=tool_error,
                 events=list(transcript().events),
+                agent=agent,
             )
 
             # yield message and event
             async with send_stream:
                 await send_stream.send(
                     (
-                        ChatMessageTool(
-                            content=content,
-                            tool_call_id=call.id,
-                            function=call.function,
-                            internal_name=call.internal_name,
-                            error=tool_error,
+                        ExecuteToolsResult(
+                            messages=[
+                                ChatMessageTool(
+                                    content=content,
+                                    tool_call_id=call.id,
+                                    function=call.function,
+                                    internal_name=call.internal_name,
+                                    error=tool_error,
+                                )
+                            ]
+                            + messages,
+                            output=output,
                         ),
                         event,
+                        tool_exception,
                     )
                 )
 
         # call tools
-        tool_messages: list[ChatMessageTool] = []
+        result_messages: list[ChatMessage] = []
+        result_output: ModelOutput | None = None
         for call in message.tool_calls:
             # create pending tool event and add it to the transcript
             # (record the waiting time for the sample so we can compare
@@ -211,16 +254,18 @@ async def call_tools(
             # execute the tool call. if the operator cancels the
             # tool call then synthesize the appropriate message/event
             send_stream, receive_stream = anyio.create_memory_object_stream[
-                tuple[ChatMessageTool, ToolEvent]
+                tuple[ExecuteToolsResult, ToolEvent, Exception | None]
             ]()
-            try:
-                async with anyio.create_task_group() as tg:
-                    tg.start_soon(call_tool_task, call, send_stream)
-                    event._set_cancel_fn(tg.cancel_scope.cancel)
-                    async with receive_stream:
-                        tool_message, result_event = await receive_stream.receive()
-            except ExceptionGroup as ex:
-                raise ex.exceptions[0]
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(call_tool_task, call, messages, send_stream)
+                event._set_cancel_fn(tg.cancel_scope.cancel)
+                async with receive_stream:
+                    (
+                        result,
+                        result_event,
+                        result_exception,
+                    ) = await receive_stream.receive()
 
             if event.cancelled:
                 tool_message = ChatMessageTool(
@@ -246,12 +291,14 @@ async def call_tools(
                 transcript().info(
                     f"Tool call '{call.function}' was cancelled by operator."
                 )
-
-            # update return messages
-            tool_messages.append(tool_message)
-
-            # print conversation if display is conversation
-            conversation_tool_mesage(tool_message)
+                result_messages.append(tool_message)
+                display_conversation_message(tool_message)
+            else:
+                for message in result.messages:
+                    result_messages.append(message)
+                    display_conversation_message(message)
+                if result.output is not None:
+                    result_output = result.output
 
             # update the event with the results
             waiting_time_end = sample_waiting_time()
@@ -261,17 +308,29 @@ async def call_tools(
                 error=result_event.error,
                 events=result_event.events,
                 waiting_time=waiting_time_end - waiting_time_start,
+                agent=result_event.agent,
+                failed=True if result_exception else None,
             )
             transcript()._event_updated(event)
 
+            # if there was an exception then re-raise it -- we do this
+            # after updating the event so that we flush the transcript
+            # for the event
+            if result_exception is not None:
+                raise result_exception
+
         # return tool messages
-        return tool_messages
+        return ExecuteToolsResult(result_messages, result_output)
 
     else:
-        return []
+        return ExecuteToolsResult([])
 
 
-async def call_tool(tools: list[ToolDef], message: str, call: ToolCall) -> Any:
+async def call_tool(
+    tools: list[ToolDef], message: str, call: ToolCall, conversation: list[ChatMessage]
+) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
+    from inspect_ai.agent._handoff import AgentTool
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
         raise ToolParsingError(call.parse_error)
@@ -302,10 +361,122 @@ async def call_tool(tools: list[ToolDef], message: str, call: ToolCall) -> Any:
     with trace_action(
         logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
     ):
-        result = await tool_def.tool(**arguments)
+        # agent tools get special handling
+        if isinstance(tool_def.tool, AgentTool):
+            return await agent_handoff(tool_def, call, conversation)
 
-    # return result
-    return result
+        # normal tool call
+        else:
+            arguments = tool_params(call.arguments, tool_def.tool)
+            result: ToolResult = await tool_def.tool(**arguments)
+            return result, [], None, None
+
+
+async def agent_handoff(
+    tool_def: ToolDef, call: ToolCall, conversation: list[ChatMessage]
+) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str]:
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._handoff import AgentTool
+
+    # alias agent tool and get agent name
+    agent_tool = cast(AgentTool, tool_def.tool)
+    agent_name = registry_unqualified_name(agent_tool.agent)
+
+    # copy list
+    agent_conversation = copy(conversation)
+
+    # remove other tool calls from the assistant message so the
+    # conversation remains valid (the model may have called multiple
+    # tools in parallel and we won't be handling the other calls)
+    last_message = agent_conversation[-1]
+    if isinstance(last_message, ChatMessageAssistant) and last_message.tool_calls:
+        agent_conversation[-1] = agent_conversation[-1].model_copy(
+            update=dict(
+                tool_calls=[
+                    tool_call
+                    for tool_call in last_message.tool_calls
+                    if tool_call.id == call.id
+                ]
+            )
+        )
+
+    # ammend the conversation with a ChatMessageTool to indicate
+    # to the downstream agent that we satisfied the call
+    tool_result = f"Successfully transferred to {agent_name}."
+    agent_conversation.append(
+        ChatMessageTool(
+            content=tool_result,
+            tool_call_id=call.id,
+            function=call.function,
+            internal_name=call.internal_name,
+        )
+    )
+
+    # run input filter if we have one
+    if agent_tool.input_filter is not None:
+        agent_conversation = await agent_tool.input_filter(agent_conversation)
+
+    # remove system messages (as they can refer to tools or other special
+    # instructions that don't apply to the sub-agent)
+    agent_conversation = [
+        m for m in agent_conversation if not isinstance(m, ChatMessageSystem)
+    ]
+
+    # inject curried args
+    arguments = {**call.arguments, **agent_tool.kwargs}
+
+    # parse arguments
+    arguments = tool_params(arguments, agent_tool.agent)
+    del arguments["state"]
+
+    # make the call
+    agent_state = AgentState(messages=copy(agent_conversation))
+    agent_state = await agent_tool.agent(agent_state, **arguments)
+
+    # determine which messages are new and return only those (but exclude new
+    # system messages as they an internal matter for the handed off to agent.
+    # also, inject the agent's name as a prefix in assistant messages
+    conversation_message_ids = [message.id for message in agent_conversation]
+    agent_messages: list[ChatMessage] = []
+    for m in agent_state.messages:
+        if m.id not in conversation_message_ids:
+            if isinstance(m, ChatMessageAssistant):
+                m = prepend_agent_name(m, agent_name)
+            if not isinstance(m, ChatMessageSystem):
+                agent_messages.append(m)
+
+    # run output filter if we have one
+    if agent_tool.output_filter is not None:
+        agent_messages = await agent_tool.output_filter(agent_messages)
+
+    # if we end with an assistant message then add a user message
+    # so that the calling agent carries on
+    if len(agent_messages) == 0 or isinstance(agent_messages[-1], ChatMessageAssistant):
+        agent_messages.append(
+            ChatMessageUser(content=f"The {agent_name} agent has completed its work.")
+        )
+
+    return (tool_result, agent_messages, agent_state.output, agent_name)
+
+
+def prepend_agent_name(
+    message: ChatMessageAssistant, agent_name: str
+) -> ChatMessageAssistant:
+    if isinstance(message.content, str):
+        return message.model_copy(
+            update=dict(content=f"[{agent_name}] {message.content}")
+        )
+    else:
+        content = copy(message.content)
+        for i in range(0, len(content)):
+            if isinstance(content[i], ContentText):
+                content[i] = content[i].model_copy(
+                    update=dict(
+                        text=f"[{agent_name}] {cast(ContentText, content[i]).text}"
+                    )
+                )
+                break
+        return message.model_copy(update=dict(content=content))
 
 
 def tools_info(
@@ -562,3 +733,27 @@ def parse_tool_call(
         type="function",
         parse_error=error,
     )
+
+
+async def call_tools(
+    message: ChatMessageAssistant,
+    tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
+    max_output: int | None = None,
+) -> list[ChatMessageTool]:
+    """Perform tool calls in assistant message.
+
+    This method is deprecated. Use the `execute_tools()` method instead
+    (which correctly handles agent `handoff()` tools).
+
+    Args:
+       message: Assistant message.
+       tools (list[Tool]): Available tools
+       max_output (int | None): Maximum output length (in bytes).
+          Defaults to max_tool_output from active GenerateConfig
+          (16 * 1024 by default).
+
+    Returns:
+       Messages added to the conversation.
+    """
+    messages, _ = await execute_tools([message], tools, max_output)
+    return [m for m in messages if isinstance(m, ChatMessageTool)]

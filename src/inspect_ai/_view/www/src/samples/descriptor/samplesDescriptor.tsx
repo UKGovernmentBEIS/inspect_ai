@@ -47,7 +47,13 @@ export const createEvalDescriptor = (
       sample.scores[scoreLabel.scorer] &&
       sample.scores[scoreLabel.scorer].value
     ) {
-      return sample.scores[scoreLabel.scorer].value;
+      if (typeof sample.scores[scoreLabel.scorer].value === "object") {
+        return (
+          sample.scores[scoreLabel.scorer].value as Record<string, Value2>
+        )[scoreLabel.name];
+      } else {
+        return sample.scores[scoreLabel.scorer].value;
+      }
     } else if (sample.scores[scoreLabel.name]) {
       return sample.scores[scoreLabel.name].value;
     } else {
@@ -162,7 +168,7 @@ export const createEvalDescriptor = (
       return "null";
     } else if (score === undefined) {
       return "";
-    } else if (score && descriptor && descriptor.render) {
+    } else if (descriptor && descriptor.render) {
       return descriptor.render(score);
     } else {
       return <span>{String(score)}</span>;
@@ -328,7 +334,7 @@ export const createSamplesDescriptor = (
     answer: Math.min(sizes[2], 300),
     limit: Math.min(sizes[3], 50),
     id: Math.min(sizes[4], 10),
-    score: Math.min(sizes[4], 30),
+    score: Math.min(sizes[5], 30),
   };
   const base =
     maxSizes.input +

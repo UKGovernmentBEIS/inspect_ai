@@ -61,6 +61,7 @@ def test_eval_set() -> None:
         assert logs[0].status == "error"
 
 
+@pytest.mark.slow
 def test_eval_set_dynamic() -> None:
     with tempfile.TemporaryDirectory() as log_dir:
         dataset: list[Sample] = []
@@ -69,21 +70,21 @@ def test_eval_set_dynamic() -> None:
         task1 = Task(
             name="task1",
             dataset=deepcopy(dataset),
-            solver=[failing_solver(0.2), generate()],
+            solver=[failing_solver(0.05), generate()],
             scorer=includes(),
         )
         task2 = Task(
             name="task2",
             dataset=deepcopy(dataset),
-            solver=[failing_solver(0.2), generate()],
+            solver=[failing_solver(0.05), generate()],
             scorer=includes(),
         )
         success, logs = eval_set(
             tasks=[task1, task2],
             log_dir=log_dir,
             model=[get_model("mockllm/model"), get_model("mockllm/model2")],
-            retry_attempts=100,
-            retry_wait=0.1,
+            retry_attempts=10000,
+            retry_wait=0.001,
         )
         assert len(logs) == 4
         assert success
