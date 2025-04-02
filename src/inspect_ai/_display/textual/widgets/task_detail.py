@@ -6,9 +6,16 @@ from textual.app import ComposeResult
 from textual.containers import Center, Grid, Horizontal
 from textual.reactive import Reactive, reactive
 from textual.widget import Widget
-from textual.widgets import Static
+from textual.widgets import Link, Static
 
-from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._display.core.display import TaskDisplayMetric, TaskProfile
+from inspect_ai._util.vscode import (
+    VSCodeCommand,
+    can_execute_vscode_commands,
+    execute_vscode_commands,
+)
+
+OPEN_VIEWER_LINK_ID = "open-log-viewer"
 
 
 @dataclass
@@ -31,21 +38,39 @@ class TaskDetail(Widget):
         height: auto;
         grid-gutter: 1 3;
     }
+    TaskDetail .section_title {
+        text-style: bold underline;
+    }
+    TaskDetail .inset {
+        padding: 0 0 1 2;
+    }
     """
 
     def __init__(
         self,
         *,
+        profile: TaskProfile,
         hidden: bool = True,
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
         super().__init__(id=id, classes=classes)
+        print(profile.log_location)
         self.hidden = hidden
         self.existing_metrics: dict[str, TaskMetrics] = {}
         self.grid = Grid()
         self.by_reducer: dict[str | None, dict[str, list[TaskMetric]]] = {}
         self.metrics: list[TaskDisplayMetric] = []
+        self.profile = profile
+        self.link = VSCodeLink(
+            "Open Log Viewer", id=OPEN_VIEWER_LINK_ID, classes="inset"
+        )
+        self.link.commands = [
+            VSCodeCommand(
+                command="inspect.openLogViewer",
+                args=[profile.log_location] if profile.log_location else [],
+            )
+        ]
 
     def watch_hidden(self, hidden: bool) -> None:
         """React to changes in the `visible` property."""
@@ -55,6 +80,9 @@ class TaskDetail(Widget):
             self.remove_class("hidden")
 
     def compose(self) -> ComposeResult:
+        if can_execute_vscode_commands():
+            yield self.link
+        yield Static("Metrics", classes="section_title inset")
         yield self.grid
 
     def on_mount(self) -> None:
@@ -150,7 +178,7 @@ class TaskMetrics(Widget):
         grid-gutter: 0 3;
         padding: 0 2 0 2;
     }
-    TaskMetric Center {
+    TaskMetric Center { 
         width: auto;
     }
     TaskMetrics Center Static {
@@ -268,3 +296,30 @@ def valid_id(identifier: str) -> str:
 
     # If the string is empty return a default valid identifier
     return valid_part or "default_identifier"
+
+
+class VSCodeLink(Link):
+    def __init__(
+        self,
+        text: str,
+        *,
+        url: str | None = None,
+        tooltip: str | None = None,
+        name: str | None = None,
+        id: str | None = None,
+        classes: str | None = None,
+        disabled: bool = False,
+    ) -> None:
+        super().__init__(
+            text,
+            url=url,
+            tooltip=tooltip,
+            name=name,
+            id=id,
+            classes=classes,
+            disabled=disabled,
+        )
+        self.commands: list[VSCodeCommand] = []
+
+    def on_click(self) -> None:
+        execute_vscode_commands(self.commands)
