@@ -27,8 +27,6 @@ def mcp_server_sse(
         timeout: Timeout for HTTP operations
         sse_read_timeout: How long (in seconds) the client will wait for a new
             event before disconnecting.
-        memoize: Use/store a cached version of the client interface based on
-            the parameters to `mcp_sse_client()`
 
     Returns:
         McpClient: Client for MCP Server
@@ -65,8 +63,6 @@ def mcp_server_stdio(
         encoding_error_handler: The text encoding error handler.
             See <https://docs.python.org/3/library/codecs.html#codec-base-classes> for
             explanations of possible values
-        memoize: Use/store a cached version of the client interface based on
-            the parameters to `mcp_stdio_client()`
 
     Returns:
         McpClient: Client for MCP Server
@@ -74,7 +70,6 @@ def mcp_server_stdio(
     verfify_mcp_package()
     from ._mcp import create_server_stdio
 
-    # create the client and add it to the cache if we are memoizing
     return create_server_stdio(
         command, args, cwd, env, encoding, encoding_error_handler
     )
