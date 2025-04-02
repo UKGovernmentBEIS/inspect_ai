@@ -6,6 +6,7 @@
 - Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
 - Scoring: New `grouped` metric, which computes a metric for a list of scores grouped by a value in sample metadata.
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
+- Computer Tool: Support for use of the native Open AI computer tool (available in the model `openai/computer-use-preview`)
 - Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
 - Eval Set: Resolve tasks before each pass (ensure that each pass runs against an entirely new task instance).
 - Eval Retry: Ability to retry any task in the registry, even if it has a custom `name` (save `registry_name` separately).

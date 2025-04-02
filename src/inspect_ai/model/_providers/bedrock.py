@@ -449,7 +449,6 @@ def model_output_from_response(
             tool_calls.append(
                 ToolCall(
                     id=c.toolUse.toolUseId,
-                    type="function",
                     function=c.toolUse.name,
                     arguments=cast(dict[str, Any], c.toolUse.input or {}),
                 )

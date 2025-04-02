@@ -393,7 +393,6 @@ def completion_choice_from_candidate(
             function_call = MessageToDict(getattr(part.function_call, "_pb"))
             tool_calls.append(
                 ToolCall(
-                    type="function",
                     id=function_call["name"],
                     function=function_call["name"],
                     arguments=function_call["args"],

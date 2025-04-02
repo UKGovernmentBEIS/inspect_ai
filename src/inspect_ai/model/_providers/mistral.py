@@ -443,9 +443,7 @@ def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCal
             id, tool_call.function.name, tool_call.function.arguments, tools
         )
     else:
-        return ToolCall(
-            id, tool_call.function.name, tool_call.function.arguments, type="function"
-        )
+        return ToolCall(id, tool_call.function.name, tool_call.function.arguments)
 
 
 def completion_choice(

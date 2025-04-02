@@ -206,8 +206,6 @@ export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
 export type Id4 = string;
 export type Function = string;
-export type Type8 = string;
-export type InternalName = string | null;
 export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
@@ -227,8 +225,7 @@ export type Source3 = ("input" | "generate") | null;
 export type Role3 = "tool";
 export type ToolCallId1 = string | null;
 export type Function1 = string | null;
-export type InternalName1 = string | null;
-export type Type9 =
+export type Type8 =
   | "parsing"
   | "timeout"
   | "unicode_decode"
@@ -308,7 +305,7 @@ export type Timestamp1 = string;
 export type WorkingStart1 = number;
 export type Pending1 = boolean | null;
 export type Event1 = "sample_limit";
-export type Type10 =
+export type Type9 =
   | "message"
   | "time"
   | "working"
@@ -357,7 +354,7 @@ export type Input3 = (
 )[];
 export type Name8 = string;
 export type Description2 = string;
-export type Type11 = "object";
+export type Type10 = "object";
 export type Required1 = string[];
 export type Additionalproperties1 = boolean;
 export type Tools1 = ToolInfo[];
@@ -372,10 +369,9 @@ export type Timestamp6 = string;
 export type WorkingStart6 = number;
 export type Pending6 = boolean | null;
 export type Event6 = "tool";
-export type Type12 = "function";
+export type Type11 = "function";
 export type Id7 = string;
 export type Function2 = string;
-export type InternalName2 = string | null;
 export type Result1 =
   | string
   | number
@@ -451,14 +447,14 @@ export type WorkingStart13 = number;
 export type Pending13 = boolean | null;
 export type Event13 = "step";
 export type Action1 = "begin" | "end";
-export type Type13 = string | null;
+export type Type12 = string | null;
 export type Name11 = string;
 export type Timestamp14 = string;
 export type WorkingStart14 = number;
 export type Pending14 = boolean | null;
 export type Event14 = "subtask";
 export type Name12 = string;
-export type Type14 = string | null;
+export type Type13 = string | null;
 export type Events2 = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -519,7 +515,7 @@ export type Events = (
 export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid = string | null;
-export type Type15 =
+export type Type14 =
   | "context"
   | "time"
   | "working"
@@ -853,6 +849,7 @@ export interface ChatMessageSystem {
   id: Id1;
   content: Content;
   source: Source;
+  internal: unknown;
   role: Role;
 }
 /**
@@ -905,6 +902,7 @@ export interface ChatMessageUser {
   id: Id2;
   content: Content1;
   source: Source1;
+  internal: unknown;
   role: Role1;
   tool_call_id: ToolCallId;
 }
@@ -915,6 +913,7 @@ export interface ChatMessageAssistant {
   id: Id3;
   content: Content2;
   source: Source2;
+  internal: unknown;
   role: Role2;
   tool_calls: ToolCalls;
   model: Model1;
@@ -923,8 +922,7 @@ export interface ToolCall {
   id: Id4;
   function: Function;
   arguments: Arguments;
-  type: Type8;
-  internal_name: InternalName;
+  internal: unknown;
   parse_error: ParseError;
   view: ToolCallContent | null;
 }
@@ -944,14 +942,14 @@ export interface ChatMessageTool {
   id: Id5;
   content: Content4;
   source: Source3;
+  internal: unknown;
   role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
-  internal_name: InternalName1;
   error: ToolCallError | null;
 }
 export interface ToolCallError {
-  type: Type9;
+  type: Type8;
   message: Message1;
 }
 /**
@@ -1039,7 +1037,7 @@ export interface SampleLimitEvent {
   working_start: WorkingStart1;
   pending: Pending1;
   event: Event1;
-  type: Type10;
+  type: Type9;
   message: Message2;
   limit: Limit1;
 }
@@ -1149,7 +1147,7 @@ export interface ToolInfo {
  * Description of tool parameters object in JSON Schema format.
  */
 export interface ToolParams {
-  type: Type11;
+  type: Type10;
   properties: Properties1;
   required: Required1;
   additionalProperties: Additionalproperties1;
@@ -1212,11 +1210,11 @@ export interface ToolEvent {
   working_start: WorkingStart6;
   pending: Pending6;
   event: Event6;
-  type: Type12;
+  type: Type11;
   id: Id7;
   function: Function2;
   arguments: Arguments1;
-  internal_name: InternalName2;
+  internal: unknown;
   view: ToolCallContent | null;
   result: Result1;
   truncated: Truncated;
@@ -1334,7 +1332,7 @@ export interface StepEvent {
   pending: Pending13;
   event: Event13;
   action: Action1;
-  type: Type13;
+  type: Type12;
   name: Name11;
 }
 /**
@@ -1346,7 +1344,7 @@ export interface SubtaskEvent {
   pending: Pending14;
   event: Event14;
   name: Name12;
-  type: Type14;
+  type: Type13;
   input: Input5;
   result: Result2;
   events: Events2;
@@ -1367,7 +1365,7 @@ export interface Attachments {
  * Limit encontered by sample.
  */
 export interface EvalSampleLimit {
-  type: Type15;
+  type: Type14;
   limit: Limit2;
 }
 /**
