@@ -93,12 +93,12 @@ website:
           href: reference/inspect_ai.tool.qmd#think
         - text: mcp_tools
           href: reference/inspect_ai.tool.qmd#mcp_tools
-        - text: mcp_sse_client
-          href: reference/inspect_ai.tool.qmd#mcp_sse_client
-        - text: mcp_stdio_client
-          href: reference/inspect_ai.tool.qmd#mcp_stdio_client
-        - text: McpClient
-          href: reference/inspect_ai.tool.qmd#mcpclient
+        - text: mcp_server_stdio
+          href: reference/inspect_ai.tool.qmd#mcp_server_stdio
+        - text: mcp_server_sse
+          href: reference/inspect_ai.tool.qmd#mcp_server_sse
+        - text: MCPServer
+          href: reference/inspect_ai.tool.qmd#mcpserver
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef
@@ -121,6 +121,8 @@ website:
           href: reference/inspect_ai.tool.qmd#toolparams
         - text: ToolParam
           href: reference/inspect_ai.tool.qmd#toolparam
+        - text: ToolSource
+          href: reference/inspect_ai.tool.qmd#toolsource
         - text: tool
           href: reference/inspect_ai.tool.qmd#tool
       - section: inspect_ai.agent
@@ -244,6 +246,8 @@ website:
           href: reference/inspect_ai.model.qmd#responseschema
         - text: ModelOutput
           href: reference/inspect_ai.model.qmd#modeloutput
+        - text: ModelCall
+          href: reference/inspect_ai.model.qmd#modelcall
         - text: ModelConversation
           href: reference/inspect_ai.model.qmd#modelconversation
         - text: ModelUsage
