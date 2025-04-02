@@ -30,6 +30,7 @@ from .cleanup import (
     project_cleanup,
     project_cleanup_shutdown,
     project_cleanup_startup,
+    project_record_auto_compose,
     project_startup,
 )
 from .compose import (
@@ -77,6 +78,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project = await ComposeProject.create(
                 name=task_project_name(task_name), config=config
             )
+
+            # record auto compose
+            project_record_auto_compose(project)
 
             # build containers which are out of date
             await compose_build(project)
