@@ -107,10 +107,10 @@ class Tool(Protocol):
 
 @runtime_checkable
 class ToolSource(Protocol):
-    async def tools(self) -> list[Tool]:
-        """Source for tools.
+    """Protocol for dynamically providing a set of tools."""
 
-        Protocol for dynamically providing a set of tools.
+    async def tools(self) -> list[Tool]:
+        """Retrieve tools from tool source.
 
         Returns:
             List of tools
