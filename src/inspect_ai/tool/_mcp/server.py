@@ -17,14 +17,6 @@ logger = getLogger(__name__)
 
 # TODO: tool filtering and renaming
 
-# TODO: Can we avoid the await in listing of tools? Need to put back in the init_ for eval_async
-
-# TODO: explain default cleanup semantics of cleanup_mcp_clients() (only causes
-# problems if tasks are created and then NOT passed to eval, and then used later)
-# workaround for this is memoize=False
-
-# TODO: possible atexit handler or __del__ method. we could play w/ using weakref, etc.
-
 
 def mcp_server_sse(
     *,
@@ -150,6 +142,10 @@ def verfify_mcp_package() -> None:
 
     # verify version
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+
+
+def init_mcp_servers() -> None:
+    _mcp_servers.set({})
 
 
 async def cleanup_mcp_servers() -> None:
