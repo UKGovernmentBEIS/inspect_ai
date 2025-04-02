@@ -87,3 +87,19 @@
   padding: 0 0.2em;
   justify-content: center;
 }
+
+.moreButton {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  padding-right: 0;
+}
+
+.metricsSummary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.modalScores {
+  padding-bottom: 4em;
+}

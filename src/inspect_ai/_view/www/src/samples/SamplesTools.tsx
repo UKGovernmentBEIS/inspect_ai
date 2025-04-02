@@ -44,3 +44,15 @@ export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
     </Fragment>
   );
 };
+
+interface ScoreFilterToolsProps {}
+
+export const ScoreFilterTools: FC<ScoreFilterToolsProps> = () => {
+  const scores = useScores();
+  const score = useScore();
+  const setScore = useStore((state) => state.logActions.setScore);
+  if (scores.length <= 1) {
+    return undefined;
+  }
+  return <SelectScorer scores={scores} score={score} setScore={setScore} />;
+};

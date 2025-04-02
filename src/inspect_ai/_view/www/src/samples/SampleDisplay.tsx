@@ -7,7 +7,6 @@ import { isVscode } from "../utils/vscode";
 import { ApplicationIcons } from "../appearance/icons";
 import { ANSIDisplay } from "../components/AnsiDisplay";
 import { ToolButton } from "../components/ToolButton";
-import { SampleScoreView } from "./scores/SampleScoreView";
 
 import clsx from "clsx";
 import {
@@ -40,6 +39,7 @@ import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
+import { SampleScoresView } from "./scores/SampleScoresView";
 import { TranscriptVirtualList } from "./transcript/TranscriptView";
 
 interface SampleDisplayProps {
@@ -92,7 +92,6 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
     return false;
   };
 
-  const scorerNames = Object.keys(sample?.scores || {});
   const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
 
   const tabsetId = `task-sample-details-tab-${id}`;
@@ -166,38 +165,16 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
             running={running}
           />
         </TabPanel>
-        {sample && scorerNames.length === 1 ? (
-          <TabPanel
-            key={kSampleScoringTabId}
-            id={kSampleScoringTabId}
-            className="sample-tab"
-            title="Scoring"
-            onSelected={onSelectedTab}
-            selected={selectedTab === kSampleScoringTabId}
-          >
-            <SampleScoreView sample={sample} scorer={scorerNames[0]} />
-          </TabPanel>
-        ) : (
-          <>
-            {sample
-              ? Object.keys(sample?.scores || {}).map((scorer) => {
-                  const tabId = `score-${scorer}`;
-                  return (
-                    <TabPanel
-                      key={tabId}
-                      id={tabId}
-                      className="sample-tab"
-                      title={scorer}
-                      onSelected={onSelectedTab}
-                      selected={selectedTab === tabId}
-                    >
-                      <SampleScoreView sample={sample} scorer={scorer} />
-                    </TabPanel>
-                  );
-                })
-              : undefined}
-          </>
-        )}
+        <TabPanel
+          key={kSampleScoringTabId}
+          id={kSampleScoringTabId}
+          className="sample-tab"
+          title="Scoring"
+          onSelected={onSelectedTab}
+          selected={selectedTab === kSampleScoringTabId}
+        >
+          <SampleScoresView sample={sample} />
+        </TabPanel>
         <TabPanel
           id={kSampleMetdataTabId}
           className={clsx("sample-tab")}

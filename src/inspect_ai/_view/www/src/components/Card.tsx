@@ -14,11 +14,13 @@ interface CardHeaderProps {
 interface CardBodyProps {
   id?: string;
   children?: ReactNode;
+  className?: string | string[];
 }
 
 interface CardProps {
   id?: string;
   children?: ReactNode;
+  className?: string | string[];
 }
 
 interface CardCollapsingHeaderProps {
@@ -51,17 +53,17 @@ export const CardHeader: FC<CardHeaderProps> = ({
   );
 };
 
-export const CardBody: FC<CardBodyProps> = ({ id, children }) => {
+export const CardBody: FC<CardBodyProps> = ({ id, children, className }) => {
   return (
-    <div className={"card-body"} id={id || ""}>
+    <div className={clsx("card-body", className)} id={id || ""}>
       {children}
     </div>
   );
 };
 
-export const Card: FC<CardProps> = ({ id, children }) => {
+export const Card: FC<CardProps> = ({ id, children, className }) => {
   return (
-    <div className={"card"} id={id}>
+    <div className={clsx("card", className)} id={id}>
       {children}
     </div>
   );

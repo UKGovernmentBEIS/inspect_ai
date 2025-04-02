@@ -124,7 +124,7 @@ export const SecondaryBar: FC<SecondaryBarProps> = ({
       id={"secondary-nav-bar"}
       className={clsx(styles.container, "text-size-small")}
       collapse={true}
-      lines={4}
+      lines={5}
     >
       <div
         className={styles.valueGrid}
