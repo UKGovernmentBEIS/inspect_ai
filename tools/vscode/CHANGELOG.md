@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.60
+
+- Fix issue parsing task parameters with commas (Literals, Lists, Dicts, etc...)
+
 ## 0.3.59
 
 - Minor changes to support future features
