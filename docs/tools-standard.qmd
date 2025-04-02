@@ -205,16 +205,18 @@ In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`
 
 ## Computer {#sec-computer}
 
-The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool is based on the Anthropic [Computer Use Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use) reference implementation and works with any model that supports image input.
+The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. 
+
+The computer tool works with any model that supports image input. It also binds directly to the internal computer tool definitions for Anthropic and OpenAI models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`).
 
 ### Configuration
 
-The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool:latest` image in your Docker compose file. For example:
+The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For example:
 
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest
+    image: aisiuk/inspect-computer-tool
 ```
 
 You can configure the container to not have Internet access as follows:
@@ -222,13 +224,13 @@ You can configure the container to not have Internet access as follows:
 ``` {.yaml filename="compose.yaml"}
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest
+    image: aisiuk/inspect-computer-tool
     network_mode: none
 ```
 
 Note that if you'd like to be able to view the model's interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
 
-The `aisiuk/inspect-computer-tool:latest` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
+The `aisiuk/inspect-computer-tool` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
 
 -   Firefox
 -   VS Code
@@ -257,6 +259,13 @@ def computer_task():
         scorer=match(),
         sandbox=("docker", "compose.yaml"),
     )
+```
+
+To evaluate the task with models tuned for computer use:
+
+```bash
+inspect eval computer.py --model anthropic/claude-3-7-sonnet-latest
+inspect eval computer.py --model openai/computer-use-preview
 ```
 
 #### Options
@@ -357,9 +366,9 @@ inspect eval computer.py --approval approval.yaml
 
 ### Tool Binding
 
-The computer tool's schema is based on the standard Anthropoic [computer tool-type](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool). When using Claude, the computer tool will automatically bind to the native Claude computer tool definition. This presumably provides improved performance due to fine tuning on the use of the tool but we have not verified this.
+The computer tool's schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool) and [Open AI](https://platform.openai.com/docs/guides/tools-computer-use) computer tool schemas. When using models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`) the computer tool will automatically bind to the native computer tool definitions (as this presumably provides improved performance).
 
-If you want to experiement with bypassing the native Claude computer tool type and just register the computer tool as a normal function based tool then specify the `--no-internal-tools` generation option as follows:
+If you want to experiement with bypassing the native computer tool types and just register the computer tool as a normal function based tool then specify the `--no-internal-tools` generation option as follows:
 
 ``` bash
 inspect eval computer.py --no-internal-tools
