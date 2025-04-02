@@ -36,6 +36,7 @@ title: "inspect_ai.tool"
 ### ToolInfo
 ### ToolParams
 ### ToolParam
+### ToolSource
 
 ## Decorator
 

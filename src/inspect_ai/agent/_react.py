@@ -1,4 +1,5 @@
 from logging import getLogger
+from typing import Sequence
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.model._call_tools import execute_tools
@@ -9,8 +10,9 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._score import score
-from inspect_ai.tool._tool import Tool, ToolResult, tool
+from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_call import ToolCall
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
@@ -32,7 +34,7 @@ def react(
     name: str | None = None,
     description: str | None = None,
     prompt: str | AgentPrompt | None = AgentPrompt(),
-    tools: list[Tool] | None = None,
+    tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     model: str | Model | Agent | None = None,
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit = AgentSubmit(),
@@ -132,7 +134,7 @@ def react(
         return None
 
     # resolve tools
-    tools = tools or []
+    tools = list(tools) if tools is not None else []
     tools.append(tool_with(submit_tool(), submit.name, submit.description))
 
     async def execute(state: AgentState) -> AgentState:
@@ -213,11 +215,23 @@ def react(
 
 
 async def _agent_generate(
-    model: str | Model | Agent | None, state: AgentState, tools: list[Tool]
+    model: str | Model | Agent | None,
+    state: AgentState,
+    tools: Sequence[Tool | ToolDef | ToolSource],
 ) -> AgentState:
     # convert model to agent
     if isinstance(model, str | Model) or model is None:
         model = _model_generate(model)
+
+    # resolve tools
+    resolved_tools: list[Tool] = []
+    for t in tools:
+        if isinstance(t, ToolSource):
+            resolved_tools.extend(await t.tools())
+        elif isinstance(t, ToolDef):
+            resolved_tools.append(t.as_tool())
+        else:
+            resolved_tools.append(t)
 
     # confirm we have a tools param
     agent_tool_info = parse_tool_info(model)
@@ -227,7 +241,7 @@ async def _agent_generate(
         )
 
     # call the agent
-    return await model(state, tools)
+    return await model(state, resolved_tools)
 
 
 def _model_generate(model: str | Model | None) -> Agent:

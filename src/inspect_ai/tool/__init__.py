@@ -14,7 +14,7 @@ from ._mcp import (
     mcp_stdio_client,
     mcp_tools,
 )
-from ._tool import Tool, ToolError, ToolResult, tool
+from ._tool import Tool, ToolError, ToolResult, ToolSource, tool
 from ._tool_call import (
     ToolCall,
     ToolCallContent,
@@ -51,10 +51,10 @@ __all__ = [
     "ToolCallError",
     "ToolError",
     "ToolResult",
+    "ToolSource",
     "mcp_tools",
     "mcp_stdio_client",
     "mcp_sse_client",
-    "mcp_sandbox_client",
     "McpClient",
     "Content",
     "ContentAudio",

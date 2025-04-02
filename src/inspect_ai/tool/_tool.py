@@ -105,6 +105,19 @@ class Tool(Protocol):
         ...
 
 
+@runtime_checkable
+class ToolSource(Protocol):
+    async def tools(self) -> list[Tool]:
+        """Source for tools.
+
+        Protocol for dynamically providing a set of tools.
+
+        Returns:
+            List of tools
+        """
+        ...
+
+
 P = ParamSpec("P")
 
 
