@@ -521,6 +521,10 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
     Sample variance over all scores.
 
+-   `grouped()`
+
+    Applies a metric to scores grouped using a value from the sample metadata. Each sample must have a value for whatever key is used for grouping when computing the mean.
+
 -   `std()`
 
     Standard deviation over all scores (see below for details on computing clustered standard errors).
