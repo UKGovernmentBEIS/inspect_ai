@@ -26,8 +26,9 @@ async def get_data_preview_in_container(workdir: str) -> str:
     )
     if output.returncode != 0:
         if "ModuleNotFoundError" in output.stderr:
+            required_packages = "\n".join(AIDE_REQUIRED_PACKAGES)
             raise ModuleNotFoundError(
-                f"Module not found in sandbox.\n The following packages are required to be installed within your sandbox to use aide agent: \n\n{'\n'.join(AIDE_REQUIRED_PACKAGES)}\n\nPlease install the required modules in your Dockerfile to use aide agent. \n\nError: \n\n```\n{output.stderr}\n```"
+                f"Module not found in sandbox.\n The following packages are required to be installed within your sandbox to use aide agent: \n\n{required_packages}\n\nPlease install the required modules in your Dockerfile to use aide agent. \n\nError: \n\n```\n{output.stderr}\n```"
             )
         return f"Error getting data preview.\nStderr:\n{output.stderr}"
     return output.stdout
