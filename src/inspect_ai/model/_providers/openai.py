@@ -177,7 +177,7 @@ class OpenAIAPI(ModelAPI):
         return is_gpt(self.model_name)
 
     @override
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         await self.client.close()
 
     @override
