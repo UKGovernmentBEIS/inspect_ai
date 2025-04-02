@@ -5,7 +5,7 @@ from inspect_ai.model import get_model
 from inspect_ai.tool import mcp_stdio_client, mcp_tools
 
 
-@pytest.mark.runslow
+@pytest.mark.slow
 @skip_if_no_mcp_fetch_package
 async def test_mcp_stdio_client():
     async with mcp_stdio_client(
