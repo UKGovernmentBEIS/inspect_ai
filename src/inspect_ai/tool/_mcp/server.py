@@ -10,20 +10,14 @@ from typing import Any, Literal
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
 
-from ._types import McpClient
+from ._types import MCPServer
 
 logger = getLogger(__name__)
 
 
-# TODO: Tests for ToolSource
-
-# TODO: McpServer rather than McpClient
-# TODO: mcp_server_local (or mcp_server_stdin or mcp_server)
-
 # TODO: tool filtering and renaming
 
 # TODO: Can we avoid the await in listing of tools? Need to put back in the init_ for eval_async
-# TODO: Sequence of Tool | ToolDef | ToolSource
 
 # TODO: explain default cleanup semantics of cleanup_mcp_clients() (only causes
 # problems if tasks are created and then NOT passed to eval, and then used later)
@@ -32,22 +26,20 @@ logger = getLogger(__name__)
 # TODO: possible atexit handler or __del__ method. we could play w/ using weakref, etc.
 
 
-def mcp_sse_client(
+def mcp_server_sse(
     *,
     url: str,
     headers: dict[str, Any] | None = None,
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
     memoize: bool = True,
-) -> McpClient:
-    """SSE Model Context Protocol Client.
+) -> MCPServer:
+    """MCP Server (SSE).
 
-    SSE interface to MCP server
-    (correponds to the [sse_client](https://github.com/modelcontextprotocol/python-sdk/blob/main/src/mcp/client/sse.py) in
-    the MCP Python SDK).
+    SSE interface to MCP server.  Use this for MCP servers available via a URL endpoint.
 
     Args:
-        url: URL to remove server
+        url: URL to remote server
         headers: Headers to send server (typically authorization is included here)
         timeout: Timeout for HTTP operations
         sse_read_timeout: How long (in seconds) the client will wait for a new
@@ -59,7 +51,7 @@ def mcp_sse_client(
         McpClient: Client for MCP Server
     """
     verfify_mcp_package()
-    from ._mcp import create_sse_client
+    from ._mcp import create_server_sse
 
     # unique key for this call (keep url unhashed for logging)
     options = hmac.new(
@@ -71,20 +63,20 @@ def mcp_sse_client(
 
     # if we are memoizing then lookup in the cache first
     if memoize:
-        client = cached_mcp_client(key)
+        client = cached_mcp_server(key)
         if client is not None:
             return client
 
     # create the client and add it to the cache if we are memoizing
-    client = create_sse_client(url, headers, timeout, sse_read_timeout)
+    client = create_server_sse(url, headers, timeout, sse_read_timeout)
     if memoize:
-        cache_mcp_client(key, client)
+        cache_mcp_server(key, client)
 
     # return the client
     return client
 
 
-def mcp_stdio_client(
+def mcp_server_stdio(
     *,
     command: str,
     args: list[str] = [],
@@ -93,11 +85,10 @@ def mcp_stdio_client(
     encoding: str = "utf-8",
     encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
     memoize: bool = True,
-) -> McpClient:
-    """Stdio Model Context Protocol Client.
+) -> MCPServer:
+    """MCP Server (Stdio).
 
-    Stdio interface to MCP server.
-    (corresponds to the [stdio_client](https://github.com/modelcontextprotocol/python-sdk/blob/main/src/mcp/client/stdio/__init__.py) in the MCP Python SDK).
+    Stdio interface to MCP server.  Use this for MCP servers that run locally.
 
     Args:
         command: The executable to run to start the server.
@@ -119,7 +110,7 @@ def mcp_stdio_client(
         McpClient: Client for MCP Server
     """
     verfify_mcp_package()
-    from ._mcp import create_stdio_client
+    from ._mcp import create_server_stdio
 
     # unique key for this call (keep command and args unhashed for logging)
     options = hmac.new(
@@ -131,16 +122,16 @@ def mcp_stdio_client(
 
     # if we are memoizing then lookup in the cache first
     if memoize:
-        client = cached_mcp_client(key)
+        client = cached_mcp_server(key)
         if client is not None:
             return client
 
     # create the client and add it to the cache if we are memoizing
-    client = create_stdio_client(
+    client = create_server_stdio(
         command, args, cwd, env, encoding, encoding_error_handler
     )
     if memoize:
-        cache_mcp_client(key, client)
+        cache_mcp_server(key, client)
 
     # return the client
     return client
@@ -161,29 +152,29 @@ def verfify_mcp_package() -> None:
     verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
 
 
-async def cleanup_mcp_clients() -> None:
-    mcp_clients = copy(_mcp_clients.get())
-    _mcp_clients.set({})
-    for key, client in mcp_clients.items():
+async def cleanup_mcp_servers() -> None:
+    mcp_servers = copy(_mcp_servers.get())
+    _mcp_servers.set({})
+    for key, client in mcp_servers.items():
         try:
             await client.close()
         except Exception as ex:
             logger.warning(f"Unexpected error closing MCP client ({key}): {ex}")
 
 
-def cache_mcp_client(key: str, client: McpClient) -> None:
-    _mcp_clients.get()[key] = client
+def cache_mcp_server(key: str, server: MCPServer) -> None:
+    _mcp_servers.get()[key] = server
 
 
-def cached_mcp_client(key: str) -> McpClient | None:
+def cached_mcp_server(key: str) -> MCPServer | None:
     # clean out context bound mcp clients before accessing the cache
-    mcp_clients = _mcp_clients.get()
-    for k in list(mcp_clients.keys()):
-        if mcp_clients[k]._context_bound:
-            del mcp_clients[k]
+    mcp_servers = _mcp_servers.get()
+    for k in list(mcp_servers.keys()):
+        if mcp_servers[k]._context_bound:
+            del mcp_servers[k]
 
     # read from the cache
-    return mcp_clients.get(key, None)
+    return mcp_servers.get(key, None)
 
 
-_mcp_clients: ContextVar[dict[str, McpClient]] = ContextVar("_mcp_clients", default={})
+_mcp_servers: ContextVar[dict[str, MCPServer]] = ContextVar("_mcp_servers", default={})

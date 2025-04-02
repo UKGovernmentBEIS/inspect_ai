@@ -1,0 +1,9 @@
+# inspect auto-generated docker compose file
+# (will be removed when task is complete)
+services:
+  default:
+    image: "aisiuk/inspect-tool-support"
+    command: "tail -f /dev/null"
+    init: true
+    network_mode: none
+    stop_grace_period: 1s

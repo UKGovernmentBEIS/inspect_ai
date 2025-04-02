@@ -7,8 +7,8 @@ from inspect_ai.tool._tool import Tool
 logger = getLogger(__name__)
 
 
-class McpClient(abc.ABC):
-    """Model Context Protocol client interface."""
+class MCPServer(abc.ABC):
+    """Model Context Protocol server interface."""
 
     def __init__(self) -> None:
         # state indicating whether our lifetime is bound by a context manager
@@ -16,7 +16,7 @@ class McpClient(abc.ABC):
         # have we been closed
         self._closed = False
 
-    async def __aenter__(self: "McpClient") -> "McpClient":
+    async def __aenter__(self: "MCPServer") -> "MCPServer":
         self._context_bound = True
         return self
 
@@ -30,7 +30,7 @@ class McpClient(abc.ABC):
             try:
                 await self.close()
             except Exception as ex:
-                logger.warning(f"Unexpected error closing MCP client: {ex}")
+                logger.warning(f"Unexpected error closing MCP server: {ex}")
             self._closed = True
 
     @abc.abstractmethod
@@ -41,5 +41,5 @@ class McpClient(abc.ABC):
 
     @abc.abstractmethod
     async def close(self) -> None:
-        """Close the client."""
+        """Close the server interface."""
         ...

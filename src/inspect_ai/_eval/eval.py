@@ -7,7 +7,7 @@ from typing import Any, Literal, cast
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
-from inspect_ai.tool._mcp.client import cleanup_mcp_clients
+from inspect_ai.tool._mcp.server import cleanup_mcp_servers
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -521,7 +521,7 @@ async def eval_async(
         cleanup_sample_buffers(log_dir)
 
     finally:
-        await cleanup_mcp_clients()
+        await cleanup_mcp_servers()
         _eval_async_running = False
 
     # return logs

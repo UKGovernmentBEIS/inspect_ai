@@ -19,9 +19,9 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 
-from ._types import McpClient
+from ._types import MCPServer
 
-McpClientContext: TypeAlias = _AsyncGeneratorContextManager[
+MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
     tuple[
         MemoryObjectReceiveStream[JSONRPCMessage | Exception],
         MemoryObjectSendStream[JSONRPCMessage],
@@ -29,10 +29,10 @@ McpClientContext: TypeAlias = _AsyncGeneratorContextManager[
 ]
 
 
-class McpClientImpl(McpClient):
+class MCPServerImpl(MCPServer):
     def __init__(
         self,
-        client: McpClientContext,
+        client: MCPServerContext,
     ) -> None:
         super().__init__()
         self._client = client
@@ -86,24 +86,24 @@ class McpClientImpl(McpClient):
             await self._session.initialize()
 
 
-def create_sse_client(
+def create_server_sse(
     url: str,
     headers: dict[str, Any] | None = None,
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
-) -> McpClient:
-    return McpClientImpl(sse_client(url, headers, timeout, sse_read_timeout))
+) -> MCPServer:
+    return MCPServerImpl(sse_client(url, headers, timeout, sse_read_timeout))
 
 
-def create_stdio_client(
+def create_server_stdio(
     command: str,
     args: list[str] = [],
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
     encoding: str = "utf-8",
     encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
-) -> McpClient:
-    return McpClientImpl(
+) -> MCPServer:
+    return MCPServerImpl(
         stdio_client(
             StdioServerParameters(
                 command=command,

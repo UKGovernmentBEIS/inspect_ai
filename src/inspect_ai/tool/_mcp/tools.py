@@ -1,11 +1,11 @@
 from typing import Literal
 
 from .._tool import Tool
-from ._types import McpClient
+from ._types import MCPServer
 
 
 async def mcp_tools(
-    client: McpClient,
+    client: MCPServer,
     tools: Literal["all"] | list[str] = "all",
     rename: dict[str, str] | None = None,
 ) -> list[Tool]:
