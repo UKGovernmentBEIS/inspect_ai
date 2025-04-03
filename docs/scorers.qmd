@@ -563,7 +563,7 @@ def gpqa():
 
 The `metrics` passed to the `Task` override the default metrics of the `choice()` scorer.
 
-Note that the `"all"` metric by default takes the mean over all of the samples. If you prefer that it take the mean of the individual groups, pass `all="groups"`:
+Note that the `"all"` metric by default takes the selected metric over all of the samples. If you prefer that it take the mean of the individual grouped values, pass `all="groups"`:
 
 ```python
 grouped(accuracy(), "category", all="groups")
