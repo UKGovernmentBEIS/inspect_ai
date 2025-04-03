@@ -16,6 +16,7 @@ from ._sandbox import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     sandbox,
+    sandbox_default,
     sandbox_with,
     sandboxenv,
 )
@@ -53,6 +54,7 @@ __all__ = [
     "sandboxenv",
     "sandbox",
     "sandbox_with",
+    "sandbox_default",
     "Store",
     "store",
     "StoreModel",

@@ -13,6 +13,7 @@
 - Human Agent: Start task with clock paused and then automatically start it on container logins.
 - Typed Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
 - Typed Store: Raise error if attempting to embed a `StoreModel` within another `StoreModel`.
+- Sandbox: New `sandbox_default()` context manager for temporarily changing the default sandbox.
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
 - Inspect View: Live updates to running evaluation logs.
