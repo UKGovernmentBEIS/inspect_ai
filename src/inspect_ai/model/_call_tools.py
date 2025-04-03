@@ -617,7 +617,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         else:
             return input
     elif origin is Union or origin is types.UnionType:
-        if args[1] is type(None):
+        if args[1] is type(None) and input is not None:
             return tool_param(args[0], input)
         else:
             return input
