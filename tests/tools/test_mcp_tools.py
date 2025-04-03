@@ -6,7 +6,7 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai.agent._react import react
-from inspect_ai.agent._using import agent_using
+from inspect_ai.agent._with import agent_with
 from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
 from inspect_ai.solver import generate, use_tools
@@ -87,14 +87,17 @@ def git_task_with_mcp_server():
     )
 
     return Task(
-        dataset=[Sample("What is the status of the git working tree?")],
-        solver=agent_using(
+        dataset=[
+            Sample("What is the status of the git working tree?"),
+            Sample("Can you tell me the git working tree status?"),
+        ],
+        solver=agent_with(
             react(
                 name="git_worker",
                 prompt="Please use the git tools to solve the problem.",
                 tools=[mcp_tools(git_server, tools=["*_status"])],
             ),
-            git_server,
+            mcp_servers=git_server,
         ),
     )
 

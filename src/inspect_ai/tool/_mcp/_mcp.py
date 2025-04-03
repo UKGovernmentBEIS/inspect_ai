@@ -1,5 +1,6 @@
 import contextlib
 from contextlib import AsyncExitStack, _AsyncGeneratorContextManager
+from copy import deepcopy
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Literal, TypeAlias
@@ -120,6 +121,13 @@ class MCPServerImpl(MCPServer):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
                     yield session
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "MCPServerImpl":
+        if self._session is not None:
+            raise RuntimeError(
+                "You cannot deepcopy an MCPServer with an active session."
+            )
+        return MCPServerImpl(deepcopy(self._client))
 
 
 def create_server_sse(

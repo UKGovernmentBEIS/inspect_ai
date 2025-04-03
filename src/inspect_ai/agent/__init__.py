@@ -1,4 +1,4 @@
-from ._agent import Agent, AgentState, agent, agent_with
+from ._agent import Agent, AgentState, agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
 from ._bridge.bridge import bridge
@@ -13,7 +13,7 @@ from ._types import (
     AgentPrompt,
     AgentSubmit,
 )
-from ._using import agent_using
+from ._with import agent_with
 
 __all__ = [
     "react",
@@ -30,7 +30,6 @@ __all__ = [
     "AgentState",
     "agent",
     "agent_with",
-    "agent_using",
     "AgentPrompt",
     "AgentAttempts",
     "AgentContinue",

@@ -16,7 +16,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
-from ._agent import Agent, AgentState, agent, agent_with
+from ._agent import Agent, AgentState, agent
 from ._handoff import has_handoff
 from ._types import (
     AgentAttempts,
@@ -24,6 +24,7 @@ from ._types import (
     AgentPrompt,
     AgentSubmit,
 )
+from ._with import agent_with
 
 logger = getLogger(__name__)
 
