@@ -75,6 +75,46 @@ def mcp_server_stdio(
     )
 
 
+def mcp_server_sandbox(
+    *,
+    command: str,
+    args: list[str] = [],
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    encoding: str = "utf-8",
+    encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
+    sandbox: str | None = None,
+) -> MCPServer:
+    """MCP Server (Sandbox).
+
+    Interface to MCP server running in an Inspect sandbox.
+
+    Args:
+        command: The executable to run to start the server.
+        args: Command line arguments to pass to the executable.
+        env: The environment to use when spawning the process
+            in addition to the platform specific set of default
+            environment variables (e.g. "HOME", "LOGNAME", "PATH",
+            "SHELL", "TERM", and "USER" for Posix-based systems).
+        cwd: The working directory to use when spawning the process.
+        encoding: The text encoding used when sending/receiving messages to the server
+            (defaults to "utf-8").
+        encoding_error_handler: The text encoding error handler.
+            See <https://docs.python.org/3/library/codecs.html#codec-base-classes> for
+            explanations of possible values
+        sandbox: The sandbox to use when spawning the process.
+
+    Returns:
+        McpClient: Client for MCP Server
+    """
+    verfify_mcp_package()
+    from ._mcp import create_server_sandbox
+
+    return create_server_sandbox(
+        command, args, cwd, env, encoding, encoding_error_handler, sandbox
+    )
+
+
 def verfify_mcp_package() -> None:
     FEATURE = "MCP tools"
     PACKAGE = "mcp"

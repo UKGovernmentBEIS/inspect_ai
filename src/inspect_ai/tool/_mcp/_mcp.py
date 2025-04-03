@@ -1,24 +1,15 @@
 import contextlib
-from contextlib import AsyncExitStack, _AsyncGeneratorContextManager
+from contextlib import AsyncExitStack
 from copy import deepcopy
 from fnmatch import fnmatch
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Literal, TypeAlias
+from typing import Any, AsyncIterator, Callable, Literal
 
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp.client.session import ClientSession
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.types import (
-    EmbeddedResource,
-    ImageContent,
-    JSONRPCMessage,
-    TextContent,
-    TextResourceContents,
-)
-from mcp.types import (
-    Tool as MCPTool,
-)
+from mcp.types import EmbeddedResource, ImageContent, TextContent, TextResourceContents
+from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
@@ -26,14 +17,7 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 
-from ._types import MCPServer
-
-MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
-    tuple[
-        MemoryObjectReceiveStream[JSONRPCMessage | Exception],
-        MemoryObjectSendStream[JSONRPCMessage],
-    ]
-]
+from ._types import MCPServer, MCPServerContext
 
 
 class MCPServerImpl(MCPServer):
@@ -146,6 +130,29 @@ def create_server_stdio(
     env: dict[str, str] | None = None,
     encoding: str = "utf-8",
     encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
+) -> MCPServer:
+    return MCPServerImpl(
+        lambda: stdio_client(
+            StdioServerParameters(
+                command=command,
+                args=args,
+                cwd=cwd,
+                env=env,
+                encoding=encoding,
+                encoding_error_handler=encoding_error_handler,
+            )
+        )
+    )
+
+
+def create_server_sandbox(
+    command: str,
+    args: list[str] = [],
+    cwd: str | Path | None = None,
+    env: dict[str, str] | None = None,
+    encoding: str = "utf-8",
+    encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
+    sandbox: str | None = None,
 ) -> MCPServer:
     return MCPServerImpl(
         lambda: stdio_client(
