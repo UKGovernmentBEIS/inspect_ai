@@ -29,6 +29,7 @@ const kSeparatorHeight = 24;
 
 interface SampleListProps {
   items: ListItem[];
+  totalItemCount: number;
   running: boolean;
   nextSample: () => void;
   prevSample: () => void;
@@ -37,9 +38,12 @@ interface SampleListProps {
   listHandle: RefObject<VirtuosoHandle | null>;
 }
 
+export const kSampleFollowProp = "sample-list";
+
 export const SampleList: FC<SampleListProps> = memo((props) => {
   const {
     items,
+    totalItemCount,
     running,
     nextSample,
     prevSample,
@@ -57,9 +61,13 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     (state) => state.log.selectedSampleIndex,
   );
   const samplesDescriptor = useSampleDescriptor();
-  const [followOutput, setFollowOutput] = useProperty("sample-list", "follow", {
-    defaultValue: false,
-  });
+  const [followOutput, setFollowOutput] = useProperty(
+    kSampleFollowProp,
+    "follow",
+    {
+      defaultValue: false,
+    },
+  );
 
   // Track whether we were previously running so we can
   // decide whether to pop up to the top
@@ -223,7 +231,11 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         isScrolling={isScrolling}
         restoreStateFrom={getRestoreState()}
       />
-      <SampleFooter sampleCount={sampleCount} running={running} />
+      <SampleFooter
+        sampleCount={sampleCount}
+        totalSampleCount={totalItemCount}
+        running={running}
+      />
     </div>
   );
 });

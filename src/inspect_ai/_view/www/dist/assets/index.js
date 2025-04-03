@@ -72810,10 +72810,10 @@ ${events}
         }
       );
     };
-    const footer = "_footer_symcv_1";
-    const spinnerContainer = "_spinnerContainer_symcv_11";
-    const spinner$1 = "_spinner_symcv_11";
-    const label$2 = "_label_symcv_25";
+    const footer = "_footer_vkofn_1";
+    const spinnerContainer = "_spinnerContainer_vkofn_11";
+    const spinner$1 = "_spinner_vkofn_11";
+    const label$2 = "_label_vkofn_25";
     const styles$k = {
       footer,
       spinnerContainer,
@@ -72822,6 +72822,7 @@ ${events}
     };
     const SampleFooter = ({
       sampleCount,
+      totalSampleCount,
       running: running2
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-smaller", styles$k.footer), children: [
@@ -72836,10 +72837,7 @@ ${events}
           ),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-secondary", styles$k.label), children: "running..." })
         ] }) : void 0 }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          sampleCount,
-          " Samples"
-        ] })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: sampleCount < totalSampleCount ? `${sampleCount} / ${totalSampleCount} Samples` : `${sampleCount} Samples` })
       ] });
     };
     const header$1 = "_header_16ngy_1";
@@ -72881,9 +72879,11 @@ ${events}
     };
     const kSampleHeight = 88;
     const kSeparatorHeight = 24;
+    const kSampleFollowProp = "sample-list";
     const SampleList = reactExports.memo((props) => {
       const {
         items,
+        totalItemCount,
         running: running2,
         nextSample,
         prevSample,
@@ -72899,9 +72899,13 @@ ${events}
         (state) => state.log.selectedSampleIndex
       );
       const samplesDescriptor = useSampleDescriptor();
-      const [followOutput, setFollowOutput] = useProperty("sample-list", "follow", {
-        defaultValue: false
-      });
+      const [followOutput, setFollowOutput] = useProperty(
+        kSampleFollowProp,
+        "follow",
+        {
+          defaultValue: false
+        }
+      );
       const prevRunningRef = reactExports.useRef(running2);
       reactExports.useEffect(() => {
         if (!running2 && prevRunningRef.current && followOutput && listHandle.current) {
@@ -73044,7 +73048,14 @@ ${events}
             restoreStateFrom: getRestoreState()
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFooter, { sampleCount, running: running2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          SampleFooter,
+          {
+            sampleCount,
+            totalSampleCount: totalItemCount,
+            running: running2
+          }
+        )
       ] });
     });
     const gridColumnsValue = (sampleDescriptor) => {
@@ -73249,6 +73260,11 @@ ${events}
       );
       const sampleSummaries = useFilteredSamples();
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const evalSampleCount = reactExports.useMemo(() => {
+        const limit = selectedLogSummary == null ? void 0 : selectedLogSummary.eval.config.limit;
+        const limitCount = limit === null || limit === void 0 ? void 0 : typeof limit === "number" ? limit : limit[1] - limit[0];
+        return (limitCount || (selectedLogSummary == null ? void 0 : selectedLogSummary.eval.dataset.samples) || 0) * ((selectedLogSummary == null ? void 0 : selectedLogSummary.eval.config.epochs) || 0);
+      }, [selectedLogSummary == null ? void 0 : selectedLogSummary.eval.config.limit]);
       const totalSampleCount = useTotalSampleCount();
       const samplesDescriptor = useSampleDescriptor();
       const groupBy = useGroupBy();
@@ -73360,6 +73376,7 @@ ${events}
             {
               listHandle: sampleListHandle,
               items,
+              totalItemCount: evalSampleCount,
               running: running2,
               nextSample,
               prevSample: previousSample,
