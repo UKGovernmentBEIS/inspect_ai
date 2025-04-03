@@ -1,4 +1,6 @@
 import asyncio
+import os
+import pty
 import uuid
 from asyncio.subprocess import Process
 
@@ -13,14 +15,10 @@ from inspect_tool_support._remote_tools._bash_session.tool_types import (
 class BashProcess:
     @classmethod
     async def create(cls) -> "BashProcess":
-        # Import pty here to avoid importing it at module level
-        import os
-        import pty
-
         # Open a pseudo-terminal for stdin
         coordinator_fd, terminal_fd = pty.openpty()
 
-        # Create the process with the terminal side of the PTY as stdin
+        # Hand the terminal side of the PTY to the bash process as its `stdin``
         process = await asyncio.create_subprocess_exec(
             "/bin/bash",
             stdin=terminal_fd,
@@ -28,33 +26,35 @@ class BashProcess:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        # Close the terminal end now that the subprocess owns it
+        # bash now owns that fd, so we can close it
         os.close(terminal_fd)
 
         # Create a StreamWriter for writing to the coordinator end of the PTY
         loop = asyncio.get_event_loop()
-        protocol = asyncio.streams.FlowControlMixin()
-        stdin_transport, _ = await loop.connect_write_pipe(
-            lambda: protocol, os.fdopen(coordinator_fd, "wb")
+        flow_control = asyncio.streams.FlowControlMixin()
+        transport, _ = await loop.connect_write_pipe(
+            lambda: flow_control, os.fdopen(coordinator_fd, "wb")
         )
         stdin_writer = asyncio.StreamWriter(
-            stdin_transport, protocol=protocol, reader=None, loop=loop
+            transport, protocol=flow_control, reader=None, loop=loop
         )
 
-        # Create our process object
-        instance = cls(process)
+        # Create our process object with the custom stdin writer
+        return cls(process, stdin_writer)
 
-        # Override the stdin with our PTY-connected StreamWriter
-        instance._stdin = stdin_writer
-
-        return instance
-
-    def __init__(self, process: Process) -> None:
+    def __init__(self, process: Process, stdin_writer: asyncio.StreamWriter) -> None:
         self._process = process
-        assert process.stdin and process.stdout and process.stderr, (
-            "process must have 'stdin', 'stdout', and 'stderr'"
-        )
-        self._stdin = process.stdin
+        assert (
+            process.stdout and process.stderr
+        ), "process must have 'stdout' and 'stderr'"
+
+        # When using a PTY, process.stdin will be None, so we use the custom_stdin passed in
+        self._stdin = stdin_writer
+
+        # Ensure _stdin is set - this is critical
+        if self._stdin is None:
+            raise ValueError("Either process.stdin or custom_stdin must be provided")
+
         self._stdout_data = bytearray()
         self._stdout_reader = SafeStreamReader(process.stdout, self._on_stdout_data)
         self._stderr_data = bytearray()
@@ -64,7 +64,7 @@ class BashProcess:
         self._execute_in_progress = False
 
     async def execute_command(
-        self, command: str, timeout: int = 30
+        self, command: str, timeout: int = 5
     ) -> BashCommandResult:
         assert not self._execute_in_progress, "must not nest executes"
         self._execute_in_progress = True
@@ -129,9 +129,9 @@ class BashProcess:
             self._stdin.transport.close()
 
     def _on_stdout_data(self, data: bytes) -> None:
-        assert self._command_completed_event and self._current_marker, (
-            "must have a command in progress"
-        )
+        assert (
+            self._command_completed_event and self._current_marker
+        ), "must have a command in progress"
 
         self._stdout_data.extend(data)
         if self._current_marker.encode("utf-8") in self._stdout_data:
