@@ -168,7 +168,7 @@ def _model_graded_qa_single(
         # format the scoring template
         score_prompt = grading_template.format(
             question=question,
-            answer=state.output.completion,
+            answer=state.answer,
             criterion=target.text,
             instructions=instructions,
             **metadata,
@@ -182,7 +182,7 @@ def _model_graded_qa_single(
         if match:
             return Score(
                 value=match.group(1),
-                answer=state.output.completion,
+                answer=state.answer,
                 explanation=result.completion,
                 metadata=dict(
                     grading=[

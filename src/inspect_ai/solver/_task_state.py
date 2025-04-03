@@ -162,6 +162,7 @@ class TaskState:
         self._messages: list[ChatMessage] = ChatMessageList(messages, self)
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
+        self._answer: str | None = None
         self._message_limit = message_limit
         self._token_limit = token_limit
         self._completed = completed
@@ -269,6 +270,17 @@ class TaskState:
     @output.setter
     def output(self, output: ModelOutput) -> None:
         self._output = output
+
+    @property
+    def answer(self) -> str:
+        if self._answer is not None:
+            return self._answer
+        else:
+            return self.output.completion
+
+    @answer.setter
+    def answer(self, answer: str | None) -> None:
+        self._answer = answer
 
     @property
     def store(self) -> Store:

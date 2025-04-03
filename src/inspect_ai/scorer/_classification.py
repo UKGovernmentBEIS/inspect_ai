@@ -25,9 +25,7 @@ def f1(
 
     async def score(state: TaskState, target: Target) -> Score:
         # Get generated answer and extract relevant answer text
-        answer = (
-            answer_fn(state.output.completion) if answer_fn else state.output.completion
-        )
+        answer = answer_fn(state.answer) if answer_fn else state.answer
         targets = target.target
 
         f1_score = max_f1_score(answer, targets, stop_words=stop_words)
@@ -48,7 +46,7 @@ def exact() -> Scorer:
 
     async def score(state: TaskState, target: Target) -> Score:
         # Get generated answer and extract relevant answer text
-        answer = state.output.completion
+        answer = state.answer
         targets = target.target
 
         exact_score = max_exact_score(answer, targets)

@@ -16,3 +16,7 @@ class ModelConversation(Protocol):
     def output(self) -> ModelOutput:
         """Model output."""
         ...
+
+    @property
+    def answer(self) -> str:
+        """Final answer."""

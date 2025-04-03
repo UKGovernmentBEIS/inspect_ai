@@ -43,6 +43,7 @@ async def score(conversation: ModelConversation) -> list[Score]:
         state = copy(current_state)
         state.messages = conversation.messages
         state.output = conversation.output
+        state.answer = conversation.answer
 
     # get current scorers and target
     scorers = _scorers.get(None)

@@ -23,7 +23,7 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         answer: str | None = None
         for value in target:
-            answer, matched = match(state.output.completion, value)
+            answer, matched = match(state.answer, value)
             if matched:
                 return Score(
                     value=CORRECT, answer=answer, explanation=state.output.completion

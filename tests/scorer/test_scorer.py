@@ -13,11 +13,7 @@ from inspect_ai.solver import TaskState
 @scorer(metrics=[accuracy()], name="test_match")
 def match() -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
-        return (
-            Score(value="C")
-            if state.output.completion == target.text
-            else Score(value="I")
-        )
+        return Score(value="C") if state.answer == target.text else Score(value="I")
 
     return score
 

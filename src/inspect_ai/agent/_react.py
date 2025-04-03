@@ -159,9 +159,16 @@ def react(
             # check for a submission
             answer = submitted_answer(state.output.message.tool_calls)
             if answer is not None:
-                # remove the tool call and set the output to the answer for scoring
+                # record the answer
+                state.answer = answer
+
+                # remove the tool call
                 state.output.message.tool_calls = None
-                state.output.completion = answer
+
+                # amend the completion with the submitted answer
+                state.output.completion = (
+                    f"{state.output.completion}\n\nsubmit: {answer}".strip()
+                )
 
                 # exit if we are at max_attempts
                 attempt_count += 1

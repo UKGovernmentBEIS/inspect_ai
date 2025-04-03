@@ -9,7 +9,7 @@ from inspect_ai.solver import TaskState
 @scorer(metrics=[mean(), stderr()])
 def rand_score():
     async def score(state: TaskState, target: Target):
-        answer = state.output.completion
+        answer = state.answer
         return Score(value=random.randint(1, 100), answer=answer)
 
     return score
@@ -18,7 +18,7 @@ def rand_score():
 @scorer(metrics=[mean(), stderr()])
 def another_rand_score():
     async def score(state: TaskState, target: Target):
-        answer = state.output.completion
+        answer = state.answer
         return Score(value=random.randint(1, 100), answer=answer)
 
     return score
@@ -27,7 +27,7 @@ def another_rand_score():
 @scorer(metrics={"a_count": [mean(), stderr()], "e_count": [mean(), stderr()]})
 def letter_count():
     async def score(state: TaskState, target: Target):
-        answer = state.output.completion
+        answer = state.answer
         a_count = answer.count("a")
         e_count = answer.count("e")
         return Score(value={"a_count": a_count, "e_count": e_count}, answer=answer)

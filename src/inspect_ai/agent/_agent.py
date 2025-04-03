@@ -33,6 +33,7 @@ class AgentState:
     def __init__(self, *, messages: list[ChatMessage]) -> None:
         self._messages = messages
         self._output: ModelOutput | None = None
+        self._answer: str | None = None
 
     @property
     def messages(self) -> list[ChatMessage]:
@@ -73,13 +74,26 @@ class AgentState:
         """Set the model output."""
         self._output = output
 
+    @property
+    def answer(self) -> str:
+        if self._answer is not None:
+            return self._answer
+        else:
+            return self.output.completion
+
+    @answer.setter
+    def answer(self, answer: str | None) -> None:
+        self._answer = answer
+
     def __copy__(self) -> "AgentState":
         state = AgentState(messages=copy(self.messages))
+        state.answer = self.answer
         state.output = self.output.model_copy()
         return state
 
     def __deepcopy__(self, memo: dict[int, Any]) -> "AgentState":
         state = AgentState(messages=deepcopy(self.messages, memo))
+        state.answer = self.answer
         state.output = self.output.model_copy(deep=True)
         return state
 

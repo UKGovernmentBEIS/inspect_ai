@@ -189,6 +189,9 @@ class EvalSample(BaseModel):
     output: ModelOutput = Field(default_factory=ModelOutput)
     """Model output from sample."""
 
+    answer: str = Field(default_factory=str)
+    """Final answer."""
+
     scores: dict[str, Score] | None = Field(default=None)
     """Scores for sample."""
 

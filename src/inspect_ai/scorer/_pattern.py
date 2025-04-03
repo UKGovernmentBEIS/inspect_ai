@@ -65,9 +65,7 @@ def pattern(pattern: str, ignore_case: bool = True, match_all: bool = False) -> 
 
     async def score(state: TaskState, target: Target) -> Score:
         # extract the answer
-        match = re.search(
-            pattern, state.output.completion, re.IGNORECASE if ignore_case else 0
-        )
+        match = re.search(pattern, state.answer, re.IGNORECASE if ignore_case else 0)
 
         if match:
             groups = match.groups()

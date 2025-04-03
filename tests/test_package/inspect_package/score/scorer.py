@@ -14,7 +14,7 @@ from inspect_ai.solver import TaskState
 def simple_score(ignore_case: bool = True):
     async def score(state: TaskState, target: Target):
         # check for correct
-        answer = state.output.completion
+        answer = state.answer
         text = target.text
         if ignore_case:
             correct = answer.lower().rfind(text.lower()) != -1
