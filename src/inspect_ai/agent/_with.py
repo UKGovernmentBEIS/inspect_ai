@@ -11,7 +11,6 @@ from inspect_ai._util.registry import (
 from inspect_ai.tool._mcp._types import MCPServer
 
 from ._agent import AGENT_DESCRIPTION, Agent, AgentState
-from ._agent import agent as agent_decorator
 
 
 def agent_with(
@@ -21,7 +20,7 @@ def agent_with(
     description: str | None = None,
     mcp_servers: MCPServer | Sequence[MCPServer] | None = None,
 ) -> Agent:
-    """Agent with modifications to name and/or description
+    """Adapt agent with name, description, and/or MCP servers to start/stop.
 
     This function modifies the passed agent in place and
     returns it (possibly with a wrapper for starting and
@@ -49,40 +48,31 @@ def agent_with(
     if name is None:
         raise ValueError("You must provide a name to agent_with")
 
-    # resolve mcp servers
-    mcp_servers = (
-        mcp_servers
-        if isinstance(mcp_servers, Sequence)
-        else None
-        if mcp_servers is None
-        else [mcp_servers]
-    )
-
     # provide mcp server wrappers if requested
     if mcp_servers is not None:
+        mcp_servers = (
+            mcp_servers if isinstance(mcp_servers, Sequence) else [mcp_servers]
+        )
 
-        @agent_decorator(name=name)
-        def agent_with_mcp_servers() -> Agent:
-            async def execute(state: AgentState) -> AgentState:
-                async with AsyncExitStack() as exit_stack:
-                    # connect to servers
-                    for mcp_server in deepcopy(mcp_servers):
-                        await exit_stack.enter_async_context(mcp_server)
+        async def agent_with_mcp_servers(state: AgentState) -> AgentState:
+            async with AsyncExitStack() as exit_stack:
+                # connect to servers
+                for mcp_server in deepcopy(mcp_servers):
+                    await exit_stack.enter_async_context(mcp_server)
 
-                    # run the agent
-                    state = await agent(state)
+                # run the agent
+                state = await agent(state)
 
-                # return updated state
-                return state
+            # return updated state
+            return state
 
-            return execute
-
-        # agent wrapped with mcp server startup/shutdown
-        agent = agent_with_mcp_servers()
+        adapted_agent = agent_with_mcp_servers
+    else:
+        adapted_agent = agent
 
     # now set registry info
     set_registry_info(
-        agent,
+        adapted_agent,
         RegistryInfo(
             type="agent",
             name=name,
@@ -93,4 +83,4 @@ def agent_with(
     )
 
     # all done!
-    return agent
+    return adapted_agent
