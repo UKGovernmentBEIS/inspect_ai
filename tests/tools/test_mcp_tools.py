@@ -88,8 +88,12 @@ def git_task_with_mcp_server():
 
     return Task(
         dataset=[
-            Sample("What is the status of the git working tree?"),
-            Sample("Can you tell me the git working tree status?"),
+            Sample(
+                "What is the status of the git working tree for the current directory?"
+            ),
+            Sample(
+                "Can you tell me the git working tree status for the current directory?"
+            ),
         ],
         solver=agent_with(
             react(
