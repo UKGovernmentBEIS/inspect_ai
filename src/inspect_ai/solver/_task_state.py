@@ -24,6 +24,8 @@ from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._limit import TokenLimit
+from inspect_ai.util._limit import token_limit as create_token_limit
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
 
@@ -163,7 +165,7 @@ class TaskState:
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
         self._message_limit = message_limit
-        self._token_limit = token_limit
+        self._token_limit = create_token_limit(token_limit)
         self._completed = completed
         self._store = Store()
         self._uuid = uuid()
@@ -316,16 +318,17 @@ class TaskState:
     @property
     def token_limit(self) -> int | None:
         """Limit on total tokens allowed per conversation."""
-        return self._token_limit
+        return self._token_limit.limit
 
     @token_limit.setter
     def token_limit(self, tokens: int | None) -> None:
         """Set limit on total tokens allowed per conversation."""
-        self._token_limit = tokens
+        self._token_limit.limit = tokens
 
-        from inspect_ai.log._samples import set_active_sample_token_limit
-
-        set_active_sample_token_limit(tokens)
+    @property
+    def token_limiter(self) -> TokenLimit:
+        """Token limit context manager."""
+        return self._token_limit
 
     @property
     def token_usage(self) -> int:
@@ -339,6 +342,7 @@ class TaskState:
         Additionally, checks message and token limits and raises if they are exceeded, and also checks for an operator interrupt of the sample.
         """
         from inspect_ai.log._samples import set_active_sample_total_messages
+        from inspect_ai.util._limit import check_token_limit
 
         from ._limit import SampleLimitExceededError
 
@@ -354,11 +358,8 @@ class TaskState:
                 limit=self.message_limit,
                 state=self,
             )
-        elif self.token_limit and self.token_usage >= self.token_limit:
-            raise SampleLimitExceededError(
-                "token", value=self.token_usage, limit=self.token_limit, state=self
-            )
         else:
+            check_token_limit()
             check_sample_interrupt()
             return self._completed
 

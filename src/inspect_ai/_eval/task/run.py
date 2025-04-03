@@ -85,6 +85,9 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+
+# TODO: Is there a preference between importing from "public" package vs private?
+from inspect_ai.util._limit import TokenLimit
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
@@ -641,7 +644,7 @@ async def task_run_sample(
                     init_sample_working_limit(start_time, working_limit)
 
                     # run sample w/ optional timeout
-                    with timeout_cm:
+                    with timeout_cm, state.token_limiter:
                         # mark started
                         active.started = datetime.now().timestamp()
 
@@ -739,9 +742,9 @@ async def task_run_sample(
                 if time_limit is not None:
                     timeout_cm = anyio.fail_after(time_limit / 2)
 
-                # turn off message and token limits
+                # turn off message limits
+                # no need to turn off token limits as the ctx manager is closed
                 state.message_limit = None
-                state.token_limit = None
                 set_sample_state(state)
 
                 # scoring

@@ -1,4 +1,11 @@
 from inspect_ai._util.trace import trace_action, trace_message
+from inspect_ai.util._limit import (
+    check_token_limit,
+    has_token_limit_been_exceeded,
+    Limit,
+    TokenLimit,
+    token_limit,
+)
 
 from ._concurrency import concurrency
 from ._console import input_screen
@@ -31,16 +38,19 @@ from ._throttle import throttle
 
 __all__ = [
     "ExecResult",
+    "check_token_limit",
     "concurrency",
     "DisplayType",
     "display_counter",
     "display_type",
+    "has_token_limit_been_exceeded",
     "InputPanel",
     "input_panel",
     "input_screen",
     "JSONType",
     "JSONSchema",
     "json_schema",
+    "Limit",
     "OutputLimitExceededError",
     "resource",
     "subprocess",
@@ -62,6 +72,8 @@ __all__ = [
     "Subtask",
     "subtask",
     "throttle",
+    "TokenLimit",
+    "token_limit",
     "trace_action",
     "trace_message",
 ]
