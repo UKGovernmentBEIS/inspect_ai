@@ -1,9 +1,11 @@
 import asyncio
-import os
-import pty
 import uuid
 from asyncio.subprocess import Process
 
+from inspect_tool_support._remote_tools._bash_session._pseudo_terminal import (
+    PseudoTerminal,
+    PseudoTerminalStdIn,
+)
 from inspect_tool_support._remote_tools._bash_session._safe_stream_reader import (
     SafeStreamReader,
 )
@@ -15,45 +17,24 @@ from inspect_tool_support._remote_tools._bash_session.tool_types import (
 class BashProcess:
     @classmethod
     async def create(cls) -> "BashProcess":
-        # Open a pseudo-terminal for stdin
-        coordinator_fd, terminal_fd = pty.openpty()
+        stdin = await PseudoTerminal.create()
 
-        # Hand the terminal side of the PTY to the bash process as its `stdin``
         process = await asyncio.create_subprocess_exec(
             "/bin/bash",
-            stdin=terminal_fd,
+            # Hand the terminal side of the PTY to the bash process as its stdin
+            stdin=stdin.terminal_fd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        # Create our process object with the PTY for stdin
+        return cls(process, stdin)
 
-        # bash now owns that fd, so we can close it
-        os.close(terminal_fd)
-
-        # Create a StreamWriter for writing to the coordinator end of the PTY
-        loop = asyncio.get_event_loop()
-        flow_control = asyncio.streams.FlowControlMixin()
-        transport, _ = await loop.connect_write_pipe(
-            lambda: flow_control, os.fdopen(coordinator_fd, "wb")
-        )
-        stdin_writer = asyncio.StreamWriter(
-            transport, protocol=flow_control, reader=None, loop=loop
-        )
-
-        # Create our process object with the custom stdin writer
-        return cls(process, stdin_writer)
-
-    def __init__(self, process: Process, stdin_writer: asyncio.StreamWriter) -> None:
+    def __init__(self, process: Process, stdin: PseudoTerminalStdIn) -> None:
         self._process = process
+        self._pyt_stdin = stdin
         assert (
             process.stdout and process.stderr
         ), "process must have 'stdout' and 'stderr'"
-
-        # When using a PTY, process.stdin will be None, so we use the custom_stdin passed in
-        self._stdin = stdin_writer
-
-        # Ensure _stdin is set - this is critical
-        if self._stdin is None:
-            raise ValueError("Either process.stdin or custom_stdin must be provided")
 
         self._stdout_data = bytearray()
         self._stdout_reader = SafeStreamReader(process.stdout, self._on_stdout_data)
@@ -95,15 +76,15 @@ class BashProcess:
         echo "{self._current_marker}$?"
         """
 
-        self._stdin.write(wrapped_command.encode("utf-8") + b"\n")
-        await self._stdin.drain()
+        self._pyt_stdin.writer.write(wrapped_command.encode("utf-8") + b"\n")
+        await self._pyt_stdin.writer.drain()
 
         return await self._return_command_result(timeout)
 
     async def terminate(self, timeout: int = 30) -> None:
-        self._stdin.write(b"exit\n")
+        self._pyt_stdin.writer.write(b"exit\n")
         try:
-            await asyncio.wait_for(self._stdin.drain(), timeout=timeout)
+            await asyncio.wait_for(self._pyt_stdin.writer.drain(), timeout=timeout)
         except (
             BrokenPipeError,
             ConnectionResetError,
@@ -124,9 +105,7 @@ class BashProcess:
             self._process.kill()
             await self._process.wait()
 
-        # Close the PTY coordinator transport if we're using one
-        if hasattr(self._stdin, "transport") and self._stdin.transport:
-            self._stdin.transport.close()
+        self._pyt_stdin.cleanup()
 
     def _on_stdout_data(self, data: bytes) -> None:
         assert (
@@ -142,8 +121,8 @@ class BashProcess:
 
     async def _send_input(self, command: str, timeout: int) -> BashCommandResult:
         assert self._command_completed_event, "must have a command in progress"
-        self._stdin.write(command.encode("utf-8"))
-        await self._stdin.drain()
+        self._pyt_stdin.writer.write(command.encode("utf-8"))
+        await self._pyt_stdin.writer.drain()
 
         return await self._return_command_result(timeout)
 
@@ -164,8 +143,8 @@ class BashProcess:
             )
 
         # Get exit status
-        self._stdin.write(b"cat /tmp/exit_status\n")
-        await self._stdin.drain()
+        self._pyt_stdin.writer.write(b"cat /tmp/exit_status\n")
+        await self._pyt_stdin.writer.drain()
 
         # Wait a short time for exit status to be available
         await asyncio.sleep(0.1)
@@ -182,8 +161,6 @@ class BashProcess:
         command_output = parts[0]
         exit_status = parts[1].strip()
         assert exit_status.isnumeric(), "exit status not found in command output"
-
-        print(f"XXXXXX\n\t{command_output=}\n\t{exit_status=}")
 
         self._command_completed_event = None
         self._current_marker = None
