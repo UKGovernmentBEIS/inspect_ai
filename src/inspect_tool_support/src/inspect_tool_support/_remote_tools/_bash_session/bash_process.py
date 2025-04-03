@@ -30,7 +30,7 @@ class BashProcess:
 
     def __init__(self, process: Process, pty: PseudoTerminalStdIn) -> None:
         self._process = process
-        self._pyt = pty
+        self._pty = pty
         assert (
             process.stdout and process.stderr
         ), "process must have 'stdout' and 'stderr'"
@@ -75,15 +75,15 @@ class BashProcess:
         echo "{self._current_marker}$?"
         """
 
-        self._pyt.writer.write(wrapped_command.encode("utf-8") + b"\n")
-        await self._pyt.writer.drain()
+        self._pty.writer.write(wrapped_command.encode("utf-8") + b"\n")
+        await self._pty.writer.drain()
 
         return await self._return_command_result(timeout)
 
     async def terminate(self, timeout: int = 30) -> None:
-        self._pyt.writer.write(b"exit\n")
+        self._pty.writer.write(b"exit\n")
         try:
-            await asyncio.wait_for(self._pyt.writer.drain(), timeout=timeout)
+            await asyncio.wait_for(self._pty.writer.drain(), timeout=timeout)
         except (
             BrokenPipeError,
             ConnectionResetError,
@@ -104,7 +104,7 @@ class BashProcess:
             self._process.kill()
             await self._process.wait()
 
-        self._pyt.cleanup()
+        self._pty.cleanup()
 
     def _on_stdout_data(self, data: bytes) -> None:
         assert (
@@ -120,8 +120,8 @@ class BashProcess:
 
     async def _send_input(self, command: str, timeout: int) -> BashCommandResult:
         assert self._command_completed_event, "must have a command in progress"
-        self._pyt.writer.write(command.encode("utf-8"))
-        await self._pyt.writer.drain()
+        self._pty.writer.write(command.encode("utf-8"))
+        await self._pty.writer.drain()
 
         return await self._return_command_result(timeout)
 
@@ -140,8 +140,8 @@ class BashProcess:
             )
 
         # Get exit status
-        self._pyt.writer.write(b"cat /tmp/exit_status\n")
-        await self._pyt.writer.drain()
+        self._pty.writer.write(b"cat /tmp/exit_status\n")
+        await self._pty.writer.drain()
 
         # Wait a short time for exit status to be available
         await asyncio.sleep(0.1)
