@@ -236,6 +236,8 @@ website:
           href: reference/inspect_ai.model.qmd#responseschema
         - text: ModelOutput
           href: reference/inspect_ai.model.qmd#modeloutput
+        - text: ModelCall
+          href: reference/inspect_ai.model.qmd#modelcall
         - text: ModelConversation
           href: reference/inspect_ai.model.qmd#modelconversation
         - text: ModelUsage
