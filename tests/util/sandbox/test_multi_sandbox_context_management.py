@@ -61,9 +61,34 @@ def act_in_environment(
     return solve
 
 
+@solver
+def verify_actions() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        foo_default = await sandbox().read_file("foo_default.txt")
+        assert foo_default == "default_content"
+
+        foo_service_1 = await sandbox("service_1").read_file("foo_service_1.txt")
+        assert foo_service_1 == "service_1_content"
+
+        foo_service_2 = await sandbox("service_2").read_file("foo_service_2.txt")
+        assert foo_service_2 == "service_2_content"
+
+        # check that reaing a non-existent file fails
+        with pytest.raises(FileNotFoundError):
+            await sandbox().read_file("bar_default.txt")
+
+        # check that reading from the wrong environment fails
+        with pytest.raises(FileNotFoundError):
+            await sandbox("service_1").read_file("foo_default.txt")
+
+        return state
+
+    return solve
+
+
 @skip_if_no_docker
 @pytest.mark.slow
-async def test_docker_compose_multiple_services_write_file():
+def test_docker_compose_multiple_services_write_file():
     task = Task(
         dataset=[Sample(input="test dummy input")],
         solver=[
@@ -76,7 +101,8 @@ async def test_docker_compose_multiple_services_write_file():
             generate(tool_calls="single"),  # the default, no wrapper
             act_in_environment("service_1"),
             act_in_environment("service_2"),
-            act_in_environment(),  # should also use the default
+            act_in_environment(),  # should also use the default,
+            verify_actions(),
         ],
         sandbox=(
             "docker",
@@ -112,7 +138,7 @@ async def test_docker_compose_multiple_services_write_file():
         yield ModelOutput.for_tool_call(
             model="mockllm/model",
             tool_name="read_file_service",
-            tool_arguments={"file": "bar_default.txt", "content": "default_bar"},
+            tool_arguments={"file": "foo_default.txt", "content": "default_content"},
         )
 
     result = eval(
@@ -120,20 +146,4 @@ async def test_docker_compose_multiple_services_write_file():
         model=get_model("mockllm/model", custom_outputs=tool_calls()),
         message_limit=10,  # otherwise we can get into an infinite loop if the tools error
     )[0]
-
     assert result.status == "success"
-    foo_default = await sandbox().read_file("foo_default.txt")
-    assert foo_default == "default_content"
-
-    foo_service_1 = await sandbox("service_1").read_file("foo_service_1.txt")
-    assert foo_service_1 == "service_1_content"
-
-    foo_service_2 = await sandbox("service_2").read_file("foo_service_2.txt")
-    assert foo_service_2 == "service_2_content"
-
-    bar_default = await sandbox().read_file("bar_default.txt")
-    assert bar_default == "default_bar"
-
-    # check that reading from the wrong environment fails
-    with pytest.raises(FileNotFoundError):
-        await sandbox("service_1").read_file("foo_default.txt")
