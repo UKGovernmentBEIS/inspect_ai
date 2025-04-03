@@ -2,6 +2,7 @@ import contextlib
 from contextlib import AsyncExitStack, _AsyncGeneratorContextManager
 from copy import deepcopy
 from fnmatch import fnmatch
+from logging import getLogger
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Literal, TypeAlias
 
@@ -22,11 +23,14 @@ from mcp.types import (
 from typing_extensions import override
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.trace import trace_action
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 
 from ._types import MCPServer
+
+logger = getLogger(__name__)
 
 MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
     tuple[
@@ -37,33 +41,36 @@ MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
 
 
 class MCPServerImpl(MCPServer):
-    def __init__(self, client: Callable[[], MCPServerContext]) -> None:
+    def __init__(self, client: Callable[[], MCPServerContext], name: str) -> None:
         super().__init__()
         self._client = client
+        self._name = name
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack | None = None
 
     @override
     async def _connect(self) -> None:
-        assert self._session is None
-        assert self._exit_stack is None
-        self._exit_stack = AsyncExitStack()
-        await self._exit_stack.__aenter__()
-        read, write = await self._exit_stack.enter_async_context(self._client())
-        self._session = await self._exit_stack.enter_async_context(
-            ClientSession(read, write)
-        )
-        await self._session.initialize()
+        with trace_action(logger, "MCPServer", f"connect: {self._name}"):
+            assert self._session is None
+            assert self._exit_stack is None
+            self._exit_stack = AsyncExitStack()
+            await self._exit_stack.__aenter__()
+            read, write = await self._exit_stack.enter_async_context(self._client())
+            self._session = await self._exit_stack.enter_async_context(
+                ClientSession(read, write)
+            )
+            await self._session.initialize()
 
     @override
     async def _close(self) -> None:
-        assert self._session is not None
-        assert self._exit_stack is not None
-        try:
-            await self._exit_stack.aclose()
-        finally:
-            self._session = None
-            self._exit_stack = None
+        with trace_action(logger, "MCPServer", f"disconnect: {self._name}"):
+            assert self._session is not None
+            assert self._exit_stack is not None
+            try:
+                await self._exit_stack.aclose()
+            finally:
+                self._session = None
+                self._exit_stack = None
 
     async def _list_tools(
         self, tools: Literal["all"] | list[str] = "all"
@@ -127,7 +134,7 @@ class MCPServerImpl(MCPServer):
             raise RuntimeError(
                 "You cannot deepcopy an MCPServer with an active session."
             )
-        return MCPServerImpl(deepcopy(self._client))
+        return MCPServerImpl(deepcopy(self._client), self._name)
 
 
 def create_server_sse(
@@ -136,7 +143,9 @@ def create_server_sse(
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
-    return MCPServerImpl(lambda: sse_client(url, headers, timeout, sse_read_timeout))
+    return MCPServerImpl(
+        lambda: sse_client(url, headers, timeout, sse_read_timeout), url
+    )
 
 
 def create_server_stdio(
@@ -157,7 +166,8 @@ def create_server_stdio(
                 encoding=encoding,
                 encoding_error_handler=encoding_error_handler,
             )
-        )
+        ),
+        " ".join([command] + args),
     )
 
 
