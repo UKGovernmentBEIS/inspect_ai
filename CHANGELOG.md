@@ -1,10 +1,10 @@
 ## Unreleased
 
 - [Agent](https://inspect.aisi.org.uk/agent-protocol.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
-- Model API: New `execute_tools()` function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
+- Scoring: New [grouped()](https://inspect.aisi.org.uk/scoring.html#metric-grouping) metric wrapper function, which applies a given metric to subgroups of samples defined by a key in sample metadata.
+- Model API: New [execute_tools()](https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools) function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
 - Model API: `generate_loop()` method for calling generate with a tool use loop.
 - Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
-- Scoring: New `grouped` metric, which computes a metric for a list of scores grouped by a value in sample metadata.
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
 - Computer Tool: Support for use of the native Open AI computer tool (available in the model `openai/computer-use-preview`)
 - Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
