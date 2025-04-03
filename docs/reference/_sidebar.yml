@@ -236,6 +236,8 @@ website:
           href: reference/inspect_ai.model.qmd#responseschema
         - text: ModelOutput
           href: reference/inspect_ai.model.qmd#modeloutput
+        - text: ModelCall
+          href: reference/inspect_ai.model.qmd#modelcall
         - text: ModelConversation
           href: reference/inspect_ai.model.qmd#modelconversation
         - text: ModelUsage
@@ -472,6 +474,8 @@ website:
           href: reference/inspect_ai.util.qmd#sandbox
         - text: sandbox_with
           href: reference/inspect_ai.util.qmd#sandbox_with
+        - text: sandbox_default
+          href: reference/inspect_ai.util.qmd#sandbox_default
         - text: SandboxEnvironment
           href: reference/inspect_ai.util.qmd#sandboxenvironment
         - text: SandboxConnection

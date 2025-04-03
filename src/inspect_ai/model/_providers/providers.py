@@ -278,7 +278,7 @@ def goodfire() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.68.0"
+    MIN_VERSION = "1.69.0"
 
     # verify we have the package
     try:

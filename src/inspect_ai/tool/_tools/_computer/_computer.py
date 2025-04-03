@@ -3,7 +3,7 @@ from typing import Awaitable, Callable, Literal, TypeVar
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai.tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool import TOOL_INIT_MODEL_INPUT, ToolParsingError
-from inspect_ai.tool._tool_call import ToolCallModelInput
+from inspect_ai.tool._tool_call import ToolCallModelInput, ToolCallModelInputHints
 
 from . import _common as common
 from ._resources.tool._constants import Action
@@ -64,6 +64,8 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                   - Example: execute(action="left_click_drag", coordinate=(150, 250))
               - `right_click`: Click the right mouse button.
               - `middle_click`: Click the middle mouse button.
+              - `back_click`: Click the 'back' mouse button.
+              - `forward_click`: Click the 'forward' mouse button.
               - `double_click`: Double-click the left mouse button.
               - `triple_click`: Double-click the left mouse button.
               - `wait`: Wait for a specified duration (in seconds).
@@ -117,6 +119,14 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
                 return await common.middle_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
+            case "back_click":
+                return await common.back_click(
+                    not_none(coordinate, "coordinate"), timeout=timeout
+                )
+            case "forward_click":
+                return await common.forward_click(
+                    not_none(coordinate, "coordinate"), timeout=timeout
+                )
             case "double_click":
                 return await common.double_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
@@ -150,8 +160,14 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
 
 def _computer_model_input(max_screenshots: int) -> ToolCallModelInput:
     def model_input(
-        message_index: int, message_total: int, content: str | list[Content]
+        message_index: int,
+        message_total: int,
+        content: str | list[Content],
+        hints: ToolCallModelInputHints,
     ) -> str | list[Content]:
+        if hints.get("forbids_computer_screenshot_truncation", False):
+            return content
+
         # nothing to do for scalars
         if isinstance(content, str):
             return content

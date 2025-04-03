@@ -1,11 +1,7 @@
 from logging import getLogger
 from typing import Any
 
-from openai import (
-    AsyncAzureOpenAI,
-    AsyncOpenAI,
-    BadRequestError,
-)
+from openai import AsyncAzureOpenAI, AsyncOpenAI, BadRequestError
 from openai._types import NOT_GIVEN
 from openai.types.responses import Response, ResponseFormatTextJSONSchemaConfigParam
 
@@ -15,12 +11,10 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model_call import ModelCall
-from .._model_output import (
-    ModelOutput,
-    ModelUsage,
-)
+from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
+    is_computer_use_preview,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
@@ -65,12 +59,14 @@ async def generate_responses(
         )
 
     # prepare request (we do this so we can log the ModelCall)
+    tool_params = openai_responses_tools(tools, config) if len(tools) > 0 else NOT_GIVEN
     request = dict(
         input=await openai_responses_inputs(input, model_name),
-        tools=openai_responses_tools(tools) if len(tools) > 0 else NOT_GIVEN,
-        tool_choice=openai_responses_tool_choice(tool_choice)
-        if len(tools) > 0
+        tools=tool_params,
+        tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
+        if isinstance(tool_params, list) and tool_choice != "auto"
         else NOT_GIVEN,
+        truncation="auto" if is_computer_use_preview(model_name) else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(model_name, config, len(tools) > 0),
     )
@@ -124,7 +120,9 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    params: dict[str, Any] = dict(model=model_name, store=False)
+    params: dict[str, Any] = dict(
+        model=model_name, store=is_computer_use_preview(model_name)
+    )
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
     if config.frequency_penalty is not None:
