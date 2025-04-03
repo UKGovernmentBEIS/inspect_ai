@@ -5,12 +5,12 @@
 ## Unreleased
 
 - [Agent](https://inspect.aisi.org.uk/agent-protocol.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
-- Model API: New `execute_tools()` function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
+- Scoring: New [grouped()](https://inspect.aisi.org.uk/scoring.html#metric-grouping) metric wrapper function, which applies a given metric to subgroups of samples defined by a key in sample metadata.
+- Model API: New [execute_tools()](https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools) function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
 - Model API: `generate_loop()` method for calling generate with a tool use loop.
 - Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
 - Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
-- Scoring: New `grouped` metric, which computes a metric for a list of scores grouped by a value in sample metadata.
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
 - Computer Tool: Support for use of the native Open AI computer tool (available in the model `openai/computer-use-preview`)
 - Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
@@ -19,6 +19,7 @@
 - Human Agent: Start task with clock paused and then automatically start it on container logins.
 - Typed Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
 - Typed Store: Raise error if attempting to embed a `StoreModel` within another `StoreModel`.
+- Sandbox: New `sandbox_default()` context manager for temporarily changing the default sandbox.
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
 - Inspect View: Live updates to running evaluation logs.
