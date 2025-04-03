@@ -1,7 +1,3 @@
-# For now, this module very specific to token limits, but could be generalized to other
-# limits (time, messages, etc.). Note that for cost limits, the limit would likely want
-# to be a float, not an int.
-
 from __future__ import annotations
 
 import abc
@@ -13,11 +9,12 @@ if TYPE_CHECKING:
     from inspect_ai.solver._task_state import TaskState
 
 # TODO: Will this work with "parallel" agents? Do we need to ensure each has their own
-# async context?
-# Stores the current async context's token limit stack.
+# execution context?
+# Stores the current execution context's token limit stack.
 token_limit_stack_ctx_var: ContextVar[_TokenLimitStack] = ContextVar("limit_ctx_var")
 
 
+# TODO: Is "Sample" still accurate?
 class SampleLimitExceededError(Exception):
     """Exception raised when a sample limit is exceeded.
 
@@ -44,7 +41,7 @@ class SampleLimitExceededError(Exception):
         self.state = state
         super().__init__(message)
 
-    def with_state(self, state: TaskState) -> "SampleLimitExceededError":
+    def with_state(self, state: TaskState) -> SampleLimitExceededError:
         return SampleLimitExceededError(
             self.type,
             value=self.value,
@@ -73,7 +70,8 @@ class TokenLimit(Limit):
     """Limits the total number of tokens which can be used.
 
     The counter starts when the context manager is opened and ends when it is closed.
-    The context manager can be opened multiple times, even in different async contexts.
+    The context manager can be opened multiple times, even in different execution
+    contexts.
 
     These limits can be stacked.
 
@@ -129,6 +127,7 @@ class TokenLimit(Limit):
             raise ValueError("Token limit value must be a non-negative integer.")
 
 
+# TODO: Should we pre-emptively drop the "token" name from this function?
 def check_token_limit() -> None:
     """Check if the current token usage exceeds _any_ of the token limits.
 
@@ -153,7 +152,7 @@ def has_token_limit_been_exceeded() -> bool:
 
 
 def _get_token_tokens_used() -> int:
-    """Get the total number of tokens used in the current async context."""
+    """Get the total number of tokens used in the current execution context."""
     from inspect_ai.model._model import sample_total_tokens
 
     return sample_total_tokens()
@@ -189,7 +188,7 @@ class _TokenLimitStack:
 
     @classmethod
     def get_or_create(cls) -> _TokenLimitStack:
-        """Get the async context's token limit stack, creating it if it does not exist."""
+        """Get the execution context's limit stack, creating it if it does not exist."""
         stack = token_limit_stack_ctx_var.get(None)
         if stack is None:
             stack = _TokenLimitStack()
@@ -201,6 +200,9 @@ class _TokenLimitItem:
     def __init__(self, initial_usage: int, limit: _LimitValueWrapper) -> None:
         """
         Initialize a token limit item.
+
+        Tracks what the token usage was when the context manager was opened, and the
+        (variable) limit.
 
         Args:
           initial_usage: Snapshot of the token usage at the time the context manager was
