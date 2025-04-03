@@ -264,7 +264,11 @@ def validate_sandbox_environments(
 
 @contextmanager
 def sandbox_default(name: str) -> Iterator[None]:
-    """Set the default sandbox environment for the current context."""
+    """Set the default sandbox environment for the current context.
+
+    Args:
+       name: Sandbox to set as the default.
+    """
     token = sandbox_default_context_var.set(name)
     try:
         yield

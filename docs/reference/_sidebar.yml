@@ -474,6 +474,8 @@ website:
           href: reference/inspect_ai.util.qmd#sandbox
         - text: sandbox_with
           href: reference/inspect_ai.util.qmd#sandbox_with
+        - text: sandbox_default
+          href: reference/inspect_ai.util.qmd#sandbox_default
         - text: SandboxEnvironment
           href: reference/inspect_ai.util.qmd#sandboxenvironment
         - text: SandboxConnection

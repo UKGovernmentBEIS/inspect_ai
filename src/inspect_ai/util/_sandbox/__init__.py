@@ -1,6 +1,6 @@
 # note: unused imports are still required to ensure that our built-in sandbox environments are registered
 
-from .context import sandbox, sandbox_with
+from .context import sandbox, sandbox_default, sandbox_with
 from .docker.docker import DockerSandboxEnvironment  # noqa: F401
 from .environment import (
     SandboxConnection,
@@ -26,4 +26,5 @@ __all__ = [
     "sandboxenv",
     "sandbox",
     "sandbox_with",
+    "sandbox_default",
 ]
