@@ -65,7 +65,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     kSampleFollowProp,
     "follow",
     {
-      defaultValue: false,
+      defaultValue: !!running,
     },
   );
 
@@ -92,13 +92,15 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     prevRunningRef.current = running;
   }, [running, followOutput, listHandle]);
 
+  const loaded = useRef(false);
   const handleAtBottomStateChange = useCallback(
     (atBottom: boolean) => {
-      if (running) {
+      if (loaded.current && running) {
         setFollowOutput(atBottom);
       }
+      loaded.current = true;
     },
-    [running, setFollowOutput],
+    [running, setFollowOutput, followOutput],
   );
 
   const onkeydown = useCallback(
@@ -218,8 +220,11 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         data={items}
         defaultItemHeight={50}
         itemContent={renderRow}
-        followOutput={followOutput}
+        followOutput={(_atBottom: boolean) => {
+          return followOutput;
+        }}
         atBottomStateChange={handleAtBottomStateChange}
+        atBottomThreshold={30}
         increaseViewportBy={{ top: 300, bottom: 300 }}
         overscan={{
           main: 10,

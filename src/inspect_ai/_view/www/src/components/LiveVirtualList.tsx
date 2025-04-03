@@ -63,7 +63,7 @@ export const LiveVirtualList = <T,>({
   );
   const isAutoScrollingRef = useRef(false);
 
-  // Only we first load set the defaul value for following
+  // Only we first load set the default value for following
   // based upon whether or not the transcript is 'live'
   useEffect(() => {
     if (followOutput === null) {

@@ -72903,7 +72903,7 @@ ${events}
         kSampleFollowProp,
         "follow",
         {
-          defaultValue: false
+          defaultValue: !!running2
         }
       );
       const prevRunningRef = reactExports.useRef(running2);
@@ -72918,13 +72918,15 @@ ${events}
         }
         prevRunningRef.current = running2;
       }, [running2, followOutput, listHandle]);
+      const loaded = reactExports.useRef(false);
       const handleAtBottomStateChange = reactExports.useCallback(
         (atBottom) => {
-          if (running2) {
+          if (loaded.current && running2) {
             setFollowOutput(atBottom);
           }
+          loaded.current = true;
         },
-        [running2, setFollowOutput]
+        [running2, setFollowOutput, followOutput]
       );
       const onkeydown = reactExports.useCallback(
         (e) => {
@@ -73034,8 +73036,11 @@ ${events}
             data: items,
             defaultItemHeight: 50,
             itemContent: renderRow,
-            followOutput,
+            followOutput: (_atBottom) => {
+              return followOutput;
+            },
             atBottomStateChange: handleAtBottomStateChange,
+            atBottomThreshold: 30,
             increaseViewportBy: { top: 300, bottom: 300 },
             overscan: {
               main: 10,
