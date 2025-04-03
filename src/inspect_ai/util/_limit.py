@@ -7,11 +7,51 @@ from __future__ import annotations
 import abc
 from collections import deque
 from contextvars import ContextVar
+from typing import TYPE_CHECKING, Literal
+
+if TYPE_CHECKING:
+    from inspect_ai.solver._task_state import TaskState
 
 # TODO: Will this work with "parallel" agents? Do we need to ensure each has their own
 # async context?
 # Stores the current async context's token limit stack.
 token_limit_stack_ctx_var: ContextVar[_TokenLimitStack] = ContextVar("limit_ctx_var")
+
+
+class SampleLimitExceededError(Exception):
+    """Exception raised when a sample limit is exceeded.
+
+    Args:
+       type: Type of limit exceeded.
+       value: Value compared to.
+       limit: Limit applied.
+       message (str | None): Optional. Human readable message.
+    """
+
+    def __init__(
+        self,
+        type: Literal["message", "time", "working", "token", "operator", "custom"],
+        *,
+        value: int,
+        limit: int,
+        message: str | None = None,
+        state: TaskState | None = None,
+    ) -> None:
+        self.type = type
+        self.value = value
+        self.limit = limit
+        self.message = f"Exceeded {type} limit: {limit:,}"
+        self.state = state
+        super().__init__(message)
+
+    def with_state(self, state: TaskState) -> "SampleLimitExceededError":
+        return SampleLimitExceededError(
+            self.type,
+            value=self.value,
+            limit=self.limit,
+            message=self.message,
+            state=state,
+        )
 
 
 class Limit(abc.ABC):
@@ -104,8 +144,6 @@ def has_token_limit_been_exceeded() -> bool:
 
     Note that all active token limits are checked, not just the most recent one.
     """
-    from inspect_ai.solver._limit import SampleLimitExceededError
-
     usage = _get_token_tokens_used()
     try:
         _TokenLimitStack.get_or_create().check(usage)
@@ -181,8 +219,6 @@ class _TokenLimitItem:
             this value to get the number of tokens used while the context manager was
             open.
         """
-        from inspect_ai.solver._limit import SampleLimitExceededError
-
         if self._limit.value is None:
             return
         if usage - self._initial_usage > self._limit.value:

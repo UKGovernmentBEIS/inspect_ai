@@ -24,7 +24,11 @@ from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._limit import TokenLimit
+from inspect_ai.util._limit import (
+    SampleLimitExceededError,
+    TokenLimit,
+    check_token_limit,
+)
 from inspect_ai.util._limit import token_limit as create_token_limit
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
@@ -342,9 +346,6 @@ class TaskState:
         Additionally, checks message and token limits and raises if they are exceeded, and also checks for an operator interrupt of the sample.
         """
         from inspect_ai.log._samples import set_active_sample_total_messages
-        from inspect_ai.util._limit import check_token_limit
-
-        from ._limit import SampleLimitExceededError
 
         # update messages
         set_active_sample_total_messages(len(self.messages))
@@ -457,8 +458,6 @@ class ChatMessageList(list[ChatMessage]):
 
     def _check_size(self, additional_items: int = 1) -> None:
         from inspect_ai.log._samples import active_sample_message_limit
-
-        from ._limit import SampleLimitExceededError
 
         messages_limit = active_sample_message_limit()
         if messages_limit is not None:

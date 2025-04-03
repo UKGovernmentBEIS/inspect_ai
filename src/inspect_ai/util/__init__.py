@@ -1,9 +1,10 @@
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
+    Limit,
+    SampleLimitExceededError,
+    TokenLimit,
     check_token_limit,
     has_token_limit_been_exceeded,
-    Limit,
-    TokenLimit,
     token_limit,
 )
 
@@ -54,6 +55,7 @@ __all__ = [
     "OutputLimitExceededError",
     "resource",
     "subprocess",
+    "SampleLimitExceededError",
     "SandboxEnvironment",
     "SandboxEnvironmentConfigType",
     "SandboxEnvironmentLimits",

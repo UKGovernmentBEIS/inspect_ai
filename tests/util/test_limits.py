@@ -4,8 +4,11 @@ import pytest
 
 from inspect_ai.model._model import sample_model_usage
 from inspect_ai.model._model_output import ModelUsage
-from inspect_ai.solver._limit import SampleLimitExceededError
-from inspect_ai.util._limit import TokenLimit, check_token_limit
+from inspect_ai.util._limit import (
+    SampleLimitExceededError,
+    TokenLimit,
+    check_token_limit,
+)
 
 
 @pytest.fixture
