@@ -34383,7 +34383,7 @@ self.onmessage = function (e) {
           messages.set(outputMessage.id, outputMessage);
         }
       });
-      if (messages.entries.length > 0) {
+      if (messages.size > 0) {
         return messages.values().toArray();
       } else {
         return [];
@@ -71105,7 +71105,6 @@ ${events}
       return {
         type: name2,
         match: (changes) => {
-          console.log(changes);
           if (changes.length === 1) {
             const change = changes[0];
             if (change.op === "add" && change.path.match(/\/messages\/\d+/)) {

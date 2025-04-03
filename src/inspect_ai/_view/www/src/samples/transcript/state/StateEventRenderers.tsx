@@ -216,7 +216,6 @@ const createMessageRenderer = (name: string, role: string): ChangeType => {
   return {
     type: name,
     match: (changes: JsonChange[]) => {
-      console.log(changes);
       if (changes.length === 1) {
         const change = changes[0];
         if (change.op === "add" && change.path.match(/\/messages\/\d+/)) {
