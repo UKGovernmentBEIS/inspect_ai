@@ -8,6 +8,7 @@ from inspect_ai.util._limit import (
     SampleLimitExceededError,
     TokenLimit,
     check_token_limit,
+    has_token_limit_been_exceeded,
 )
 
 
@@ -23,6 +24,14 @@ def test_validates_budget_parameter() -> None:
 
 def test_can_create_with_none_budget() -> None:
     with TokenLimit(None):
+        check_token_limit()
+
+
+def test_does_not_raise_error_when_limit_not_exceeded(model_usage: ModelUsage) -> None:
+    model_usage.total_tokens = 10
+
+    with TokenLimit(10):
+        model_usage.total_tokens += 10
         check_token_limit()
 
 
@@ -64,12 +73,12 @@ def test_raises_error_when_limit_exceeded_incrementally(
             check_token_limit()
 
 
-def test_does_not_raise_error_when_limit_not_exceeded(model_usage: ModelUsage) -> None:
-    model_usage.total_tokens = 10
-
+def test_has_token_limit_been_exceeded(model_usage: ModelUsage) -> None:
     with TokenLimit(10):
-        model_usage.total_tokens += 10
-        check_token_limit()
+        while not has_token_limit_been_exceeded():
+            model_usage.total_tokens += 1
+
+    assert model_usage.total_tokens == 11
 
 
 def test_stack_can_trigger_outer_limit(model_usage: ModelUsage) -> None:
