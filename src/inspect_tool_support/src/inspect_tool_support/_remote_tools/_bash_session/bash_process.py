@@ -17,21 +17,20 @@ from inspect_tool_support._remote_tools._bash_session.tool_types import (
 class BashProcess:
     @classmethod
     async def create(cls) -> "BashProcess":
-        stdin = await PseudoTerminal.create()
+        pty = await PseudoTerminal.create()
 
         process = await asyncio.create_subprocess_exec(
             "/bin/bash",
             # Hand the terminal side of the PTY to the bash process as its stdin
-            stdin=stdin.terminal_fd,
+            stdin=pty.terminal_fd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        # Create our process object with the PTY for stdin
-        return cls(process, stdin)
+        return cls(process, pty)
 
-    def __init__(self, process: Process, stdin: PseudoTerminalStdIn) -> None:
+    def __init__(self, process: Process, pty: PseudoTerminalStdIn) -> None:
         self._process = process
-        self._pyt_stdin = stdin
+        self._pyt = pty
         assert (
             process.stdout and process.stderr
         ), "process must have 'stdout' and 'stderr'"
@@ -76,15 +75,15 @@ class BashProcess:
         echo "{self._current_marker}$?"
         """
 
-        self._pyt_stdin.writer.write(wrapped_command.encode("utf-8") + b"\n")
-        await self._pyt_stdin.writer.drain()
+        self._pyt.writer.write(wrapped_command.encode("utf-8") + b"\n")
+        await self._pyt.writer.drain()
 
         return await self._return_command_result(timeout)
 
     async def terminate(self, timeout: int = 30) -> None:
-        self._pyt_stdin.writer.write(b"exit\n")
+        self._pyt.writer.write(b"exit\n")
         try:
-            await asyncio.wait_for(self._pyt_stdin.writer.drain(), timeout=timeout)
+            await asyncio.wait_for(self._pyt.writer.drain(), timeout=timeout)
         except (
             BrokenPipeError,
             ConnectionResetError,
@@ -105,7 +104,7 @@ class BashProcess:
             self._process.kill()
             await self._process.wait()
 
-        self._pyt_stdin.cleanup()
+        self._pyt.cleanup()
 
     def _on_stdout_data(self, data: bytes) -> None:
         assert (
@@ -121,8 +120,8 @@ class BashProcess:
 
     async def _send_input(self, command: str, timeout: int) -> BashCommandResult:
         assert self._command_completed_event, "must have a command in progress"
-        self._pyt_stdin.writer.write(command.encode("utf-8"))
-        await self._pyt_stdin.writer.drain()
+        self._pyt.writer.write(command.encode("utf-8"))
+        await self._pyt.writer.drain()
 
         return await self._return_command_result(timeout)
 
@@ -134,8 +133,6 @@ class BashProcess:
             await asyncio.wait_for(self._command_completed_event.wait(), timeout)
         except (asyncio.TimeoutError, TimeoutError):
             out_str, err_str = self._get_stream_strings()
-            print(f"XXXXXX not completed\n\t{out_str=}\n\t{err_str=}")
-
             return BashCommandResult(
                 status=None,
                 stdout=out_str,
@@ -143,8 +140,8 @@ class BashProcess:
             )
 
         # Get exit status
-        self._pyt_stdin.writer.write(b"cat /tmp/exit_status\n")
-        await self._pyt_stdin.writer.drain()
+        self._pyt.writer.write(b"cat /tmp/exit_status\n")
+        await self._pyt.writer.drain()
 
         # Wait a short time for exit status to be available
         await asyncio.sleep(0.1)
