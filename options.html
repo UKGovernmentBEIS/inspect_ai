@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Options – Inspect</title>
+<title>Inspect – Options</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -250,12 +250,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tools.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tool Basics</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
   </div>
@@ -287,6 +281,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./tools-standard.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Standard Tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Approval</span></a>
   </div>
 </li>
       </ul>
@@ -381,12 +381,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./human-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Human Agent</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approval</span></a>
   </div>
 </li>
       </ul>
@@ -543,7 +537,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="specifying-options" class="level2">
 <h2 class="anchored" data-anchor-id="specifying-options">Specifying Options</h2>
 <p>Below are sections for the various categories of options supported by <code>inspect eval</code>. Note that all of these options are also available for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> function and settable by environment variables. For example:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 33%">
 <col style="width: 33%">
@@ -577,7 +571,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="model-provider" class="level2">
 <h2 class="anchored" data-anchor-id="model-provider">Model Provider</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -604,7 +598,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="model-generation" class="level2">
 <h2 class="anchored" data-anchor-id="model-generation">Model Generation</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -711,7 +705,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="tasks-and-solvers" class="level2">
 <h2 class="anchored" data-anchor-id="tasks-and-solvers">Tasks and Solvers</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -742,7 +736,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sample-selection" class="level2">
 <h2 class="anchored" data-anchor-id="sample-selection">Sample Selection</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -769,7 +763,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="parallelism" class="level2">
 <h2 class="anchored" data-anchor-id="parallelism">Parallelism</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -800,7 +794,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="errors-and-limits" class="level2">
 <h2 class="anchored" data-anchor-id="errors-and-limits">Errors and Limits</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -835,7 +829,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="eval-logs" class="level2">
 <h2 class="anchored" data-anchor-id="eval-logs">Eval Logs</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -878,7 +872,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="scoring" class="level2">
 <h2 class="anchored" data-anchor-id="scoring">Scoring</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -897,7 +891,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sandboxes" class="level2">
 <h2 class="anchored" data-anchor-id="sandboxes">Sandboxes</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -916,7 +910,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="debugging" class="level2">
 <h2 class="anchored" data-anchor-id="debugging">Debugging</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">
@@ -939,7 +933,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="miscellaneous" class="level2">
 <h2 class="anchored" data-anchor-id="miscellaneous">Miscellaneous</h2>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 37%">
 <col style="width: 63%">

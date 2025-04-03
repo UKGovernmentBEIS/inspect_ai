@@ -83,10 +83,10 @@ by an evaluation. Depending on your configuration and what version of
 Inspect you are running, the log JSON will be stored in one of two file
 types:
 
-| Type | Description |
-|----|----|
+| Type    | Description                                                                                                                                                                                 |
+|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `.eval` | Binary file format optimised for size and speed. Typically 1/8 the size of `.json` files and accesses samples incrementally, yielding fast loading in Inspect View no matter the file size. |
-| `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB. |
+| `.json` | Text file format with native JSON representation. Occupies substantially more disk space and can be slow to load in Inspect View if larger than 50MB.                                       |
 
 Both formats are fully supported by the [Log File
 API](#sec-log-file-api) and [Log Commands](#sec-log-commands) described
@@ -153,17 +153,17 @@ interface to the contents of log files:
 
 **Class** `inspect_ai.log.EvalLog`
 
-| Field | Type | Description |
-|----|----|----|
-| `version` | `int` | File format version (currently 2). |
-| `status` | `str` | Status of evaluation (`"started"`, `"success"`, or `"error"`). |
-| `eval` | `EvalSpec` | Top level eval details including task, model, creation time, etc. |
-| `plan` | `EvalPlan` | List of solvers and model generation config used for the eval. |
-| `results` | `EvalResults` | Aggregate results computed by scorer metrics. |
-| `stats` | `EvalStats` | Model usage statistics (input and output tokens) |
-| `error` | `EvalError` | Error information (if `status == "error`) including traceback. |
-| `samples` | `list[EvalSample]` | Each sample evaluated, including its input, output, target, and score. |
-| `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations. |
+| Field        | Type                        | Description                                                            |
+|--------------|-----------------------------|------------------------------------------------------------------------|
+| `version`    | `int`                       | File format version (currently 2).                                     |
+| `status`     | `str`                       | Status of evaluation (`"started"`, `"success"`, or `"error"`).         |
+| `eval`       | `EvalSpec`                  | Top level eval details including task, model, creation time, etc.      |
+| `plan`       | `EvalPlan`                  | List of solvers and model generation config used for the eval.         |
+| `results`    | `EvalResults`               | Aggregate results computed by scorer metrics.                          |
+| `stats`      | `EvalStats`                 | Model usage statistics (input and output tokens)                       |
+| `error`      | `EvalError`                 | Error information (if `status == "error`) including traceback.         |
+| `samples`    | `list[EvalSample]`          | Each sample evaluated, including its input, output, target, and score. |
+| `reductions` | `list[EvalSampleReduction]` | Reductions of sample values for multi-epoch evaluations.               |
 
 Before analysing results from a log, you should always check their
 status to ensure they represent a successful run:
@@ -224,13 +224,13 @@ supported by [fsspec](https://filesystem-spec.readthedocs.io/)).
 You can enumerate, read, and write `EvalLog` objects using the following
 helper functions from the `inspect_ai.log` module:
 
-| Function | Description |
-|----|----|
-| `list_eval_logs` | List all of the eval logs at a given location. |
-| `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
-| `read_eval_log_sample` | Read a single `EvalSample` from a log file |
+| Function                | Description                                                                             |
+|-------------------------|-----------------------------------------------------------------------------------------|
+| `list_eval_logs`        | List all of the eval logs at a given location.                                          |
+| `read_eval_log`         | Read an `EvalLog` from a log file path (pass `header_only` to not read samples).        |
+| `read_eval_log_sample`  | Read a single `EvalSample` from a log file                                              |
 | `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
-| `write_eval_log` | Write an `EvalLog` to a log file path. |
+| `write_eval_log`        | Write an `EvalLog` to a log file path.                                                  |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of
 evaluations, then calling `list_eval_logs()` to analyse the results when

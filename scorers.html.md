@@ -226,12 +226,12 @@ provide some examples of custom scorers to make things more concrete.
 
 The components of `Score` include:
 
-| Field | Type | Description |
-|----|----|----|
-| `value` | `Value` | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value). |
-| `answer` | `str` | Text extracted from model output for comparison (optional). |
-| `explanation` | `str` | Explanation of score, e.g. full model output or grader model output (optional). |
-| `metadata` | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional). |
+| Field         | Type            | Description                                                                     |
+|---------------|-----------------|---------------------------------------------------------------------------------|
+| `value`       | `Value`         | Value assigned to the sample (e.g. “C” or “I”, or a raw numeric value).         |
+| `answer`      | `str`           | Text extracted from model output for comparison (optional).                     |
+| `explanation` | `str`           | Explanation of score, e.g. full model output or grader model output (optional). |
+| `metadata`    | `dict[str,Any]` | Additional metadata about the score to record in the log file (optional).       |
 
 For example, the following are all valid `Score` objects:
 
@@ -707,7 +707,53 @@ Definition** command in your source editor.
   samples are taken by default (modify this using the `num_samples`
   option).
 
-#### Clustered Standard Errors
+### Metric Grouping
+
+> [!NOTE]
+>
+> The `grouped()` function described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `grouped()` function applies a given metric to subgroups of samples
+defined by a key in sample `metadata`, creating a separate metric for
+each group along with an `"all"` metric that aggregates across all
+samplesor groups. Each sample must have a value for whatever key is used
+for grouping.
+
+For example, let’s say you wanted to create a separate accuracy metric
+for each distinct “category” variable defined in `Sample` metadata:
+
+``` python
+@task
+def gpqa():
+    return Task(
+        dataset=read_gpqa_dataset("gpqa_main.csv"),
+        solver=[
+            system_message(SYSTEM_MESSAGE),
+            multiple_choice(),
+        ],
+        scorer=choice(),
+        metrics=[grouped(accuracy(), "category"), stderr()]
+    )
+```
+
+The `metrics` passed to the `Task` override the default metrics of the
+`choice()` scorer.
+
+Note that the `"all"` metric by default takes the mean over all of the
+samples. If you prefer that it take the mean of the individual groups,
+pass `all="groups"`:
+
+``` python
+grouped(accuracy(), "category", all="groups")
+```
+
+### Clustered Stderr
 
 The `stderr()` metric supports computing [clustered standard
 errors](https://en.wikipedia.org/wiki/Clustered_standard_errors) via the
@@ -806,14 +852,14 @@ def gpqa():
 
 Inspect includes several built in reducers which are summarised below.
 
-| Reducer | Description |
-|----|----|
-| mean | Reduce to the average of all scores. |
-| median | Reduce to the median of all scores |
-| mode | Reduce to the most common score. |
-| max | Reduce to the maximum of all scores. |
-| pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
-| at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
+| Reducer       | Description                                                                                    |
+|---------------|------------------------------------------------------------------------------------------------|
+| mean          | Reduce to the average of all scores.                                                           |
+| median        | Reduce to the median of all scores                                                             |
+| mode          | Reduce to the most common score.                                                               |
+| max           | Reduce to the maximum of all scores.                                                           |
+| pass_at\_{k}  | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
+| at_least\_{k} | `1` if at least `k` samples are correct, else `0`.                                             |
 
 > [!NOTE]
 >

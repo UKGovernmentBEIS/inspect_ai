@@ -120,7 +120,7 @@ Dependencies** below for additional instructions.
 > ``` yaml
 > services:
 >   default:
->     image: aisiuk/inspect-tool-support:latest
+>     image: aisiuk/inspect-tool-support
 >     init: true
 > ```
 
@@ -205,7 +205,7 @@ below for additional instructions.
 > ``` yaml
 > services:
 >   default:
->     image: aisiuk/inspect-tool-support:latest
+>     image: aisiuk/inspect-tool-support
 >     init: true
 > ```
 
@@ -290,7 +290,7 @@ support some versions of Linux (e.g. Kali Linux).
 > ``` yaml
 > services:
 >   default:
->     image: aisiuk/inspect-tool-support:latest
+>     image: aisiuk/inspect-tool-support
 >     init: true
 > ```
 
@@ -331,16 +331,16 @@ If you review the transcripts of a sample with access to the web browser
 tool, you’ll notice that there are several distinct tools made available
 for control of the web browser. These tools include:
 
-| Tool | Description |
-|----|----|
-| `web_browser_go(url)` | Navigate the web browser to a URL. |
-| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
-| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| Tool                                        | Description                                                                           |
+|---------------------------------------------|---------------------------------------------------------------------------------------|
+| `web_browser_go(url)`                       | Navigate the web browser to a URL.                                                    |
+| `web_browser_click(element_id)`             | Click an element on the page currently displayed by the web browser.                  |
+| `web_browser_type(element_id)`              | Type text into an input on a web browser page.                                        |
 | `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
-| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
-| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
-| `web_browser_back()` | Navigate the web browser back in the browser history. |
-| `web_browser_refresh()` | Refresh the current page of the web browser. |
+| `web_browser_scroll(direction)`             | Scroll the web browser up or down by one page.                                        |
+| `web_browser_forward()`                     | Navigate the web browser forward in the browser history.                              |
+| `web_browser_back()`                        | Navigate the web browser back in the browser history.                                 |
+| `web_browser_refresh()`                     | Refresh the current page of the web browser.                                          |
 
 The return value of each of these tools is a [web accessibility
 tree](https://web.dev/articles/the-accessibility-tree) for the page,
@@ -366,24 +366,25 @@ available to the model.
 
 The `computer()` tool provides models with a computer desktop
 environment along with the ability to view the screen and perform mouse
-and keyboard gestures. The computer tool is based on the Anthropic
-[Computer Use
-Beta](https://docs.anthropic.com/en/docs/build-with-claude/computer-use)
-reference implementation and works with any model that supports image
-input.
+and keyboard gestures.
+
+The computer tool works with any model that supports image input. It
+also binds directly to the internal computer tool definitions for
+Anthropic and OpenAI models tuned for computer use (currently
+`anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`).
 
 ### Configuration
 
 The `computer()` tool runs within a Docker container. To use it with a
-task you need to reference the `aisiuk/inspect-computer-tool:latest`
-image in your Docker compose file. For example:
+task you need to reference the `aisiuk/inspect-computer-tool` image in
+your Docker compose file. For example:
 
 **compose.yaml**
 
 ``` yaml
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest
+    image: aisiuk/inspect-computer-tool
 ```
 
 You can configure the container to not have Internet access as follows:
@@ -393,7 +394,7 @@ You can configure the container to not have Internet access as follows:
 ``` yaml
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest
+    image: aisiuk/inspect-computer-tool
     network_mode: none
 ```
 
@@ -402,7 +403,7 @@ the computer desktop in realtime, you will need to also do some port
 mapping to enable a VNC connection with the container. See the [VNC
 Client](#vnc-client) section below for details on how to do this.
 
-The `aisiuk/inspect-computer-tool:latest` image is based on the
+The `aisiuk/inspect-computer-tool` image is based on the
 [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore)
 image and includes the following additional applications pre-installed:
 
@@ -435,14 +436,21 @@ def computer_task():
     )
 ```
 
+To evaluate the task with models tuned for computer use:
+
+``` bash
+inspect eval computer.py --model anthropic/claude-3-7-sonnet-latest
+inspect eval computer.py --model openai/computer-use-preview
+```
+
 #### Options
 
 The computer tool supports the following options:
 
-| Option | Description |
-|----|----|
+| Option            | Description                                                                                                           |
+|-------------------|-----------------------------------------------------------------------------------------------------------------------|
 | `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
-| `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
+| `timeout`         | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout).                         |
 
 For example:
 
@@ -485,7 +493,7 @@ dynamic port ranges for VNC (5900) and a browser based noVNC client
 ``` yaml
 services:
   default:
-    image: aisiuk/inspect-computer-tool:latest
+    image: aisiuk/inspect-computer-tool
     ports:
       - "5900"
       - "6080"
@@ -559,17 +567,18 @@ inspect eval computer.py --approval approval.yaml
 
 ### Tool Binding
 
-The computer tool’s schema is based on the standard Anthropoic [computer
-tool-type](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool).
-When using Claude, the computer tool will automatically bind to the
-native Claude computer tool definition. This presumably provides
-improved performance due to fine tuning on the use of the tool but we
-have not verified this.
+The computer tool’s schema is a superset of the standard
+[Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool)
+and [Open
+AI](https://platform.openai.com/docs/guides/tools-computer-use) computer
+tool schemas. When using models tuned for computer use (currently
+`anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`)
+the computer tool will automatically bind to the native computer tool
+definitions (as this presumably provides improved performance).
 
-If you want to experiement with bypassing the native Claude computer
-tool type and just register the computer tool as a normal function based
-tool then specify the `--no-internal-tools` generation option as
-follows:
+If you want to experiement with bypassing the native computer tool types
+and just register the computer tool as a normal function based tool then
+specify the `--no-internal-tools` generation option as follows:
 
 ``` bash
 inspect eval computer.py --no-internal-tools

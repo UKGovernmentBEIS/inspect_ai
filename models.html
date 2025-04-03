@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Using Models – Inspect</title>
+<title>Inspect – Using Models</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -65,7 +65,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
 <link href="./providers.html" rel="next">
-<link href="./tools-standard.html" rel="prev">
+<link href="./approval.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -250,12 +250,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tools.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tool Basics</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
   </div>
@@ -287,6 +281,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./tools-standard.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Standard Tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Approval</span></a>
   </div>
 </li>
       </ul>
@@ -381,12 +381,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./human-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Human Agent</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approval</span></a>
   </div>
 </li>
       </ul>
@@ -498,7 +492,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Inspect has support for a wide variety of language model APIs and can be extended to support arbitrary additional ones. Support for the following providers is built in to Inspect:</p>
-<table class="caption-top table">
+<table class="table">
 <tbody>
 <tr class="odd">
 <td>Lab APIs</td>
@@ -590,7 +584,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(<span class="st">"openai/gpt-4o"</span>, memoize<span class="op">=</span><span class="va">False</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Finally, if you prefer to create and fully close model clients at their place of use, you can use the async context manager built in to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#model">Model</a></span> class. For example:</p>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="cf">with</span> get_model(<span class="st">"openai/gpt-4o"</span>) <span class="im">as</span> model:</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    response <span class="op">=</span> <span class="cf">await</span> model.generate(<span class="st">"Say hello"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">eval</span>(mytask(), model<span class="op">=</span>model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>If you are not in an async context there is also a sync context manager available:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> get_model(<span class="st">"hf/Qwen/Qwen2.5-72B"</span>) <span class="im">as</span> model:</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">eval</span>(mytask(), model<span class="op">=</span>model)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note though that this <em>won’t work</em> with model providers that require an async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama, llama-cpp-python, and CloudFlare).</p>
 </section>
 </section>
 <section id="learning-more" class="level2">
@@ -1070,8 +1068,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./tools-standard.html" class="pagination-link" aria-label="Standard Tools">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Standard Tools</span>
+      <a href="./approval.html" class="pagination-link" aria-label="Tool Approval">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Tool Approval</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">

@@ -20,11 +20,11 @@ inspect trace [OPTIONS] COMMAND [ARGS]...
 
 #### Subcommands
 
-|  |  |
-|----|----|
-| [list](#inspect-trace-list) | List all trace files. |
-| [dump](#inspect-trace-dump) | Dump a trace file to stdout (as a JSON array of log records). |
-| [http](#inspect-trace-http) | View all HTTP requests in the trace log. |
+|                                       |                                                                            |
+|---------------------------------------|----------------------------------------------------------------------------|
+| [list](#inspect-trace-list)           | List all trace files.                                                      |
+| [dump](#inspect-trace-dump)           | Dump a trace file to stdout (as a JSON array of log records).              |
+| [http](#inspect-trace-http)           | View all HTTP requests in the trace log.                                   |
 | [anomalies](#inspect-trace-anomalies) | Look for anomalies in a trace file (never completed or cancelled actions). |
 
 ## inspect trace list
@@ -92,8 +92,8 @@ inspect trace anomalies [OPTIONS] [TRACE_FILE]
 
 #### Options
 
-| Name | Type | Description | Default |
-|----|----|----|----|
-| `--filter` | text | Filter (applied to trace message field). | None |
-| `--all` | boolean | Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown). | `False` |
-| `--help` | boolean | Show this message and exit. | `False` |
+| Name       | Type    | Description                                                                                                       | Default |
+|------------|---------|-------------------------------------------------------------------------------------------------------------------|---------|
+| `--filter` | text    | Filter (applied to trace message field).                                                                          | None    |
+| `--all`    | boolean | Show all anomolies including errors and timeouts (by default only still running and cancelled actions are shown). | `False` |
+| `--help`   | boolean | Show this message and exit.                                                                                       | `False` |

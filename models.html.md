@@ -7,12 +7,12 @@ Inspect has support for a wide variety of language model APIs and can be
 extended to support arbitrary additional ones. Support for the following
 providers is built in to Inspect:
 
-|  |  |
-|----|----|
-| Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek) |
-| Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire) |
-| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
+|               |                                                                                                                                                                                                        |
+|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Lab APIs      | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek) |
+| Cloud APIs    | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai)                                                                                     |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire)                                                       |
+| Open (Local)  | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python)                                            |
 
 If the provider you are using is not listed above, you may still be able
 to use it if:
@@ -185,8 +185,20 @@ place of use, you can use the async context manager built in to the
 
 ``` python
 async with get_model("openai/gpt-4o") as model:
-    response = await model.generate("Say hello")
+    eval(mytask(), model=model)
 ```
+
+If you are not in an async context there is also a sync context manager
+available:
+
+``` python
+with get_model("hf/Qwen/Qwen2.5-72B") as model:
+    eval(mytask(), model=model)
+```
+
+Note though that this *won’t work* with model providers that require an
+async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama,
+llama-cpp-python, and CloudFlare).
 
 ## Learning More
 

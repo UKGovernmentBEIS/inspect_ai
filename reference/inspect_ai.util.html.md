@@ -18,7 +18,7 @@ transcript, values and objects must be JSON serialisable (you can make
 objects with several fields serialisable using the `@dataclass`
 decorator or by inheriting from Pydantic `BaseModel`)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store.py#L20)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store.py#L20)
 
 ``` python
 class Store
@@ -32,7 +32,7 @@ Get a value from the store.
 Provide a `default` to automatically initialise a named store value with
 the default when it does not yet exist.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store.py#L46)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store.py#L46)
 
 ``` python
 def get(self, key: str, default: VT | None = None) -> VT | Any
@@ -47,7 +47,7 @@ Default value (defaults to `None`)
 set  
 Set a value into the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store.py#L64)
 
 ``` python
 def set(self, key: str, value: Any) -> None
@@ -62,7 +62,7 @@ Value to set
 delete  
 Remove a value from the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store.py#L73)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store.py#L73)
 
 ``` python
 def delete(self, key: str) -> None
@@ -74,7 +74,7 @@ Name of value to remove
 keys  
 View of keys within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store.py#L81)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store.py#L81)
 
 ``` python
 def keys(self) -> KeysView[str]
@@ -83,7 +83,7 @@ def keys(self) -> KeysView[str]
 values  
 View of values within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store.py#L85)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store.py#L85)
 
 ``` python
 def values(self) -> ValuesView[Any]
@@ -92,7 +92,7 @@ def values(self) -> ValuesView[Any]
 items  
 View of items within the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store.py#L89)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store.py#L89)
 
 ``` python
 def items(self) -> ItemsView[str, Any]
@@ -102,7 +102,7 @@ def items(self) -> ItemsView[str, Any]
 
 Get the currently active `Store`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store.py#L103)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store.py#L103)
 
 ``` python
 def store() -> Store
@@ -112,7 +112,7 @@ def store() -> Store
 
 Get a Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store_model.py#L121)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store_model.py#L121)
 
 ``` python
 def store_as(model_cls: Type[SMT], instance: str | None = None) -> SMT
@@ -134,7 +134,7 @@ already satisfy the validation constraints of the model OR you should
 provide Field(default=) annotations for all of your model fields (the
 latter approach is recommended).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_store_model.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_store_model.py#L8)
 
 ``` python
 class StoreModel(BaseModel)
@@ -159,7 +159,7 @@ Note that concurrency for model API access is handled internally via the
 `max_connections` generation config option. Concurrency for launching
 subprocesses is handled via the `subprocess` function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_concurrency.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_concurrency.py#L11)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -192,7 +192,7 @@ subprocesses. Automatically enforces a limit on concurrent subprocesses
 (defaulting to os.cpu_count() but controllable via the
 `max_subprocesses` eval config option).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_subprocess.py#L71)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_subprocess.py#L71)
 
 ``` python
 async def subprocess(
@@ -236,7 +236,7 @@ Timeout. If the timeout expires then a `TimeoutError` will be raised.
 
 Execution result from call to `subprocess()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_subprocess.py#L27)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_subprocess.py#L27)
 
 ``` python
 @dataclass
@@ -263,7 +263,7 @@ Contents of stderr.
 
 Display a counter in the UI.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_display.py#L65)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_display.py#L65)
 
 ``` python
 def display_counter(caption: str, value: str) -> None
@@ -279,7 +279,7 @@ The counter’s value e.g. “42”.
 
 Get the current console display type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_display.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_display.py#L47)
 
 ``` python
 def display_type() -> DisplayType
@@ -289,7 +289,7 @@ def display_type() -> DisplayType
 
 Console display type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_display.py#L11)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_display.py#L11)
 
 ``` python
 DisplayType = Literal["full", "conversation", "rich", "plain", "none"]
@@ -302,7 +302,7 @@ Input screen for receiving user input.
 Context manager that clears the task display and provides a screen for
 receiving console input.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_console.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_console.py#L13)
 
 ``` python
 @contextmanager
@@ -330,7 +330,7 @@ Input screen width in characters (defaults to full width)
 
 Decorator for subtasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_subtask.py#L66)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_subtask.py#L66)
 
 ``` python
 def subtask(
@@ -357,7 +357,7 @@ Input to log for subtask
 
 Subtask with distinct `Store` and `Transcript`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_subtask.py#L31)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_subtask.py#L31)
 
 ``` python
 class Subtask(Protocol):
@@ -397,7 +397,7 @@ If you want to ensure that only local or remote files are consumed,
 specify `type="file"`. For example:
 `resource("templates/prompt.txt", type="file")`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_resource.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_resource.py#L9)
 
 ``` python
 def resource(
@@ -424,7 +424,7 @@ are accessing a public S3 bucket with no credentials.
 
 Throttle a function to ensure it is called no more than every n seconds.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_throttle.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_throttle.py#L6)
 
 ``` python
 def throttle(seconds: float) -> Callable[..., Any]
@@ -444,7 +444,7 @@ Traces are written to the `TRACE` log level (which is just below `HTTP`
 and `INFO`). List and read trace logs with `inspect trace list` and
 related commands (see `inspect trace --help` for details).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/_util/trace.py#L32)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/_util/trace.py#L32)
 
 ``` python
 @contextmanager
@@ -476,7 +476,7 @@ The `TRACE` log level is just below `HTTP` and `INFO`). List and read
 trace logs with `inspect trace list` and related commands (see
 `inspect trace --help` for details).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/_util/trace.py#L133)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/_util/trace.py#L133)
 
 ``` python
 def trace_message(
@@ -505,7 +505,7 @@ Named args for `message` format string.
 
 Get the SandboxEnvironment for the current sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/context.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/context.py#L23)
 
 ``` python
 def sandbox(name: str | None = None) -> SandboxEnvironment
@@ -519,7 +519,7 @@ Optional sandbox environmnent name.
 Get the SandboxEnvironment for the current sample that has the specified
 file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/context.py#L52)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/context.py#L53)
 
 ``` python
 async def sandbox_with(file: str, on_path: bool = False) -> SandboxEnvironment | None
@@ -533,6 +533,20 @@ should be a filename that exists on the system path.
 If True, file is a filename to be verified using “which”. If False, file
 is a path to be checked within the sandbox environments.
 
+### sandbox_default
+
+Set the default sandbox environment for the current context.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/context.py#L265)
+
+``` python
+@contextmanager
+def sandbox_default(name: str) -> Iterator[None]
+```
+
+`name` str  
+Sandbox to set as the default.
+
 ### SandboxEnvironment
 
 Environment for executing arbitrary code from tools.
@@ -541,7 +555,7 @@ Sandbox environments provide both an execution environment as well as a
 per-sample filesystem context to copy samples files into and resolve
 relative paths to.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L80)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L80)
 
 ``` python
 class SandboxEnvironment(abc.ABC)
@@ -558,7 +572,7 @@ filesystem context.
 Each output stream (stdout and stderr) is limited to 10 MiB. If
 exceeded, an `OutputLimitExceededError` will be raised.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L87)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L87)
 
 ``` python
 @abc.abstractmethod
@@ -604,7 +618,7 @@ Write a file into the sandbox environment.
 If the parent directories of the file path do not exist they should be
 automatically created.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L133)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L133)
 
 ``` python
 @abc.abstractmethod
@@ -628,7 +642,7 @@ constructs (e.g. crlf should be preserved not converted to lf). This is
 equivalent to specifying `newline=""` in a call to the Python `open()`
 function.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L159)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L159)
 
 ``` python
 @abc.abstractmethod
@@ -645,7 +659,7 @@ Read as a utf-8 encoded text file.
 connection  
 Information required to connect to sandbox environment.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L190)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L190)
 
 ``` python
 async def connection(self) -> SandboxConnection
@@ -654,7 +668,7 @@ async def connection(self) -> SandboxConnection
 as_type  
 Verify and return a reference to a subclass of SandboxEnvironment.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L202)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L202)
 
 ``` python
 def as_type(self, sandbox_cls: Type[ST]) -> ST
@@ -666,7 +680,7 @@ Class of sandbox (subclass of SandboxEnvironment)
 default_concurrency  
 Default max_sandboxes for this provider (`None` means no maximum)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L221)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L221)
 
 ``` python
 @classmethod
@@ -676,7 +690,7 @@ def default_concurrency(cls) -> int | None
 task_init  
 Called at task startup initialize resources.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L226)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L226)
 
 ``` python
 @classmethod
@@ -694,7 +708,7 @@ Implementation defined configuration (optional).
 sample_init  
 Initialize sandbox environments for a sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L238)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L238)
 
 ``` python
 @classmethod
@@ -718,7 +732,7 @@ Sample `metadata` field
 sample_cleanup  
 Cleanup sandbox environments.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L259)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L259)
 
 ``` python
 @classmethod
@@ -747,7 +761,7 @@ Was the task interrupted by an error or cancellation
 task_cleanup  
 Called at task exit as a last chance to cleanup resources.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L278)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L278)
 
 ``` python
 @classmethod
@@ -769,7 +783,7 @@ Whether to actually cleanup environment resources (False if
 cli_cleanup  
 Handle a cleanup invoked from the CLI (e.g. inspect sandbox cleanup).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L292)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L292)
 
 ``` python
 @classmethod
@@ -782,7 +796,7 @@ Optional ID to limit scope of cleanup.
 config_files  
 Standard config files for this provider (used for automatic discovery)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L301)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L301)
 
 ``` python
 @classmethod
@@ -797,7 +811,7 @@ Override this method if you support a custom configuration model.
 A basic implementation would be:
 `return MySandboxEnvironmentConfig(**config)`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L306)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L306)
 
 ``` python
 @classmethod
@@ -812,7 +826,7 @@ model.
 
 Information required to connect to sandbox.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/environment.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/environment.py#L61)
 
 ``` python
 class SandboxConnection(BaseModel)
@@ -839,7 +853,7 @@ Optional container name (does not apply to all sandboxes).
 
 Decorator for registering sandbox environments.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_sandbox/registry.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_sandbox/registry.py#L16)
 
 ``` python
 def sandboxenv(name: str) -> Callable[..., Type[T]]
@@ -854,7 +868,7 @@ Name of SandboxEnvironment type
 
 Valid types within JSON schema.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_json.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_json.py#L23)
 
 ``` python
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
@@ -864,7 +878,7 @@ JSONType = Literal["string", "integer", "number", "boolean", "array", "object", 
 
 JSON Schema for type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_json.py#L27)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_json.py#L27)
 
 ``` python
 class JSONSchema(BaseModel)
@@ -906,7 +920,7 @@ Provide a JSON Schema for the specified type.
 Schemas can be automatically inferred for a wide variety of Python class
 types including Pydantic BaseModel, dataclasses, and typed dicts.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/a924fc239285a57e0d9b5adcc25c7730d04a1b32/src/inspect_ai/util/_json.py#L58)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/util/_json.py#L58)
 
 ``` python
 def json_schema(t: Type[Any]) -> JSONSchema

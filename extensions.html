@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Extensions – Inspect</title>
+<title>Inspect – Extensions</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -249,12 +249,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tools.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tool Basics</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
   </div>
@@ -286,6 +280,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./tools-standard.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Standard Tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Approval</span></a>
   </div>
 </li>
       </ul>
@@ -380,12 +380,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./human-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Human Agent</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Approval</span></a>
   </div>
 </li>
       </ul>
@@ -594,7 +588,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="sec-sandbox-environment-extensions" class="level2">
 <h2 class="anchored" data-anchor-id="sec-sandbox-environment-extensions">Sandboxes</h2>
 <p><a href="./sandboxing.html">Sandbox Environments</a> provide a mechanism for sandboxing execution of tool code as well as providing more sophisticated infrastructure (e.g.&nbsp;creating network hosts for a cybersecurity eval). Inspect comes with two sandbox environments built in:</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Environment Type</th>
@@ -679,7 +673,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>The layer of indirection (creating a function that returns a SandboxEnvironment class) is done so that you can separate the registration of sandboxes from the importing of libraries they require (important for limiting dependencies).</p>
 <p>The class methods take care of various stages of initialisation, setup, and teardown:</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Method</th>
