@@ -133,7 +133,11 @@ export function createLogPolling(
           log.debug(`Stop polling running samples: ${logFileName}`);
 
           // Clear pending summaries and refresh in one transaction
-          if (loadedPendingSamples) {
+          if (
+            loadedPendingSamples ||
+            state.log.selectedLogSummary?.status === "started"
+          ) {
+            log.debug(`Refresh log: ${logFileName}`);
             await refreshLog(logFileName, true);
           }
 
