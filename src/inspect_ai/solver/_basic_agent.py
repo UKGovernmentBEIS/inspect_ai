@@ -5,8 +5,8 @@ from typing_extensions import TypedDict, Unpack
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.model._cache import CachePolicy
-from inspect_ai.model._call_tools import call_tools
-from inspect_ai.model._chat_message import ChatMessageTool, ChatMessageUser
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool, ChatMessageUser
 from inspect_ai.model._model import get_model
 from inspect_ai.scorer._metric import Score, ValueToFloat, value_to_float
 from inspect_ai.scorer._score import score
@@ -149,9 +149,14 @@ def basic_agent(
         return solve
 
     # helper to extract a submitted answer
-    def submission(tool_results: list[ChatMessageTool]) -> str | None:
+    def submission(tool_results: list[ChatMessage]) -> str | None:
         return next(
-            (result.text for result in tool_results if result.function == submit_name),
+            (
+                result.text
+                for result in tool_results
+                if isinstance(result, ChatMessageTool)
+                and result.function == submit_name
+            ),
             None,
         )
 
@@ -189,9 +194,9 @@ def basic_agent(
 
                     # resolve tools calls (if any)
                     if state.output.message.tool_calls:
-                        # call tool functions
-                        tool_results = await call_tools(
-                            state.output.message,
+                        # execute tool functions
+                        tool_results, _ = await execute_tools(
+                            [state.output.message],
                             state.tools,
                             max_output=max_tool_output,
                         )

@@ -37,6 +37,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
@@ -751,5 +752,10 @@ async def call_tools(
     Returns:
        Messages added to the conversation.
     """
+    warn_once(
+        logger,
+        "call_tools is deprecated -- please use execute_tools instead (as it supports agent handoff tools)",
+    )
+
     messages, _ = await execute_tools([message], tools, max_output)
     return [m for m in messages if isinstance(m, ChatMessageTool)]
