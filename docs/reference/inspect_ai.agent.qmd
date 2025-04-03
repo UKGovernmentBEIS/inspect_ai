@@ -35,6 +35,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ### AgentState
 ### agent
 ### agent_with
+### agent_using
 
 ## Types
 

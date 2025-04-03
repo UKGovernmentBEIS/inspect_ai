@@ -247,6 +247,7 @@ async def execute_tools(
             # it at the end to deduce total waiting time inside the tool
             # call (in turn used to calculate working time)
             waiting_time_start = sample_waiting_time()
+            print(call)
             event = ToolEvent(
                 id=call.id,
                 function=call.function,

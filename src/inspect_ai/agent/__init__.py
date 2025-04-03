@@ -13,6 +13,7 @@ from ._types import (
     AgentPrompt,
     AgentSubmit,
 )
+from ._using import agent_using
 
 __all__ = [
     "react",
@@ -29,6 +30,7 @@ __all__ = [
     "AgentState",
     "agent",
     "agent_with",
+    "agent_using",
     "AgentPrompt",
     "AgentAttempts",
     "AgentContinue",

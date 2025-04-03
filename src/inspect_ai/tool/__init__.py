@@ -8,12 +8,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.deprecation import relocated_module_attribute
 
-from ._mcp import (
-    MCPServer,
-    mcp_server_sse,
-    mcp_server_stdio,
-    mcp_tools,
-)
+from ._mcp import MCPServer, mcp_server_sse, mcp_server_stdio, mcp_tools
 from ._tool import Tool, ToolError, ToolResult, ToolSource, tool
 from ._tool_call import (
     ToolCall,

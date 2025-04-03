@@ -87,7 +87,9 @@ class AgentTool(Tool):
         raise RuntimeError("AgentTool should not be called directly")
 
 
-def has_handoff(tools: Sequence[Tool | ToolDef | ToolSource] | None) -> bool:
+def has_handoff(
+    tools: Sequence[Tool | ToolDef | ToolSource] | None,
+) -> bool:
     if tools:
         return any([isinstance(tool, AgentTool) for tool in tools])
     else:
