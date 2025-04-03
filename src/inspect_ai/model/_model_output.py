@@ -1,7 +1,7 @@
 import uuid
 from typing import Any, Literal, Type
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from inspect_ai.tool._tool_call import ToolCall
 
@@ -195,10 +195,9 @@ class ModelOutput(BaseModel):
         model: str,
         tool_name: str,
         tool_arguments: dict[str, Any],
-        internal_tool_name: str | None = None,
+        internal: JsonValue | None = None,
         tool_call_id: str | None = None,
         content: str | None = None,
-        type: str = "function",
     ) -> "ModelOutput":
         """
         Returns a ModelOutput for requesting a tool call.
@@ -206,8 +205,7 @@ class ModelOutput(BaseModel):
         Args:
             model: model name
             tool_name: The name of the tool.
-            internal_tool_name: The model's internal name for the tool (if any).
-            type: The model's type for the tool. e.g. "function", "computer_use_preview"
+            internal: The model's internal info for the tool (if any).
             tool_arguments: The arguments passed to the tool.
             tool_call_id: Optional ID for the tool call. Defaults to a random UUID.
             content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
@@ -233,9 +231,8 @@ class ModelOutput(BaseModel):
                             ToolCall(
                                 id=tool_call_id,
                                 function=tool_name,
-                                internal_name=internal_tool_name,
+                                internal=internal,
                                 arguments=tool_arguments,
-                                type=type,
                             )
                         ],
                     ),

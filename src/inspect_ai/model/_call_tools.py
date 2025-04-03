@@ -37,6 +37,7 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.format import format_function_call
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
@@ -50,6 +51,7 @@ from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
+from inspect_ai.util._anyio import inner_exception
 
 from ._chat_message import (
     ChatMessage,
@@ -126,9 +128,15 @@ async def execute_tools(
             tool_exception: Exception | None = None
             try:
                 with track_store_changes():
-                    result, messages, output, agent = await call_tool(
-                        tdefs, message.text, call, conversation
-                    )
+                    try:
+                        result, messages, output, agent = await call_tool(
+                            tdefs, message.text, call, conversation
+                        )
+                    # unwrap exception group
+                    except Exception as ex:
+                        inner_ex = inner_exception(ex)
+                        raise inner_ex.with_traceback(inner_ex.__traceback__)
+
             except TimeoutError:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
@@ -201,7 +209,6 @@ async def execute_tools(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
-                internal_name=call.internal_name,
                 result=content,
                 truncated=truncated,
                 view=call.view,
@@ -220,8 +227,8 @@ async def execute_tools(
                                     content=content,
                                     tool_call_id=call.id,
                                     function=call.function,
-                                    internal_name=call.internal_name,
                                     error=tool_error,
+                                    internal=call.internal,
                                 )
                             ]
                             + messages,
@@ -245,8 +252,8 @@ async def execute_tools(
                 id=call.id,
                 function=call.function,
                 arguments=call.arguments,
-                internal_name=call.internal_name,
                 view=call.view,
+                internal=call.internal,
                 pending=True,
             )
             transcript()._event(event)
@@ -271,7 +278,6 @@ async def execute_tools(
                 tool_message = ChatMessageTool(
                     content="",
                     function=call.function,
-                    internal_name=call.internal_name,
                     tool_call_id=call.id,
                     error=ToolCallError(
                         "timeout", "Command timed out before completing."
@@ -281,7 +287,6 @@ async def execute_tools(
                     id=call.id,
                     function=call.function,
                     arguments=call.arguments,
-                    internal_name=call.internal_name,
                     result=tool_message.content,
                     truncated=None,
                     view=call.view,
@@ -408,7 +413,7 @@ async def agent_handoff(
             content=tool_result,
             tool_call_id=call.id,
             function=call.function,
-            internal_name=call.internal_name,
+            internal=call.internal,
         )
     )
 
@@ -612,7 +617,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         else:
             return input
     elif origin is Union or origin is types.UnionType:
-        if args[1] is type(None):
+        if args[1] is type(None) and input is not None:
             return tool_param(args[0], input)
         else:
             return input
@@ -730,7 +735,6 @@ def parse_tool_call(
         id=id,
         function=function,
         arguments=arguments_dict,
-        type="function",
         parse_error=error,
     )
 
@@ -755,5 +759,10 @@ async def call_tools(
     Returns:
        Messages added to the conversation.
     """
+    warn_once(
+        logger,
+        "call_tools is deprecated -- please use execute_tools instead (as it supports agent handoff tools)",
+    )
+
     messages, _ = await execute_tools([message], tools, max_output)
     return [m for m in messages if isinstance(m, ChatMessageTool)]

@@ -15,10 +15,9 @@
 - [Scorers](https://inspect.aisi.org.uk/scorers.html.md): Scorers evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
 - [Tool Basics](https://inspect.aisi.org.uk/tools.html.md): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
-
 - [Custom Tools](https://inspect.aisi.org.uk/tools-custom.html.md) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions. 
-
 - [Standard Tools](https://inspect.aisi.org.uk/tools-standard.html.md) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
+- [Tool Approval](https://inspect.aisi.org.uk/approval.html.md): Approvals enable you to create fine-grained policies for approving tool calls made by models.
 
 
 - [Models](https://inspect.aisi.org.uk/models.html.md): Models provide a uniform API for both evaluating a variety of large language models and using models within evaluations (e.g. for critique or grading).
@@ -33,7 +32,6 @@
 - [Agent API](https://inspect.aisi.org.uk/agents-api.html.md): This article describes advanced Inspect APIs available for creating evaluations with agents.
 - [Agent Bridge](agent-bridge.qmd): Facility for integrating agents from 3rd party frameworks like AutoGen or LangChain.
 - [Human Agent](https://inspect.aisi.org.uk/human-agent.html.md): This article describes the `human_agent()` solver which enables human baselining for computing tasks.
-- [Approval](https://inspect.aisi.org.uk/approval.html.md): Approvals enable you to create fine-grained policies for approving tool calls made by models.
 
 - [Eval Logs](https://inspect.aisi.org.uk/eval-logs.html.md): Explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
 - [Eval Sets](https://inspect.aisi.org.uk/eval-sets.html.md): Covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.

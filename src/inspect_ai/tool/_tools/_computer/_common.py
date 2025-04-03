@@ -83,6 +83,22 @@ async def middle_click(coordinate: list[int], timeout: int | None = None) -> Too
     )
 
 
+async def back_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
+    return await _send_cmd(
+        ["back_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
+async def forward_click(
+    coordinate: list[int], timeout: int | None = None
+) -> ToolResult:
+    return await _send_cmd(
+        ["forward_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
+        timeout=timeout,
+    )
+
+
 async def double_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
     return await _send_cmd(
         ["double_click", "--coordinate", f"{coordinate[0]}", f"{coordinate[1]}"],
@@ -182,11 +198,11 @@ async def computer_sandbox() -> SandboxEnvironment:
     else:
         raise PrerequisiteError(
             dedent("""
-                The computer tool service was not found in any of the sandboxes for this sample. Please add the computer tool service to your configuration. For example, the following Docker compose file uses the aisiuk/inspect-computer-tool:latest image as its default sandbox:
+                The computer tool service was not found in any of the sandboxes for this sample. Please add the computer tool service to your configuration. For example, the following Docker compose file uses the aisiuk/inspect-computer-tool image as its default sandbox:
 
                 services:
                   default:
-                    image: "aisiuk/inspect-computer-tool:latest"
+                    image: "aisiuk/inspect-computer-tool"
                     init: true
                 """).strip()
         )

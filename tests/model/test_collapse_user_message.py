@@ -82,7 +82,6 @@ async def test_anthropic_user_tool_messages() -> None:
                     tool_calls=[
                         ToolCall(
                             id="toolu_01AhP9RozXEJSnuxMLcY8Xaf",
-                            type="function",
                             function="addition",
                             arguments={"x": 1, "y": 1},
                         )

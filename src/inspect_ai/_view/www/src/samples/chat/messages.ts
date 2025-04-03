@@ -70,6 +70,7 @@ export const resolveMessages = (messages: Messages) => {
     role: "system",
     content: systemContent,
     source: "input",
+    internal: null,
   };
 
   // Converge them
