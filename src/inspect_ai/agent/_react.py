@@ -10,13 +10,14 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._score import score
+from inspect_ai.tool._mcp.context import mcp_context
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
-from ._agent import Agent, AgentState, agent
+from ._agent import Agent, AgentState, agent, agent_with
 from ._handoff import has_handoff
 from ._types import (
     AgentAttempts,
@@ -24,7 +25,6 @@ from ._types import (
     AgentPrompt,
     AgentSubmit,
 )
-from ._with import agent_with
 
 logger = getLogger(__name__)
 
@@ -139,73 +139,74 @@ def react(
     tools.append(tool_with(submit_tool(), submit.name, submit.description))
 
     async def execute(state: AgentState) -> AgentState:
-        # prepend system message if we have one
-        if system_message:
-            state.messages.insert(0, system_message)
+        async with mcp_context(tools):
+            # prepend system message if we have one
+            if system_message:
+                state.messages.insert(0, system_message)
 
-        # track attempts
-        attempt_count = 0
+            # track attempts
+            attempt_count = 0
 
-        # main loop = will terminate after submit (subject to max_attempts)
-        # or if a message or token limit is hit
-        while True:
-            # generate output and append assistant message
-            state = await _agent_generate(model, state, tools)
+            # main loop = will terminate after submit (subject to max_attempts)
+            # or if a message or token limit is hit
+            while True:
+                # generate output and append assistant message
+                state = await _agent_generate(model, state, tools)
 
-            # check for context window overflow
-            if state.output.stop_reason == "model_length":
-                from inspect_ai.log._transcript import transcript
+                # check for context window overflow
+                if state.output.stop_reason == "model_length":
+                    from inspect_ai.log._transcript import transcript
 
-                transcript().info("Agent terminated: model context window exceeded")
-                break
-
-            # check for a submission
-            answer = submitted_answer(state.output.message.tool_calls)
-            if answer is not None:
-                # remove the tool call and set the output to the answer for scoring
-                state.output.message.tool_calls = None
-                state.output.completion = answer
-
-                # exit if we are at max_attempts
-                attempt_count += 1
-                if attempt_count >= attempts.attempts:
+                    transcript().info("Agent terminated: model context window exceeded")
                     break
 
-                # exit if the submission is successful
-                answer_scores = await score(state)
-                if attempts.score_value(answer_scores[0].value) == 1.0:
-                    break
+                # check for a submission
+                answer = submitted_answer(state.output.message.tool_calls)
+                if answer is not None:
+                    # remove the tool call and set the output to the answer for scoring
+                    state.output.message.tool_calls = None
+                    state.output.completion = answer
 
-                # otherwise notify the model that it was incorrect and continue
-                else:
-                    if callable(attempts.incorrect_message):
-                        if not is_callable_coroutine(attempts.incorrect_message):
-                            raise ValueError(
-                                "The incorrect_message function must be async."
-                            )
-                        response_message: str = await attempts.incorrect_message(
-                            state, answer_scores
-                        )
+                    # exit if we are at max_attempts
+                    attempt_count += 1
+                    if attempt_count >= attempts.attempts:
+                        break
+
+                    # exit if the submission is successful
+                    answer_scores = await score(state)
+                    if attempts.score_value(answer_scores[0].value) == 1.0:
+                        break
+
+                    # otherwise notify the model that it was incorrect and continue
                     else:
-                        response_message = attempts.incorrect_message
+                        if callable(attempts.incorrect_message):
+                            if not is_callable_coroutine(attempts.incorrect_message):
+                                raise ValueError(
+                                    "The incorrect_message function must be async."
+                                )
+                            response_message: str = await attempts.incorrect_message(
+                                state, answer_scores
+                            )
+                        else:
+                            response_message = attempts.incorrect_message
 
-                    state.messages.append(ChatMessageUser(content=response_message))
+                        state.messages.append(ChatMessageUser(content=response_message))
 
-            # no submitted answer, call tools and evaluate whether we should continue
-            else:
-                if state.output.message.tool_calls:
-                    # call tool functions
-                    messages, output = await execute_tools(state.messages, tools)
-                    state.messages.extend(messages)
-                    if output:
-                        state.output = output
+                # no submitted answer, call tools and evaluate whether we should continue
+                else:
+                    if state.output.message.tool_calls:
+                        # call tool functions
+                        messages, output = await execute_tools(state.messages, tools)
+                        state.messages.extend(messages)
+                        if output:
+                            state.output = output
 
-                # check if we should continue....
-                do_continue = await on_continue(state)
-                if isinstance(do_continue, str):
-                    state.messages.append(ChatMessageUser(content=do_continue))
-                elif do_continue is False:
-                    break
+                    # check if we should continue....
+                    do_continue = await on_continue(state)
+                    if isinstance(do_continue, str):
+                        state.messages.append(ChatMessageUser(content=do_continue))
+                    elif do_continue is False:
+                        break
 
         return state
 
