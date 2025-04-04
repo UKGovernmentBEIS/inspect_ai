@@ -38,6 +38,23 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
 
   const sampleSummaries = useFilteredSamples();
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+
+  // Compute the limit to apply to the sample count (this is so)
+  // we can provide a total expected sample count for this evaluation
+  const evalSampleCount = useMemo(() => {
+    const limit = selectedLogSummary?.eval.config.limit;
+    const limitCount =
+      limit === null || limit === undefined
+        ? undefined
+        : typeof limit === "number"
+          ? limit
+          : (limit[1] as number) - (limit[0] as number);
+    return (
+      (limitCount || selectedLogSummary?.eval.dataset.samples || 0) *
+      (selectedLogSummary?.eval.config.epochs || 0)
+    );
+  }, [selectedLogSummary?.eval.config.limit]);
+
   const totalSampleCount = useTotalSampleCount();
 
   const samplesDescriptor = useSampleDescriptor();
@@ -176,6 +193,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
           <SampleList
             listHandle={sampleListHandle}
             items={items}
+            totalItemCount={evalSampleCount}
             running={running}
             nextSample={nextSample}
             prevSample={previousSample}
