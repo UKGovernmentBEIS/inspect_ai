@@ -3,7 +3,7 @@ import re
 from copy import copy
 from typing import Literal
 
-from openai import BadRequestError, OpenAIError
+from openai import APIStatusError, OpenAIError
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -518,7 +518,7 @@ def chat_choices_from_openai(
 
 
 def openai_handle_bad_request(
-    model_name: str, e: BadRequestError
+    model_name: str, e: APIStatusError
 ) -> ModelOutput | Exception:
     # extract message
     if isinstance(e.body, dict) and "message" in e.body.keys():
