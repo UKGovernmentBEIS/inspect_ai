@@ -134,4 +134,4 @@ const parseParameters = (paramStr: string): string[] => {
     const nameMatch = param.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
     return nameMatch ? nameMatch[1] : '';
   }).filter(Boolean);
-}
+};
