@@ -4,6 +4,7 @@ from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Solver, TaskState, basic_agent, solver, system_message
+from inspect_ai.solver._solver import Generate
 from inspect_ai.tool import Tool, tool
 
 
@@ -133,6 +134,33 @@ def test_basic_agent_retries():
         1 for event in log.samples[0].transcript.events if event.event == "model"
     )
     assert model_events == 3
+
+
+def test_basic_agent_provide_answer():
+    @solver
+    def validate_answer() -> Solver:
+        async def execute(state: TaskState, generate: Generate) -> TaskState:
+            if state.output.completion == state.answer:
+                raise RuntimeError("Answer has not been properly set")
+            return state
+
+        return execute
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=[
+            basic_agent(
+                tools=[addition()],
+                max_attempts=1,
+                message_limit=30,
+                provide_answer=True,
+            ),
+            validate_answer(),
+        ],
+        scorer=includes(),
+    )
+    log = eval(task, mockllm_model(["2"]))[0]
+    assert log.results.scores[0].metrics["accuracy"].value == 1
 
 
 def test_basic_agent_retries_with_custom_incorrect_message():
