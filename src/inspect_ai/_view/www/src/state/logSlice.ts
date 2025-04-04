@@ -45,6 +45,9 @@ export interface LogSlice {
 
     // Refresh the current log
     refreshLog: () => Promise<void>;
+
+    // Poll the currently selected log
+    pollLog: () => Promise<void>;
   };
 }
 
@@ -172,6 +175,13 @@ export const createLogSlice = (
             logPolling.startPolling(logFileName);
         } catch (error) {
           log.error("Error loading log:", error);
+        }
+      },
+
+      pollLog: async () => {
+        const currentLog = get().log.loadedLog;
+        if (currentLog) {
+          logPolling.startPolling(currentLog);
         }
       },
 

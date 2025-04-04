@@ -153,7 +153,7 @@ export const messagesFromEvents = (runningEvents: Events): Messages => {
       }
     });
 
-  if (messages.entries.length > 0) {
+  if (messages.size > 0) {
     return messages.values().toArray();
   } else {
     return [];
