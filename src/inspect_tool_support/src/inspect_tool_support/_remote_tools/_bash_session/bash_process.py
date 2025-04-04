@@ -1,10 +1,8 @@
 import asyncio
-import time
 import uuid
 from asyncio.subprocess import Process
-from dataclasses import dataclass
-from typing import Literal, TypeGuard
 
+import inspect_tool_support._remote_tools._bash_session._state_machine as StateMachine
 from inspect_tool_support._remote_tools._bash_session._pseudo_terminal import (
     PseudoTerminal,
     PseudoTerminalStdIn,
@@ -12,98 +10,12 @@ from inspect_tool_support._remote_tools._bash_session._pseudo_terminal import (
 from inspect_tool_support._remote_tools._bash_session._safe_stream_reader import (
     SafeStreamReader,
 )
+from inspect_tool_support._remote_tools._bash_session._timeout_params import (
+    NonInteractiveParams,
+    TimeoutParams,
+)
 from inspect_tool_support._remote_tools._bash_session.tool_types import (
     BashCommandResult,
-)
-
-
-@dataclass
-class InteractiveParams:
-    first_data_timeout: int
-    debounce: int
-    interactive: Literal[True] = True
-
-
-@dataclass
-class NonInteractiveParams:
-    timeout: int
-    interactive: Literal[False] = False
-
-
-TimeoutParams = InteractiveParams | NonInteractiveParams
-
-
-@dataclass
-class Idle:
-    type: Literal["Idle"] = "Idle"
-
-
-@dataclass
-class SendingCommandOrInput:
-    marker: str
-    timeout_params: TimeoutParams
-    type: Literal["SendingCommandOrInput"] = "SendingCommandOrInput"
-
-
-@dataclass
-class WaitingForComplete:
-    marker: str
-    completed_event: asyncio.Event
-    timeout: float
-    stdout_data: bytearray
-    stderr_data: bytearray
-    data_event: None = None
-    type: Literal["WaitingForComplete"] = "WaitingForComplete"
-
-
-@dataclass
-class ProcessingCompletion:
-    marker: str
-    type: Literal["ProcessingCompletion"] = "ProcessingCompletion"
-
-
-@dataclass
-class WaitingForData:
-    marker: str
-    completed_event: asyncio.Event
-    data_event: asyncio.Event
-    debounce_complete_time: float
-    timeout: float
-    stdout_data: bytearray
-    stderr_data: bytearray
-    type: Literal["WaitingForData"] = "WaitingForData"
-
-
-@dataclass
-class WaitingForDebounce:
-    marker: str
-    completed_event: asyncio.Event
-    debounce_complete_time: float
-    timeout: float
-    stdout_data: bytearray
-    stderr_data: bytearray
-    data_event: None = None
-    type: Literal["WaitingForDebounce"] = "WaitingForDebounce"
-
-
-@dataclass
-class WaitingForModelToRequestMore:
-    marker: str
-    completed_event: asyncio.Event
-    stdout_data: bytearray
-    stderr_data: bytearray
-    data_event: None = None
-    type: Literal["WaitingForModelToRequestMore"] = "WaitingForModelToRequestMore"
-
-
-State = (
-    Idle
-    | SendingCommandOrInput
-    | WaitingForComplete
-    | ProcessingCompletion
-    | WaitingForData
-    | WaitingForDebounce
-    | WaitingForModelToRequestMore
 )
 
 
@@ -130,7 +42,7 @@ class BashProcess:
 
         self._stdout_reader = SafeStreamReader(process.stdout, self._on_stdout_data)
         self._stderr_reader = SafeStreamReader(process.stderr, self._on_stderr_data)
-        self._state: State = Idle()
+        self._state: StateMachine.State = StateMachine.Idle()
 
     @property
     def _execute_in_progress(self) -> bool:
@@ -167,7 +79,7 @@ class BashProcess:
         """
 
         # switch to the new state before going async
-        self._state = SendingCommandOrInput(
+        self._state = StateMachine.SendingCommandOrInput(
             marker=marker, timeout_params=timeout_params
         )
 
@@ -203,7 +115,9 @@ class BashProcess:
         self._pty.cleanup()
 
     def _on_stdout_data(self, data: bytes) -> None:
-        assert _expecting_data(self._state), "must have a command in progress"
+        assert StateMachine.is_state_expecting_data(
+            self._state
+        ), "must have a command in progress"
 
         self._state.stdout_data.extend(data)
         if self._state.marker.encode("utf-8") in self._state.stdout_data:
@@ -212,7 +126,9 @@ class BashProcess:
             self._state.data_event.set()
 
     def _on_stderr_data(self, data: bytes) -> None:
-        assert _expecting_data(self._state), "must have a command in progress"
+        assert StateMachine.is_state_expecting_data(
+            self._state
+        ), "must have a command in progress"
         self._state.stderr_data.extend(data)
         if self._state.data_event:
             self._state.data_event.set()
@@ -226,7 +142,7 @@ class BashProcess:
         marker = self._state.marker
 
         # switch to the new state before going async
-        self._state = SendingCommandOrInput(
+        self._state = StateMachine.SendingCommandOrInput(
             marker=marker, timeout_params=timeout_params
         )
 
@@ -240,7 +156,7 @@ class BashProcess:
 
         while True:
             # switch to the new state before going async
-            self._state = _get_await_state(self._state)
+            self._state = StateMachine.reducer(self._state)
             try:
                 await asyncio.wait_for(
                     asyncio.wait(
@@ -259,16 +175,19 @@ class BashProcess:
             except (asyncio.TimeoutError, TimeoutError):
                 print(f"XXXXXX timeout in state: {self._state}")
                 match self._state:
-                    case WaitingForData() | WaitingForComplete():
+                    case (
+                        StateMachine.WaitingForData()
+                        | StateMachine.WaitingForComplete()
+                    ):
                         # if we get here, the command didn't complete (if in
                         # non-interactive mode) or didn't send any data (if in
                         # interactive mode) within the timeout
                         raise
-                    case WaitingForDebounce() as old_state:
+                    case StateMachine.WaitingForDebounce() as old_state:
                         # getting here means that we hit the end of the debounce blackout
                         # with data ready to be returned
                         out_str, err_str = self._get_stream_strings()
-                        self._state = WaitingForModelToRequestMore(
+                        self._state = StateMachine.WaitingForModelToRequestMore(
                             marker=old_state.marker,
                             completed_event=old_state.completed_event,
                             stdout_data=old_state.stdout_data,
@@ -294,7 +213,7 @@ class BashProcess:
             print(f"XXXXXX received partial data event set in state: {self._state}")
 
         # switch to the new state before going async
-        self._state = ProcessingCompletion(self._state.marker)
+        self._state = StateMachine.ProcessingCompletion(self._state.marker)
 
         # Get exit status
         self._pty.writer.write(b"cat /tmp/exit_status\n")
@@ -316,7 +235,7 @@ class BashProcess:
         exit_status = parts[1].strip()
         assert exit_status.isnumeric(), "exit status not found in command output"
 
-        self._state = Idle()
+        self._state = StateMachine.Idle()
 
         # Create the result with what we have
         return BashCommandResult(
@@ -326,7 +245,9 @@ class BashProcess:
         )
 
     def _get_stream_strings(self) -> tuple[str, str]:
-        assert _expecting_data(self._state), "must have a command in progress"
+        assert StateMachine.is_state_expecting_data(
+            self._state
+        ), "must have a command in progress"
 
         result = self._state.stdout_data.decode(
             "utf-8"
@@ -334,65 +255,3 @@ class BashProcess:
         self._state.stdout_data.clear()
         self._state.stderr_data.clear()
         return result
-
-
-def _get_await_state(
-    current_state: State,
-) -> WaitingForComplete | WaitingForData | WaitingForDebounce:
-    match current_state:
-        case SendingCommandOrInput(
-            marker=marker,
-            timeout_params=NonInteractiveParams(timeout=timeout),
-        ):
-            return WaitingForComplete(
-                marker=marker,
-                completed_event=asyncio.Event(),
-                stdout_data=bytearray(),
-                stderr_data=bytearray(),
-                timeout=timeout,
-            )
-        case SendingCommandOrInput(
-            marker=marker,
-            timeout_params=InteractiveParams(
-                first_data_timeout=first_data_timeout, debounce=debounce
-            ),
-        ):
-            return WaitingForData(
-                marker=marker,
-                completed_event=asyncio.Event(),
-                data_event=asyncio.Event(),
-                stdout_data=bytearray(),
-                stderr_data=bytearray(),
-                debounce_complete_time=time.time() + debounce,
-                timeout=first_data_timeout,
-            )
-        case WaitingForData() as old_state:
-            new_state = WaitingForDebounce(
-                marker=old_state.marker,
-                completed_event=old_state.completed_event,
-                stdout_data=old_state.stdout_data,
-                stderr_data=old_state.stderr_data,
-                debounce_complete_time=old_state.debounce_complete_time,
-                timeout=old_state.debounce_complete_time - time.time(),
-            )
-            # This can be negative if debugging
-            # assert new_state.timeout > 0, "debounce time expired"
-            return new_state
-        case state:
-            assert False, f"Unexpected state: {state}"
-
-
-def _expecting_data(
-    state: State,
-) -> TypeGuard[
-    WaitingForComplete
-    | WaitingForData
-    | WaitingForDebounce
-    | WaitingForModelToRequestMore
-]:
-    return (
-        state.type == "WaitingForComplete"
-        or state.type == "WaitingForData"
-        or state.type == "WaitingForDebounce"
-        or state.type == "WaitingForModelToRequestMore"
-    )
