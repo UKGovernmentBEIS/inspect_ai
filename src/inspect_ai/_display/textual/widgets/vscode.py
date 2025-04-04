@@ -3,15 +3,15 @@ from textual.widgets import Link, Static
 
 from inspect_ai._util.vscode import (
     VSCodeCommand,
-    can_execute_vscode_commands,
+    can_execute_vscode_command,
     execute_vscode_commands,
 )
 
 
-def conditional_vscode_link(text: str, commands: list[VSCodeCommand]) -> Widget:
-    if can_execute_vscode_commands():
+def conditional_vscode_link(text: str, command: VSCodeCommand) -> Widget:
+    if can_execute_vscode_command(command.command):
         vscode_link = VSCodeLink(text)
-        vscode_link.commands = commands
+        vscode_link.commands = [command]
         return vscode_link
     else:
         return Static()

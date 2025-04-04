@@ -21,7 +21,6 @@ from inspect_ai._display.textual.widgets.vscode import conditional_vscode_link
 from inspect_ai._util.file import to_uri
 from inspect_ai._util.vscode import (
     VSCodeCommand,
-    can_execute_vscode_commands,
 )
 
 from ...core.display import (
@@ -208,14 +207,12 @@ class TaskProgressView(Widget):
         self.display_metrics = display_metrics
         self.view_log_link = conditional_vscode_link(
             "[View Log]",
-            [
-                VSCodeCommand(
-                    command="inspect.openLogViewer",
-                    args=[to_uri(task.profile.log_location)]
-                    if task.profile.log_location
-                    else [],
-                )
-            ],
+            VSCodeCommand(
+                command="inspect.openLogViewer",
+                args=[to_uri(task.profile.log_location)]
+                if task.profile.log_location
+                else [],
+            ),
         )
 
     metrics: reactive[list[TaskDisplayMetric] | None] = reactive(None)
@@ -239,7 +236,7 @@ class TaskProgressView(Widget):
         yield self.count_display
         yield self.metrics_display
         yield Clock()
-        yield self.view_log_link if can_execute_vscode_commands() else Static()
+        yield self.view_log_link
 
         yield self.task_detail
 
