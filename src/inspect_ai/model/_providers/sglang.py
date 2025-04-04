@@ -177,10 +177,10 @@ class SGLangAPI(OpenAIAPI):
             self.server_process = None
             self.port = None
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """Close the client and terminate the server if we started it."""
         # Close the OpenAI client
-        await super().close()
+        await super().aclose()
 
         self._cleanup_server()
 
