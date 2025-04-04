@@ -1,3 +1,5 @@
+import re
+
 from inspect_ai import Task, eval
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._handoff import handoff
@@ -8,7 +10,7 @@ from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageSystem
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
-from inspect_ai.solver._task_state import TaskState
+from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, tool
 
 
@@ -298,10 +300,35 @@ def test_react_agent_on_continue_func():
     assert messages[-1].text == "1"
 
 
+def test_react_agent_concatenates():
+    @solver
+    def validate_answer() -> Solver:
+        async def execute(state: TaskState, generate: Generate) -> TaskState:
+            if state.output.completion == "2":
+                raise RuntimeError("Submitted answer not properly concatenated")
+            return state
+
+        return execute
+
+    addition_task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=[react(tools=[addition()], attempts=3), validate_answer()],
+        scorer=includes(),
+        message_limit=30,
+    )
+
+    log = eval(addition_task, mockllm_model_with_submissions(["2"]))[0]
+    assert log.results
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
+
+
 @scorer(metrics=[accuracy()])
 def compare_quantities():
     async def score(state: TaskState, target: Target) -> Score:
-        answer = float(state.output.completion)
+        match = re.search(r".*?(\d+)$", state.output.completion)
+        assert match
+        answer = float(match.group(1))
+
         target_value = float(target.text)
         if answer == target_value:
             return Score(value=1.0, answer=state.output.completion)
