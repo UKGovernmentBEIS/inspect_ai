@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Literal, TypeAlias
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from mcp.client.session import ClientSession
+from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.types import (
@@ -22,13 +22,14 @@ from mcp.types import (
 )
 from typing_extensions import override
 
-from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.trace import trace_action
+from inspect_ai.tool._mcp.sampling import as_inspect_content
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 
 from ._types import MCPServer
+from .sampling import sampling_fn
 
 # https://github.com/modelcontextprotocol/python-sdk/pull/401
 # https://github.com/modelcontextprotocol/python-sdk/pull/361
@@ -45,10 +46,13 @@ MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
 
 
 class MCPServerImpl(MCPServer):
-    def __init__(self, client: Callable[[], MCPServerContext], name: str) -> None:
+    def __init__(
+        self, client: Callable[[], MCPServerContext], *, name: str, events: bool
+    ) -> None:
         super().__init__()
         self._client = client
         self._name = name
+        self._events = events
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack | None = None
 
@@ -61,7 +65,7 @@ class MCPServerImpl(MCPServer):
             await self._exit_stack.__aenter__()
             read, write = await self._exit_stack.enter_async_context(self._client())
             self._session = await self._exit_stack.enter_async_context(
-                ClientSession(read, write)
+                ClientSession(read, write, sampling_callback=self._sampling_fn())
             )
             await self._session.initialize()
 
@@ -103,7 +107,7 @@ class MCPServerImpl(MCPServer):
                         if result.isError:
                             raise ToolError(tool_result_as_text(result.content))
 
-                        return tool_result_as_content_list(result.content)
+                        return [as_inspect_content(c) for c in result.content]
 
                 # get parameters (fill in missing ones)
                 parameters = ToolParams.model_validate(mcp_tool.inputSchema)
@@ -129,16 +133,28 @@ class MCPServerImpl(MCPServer):
             yield self._session
         else:
             async with self._client() as (read, write):
-                async with ClientSession(read, write) as session:
+                async with ClientSession(
+                    read, write, sampling_callback=self._sampling_fn()
+                ) as session:
                     await session.initialize()
                     yield session
+
+    def _sampling_fn(self) -> SamplingFnT | None:
+        from inspect_ai.model._model import active_model
+
+        if self._events and active_model() is not None:
+            return sampling_fn
+        else:
+            return None
 
     def __deepcopy__(self, memo: dict[int, Any]) -> "MCPServerImpl":
         if self._session is not None:
             raise RuntimeError(
                 "You cannot deepcopy an MCPServer with an active session."
             )
-        return MCPServerImpl(deepcopy(self._client), self._name)
+        return MCPServerImpl(
+            deepcopy(self._client), name=self._name, events=self._events
+        )
 
 
 def create_server_sse(
@@ -148,7 +164,9 @@ def create_server_sse(
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
     return MCPServerImpl(
-        lambda: sse_client(url, headers, timeout, sse_read_timeout), url
+        lambda: sse_client(url, headers, timeout, sse_read_timeout),
+        name=url,
+        events=True,
     )
 
 
@@ -171,7 +189,8 @@ def create_server_stdio(
                 encoding_error_handler=encoding_error_handler,
             )
         ),
-        " ".join([command] + args),
+        name=" ".join([command] + args),
+        events=True,
     )
 
 
@@ -188,20 +207,3 @@ def tool_result_as_text(
             content_list.append(c.resource.text)
 
     return "\n\n".join(content_list)
-
-
-def tool_result_as_content_list(
-    content: list[TextContent | ImageContent | EmbeddedResource],
-) -> list[Content]:
-    content_list: list[Content] = []
-    for c in content:
-        if isinstance(c, TextContent):
-            content_list.append(ContentText(text=c.text))
-        elif isinstance(c, ImageContent):
-            content_list.append(
-                ContentImage(image=f"data:image/{c.mimeType};base64,{c.data}")
-            )
-        elif isinstance(c.resource, TextResourceContents):
-            content_list.append(ContentText(text=c.resource.text))
-
-    return content_list

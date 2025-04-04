@@ -1,10 +1,13 @@
+import pytest
 from test_helpers.utils import (
     skip_if_no_mcp_fetch_package,
     skip_if_no_mcp_git_package,
+    skip_if_no_mcp_package,
     skip_if_no_openai,
 )
 
 from inspect_ai import Task, eval, task
+from inspect_ai._util.environ import environ_var
 from inspect_ai.agent._react import react
 from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
@@ -87,3 +90,31 @@ def test_react_mcp_context():
     log = eval(git_task_react_mcp_context(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+@skip_if_no_mcp_package
+async def test_mcp_sampling_fn():
+    from mcp.types import CreateMessageRequestParams, SamplingMessage, TextContent
+
+    from inspect_ai.tool._mcp.sampling import sampling_fn
+
+    with environ_var("INSPECT_EVAL_MODEL", "openai/gpt-4o"):
+        result = await sampling_fn(
+            None,
+            CreateMessageRequestParams(
+                messages=[
+                    SamplingMessage(
+                        role="user",
+                        content=TextContent(type="text", text="What color is the sky?"),
+                    )
+                ],
+                systemPrompt="You are a helpful assistant.",
+                temperature=0.8,
+                maxTokens=2048,
+            ),
+        )
+        assert result.role == "assistant"
+        assert isinstance(result.content, TextContent)
+        assert "sky" in result.content.text
