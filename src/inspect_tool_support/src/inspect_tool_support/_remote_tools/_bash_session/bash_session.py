@@ -5,10 +5,10 @@ This is because the API supports a `restart` command which is implemented by kil
 
 import asyncio
 
-from inspect_tool_support._remote_tools._bash_session.bash_process import (
-    BashProcess,
+from inspect_tool_support._remote_tools._bash_session._timeout_params import (
     InteractiveParams,
 )
+from inspect_tool_support._remote_tools._bash_session.bash_process import BashProcess
 from inspect_tool_support._remote_tools._bash_session.tool_types import (
     BashCommandResult,
     BashRestartResult,
