@@ -13,6 +13,7 @@ from openai import (
     AsyncOpenAI,
     BadRequestError,
     RateLimitError,
+    UnprocessableEntityError,
 )
 from openai._types import NOT_GIVEN
 from openai.types.chat import ChatCompletion
@@ -295,13 +296,13 @@ class OpenAIAPI(ModelAPI):
                     else None
                 ),
             ), model_call()
-        except BadRequestError as e:
+        except (BadRequestError, UnprocessableEntityError) as e:
             return self.handle_bad_request(e), model_call()
 
     def on_response(self, response: dict[str, Any]) -> None:
         pass
 
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         return openai_handle_bad_request(self.model_name, ex)
 
     def _chat_choices_from_response(

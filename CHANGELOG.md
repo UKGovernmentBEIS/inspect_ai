@@ -1,3 +1,7 @@
+## Future
+
+- Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
+
 ## Unreleased
 
 - [Agent](https://inspect.aisi.org.uk/agent-protocol.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
