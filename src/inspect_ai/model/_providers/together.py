@@ -116,7 +116,13 @@ class TogetherAIAPI(OpenAIAPI):
                 model=self.model_name, content=content, stop_reason="model_length"
             )
         else:
-            return ex
+    @override
+    def set_logprobs_params(
+        self, params: dict[str, Any], config: GenerateConfig
+    ) -> dict[str, Any]:
+        if config.logprobs is True:
+            params["logprobs"] = 1
+        return params
 
     # Together has a slightly different logprobs structure to OpenAI, so we need to remap it.
     def _chat_choices_from_response(
