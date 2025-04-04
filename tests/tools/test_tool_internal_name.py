@@ -29,7 +29,7 @@ def test_anthropic_internal_tool_name():
     # tool call was mapped to bash_session and internal_name "bash was tracked"
     def check_tool_call(tool_call: Any) -> None:
         assert tool_call.function == "bash_session"
-        assert tool_call.internal_name == "bash"
+        assert tool_call.internal == "bash"
 
     # check tool call in assistant message
     assistant_message = log.samples[0].messages[1]
@@ -51,7 +51,7 @@ def test_anthropic_internal_tool_name():
         (event for event in log.samples[0].events if event.event == "tool")
     )
     assert tool_event.function == "bash_session"
-    assert tool_event.internal_name == "bash"
+    assert tool_event.internal == "bash"
 
     # check tool call in tool message
     tool_message = log.samples[0].messages[2]

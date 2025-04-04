@@ -22,7 +22,7 @@ def think(
     async def execute(thought: str) -> str:
         """Use the tool to think about something.
 
-        The will not obtain new information or change the environment, but just append the thought to the log. Use it when complex reasoning or some cache memory is needed."
+        The will not obtain new information or change the environment, but just append the thought to the log. Use it when complex reasoning or some cache memory is needed.
 
         Args:
             thought: A thought to think about.

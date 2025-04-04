@@ -9,6 +9,7 @@
 - Model API: New [execute_tools()](https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools) function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
 - Model API: `generate_loop()` method for calling generate with a tool use loop.
 - Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
+- Together AI: Updated `logprobs` to pass `1` rather than `True` (protocol change).
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
 - Computer Tool: Support for use of the native Open AI computer tool (available in the model `openai/computer-use-preview`)
 - Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
@@ -38,6 +39,7 @@
 - Bugfix: Correctly handle custom `api_version` model argument for OpenAI on Azure.
 - Bugfix: Correct handling for `None` passed to tool call by model for optional parameters.
 - Bugfix: Cleanup automatically created `.compose.yml` when not in working directory.
+- Bugfix: Prevent exception when navigating to sample that no longer exists in running samples display.
 
 ## v0.3.82 (02 April 2025)
 
