@@ -301,10 +301,10 @@ def test_react_agent_on_continue_func():
 @scorer(metrics=[accuracy()])
 def compare_quantities():
     async def score(state: TaskState, target: Target) -> Score:
-        answer = float(state.output.completion)
+        answer = float(state.answer)
         target_value = float(target.text)
         if answer == target_value:
-            return Score(value=1.0, answer=state.output.completion)
+            return Score(value=1.0, answer=state.answer)
         elif answer > target_value:
             return Score(
                 value=0.0,
