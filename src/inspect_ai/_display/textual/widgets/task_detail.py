@@ -10,8 +10,6 @@ from textual.widgets import Static
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 
-OPEN_VIEWER_LINK_ID = "open-log-viewer"
-
 
 @dataclass
 class TaskMetric:
@@ -32,12 +30,6 @@ class TaskDetail(Widget):
         width: 100%;
         height: auto;
         grid-gutter: 1 3;
-    }
-    TaskDetail .section_title {
-        text-style: bold underline;
-    }
-    TaskDetail .inset {
-        padding: 0 0 1 2;
     }
     """
 
