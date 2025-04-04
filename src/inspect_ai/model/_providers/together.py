@@ -116,6 +116,8 @@ class TogetherAIAPI(OpenAIAPI):
                 model=self.model_name, content=content, stop_reason="model_length"
             )
         else:
+            return ex
+
     @override
     def set_logprobs_params(
         self, params: dict[str, Any], config: GenerateConfig
