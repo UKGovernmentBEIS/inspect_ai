@@ -30,6 +30,10 @@ from inspect_ai.tool._tool_params import ToolParams
 
 from ._types import MCPServer
 
+# https://github.com/modelcontextprotocol/python-sdk/pull/401
+# https://github.com/modelcontextprotocol/python-sdk/pull/361
+# https://github.com/modelcontextprotocol/python-sdk/pull/289
+
 logger = getLogger(__name__)
 
 MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
