@@ -86,12 +86,13 @@ async def _openai_input_item_from_chat_message(
     elif message.role == "assistant":
         return _openai_input_items_from_chat_message_assistant(message)
     elif message.role == "tool":
-        internal = _model_tool_call_for_internal(message.internal)
+        if message.internal:
+            internal = _model_tool_call_for_internal(message.internal)
+            if internal.type == "computer_call":
+                return [computer_call_output(message, internal)]
 
         return [
-            computer_call_output(message, internal)
-            if internal.type == "computer_call"
-            else FunctionCallOutput(
+            FunctionCallOutput(
                 type="function_call_output",
                 call_id=message.tool_call_id or str(message.function),
                 output=message.error.message
@@ -381,13 +382,26 @@ def _maybe_native_tool_param(
 def _tool_call_items_from_assistant_message(
     message: ChatMessageAssistant,
 ) -> list[ResponseInputItemParam]:
-    return [
-        cast(
-            _ResponseToolCallParam,
-            _model_tool_call_for_internal(call.internal).model_dump(),
-        )
-        for call in message.tool_calls or []
-    ]
+    tool_calls: list[ResponseInputItemParam] = []
+    for call in message.tool_calls or []:
+        if isinstance(call.internal, dict):
+            tool_calls.append(
+                cast(
+                    _ResponseToolCallParam,
+                    _model_tool_call_for_internal(call.internal).model_dump(),
+                )
+            )
+        else:
+            tool_calls.append(
+                ResponseFunctionToolCallParam(
+                    type="function_call",
+                    call_id=call.id,
+                    name=call.function,
+                    arguments=call.function,
+                )
+            )
+
+    return tool_calls
 
 
 def _ids_from_assistant_internal(
