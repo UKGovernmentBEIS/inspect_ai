@@ -48,6 +48,8 @@ from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
+from inspect_ai.util._counter import get_scoped_model_usage, record_model_usage_tree
+from inspect_ai.util._limit import SampleLimitExceededError, check_token_limit
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._call_tools import (
@@ -1362,7 +1364,6 @@ def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
         active_sample_message_limit,
         set_active_sample_total_messages,
     )
-    from inspect_ai.solver._limit import SampleLimitExceededError
 
     total_messages = 1 if isinstance(input, str) else len(input)
     message_limit = active_sample_message_limit()
@@ -1376,24 +1377,11 @@ def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
     set_active_sample_total_messages(total_messages)
 
 
-def init_model_usage() -> None:
-    model_usage_context_var.set({})
-
-
-def init_sample_model_usage() -> None:
-    sample_model_usage_context_var.set({})
-
-
 def record_model_usage(model: str, usage: ModelUsage) -> None:
-    from inspect_ai.log._samples import (
-        active_sample_token_limit,
-        set_active_sample_total_tokens,
-    )
-    from inspect_ai.solver._limit import SampleLimitExceededError
+    from inspect_ai.log._samples import set_active_sample_total_tokens
 
     # record usage
-    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
-    set_model_usage(model, usage, model_usage_context_var.get(None))
+    record_model_usage_tree(model, usage)
 
     # compute total tokens
     total_tokens = sample_total_tokens()
@@ -1401,13 +1389,7 @@ def record_model_usage(model: str, usage: ModelUsage) -> None:
     # update active sample
     set_active_sample_total_tokens(total_tokens)
 
-    # check for token limit overflow and raise
-    token_limit = active_sample_token_limit()
-    if token_limit is not None:
-        if total_tokens > token_limit:
-            raise SampleLimitExceededError(
-                "token", value=total_tokens, limit=token_limit
-            )
+    check_token_limit()
 
 
 def set_model_usage(
@@ -1436,24 +1418,10 @@ def set_model_usage(
         model_usage[model] = total_usage
 
 
-def model_usage() -> dict[str, ModelUsage]:
-    return model_usage_context_var.get()
-
-
-model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
-    "model_usage", default={}
-)
-
-
 def sample_model_usage() -> dict[str, ModelUsage]:
-    return sample_model_usage_context_var.get()
+    return get_scoped_model_usage("sample")
 
 
 def sample_total_tokens() -> int:
     total_tokens = [usage.total_tokens for usage in iter(sample_model_usage().values())]
     return sum(total_tokens)
-
-
-sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
-    "sample_model_usage", default={}
-)

@@ -43,11 +43,11 @@ from inspect_ai.model import (
     Model,
     ModelName,
 )
-from inspect_ai.model._model import model_usage
 from inspect_ai.scorer._metric import MetricSpec
 from inspect_ai.scorer._scorer import ScorerSpec
 from inspect_ai.solver._plan import Plan
 from inspect_ai.solver._solver import Solver, SolverSpec
+from inspect_ai.util._counter import assert_top_stack_node, get_model_usage
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
@@ -277,7 +277,9 @@ async def log_start(
 def collect_eval_data(stats: EvalStats) -> None:
     # collect stats
     stats.completed_at = iso_now()
-    stats.model_usage = model_usage()
+    stats.model_usage = get_model_usage()
+    # TODO: Debug only - remove.
+    assert_top_stack_node("task")
 
 
 def resolve_eval_metrics(

@@ -4,8 +4,8 @@ from inspect_ai.model import CachePolicy, GenerateConfig, Model
 from inspect_ai.model._cache import epoch
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.solver import TaskState
-from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.tool import ToolFunction
+from inspect_ai.util._limit import SampleLimitExceededError
 
 
 async def task_generate(

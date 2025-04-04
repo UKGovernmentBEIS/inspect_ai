@@ -2,6 +2,7 @@ from copy import copy
 from typing import Any
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.util._counter import model_usage_counter
 
 from ._agent import Agent, AgentState
 
@@ -33,4 +34,5 @@ async def run(
     state = AgentState(messages=input) if isinstance(input, list) else input
 
     # run the agent
-    return await agent(state, **agent_kwargs)
+    with model_usage_counter(scope="agent"):
+        return await agent(state, **agent_kwargs)
