@@ -34,6 +34,7 @@
 - Bugfix: Correctly handle custom `api_version` model argument for OpenAI on Azure.
 - Bugfix: Correct handling for `None` passed to tool call by model for optional parameters.
 - Bugfix: Cleanup automatically created `.compose.yml` when not in working directory.
+- Bugfix: Prevent exception when navigating to sample that no longer exists in running samples display.
 
 ## v0.3.82 (02 April 2025)
 

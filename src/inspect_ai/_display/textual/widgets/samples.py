@@ -17,7 +17,7 @@ from textual.widgets import (
     OptionList,
     Static,
 )
-from textual.widgets.option_list import Option
+from textual.widgets.option_list import Option, OptionDoesNotExist
 
 from inspect_ai._display.textual.widgets.port_mappings import get_url
 from inspect_ai._util.format import format_progress_time
@@ -124,7 +124,7 @@ class SamplesList(OptionList):
     def set_samples(self, samples: list[ActiveSample]) -> None:
         # check for a highlighted sample (make sure we don't remove it)
         highlighted_id = (
-            self.get_option_at_index(self.highlighted).id
+            self.get_id_at_index(self.highlighted)
             if self.highlighted is not None
             else None
         )
@@ -179,10 +179,16 @@ class SamplesList(OptionList):
             self.scroll_to_highlight()
 
     def sample_for_highlighted(self, highlighted: int) -> ActiveSample | None:
-        highlighted_id = self.get_option_at_index(highlighted).id
+        highlighted_id = self.get_id_at_index(highlighted)
         if highlighted_id is not None:
             return sample_for_id(self.samples, highlighted_id)
         else:
+            return None
+
+    def get_id_at_index(self, index: int) -> str | None:
+        try:
+            return self.get_option_at_index(index).id
+        except OptionDoesNotExist:
             return None
 
 
