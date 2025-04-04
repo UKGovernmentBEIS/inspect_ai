@@ -13,6 +13,7 @@ from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
 from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai.tool._mcp._sandbox import sandbox_client
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
@@ -155,7 +156,7 @@ def create_server_sandbox(
     sandbox: str | None = None,
 ) -> MCPServer:
     return MCPServerImpl(
-        lambda: stdio_client(
+        lambda: sandbox_client(
             StdioServerParameters(
                 command=command,
                 args=args,

@@ -2,7 +2,7 @@ import abc
 from contextlib import _AsyncGeneratorContextManager
 from logging import getLogger
 from types import TracebackType
-from typing import Literal, TypeAlias
+from typing import Any, AsyncGenerator, Literal, TypeAlias
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp.types import JSONRPCMessage
@@ -17,6 +17,14 @@ MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
         MemoryObjectReceiveStream[JSONRPCMessage | Exception],
         MemoryObjectSendStream[JSONRPCMessage],
     ]
+]
+
+# TODO: Figure out if I can/should update MCPServerContext to be this
+MCPServerContextEric: TypeAlias = AsyncGenerator[
+    tuple[
+        MemoryObjectReceiveStream[JSONRPCMessage | Exception],
+        MemoryObjectSendStream[JSONRPCMessage],
+    ],
 ]
 
 
