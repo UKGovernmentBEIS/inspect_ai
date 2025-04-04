@@ -51,6 +51,7 @@ from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
+from inspect_ai.util._anyio import inner_exception
 
 from ._chat_message import (
     ChatMessage,
@@ -127,9 +128,15 @@ async def execute_tools(
             tool_exception: Exception | None = None
             try:
                 with track_store_changes():
-                    result, messages, output, agent = await call_tool(
-                        tdefs, message.text, call, conversation
-                    )
+                    try:
+                        result, messages, output, agent = await call_tool(
+                            tdefs, message.text, call, conversation
+                        )
+                    # unwrap exception group
+                    except Exception as ex:
+                        inner_ex = inner_exception(ex)
+                        raise inner_ex.with_traceback(inner_ex.__traceback__)
+
             except TimeoutError:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
@@ -610,7 +617,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         else:
             return input
     elif origin is Union or origin is types.UnionType:
-        if args[1] is type(None):
+        if args[1] is type(None) and input is not None:
             return tool_param(args[0], input)
         else:
             return input
