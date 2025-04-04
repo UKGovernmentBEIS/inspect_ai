@@ -44,6 +44,7 @@ async def run_human_agent_service(
     # set the answer if we have one
     if agent_state.answer is not None:
         state.output = ModelOutput.from_content("human_agent", agent_state.answer)
+        state.answer = agent_state.answer
 
     # return state
     return state

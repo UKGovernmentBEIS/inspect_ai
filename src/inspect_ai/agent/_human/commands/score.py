@@ -54,6 +54,7 @@ class ScoreCommand(HumanAgentCommand):
             if answer:
                 agent_state = deepcopy(self._state)
                 agent_state.output = ModelOutput.from_content("human_agent", answer)
+                agent_state.answer = agent_state.output.completion
                 result = await score(agent_state)
             else:
                 result = await score(self._state)
