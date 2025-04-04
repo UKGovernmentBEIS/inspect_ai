@@ -64,6 +64,9 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
             if agent_state.output:
                 state.output = agent_state.output
 
+            # update answer
+            state.answer = agent_state.answer
+
             return state
 
         # return solver
