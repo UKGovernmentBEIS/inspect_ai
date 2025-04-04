@@ -1,5 +1,6 @@
 interface SampleFooterProps {
   sampleCount: number;
+  totalSampleCount: number;
   running: boolean;
 }
 
@@ -9,6 +10,7 @@ import styles from "./SampleFooter.module.css";
 
 export const SampleFooter: FC<SampleFooterProps> = ({
   sampleCount,
+  totalSampleCount,
   running,
 }) => {
   return (
@@ -28,7 +30,11 @@ export const SampleFooter: FC<SampleFooterProps> = ({
           </div>
         ) : undefined}
       </div>
-      <div>{sampleCount} Samples</div>
+      <div>
+        {sampleCount < totalSampleCount
+          ? `${sampleCount} / ${totalSampleCount} Samples`
+          : `${sampleCount} Samples`}
+      </div>
     </div>
   );
 };

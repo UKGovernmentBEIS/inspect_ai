@@ -72,6 +72,7 @@ export const App: FC<AppProps> = ({ api }) => {
   );
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
   const loadLog = useStore((state) => state.logActions.loadLog);
+  const pollLog = useStore((state) => state.logActions.pollLog);
   const refreshLog = useStore((state) => state.logActions.refreshLog);
   const selectSample = useStore((state) => state.logActions.selectSample);
 
@@ -101,6 +102,17 @@ export const App: FC<AppProps> = ({ api }) => {
 
     loadSpecificLog();
   }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus]);
+
+  useEffect(() => {
+    // If the component re-mounts and there is a running load loaded
+    // start up polling
+    const doPoll = async () => {
+      await pollLog();
+    };
+    if (selectedLogSummary?.status === "started") {
+      doPoll();
+    }
+  }, []);
 
   useEffect(() => {
     if (logs.log_dir && logs.files.length === 0) {

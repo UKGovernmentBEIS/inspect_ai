@@ -23,6 +23,11 @@ export interface SampleSlice {
       logFile: string,
       sampleSummary: SampleSummary,
     ) => Promise<void>;
+
+    pollSample: (
+      logFile: string,
+      sampleSummary: SampleSummary,
+    ) => Promise<void>;
   };
 }
 
@@ -68,6 +73,14 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.sampleError = error;
         }),
+      pollSample: async (logFile: string, sampleSummary: SampleSummary) => {
+        // Poll running sample
+        const state = get();
+        if (state.log.loadedLog && state.sample.selectedSample) {
+          samplePolling.startPolling(logFile, sampleSummary);
+          state.sampleActions.setSampleStatus("streaming");
+        }
+      },
       loadSample: async (logFile: string, sampleSummary: SampleSummary) => {
         const sampleActions = get().sampleActions;
 
