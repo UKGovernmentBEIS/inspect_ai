@@ -19571,7 +19571,7 @@ span.ap-marker-container:hover span.ap-marker {
   font-weight: 600;
   border-bottom: solid 1px var(--bs-border-color);
 }
-._footer_symcv_1 {
+._footer_vkofn_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   background: var(--bs-light-bg-subtle);
   display: grid;
@@ -19581,22 +19581,23 @@ span.ap-marker-container:hover span.ap-marker {
   padding: 0.2em 1em;
 }
 
-._spinnerContainer_symcv_11 {
+._spinnerContainer_vkofn_11 {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 0.3em;
   padding-top: 0.2em;
 }
 
-._spinner_symcv_11 {
+._spinner_vkofn_11 {
   height: 11px;
   width: 11px;
   color: var(--bs-secondary);
   border-width: 1px;
 }
 
-._label_symcv_25 {
-  margin-top: -4px;
+._label_vkofn_25 {
+  margin-left: 0.1em;
+  margin-top: -3px;
 }
 ._header_16ngy_1 {
   display: grid;

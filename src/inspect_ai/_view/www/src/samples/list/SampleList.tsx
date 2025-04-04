@@ -29,6 +29,7 @@ const kSeparatorHeight = 24;
 
 interface SampleListProps {
   items: ListItem[];
+  totalItemCount: number;
   running: boolean;
   nextSample: () => void;
   prevSample: () => void;
@@ -37,9 +38,12 @@ interface SampleListProps {
   listHandle: RefObject<VirtuosoHandle | null>;
 }
 
+export const kSampleFollowProp = "sample-list";
+
 export const SampleList: FC<SampleListProps> = memo((props) => {
   const {
     items,
+    totalItemCount,
     running,
     nextSample,
     prevSample,
@@ -57,9 +61,13 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     (state) => state.log.selectedSampleIndex,
   );
   const samplesDescriptor = useSampleDescriptor();
-  const [followOutput, setFollowOutput] = useProperty("sample-list", "follow", {
-    defaultValue: false,
-  });
+  const [followOutput, setFollowOutput] = useProperty(
+    kSampleFollowProp,
+    "follow",
+    {
+      defaultValue: !!running,
+    },
+  );
 
   // Track whether we were previously running so we can
   // decide whether to pop up to the top
@@ -84,13 +92,15 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     prevRunningRef.current = running;
   }, [running, followOutput, listHandle]);
 
+  const loaded = useRef(false);
   const handleAtBottomStateChange = useCallback(
     (atBottom: boolean) => {
-      if (running) {
+      if (loaded.current && running) {
         setFollowOutput(atBottom);
       }
+      loaded.current = true;
     },
-    [running, setFollowOutput],
+    [running, setFollowOutput, followOutput],
   );
 
   const onkeydown = useCallback(
@@ -210,8 +220,11 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         data={items}
         defaultItemHeight={50}
         itemContent={renderRow}
-        followOutput={followOutput}
+        followOutput={(_atBottom: boolean) => {
+          return followOutput;
+        }}
         atBottomStateChange={handleAtBottomStateChange}
+        atBottomThreshold={30}
         increaseViewportBy={{ top: 300, bottom: 300 }}
         overscan={{
           main: 10,
@@ -223,7 +236,11 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         isScrolling={isScrolling}
         restoreStateFrom={getRestoreState()}
       />
-      <SampleFooter sampleCount={sampleCount} running={running} />
+      <SampleFooter
+        sampleCount={sampleCount}
+        totalSampleCount={totalItemCount}
+        running={running}
+      />
     </div>
   );
 });

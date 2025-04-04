@@ -25,6 +25,8 @@
 - Inspect View: Properly handle filtering of dictionary scores.
 - Inspect View: Render math in model input and output using katex.
 - Inspect View: Improve sample score rendering (single scoring tab with scores rendered in a table).
+- Inspect View: Improve sample count display in sample list footer.
+- Inspect View: Properly refresh running evals when restoring from being backgrounded.
 - Bugfix: Support for calling the `score()` function within Jupyter notebooks.
 - Bugfix: Handle process lookup errors that can occur during timeout race conditions.
 - Bugfix: Correctly capture and return logs from `eval()` when a cancellation occurs.
