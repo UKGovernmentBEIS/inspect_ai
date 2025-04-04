@@ -25,7 +25,14 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
   // Sample hooks
   const sampleData = useSampleData();
   const loadSample = useStore((state) => state.sampleActions.loadSample);
+  const pollSample = useStore((state) => state.sampleActions.pollSample);
   const logSelection = useLogSelection();
+
+  useEffect(() => {
+    if (sampleData.running && logSelection.logFile && logSelection.sample) {
+      pollSample(logSelection.logFile, logSelection.sample);
+    }
+  }, []);
 
   // Sample Loading
   const prevCompleted = usePrevious(

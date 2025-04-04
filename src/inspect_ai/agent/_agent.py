@@ -18,6 +18,7 @@ from inspect_ai._util.registry import (
     registry_info,
     registry_name,
     registry_tag,
+    set_registry_info,
 )
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -195,6 +196,52 @@ def agent(
         return create_agent_wrapper(func)
     else:
         return create_agent_wrapper
+
+
+def agent_with(
+    agent: Agent,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+) -> Agent:
+    """Agent with modifications to name and/or description
+
+    This function modifies the passed agent in place and
+    returns it. If you want to create multiple variations
+    of a single agent using `agent_with()` you should create
+    the underlying agent multiple times.
+
+    Args:
+       agent: Agent instance to modify.
+       name: Agent name (optional).
+       description: Agent description (optional).
+
+    Returns:
+       The passed agent with the requested modifications.
+    """
+    # resolve name and description
+    if is_registry_object(agent):
+        info = registry_info(agent)
+        name = name or info.name
+        description = description or info.metadata.get(AGENT_DESCRIPTION, None)
+
+    # if the name is null then raise
+    if name is None:
+        raise ValueError("You must provide a name to agent_with")
+
+    # now set registry info
+    set_registry_info(
+        agent,
+        RegistryInfo(
+            type="agent",
+            name=name,
+            metadata={AGENT_DESCRIPTION: description}
+            if description is not None
+            else {},
+        ),
+    )
+
+    return agent
 
 
 def agent_register(agent: Callable[P, Agent], name: str) -> Callable[P, Agent]:

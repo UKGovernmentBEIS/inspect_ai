@@ -58,10 +58,12 @@ class TaskScreenResult(Generic[TR]):
         value: TR | BaseException,
         tasks: list[TaskWithResult],
         output: list[str],
+        warnings: list[str],
     ) -> None:
         self.value = value
         self.tasks = tasks
         self.output = output
+        self.warnings = warnings
 
 
 class TaskScreenApp(App[TR]):
@@ -86,6 +88,7 @@ class TaskScreenApp(App[TR]):
         self._worker: Worker[TR] | None = None
         self._error: BaseException | None = None
         self._output: list[str] = []
+        self._warnings: list[str] = []
 
         # task screen
         self._total_tasks = 0
@@ -120,7 +123,12 @@ class TaskScreenApp(App[TR]):
             value = CancelledError()
 
         # return result w/ output
-        return TaskScreenResult(value=value, tasks=self._app_tasks, output=self._output)
+        return TaskScreenResult(
+            value=value,
+            tasks=self._app_tasks,
+            output=self._output,
+            warnings=self._warnings,
+        )
 
     async def on_load(self) -> None:
         # events used to synchronise loading
@@ -349,8 +357,11 @@ class TaskScreenApp(App[TR]):
         if text.endswith("\n"):
             text = text[:-1]
 
-        # track output (for printing at the end)
-        self._output.append(text)
+        # track output and warnings (for printing at the end)
+        if "WARNING" in text:
+            self._warnings.append(text)
+        else:
+            self._output.append(text)
 
         # write to console view
         self.query_one(ConsoleView).write_ansi(text)

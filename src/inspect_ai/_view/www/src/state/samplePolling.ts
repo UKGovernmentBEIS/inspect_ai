@@ -123,7 +123,10 @@ export function createSamplePolling(
 
         // Also fetch a fresh sample and clear the runnning Events
         // (if there were ever running events)
-        if (state.sample.runningEvents.length > 0) {
+        if (
+          state.sample.runningEvents.length > 0 ||
+          state.sample.sampleStatus === "streaming"
+        ) {
           try {
             log.debug(
               `LOADING COMPLETED SAMPLE AFTER FLUSH: ${summary.id}-${summary.epoch}`,

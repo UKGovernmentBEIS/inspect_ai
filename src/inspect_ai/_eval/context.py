@@ -7,8 +7,6 @@ from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log._samples import init_active_samples
 from inspect_ai.model import GenerateConfig, Model
 from inspect_ai.model._model import init_active_model, init_model_usage
-from inspect_ai.tool._mcp._types import MCPServer
-from inspect_ai.tool._mcp.tools import init_task_mcp_servers
 from inspect_ai.util._concurrency import init_concurrency
 from inspect_ai.util._subprocess import init_max_subprocesses
 
@@ -31,10 +29,8 @@ def init_task_context(
     model: Model,
     approval: list[ApprovalPolicy] | None = None,
     config: GenerateConfig = GenerateConfig(),
-    mcp_servers: dict[str, MCPServer] | None = None,
 ) -> None:
     init_active_model(model, config)
     init_model_usage()
     if not have_tool_approval():
         init_tool_approval(approval)
-    init_task_mcp_servers(mcp_servers or {})

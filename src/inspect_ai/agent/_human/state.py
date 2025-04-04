@@ -1,4 +1,4 @@
-from time import time as current_time
+import time as python_time
 
 from pydantic import BaseModel, Field
 
@@ -25,7 +25,7 @@ class HumanAgentState(StoreModel):
         """Set current running state."""
         # if we are flipping to running mode then update started running
         if not self.running_state and running:
-            self.started_running = current_time()
+            self.started_running = python_time.time()
 
         # if we are exiting running mode then update accumulated time
         if self.running_state and not running:
@@ -37,7 +37,7 @@ class HumanAgentState(StoreModel):
     @property
     def time(self) -> float:
         """Total time spend on task."""
-        running_time = current_time() - self.started_running if self.running else 0
+        running_time = python_time.time() - self.started_running if self.running else 0
         return self.accumulated_time + running_time
 
     scorings: list[IntermediateScoring] = Field(default_factory=list)
@@ -51,5 +51,5 @@ class HumanAgentState(StoreModel):
 
     # internal state variables used by running and time properties
     running_state: bool = Field(default=False)
-    started_running: float = Field(default_factory=current_time)
+    started_running: float = Field(default_factory=python_time.time)
     accumulated_time: float = Field(default=0.0)

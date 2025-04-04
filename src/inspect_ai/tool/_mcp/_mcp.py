@@ -2,53 +2,68 @@ import contextlib
 from contextlib import AsyncExitStack
 from copy import deepcopy
 from fnmatch import fnmatch
+from logging import getLogger
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Literal
 
-from mcp.client.session import ClientSession
+from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
 from mcp.types import EmbeddedResource, ImageContent, TextContent, TextResourceContents
 from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
-from inspect_ai._util.content import Content, ContentImage, ContentText
+from inspect_ai._util.trace import trace_action
 from inspect_ai.tool._mcp._sandbox import sandbox_client
+from inspect_ai.tool._mcp.sampling import as_inspect_content
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 
 from ._types import MCPServer, MCPServerContext
+from .sampling import sampling_fn
+
+# https://github.com/modelcontextprotocol/python-sdk/pull/401
+# https://github.com/modelcontextprotocol/python-sdk/pull/361
+# https://github.com/modelcontextprotocol/python-sdk/pull/289
+
+logger = getLogger(__name__)
 
 
 class MCPServerImpl(MCPServer):
-    def __init__(self, client: Callable[[], MCPServerContext]) -> None:
+    def __init__(
+        self, client: Callable[[], MCPServerContext], *, name: str, events: bool
+    ) -> None:
         super().__init__()
         self._client = client
+        self._name = name
+        self._events = events
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack | None = None
 
     @override
     async def _connect(self) -> None:
-        assert self._session is None
-        assert self._exit_stack is None
-        self._exit_stack = AsyncExitStack()
-        await self._exit_stack.__aenter__()
-        read, write = await self._exit_stack.enter_async_context(self._client())
-        self._session = await self._exit_stack.enter_async_context(
-            ClientSession(read, write)
-        )
-        await self._session.initialize()
+        with trace_action(logger, "MCPServer", f"connect: {self._name}"):
+            assert self._session is None
+            assert self._exit_stack is None
+            self._exit_stack = AsyncExitStack()
+            await self._exit_stack.__aenter__()
+            read, write = await self._exit_stack.enter_async_context(self._client())
+            self._session = await self._exit_stack.enter_async_context(
+                ClientSession(read, write, sampling_callback=self._sampling_fn())
+            )
+            await self._session.initialize()
 
     @override
     async def _close(self) -> None:
-        assert self._session is not None
-        assert self._exit_stack is not None
-        try:
-            await self._exit_stack.aclose()
-        finally:
-            self._session = None
-            self._exit_stack = None
+        with trace_action(logger, "MCPServer", f"disconnect: {self._name}"):
+            assert self._session is not None
+            assert self._exit_stack is not None
+            try:
+                await self._exit_stack.aclose()
+            finally:
+                self._session = None
+                self._exit_stack = None
 
     async def _list_tools(
         self, tools: Literal["all"] | list[str] = "all"
@@ -77,7 +92,7 @@ class MCPServerImpl(MCPServer):
                         if result.isError:
                             raise ToolError(tool_result_as_text(result.content))
 
-                        return tool_result_as_content_list(result.content)
+                        return [as_inspect_content(c) for c in result.content]
 
                 # get parameters (fill in missing ones)
                 parameters = ToolParams.model_validate(mcp_tool.inputSchema)
@@ -103,16 +118,28 @@ class MCPServerImpl(MCPServer):
             yield self._session
         else:
             async with self._client() as (read, write):
-                async with ClientSession(read, write) as session:
+                async with ClientSession(
+                    read, write, sampling_callback=self._sampling_fn()
+                ) as session:
                     await session.initialize()
                     yield session
+
+    def _sampling_fn(self) -> SamplingFnT | None:
+        from inspect_ai.model._model import active_model
+
+        if self._events and active_model() is not None:
+            return sampling_fn
+        else:
+            return None
 
     def __deepcopy__(self, memo: dict[int, Any]) -> "MCPServerImpl":
         if self._session is not None:
             raise RuntimeError(
                 "You cannot deepcopy an MCPServer with an active session."
             )
-        return MCPServerImpl(deepcopy(self._client))
+        return MCPServerImpl(
+            deepcopy(self._client), name=self._name, events=self._events
+        )
 
 
 def create_server_sse(
@@ -121,7 +148,11 @@ def create_server_sse(
     timeout: float = 5,
     sse_read_timeout: float = 60 * 5,
 ) -> MCPServer:
-    return MCPServerImpl(lambda: sse_client(url, headers, timeout, sse_read_timeout))
+    return MCPServerImpl(
+        lambda: sse_client(url, headers, timeout, sse_read_timeout),
+        name=url,
+        events=True,
+    )
 
 
 def create_server_stdio(
@@ -142,7 +173,9 @@ def create_server_stdio(
                 encoding=encoding,
                 encoding_error_handler=encoding_error_handler,
             )
-        )
+        ),
+        name=" ".join([command] + args),
+        events=True,
     )
 
 
@@ -164,8 +197,11 @@ def create_server_sandbox(
                 env=env,
                 encoding=encoding,
                 encoding_error_handler=encoding_error_handler,
-            )
-        )
+            ),
+            sandbox,
+        ),
+        name=" ".join([command] + args),
+        events=False,
     )
 
 
@@ -182,20 +218,3 @@ def tool_result_as_text(
             content_list.append(c.resource.text)
 
     return "\n\n".join(content_list)
-
-
-def tool_result_as_content_list(
-    content: list[TextContent | ImageContent | EmbeddedResource],
-) -> list[Content]:
-    content_list: list[Content] = []
-    for c in content:
-        if isinstance(c, TextContent):
-            content_list.append(ContentText(text=c.text))
-        elif isinstance(c, ImageContent):
-            content_list.append(
-                ContentImage(image=f"data:image/{c.mimeType};base64,{c.data}")
-            )
-        elif isinstance(c.resource, TextResourceContents):
-            content_list.append(ContentText(text=c.resource.text))
-
-    return content_list

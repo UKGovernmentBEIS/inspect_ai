@@ -11,6 +11,7 @@
 - Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
 - Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
+- Together AI: Updated `logprobs` to pass `1` rather than `True` (protocol change).
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
 - Computer Tool: Support for use of the native Open AI computer tool (available in the model `openai/computer-use-preview`)
 - Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
@@ -22,6 +23,7 @@
 - Sandbox: New `sandbox_default()` context manager for temporarily changing the default sandbox.
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
+- Display: Print warnings after task summaries for improved visibility.
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
@@ -31,11 +33,15 @@
 - Inspect View: Properly handle filtering of dictionary scores.
 - Inspect View: Render math in model input and output using katex.
 - Inspect View: Improve sample score rendering (single scoring tab with scores rendered in a table).
+- Inspect View: Improve sample count display in sample list footer.
+- Inspect View: Properly refresh running evals when restoring from being backgrounded.
 - Bugfix: Support for calling the `score()` function within Jupyter notebooks.
 - Bugfix: Handle process lookup errors that can occur during timeout race conditions.
 - Bugfix: Correctly capture and return logs from `eval()` when a cancellation occurs.
 - Bugfix: Correctly handle custom `api_version` model argument for OpenAI on Azure.
+- Bugfix: Correct handling for `None` passed to tool call by model for optional parameters.
 - Bugfix: Cleanup automatically created `.compose.yml` when not in working directory.
+- Bugfix: Prevent exception when navigating to sample that no longer exists in running samples display.
 
 ## v0.3.82 (02 April 2025)
 
