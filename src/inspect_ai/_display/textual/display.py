@@ -42,6 +42,10 @@ class TextualDisplay(Display):
         # print tasks
         rich.print(tasks_results(result.tasks))
 
+        # print warnings
+        if result.warnings:
+            print("\n".join(result.warnings))
+
         # raise error as required
         if isinstance(result.value, BaseException):
             raise result.value

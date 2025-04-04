@@ -16,6 +16,7 @@
 - Sandbox: New `sandbox_default()` context manager for temporarily changing the default sandbox.
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
+- Display: Print warnings after task summaries for improved visibility.
 - Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
