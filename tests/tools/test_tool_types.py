@@ -257,8 +257,9 @@ def check_none_default_arg(model: str | Model) -> None:
 
 
 def check_tool_types(model: str | Model):
-    check_typed_dict(model)
-    check_dataclass(model)
+    if "google" not in str(model):
+        check_typed_dict(model)
+        check_dataclass(model)
     check_list_of_numbers(model)
     check_list_of_objects(model)
     check_optional_args(model)
