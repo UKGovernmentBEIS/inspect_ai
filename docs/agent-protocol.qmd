@@ -4,14 +4,6 @@ title: Agent Protocol
 
 ## Overview
 
-::: callout-note
-The Inspect agent protocol described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The Inspect `Agent` protocol enables the creation of agent components that can be flexibly used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:
 
 1.  Used as a top-level `Solver` for a task
