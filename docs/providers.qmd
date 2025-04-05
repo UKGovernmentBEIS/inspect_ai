@@ -479,8 +479,7 @@ The following environment variables are supported by the vLLM provider:
 |----------------------------|--------------------------------------------|
 | `VLLM_BASE_URL` | Base URL for requests (optional, defaults to the server started by Inspect) |
 | `VLLM_API_KEY` | API key for the vLLM server (optional, defaults to "local") |
-| `VLLM_SERVER_ARGS` | JSON string of default server args (e.g., '{"tensor_parallel_size": 4, "max_model_len": 8192}') |
-| `VLLM_CONFIGURE_LOGGING` | Enable fine-grained vLLM logging ("1", "true", or "yes" to enable) |
+| `VLLM_DEFAULT_SERVER_ARGS` | JSON string of default server args (e.g., '{"tensor_parallel_size": 4, "max_model_len": 8192}') |
 
 You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/stable/getting_started/quickstart.html) for details on this.
 
@@ -545,7 +544,7 @@ The following environment variables are supported by the SGLang provider:
 |----------------------------|--------------------------------------------|
 | `SGLANG_BASE_URL` | Base URL for requests (optional, defaults to the server started by Inspect) |
 | `SGLANG_API_KEY` | API key for the SGLang server (optional, defaults to "local") |
-| `SGLANG_SERVER_ARGS` | JSON string of default server args (e.g., '{"tp": 4, "max_model_len": 8192}') |
+| `SGLANG_DEFAULT_SERVER_ARGS` | JSON string of default server args (e.g., '{"tp": 4, "max_model_len": 8192}') |
 
 SGLang is a fast and efficient language model server that supports a variety of model architectures and configurations. Its usage in Inspect is almost identical to the [vLLM provider](#vllm). You can either let Inspect start and stop the server for you, or start the server manually and then connect to it:
 
