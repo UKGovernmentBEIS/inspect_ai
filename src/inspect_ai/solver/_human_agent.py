@@ -40,7 +40,7 @@ def human_agent(
 
     warn_once(
         logger,
-        "The human_agent solver is deprecated. Please use the human_cli solver from the agents module instead.",
+        "The human_agent solver is deprecated. Please use the human_cli agent from the agents module instead.",
     )
 
     return as_solver(

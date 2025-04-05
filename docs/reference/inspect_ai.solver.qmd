@@ -20,7 +20,6 @@ title: "inspect_ai.solver"
 ## Agents
 
 ### basic_agent
-### bridge
 
 ## Composition
 
