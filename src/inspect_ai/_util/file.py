@@ -322,6 +322,19 @@ def absolute_file_path(file: str) -> str:
     return file
 
 
+def to_uri(path_or_uri: str) -> str:
+    # Check if it's already a URI
+    parsed = urlparse(path_or_uri)
+
+    if parsed.scheme:
+        # Already has a scheme, return as is
+        return path_or_uri
+
+    # It's a file path, convert to URI
+    path_obj = Path(path_or_uri).absolute()
+    return path_obj.as_uri()
+
+
 def default_fs_options(file: str) -> dict[str, Any]:
     scheme = urlparse(file).scheme
     if (
