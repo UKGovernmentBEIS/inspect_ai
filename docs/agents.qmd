@@ -4,7 +4,30 @@ title: Agent Basics
 
 ::: {.hidden}
 
+# Using Agents
 
+## Overview
+    - prebuilt
+    - custom
+    - bridge
+    - human
+
+## React Agent
+
+# Multi Agent
+
+# Custom Agents
+
+## Protocol
+## Tool Loop
+## Store
+## Transcript
+## Subtasks
+## Parameters
+
+# Agent Bridge
+
+# Human Agent
 
 :::
 
