@@ -133,11 +133,11 @@ Note that not all model providers support all of these options. In particular, o
 You should therefore never assume that specifying `strict` gets your scorer off the hook for parsing and validating the model output as some models won't respect `strict`. Using `strict` may also impact task performance---as always it's best to experiment and measure!
 
 
-## vLLM/SGLang Server
+## vLLM/SGLang API
 
-The vLLM and SGLang providers support structured output from json schemas as above, as well as in the choice, regex, and context free grammar formats. See the docs for [vLLM](https://docs.vllm.ai/en/latest/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for more details on how to use these formats.
+The vLLM and SGLang providers support structured output from json schemas as above, as well as in the choice, regex, and context free grammar formats. See the docs for [vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html) and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for more details on how to use these formats.
 
-For example, to use the guided choice decoding, you can do the following:
+For example, to use guided choice decoding, you can do the following:
 
 ```python
 from inspect_ai.model import GenerateConfig, GuidedDecodingConfig
@@ -149,7 +149,7 @@ config = GenerateConfig(
 )
 ```
 
-To use the guided regex decoding, you can do the following:
+To use guided regex decoding, you can do the following:
 
 ```python
 config = GenerateConfig(
@@ -159,7 +159,7 @@ config = GenerateConfig(
 )
 ```
 
-To use the guided context free grammar decoding, you can do the following:
+To use guided context free grammar decoding, you can do the following:
 
 ```python
 grammar = """
