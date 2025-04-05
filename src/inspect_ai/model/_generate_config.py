@@ -25,6 +25,115 @@ class ResponseSchema(BaseModel):
     OpenAI and Mistral only."""
 
 
+class StructureDefinition(BaseModel):
+    """Definition of a structural tag format."""
+
+    begin: str
+    """The opening tag that marks the beginning of the structure."""
+
+    json_schema: JSONSchema = Field(serialization_alias="schema")
+    """The JSON schema that defines the structure's format."""
+
+    end: str
+    """The closing tag that marks the end of the structure."""
+
+
+class StructuralTagConfig(BaseModel):
+    """Configuration for structural tags."""
+
+    structures: list[StructureDefinition]
+    """List of structure definitions."""
+
+    triggers: list[str]
+    """List of trigger strings that indicate a structural tag."""
+
+
+class GuidedDecodingConfig(BaseModel):
+    r"""Configuration for guided decoding in vLLM and SGLang.
+
+    Examples:
+        Using JSON schema:
+            ```python
+            config = GenerateConfig(
+                guided_decoding=GuidedDecodingConfig(
+                    json_schema=ResponseSchema(
+                        name="person",
+                        json_schema=JSONSchema(type="object", properties={
+                            "name": {"type": "string"},
+                            "age": {"type": "integer"}
+                        })
+                    )
+                )
+            )
+            ```
+
+        Using regex:
+            ```python
+            config = GenerateConfig(
+                guided_decoding=GuidedDecodingConfig(
+                    regex=r"[A-Z][a-z]+ [A-Z][a-z]+"
+                )
+            )
+            ```
+
+        Using grammar:
+            ```python
+            config = GenerateConfig(
+                guided_decoding=GuidedDecodingConfig(
+                    grammar="root ::= object\nobject ::= '{' members '}'\nmembers ::= pair (',' pair)*\npair ::= string ':' value"
+                )
+            )
+            ```
+
+        Using structural tags:
+            ```python
+            config = GenerateConfig(
+                guided_decoding=GuidedDecodingConfig(
+                    structural_tags=StructuralTagConfig(
+                        structures=[
+                            StructureDefinition(
+                                begin="<code>",
+                                json_schema=JSONSchema(type="string"),
+                                end="</code>"
+                            )
+                        ],
+                        triggers=["<code>"]
+                    )
+                )
+            )
+            ```
+    """
+
+    json_schema: ResponseSchema | None = Field(
+        default=None, alias="json", serialization_alias="guided_json"
+    )
+    """JSON schema to guide the model's output format."""
+
+    regex: str | None = Field(default=None, serialization_alias="guided_regex")
+    """Regular expression to constrain the model's output format."""
+
+    choice: list[str] | None = Field(default=None, serialization_alias="guided_choice")
+    """List of possible choices the model can output."""
+
+    grammar: str | None = Field(default=None, serialization_alias="guided_grammar")
+    """Context-free grammar in EBNF format to define the output structure."""
+
+    structural_tags: StructuralTagConfig | None = Field(
+        default=None, serialization_alias="structural_tags"
+    )
+    """Configuration for structural tags to guide the model's output format."""
+
+    backend: Literal["outlines", "lm-format-enforcer", "xgrammar"] | None = Field(
+        default=None, serialization_alias="guided_decoding_backend"
+    )
+    """Backend implementation to use for guided decoding."""
+
+    whitespace_pattern: str | None = Field(
+        default=None, serialization_alias="guided_whitespace_pattern"
+    )
+    """Pattern to use for whitespace handling in guided json decoding."""
+
+
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
 
@@ -102,6 +211,12 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
+
+    guided_decoding: GuidedDecodingConfig | None
+    """Configuration for guided decoding to control model output format. vLLM only."""
+
+    extra_body: dict[str, Any] | None
+    """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
 
 class GenerateConfig(BaseModel):
@@ -182,7 +297,13 @@ class GenerateConfig(BaseModel):
     """Include reasoning in chat message history sent to generate."""
 
     response_schema: ResponseSchema | None = Field(default=None)
-    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, and vLLM only."""
+
+    guided_decoding: GuidedDecodingConfig | None = Field(default=None)
+    """Configuration for guided decoding to control model output format. vLLM only."""
+
+    extra_body: dict[str, Any] | None = Field(default=None)
+    """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
