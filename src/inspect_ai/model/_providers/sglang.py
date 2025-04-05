@@ -1,6 +1,7 @@
 import atexit
 import os
 from logging import getLogger
+from subprocess import Popen
 from typing import Any
 
 from typing_extensions import override
@@ -62,12 +63,14 @@ class SGLangAPI(OpenAIAPI):
         else:
             base_url = model_base_url(base_url, SGLANG_BASE_URL)
 
-        self.server_process, self.port = None, port
+        self.server_process: Popen[str] | None = None
+        self.port: int | None = port
 
         # Default API key if not provided
-        if not api_key:
-            api_key = os.environ.get(SGLANG_API_KEY, "local")
-        self.api_key = api_key
+        if api_key is not None:
+            self.api_key: str = api_key
+        else:
+            self.api_key = str(os.environ.get(SGLANG_API_KEY, "local"))
 
         # If no base_url is provided, start a new server
         if not base_url:
@@ -102,7 +105,7 @@ class SGLangAPI(OpenAIAPI):
         """
         # Verify sglang package is installed since we're starting a server
         try:
-            import sglang  # noqa: F401
+            import sglang  # type: ignore  # noqa: F401
         except ImportError:
             raise pip_dependency_error("SGLang Server", ["sglang"])
 
@@ -158,7 +161,7 @@ class SGLangAPI(OpenAIAPI):
 
     def _cleanup_server(self) -> None:
         """Cleanup method to terminate server process when Python exits."""
-        if self.server_is_running:
+        if self.server_is_running and self.server_process is not None:
             logger.info("Cleaning up SGLang server")
             terminate_process(self.server_process)
             self.server_process, self.port = None, None

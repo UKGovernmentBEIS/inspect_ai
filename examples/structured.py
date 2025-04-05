@@ -4,12 +4,7 @@ from pydantic import BaseModel, ValidationError
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.model import (
-    GenerateConfig,
-    GuidedDecodingConfig,
-    ResponseSchema,
-    get_model,
-)
+from inspect_ai.model import GenerateConfig, GuidedDecodingConfig, ResponseSchema
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,

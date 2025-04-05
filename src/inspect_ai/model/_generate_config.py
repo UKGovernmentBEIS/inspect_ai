@@ -49,7 +49,7 @@ class StructuralTagConfig(BaseModel):
 
 
 class GuidedDecodingConfig(BaseModel):
-    """Configuration for guided decoding in vLLM and SGLang.
+    r"""Configuration for guided decoding in vLLM and SGLang.
 
     Examples:
         Using JSON schema:

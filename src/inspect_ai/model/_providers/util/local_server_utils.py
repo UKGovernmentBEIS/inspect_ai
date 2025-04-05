@@ -59,7 +59,7 @@ def release_port(lock_socket: socket.socket) -> None:
         logger.error(f"Error closing socket: {e}")
 
 
-def execute_shell_command(command: list[str]) -> subprocess.Popen:
+def execute_shell_command(command: list[str]) -> subprocess.Popen[str]:
     """
     Execute a command and return its process handle.
 
@@ -79,14 +79,18 @@ def execute_shell_command(command: list[str]) -> subprocess.Popen:
     )
 
     # Set up background thread to read and log stdout
-    def log_output():
+    def log_output() -> None:
+        if process.stdout is None:
+            return
         for line in iter(process.stdout.readline, ""):
             if line:
                 logger.debug(line.strip())
         process.stdout.close()
 
     # Set up background thread to read and log stderr
-    def log_error():
+    def log_error() -> None:
+        if process.stderr is None:
+            return
         for line in iter(process.stderr.readline, ""):
             if line:
                 logger.info(line.strip())
@@ -128,7 +132,7 @@ def kill_process_tree(pid: int) -> None:
 
 def launch_server_cmd(
     command: list[str], host: str = "0.0.0.0", port: Optional[int] = None
-) -> Tuple[subprocess.Popen, int]:
+) -> Tuple[subprocess.Popen[str], int]:
     """
     Launch a server using the given command.
 
@@ -155,7 +159,7 @@ def launch_server_cmd(
     return process, port
 
 
-def terminate_process(process: subprocess.Popen) -> None:
+def terminate_process(process: subprocess.Popen[str]) -> None:
     """
     Terminate the process and automatically release the reserved port.
 
@@ -171,7 +175,7 @@ def terminate_process(process: subprocess.Popen) -> None:
 
 def wait_for_server(
     base_url: str,
-    process: subprocess.Popen,
+    process: subprocess.Popen[str],
     timeout: Optional[int] = None,
     api_key: Optional[str] = None,
 ) -> None:
@@ -208,9 +212,11 @@ def wait_for_server(
                 error_msg = "Server did not become ready within timeout period"
                 logger.error(error_msg)
                 raise TimeoutError(error_msg)
-        except requests.exceptions.RequestException as e:
-            # logger.debug(f"Server not ready yet: {str(e)}")
+        except requests.exceptions.RequestException:
             time.sleep(1)
+
+
+DEFAULT_TIMEOUT = 60 * 10  # 10 minutes
 
 
 def start_local_server(
@@ -219,7 +225,8 @@ def start_local_server(
     port: Optional[int] = None,
     api_key: Optional[str] = None,
     server_type: str = "server",
-) -> Tuple[str, subprocess.Popen, int]:
+    timeout: Optional[int] = DEFAULT_TIMEOUT,
+) -> Tuple[str, subprocess.Popen[str], int]:
     """
     Start a server with the given command and handle potential errors.
 
@@ -244,6 +251,7 @@ def start_local_server(
             f"http://localhost:{port}",
             server_process,
             api_key=api_key,
+            timeout=timeout,
         )
         return base_url, server_process, port
     except Exception as e:
