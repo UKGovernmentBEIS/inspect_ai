@@ -423,7 +423,15 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
         if solver_file is None:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
-            return cast(Solver, registry_create("solver", solver_name, **spec.args))
+            elif registry_lookup("solver", solver_name) is not None:
+                return cast(Solver, registry_create("solver", solver_name, **spec.args))
+            elif registry_lookup("agent", solver_name) is not None:
+                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                return as_solver(agent)
+            else:
+                raise ValueError(
+                    f"Unkonwn solver {solver_name} (not registered as a @solver or @agent)"
+                )
 
         # we do have a solver file
         else:
