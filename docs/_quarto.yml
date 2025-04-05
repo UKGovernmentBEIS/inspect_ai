@@ -69,14 +69,6 @@ website:
                - solvers.qmd
                - scorers.qmd
 
-         - section: "Tools"
-           contents:
-               - tools.qmd
-               - tools-custom.qmd
-               - tools-standard.qmd
-               - sandboxing.qmd
-               - approval.qmd
-
          - section: "Models"
            contents:
                - models.qmd
@@ -86,6 +78,14 @@ website:
                - multimodal.qmd
                - reasoning.qmd
                - structured.qmd
+
+         - section: "Tools"
+           contents:
+               - tools.qmd
+               - tools-custom.qmd
+               - tools-standard.qmd
+               - sandboxing.qmd
+               - approval.qmd
 
          - section: "Agents"
            contents:
