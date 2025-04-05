@@ -89,16 +89,49 @@ const readParams = (line: string, task: TaskData) => {
   if (paramsMatch) {
     const paramsStr = paramsMatch[1];
     if (paramsStr) {
-      const params = paramsStr.split(",");
+      const params = parseParameters(paramsStr);
       params.forEach((param) => {
-        const name = param.split("=")[0].trim();
-        if (name && name.includes(':')) {
-          task.params.push(name.split(':')[0]);
-        } else if (name) {
-          task.params.push(name);
-        }
+        task.params.push(param.trim());
       });
     }
   }
   return !kFunctionEndPattern.test(line);
+};
+
+
+const parseParameters = (paramStr: string): string[] => {
+  let bracketDepth = 0;
+  let currentParam = '';
+  const params: string[] = [];
+
+  // Accumulate chars, tracking brackets and only
+  // pay attention to commas outside brackets
+  for (let i = 0; i < paramStr.length; i++) {
+    const char = paramStr[i];
+
+    if (['[', '(', '{'].includes(char)) {
+      bracketDepth++;
+      currentParam += char;
+    } else if ([']', ')', '}'].includes(char)) {
+      bracketDepth--;
+      currentParam += char;
+    } else if (char === ',' && bracketDepth === 0) {
+      params.push(currentParam.trim());
+      currentParam = '';
+    } else {
+      currentParam += char;
+    }
+  }
+
+  // Add the last parameter (since there was no trailing comma)
+  if (currentParam.trim()) {
+    params.push(currentParam.trim());
+  }
+
+  // Extract parameter names
+  return params.map(param => {
+    // Get everything before the colon (the parameter name)
+    const nameMatch = param.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+    return nameMatch ? nameMatch[1] : '';
+  }).filter(Boolean);
 };
