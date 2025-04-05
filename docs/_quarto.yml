@@ -74,6 +74,7 @@ website:
                - tools.qmd
                - tools-custom.qmd
                - tools-standard.qmd
+               - sandboxing.qmd
                - approval.qmd
 
          - section: "Models"
@@ -89,7 +90,6 @@ website:
          - section: "Agents"
            contents:
                - agents.qmd
-               - sandboxing.qmd
                - agents-api.qmd
                - text: "Agent Protocol"
                  href: agent-protocol.qmd

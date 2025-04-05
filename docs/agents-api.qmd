@@ -234,4 +234,4 @@ def list_files():
     return execute
 ```
 
-See the section on [Sandboxing](sandboxing.qmd) for further details on using sandboxes with Inspect.
+See the article on [Sandboxing](sandboxing.qmd) for further details on using sandboxes with Inspect.
