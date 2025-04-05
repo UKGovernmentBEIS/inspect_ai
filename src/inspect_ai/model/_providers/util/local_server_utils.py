@@ -1,10 +1,11 @@
+import json
 import logging
 import os
 import random
 import socket
 import subprocess
 import time
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import requests
 
@@ -112,7 +113,7 @@ def kill_process_tree(pid: int) -> None:
         # Send SIGTERM
         subprocess.run(["pkill", "-TERM", "-P", str(pid)], check=False)
         subprocess.run(["kill", "-TERM", str(pid)], check=False)
-        time.sleep(0.5)
+        time.sleep(1)
 
         # If process still exists, send SIGKILL
         try:
@@ -208,5 +209,81 @@ def wait_for_server(
                 logger.error(error_msg)
                 raise TimeoutError(error_msg)
         except requests.exceptions.RequestException as e:
-            logger.debug(f"Server not ready yet: {str(e)}")
+            # logger.debug(f"Server not ready yet: {str(e)}")
             time.sleep(1)
+
+
+def start_local_server(
+    cmd: list[str],
+    host: str,
+    port: Optional[int] = None,
+    api_key: Optional[str] = None,
+    server_type: str = "server",
+) -> Tuple[str, subprocess.Popen, int]:
+    """
+    Start a server with the given command and handle potential errors.
+
+    Args:
+        cmd: List of command arguments
+        host: Host to bind to
+        port: Port to bind to. If None, a free port is reserved.
+        api_key: API key to use for server authentication
+        server_type: Type of server being started (for error messages)
+
+    Returns:
+        Tuple of (base_url, process, port)
+
+    Raises:
+        RuntimeError: If server fails to start
+    """
+    server_process = None
+    try:
+        server_process, port = launch_server_cmd(cmd, host=host, port=port)
+        base_url = f"http://localhost:{port}/v1"
+        wait_for_server(
+            f"http://localhost:{port}",
+            server_process,
+            api_key=api_key,
+        )
+        return base_url, server_process, port
+    except Exception as e:
+        # Cleanup any partially started server
+        if server_process:
+            terminate_process(server_process)
+
+        # Re-raise with more context
+        raise RuntimeError(f"Failed to start {server_type} server: {str(e)}") from e
+
+
+def load_server_args_from_env(
+    env_var_name: str,
+    provided_args: Dict[str, Any],
+    logger: logging.Logger,
+) -> Dict[str, Any]:
+    """
+    Load server arguments from an environment variable and merge them with provided arguments.
+
+    Args:
+        env_var_name: Name of the environment variable containing JSON server args
+        provided_args: Dictionary of server arguments provided by the user
+        logger: Logger instance to log messages
+
+    Returns:
+        Dictionary of merged server arguments, with provided args taking precedence
+    """
+    env_server_args = {}
+    server_args_json = os.environ.get(env_var_name)
+
+    if server_args_json:
+        try:
+            env_server_args = json.loads(server_args_json)
+            logger.info(
+                f"Loaded server args from environment {env_var_name}: {env_server_args}"
+            )
+        except json.JSONDecodeError:
+            logger.warning(
+                f"Failed to parse {env_var_name} as JSON: {server_args_json}"
+            )
+
+    # Merge environment args with provided args (provided args take precedence)
+    return {**env_server_args, **provided_args}

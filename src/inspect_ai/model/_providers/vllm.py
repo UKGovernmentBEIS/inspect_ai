@@ -5,15 +5,16 @@ from typing import Any
 
 from typing_extensions import override
 
+from inspect_ai._util.error import pip_dependency_error
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.util import model_base_url
 from inspect_ai.model._providers.util.local_server_utils import (
-    launch_server_cmd,
+    load_server_args_from_env,
+    start_local_server,
     terminate_process,
-    wait_for_server,
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -23,6 +24,7 @@ from .openai import OpenAIAPI
 # Environment variable names
 VLLM_BASE_URL = "VLLM_BASE_URL"
 VLLM_API_KEY = "VLLM_API_KEY"
+VLLM_DEFAULT_SERVER_ARGS = "VLLM_DEFAULT_SERVER_ARGS"
 VLLM_CONFIGURE_LOGGING = "VLLM_CONFIGURE_LOGGING"
 
 # Set up logger for this module
@@ -34,16 +36,19 @@ class VLLMAPI(OpenAIAPI):
     Provider for using VLLM models.
 
     This provider can either:
-    1. Connect to an existing VLLM server (if base_url is provided)
+    1. Connect to an existing VLLM server (if base_url or port is provided)
     2. Start a new VLLM server for the specified model
 
     Additional server_args:
-        tensor_parallel_size (int): The tensor parallel size to use
         host (str): Host to bind the server to (default: "0.0.0.0")
-        dtype (str): Data type for model weights (default: "auto")
-        quantization (str): Quantization method
-        max_model_len (int): Maximum sequence length
         configure_logging (bool): Enable fine-grained VLLM logging (default: False)
+        device (str): Devices to run the server on. Can be a single device or a list of devices as used in CUDA_VISIBLE_DEVICES. If tensor_parallel_size is not provided, the server will use the number of devices as the tensor parallel size.
+
+    Environment variables:
+        VLLM_BASE_URL: Base URL for an existing vLLM server
+        VLLM_API_KEY: API key for the vLLM server
+        VLLM_DEFAULT_SERVER_ARGS: JSON string of default server args, e.g. '{"tensor_parallel_size": 4, "max_model_len": 8192}'
+        VLLM_CONFIGURE_LOGGING: Enable fine-grained VLLM logging
     """
 
     def __init__(
@@ -55,14 +60,14 @@ class VLLMAPI(OpenAIAPI):
         config: GenerateConfig = GenerateConfig(),
         **server_args: Any,
     ) -> None:
-        host = server_args.pop("host", "0.0.0.0")
+        # Load and merge server args from environment
+        self.server_args = load_server_args_from_env(
+            VLLM_DEFAULT_SERVER_ARGS, server_args, logger
+        )
 
         # Extract and handle the configure_logging parameter
-        configure_logging = server_args.pop("configure_logging", False)
-        # Set the environment variable for VLLM logging configuration
+        configure_logging = self.server_args.pop("configure_logging", False)
         os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
-
-        self.server_args = server_args
 
         # Get base_url from environment or argument
         if not base_url and port:  # if port is provided assume there is a local server
@@ -70,25 +75,20 @@ class VLLMAPI(OpenAIAPI):
         else:
             base_url = model_base_url(base_url, VLLM_BASE_URL)
 
-        self.server_process = None
-        self.port = port
-        self.model_name = model_name
+        self.server_process, self.port = None, port
 
         # Default API key if not provided
         if not api_key:
             api_key = os.environ.get(VLLM_API_KEY, "local")
         self.api_key = api_key
 
-        # Start server if needed
+        # If no base_url is provided, start a new server
         if not base_url:
             logger.warning(
                 f"Existing vLLM server not found. Starting new server for {model_name}."
             )
-            if "model_path" in self.server_args:
-                model_name = self.server_args.pop("model_path")
+            host = self.server_args.pop("host", "0.0.0.0")
             base_url = self._start_server(model_name, host, port=None)
-
-            # Register cleanup handler with atexit
             atexit.register(self._cleanup_server)
 
             logger.warning(f"VLLM server started at {base_url}")
@@ -113,11 +113,11 @@ class VLLMAPI(OpenAIAPI):
         Returns:
             str: The base URL for the server
         """
-        # Verify we have a model path
-        if not model_path:
-            raise ValueError(
-                "No model_name provided for VLLM. Please specify a model_name argument."
-            )
+        # Verify vllm package is installed since we're starting a server
+        try:
+            import vllm  # noqa: F401
+        except ImportError:
+            raise pip_dependency_error("vLLM Server", ["vllm"])
 
         # Handle device configuration
         if "device" in self.server_args:
@@ -141,24 +141,9 @@ class VLLMAPI(OpenAIAPI):
             cli_key = key.replace("_", "-")
             cmd.extend([f"--{cli_key}", str(value)])
 
-        try:
-            # Launch server
-            self.server_process, self.port = launch_server_cmd(
-                cmd, host=host, port=port
-            )
-            base_url = f"http://localhost:{self.port}/v1"
-            wait_for_server(
-                f"http://localhost:{self.port}",
-                self.server_process,
-                api_key=self.api_key,
-            )
-        except Exception as e:
-            # Cleanup any partially started server
-            if self.server_process:
-                terminate_process(self.server_process)
-
-            # Re-raise with more context
-            raise RuntimeError(f"Failed to start VLLM server: {str(e)}") from e
+        base_url, self.server_process, self.port = start_local_server(
+            cmd, host=host, port=port, api_key=self.api_key, server_type="VLLM"
+        )
 
         return base_url
 
@@ -181,15 +166,15 @@ class VLLMAPI(OpenAIAPI):
 
     def _cleanup_server(self) -> None:
         """Cleanup method to terminate server process when Python exits."""
-        if self.server_is_running and self.server_process is not None:
-            logger.info("Cleaning up VLLM server on exit")
+        if self.server_is_running:
+            logger.info("Cleaning up VLLM server")
             terminate_process(self.server_process)
-            self.server_process = None
-            self.port = None
+            self.server_process, self.port = None, None
 
     async def aclose(self) -> None:
         """Close the client and terminate the server if we started it."""
         logger.info("Closing VLLM server")
+
         # Close the OpenAI client
         await super().aclose()
 
@@ -206,7 +191,7 @@ class VLLMAPI(OpenAIAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # check if last message is an assistant message, in this case we want to
-        # continue the final message
+        # continue the final message instead of generating a new one
         if input[-1].role == "assistant":
             # Create a copy of the config to avoid modifying the original
             config = config.model_copy()
@@ -216,9 +201,11 @@ class VLLMAPI(OpenAIAPI):
                 config.extra_body = {}
 
             # Only set these values if they're not already present in extra_body
-            if "add_generation_prompt" not in config.extra_body:
+            if (
+                "add_generation_prompt" not in config.extra_body
+                and "continue_final_message" not in config.extra_body
+            ):
                 config.extra_body["add_generation_prompt"] = False
-            if "continue_final_message" not in config.extra_body:
                 config.extra_body["continue_final_message"] = True
 
         return await super().generate(input, tools, tool_choice, config)

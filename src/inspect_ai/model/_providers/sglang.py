@@ -5,12 +5,13 @@ from typing import Any
 
 from typing_extensions import override
 
+from inspect_ai._util.error import pip_dependency_error
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._providers.util import model_base_url
 from inspect_ai.model._providers.util.local_server_utils import (
-    launch_server_cmd,
+    load_server_args_from_env,
+    start_local_server,
     terminate_process,
-    wait_for_server,
 )
 
 from .openai import OpenAIAPI
@@ -18,6 +19,7 @@ from .openai import OpenAIAPI
 # Environment variable names
 SGLANG_BASE_URL = "SGLANG_BASE_URL"
 SGLANG_API_KEY = "SGLANG_API_KEY"
+SGLANG_DEFAULT_SERVER_ARGS = "SGLANG_DEFAULT_SERVER_ARGS"
 
 logger = getLogger(__name__)
 
@@ -27,14 +29,17 @@ class SGLangAPI(OpenAIAPI):
     Provider for using SGLang models.
 
     This provider can either:
-    1. Connect to an existing SGLang server (if base_url is provided)
+    1. Connect to an existing SGLang server (if base_url or port is provided)
     2. Start a new SGLang server for the specified model
 
-    Additional model_args:
-        model_path (str): The model path to use with SGLang (e.g., "meta-llama/Meta-Llama-3.1-8B-Instruct")
+    Additional server_args:
         host (str): Host to bind the server to (default: "0.0.0.0")
-        port (int): Port to bind the server to (default: None)
-        server_args (dict): Additional arguments to pass to the SGLang server
+        device (str): Devices to run the server on. Can be a single device or a list of devices as used in CUDA_VISIBLE_DEVICES. If tp is not provided, the server will use the number of devices as the tensor parallel size.
+
+    Environment variables:
+        SGLANG_BASE_URL: Base URL for an existing SGLang server
+        SGLANG_API_KEY: API key for the SGLang server
+        SGLANG_DEFAULT_SERVER_ARGS: JSON string of default server args, e.g. '{"tp": 4, "max_model_len": 8192}'
     """
 
     def __init__(
@@ -46,8 +51,10 @@ class SGLangAPI(OpenAIAPI):
         config: GenerateConfig = GenerateConfig(),
         **server_args: Any,
     ) -> None:
-        host = server_args.pop("host", "0.0.0.0")
-        self.server_args = server_args
+        # Load and merge server args from environment
+        self.server_args = load_server_args_from_env(
+            SGLANG_DEFAULT_SERVER_ARGS, server_args, logger
+        )
 
         # Get base_url from environment or argument
         if not base_url and port:  # if port is provided assume there is a local server
@@ -55,25 +62,20 @@ class SGLangAPI(OpenAIAPI):
         else:
             base_url = model_base_url(base_url, SGLANG_BASE_URL)
 
-        self.server_process = None
-        self.port = port
-        self.model_name = model_name
+        self.server_process, self.port = None, port
 
         # Default API key if not provided
         if not api_key:
             api_key = os.environ.get(SGLANG_API_KEY, "local")
         self.api_key = api_key
 
-        # Start server if needed
+        # If no base_url is provided, start a new server
         if not base_url:
             logger.warning(
                 f"Existing SGLang server not found. Starting new server for {model_name}."
             )
-            if "model_path" in self.server_args:
-                model_name = self.server_args.pop("model_path")
+            host = self.server_args.pop("host", "0.0.0.0")
             base_url = self._start_server(model_name, host, port=None)
-
-            # Register cleanup handler with atexit
             atexit.register(self._cleanup_server)
 
             logger.warning(f"SGLang server started at {base_url}")
@@ -86,7 +88,6 @@ class SGLangAPI(OpenAIAPI):
             base_url=base_url,
             api_key=api_key,
             config=config,
-            # **server_args,
         )
 
     def _start_server(self, model_path: str, host: str, port: int | None = None) -> str:
@@ -99,11 +100,11 @@ class SGLangAPI(OpenAIAPI):
         Returns:
             str: The base URL for the server
         """
-        # Verify we have a model path
-        if not model_path:
-            raise ValueError(
-                "No model_path provided for SGLang. Please specify a model_path argument."
-            )
+        # Verify sglang package is installed since we're starting a server
+        try:
+            import sglang  # noqa: F401
+        except ImportError:
+            raise pip_dependency_error("SGLang Server", ["sglang"])
 
         if "device" in self.server_args:
             if isinstance(self.server_args["device"], list):
@@ -132,24 +133,9 @@ class SGLangAPI(OpenAIAPI):
         for key, value in self.server_args.items():
             cmd.extend([f"--{key}", str(value)])
 
-        try:
-            # Launch server
-            self.server_process, self.port = launch_server_cmd(
-                cmd, host=host, port=port
-            )
-            base_url = f"http://localhost:{self.port}/v1"
-            wait_for_server(
-                f"http://localhost:{self.port}",
-                self.server_process,
-                api_key=self.api_key,
-            )
-        except Exception as e:
-            # Cleanup any partially started server
-            if self.server_process:
-                terminate_process(self.server_process)
-
-            # Re-raise with more context
-            raise RuntimeError(f"Failed to start SGLang server: {str(e)}") from e
+        base_url, self.server_process, self.port = start_local_server(
+            cmd, host=host, port=port, api_key=self.api_key, server_type="SGLang"
+        )
 
         return base_url
 
@@ -172,10 +158,10 @@ class SGLangAPI(OpenAIAPI):
 
     def _cleanup_server(self) -> None:
         """Cleanup method to terminate server process when Python exits."""
-        if self.server_is_running and self.server_process is not None:
+        if self.server_is_running:
+            logger.info("Cleaning up SGLang server")
             terminate_process(self.server_process)
-            self.server_process = None
-            self.port = None
+            self.server_process, self.port = None, None
 
     async def aclose(self) -> None:
         """Close the client and terminate the server if we started it."""
