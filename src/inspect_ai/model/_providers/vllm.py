@@ -118,7 +118,7 @@ class VLLMAPI(OpenAIAPI):
         """
         # Verify vllm package is installed since we're starting a server
         try:
-            import vllm  # noqa: F401
+            import vllm  # type: ignore  # noqa: F401
         except ImportError:
             raise pip_dependency_error("vLLM Server", ["vllm"])
 

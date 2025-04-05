@@ -520,12 +520,6 @@ async def eval_async(
         cleanup_sample_buffers(log_dir)
 
     finally:
-        # if isinstance(model, list):
-        #     for model in model:
-        #         if isinstance(model, Model):
-        #             await model.api.close()
-        # elif isinstance(model, Model):
-        #     await model.api.close()
         _eval_async_running = False
 
     # return logs
