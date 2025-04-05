@@ -142,7 +142,7 @@ class VLLMAPI(OpenAIAPI):
             cmd.extend([f"--{cli_key}", str(value)])
 
         base_url, self.server_process, self.port = start_local_server(
-            cmd, host=host, port=port, api_key=self.api_key, server_type="VLLM"
+            cmd, host=host, port=port, api_key=self.api_key, server_type="vLLM"
         )
 
         return base_url
