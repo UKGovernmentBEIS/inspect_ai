@@ -173,6 +173,17 @@ class SGLangAPI(OpenAIAPI):
         # Deregister the atexit handler since we've manually cleaned up
         atexit.unregister(self._cleanup_server)
 
+    def close(self) -> None:
+        """
+        Terminate the server if we started it.
+
+        Note that this does not close the OpenAI client as we are not in an async context.
+        """
+        self._cleanup_server()
+
+        # Deregister the atexit handler since we've manually cleaned up
+        atexit.unregister(self._cleanup_server)
+
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         params: dict[str, Any] = dict(
             model=self.model_name,
