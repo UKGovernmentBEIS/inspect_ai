@@ -11,7 +11,8 @@ export function activateOpenLog(
   viewManager: InspectViewManager
 ) {
 
-  context.subscriptions.push(commands.registerCommand('inspect.openLogViewer', async (uri: Uri) => {
+  context.subscriptions.push(commands.registerCommand('inspect.openLogViewer', async (uri: Uri | string) => {
+    uri = typeof uri === "string" ? Uri.parse(uri) : uri;
 
     // function to open using defualt editor in preview mode
     const openLogViewer = async () => {
