@@ -236,6 +236,7 @@ def start_local_server(
         port: Port to bind to. If None, a free port is reserved.
         api_key: API key to use for server authentication
         server_type: Type of server being started (for error messages)
+        timeout: Maximum time to wait for server to become ready
 
     Returns:
         Tuple of (base_url, process, port)
