@@ -639,11 +639,7 @@ def message_tool_choice(
     elif tool_choice == "any":
         return {"type": "any"}
     elif tool_choice == "none":
-        warn_once(
-            logger,
-            'The Anthropic API does not support tool_choice="none" (using "auto" instead)',
-        )
-        return {"type": "auto"}
+        return {"type": "none"}
     else:
         return {"type": "auto"}
 
