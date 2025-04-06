@@ -64,7 +64,9 @@ class BashProcess:
     async def _execute_command(
         self, command: str, timeout_params: TimeoutParams
     ) -> BashCommandResult:
-        assert self._state.type == "Idle", "must be idle to execute a command"
+        assert (
+            self._state.type == "Idle"
+        ), f"must be idle to execute a command {self._state.type}"
 
         # Set up to detect command completion
         marker = f"CMD_COMPLETE_{uuid.uuid4().hex}"
@@ -78,10 +80,14 @@ class BashProcess:
         echo "{marker}$?"
         """
 
+        print(f"XXXXX sending input to bash: {wrapped_command}")
+
         # switch to the new state before going async
         self._state = StateMachine.SendingCommandOrInput(
             marker=marker, timeout_params=timeout_params
         )
+
+        print(f"XXXX setting state to {self._state.type}")
 
         self._pty.writer.write(wrapped_command.encode("utf-8") + b"\n")
         await self._pty.writer.drain()
@@ -119,6 +125,8 @@ class BashProcess:
             self._state
         ), "must have a command in progress"
 
+        print(f"XXXX received stdout data in state {self._state.type}: {str(data)}")
+
         self._state.stdout_data.extend(data)
         if self._state.marker.encode("utf-8") in self._state.stdout_data:
             self._state.completed_event.set()
@@ -129,6 +137,9 @@ class BashProcess:
         assert StateMachine.is_state_expecting_data(
             self._state
         ), "must have a command in progress"
+
+        print(f"XXXX received stderr data in state {self._state.type}: {str(data)}")
+
         self._state.stderr_data.extend(data)
         if self._state.data_event:
             self._state.data_event.set()
@@ -146,6 +157,8 @@ class BashProcess:
             marker=marker, timeout_params=timeout_params
         )
 
+        print(f"XXXX setting state to {self._state.type}")
+
         self._pty.writer.write(command.encode("utf-8"))
         await self._pty.writer.drain()
 
@@ -156,7 +169,11 @@ class BashProcess:
 
         while True:
             # switch to the new state before going async
-            self._state = StateMachine.reducer(self._state)
+            new_state = StateMachine.pre_await_reducer(self._state)
+            print(
+                f"XXXX moving from {self._state.type} to {new_state.type} before waiting with {new_state.timeout=}"
+            )
+            self._state = new_state
             try:
                 await asyncio.wait_for(
                     asyncio.wait(
@@ -173,7 +190,7 @@ class BashProcess:
                     timeout=self._state.timeout,
                 )
             except (asyncio.TimeoutError, TimeoutError):
-                print(f"XXXXXX timeout in state: {self._state}")
+                print(f"XXXXXX timeout in state: {self._state.type}")
                 match self._state:
                     case (
                         StateMachine.WaitingForData()
@@ -186,13 +203,14 @@ class BashProcess:
                     case StateMachine.WaitingForDebounce() as old_state:
                         # getting here means that we hit the end of the debounce blackout
                         # with data ready to be returned
-                        out_str, err_str = self._get_stream_strings()
-                        self._state = StateMachine.WaitingForModelToRequestMore(
-                            marker=old_state.marker,
-                            completed_event=old_state.completed_event,
-                            stdout_data=old_state.stdout_data,
-                            stderr_data=old_state.stderr_data,
+                        out_str, err_str, new_state_2 = StateMachine.send_data_reducer(
+                            old_state, False
                         )
+                        self._state = new_state_2
+                        print(
+                            f"XXXX setting state to {self._state.type} and returning partial data"
+                        )
+
                         return BashCommandResult(
                             status=None,
                             stdout=out_str,
@@ -202,7 +220,7 @@ class BashProcess:
                         assert False, f"Unexpected timeout state: {x}"
 
             print(
-                f"XXXXXX await completed in state: {self._state} w/{self._state.completed_event.is_set()=}"
+                f"XXXXXX await completed in state: {self._state.type} w/{self._state.completed_event.is_set()=}"
             )
 
             if self._state.completed_event.is_set():
@@ -210,32 +228,25 @@ class BashProcess:
 
             # This means that we received data. If we're outside the blackout
             # period, return the partial data.
-            print(f"XXXXXX received partial data event set in state: {self._state}")
+            print(
+                f"XXXXXX received partial data event set in state: {self._state.type}"
+            )
 
-        # switch to the new state before going async
-        self._state = StateMachine.ProcessingCompletion(self._state.marker)
-
-        # Get exit status
-        self._pty.writer.write(b"cat /tmp/exit_status\n")
-        await self._pty.writer.drain()
-
-        # Wait a short time for exit status to be available
-        await asyncio.sleep(0.1)
-
-        out_str, err_str = self._get_stream_strings()
+        out_str, err_str, new_state_3 = StateMachine.send_data_reducer(
+            self._state, True
+        )
         # out_str now looks like:
-        # <command output>CMD_COMPLETE_eecf22460a39491c9dc7de05db31c53a<exit status>
+        # <command output>CMD_COMPLETE_eecf22460a39491c9dc7de05db31c53a<exit status>\n
 
         parts = out_str.split(self._state.marker)
-
-        print(f"XXXXXX command completed\n\t{out_str=}\n\t{parts=}")
 
         assert len(parts) == 2, "marker not found in command output"
         command_output = parts[0]
         exit_status = parts[1].strip()
         assert exit_status.isnumeric(), "exit status not found in command output"
 
-        self._state = StateMachine.Idle()
+        self._state = new_state_3
+        print(f"XXXX setting state to {self._state.type}")
 
         # Create the result with what we have
         return BashCommandResult(
@@ -243,15 +254,3 @@ class BashProcess:
             stdout=command_output,
             stderr=err_str,
         )
-
-    def _get_stream_strings(self) -> tuple[str, str]:
-        assert StateMachine.is_state_expecting_data(
-            self._state
-        ), "must have a command in progress"
-
-        result = self._state.stdout_data.decode(
-            "utf-8"
-        ), self._state.stderr_data.decode("utf-8")
-        self._state.stdout_data.clear()
-        self._state.stderr_data.clear()
-        return result
