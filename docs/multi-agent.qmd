@@ -2,7 +2,7 @@
 title: Multi Agent
 ---
 
-There are several ways to implement multi-agent systems using the `Agent` protocol:
+There are several ways to implement multi-agent systems using the Inspect `Agent` protocol:
 
 1.  You can provide a top-level supervisor agent with the ability to handoff to various sub-agents that are expert at different tasks.
 
@@ -10,16 +10,23 @@ There are several ways to implement multi-agent systems using the `Agent` protoc
 
 3.  You can create an agent workflow where you explicitly invoke various agents in stages.
 
+We'll cover examples of each of these below. 
+
+::: {.callout-important}
+As you explore multi-agent architures, it's also important to remember that they often don't out-perform simple `react()` agents, so you should always start with a baseline `react()` agent and then measure whether more complex agents improve performance.
+:::
+
 ## Handoffs {#handoffs}
 
 Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.
 
 Handoffs are automatically presented to the model as tool calls with a `transfer_to` prefix (e.g. `transfer_to_web_surfer`) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.
 
-Create handoffs by enclosing an agent with the `handoff()` function. These agents in turn are often simple `react()` agents with a tailored prompt and set of tools. For example, here we create a `web_surfer()` agent that is functionally identical to what we did above, but using the `react()` agent as a base:
+Create handoffs by enclosing an agent with the `handoff()` function. These agents in turn are often simple `react()` agents with a tailored prompt and set of tools. For example, here we create a `web_surfer()` agent that we can handoff to:
 
 ``` python
 from inspect_ai.agent react
+from inspect_ai.tool import web_browser
 
 web_surfer = react(
     name="web_surfer",
