@@ -92,7 +92,7 @@ def react(
 
     # resolve on_continue
     if on_continue is None:
-        on_continue = "Please proceed to the next step using your best judgement."
+        on_continue = "If you believe you have completed the task, please call the `submit()` tool with your answer."
     if isinstance(on_continue, str):
         no_tools_continue_message = on_continue
 
