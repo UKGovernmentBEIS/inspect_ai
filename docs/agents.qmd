@@ -7,13 +7,14 @@ title: Using Agents
 # Using Agents
 
 
-## React Agent
+## ReAct Agent
 
 # Multi Agent
 
 # Custom Agents
 
 ## Protocol
+## Stop Reason
 ## Tool Loop
 ## Store
 ## Transcript

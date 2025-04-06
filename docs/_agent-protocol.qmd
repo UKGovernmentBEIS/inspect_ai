@@ -107,7 +107,7 @@ This agent can be used in the following ways:
     print(f"The most popular movies were: {state.output.completion}")
     ```
 
-## React Agent {#react-agent}
+## ReAct Agent {#react-agent}
 
 The `react()` agent is a general purpose agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629). ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be surprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).
 
