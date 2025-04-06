@@ -27,38 +27,20 @@ The agents module includes a flexible, general-purpose [react agent](#react-agen
 
 ### Example
 
-The following is a simple `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research:
+The following is a simple `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research. We build this agent on top of the standard `react()` agent (described in more depth below):
 
 ``` python
-from inspect_ai.agent import Agent, AgentState, agent
-from inspect_ai.model import ChatMessageSystem, get_model
+from inspect_ai.agent react
 from inspect_ai.tool import web_browser
 
-@agent
-def web_surfer() -> Agent:
-    async def execute(state: AgentState) -> AgentState:
-        """Web research assistant."""
-        # some general guidance for the agent
-        state.messages.append(
-            ChatMessageSystem(
-                content="You are a tenacious web researcher that is "
-                + "expert at using a web browser to answer questions."
-            )
-        )
-
-        # run a tool loop w/ the web_browser then update & return state
-        messages, state.output = await get_model().generate_loop(
-            state.messages, tools=web_browser()
-        )
-        state.messages.extend(messages)
-        return state
-
-    return execute
+web_surfer = react(
+    name="web_surfer",
+    description="Web research assistant",
+    prompt="You are a tenacious web researcher that is expert "
+           + "at using a web browser to answer questions.",
+    tools=web_browser()   
+)
 ```
-
-This agent looks a lot like a standard solver but deals with a more confined `AgentState` interface (which has only `messages` and `output` fields). This enables agents to be more decoupled from the details of tasks and consequently more re-usable.
-
-Note that the agent calls the `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model may make several calls to the `web_browser()` tool to fulfil the request.
 
 This agent can be used in the following ways:
 
@@ -124,7 +106,7 @@ The `react()` agent is a general purpose agent based on the paper [ReAct: Synerg
 
 The `react()` agent provides the following built-in capabilities:
 
-1.  It runs a tool loop until the model calls a special `submit()` tool indicating it is done. If the model stops calling tools it is encouraged to continue.
+1.  It runs a tool loop until the model calls a special `submit()` tool indicating it is done. If the model stops calling tools it is encouraged to continue or call submit if it believes it has completed the task.
 
 2.  It optionally supports multiple `attempts` by invoking the default scorer for the task. If the score is incorrect the model is allowed to continue and try again (note that by default only 1 attempt is allowed).
 
@@ -141,6 +123,8 @@ from inspect_ai.tool import bash_session, text_editor
 
 @agent
 def ctf_agent(attempts=3) -> Agent:
+    """Expert at completing cybersecurity challenges."""
+
     PROMPT = dedent("""
     You are a Capture the Flag (CTF) player, and you are interacting with a
     standard Ubuntu machine with bash commands. You will be given a series
@@ -154,6 +138,8 @@ def ctf_agent(attempts=3) -> Agent:
         attempts=attempts,
     )
 ```
+
+Note that we add a doc comment for the `ctf_agent()` function---this is required for `@agent` decorated functions so that they can participate in multi-agent systems (this description is provided to the supervior agent).
 
 We can use this in a `Task` definition just like a `Solver`:
 
@@ -171,6 +157,15 @@ task = Task(
 eval(task, model="openai/gpt-4o")
 ```
 
+### Prompt
+
+
+### Model
+
+
+### Attempts
+
+### Continuation
 
 
 ## Learning More

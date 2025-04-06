@@ -15,6 +15,33 @@ aliases:
 ## Parameters
 :::
 
+```python
+from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.model import ChatMessageSystem, get_model
+from inspect_ai.tool import web_browser
+
+@agent
+def web_surfer() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Web research assistant."""
+        # some general guidance for the agent
+        state.messages.append(
+            ChatMessageSystem(
+                content="You are a tenacious web researcher that is "
+                + "expert at using a web browser to answer questions."
+            )
+        )
+
+        # run a tool loop w/ the web_browser then update & return state
+        messages, state.output = await get_model().generate_loop(
+            state.messages, tools=web_browser()
+        )
+        state.messages.extend(messages)
+        return state
+
+    return execute
+```
+
 ## Agent Store {#agent-store}
 
 In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.
