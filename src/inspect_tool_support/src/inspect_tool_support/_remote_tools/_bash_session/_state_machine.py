@@ -34,12 +34,6 @@ class WaitingForComplete:
 
 
 @dataclass
-class ProcessingCompletion:
-    marker: str
-    type: Literal["ProcessingCompletion"] = "ProcessingCompletion"
-
-
-@dataclass
 class WaitingForData:
     marker: str
     completed_event: asyncio.Event
@@ -77,14 +71,13 @@ State = (
     Idle
     | SendingCommandOrInput
     | WaitingForComplete
-    | ProcessingCompletion
     | WaitingForData
     | WaitingForDebounce
     | WaitingForModelToRequestMore
 )
 
 
-def reducer(
+def pre_await_reducer(
     current_state: State,
 ) -> WaitingForComplete | WaitingForData | WaitingForDebounce:
     match current_state:
@@ -125,6 +118,28 @@ def reducer(
             )
         case state:
             assert False, f"Unexpected state: {state}"
+
+
+def send_data_reducer(
+    old_state: WaitingForComplete | WaitingForData | WaitingForDebounce, complete: bool
+) -> tuple[str, str, WaitingForModelToRequestMore | Idle]:
+    assert (
+        old_state.type != "WaitingForComplete" or complete
+    ), "Cannot send incomplete data from 'WaitingForComplete' state"
+    return (
+        old_state.stdout_data.decode("utf-8"),
+        old_state.stderr_data.decode("utf-8"),
+        (
+            Idle()
+            if complete
+            else WaitingForModelToRequestMore(
+                marker=old_state.marker,
+                completed_event=old_state.completed_event,
+                stdout_data=bytearray(),
+                stderr_data=bytearray(),
+            )
+        ),
+    )
 
 
 def is_state_expecting_data(
