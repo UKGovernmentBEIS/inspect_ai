@@ -2,32 +2,6 @@
 title: Using Agents
 ---
 
-::: {.hidden}
-
-# Using Agents
-
-
-## ReAct Agent
-
-# Multi Agent
-
-# Custom Agents
-
-## Protocol
-## Stop Reason
-## Tool Loop
-## Store
-## Transcript
-## Subtasks
-## Parameters
-
-# Agent Bridge
-
-# Human Agent
-
-:::
-
-
 ## Overview
 
 Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
@@ -199,7 +173,7 @@ eval(task, model="openai/gpt-4o")
 
 
 
-## Next Steps
+## Learning More
 
 See these additioanl articles to learn more about creating agent evaluations with Inspect:
 
