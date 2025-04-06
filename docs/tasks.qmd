@@ -273,11 +273,11 @@ The basic mechanism for task re-use is to create flexible and adaptable base `@t
 
 In some cases though you might not have full control over the base `@task` function (e.g. it's published in a Python package you aren't the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the `task_with()` function, which provides a straightforward way to modify the properties of an existing task.
 
-For example, imagine you are dealing with a `Task` that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further does not make a `solver` parameter available to swap in other solvers:
+For example, imagine you are dealing with a `Task` that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further hard codes its `solver` to a simple agent:
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.solver import basic_agent
+from inspect_ai.agent import react
 from inspect_ai.tool import bash
 from inspect_ai.scorer import includes
 
@@ -285,7 +285,7 @@ from inspect_ai.scorer import includes
 def hard_coded():
     return Task(
         dataset=read_dataset(),
-        solver=basic_agent(tools=[bash()]),
+        solver=react(tools=[bash()]),
         sandbox=("docker", "compose.yaml"),
         scorer=includes()
     )
