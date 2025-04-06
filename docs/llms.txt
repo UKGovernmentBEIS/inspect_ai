@@ -28,7 +28,8 @@
 - [Tool Approval](https://inspect.aisi.org.uk/approval.html.md): Approvals enable you to create fine-grained policies for approving tool calls made by models.
 
 - [Agents](https://inspect.aisi.org.uk/agents.html.md): Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks. This section describes how to build agent evaluations with Inspect.
-- [Agent API](https://inspect.aisi.org.uk/agents-api.html.md): This article describes advanced Inspect APIs available for creating evaluations with agents.
+- [Multi Agent](https://inspect.aisi.org.uk/multi-agent.html.md) covers various ways to compose agents together in multi-agent architectures.
+- [Custom Agents](https://inspect.aisi.org.uk/agent-custom.html.md): This article describes Inspect APIs available for creating custom agents.
 - [Agent Bridge](agent-bridge.qmd): Facility for integrating agents from 3rd party frameworks like AutoGen or LangChain.
 - [Human Agent](https://inspect.aisi.org.uk/human-agent.html.md): This article describes the `human_cli()` agent which enables human baselining for computing tasks.
 

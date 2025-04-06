@@ -1,5 +1,8 @@
 ---
-title: Agent API
+title: Custom Agents
+aliases: 
+  - agents-api.html
+  - agent-protocol.html
 ---
 
 ## Overview

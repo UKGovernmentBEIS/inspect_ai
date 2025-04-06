@@ -1,16 +1,11 @@
 ---
-title: Agent Basics
+title: Using Agents
 ---
 
 ::: {.hidden}
 
 # Using Agents
 
-## Overview
-    - prebuilt
-    - custom
-    - bridge
-    - human
 
 ## React Agent
 
@@ -34,19 +29,17 @@ title: Agent Basics
 
 ## Overview
 
-Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a [Capture the Flag](https://en.wikipedia.org/wiki/Capture_the_flag_(cybersecurity)) challenge). Agents are an area of active research, and many schemes for implementing them have been developed, including [AutoGPT](https://arxiv.org/abs/2306.02224), [ReAct](https://arxiv.org/abs/2210.03629), and [Reflexion](https://arxiv.org/pdf/2303.11366.pdf).
+Agents combine planning, memory, and tool usage to pursue more complex, longer horizon tasks (e.g. a Capture the Flag challenge). Inspect supports a variety of approaches to agent evaluations, including:
 
-An agent isn't a special construct within Inspect, it's merely a solver that includes tool use and calls `generate()` internally to interact with the model.
+1.  Using Inspect's built-in [ReAct Agent](#react-agent).
 
-Inspect supports a variety of approaches to agent evaluations, including:
+2.  Implementing a fully [Custom Agent](agent-custom.qmd).
 
-1.  Using Inspect's built-in `basic_agent()`.
+3.  Integrating external frameworks via the [Agent Bridge](agent-bridge.qmd).
 
-2.  Implementing a fully custom agent scaffold (i.e. taking full control of generation, tool calling, reasoning steps, etc.) using the [Agent API](agents-api.qmd).
+4.  Using the [Human Agent](human-agent.qmd) for human baselining of computing tasks.
 
-3.  Integrating external agent frameworks like [AutoGen](https://microsoft.github.io/autogen/stable/) or [LangChain](https://python.langchain.com/docs/introduction/) via the Inspect [Agent Bridge](agent-bridge.qmd).
-
-4.  A [Human Agent](human-agent.qmd) for creating human baselines on computing tasks.
+5.  Composing any of the above agents into [Multi Agent](multi-agent.qmd) architectures.
 
 An important additional consideration for agent evaluations is sandboxing (providing a secure environment for models to execute code within). The [Sandboxing](sandboxing.qmd) article goes into more depth on this.
 
@@ -154,7 +147,9 @@ To learn more about integrating custom agents into Inspect:
 
 See these additioanl articles to learn more about creating agent evaluations with Inspect:
 
--   [Agent API](agents-api.qmd) describes advanced Inspect APIs available for creating evaluations with agents.
+-   [Multi Agent](multi-agent.qmd) covers various ways to compose agents together in multi-agent architectures.
+
+-   [Custom Agents](agent-custom.qmd) describes Inspect APIs available for creating custom agents.
 
 -   [Agent Bridge](agent-bridge.qmd) enables the use of agents from 3rd party frameworks like AutoGen or LangChain with Inspect.
 

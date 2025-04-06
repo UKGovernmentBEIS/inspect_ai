@@ -90,9 +90,8 @@ website:
          - section: "Agents"
            contents:
                - agents.qmd
-               - agents-api.qmd
-               - text: "Agent Protocol"
-                 href: agent-protocol.qmd
+               - multi-agent.qmd
+               - agent-custom.qmd
                - agent-bridge.qmd
                - human-agent.qmd
 
