@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.83 (07 April 2025)
 
 - Inspect View: [Live updates](https://inspect.aisi.org.uk/log-viewer.html#live-view) to running evaluation logs.
 - [Agent](https://inspect.aisi.org.uk/agents.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
