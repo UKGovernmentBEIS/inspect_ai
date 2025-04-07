@@ -79,7 +79,7 @@ def git_task_react_mcp_connection():
         solver=react(
             name="git_worker",
             prompt="Please use the git tools to solve the problem.",
-            tools=[mcp_tools(git_server, tools=["*_status"])],
+            tools=[mcp_tools(git_server, tools=["git_status"])],
         ),
     )
 

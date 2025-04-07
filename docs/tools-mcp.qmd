@@ -1,11 +1,30 @@
 ---
-title: Model Context Protocol
+title: Model Context Protocol Tools
 ---
 
-::: {.callout-note}
+::: callout-note
 The support for Model Context Protocol tools described below is available only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
+
+## Overview
+
+The [Model Context Protocol](https://modelcontextprotocol.io/introduction) is a standard way to provide capabilities to LLMs. There are hundreds of [MCP Servers](https://github.com/modelcontextprotocol/servers) that provide tools for a myriad of purposes including web search and browsing, filesystem interaction, database access, git, and more.
+
+### Example
+
+Here, we use t
+
+```python
+git_server = mcp_server_stdio(
+    command="python3", args=["-m", "mcp_server_git", "--repository", "."]
+)
+
+return Task(
+    dataset=[Sample("What is the status of the git working tree?")],
+    solver=[use_tools(mcp_tools(git_server, tools=["*_status"])), generate()],
+)
+```
