@@ -480,7 +480,7 @@
     "@vscode/test-electron": "^2.3.9",
     "@vscode/vsce": "^2.26.1",
     "css-loader": "^7.1.1",
-    "eslint": "^8.57.0",
+    "eslint": "^9.24.0",
     "global": "^4.4.0",
     "prettier": "^3.5.3",
     "style-loader": "^4.0.0",
@@ -490,6 +490,8 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.24.0",
     "@microsoft/fast-components": "^2.30.6",
     "@microsoft/fast-element": "^1.13.0",
     "@vscode/webview-ui-toolkit": "^1.4.0",

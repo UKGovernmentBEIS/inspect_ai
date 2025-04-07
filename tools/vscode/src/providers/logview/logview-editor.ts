@@ -48,7 +48,6 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     return { uri, dispose: () => {} };
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
   async resolveCustomEditor(
     document: vscode.CustomDocument,
     webviewPanel: vscode.WebviewPanel,
