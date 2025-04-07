@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.32">
+<meta name="generator" content="quarto-1.5.57">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Agent Bridge</title>
+<title>Agent Bridge – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -65,7 +65,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
 <link href="./human-agent.html" rel="next">
-<link href="./agent-protocol.html" rel="prev">
+<link href="./agent-custom.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -259,47 +259,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true">
- <span class="menu-text">Tools</span></a>
+ <span class="menu-text">Models</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth1 show">  
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tools.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tool Basics</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tools-custom.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Custom Tools</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./tools-standard.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Standard Tools</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./approval.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Tool Approval</span></a>
-  </div>
-</li>
-      </ul>
-  </li>
-        <li class="sidebar-item sidebar-item-section">
-      <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
- <span class="menu-text">Models</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
-            <i class="bi bi-chevron-right ms-2"></i>
-          </a> 
-      </div>
-      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./models.html" class="sidebar-item-text sidebar-link">
@@ -340,17 +305,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
- <span class="menu-text">Agents</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Tools</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agent Basics</span></a>
+  <a href="./tools.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Basics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tools-custom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom Tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tools-standard.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Standard Tools</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -361,14 +338,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agents-api.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agent API</span></a>
+  <a href="./approval.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Tool Approval</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Agents</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agents.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Using Agents</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./agent-protocol.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Agent Protocol</span></a>
+  <a href="./multi-agent.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multi Agent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./agent-custom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom Agents</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -459,10 +459,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#example-autogen" id="toc-example-autogen" class="nav-link" data-scroll-target="#example-autogen">Example: AutoGen</a></li>
   </ul></li>
-  <li><a href="#bridge-types" id="toc-bridge-types" class="nav-link" data-scroll-target="#bridge-types">Bridge Types</a>
-  <ul class="collapse">
-  <li><a href="#scores" id="toc-scores" class="nav-link" data-scroll-target="#scores">Scores</a></li>
-  </ul></li>
+  <li><a href="#bridge-types" id="toc-bridge-types" class="nav-link" data-scroll-target="#bridge-types">Bridge Types</a></li>
   <li><a href="#cli-usage" id="toc-cli-usage" class="nav-link" data-scroll-target="#cli-usage">CLI Usage</a></li>
   <li><a href="#models" id="toc-models" class="nav-link" data-scroll-target="#models">Models</a></li>
   <li><a href="#sandboxes" id="toc-sandboxes" class="nav-link" data-scroll-target="#sandboxes">Sandboxes</a></li>
@@ -498,13 +495,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ol type="1">
 <li><p>Write an agent function that takes a sample <code>dict</code> as input and a returns a results <code>dict</code> with output. This function won’t have any dependencies on Inspect, rather it will depend on whatever agent framework or custom code you are using.</p></li>
 <li><p>This function should use the OpenAI API for model access, however calls to the OpenAI API will be <em>redirected</em> to Inspect (using whatever model is configured for the current task).</p></li>
-<li><p>Use the agent function with Inspect by passing it to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function, which will turn it into a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>.</p></li>
+<li><p>Use the agent function with Inspect by passing it to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function, which will turn it into a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span>.</p></li>
 </ol>
 </section>
 <section id="agent-function" class="level2">
 <h2 class="anchored" data-anchor-id="agent-function">Agent Function</h2>
-<p>An external agent function is simillar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> but without Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span>. Rather, it takes a sample <code>dict</code> as input and returns a result <code>dict</code> as output.</p>
-<p>Here is a very simple agent function definition (it just calls generate and returns the ouptut). It is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> where an enclosing function returns the function that handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
+<p>An external agent function is simillar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> but without <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span>. Rather, it takes a sample <code>dict</code> as input and returns a result <code>dict</code> as output.</p>
+<p>Here is a very simple agent function definition (it just calls generate and returns the ouptut). It is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> where an enclosing function returns the function that handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>agent.py</strong></pre>
@@ -533,9 +530,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><strong>task.py</strong></pre>
 </div>
 <div class="sourceCode" id="annotated-cell-2" data-filename="task.py"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-2-1"><a href="#annotated-cell-2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
-<span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
-<span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> bridge</span>
+<span id="annotated-cell-2-2"><a href="#annotated-cell-2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> bridge</span>
+<span id="annotated-cell-2-3"><a href="#annotated-cell-2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="annotated-cell-2-4"><a href="#annotated-cell-2-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> includes</span>
 <span id="annotated-cell-2-5"><a href="#annotated-cell-2-5" aria-hidden="true" tabindex="-1"></a></span>
 <button class="code-annotation-anchor" data-target-cell="annotated-cell-2" data-target-annotation="1">1</button><span id="annotated-cell-2-6" class="code-annotation-target"><a href="#annotated-cell-2-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agents <span class="im">import</span> my_agent</span>
 <span id="annotated-cell-2-7"><a href="#annotated-cell-2-7" aria-hidden="true" tabindex="-1"></a></span>
@@ -554,7 +551,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-2" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
+<span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
 </dd>
 </dl>
 <p>For more in-depth examples that make use of popular agent framworks, see:</p>
@@ -565,7 +562,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>We’ll walk through the AutoGen example in more depth below.</p>
 <section id="example-autogen" class="level3">
 <h3 class="anchored" data-anchor-id="example-autogen">Example: AutoGen</h3>
-<p>Here is an agent written with the <a href="https://microsoft.github.io/autogen/stable/">AutoGen</a> framework. You’ll notice that it is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span> where an enclosing function returns the function which handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
+<p>Here is an agent written with the <a href="https://microsoft.github.io/autogen/stable/">AutoGen</a> framework. You’ll notice that it is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> where an enclosing function returns the function which handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>agent.py</strong></pre>
@@ -624,7 +621,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-3" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-3" data-code-lines="23" data-code-annotation="2">The <code>sample</code> includes <code>input</code> (chat messages) and several other fields (id, epoch, metadata, etc.). The <code>result</code> includes model <code>output</code> as a string.</span>
+<span data-code-cell="annotated-cell-3" data-code-lines="23" data-code-annotation="2">The <code>sample</code> includes <code>input</code> (chat messages) and the <code>result</code> includes model <code>output</code> as a string.</span>
 </dd>
 <dt data-target-cell="annotated-cell-3" data-target-annotation="3">3</dt>
 <dd>
@@ -645,9 +642,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><strong>task.py</strong></pre>
 </div>
 <div class="sourceCode" id="annotated-cell-4" data-filename="task.py"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-4-1"><a href="#annotated-cell-4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="annotated-cell-4-2"><a href="#annotated-cell-4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
-<span id="annotated-cell-4-3"><a href="#annotated-cell-4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
-<span id="annotated-cell-4-4"><a href="#annotated-cell-4-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> bridge</span>
+<span id="annotated-cell-4-2"><a href="#annotated-cell-4-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> bridge</span>
+<span id="annotated-cell-4-3"><a href="#annotated-cell-4-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> json_dataset</span>
+<span id="annotated-cell-4-4"><a href="#annotated-cell-4-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
 <span id="annotated-cell-4-5"><a href="#annotated-cell-4-5" aria-hidden="true" tabindex="-1"></a></span>
 <button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="1">1</button><span id="annotated-cell-4-6" class="code-annotation-target"><a href="#annotated-cell-4-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> agent <span class="im">import</span> web_surfer_agent</span>
 <span id="annotated-cell-4-7"><a href="#annotated-cell-4-7" aria-hidden="true" tabindex="-1"></a></span>
@@ -666,16 +663,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </dd>
 <dt data-target-cell="annotated-cell-4" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect solver with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
+<span data-code-cell="annotated-cell-4" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
 </dd>
 </dl>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function takes the agent function and hooks it up to a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#solver">Solver</a></span>, updating the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#taskstate">TaskState</a></span> and providing the means of redirecting OpenAI calls to the current Inspect model.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function takes the agent function and hooks it up to a standard Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span>, updating the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span> and providing the means of redirecting OpenAI calls to the current Inspect model.</p>
 </section>
 </section>
 <section id="bridge-types" class="level2">
 <h2 class="anchored" data-anchor-id="bridge-types">Bridge Types</h2>
 <p>In the examples above we reference two <code>dict</code> fields from the agent function interface:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
 <col style="width: 35%">
 <col style="width: 65%">
@@ -691,55 +688,34 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>For many agents these fields will be all you need. In some circumstances other available fields will be useful. Here are the full type declarations for the <code>sample</code> and <code>result</code>:</p>
+<p>Here are the full type declarations for the <code>sample</code> and <code>result</code>:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> NotRequired, TypedDict</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> openai.types.chat <span class="im">import</span> ChatCompletionMessageParam</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleDict(TypedDict):</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    sample_id: <span class="bu">str</span></span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    epoch: <span class="bu">int</span></span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span>: <span class="bu">list</span>[ChatCompletionMessageParam]</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any]</span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    target: <span class="bu">str</span> <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span>]</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ResultDict(TypedDict):</span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>    output: <span class="bu">str</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>    messages: NotRequired[<span class="bu">list</span>[ChatCompletionMessageParam]]</span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    scores: NotRequired[<span class="bu">dict</span>[<span class="bu">str</span>, ScoreDict]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    messages: <span class="bu">list</span>[ChatCompletionMessageParam]</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ResultDict(TypedDict):</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    output: <span class="bu">str</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    messages: NotRequired[<span class="bu">list</span>[ChatCompletionMessageParam]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You aren’t required to use these types exactly (they merely document the interface) so long as you consume and produce <code>dict</code> values that match their declarations (the result <code>dict</code> is type validated at runtime).</p>
-<p>Returning <code>messages</code> is not required as messages are automatically synced to the task state during generate (return <code>messages</code> only if you want to customise the default behaviour).</p>
-<section id="scores" class="level3">
-<h3 class="anchored" data-anchor-id="scores">Scores</h3>
-<p>Returning <code>scores</code> is also optional as most agents will rely on native Inspect scoring (returning scores is an escape hatch for agents that want to do their own scoring). If you do return scores use this format (which is based on Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span> objects):</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ScoreDict(TypedDict):</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    value: (</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">str</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="bu">int</span></span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="bu">float</span></span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="bu">bool</span></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="bu">list</span>[<span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span>]</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="op">|</span> <span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">str</span> <span class="op">|</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="va">None</span>]</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    answer: NotRequired[<span class="bu">str</span>]</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    explanation: NotRequired[<span class="bu">str</span>]</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    metadata: NotRequired[<span class="bu">dict</span>[<span class="bu">str</span>, Any]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
+<p>Returning <code>messages</code> is not required as messages are automatically synced to the agent state during generate (return <code>messages</code> only if you want to customise the default behaviour).</p>
 </section>
 <section id="cli-usage" class="level2">
 <h2 class="anchored" data-anchor-id="cli-usage">CLI Usage</h2>
 <p>Above we import the <code>web_surfer_agent()</code> directly as a Python function. It’s also possible to reference external agents at the command line using the <code>--solver</code> parameter. For example:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This also works with <code>--solver</code> arguments passed via <code>-S</code>. For example:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py <span class="at">-S</span> max_requests=5</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py <span class="at">-S</span> max_requests=5</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>agent.py</code> source file will be searched for public top level functions that include <code>agent</code> in their name. If you want to explicitly reference an agent function you can do this as follows:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py@web_surfer_agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval task.py <span class="at">--solver</span> agent.py@web_surfer_agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="models" class="level2">
 <h2 class="anchored" data-anchor-id="models">Models</h2>
 <p>As demonstrated above, communication with Inspect models is done by using the OpenAI API with <code>model="inspect"</code>. You can use the same technique to interface with other Inspect models. To do this, preface the model name with “inspect” followed by the rest of the fully qualified model name.</p>
 <p>For example, in a LangChain agent, you would do this to utilise the Inspect interface to Gemini:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">"inspect/google/gemini-1.5-pro"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ChatOpenAI(model<span class="op">=</span><span class="st">"inspect/google/gemini-1.5-pro"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="sandboxes" class="level2">
 <h2 class="anchored" data-anchor-id="sandboxes">Sandboxes</h2>
@@ -748,12 +724,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="transcript" class="level2">
 <h2 class="anchored" data-anchor-id="transcript">Transcript</h2>
-<p>Custom agents run through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional solvers. The message history is also automatically captured and logged.</p>
+<p>Custom agents run through the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents. The message history is also automatically captured and logged.</p>
 <p>Calls to the Python <code>logging</code> module for levels <code>info</code> and above are also handled as normal and show up within sample transcripts.</p>
 <p>If you want to use additional features of Inspect transcripts (e.g.&nbsp;steps, markdown output, etc.) you can still import and use the <code>transcript</code> function as normal. For example:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> transcript</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>transcript().info(<span class="st">"custom *markdown* content"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>This code will no-op when running outside of Inspect to it is safe to include in agents that are also run in other environments.</p>
 
 
@@ -1223,8 +1199,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./agent-protocol.html" class="pagination-link" aria-label="Agent Protocol">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Agent Protocol</span>
+      <a href="./agent-custom.html" class="pagination-link" aria-label="Custom Agents">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Custom Agents</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">

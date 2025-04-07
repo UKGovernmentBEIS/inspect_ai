@@ -18,9 +18,39 @@ across runs or to more systematically traverse results). See the section
 on [Eval Logs](#sec-eval-logs) to learn more about how to process log
 files with code.
 
-## View Basics
+## VS Code Extension
 
-To run Inspect View, use the `inspect view` command:
+If you are using Inspect within VS Code, the Inspect VS Code Extension
+has several features for integrated log viewing. To install the
+extension, search for **“Inspect AI”** in the extensions marketplace
+panel within VS Code.
+
+![](images/inspect-vscode-install.png)
+
+The **Logs** pane of the Inspect Activity Bar (displayed below at bottom
+left of the IDE) provides a listing of log files. When you select a log
+it is displayed in an editor pane using the Inspect log viewer:
+
+![](images/logs.png)
+
+Click the open folder button at the top of the logs pane to browse any
+directory, local or remote (e.g. for logs on Amazon S3):
+
+![](images/logs-open-button.png) ![](images/logs-drop-down.png)
+
+Links to evaluation logs are also displayed at the bottom of every task
+result:
+
+![](images/eval-log.png)
+
+If you prefer not to browse and view logs using the logs pane, you can
+also use the **Inspect: Inspect View…** command to open up a new pane
+running `inspect view`.
+
+## View Command
+
+If you are not using VS Code, you can also run Inspect View directly
+from the command line via the `inspect view` command:
 
 ``` bash
 $ inspect view
@@ -52,6 +82,43 @@ You can view and navigate between a history of all evals in the log
 directory using the menu at the top right:
 
 ![](images/inspect-view-history.png)
+
+## Live View
+
+Inspect View provides a live view into the status of your evaluation
+task. The main shows shows what samples have completed (along with
+incremental metric calculations) and the sample view (described below)
+let’s you follow sample transcripts and message history as events occur.
+
+If you are running VS Code, you can click the **View Log** link within
+the task progress screen to access a live view of your task:
+
+![](images/inspect-view-log-link.png)
+
+If you are running with the `inspect view` command-line then you can
+access logs for in-progress tasks using the [Log History](#log-history)
+as described above.
+
+### S3 Logs
+
+Multiple users can view live logs located on Amazon S3 (or any shared
+filesystem) by specifying an additional `--log-shared` option indicating
+that live log information should be written to the shared filesystem:
+
+``` bash
+inspect eval ctf.py --log-shared
+```
+
+This is required because the live log viewing feature relies on a local
+database of log events which is only visible on the machine where the
+evaluation is running. The `--log-shared` option specifies that the live
+log information should also be written to the shared filesystem. By
+default, this information is synced every 10 seconds. You can override
+this by passing a value to `--log-shared`:
+
+``` bash
+ inspect eval ctf.py --log-shared 30
+```
 
 ## Sample Details
 
@@ -184,15 +251,15 @@ All of these log entries will be included in the sample transcript.
 The log levels and their applicability are described below (in
 increasing order of severity):
 
-| Level      | Description                                                                                                          |
-|------------|----------------------------------------------------------------------------------------------------------------------|
-| `debug`    | Detailed information, typically of interest only when diagnosing problems.                                           |
-| `trace`    | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.).                                   |
-| `http`     | HTTP diagnostics including requests and response statuses                                                            |
-| `info`     | Confirmation that things are working as expected.                                                                    |
-| `warning`  | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
-| `error`    | Due to a more serious problem, the software has not been able to perform some function                               |
-| `critical` | A serious error, indicating that the program itself may be unable to continue running.                               |
+| Level | Description |
+|----|----|
+| `debug` | Detailed information, typically of interest only when diagnosing problems. |
+| `trace` | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.). |
+| `http` | HTTP diagnostics including requests and response statuses |
+| `info` | Confirmation that things are working as expected. |
+| `warning` | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
+| `error` | Due to a more serious problem, the software has not been able to perform some function |
+| `critical` | A serious error, indicating that the program itself may be unable to continue running. |
 
 #### Default Levels
 

@@ -20,16 +20,16 @@ The basic mechanism for integrating external agents works like this:
     whatever model is configured for the current task).
 
 3.  Use the agent function with Inspect by passing it to the `bridge()`
-    function, which will turn it into a standard Inspect `Solver`.
+    function, which will turn it into a standard Inspect `Agent`.
 
 ## Agent Function
 
-An external agent function is simillar to an Inspect `Solver` but
-without Inspect `TaskState`. Rather, it takes a sample `dict` as input
-and returns a result `dict` as output.
+An external agent function is simillar to an Inspect `Agent` but without
+`AgentState`. Rather, it takes a sample `dict` as input and returns a
+result `dict` as output.
 
 Here is a very simple agent function definition (it just calls generate
-and returns the ouptut). It is structured similar to an Inspect `Solver`
+and returns the ouptut). It is structured similar to an Inspect `Agent`
 where an enclosing function returns the function that handles the sample
 (this enables you to share initialisation code and pass options to
 configure the behaviour of the agent):
@@ -68,9 +68,9 @@ solver:
 
 ``` python
 from inspect_ai import Task, task
+from inspect_ai.agent import bridge
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.solver import bridge
 
 from agents import my_agent
 
@@ -87,7 +87,7 @@ Line 6
 Import custom agent from `agent.py` file (shown above)
 
 Line 12  
-Adapt custom agent into an Inspect solver with the `bridge()` function.
+Adapt custom agent into an Inspect agent with the `bridge()` function.
 
 For more in-depth examples that make use of popular agent framworks,
 see:
@@ -104,7 +104,7 @@ We’ll walk through the AutoGen example in more depth below.
 
 Here is an agent written with the
 [AutoGen](https://microsoft.github.io/autogen/stable/) framework. You’ll
-notice that it is structured similar to an Inspect `Solver` where an
+notice that it is structured similar to an Inspect `Agent` where an
 enclosing function returns the function which handles the sample (this
 enables you to share initialisation code and pass options to configure
 the behaviour of the agent):
@@ -165,9 +165,8 @@ Use the OpenAI API with `model="inspect"` to interface with the model
 for the running Inspect task.
 
 Line 23  
-The `sample` includes `input` (chat messages) and several other fields
-(id, epoch, metadata, etc.). The `result` includes model `output` as a
-string.
+The `sample` includes `input` (chat messages) and the `result` includes
+model `output` as a string.
 
 Lines 25-28  
 Input is based using OpenAI API compatible messages—here we convert them
@@ -187,9 +186,9 @@ function:
 
 ``` python
 from inspect_ai import Task, task
+from inspect_ai.agent import bridge
 from inspect_ai.dataset import json_dataset
 from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import bridge
 
 from agent import web_surfer_agent
 
@@ -206,10 +205,10 @@ Line 6
 Import custom agent from `agent.py` file (shown above)
 
 Line 12  
-Adapt custom agent into an Inspect solver with the `bridge()` function.
+Adapt custom agent into an Inspect agent with the `bridge()` function.
 
 The `bridge()` function takes the agent function and hooks it up to a
-standard Inspect `Solver`, updating the `TaskState` and providing the
+standard Inspect `Agent`, updating the `AgentState` and providing the
 means of redirecting OpenAI calls to the current Inspect model.
 
 ## Bridge Types
@@ -222,9 +221,7 @@ function interface:
 | `sample["input"]`  | `list[ChatCompletionMessageParam]` |
 | `result["output"]` | `str`                              |
 
-For many agents these fields will be all you need. In some circumstances
-other available fields will be useful. Here are the full type
-declarations for the `sample` and `result`:
+Here are the full type declarations for the `sample` and `result`:
 
 ``` python
 from typing import NotRequired, TypedDict
@@ -232,16 +229,11 @@ from typing import NotRequired, TypedDict
 from openai.types.chat import ChatCompletionMessageParam
 
 class SampleDict(TypedDict):
-    sample_id: str
-    epoch: int
-    input: list[ChatCompletionMessageParam]
-    metadata: dict[str, Any]
-    target: str | list[str]
+    messages: list[ChatCompletionMessageParam]
 
 class ResultDict(TypedDict):
     output: str
     messages: NotRequired[list[ChatCompletionMessageParam]]
-    scores: NotRequired[dict[str, ScoreDict]]
 ```
 
 You aren’t required to use these types exactly (they merely document the
@@ -249,30 +241,8 @@ interface) so long as you consume and produce `dict` values that match
 their declarations (the result `dict` is type validated at runtime).
 
 Returning `messages` is not required as messages are automatically
-synced to the task state during generate (return `messages` only if you
+synced to the agent state during generate (return `messages` only if you
 want to customise the default behaviour).
-
-### Scores
-
-Returning `scores` is also optional as most agents will rely on native
-Inspect scoring (returning scores is an escape hatch for agents that
-want to do their own scoring). If you do return scores use this format
-(which is based on Inspect `Score` objects):
-
-``` python
-class ScoreDict(TypedDict):
-    value: (
-        str
-        | int
-        | float
-        | bool
-        | list[str | int | float | bool]
-        | dict[str, str | int | float | bool | None]
-    )
-    answer: NotRequired[str]
-    explanation: NotRequired[str]
-    metadata: NotRequired[dict[str, Any]]
-```
 
 ## CLI Usage
 
@@ -335,7 +305,7 @@ delegates to the `sandbox().exec()` function.
 Custom agents run through the `bridge()` function still get most of the
 benefit of the Inspect transcript and log viewer. All model calls are
 captured and produce the same transcript output as when using
-conventional solvers. The message history is also automatically captured
+conventional agents. The message history is also automatically captured
 and logged.
 
 Calls to the Python `logging` module for levels `info` and above are

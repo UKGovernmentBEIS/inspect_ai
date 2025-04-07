@@ -9,7 +9,7 @@ Generate output from the model and append it to task message history.
 
 generate() is the default solver if none is specified for a given task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_solver.py#L254)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_solver.py#L264)
 
 ``` python
 @solver
@@ -39,7 +39,7 @@ Optional generation config arguments.
 
 Inject tools into the task state to be used in generate().
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_use_tools.py#L8)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_use_tools.py#L8)
 
 ``` python
 @solver
@@ -73,7 +73,7 @@ Prompt template containing a `{prompt}` placeholder and any number of
 additional `params`. All values contained in sample `metadata` and
 `store` are also automatically included in the `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_prompt.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_prompt.py#L17)
 
 ``` python
 @solver
@@ -98,7 +98,7 @@ sample `metadata` and `store` are also automatically included in the
 The new message will go after other system messages (if there are none
 it will be inserted at the beginning of the conversation).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_prompt.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_prompt.py#L45)
 
 ``` python
 @solver
@@ -120,7 +120,7 @@ substitution using the `str.format()` method. All values contained in
 sample `metadata` and `store` are also automatically included in the
 `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_prompt.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_prompt.py#L77)
 
 ``` python
 @solver
@@ -142,7 +142,7 @@ for substitution using the `str.format()` method. All values contained
 in sample `metadata` and `store` are also automatically included in the
 `params`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_prompt.py#L104)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_prompt.py#L104)
 
 ``` python
 @solver
@@ -159,7 +159,7 @@ Parameters to fill into the template.
 
 Solver which modifies the user prompt to encourage chain of thought.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_prompt.py#L142)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_prompt.py#L142)
 
 ``` python
 @solver
@@ -179,7 +179,7 @@ The `critique_template` is used to generate a critique and the
 for an improved response. Note that you can specify an alternate `model`
 for critique (you don’t need to use the model being evaluated).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_critique.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_critique.py#L13)
 
 ``` python
 @solver
@@ -214,7 +214,7 @@ Note that due to the way this solver works, it has some constraints:
 2.  The only built-in compatible scorer is the `choice` scorer.
 3.  It calls `generate()` internally, so you don’t need to call it again
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_multiple_choice.py#L214)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_multiple_choice.py#L214)
 
 ``` python
 @solver
@@ -256,151 +256,6 @@ effect if you provide a custom template.
 `**kwargs` Unpack\[DeprecatedArgs\]  
 Deprecated arguments for backward compatibility.
 
-## Agents
-
-### basic_agent
-
-Basic ReAct agent.
-
-Agent that runs a tool use loop until the model submits an answer using
-the `submit()` tool. Tailor the model’s instructions by passing a
-`system_message()` and/or other steps to `init` (if no `init` is
-specified then a default system message will be used). Use
-`max_attempts` to support additional submissions if the initial
-submission(s) are incorrect.
-
-Submissions are evaluated using the task’s main scorer, with value of
-1.0 indicating a correct answer. Scorer values are converted to float
-(e.g. “C” becomes 1.0) using the standard value_to_float() function.
-Provide an alternate conversion scheme as required via `score_value`.
-
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_basic_agent.py#L50)
-
-``` python
-@solver
-def basic_agent(
-    *,
-    init: Solver | list[Solver] | None = None,
-    tools: list[Tool] | Solver | None = None,
-    cache: bool | CachePolicy = False,
-    max_attempts: int = 1,
-    message_limit: int | None = None,
-    token_limit: int | None = None,
-    max_tool_output: int | None = None,
-    score_value: ValueToFloat | None = None,
-    incorrect_message: str
-    | Callable[
-        [TaskState, list[Score]], str | Awaitable[str]
-    ] = DEFAULT_INCORRECT_MESSAGE,
-    continue_message: str = DEFAULT_CONTINUE_MESSAGE,
-    submit_name: str = DEFAULT_SUBMIT_NAME,
-    submit_description: str = DEFAULT_SUBMIT_DESCRIPTION,
-    **kwargs: Unpack[BasicAgentDeprecatedArgs],
-) -> Solver
-```
-
-`init` [Solver](inspect_ai.solver.qmd#solver) \| list\[[Solver](inspect_ai.solver.qmd#solver)\] \| None  
-Agent initialisation (defaults to system_message with basic ReAct
-prompt)
-
-`tools` list\[[Tool](inspect_ai.tool.qmd#tool)\] \| [Solver](inspect_ai.solver.qmd#solver) \| None  
-Tools available for the agent. Either a list of tools or a Solver that
-can yield dynamic tools per-sample.
-
-`cache` bool \| [CachePolicy](inspect_ai.model.qmd#cachepolicy)  
-Caching behaviour for generate responses (defaults to no caching).
-
-`max_attempts` int  
-Maximum number of submissions to accept before terminating.
-
-`message_limit` int \| None  
-Limit on messages in sample before terminating agent. If not specified,
-will use limit_messages defined for the task. If there is none defined
-for the task, 50 will be used as a default.
-
-`token_limit` int \| None  
-Limit on tokens used in sample before terminating agent.
-
-`max_tool_output` int \| None  
-Maximum output length (in bytes). Defaults to max_tool_output from
-active GenerateConfig.
-
-`score_value` ValueToFloat \| None  
-Function used to extract float from scores (defaults to standard
-value_to_float())
-
-`incorrect_message` str \| Callable\[\[[TaskState](inspect_ai.solver.qmd#taskstate), list\[[Score](inspect_ai.scorer.qmd#score)\]\], str \| Awaitable\[str\]\]  
-User message reply for an incorrect submission from the model.
-Alternatively, a function which returns a message (function may
-optionally be async)
-
-`continue_message` str  
-User message to urge the model to continue when it doesn’t make a tool
-call.
-
-`submit_name` str  
-Name for tool used to make submissions (defaults to ‘submit’)
-
-`submit_description` str  
-Description of submit tool (defaults to ‘Submit an answer for
-evaluation’)
-
-`**kwargs` Unpack\[BasicAgentDeprecatedArgs\]  
-Deprecated arguments for backward compatibility.
-
-### human_agent
-
-Human solver for agentic tasks that run in a Linux environment.
-
-The Human agent solver installs agent task tools in the default sandbox
-and presents the user with both task instructions and documentation for
-the various tools (e.g. `task submit`, `task start`, `task stop`
-`task instructions`, etc.). A human agent panel is displayed with
-instructions for logging in to the sandbox.
-
-If the user is running in VS Code with the Inspect extension, they will
-also be presented with links to login to the sandbox using a VS Code
-Window or Terminal.
-
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_human_agent.py#L6)
-
-``` python
-@solver
-def human_agent(
-    answer: bool | str = True,
-    intermediate_scoring: bool = False,
-    record_session: bool = True,
-) -> Solver
-```
-
-`answer` bool \| str  
-Is an explicit answer required for this task or is it scored based on
-files in the container? Pass a `str` with a regex to validate that the
-answer matches the expected format.
-
-`intermediate_scoring` bool  
-Allow the human agent to check their score while working.
-
-`record_session` bool  
-Record all user commands and outputs in the sandbox bash session.
-
-### bridge
-
-Bridge an external agent into an Inspect Solver.
-
-See documentation at
-<https://inspect.ai-safety-institute.org.uk/agent-bridge.html>
-
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_bridge.py#L8)
-
-``` python
-@solver
-def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Solver
-```
-
-`agent` Callable\[\[dict\[str, Any\]\], Awaitable\[dict\[str, Any\]\]\]  
-Callable which takes a sample `dict` and returns a result `dict`.
-
 ## Composition
 
 ### chain
@@ -411,7 +266,7 @@ Solvers are executed in turn, and a solver step event is added to the
 transcript for each. If a solver returns a state with `completed=True`,
 the chain is terminated early.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_chain.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_chain.py#L12)
 
 ``` python
 @solver
@@ -432,7 +287,7 @@ Solver gets its own copy of the TaskState and is run (in parallel) in an
 independent Subtask (meaning that is also has its own independent Store
 that doesn’t affect the Store of other subtasks or the parent).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_fork.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_fork.py#L25)
 
 ``` python
 async def fork(
@@ -458,7 +313,7 @@ call the `generate()` function to create a new state resulting from
 model generation. Solvers may also do prompt engineering or other types
 of elicitation.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_solver.py#L74)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_solver.py#L77)
 
 ``` python
 class Solver(Protocol):
@@ -491,7 +346,7 @@ def prompt_cot(template: str) -> Solver:
 
 Solver specification used to (re-)create solvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_solver.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_solver.py#L64)
 
 ``` python
 @dataclass(frozen=True)
@@ -516,7 +371,7 @@ sample’s evaluation. It allows us to manipulated the message history,
 the tools available to the model, the final output of the model, and
 whether the task is completed or has hit a limit.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_task_state.py#L131)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_task_state.py#L131)
 
 ``` python
 class TaskState
@@ -606,7 +461,7 @@ Globally unique identifier for sample run.
 metadata_as  
 Pydantic model interface to metadata.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_task_state.py#L383)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_task_state.py#L383)
 
 ``` python
 def metadata_as(self, metadata_cls: Type[MT]) -> MT
@@ -618,7 +473,7 @@ Pydantic model type
 store_as  
 Pydantic model interface to the store.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_task_state.py#L397)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_task_state.py#L397)
 
 ``` python
 def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT
@@ -636,7 +491,7 @@ StoreModel type within a single sample)
 Generate using the model and add the assistant message to the task
 state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_solver.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_solver.py#L36)
 
 ``` python
 class Generate(Protocol):
@@ -674,17 +529,17 @@ Optional generation config arguments.
 
 Decorator for registering solvers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/74ca4c53516ff6d32b9d3d7c44cc5a9dc8a2cb5f/src/inspect_ai/solver/_solver.py#L147)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/1e5260e28c84edff4d6846934548fd674b642933/src/inspect_ai/solver/_solver.py#L154)
 
 ``` python
 def solver(
-    name: str | Callable[P, Solver],
+    name: str | Callable[P, SolverType],
 ) -> Callable[[Callable[P, Solver]], Callable[P, Solver]] | Callable[P, Solver]
 ```
 
-`name` str \| Callable\[P, [Solver](inspect_ai.solver.qmd#solver)\]  
+`name` str \| Callable\[P, SolverType\]  
 Optional name for solver. If the decorator has no name argument then the
-name of the underlying Callable\[P, Solver\] object will be used to
+name of the underlying Callable\[P, SolverType\] object will be used to
 automatically assign a name.
 
 #### Examples

@@ -472,7 +472,7 @@ name and/or descriptions. For example:
 from inspect_ai.tool import tool_with
 
 my_add = tool_with(
-  tool=add(), 
+  tool=addition(), 
   name="my_add",
   description="a tool to add numbers", 
   parameters={
@@ -486,8 +486,8 @@ are some examples where we modify just the main tool description or only
 a single parameter:
 
 ``` python
-my_add1 = tool_with(add(), description="a tool to add numbers")
-my_add2 = tool_with(add(), parameters={"x": "the x argument"})
+my_add1 = tool_with(addition(), description="a tool to add numbers")
+my_add2 = tool_with(addition(), parameters={"x": "the x argument"})
 ```
 
 Note that `tool_with()` function modifies the passed tool in-place, so

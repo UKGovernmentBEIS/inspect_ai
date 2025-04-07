@@ -5,9 +5,9 @@
 
 The Inspect human agent enables human baselining of agentic tasks that
 run in a Linux environment. Human agents are just a special type of
-solver that use the identical dataset, sandbox, and scorer configuration
+agent that use the identical dataset, sandbox, and scorer configuration
 that models use when completing tasks. However, rather than entering an
-agent loop, the `human_agent` solver provides the human baseliner with:
+agent loop, the `human_cli` agent provides the human baseliner with:
 
 1.  A description of the task to be completed (input/prompt from the
     sample).
@@ -26,12 +26,12 @@ task.
 
 Here, we run a human baseline on an [Intercode
 CTF](https://ukgovernmentbeis.github.io/inspect_evals/evals/cybersecurity/intercode_ctf/)
-sample by using the `--solver` option to use `human_agent` rather than
-the task’s default solver:
+sample. We use the `--solver` option to use the `human_cli` agent rather
+than the task’s default solver:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \
-    --sample-id 44 --solver human_agent
+    --sample-id 44 --solver human_cli
 ```
 
 The evaluation runs as normal, and a **Human Agent** panel appears in
@@ -57,26 +57,26 @@ task submit picoCTF{73bfc85c1ba7}
 
 ## Usage
 
-Using the `human_agent` solver is as straightforward as specifying the
-`--solver` option for any existing task. Repeating the example above:
+Using the `human_cli` agent is as straightforward as specifying it as
+the `--solver` for any existing task. Repeating the example above:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \
-    --sample-id 44 --solver human_agent
+    --sample-id 44 --solver human_cli
 ```
 
 Or alternatively from within Python:
 
 ``` python
 from inspect_ai import eval
-from inspect_ai.solver import human_agent
+from inspect_ai.agent import human_cli
 from inspect_evals import gdm_intercode_ctf
 
-eval(gdm_intercode_ctf(), sample_id=44, solver=human_agent())
+eval(gdm_intercode_ctf(), sample_id=44, solver=human_cli())
 ```
 
 There are however some requirements that should be met by your task
-before using it with the human agent:
+before using it with the human CLI agent:
 
 1.  It should be solvable by using the tools available in a Linux
     environment (plus potentially access to the web, which the baseliner
@@ -112,9 +112,9 @@ links are provided to access the container within VS Code:
 
 ### Task Commands
 
-The Human agent solver installs agent task tools in the default sandbox
-and presents the user with both task instructions and documentation for
-the various tools (e.g. `task submit`, `task start`, `task stop`,
+The Human agent installs agent task tools in the default sandbox and
+presents the user with both task instructions and documentation for the
+various tools (e.g. `task submit`, `task start`, `task stop`,
 `task instructions`, etc.). By default, the following command are
 available:
 
@@ -140,23 +140,23 @@ requires that an explicit answer be given
 
 However, if your task is scored by reading from the container filesystem
 then no explicit answer need be provided. Indicate this by passing
-`answer=False` to the `human_agent()`:
+`answer=False` to the `human_cli()`:
 
 ``` python
-solver=human_agent(answer=False)
+solver=human_cli(answer=False)
 ```
 
 Or from the CLI, use the `-S` option:
 
 ``` bash
---solver human_agent -S answer=false
+--solver human_cli -S answer=false
 ```
 
 You can also specify a regex to match the answer against for validation,
 for example:
 
 ``` python
-solver=human_agent(answer=r"picoCTF{\w+}")
+solver=human_cli(answer=r"picoCTF{\w+}")
 ```
 
 ### Quitting
@@ -174,13 +174,13 @@ the `intermediate_scoring` option (which defaults to `False`) to do
 this:
 
 ``` python
-solver=human_agent(intermediate_scoring=True)
+solver=human_cli(intermediate_scoring=True)
 ```
 
 Or from the CLI, use the `-S` option:
 
 ``` bash
---solver human_agent -S intermediate_scoring=true
+--solver human_cli -S intermediate_scoring=true
 ```
 
 With this option enabled, the human agent can check their potential
@@ -203,7 +203,7 @@ playback within the Inspect View:
 You can disable session recording with the `record_session` option:
 
 ``` bash
---solver human_agent -S record_session=false
+--solver human_cli -S record_session=false
 ```
 
 ## Headless
@@ -217,7 +217,7 @@ pass the `--display=plain` CLI option:
 
 ``` bash
 inspect eval inspect_evals/gdm_intercode_ctf \
-    --sample-id 44 --solver human_agent --display plain
+    --sample-id 44 --solver human_cli --display plain
 ```
 
 Which will print the following to the terminal:

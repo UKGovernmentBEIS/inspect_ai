@@ -143,8 +143,8 @@ attempting to write into the returned metadata will raise a Pydantic
 `FrozenInstanceError`.
 
 If you need per-sample mutable data, use the [sample
-store](agents-api.qmd#sample-store), which also supports
-[typing](agents-api.qmd#store-typing) using Pydantic models.
+store](agent-custom.qmd#sample-store), which also supports
+[typing](agent-custom.qmd#store-typing) using Pydantic models.
 
 ## Log Samples
 

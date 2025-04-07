@@ -45,20 +45,20 @@ inspect log list [OPTIONS]
 
 #### Options
 
-| Name             | Type                                                                                  | Description                                                                                | Default   |
-|------------------|---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|-----------|
-| `--status`       | choice (`started` \| `success` \| `cancelled` \| `error`)                             | List only log files with the indicated status.                                             | None      |
-| `--absolute`     | boolean                                                                               | List absolute paths to log files (defaults to relative to the cwd).                        | `False`   |
-| `--json`         | boolean                                                                               | Output listing as JSON                                                                     | `False`   |
-| `--no-recursive` | boolean                                                                               | List log files recursively (defaults to True).                                             | `False`   |
-| `--log-level`    | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical`) | Set the log level (defaults to ‘warning’)                                                  | `warning` |
-| `--log-dir`      | text                                                                                  | Directory for log files.                                                                   | `./logs`  |
-| `--display`      | choice (`full` \| `conversation` \| `rich` \| `plain` \| `none`)                      | Set the display type (defaults to ‘full’)                                                  | `full`    |
-| `--env`          | text                                                                                  | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None      |
-| `--debug`        | boolean                                                                               | Wait to attach debugger                                                                    | `False`   |
-| `--debug-port`   | integer                                                                               | Port number for debugger                                                                   | `5678`    |
-| `--debug-errors` | boolean                                                                               | Raise task errors (rather than logging them) so they can be debugged.                      | `False`   |
-| `--help`         | boolean                                                                               | Show this message and exit.                                                                | `False`   |
+| Name | Type | Description | Default |
+|----|----|----|----|
+| `--status` | choice (`started` \| `success` \| `cancelled` \| `error`) | List only log files with the indicated status. | None |
+| `--absolute` | boolean | List absolute paths to log files (defaults to relative to the cwd). | `False` |
+| `--json` | boolean | Output listing as JSON | `False` |
+| `--no-recursive` | boolean | List log files recursively (defaults to True). | `False` |
+| `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical`) | Set the log level (defaults to ‘warning’) | `warning` |
+| `--log-dir` | text | Directory for log files. | `./logs` |
+| `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `none`) | Set the display type (defaults to ‘full’) | `full` |
+| `--env` | text | Define an environment variable e.g. –env NAME=value (–env can be specified multiple times) | None |
+| `--debug` | boolean | Wait to attach debugger | `False` |
+| `--debug-port` | integer | Port number for debugger | `5678` |
+| `--debug-errors` | boolean | Raise task errors (rather than logging them) so they can be debugged. | `False` |
+| `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect log dump
 
@@ -72,10 +72,10 @@ inspect log dump [OPTIONS] PATH
 
 #### Options
 
-| Name            | Type    | Description                                                       | Default |
-|-----------------|---------|-------------------------------------------------------------------|---------|
+| Name | Type | Description | Default |
+|----|----|----|----|
 | `--header-only` | boolean | Read and print only the header of the log file (i.e. no samples). | `False` |
-| `--help`        | boolean | Show this message and exit.                                       | `False` |
+| `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect log convert
 
@@ -89,12 +89,12 @@ inspect log convert [OPTIONS] PATH
 
 #### Options
 
-| Name           | Type                      | Description                                | Default    |
-|----------------|---------------------------|--------------------------------------------|------------|
-| `--to`         | choice (`eval` \| `json`) | Target format to convert to.               | \_required |
-| `--output-dir` | text                      | Directory to write converted log files to. | \_required |
-| `--overwrite`  | boolean                   | Overwrite files in the output directory.   | `False`    |
-| `--help`       | boolean                   | Show this message and exit.                | `False`    |
+| Name | Type | Description | Default |
+|----|----|----|----|
+| `--to` | choice (`eval` \| `json`) | Target format to convert to. | \_required |
+| `--output-dir` | text | Directory to write converted log files to. | \_required |
+| `--overwrite` | boolean | Overwrite files in the output directory. | `False` |
+| `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect log schema
 

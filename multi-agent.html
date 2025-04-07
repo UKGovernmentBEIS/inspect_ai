@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>VS Code Extension – Inspect</title>
+<title>Multi Agent – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -20,6 +20,40 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -30,8 +64,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./tasks.html" rel="next">
-<link href="./log-viewer.html" rel="prev">
+<link href="./agent-custom.html" rel="next">
+<link href="./agents.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -41,9 +75,6 @@ ul.task-list li input[type="checkbox"] {
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -137,7 +168,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Basics</a></li><li class="breadcrumb-item"><a href="./vscode.html">VS Code</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./multi-agent.html">Multi Agent</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -184,7 +215,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./vscode.html" class="sidebar-item-text sidebar-link active">
+  <a href="./vscode.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">VS Code</span></a>
   </div>
 </li>
@@ -330,7 +361,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./multi-agent.html" class="sidebar-item-text sidebar-link">
+  <a href="./multi-agent.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Multi Agent</span></a>
   </div>
 </li>
@@ -424,20 +455,22 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#viewing-logs" id="toc-viewing-logs" class="nav-link" data-scroll-target="#viewing-logs">Viewing Logs</a></li>
-  <li><a href="#run-and-debug" id="toc-run-and-debug" class="nav-link" data-scroll-target="#run-and-debug">Run and Debug</a></li>
-  <li><a href="#activity-bar" id="toc-activity-bar" class="nav-link" data-scroll-target="#activity-bar">Activity Bar</a></li>
-  <li><a href="#python-environments" id="toc-python-environments" class="nav-link" data-scroll-target="#python-environments">Python Environments</a></li>
-  <li><a href="#troubleshooting" id="toc-troubleshooting" class="nav-link" data-scroll-target="#troubleshooting">Troubleshooting</a></li>
+  <li><a href="#methodology" id="toc-methodology" class="nav-link" data-scroll-target="#methodology">Methodology</a></li>
+  <li><a href="#handoffs" id="toc-handoffs" class="nav-link" data-scroll-target="#handoffs">Handoffs</a>
+  <ul class="collapse">
+  <li><a href="#handoff-filters" id="toc-handoff-filters" class="nav-link" data-scroll-target="#handoff-filters">Handoff Filters</a></li>
+  </ul></li>
+  <li><a href="#workflows" id="toc-workflows" class="nav-link" data-scroll-target="#workflows">Workflows</a></li>
+  <li><a href="#tools" id="toc-tools" class="nav-link" data-scroll-target="#tools">Tools</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Basics</a></li><li class="breadcrumb-item"><a href="./vscode.html">VS Code</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./agents.html">Agents</a></li><li class="breadcrumb-item"><a href="./multi-agent.html">Multi Agent</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">VS Code Extension</h1>
+<h1 class="title">Multi Agent</h1>
 </div>
 
 
@@ -456,88 +489,136 @@ ul.task-list li input[type="checkbox"] {
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The Inspect VS Code Extension provides a variety of tools, including:</p>
-<ul>
-<li>Integrated browsing and viewing of eval log files</li>
-<li>Commands and key-bindings for running and debugging tasks</li>
-<li>A configuration panel that edits config in workspace <code>.env</code> files</li>
-<li>A panel for browsing all tasks contained in the workspace</li>
-<li>A task panel for setting task CLI options and task arguments</li>
-</ul>
-<section id="installation" class="level3 unlisted">
-<h3 class="unlisted anchored" data-anchor-id="installation">Installation</h3>
-<p>To install, search for <strong>“Inspect AI”</strong> in the extensions marketplace panel within VS Code.</p>
-<p><a href="images/inspect-vscode-install.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect-vscode-install.png" class="border img-fluid" style="width:100.0%" alt="The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right."></a></p>
-<p>The Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <strong>Python: Select Interpreter</strong> command to associate a version of Python with your workspace.</p>
-</section>
-</section>
-<section id="viewing-logs" class="level2">
-<h2 class="anchored" data-anchor-id="viewing-logs">Viewing Logs</h2>
-<p>The <strong>Logs</strong> pane of the Inspect Activity Bar (displayed below at bottom left of the IDE) provides a listing of log files. When you select a log it is displayed in an editor pane using the Inspect log viewer:</p>
-<p><a href="images/logs.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/logs.png" class="border img-fluid"></a></p>
-<p>Click the open folder button at the top of the logs pane to browse any directory, local or remote (e.g.&nbsp;for logs on Amazon S3):</p>
-<p><img src="images/logs-open-button.png" class="border img-fluid" style="margin-right: 2%;;width:27.0%"> <img src="images/logs-drop-down.png" class="border img-fluid" style="width:70.0%"></p>
-<p>Links to evaluation logs are also displayed at the bottom of every task result:</p>
-<p><a href="images/eval-log.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/eval-log.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A link to the evaluation log is at the bottom of the results display."></a></p>
-<p>If you prefer not to browse and view logs using the logs pane, you can also use the <strong>Inspect: Inspect View…</strong> command to open up a new pane running <code>inspect view</code>.</p>
-</section>
-<section id="run-and-debug" class="level2">
-<h2 class="anchored" data-anchor-id="run-and-debug">Run and Debug</h2>
-<div>
-
-</div>
-<div class="quarto-layout-panel" data-layout="[55,45]">
-<div class="quarto-layout-row">
-<div class="inner quarto-layout-cell" style="flex-basis: 55.0%;justify-content: flex-start;">
-<div style="margin-bottom: 15px;">
-<p>There are several ways to run tasks within VS Code:</p>
-</div>
+<p>There are several ways to implement multi-agent systems using the Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> protocol:</p>
 <ol type="1">
-<li><code>inspect eval</code> in the terminal</li>
-<li>Calling <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> in a script</li>
-<li>Using the <strong>Run Task</strong> button .</li>
-<li>Using the <kbd>Cmd+Shift+U</kbd> keyboard shortcut.</li>
+<li><p>You can provide a top-level supervisor agent with the ability to handoff to various sub-agents that are expert at different tasks.</p></li>
+<li><p>You can create an agent workflow where you explicitly invoke various agents in stages.</p></li>
+<li><p>You can make agents available to a model as a standard tool call.</p></li>
 </ol>
-</div>
-<div class="quarto-layout-cell" style="flex-basis: 45.0%;justify-content: center;">
-<p><a href="images/inspect-vscode-run-task.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4"><img src="images/inspect-vscode-run-task.png" class="border img-fluid" alt="Two eval tasks (arc-easy and arc-challenge) in an editor, with Run Task and Debug Task buttons above them."></a></p>
-</div>
-</div>
-</div>
-<p>You can also run tasks in the VS Code debugger by using the <strong>Debug Task</strong> button or the <kbd>Cmd+Shift+T</kbd> keyboard shortcut.</p>
+<p>We’ll cover examples of each of these below.</p>
+</section>
+<section id="methodology" class="level2">
+<h2 class="anchored" data-anchor-id="methodology">Methodology</h2>
+<p>As you explore multi-agent architectures, it’s important to remember that they often don’t out-perform simple <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agents. We therefore recommend the following methodology for agent development:</p>
+<ol type="1">
+<li><p>Start with a baseline <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent so you can measure whether various improvements help performance.</p></li>
+<li><p>Work on optimizing the environment (task definition), tool selection and prompts, and system prompt for your agent.</p></li>
+<li><p>Optionally, experiment with multi-agent designs, benchmarking them against your previous work optimizing simpler agents.</p></li>
+</ol>
+<p>The Anthropic blog post on <a href="https://www.anthropic.com/engineering/building-effective-agents">Building Effective Agents</a> and the follow up video on <a href="https://www.youtube.com/watch?v=D7_ipDqhtwk">How We Build Effective Agents</a> underscore these points and are good sources of additional intuition for agent development methodology.</p>
+</section>
+<section id="handoffs" class="level2">
+<h2 class="anchored" data-anchor-id="handoffs">Handoffs</h2>
+<p>Handoffs enable a supervisor agent to delegate to other agents. Handoffs are distinct from tool calls because they enable the handed-off to agent both visibility into the conversation history and the ability to append messages to it.</p>
+<p>Handoffs are automatically presented to the model as tool calls with a <code>transfer_to</code> prefix (e.g.&nbsp;<code>transfer_to_web_surfer</code>) and the model is prompted to understand that it is in a multi-agent system where other agents can be delegated to.</p>
+<p>Create handoffs by enclosing an agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> function. These agents in turn are often simple <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agents with a tailored prompt and set of tools. For example, here we create a <code>web_surfer()</code> agent that we can handoff to:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent react</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> web_browser</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>web_surfer <span class="op">=</span> react(</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    name<span class="op">=</span><span class="st">"web_surfer"</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    description<span class="op">=</span><span class="st">"Web research assistant"</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"You are a tenacious web researcher that is expert "</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>           <span class="op">+</span> <span class="st">"at using a web browser to answer questions."</span>,</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>web_browser()   </span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-simple callout-note">
 <div class="callout-body d-flex">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
 <div class="callout-body-container">
-<p>Note that when debugging a task, the Inspect extension will automatically limit the eval to a single sample (<code>--limit 1</code> on the command line). If you prefer to debug with many samples, there is a setting that can disable the default behavior (search settings for “inspect debug”).</p>
+<p>When we call the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> function to create the <code>web_surfer</code> agent we pass <code>name</code> and <code>description</code> parameters. These parameters are required when you are using a react agent in a handoff (so the supervisor model knows its name and capabilities).</p>
 </div>
 </div>
 </div>
+<p>We can then create a supervisor agent that has access to both a standard tool and the ability to hand off to the web surfer agent. In this case the supervisor is a standard <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent however other approaches to supervision are possible.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> handoff</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math_tools <span class="im">import</span> addition</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>supervisor <span class="op">=</span> react(</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"You are an agent that can answer addition "</span> </span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> <span class="st">"problems and do web research."</span>,</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[addition(), handoff(web_surfer)]</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>task <span class="op">=</span> Task(</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    dataset<span class="op">=</span>[</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        Sample(<span class="bu">input</span><span class="op">=</span><span class="st">"Please add 1+1 then tell me what "</span> </span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>                     <span class="op">+</span> <span class="st">"movies were popular in 2020"</span>)</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>supervisor,</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    sandbox<span class="op">=</span><span class="st">"docker"</span>,</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The <code>supervisor</code> agent has access to both a conventional <code>addition()</code> tool as well as the ability to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> to the <code>web_surfer</code> agent. The web surfer in turn has its own react loop, and because it was handed off to, has access to both the full message history and can append its own messages to the history.</p>
+<section id="handoff-filters" class="level3">
+<h3 class="anchored" data-anchor-id="handoff-filters">Handoff Filters</h3>
+<p>By default when a handoff occurs, the target agent sees the global message history and has its own internal history appended to the global history when it completes. The one exception to this is system messages, which are removed from the input and output respectively (as system messages for agents can easily confuse other agents, especially if they refer to tools or objectives that are not applicable across contexts).</p>
+<p>You can do additional filtering using handoff filters. For example, you can use the built-in <code>remove_tools</code> input filter to remove all tool calls from the history in the messages presented to the agent (this is sometimes necessary so that agents don’t get confused about what tools are available):</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> remove_tools</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, input_filter<span class="op">=</span>remove_tools)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also use the built-in <code>last_message</code> output filter to only append the last message of the agent’s history to the global conversation:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> last_message</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, output_filter<span class="op">=</span>last_message)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You aren’t confined to the built in filters—you can pass a function as either the <code>input_filter</code> or <code>output_filter</code>, for example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> my_filter(messages: <span class="bu">list</span>[ChatMessage]) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]:</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="co"># filter messages however you need to...</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> messages</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>handoff(web_surfer, output_filter<span class="op">=</span>my_filter)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="activity-bar" class="level2">
-<h2 class="anchored" data-anchor-id="activity-bar">Activity Bar</h2>
-<p>In addition to log listings, the Inspect Activity Bar provides interfaces for browsing tasks tuning configuration. Access the Activity Bar by clicking the Inspect icon on the left side of the VS Code workspace:</p>
-<p><a href="images/inspect-activity-bar.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5"><img src="images/inspect-activity-bar.png" class="border img-fluid" alt="Inspect Activity Bar with user interface for tuning global configuration and task CLI arguments."></a></p>
-<p>The activity bar has four panels:</p>
-<ul>
-<li><p><strong>Configuration</strong> edits global configuration by reading and writing values from the workspace <code>.env</code> config file (see the documentation on <a href="./options.html">Options</a> for more details on <code>.env</code> files).</p></li>
-<li><p><strong>Tasks</strong> displays all tasks in the current workspace, and can be used to both navigate among tasks as well as run and debug tasks directly.</p></li>
-<li><p><strong>Logs</strong> lists the logs in a local or remote log directory (When you select a log it is displayed in an editor pane using the Inspect log viewer).</p></li>
-<li><p><strong>Task</strong> provides a way to tweak the CLI arguments passed to <code>inspect eval</code> when it is run from the user interface.</p></li>
-</ul>
 </section>
-<section id="python-environments" class="level2">
-<h2 class="anchored" data-anchor-id="python-environments">Python Environments</h2>
-<p>When running and debugging Inspect evaluations, the Inspect extension will attempt to use python environments that it discovers in the task subfolder and its parent folders (all the way to the workspace root). It will use the first environment that it discovers, otherwise it will use the python interpreter configured for the workspace. Note that since the extension will use the sub-environments, Inspect must be installed in any of the environments to be used.</p>
-<p>You can control this behavior with the <code>Use Subdirectory Environments</code>. If you disable this setting, the globally configured interpreter will always be used when running or debugging evaluations, even when environments are present in subdirectories.</p>
+<section id="workflows" class="level2">
+<h2 class="anchored" data-anchor-id="workflows">Workflows</h2>
+<p>Using handoffs and tools for multi-agent architectures takes maximum advantage of model intelligence to plan and route agent activity. Sometimes though its preferable to explicitly orchestrate agent operations. For example, many deep research agents are implemented with explicit steps for planning, search, and writing.</p>
+<p>You can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> function to explicitly invoke agents using a predefined or dynamic sequence. For example, imagine we have written agents for various stages of a research pipeline. We can compose them into a research agent as follows:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> Agent, AgentState, agent, run</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> ChatMessageSystem</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> research_pipeline <span class="im">import</span> (</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    research_planner, research_searcher, research_writer</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> researcher() <span class="op">-&gt;</span> Agent:</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Research assistant."""</span></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>        state.messages.append(</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>            ChatMessageSystem(<span class="st">"You are an expert researcher."</span>)</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>        state <span class="op">=</span> run(research_planner(), state)</span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>        state <span class="op">=</span> run(research_searcher(), state)</span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>        state <span class="op">=</span> run(research_writer(), state)</span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> state</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>In a workflow you might not always pass and assign the entire state to each operation as shown above. Rather, you might make a more narrow query and use the results to determine the next step(s) in the workflow. Further, you might choose to execute some steps in parallel. For example:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> asyncio <span class="im">import</span> gather</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>plans <span class="op">=</span> <span class="cf">await</span> gather(</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    run(web_search_planner(), state),</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    run(experiment_planner(), state)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> method makes a copy of the input so is suitable for running in parallel as shown above (the two parallel runs will not make shared/conflicting edits to the <code>state</code>).</p>
 </section>
-<section id="troubleshooting" class="level2">
-<h2 class="anchored" data-anchor-id="troubleshooting">Troubleshooting</h2>
-<p>If the Inspect extension is not loading into the workspace, you should investigate what version of Python it is discovering as well as whether the <code>inspect-ai</code> package is detected within that Python environment. Use the <strong>Output</strong> panel (at the bottom of VS Code in the same panel as the Terminal) and select the <strong>Inspect</strong> output channel using the picker on the right side of the panel:</p>
-<p><a href="images/inspect-vscode-output-channel.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6"><img src="images/inspect-vscode-output-channel.png" class="border img-fluid" alt="Inspect output channel, showing the versions of Python and Inspect discovered by the extension."></a></p>
-<p>Note that the Inspect extension will automatically bind to the Python interpreter associated with the current workspace, so you should be sure that the <code>inspect-ai</code> package is installed within that environment. Use the <a href="https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters"><strong>Python: Select Interpreter</strong></a> command to associate a version of Python with your workspace.</p>
+<section id="tools" class="level2">
+<h2 class="anchored" data-anchor-id="tools">Tools</h2>
+<p>As an alternative to allowing an agent to participate fully in the conversation (i.e.&nbsp;seeing the full history and being able to append to it) you can instead make an agent available as a standard tool call. In this case, the agent sees only a single input string and returns the output of its last assistant message.</p>
+<p>For example, here we revise supervisor agent to make the <code>web_surfer</code> available as a tool rather than as a conversation participant:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> as_tool</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> math_tools <span class="im">import</span> addition</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>supervisor <span class="op">=</span> react(</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"You are an agent that can answer addition "</span> </span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>            <span class="op">+</span> <span class="st">"problems and do web research."</span>,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[addition(), as_tool(web_surfer)]</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
@@ -1006,13 +1087,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./log-viewer.html" class="pagination-link" aria-label="Log Viewer">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Log Viewer</span>
+      <a href="./agents.html" class="pagination-link" aria-label="Using Agents">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Using Agents</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./tasks.html" class="pagination-link" aria-label="Tasks">
-        <span class="nav-page-text">Tasks</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./agent-custom.html" class="pagination-link" aria-label="Custom Agents">
+        <span class="nav-page-text">Custom Agents</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1070,38 +1151,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","openEffect":"zoom"});
-(function() {
-  let previousOnload = window.onload;
-  window.onload = () => {
-    if (previousOnload) {
-      previousOnload();
-    }
-    lightboxQuarto.on('slide_before_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      const href = trigger.getAttribute('href');
-      if (href !== null) {
-        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-        if (imgEl !== null) {
-          const srcAttr = imgEl.getAttribute("src");
-          if (srcAttr && srcAttr.startsWith("data:")) {
-            slideConfig.href = srcAttr;
-          }
-        }
-      } 
-    });
-  
-    lightboxQuarto.on('slide_after_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      if (window.Quarto?.typesetMath) {
-        window.Quarto.typesetMath(slideNode);
-      }
-    });
-  
-  };
-  
-})();
-          </script>
 
 
 

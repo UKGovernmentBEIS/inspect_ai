@@ -132,10 +132,11 @@ section covers best practices for creating solver-independent tasks.
 
 ### Solver Parameter
 
-If you want to make your task work with a variety of solvers, the first
-thing to do is add a `solver` parameter to your task function. For
-example, let’s start with a CTF challenge task where the `solver` is
-hard-coded:
+You can substitute an alternate solver for the solver that is built in
+to your `Task` using the `--solver` command line parameter (or `solver`
+argument to the `eval()` function).
+
+For example, let’s start with a simple CTF challenge task:
 
 ``` python
 from inspect_ai import Task, task
@@ -163,17 +164,20 @@ This task uses the most naive solver possible (a simple tool use loop
 with no additional elicitation). That might be okay for initial task
 development, but we’ll likely want to try lots of different strategies.
 We start by breaking the `solver` into its own function and adding an
-alternative solver that uses the `basic_agent()`
+alternative solver that uses a `react()` agent
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.solver import basic_agent, chain, generate, use_tools
-from inspect_ai.tool import bash, python
+from inspect_ai.agent import react
+from inspect_ai.dataset._dataset import Sample
 from inspect_ai.scorer import includes
+from inspect_ai.solver import chain, generate, solver, use_tools
+from inspect_ai.tool import bash, python
+
 
 @solver
 def ctf_tool_loop():
-    reutrn chain([
+    return chain([
         use_tools([
             bash(timeout=180), 
             python(timeout=180)
@@ -182,27 +186,21 @@ def ctf_tool_loop():
     ])
 
 @solver
-def ctf_agent(max_attempts: int = 3):
-    return basic_agent(
-        tools=[
-            bash(timeout=180), 
-            python(timeout=180)
-        ],
-        max_attempts=max_attempts,
-    ) 
+def ctf_agent(attempts: int = 3):
+    return react(
+        tools=[bash(timeout=180), python(timeout=180)],
+        attempts=attempts,
+    )
+
  
 @task
-def ctf(solver: Solver | None = None):
-    # use default tool loop solver if no solver specified
-    if solver is None:
-        solver = ctf_tool_loop()
-   
+def ctf():
     # return task
     return Task(
         dataset=read_dataset(),
-        solver=solver,
+        solver=ctf_tool_loop(),
         sandbox="docker",
-        scorer=includes()
+        scorer=includes(),
     )
 ```
 
@@ -223,7 +221,7 @@ inspect eval ctf.py --solver=ctf_agent -S max_attempts=5
 ```
 
 Note the use of the `-S` CLI option to pass an alternate value for
-`max_attempts` to the `ctf_agent()` solver.
+`attempts` to the `ctf_agent()` solver.
 
 ### Setup Parameter
 
@@ -300,11 +298,11 @@ task.
 
 For example, imagine you are dealing with a `Task` that hard-codes its
 `sandbox` to a particular Dockerfile included with the task, and further
-does not make a `solver` parameter available to swap in other solvers:
+hard codes its `solver` to a simple agent:
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.solver import basic_agent
+from inspect_ai.agent import react
 from inspect_ai.tool import bash
 from inspect_ai.scorer import includes
 
@@ -312,7 +310,7 @@ from inspect_ai.scorer import includes
 def hard_coded():
     return Task(
         dataset=read_dataset(),
-        solver=basic_agent(tools=[bash()]),
+        solver=react(tools=[bash()]),
         sandbox=("docker", "compose.yaml"),
         scorer=includes()
     )

@@ -44,9 +44,7 @@ result:
 
 If you prefer not to browse and view logs using the logs pane, you can
 also use the **Inspect: Inspect View…** command to open up a new pane
-running `inspect view`. See the article on the [Log
-Viewer](log-viewer.qmd) for additional details on using it to explore
-eval results.
+running `inspect view`.
 
 ## Run and Debug
 
