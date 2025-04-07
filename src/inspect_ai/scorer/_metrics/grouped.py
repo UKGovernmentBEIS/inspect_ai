@@ -8,10 +8,12 @@ from inspect_ai.scorer._metric import (
     SampleScore,
     Value,
     ValueToFloat,
+    metric,
     value_to_float,
 )
 
 
+@metric
 def grouped(
     metric: Metric,
     group_key: str,
