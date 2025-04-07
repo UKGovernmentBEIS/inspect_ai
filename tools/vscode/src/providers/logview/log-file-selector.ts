@@ -1,11 +1,5 @@
-import { existsSync } from "fs";
 import { Uri, window } from "vscode";
-import { pathExists, workspacePath } from "../../core/path";
-import { isAbsolute } from "path";
 import { resolveLogFile } from "./logview-link-provider";
-
-
-
 
 
 export async function selectFileUri(): Promise<Uri | undefined> {

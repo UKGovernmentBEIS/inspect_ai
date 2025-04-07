@@ -32,15 +32,18 @@ export async function activateEvalManager(
   await stateManager.initializeWorkspaceId();
 
   const workspaceId = stateManager.getWorkspaceInstance();
+  const version = extensionVersion(context);
+
   const env = context.environmentVariableCollection;
   log.append(`Workspace: ${workspaceId}`);
+  log.append(`Version: ${version}`);
   log.append(`Resetting Terminal Workspace:`);
 
   env.delete("INSPECT_WORKSPACE_ID");
   env.append("INSPECT_WORKSPACE_ID", workspaceId);
 
   env.delete("INSPECT_VSCODE_EXT_VERSION");
-  env.append("INSPECT_VSCODE_EXT_VERSION", extensionVersion(context));
+  env.append("INSPECT_VSCODE_EXT_VERSION", version);
 
   return [inspectEvalCommands(inspectEvalMgr), inspectEvalMgr];
 }
