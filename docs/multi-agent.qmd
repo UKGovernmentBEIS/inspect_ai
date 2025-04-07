@@ -2,6 +2,8 @@
 title: Multi Agent
 ---
 
+## Overview
+
 There are several ways to implement multi-agent systems using the Inspect `Agent` protocol:
 
 1.  You can provide a top-level supervisor agent with the ability to handoff to various sub-agents that are expert at different tasks.
@@ -12,9 +14,18 @@ There are several ways to implement multi-agent systems using the Inspect `Agent
 
 We'll cover examples of each of these below. 
 
-::: {.callout-important}
-As you explore multi-agent architures, it's also important to remember that they often don't out-perform simple `react()` agents, so you should always start with a baseline `react()` agent and then measure whether more complex agents improve performance.
-:::
+### Methodology
+
+As you explore multi-agent architectures, it's important to remember that they often don't out-perform simple `react()` agents. We therefore recommend the following methodology for agent development:
+
+1. Start with a baseline `react()` agent so you can measure whether various  improvements help performance.
+
+2. Work on optimizing the environment (task definition), tool selection and prompts, and system prompt for your agent. 
+
+3. Optionally, experiment with multi-agent designs, benchmarking them against your previous work optimizing simpler agents.
+
+The Anthropic blog post on [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents) and the follow up video on [How We Build Effective Agents](https://www.youtube.com/watch?v=D7_ipDqhtwk) underscore these points and are good sources of additional intuition for agent development methodology.
+
 
 ## Handoffs {#handoffs}
 
