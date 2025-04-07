@@ -188,6 +188,9 @@ def create_server_sandbox(
     encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
     sandbox: str | None = None,
 ) -> MCPServer:
+    # TODO: Confirm the lifetime concepts. By the time a request makes it to the
+    # sandbox, it's going to need both a session id and a server "name".
+    name = " ".join([command] + args)
     return MCPServerImpl(
         lambda: sandbox_client(
             StdioServerParameters(
@@ -198,9 +201,10 @@ def create_server_sandbox(
                 encoding=encoding,
                 encoding_error_handler=encoding_error_handler,
             ),
-            sandbox,
+            server_name=name,
+            sandbox_name=sandbox,
         ),
-        name=" ".join([command] + args),
+        name=name,
         events=False,
     )
 
