@@ -30,10 +30,10 @@ export function webViewJsonRpcClient(vscode: {
   return request;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type JsonRpcRequestTransport = (
   method: string,
   params: unknown[] | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ) => Promise<any>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
