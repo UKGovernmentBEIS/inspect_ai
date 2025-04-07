@@ -8,6 +8,6 @@ __all__ = [
     "mcp_server_stdio",
     "mcp_server_sse",
     "mcp_server_sandbox",
-    "mcp_context",
+    "mcp_connection",
     "MCPServer",
 ]

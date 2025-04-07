@@ -47,7 +47,7 @@ You can imagine several ways you might want to customise this loop:
 2.  Urging the model to keep going after it decides to stop calling tools.
 3.  Examining and possibly filtering the tool calls before invoking `call_tools()`
 4.  Adding a critique / reflection step between tool calling and generate.
-5. [Forking](agents-api.qmd#sec-forking) the `TaskState` and exploring several trajectories.
+
 
 ### Stop Reasons {#sec-stop-reasons}
 

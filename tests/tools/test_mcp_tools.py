@@ -62,7 +62,7 @@ def test_mcp_filter():
 
 
 @task
-def git_task_react_mcp_context():
+def git_task_react_mcp_connection():
     git_server = mcp_server_stdio(
         command="python3", args=["-m", "mcp_server_git", "--repository", "."]
     )
@@ -86,8 +86,8 @@ def git_task_react_mcp_context():
 
 @skip_if_no_openai
 @skip_if_no_mcp_git_package
-def test_react_mcp_context():
-    log = eval(git_task_react_mcp_context(), model="openai/gpt-4o")[0]
+def test_react_mcp_connection():
+    log = eval(git_task_react_mcp_connection(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
 

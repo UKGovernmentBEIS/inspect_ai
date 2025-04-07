@@ -111,7 +111,7 @@ export class InspectViewServer implements Disposable {
     const params = new URLSearchParams();
     params.append("log", log_file);
 
-    const headers: Record<string, string> = {}
+    const headers: Record<string, string> = {};
     if (etag) {
       headers.etag = etag;
     }
@@ -124,7 +124,7 @@ export class InspectViewServer implements Disposable {
       } else if (status === 304) {
         return kNotModifiedSignal;
       }
-    }
+    };
 
     return this.api_json(`/api/pending-samples?${params.toString()}`, headers, handleError);
   }
@@ -151,7 +151,7 @@ export class InspectViewServer implements Disposable {
       } else if (status === 304) {
         return kNotModifiedSignal;
       }
-    }
+    };
     return this.api_json(`/api/pending-sample-data?${params.toString()}`, {}, handleError);
   }
 

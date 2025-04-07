@@ -1,6 +1,11 @@
+from logging import getLogger
+
+from inspect_ai._util.logger import warn_once
 from inspect_ai.agent._as_solver import as_solver
 
 from ._solver import Solver, solver
+
+logger = getLogger(__name__)
 
 
 @solver
@@ -31,10 +36,15 @@ def human_agent(
     Returns:
        Solver: Human agent solver.
     """
-    from inspect_ai.agent._human.agent import human
+    from inspect_ai.agent._human.agent import human_cli
+
+    warn_once(
+        logger,
+        "The human_agent solver is deprecated. Please use the human_cli agent from the agents module instead.",
+    )
 
     return as_solver(
-        human(
+        human_cli(
             answer=answer,
             intermediate_scoring=intermediate_scoring,
             record_session=record_session,

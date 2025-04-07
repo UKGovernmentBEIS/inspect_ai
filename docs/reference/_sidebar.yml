@@ -52,12 +52,6 @@ website:
           href: reference/inspect_ai.solver.qmd#self_critique
         - text: multiple_choice
           href: reference/inspect_ai.solver.qmd#multiple_choice
-        - text: basic_agent
-          href: reference/inspect_ai.solver.qmd#basic_agent
-        - text: human_agent
-          href: reference/inspect_ai.solver.qmd#human_agent
-        - text: bridge
-          href: reference/inspect_ai.solver.qmd#bridge
         - text: chain
           href: reference/inspect_ai.solver.qmd#chain
         - text: fork
@@ -91,12 +85,16 @@ website:
           href: reference/inspect_ai.tool.qmd#web_search
         - text: think
           href: reference/inspect_ai.tool.qmd#think
-        - text: mcp_tools
-          href: reference/inspect_ai.tool.qmd#mcp_tools
+        - text: mcp_connection
+          href: reference/inspect_ai.tool.qmd#mcp_connection
         - text: mcp_server_stdio
           href: reference/inspect_ai.tool.qmd#mcp_server_stdio
         - text: mcp_server_sse
           href: reference/inspect_ai.tool.qmd#mcp_server_sse
+        - text: mcp_server_sandbox
+          href: reference/inspect_ai.tool.qmd#mcp_server_sandbox
+        - text: mcp_tools
+          href: reference/inspect_ai.tool.qmd#mcp_tools
         - text: MCPServer
           href: reference/inspect_ai.tool.qmd#mcpserver
         - text: tool_with
@@ -132,8 +130,8 @@ website:
           href: reference/inspect_ai.agent.qmd#react
         - text: bridge
           href: reference/inspect_ai.agent.qmd#bridge
-        - text: human
-          href: reference/inspect_ai.agent.qmd#human
+        - text: human_cli
+          href: reference/inspect_ai.agent.qmd#human_cli
         - text: handoff
           href: reference/inspect_ai.agent.qmd#handoff
         - text: run

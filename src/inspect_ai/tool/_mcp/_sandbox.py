@@ -11,6 +11,7 @@ from inspect_ai.tool._tool_support_helpers import (
     exec_sandbox_rpc,
     tool_container_sandbox,
 )
+from inspect_ai.util import sandbox
 
 from ._types import MCPServerContextEric
 
@@ -28,7 +29,7 @@ async def sandbox_client(
     # first sandbox found with the support code installed. I could refactor the
     # code to separate the validation of compatibility from the finding of the
     # sandbox.
-    # sb1 = sandbox(sandbox_name)
+    sb1 = sandbox(sandbox_name)  # noqa: F841
     sandbox_environment = await tool_container_sandbox("mcp support")
 
     # read_stream is remote process's stdout

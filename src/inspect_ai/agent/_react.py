@@ -10,7 +10,7 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.scorer._score import score
-from inspect_ai.tool._mcp.context import mcp_context
+from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
@@ -139,7 +139,7 @@ def react(
     tools.append(tool_with(submit_tool(), submit.name, submit.description))
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_context(tools):
+        async with mcp_connection(tools):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
@@ -165,7 +165,9 @@ def react(
                 if answer is not None:
                     # remove the tool call and set the output to the answer for scoring
                     state.output.message.tool_calls = None
-                    state.output.completion = answer
+                    state.output.completion = (
+                        f"{state.output.completion}\n\n{answer}".strip()
+                    )
 
                     # exit if we are at max_attempts
                     attempt_count += 1

@@ -25,6 +25,7 @@ MCPServerContextEric: TypeAlias = AsyncGenerator[
         MemoryObjectReceiveStream[JSONRPCMessage | Exception],
         MemoryObjectSendStream[JSONRPCMessage],
     ],
+    None,
 ]
 
 

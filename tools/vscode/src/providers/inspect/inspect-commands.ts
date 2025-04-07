@@ -75,7 +75,13 @@ export class InspectCommandDispatcher implements Disposable {
 
 
 function inspectCommandsDir(stateManager: WorkspaceStateManager): string {
-  const commandsDir = userDataDir(join(kPythonPackageName, "vscode", stateManager.getWorkspaceInstance(), "commands"));
+  // The python library we're using includes the author name in the path, meaning there are two 
+  // nested inspect_ai commands.
+  const platformPath = process.platform === "win32" ?
+    join(kPythonPackageName, kPythonPackageName, "vscode", stateManager.getWorkspaceInstance(), "commands") :
+    join(kPythonPackageName, "vscode", stateManager.getWorkspaceInstance(), "commands");
+  const commandsDir = userDataDir(platformPath);
+
 
   if (!existsSync(commandsDir)) {
     mkdirSync(commandsDir, { recursive: true });

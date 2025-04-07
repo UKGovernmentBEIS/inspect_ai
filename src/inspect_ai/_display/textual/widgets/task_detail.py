@@ -221,12 +221,11 @@ class TaskMetrics(Widget):
             self.recompute_grid()
 
     def on_mount(self) -> None:
-        self.recompute_grid()
+        self.recompute_grid(True)
 
-    def recompute_grid(self) -> None:
-        if not self.is_mounted:
+    def recompute_grid(self, force: bool = False) -> None:
+        if not self.is_mounted and not force:
             return
-
         grid = self.query_one(f"#{self.grid_id()}")
 
         grid.remove_children()
