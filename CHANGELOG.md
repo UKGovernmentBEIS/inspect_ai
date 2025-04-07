@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Inspect View: [Live updates](https://inspect.aisi.org.uk/log-viewer.html#live-view) to running evaluation logs.
 - [Agent](https://inspect.aisi.org.uk/agents.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
 - Scoring: New [grouped()](https://inspect.aisi.org.uk/scoring.html#metric-grouping) metric wrapper function, which applies a given metric to subgroups of samples defined by a key in sample metadata.
 - Basic Agent: New `submit_append` option to append the submit tool output to the completion rather than replacing the completion (note that the new `react()` agent appends by default).
@@ -20,7 +21,6 @@
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
 - Display: Print warnings after task summaries for improved visibility.
-- Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
 - Inspect View: Render messages in `user` and `assistant` solver events.
