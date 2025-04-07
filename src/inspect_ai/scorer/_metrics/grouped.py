@@ -25,14 +25,6 @@ def grouped(
     """
     Creates a grouped metric that applies the given metric to subgroups of samples.
 
-    ::: {.callout-note}
-    The `grouped()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Args:
       metric: The metric to apply to each group of samples.
       group_key: The metadata key used to group samples. Each sample must have this key in its metadata.

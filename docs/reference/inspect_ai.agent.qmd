@@ -2,19 +2,11 @@
 title: "inspect_ai.agent"
 ---
 
-::: {.callout-note}
-The **inspect_ai.agent** module is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ## Agents
 
 ### react
 ### bridge
-### human
+### human_cli
 
 ## Execution
 
