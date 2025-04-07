@@ -15,8 +15,10 @@ async function main() {
     await runTests({ 
       extensionDevelopmentPath, 
       extensionTestsPath,
-      // Add any additional launcher options here if needed
-      // launchArgs: []
+      // Configure for CI environments (GitHub Actions)
+      launchArgs: ['--no-sandbox', '--disable-gpu'],
+      // Use headless mode when running on CI without a display
+      extensionTestsEnv: { DISPLAY: process.env.DISPLAY || ':99.0' }
     });
   } catch (err) {
     console.error('Failed to run tests', err);

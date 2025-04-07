@@ -43,6 +43,13 @@ jobs:
           pushd tools/vscode
           yarn vsce package
 
+      - name: Setup Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+          
       - name: Test
         run: |
           pushd tools/vscode
