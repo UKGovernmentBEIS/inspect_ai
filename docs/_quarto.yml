@@ -69,13 +69,6 @@ website:
                - solvers.qmd
                - scorers.qmd
 
-         - section: "Tools"
-           contents:
-               - tools.qmd
-               - tools-custom.qmd
-               - tools-standard.qmd
-               - approval.qmd
-
          - section: "Models"
            contents:
                - models.qmd
@@ -86,13 +79,19 @@ website:
                - reasoning.qmd
                - structured.qmd
 
+         - section: "Tools"
+           contents:
+               - tools.qmd
+               - tools-custom.qmd
+               - tools-standard.qmd
+               - sandboxing.qmd
+               - approval.qmd
+
          - section: "Agents"
            contents:
                - agents.qmd
-               - sandboxing.qmd
-               - agents-api.qmd
-               - text: "Agent Protocol"
-                 href: agent-protocol.qmd
+               - multi-agent.qmd
+               - agent-custom.qmd
                - agent-bridge.qmd
                - human-agent.qmd
 

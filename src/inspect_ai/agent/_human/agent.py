@@ -14,14 +14,14 @@ from .view import ConsoleView, HumanAgentView
 
 
 @agent
-def human(
+def human_cli(
     answer: bool | str = True,
     intermediate_scoring: bool = False,
     record_session: bool = True,
 ) -> Agent:
-    """Human agent for agentic tasks that run in a Linux environment.
+    """Human CLI agent for tasks that run in a sandbox.
 
-    The Human agent installs agent task tools in the default
+    The Human CLI agent installs agent task tools in the default
     sandbox and presents the user with both task instructions and
     documentation for the various tools (e.g. `task submit`,
     `task start`, `task stop` `task instructions`, etc.). A human agent panel
@@ -39,7 +39,7 @@ def human(
        record_session: Record all user commands and outputs in the sandbox bash session.
 
     Returns:
-       Solver: Human agent solver.
+       Agent: Human CLI agent.
     """
     # we can only run one human agent interaction at a time (use lock to enforce)
     agent_lock = anyio.Lock()

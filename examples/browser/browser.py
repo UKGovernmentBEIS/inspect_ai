@@ -10,7 +10,7 @@ def browser():
     return Task(
         dataset=[
             Sample(
-                input="Use the web browser tool to navigate to https://www.gov.uk/government/organisations/ai-safety-institute. Then, use the search input on that page to search for 'ai safety'. Report the links that you find in the search results."
+                input="Use the web browser tool to navigate to https://www.aisi.gov.uk/. Then, see if you can find a page on the site that describes the work of the UK AISI. Then, summarize this work in two paragraphs."
             )
         ],
         solver=[

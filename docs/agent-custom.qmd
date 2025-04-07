@@ -1,0 +1,350 @@
+---
+title: Custom Agents
+aliases: 
+  - agents-api.html
+  - agent-protocol.html
+---
+
+## Overview
+
+Inspect agents bear some similarity to [solvers](solvers.qmd) in that they are functions that accept and return a `state`. However, agent state is intentionally much more narrow---it consists of only conversation history (`messages`) and the last model generation (`output`). This in turn enables agents to be used more flexibly: they can be employed as solvers, tools, participants in a workflow, or delegates in multi-agent systems.
+
+Below we'll cover the core `Agent` protocol, implementing a simple tool use loop, and related APIs for agent memory and observability.
+
+## Protocol
+
+An `Agent` is a function that takes and returns an `AgentState`. Agent state includes two fields:
+
+| Field      | Type                  | Description           |
+|------------|-----------------------|-----------------------|
+| `messages` | List of `ChatMessage` | Conversation history. |
+| `output`   | `ModelOutput`         | Last model output.    |
+
+### Example
+
+Here's a simple example that implements a `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research:
+
+``` python
+from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.model import ChatMessageSystem, get_model
+from inspect_ai.tool import web_browser
+
+@agent
+def web_surfer() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Web research assistant."""
+      
+        # some general guidance for the agent
+        state.messages.append(
+            ChatMessageSystem(
+                content="You are a tenacious web researcher that is "
+                + "expert at using a web browser to answer questions."
+            )
+        )
+
+        # run a tool loop w/ the web_browser then update & return state
+        messages, state.output = await get_model().generate_loop(
+            state.messages, tools=web_browser()
+        )
+        state.messages.extend(messages)
+        return state
+
+    return execute
+```
+
+The agent calls the `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model may make several calls to the [web_browser()](https://inspect.aisi.org.uk/reference/inspect_ai.tool.html#web_browser) tool to fulfil the request.
+
+::: {.callout-note appearance="simple"}
+While this example illustrates the basic mechanic of agents, you generally wouldn't write an agent that does only this (a system prompt with a tool use loop) as the `react()` agent provides a more sophisticated and flexible version of this pattern.
+:::
+
+## Tool Loop
+
+Agents often run a tool use loop, and one of the more common reasons for creating a custom agent is to tailor the behaviour of the loop. Here is an agent loop that has essentially the same implementation as the default `generate()` solver:
+
+``` python
+@agent
+def my_agent(tools: list[Tool]):
+    async def execute(state: AgentState):
+
+        while True:
+            # call model
+            output = await get_model().generate(
+                input=state.messages,
+                tools=tools, 
+            )
+
+            # append to messages
+            state.messages.append(output.message)
+
+            # make tool calls or terminate if there are none
+            if output.message.tool_calls:
+                messages, state.output = await execute_tools(
+                    messages, tools
+                )
+                state.messages.extend(messages)
+            else:
+                break
+
+        return state
+
+    return execute
+```
+
+You might then further tailor the behaviour of this loop. For example, you might want to:
+
+1.  Add another termination condition for the output satisfying some criteria.
+
+2.  Add a critique / reflection step between tool calling and generate.
+
+3.  Urge the model to keep going after it decides to stop calling tools.
+
+4.  Handle context window overflow (`stop_reason=="model_length"`) by truncating or summarizing the `messages`.
+
+5.  Examine and possibly filter the tool calls before invoking `execute_tools()`
+
+
+
+## Sample Store {#agent-store}
+
+In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.
+
+### Typed Store
+
+When developing agents, you should use the [typed-interface](agent-custom.qmd#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
+
+For example, here we define a typed accessor to the store by deriving from the `StoreModel` class (which in turn derives from Pydantic `BaseModel`):
+
+``` python
+from pydantic import Field
+from inspect_ai.util import StoreModel
+
+class Activity(StoreModel):
+    active: bool = Field(default=False)
+    tries: int = Field(default=0)
+    actions: list[str] = Field(default_factory=list)
+```
+
+We can then get access to a sample scoped instance of the store for use in agents using the `store_as()` function:
+
+``` python
+from inspect_ai.util import store_as
+
+activity = store_as(Activity)
+```
+
+### Agent Instances
+
+If you want an agent to have a store-per-instance by default, add an `instance` parameter to your `@agent` function and default it to `uuid()`. Then, forward the `instance` on to `store_as()` as well as any tools you call that are also stateful (e.g. `web_browser()`). For example:
+
+``` python
+from pydantic import Field
+from shortuuid import uuid
+
+from inspect_ai.agent import Agent, agent
+from inspect_ai.model import ChatMessage
+from inspect_ai.util import StoreModel, store_as
+
+class WebSurferState(StoreModel):
+    messages: list[ChatMessage] = Field(default_factory=list)
+
+@agent
+def web_surfer(instance: str | None = uuid()) -> Agent:
+    
+    async def execute(state: AgentState) -> AgentState:
+
+        # get state for this instance
+        surfer_state = store_as(WebSurferState, instance=instance)
+
+        ...
+
+        # pass the instance on to web_browser 
+        messages, state.output = await get_model().generate_loop(
+            state.messages, tools=web_browser(instance=instance)
+        )
+```
+
+This enables you to have multiple instances of the `web_surfer()` agent, each with their own state and web browser.
+
+### Named Instances
+
+It's also possible that you'll want to create various named store instances that are shared across agents (e.g. each participant in a game might need their own store). Use the `instance` parameter of `store_as()` to explicitly create scoped store accessors:
+
+``` python
+red_team_activity = store_as(Activity, instance="red_team")
+blue_team_activity = store_as(Activity, instance="blue_team")
+```
+
+## Parameters
+
+The `web_surfer` agent used an example above doesn't take any parameters, however, like tools, agents can accept arbitrary parameters.
+
+For example, here is a `critic` agent that asks a model to contribute to a conversation by critiquing its previous output. There are two types of parameters demonstrated:
+
+1.  Parameters that configure the agent globally (here, the critic `model`).
+
+2.  Parameters passed by the supervisor agent (in this case the `count` of critiques to provide):
+
+``` python
+from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.model import ChatMessageSystem, Model
+
+@agent
+def critic(model: str | Model | None = None) -> Agent:
+    
+    async def execute(state: AgentState, count: int = 3) -> AgentState:
+        """Provide critiques of previous messages in a conversation.
+        
+        Args:
+           state: Agent state
+           count: Number of critiques to provide (defaults to 3)
+        """
+        state.messages.append(
+            ChatMessageSystem(
+                content=f"Provide {count} critiques of the conversation."
+            )
+        )
+        state.output = await get_model(model).generate(state.messages)
+        state.messages.append(state.output.message)
+        return state
+        
+    return execute
+```
+
+You might use this in a multi-agent system as follows:
+
+``` python
+supervisor = react(
+    ...,
+    tools=[
+        addition(), 
+        handoff(web_surfer()), 
+        handoff(critic(model="openai/gpt-4o-mini"))
+    ]
+)
+```
+
+When the supervisor agent decides to hand off to the `critic()` it will decide how many critiques to request and pass that in the `count` parameter (or alternatively just accept the default `count` of 3).
+
+### Currying
+
+Note that when you use an agent as a solver there isn't a mechanism for specifying parameters dynamically during the solver chain. In this case the default value for `count` will be used:
+
+``` python
+solver = [
+    system_message(...),
+    generate(),
+    critic(),
+    generate()
+]
+```
+
+If you need to pass parameters explicitly to the agent `execute` function, you can curry them using the `as_solver()` function:
+
+``` python
+solver = [
+    system_message(...),
+    generate(),
+    as_solver(critic(), count=5),
+    generate()
+]
+```
+
+## Transcripts {#sec-transcripts}
+
+Transcripts provide a rich per-sample sequential view of everything that occurs during plan execution and scoring, including:
+
+-   Model interactions (including the raw API call made to the provider).
+-   Tool calls (including a sub-transcript of activitywithin the tool)
+-   Changes (in [JSON Patch](https://jsonpatch.com/) format) to the `TaskState` for the `Sample`.
+-   Scoring (including a sub-transcript of interactions within the scorer).
+-   Custom `info()` messages inserted explicitly into the transcript.
+-   Python logger calls (`info` level or designated custom `log-level`).
+
+This information is provided within the Inspect log viewer in the **Transcript** tab (which sits alongside the Messages, Scoring, and Metadata tabs in the per-sample display).
+
+### Custom Info
+
+You can insert custom entries into the transcript via the Transcipt `info()` method (which creates an `InfoEvent`). Access the transcript for the current sample using the `transcript()` function, for example:
+
+``` python
+from inspect_ai.log import transcript
+
+transcript().info("here is some custom info")
+```
+
+Strings passed to `info()` will be rendered as markdown. In addition to strings you can also pass arbitrary JSON serialisable objects to `info()`.
+
+### Grouping with Steps
+
+You can create arbitrary groupings of transcript activity using the Transcript `step()` context manager. For example:
+
+``` python
+with transcript().step("reasoning"):
+    ...
+    state.store.set("next-action", next_action)
+```
+
+There are two reasons that you might want to create steps:
+
+1.  Any changes to the store which occur during a step will be collected into a `StoreEvent` that records the changes (in [JSON Patch](https://jsonpatch.com/) format) that occurred.
+2.  The Inspect log viewer will create a visual delineation for the step, which will make it easier to see the flow of activity within the transcript.
+
+## Subtasks {#sec-subtasks}
+
+Subtasks provide a mechanism for creating isolated, re-usable units of execution. You might implement a complex tool using a subtask or might use them in a multi-agent evaluation. The main characteristics of sub-tasks are:
+
+1.  They run in their own async coroutine.
+2.  They have their own isolated `Store` (no access to the sample `Store`).
+3.  They have their own isolated `Transcript`
+
+To create a subtask, declare an async function with the `@subtask` decorator. The function can take any arguments and return a value of any type. For example:
+
+``` python
+from inspect_ai.util import Store, subtask
+
+@subtask
+async def web_search(keywords: str) -> str:
+    # get links for these keywords
+    links = await search_links(keywords)
+
+    # add links to the store so they end up in the transcript
+    store().set("links", links)
+
+    # summarise the links
+    return await fetch_and_summarise(links)
+```
+
+Note that we add `links` to the `store` not because we strictly need to for our implementation, but because we want the links to be recorded as part of the transcript.
+
+Call the subtask as you would any async function:
+
+``` python
+summary = await web_search(keywords="solar power")
+```
+
+A few things will occur automatically when you run a subtask:
+
+-   New isolated `Store` and `Transcript` objects will be created for the subtask (accessible via the `store()` and `transcript()` functions). Changes to the `Store` that occur during execution will be recorded in a `StoreEvent`.
+
+-   A `SubtaskEvent` will be added to the current transcript. The event will include the name of the subtask, its input and results, and a transcript of all events that occur within the subtask.
+
+You can also include one or more steps within a subtask.
+
+### Parallel Execution
+
+You can execute subtasks in parallel using `asyncio.gather()`. For example, to run 3 `web_search()` subtasks in parallel:
+
+``` python
+import asyncio
+
+searches = [
+  web_search(keywords="solar power"),
+  web_search(keywords="wind power"),
+  web_search(keywords="hydro power"),
+]
+
+results = await asyncio.gather(*searches)
+```
+
+Note that we don't `await` the subtasks when building up our list of `searches`. Rather, we let `asyncio.gather()` await all of them, returning only when all of the results are available.

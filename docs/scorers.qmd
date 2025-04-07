@@ -535,14 +535,6 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
 ### Metric Grouping
 
-::: {.callout-note}
-The `grouped()` function described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The `grouped()` function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samplesor groups. Each sample must have a value for whatever key is used for grouping.
 
 For example, let's say you wanted to create a separate accuracy metric for each distinct "category" variable defined in `Sample` metadata:

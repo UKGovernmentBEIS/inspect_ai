@@ -1,6 +1,7 @@
-## Unreleased
+## v0.3.83 (07 April 2025)
 
-- [Agent](https://inspect.aisi.org.uk/agent-protocol.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
+- Inspect View: [Live updates](https://inspect.aisi.org.uk/log-viewer.html#live-view) to running evaluation logs.
+- [Agent](https://inspect.aisi.org.uk/agents.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
 - Scoring: New [grouped()](https://inspect.aisi.org.uk/scoring.html#metric-grouping) metric wrapper function, which applies a given metric to subgroups of samples defined by a key in sample metadata.
 - Basic Agent: New `submit_append` option to append the submit tool output to the completion rather than replacing the completion (note that the new `react()` agent appends by default).
 - Model API: New [execute_tools()](https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools) function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
@@ -20,7 +21,6 @@
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
 - Display: Print warnings after task summaries for improved visibility.
-- Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
 - Inspect View: Render messages in `user` and `assistant` solver events.
@@ -694,7 +694,7 @@
 
 ## v0.3.30 (18 September 2024)
 
-- Added [fork()](https://inspect.aisi.org.uk/agents-api.html#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
+- Added `fork()` function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
 - Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
 - Fix error when running `inspect info log-types`
 - Improve scorer names imported from modules by not including the the module names.
@@ -769,9 +769,9 @@
 
 ## v0.3.25 (25 August 2024)
 
-- [Store](https://inspect.aisi.org.uk/agents-api.html#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
-- [Transcript](https://inspect.aisi.org.uk/agents-api.html#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
-- [Subtasks](https://inspect.aisi.org.uk/agents-api.html#sec-subtasks) for delegating work to helper models, sub-agents, etc.
+- `Store` for manipulating arbitrary sample state from within solvers and tools.
+- `Transcripts` for detailed sample level tracking of model and tool calls, state changes, logging, etc.
+- `Subtasks` for delegating work to helper models, sub-agents, etc.
 - Integration with Anthropic [prompt caching](https://inspect.aisi.org.uk/caching.html#sec-provider-caching).
 - [fail_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).
