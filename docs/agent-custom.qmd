@@ -5,17 +5,26 @@ aliases:
   - agent-protocol.html
 ---
 
-::: {.hidden}
-## Protocol
-## Stop Reason
-## Tool Loop
-## Store
-## Transcript
-## Subtasks
-## Parameters
-:::
+## Overview
 
-```python
+Inspect agents bear some similarity to [solvers](solvers.qmd) in that they are functions that accept and return a `state`. However, agent state is intentionally much more narrow---it consists of only conversation history (`messages`) and the last model generation (`output`). This in turn enables agents to be used more flexibly: they can be employed as solvers, tools, participants in a workflow, or delegates in multi-agent systems.
+
+Below we'll cover the core `Agent` protocol, implementing a simple tool use loop, and related APIs for agent memory and observability.
+
+## Protocol
+
+An `Agent` is a function that takes and returns an `AgentState`. Agent state includes two fields:
+
+| Field      | Type                  | Description           |
+|------------|-----------------------|-----------------------|
+| `messages` | List of `ChatMessage` | Conversation history. |
+| `output`   | `ModelOutput`         | Last model output.    |
+
+### Example
+
+Here's a simple example that implements a `web_surfer()` agent that uses the `web_browser()` tool to do open-ended web research:
+
+``` python
 from inspect_ai.agent import Agent, AgentState, agent
 from inspect_ai.model import ChatMessageSystem, get_model
 from inspect_ai.tool import web_browser
@@ -24,6 +33,7 @@ from inspect_ai.tool import web_browser
 def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         """Web research assistant."""
+      
         # some general guidance for the agent
         state.messages.append(
             ChatMessageSystem(
@@ -42,7 +52,60 @@ def web_surfer() -> Agent:
     return execute
 ```
 
-## Agent Store {#agent-store}
+The agent calls the `generate_loop()` function which runs the model in a loop until it stops calling tools. In this case the model may make several calls to the [web_browser()](https://inspect.aisi.org.uk/reference/inspect_ai.tool.html#web_browser) tool to fulfil the request.
+
+::: {.callout-note appearance="simple"}
+While this example illustrates the basic mechanic of agents, you generally wouldn't write an agent that does only this (a system prompt with a tool use loop) as the `react()` agent provides a more sophisticated and flexible version of this pattern.
+:::
+
+## Tool Loop
+
+Agents often run a tool use loop, and one of the more common reasons for creating a custom agent is to tailor the behaviour of the loop. Here is an agent loop that has essentially the same implementation as the default `generate()` solver:
+
+``` python
+@agent
+def my_agent(tools: list[Tool]):
+    async def execute(state: AgentState):
+
+        while True:
+            # call model
+            output = await get_model().generate(
+                input=state.messages,
+                tools=tools, 
+            )
+
+            # append to messages
+            state.messages.append(output.message)
+
+            # make tool calls or terminate if there are none
+            if output.message.tool_calls:
+                messages, state.output = await execute_tools(
+                    messages, tools
+                )
+                state.messages.extend(messages)
+            else:
+                break
+
+        return state
+
+    return execute
+```
+
+You might then further tailor the behaviour of this loop. For example, you might want to:
+
+1.  Add another termination condition for the output satisfying some criteria.
+
+2.  Add a critique / reflection step between tool calling and generate.
+
+3.  Urge the model to keep going after it decides to stop calling tools.
+
+4.  Handle context window overflow (`stop_reason=="model_length"`) by truncating or summarizing the `messages`.
+
+5.  Examine and possibly filter the tool calls before invoking `execute_tools()`
+
+
+
+## Sample Store {#agent-store}
 
 In some cases agents will want to retain state across multiple invocations, or even share state with other agents or tools. This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.
 
@@ -112,7 +175,7 @@ red_team_activity = store_as(Activity, instance="red_team")
 blue_team_activity = store_as(Activity, instance="blue_team")
 ```
 
-## Parameters {#parameters}
+## Parameters
 
 The `web_surfer` agent used an example above doesn't take any parameters, however, like tools, agents can accept arbitrary parameters.
 
@@ -186,77 +249,6 @@ solver = [
     generate()
 ]
 ```
-
-
-## Overview
-
-This article describes advanced Inspect APIs available for creating evaluations with agents. You can also build agents evals using Inspect's built in [Basic Agent](agents.qmd#sec-basic-agent) or by bridging to an external agent library (see the main [Agents](agents.qmd) article for further details). Topics covered in this article include:
-
-1.  Sharing per-sample state across solvers and tools
-2.  Creating a custom tool use loop
-3.  Dynamically customising tool descriptions
-4.  Observability with sample transcripts.
-5.  Delegating work to sub-tasks
-6.  Sandboxing arbitrary code execution
-
-We'll assume that you have already covered the basics of [Solvers](solvers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) (please review those articles as required before proceeding).
-
-
-## Sample Store
-
-Sequences of solvers executing against a sample often need to store and manipulate shared state. Further, tools may often want their own persistent state (or groups of tools may want to share state). This can be accomplished in Inspect using the `Store`, which provides a sample-scoped scratchpad for arbitrary values.
-
-The core of the `Store` interface is:
-
-``` python
-from inspect_ai.util import Store
-
-class Store:
-    def get(self, key: str, default: VT) -> VT
-    def set(self, key: str, value: Any) -> None
-    def delete(self, key: str) -> None
-```
-
-Note that the core `Store` interface is a property bag without strong typing. See the section below on [typed store access](#store-typing) for details on how to interact with the store in a typesafe fashion.
-
-Basic views on the store's collection (e.g. `items()`, `keys()`, `values()`) are also provided. Note that the `get()` method will automatically add the `default` to the store if it doesn't exist.
-
-The `Store` can be accessed via `TaskState` as follows:
-
-``` python
-history = state.store.get("history", [])
-```
-
-It is also possible the access the `Store` *for the current sample* using the `store()` function. This is the mechanism for tools to read and write the `Store`. For example:
-
-``` python
-from inspect_ai.tool import tool
-from inspect_ai.util import store
-
-@tool
-def web_browser_back():
-   def execute() -> str:
-       history = store().get("web_browser:history", [])
-       return history.pop()
-```
-
-While there is no formal namespacing mechanism for the `Store`, this can be informally achieved using key prefixes as demonstrated above.
-
-You should generally try to use JSON serialisable Python types in the `Store` (e.g. objects should be dataclasses or Pydantic BaseModel) so that they can be recorded in the [Transcript](#sec-transcripts).
-
-While the default `Store` for a sample is shared globally between solvers and tools, a more narrowly scoped `Store` is created automatically for [Subtasks](#sec-subtasks).
-
-### Store Typing {#store-typing}
-
-{{< include _store_typing.md >}}
-
-
-## Tool Loop
-
-The higher level `generate()` function passed to solvers includes a built-in tool use loop—when the model calls a tool, Inspect calls the underlying Python function and reports the result to the model, proceeding until the model stops calling tools. However, for more advanced agents you may want to intervene in the tool use loop in a variety of ways:
-
-{{< include _tools-scaffold.md >}}
-
 
 ## Transcripts {#sec-transcripts}
 
@@ -356,68 +348,3 @@ results = await asyncio.gather(*searches)
 ```
 
 Note that we don't `await` the subtasks when building up our list of `searches`. Rather, we let `asyncio.gather()` await all of them, returning only when all of the results are available.
-
-### Forking {#sec-forking}
-
-Inspect's `fork()` function provids a convenient wrapper around a very common use of subtasks: running a `TaskState` against a set of solvers in parallel to explore different trajectories.
-
-For example, let's say you have a solver named `explore()` that takes `temperature` as a parameter. You might want to try the solver out with multiple temperature values and then continue on with the best result:
-
-``` python
-from inspect_ai.solver import fork
-
-results = await fork(state, [
-    explore(temperature = 0.5),
-    explore(temperature = 0.75),
-    explore(temperature = 1.0)
-])
-```
-
-The `state` will be deep copied so that each `explore()` solver instance gets it own copy of the `state` to work on. The `results` contain a list of `TaskState` with the value returned from each of the solvers.
-
-## Sandboxing
-
-Many agents provide models with the ability to execute arbitrary code. It's important that this code be sandboxed so that it executes in an isolated context. Inspect supports this through the `SandboxEnvironment` (which in turn may be implemented using Docker or various other schemes). Enable sandboxing for a task with the `sandbox` parameter. For example:
-
-``` python
-@task
-def file_probe()
-    return Task(
-        dataset=dataset,
-        solver=[
-            use_tools([list_files()]), 
-            generate()
-        ],
-        sandbox="docker",
-        scorer=includes(),
-    )
-)
-```
-
-Use the `SandboxEnvironment` within a tool via the `sandbox()` function. For example, here's an implementation of the `list_files()` tool referenced above:
-
-``` python
-from inspect_ai.tool import ToolError, tool
-from inspect_ai.util import sandbox
-
-@tool
-def list_files():
-    async def execute(dir: str):
-        """List the files in a directory.
-
-        Args:
-            dir (str): Directory
-
-        Returns:
-            File listing of the directory
-        """
-        result = await sandbox().exec(["ls", dir])
-        if result.success:
-            return result.stdout
-        else:
-            raise ToolError(result.stderr)
-
-    return execute
-```
-
-See the article on [Sandboxing](sandboxing.qmd) for further details on using sandboxes with Inspect.
