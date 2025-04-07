@@ -39,6 +39,7 @@ export class InspectCommandDispatcher implements Disposable {
           log.appendLine(`Found command: ${command.command}`);
           log.appendLine(`Executing VS Code command ${command.command}`);
           try {
+            log.info(`Executing command: ${command.command} with args: ${JSON.stringify(command.args)}`);
             await commands.executeCommand(command.command, ...command.args);
           } catch (error) {
             log.error(error instanceof Error ? error : String(error));

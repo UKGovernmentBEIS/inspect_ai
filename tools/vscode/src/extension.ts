@@ -27,7 +27,7 @@ import { activateLogNotify } from "./providers/lognotify";
 import { activateOpenLog } from "./providers/openlog";
 import { activateProtocolHandler } from "./providers/protocol-handler";
 import { activateInspectCommands } from "./providers/inspect/inspect-commands";
-import { end, log, start } from "./core/log";
+import { end, start } from "./core/log";
 
 const kInspectMinimumVersion = "0.3.8";
 
@@ -45,9 +45,9 @@ export async function activate(context: ExtensionContext) {
   const commandManager = new CommandManager();
 
   // init python interpreter
-  start("Identifying Python")
+  start("Identifying Python");
   context.subscriptions.push(await initPythonInterpreter());
-  end("Identifying Python")
+  end("Identifying Python");
 
   // init inspect props
   context.subscriptions.push(initInspectProps());
@@ -56,33 +56,33 @@ export async function activate(context: ExtensionContext) {
   await initializeGlobalSettings();
 
   // Warn the user if they don't have a recent enough version
-  start("Check Inspect")
+  start("Check Inspect");
   void checkInspectVersion();
-  end("Check Inspect")
+  end("Check Inspect");
 
   // Activate the workspacestate manager
-  start("Activate Workspace")
+  start("Activate Workspace");
   const [stateCommands, stateManager] = activateWorkspaceState(context);
-  end("Activate Workspace")
+  end("Activate Workspace");
 
   // For now, create an output channel for env changes
-  start("Monitor Workspace Env")
+  start("Monitor Workspace Env");
   const workspaceActivationResult = activateWorkspaceEnv();
   const [envComands, workspaceEnvManager] = workspaceActivationResult;
   context.subscriptions.push(workspaceEnvManager);
-  end("Monitor Workspace Env")
+  end("Monitor Workspace Env");
 
   // Initialize the protocol handler
   activateProtocolHandler(context);
 
   // Inspect Manager watches for changes to inspect binary
-  start("Monitor Inspect Binary")
+  start("Monitor Inspect Binary");
   const inspectManager = activateInspectManager(context);
   context.subscriptions.push(inspectManager);
-  end("Monitor Inspect Binary")
+  end("Monitor Inspect Binary");
 
   // Eval Manager
-  start("Setup Eval Command")
+  start("Setup Eval Command");
   const [inspectEvalCommands, inspectEvalMgr] = await activateEvalManager(
     stateManager,
     context
@@ -90,11 +90,11 @@ export async function activate(context: ExtensionContext) {
 
   // Activate commands interface
   activateInspectCommands(stateManager, context);
-  end("Setup Eval Command")
+  end("Setup Eval Command");
 
   // Activate a watcher which inspects the active document and determines
   // the active task (if any)
-  start("Monitor Tasks")
+  start("Monitor Tasks");
   const [taskCommands, activeTaskManager] = activateActiveTaskProvider(
     inspectEvalMgr,
     context
@@ -106,24 +106,24 @@ export async function activate(context: ExtensionContext) {
     inspectManager,
     context
   );
-  end("Monitor Tasks")
+  end("Monitor Tasks");
 
   // Read the extension configuration
   const settingsMgr = new InspectSettingsManager(() => { });
 
   // initialiaze view server
-  start("Setup View Server")
+  start("Setup View Server");
   const server = new InspectViewServer(context, inspectManager);
   context.subscriptions.push(server);
-  end("Setup View Server")
+  end("Setup View Server");
 
   // initialise logs watcher
-  start("Setup Log Watcher")
+  start("Setup Log Watcher");
   const logsWatcher = new InspectLogsWatcher(stateManager);
-  end("Setup Log Watcher")
+  end("Setup Log Watcher");
 
   // Activate the log view
-  start("Setup Log Viewer")
+  start("Setup Log Viewer");
   const [logViewCommands, logviewWebviewManager] = await activateLogview(
     inspectManager,
     server,
@@ -136,10 +136,10 @@ export async function activate(context: ExtensionContext) {
 
   // initilisze open log
   activateOpenLog(context, logviewWebviewManager);
-  end("Setup Log Viewer")
+  end("Setup Log Viewer");
 
   // Activate the Activity Bar
-  start("Setup Activity Bar")
+  start("Setup Activity Bar");
   const taskBarCommands = await activateActivityBar(
     inspectManager,
     inspectEvalMgr,
@@ -152,10 +152,10 @@ export async function activate(context: ExtensionContext) {
     logsWatcher,
     context
   );
-  end("Setup Activity Bar")
+  end("Setup Activity Bar");
 
 
-  start("Final Setup")
+  start("Final Setup");
   // Register the log view link provider
   window.registerTerminalLinkProvider(
     logviewTerminalLinkProvider()
@@ -181,12 +181,12 @@ export async function activate(context: ExtensionContext) {
   ].forEach((cmd) => commandManager.register(cmd));
   context.subscriptions.push(commandManager);
 
-  end("Final Setup")
+  end("Final Setup");
 
   // refresh the active task state
-  start("Refresh Tasks")
+  start("Refresh Tasks");
   await activeTaskManager.refresh();
-  end("Refresh Tasks")
+  end("Refresh Tasks");
 }
 
 

@@ -6,7 +6,7 @@ import { MarkdownString } from 'vscode';
 import { stringify } from 'yaml';
 import { sleep } from '../../../core/wait';
 
-export const kLogListCacheName = 'logListingCache'
+export const kLogListCacheName = 'logListingCache';
 
 export class LogElementQueueProcessor {
   private queue: LogNode[] = [];
