@@ -28,10 +28,25 @@ jobs:
           pushd tools/vscode
           yarn install --immutable --immutable-cache --check-cache
 
+      - name: Lint
+        run: |
+          pushd tools/vscode
+          yarn lint
+
+      - name: Formatting
+        run: |
+          pushd tools/vscode
+          yarn prettier --check .
+
       - name: Build Extension
         run: |
           pushd tools/vscode
           yarn vsce package
+
+      - name: Test
+        run: |
+          pushd tools/vscode
+          yarn test
 
       - name: Upload extension to Actions Artifact
         uses: actions/upload-artifact@v4
