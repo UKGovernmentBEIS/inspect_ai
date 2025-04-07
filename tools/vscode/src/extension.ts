@@ -10,9 +10,7 @@ import { activateEvalManager } from "./providers/inspect/inspect-eval";
 import { activateActivityBar } from "./providers/activity-bar/activity-bar-provider";
 import { activateActiveTaskProvider } from "./providers/active-task/active-task-provider";
 import { activateWorkspaceTaskProvider } from "./providers/workspace/workspace-task-provider";
-import {
-  activateWorkspaceState,
-} from "./providers/workspace/workspace-state-provider";
+import { activateWorkspaceState } from "./providers/workspace/workspace-state-provider";
 import { activateWorkspaceEnv } from "./providers/workspace/workspace-env-provider";
 import { initPythonInterpreter } from "./core/python";
 import { initInspectProps } from "./inspect";
@@ -85,7 +83,7 @@ export async function activate(context: ExtensionContext) {
   start("Setup Eval Command");
   const [inspectEvalCommands, inspectEvalMgr] = await activateEvalManager(
     stateManager,
-    context
+    context,
   );
 
   // Activate commands interface
@@ -97,19 +95,18 @@ export async function activate(context: ExtensionContext) {
   start("Monitor Tasks");
   const [taskCommands, activeTaskManager] = activateActiveTaskProvider(
     inspectEvalMgr,
-    context
+    context,
   );
-
 
   // Active the workspace manager to watch for tasks
   const workspaceTaskMgr = activateWorkspaceTaskProvider(
     inspectManager,
-    context
+    context,
   );
   end("Monitor Tasks");
 
   // Read the extension configuration
-  const settingsMgr = new InspectSettingsManager(() => { });
+  const settingsMgr = new InspectSettingsManager(() => {});
 
   // initialiaze view server
   start("Setup View Server");
@@ -130,7 +127,7 @@ export async function activate(context: ExtensionContext) {
     workspaceEnvManager,
     logsWatcher,
     context,
-    host
+    host,
   );
   const inspectLogviewManager = logviewWebviewManager;
 
@@ -150,16 +147,13 @@ export async function activate(context: ExtensionContext) {
     workspaceEnvManager,
     server,
     logsWatcher,
-    context
+    context,
   );
   end("Setup Activity Bar");
 
-
   start("Final Setup");
   // Register the log view link provider
-  window.registerTerminalLinkProvider(
-    logviewTerminalLinkProvider()
-  );
+  window.registerTerminalLinkProvider(logviewTerminalLinkProvider());
 
   // Activate Code Lens
   activateCodeLens(context);
@@ -189,19 +183,19 @@ export async function activate(context: ExtensionContext) {
   end("Refresh Tasks");
 }
 
-
 const checkInspectVersion = async () => {
   if (inspectBinPath()) {
     const descriptor = inspectVersionDescriptor();
-    if (descriptor && descriptor.version.compare(kInspectMinimumVersion) === -1) {
+    if (
+      descriptor &&
+      descriptor.version.compare(kInspectMinimumVersion) === -1
+    ) {
       const close: MessageItem = { title: "Close" };
       await window.showInformationMessage<MessageItem>(
         "The VS Code extension requires a newer version of Inspect. Please update " +
-        "with pip install --upgrade inspect-ai",
-        close
+          "with pip install --upgrade inspect-ai",
+        close,
       );
     }
   }
 };
-
-

@@ -11,7 +11,10 @@ import {
 import { InspectCodeLensProvider } from "../providers/codelens/codelens-provider";
 
 class MockTextLine implements TextLine {
-  constructor(private lineText: string, private _lineNumber: number) { }
+  constructor(
+    private lineText: string,
+    private _lineNumber: number,
+  ) {}
 
   get text(): string {
     return this.lineText;
@@ -22,7 +25,7 @@ class MockTextLine implements TextLine {
   get range(): Range {
     return new Range(
       new Position(this._lineNumber, 0),
-      new Position(this._lineNumber, this.lineText.length)
+      new Position(this._lineNumber, this.lineText.length),
     );
   }
   get rangeIncludingLineBreak(): Range {
@@ -109,7 +112,7 @@ suite("CodeLens Provider Test Suite", () => {
     provider = new InspectCodeLensProvider();
     cancellationToken = {
       isCancellationRequested: false,
-      onCancellationRequested: () => ({ dispose: () => { } }),
+      onCancellationRequested: () => ({ dispose: () => {} }),
     };
   });
 
@@ -129,7 +132,7 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return two lenses (run and debug) for inspect task"
+      "Should return two lenses (run and debug) for inspect task",
     );
   });
 
@@ -145,7 +148,7 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return lenses when task is imported with alias"
+      "Should return lenses when task is imported with alias",
     );
   });
 
@@ -161,7 +164,7 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return lenses when using full inspect import"
+      "Should return lenses when using full inspect import",
     );
   });
 
@@ -193,7 +196,7 @@ def other_task():
     assert.strictEqual(
       lenses.length,
       0,
-      "Should not return code lenses for non-inspect task"
+      "Should not return code lenses for non-inspect task",
     );
   });
 
@@ -208,7 +211,7 @@ from inspect import task
     assert.strictEqual(
       lenses.length,
       0,
-      "Should handle malformed task decorator safely"
+      "Should handle malformed task decorator safely",
     );
   });
 
@@ -233,7 +236,7 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return lenses for multiline import"
+      "Should return lenses for multiline import",
     );
   });
 
@@ -249,7 +252,7 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return lenses for multiple imports in a single line"
+      "Should return lenses for multiple imports in a single line",
     );
   });
 
@@ -263,7 +266,7 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       0,
-      "Should return lenses for task decorator without import"
+      "Should return lenses for task decorator without import",
     );
   });
 });

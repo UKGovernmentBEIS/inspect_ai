@@ -1,7 +1,6 @@
 import { Uri, window } from "vscode";
 import { resolveLogFile } from "./logview-link-provider";
 
-
 export async function selectFileUri(): Promise<Uri | undefined> {
   const uriOrPath = await window.showInputBox({
     title: "Select Log File",
@@ -18,7 +17,7 @@ export async function selectFileUri(): Promise<Uri | undefined> {
       } else {
         return "Specified location is not a valid URI (e.g. s3://my-bucket/logs)";
       }
-    }
+    },
   });
   if (uriOrPath) {
     return await resolveLogFile(uriOrPath);
