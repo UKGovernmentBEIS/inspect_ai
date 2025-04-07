@@ -6,9 +6,9 @@ There are several ways to implement multi-agent systems using the Inspect `Agent
 
 1.  You can provide a top-level supervisor agent with the ability to handoff to various sub-agents that are expert at different tasks.
 
-2.  You can make agents available to a model as a standard tool call.
+2.  You can create an agent workflow where you explicitly invoke various agents in stages.
 
-3.  You can create an agent workflow where you explicitly invoke various agents in stages.
+3.  You can make agents available to a model as a standard tool call.
 
 We'll cover examples of each of these below. 
 
@@ -96,23 +96,6 @@ async def my_filter(messages: list[ChatMessage]) -> list[ChatMessage]:
 handoff(web_surfer, output_filter=my_filter)
 ```
 
-## Tools
-
-As an alternative to allowing an agent to participate fully in the conversation (i.e. seeing the full history and being able to append to it) you can instead make an agent available as a standard tool call. In this case, the agent sees only a single input string and returns the output of its last assistant message.
-
-For example, here we revise supervisor agent to make the `web_surfer` available as a tool rather than as a conversation participant:
-
-``` python
-from inspect_ai.agent import as_tool
-from inspect_ai.dataset import Sample
-from math_tools import addition
-
-supervisor = react(
-    prompt="You are an agent that can answer addition " 
-            + "problems and do web research.",
-    tools=[addition(), as_tool(web_surfer)]
-)
-```
 
 ## Workflows
 
@@ -157,3 +140,22 @@ plans = await gather(
 ```
 
 Note that the `run()` method makes a copy of the input so is suitable for running in parallel as shown above (the two parallel runs will not make shared/conflicting edits to the `state`).
+
+
+## Tools
+
+As an alternative to allowing an agent to participate fully in the conversation (i.e. seeing the full history and being able to append to it) you can instead make an agent available as a standard tool call. In this case, the agent sees only a single input string and returns the output of its last assistant message.
+
+For example, here we revise supervisor agent to make the `web_surfer` available as a tool rather than as a conversation participant:
+
+``` python
+from inspect_ai.agent import as_tool
+from inspect_ai.dataset import Sample
+from math_tools import addition
+
+supervisor = react(
+    prompt="You are an agent that can answer addition " 
+            + "problems and do web research.",
+    tools=[addition(), as_tool(web_surfer)]
+)
+```
