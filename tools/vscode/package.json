@@ -469,6 +469,9 @@
   "devDependencies": {
     "@types/async-lock": "^1.4.2",
     "@types/date-fns": "^2.6.3",
+    "@types/eslint": "^9.6.1",
+    "@types/eslint-scope": "^3.7.7",
+    "@types/estree": "^1.0.7",
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "18.x",
