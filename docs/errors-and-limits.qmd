@@ -177,22 +177,37 @@ def intercode_ctf():
     )
 ```
 
-As with `message_limit`, it's also possible for a solver to set the `token_limit` directly on the `TaskState`:
+It's also possible for solvers, scorers or agents to limit their token usage, independently of the sample token limit:
 
 ``` python
 @solver
-def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
+def agent_loop(tokens: int = (1024 * 500)) -> Solver:
     async def solve(state: TaskState, generate: Generate):
 
         # establish token limit so we have a termination condition
-        state.token_limit = token_limit
-
-        ...
+        with token_limit(tokens):
+            while not has_token_limit_been_exceeded():
+                ...
 ```
 
 ::: {.callout-important}
-It's important to note that the `token_limit` is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
+It's important to note that `Task.token_limit` is for all tokens used within the execution of a sample and `token_limit()` is for all tokens used within the sample _while the context manager is open_. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 :::
+
+The context managers returned by `token_limit` can be stacked:
+
+``` python
+@solver
+def agent_loop() -> Solver:
+    async def solve(state: TaskState, generate: Generate):
+
+        with token_limit(1024 * 500):
+            ...
+            with token_limit(1024 * 10):
+                # checks _all_ active token_limit context managers
+                while not has_token_limit_been_exceeded():
+                    ...
+```
 
 ### Custom Limit
 
@@ -207,4 +222,28 @@ raise SampleLimitExceededError(
     limit=limit,
     message=f"A custom limit was exceeded: {value}"
 )
+```
+
+### Token Counter
+
+TODO: does this add enough value to be documented? Where should this live?
+
+To check what the total model usage for the current sample is:
+
+```python
+get_scoped_model_usage("sample")
+```
+
+You can create your own token counter scopes and query them by scope name.
+
+```python
+def my_agent() -> Solver:
+    async def solve(state: TaskState, generate: Generate):
+
+        with model_usage_counter(scope="agent"):
+            ...
+            with model_usage_counter(scope="sub-agent"):
+                print(get_scoped_model_usage("agent"))
+                print(get_scoped_model_usage("sub-agent"))
+                ...
 ```
