@@ -6,10 +6,12 @@
 
 - [Agent](https://inspect.aisi.org.uk/agent-protocol.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
 - Scoring: New [grouped()](https://inspect.aisi.org.uk/scoring.html#metric-grouping) metric wrapper function, which applies a given metric to subgroups of samples defined by a key in sample metadata.
+- Basic Agent: New `submit_append` option to append the submit tool output to the completion rather than replacing the completion (note that the new `react()` agent appends by default).
 - Model API: New [execute_tools()](https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools) function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
 - Model API: `generate_loop()` method for calling generate with a tool use loop.
 - Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
+- Anthropic: Add support for `tool_choice="none"` (added in v0.49.0, which is now required).
 - Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
 - Together AI: Updated `logprobs` to pass `1` rather than `True` (protocol change).
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.

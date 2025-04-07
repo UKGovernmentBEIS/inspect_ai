@@ -58,6 +58,7 @@ class ShowOpenLogCommand implements Command {
       }
 
     } catch (err: unknown) {
+      // pass
     }
   }
 

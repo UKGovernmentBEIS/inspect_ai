@@ -65,6 +65,7 @@ def basic_agent(
     continue_message: str = DEFAULT_CONTINUE_MESSAGE,
     submit_name: str = DEFAULT_SUBMIT_NAME,
     submit_description: str = DEFAULT_SUBMIT_DESCRIPTION,
+    submit_append: bool = False,
     **kwargs: Unpack[BasicAgentDeprecatedArgs],
 ) -> Solver:
     """Basic ReAct agent.
@@ -102,6 +103,9 @@ def basic_agent(
           (defaults to 'submit')
        submit_description: Description of submit tool (defaults to
           'Submit an answer for evaluation')
+       submit_append: Append the submit tool output to the model completion
+           text (defaults to `False`, which means the submission overwrites
+           the model completion).
        **kwargs: Deprecated arguments for backward compatibility.
 
     Returns:
@@ -205,8 +209,12 @@ def basic_agent(
                         # was an answer submitted?
                         answer = submission(tool_results)
                         if answer:
-                            # set the output to the answer for scoring
-                            state.output.completion = answer
+                            if submit_append:
+                                state.output.completion = (
+                                    f"{state.output.completion}\n\n{answer}".strip()
+                                )
+                            else:
+                                state.output.completion = answer
 
                             # exit if we are at max_attempts
                             attempts += 1

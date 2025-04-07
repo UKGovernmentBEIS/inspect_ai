@@ -25,7 +25,7 @@ export async function activateEvalManager(
   context: ExtensionContext
 ): Promise<[Command[], InspectEvalManager]> {
   // Activate the manager
-  const inspectEvalMgr = new InspectEvalManager(stateManager);
+  const inspectEvalMgr = new InspectEvalManager(stateManager, context);
 
   // Set up our terminal environment
   // Update the workspace id used in our terminal environments
@@ -39,11 +39,17 @@ export async function activateEvalManager(
   env.delete("INSPECT_WORKSPACE_ID");
   env.append("INSPECT_WORKSPACE_ID", workspaceId);
 
+  env.delete("INSPECT_VSCODE_EXT_VERSION");
+  env.append("INSPECT_VSCODE_EXT_VERSION", extensionVersion(context));
+
   return [inspectEvalCommands(inspectEvalMgr), inspectEvalMgr];
 }
 
 export class InspectEvalManager {
-  constructor(private readonly stateManager_: WorkspaceStateManager) { }
+  constructor(private readonly stateManager_: WorkspaceStateManager, context: ExtensionContext) {
+    this.context_ = context;
+  }
+  private context_: ExtensionContext;
 
   public async startEval(file: AbsolutePath, task?: string, debug = false) {
     // if we don't have inspect bail and let the user know
@@ -134,6 +140,7 @@ export class InspectEvalManager {
       // properly target the workspace window when showing the logview
       const env = {
         INSPECT_WORKSPACE_ID: this.stateManager_.getWorkspaceInstance(),
+        INSPECT_VSCODE_EXT_VERSION: extensionVersion(this.context_),
       };
 
       await runDebugger(
@@ -199,4 +206,9 @@ const runDebugger = async (
     pythonPath: pythonPath?.path
   };
   await debug.startDebugging(activeWorkspaceFolder(), debugConfiguration);
+};
+
+
+const extensionVersion = (context: ExtensionContext) => {
+  return `${(context.extension.packageJSON as { version: string }).version}`;
 };
