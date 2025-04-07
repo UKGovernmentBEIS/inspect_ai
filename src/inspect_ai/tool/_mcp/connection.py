@@ -9,7 +9,7 @@ from .tools import MCPToolSource
 
 
 @contextlib.asynccontextmanager
-async def mcp_context(
+async def mcp_connection(
     tools: Sequence[Tool | ToolDef | ToolSource],
 ) -> AsyncIterator[None]:
     """Context manager for running MCP servers required by tools.
