@@ -11,7 +11,6 @@ from inspect_ai.tool._tool_support_helpers import (
     exec_sandbox_rpc,
     tool_container_sandbox,
 )
-from inspect_ai.util import sandbox
 
 from ._types import MCPServerContextEric
 
@@ -19,6 +18,8 @@ from ._types import MCPServerContextEric
 @asynccontextmanager
 async def sandbox_client(
     server: StdioServerParameters,
+    *,
+    server_name: str,
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
 ) -> MCPServerContextEric:
@@ -27,7 +28,7 @@ async def sandbox_client(
     # first sandbox found with the support code installed. I could refactor the
     # code to separate the validation of compatibility from the finding of the
     # sandbox.
-    sb1 = sandbox(sandbox_name)
+    # sb1 = sandbox(sandbox_name)
     sandbox_environment = await tool_container_sandbox("mcp support")
 
     # read_stream is remote process's stdout
@@ -41,10 +42,17 @@ async def sandbox_client(
     read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
 
+    # TODO: Do the standard session creation code here
+    session_name = "foo"
+
     remote_pid = await exec_sandbox_rpc(
         sandbox=sandbox_environment,
         method="create_process",
-        params=server.model_dump(),
+        params={
+            "session_name": session_name,
+            "server_name": server_name,
+            "server_params": server.model_dump(),
+        },
         result_cls=str,
     )
 
@@ -63,7 +71,11 @@ async def sandbox_client(
                             await exec_sandbox_rpc(
                                 sandbox=sandbox_environment,
                                 method="proxy_request",
-                                params={"inner_request": message},
+                                params={
+                                    "session_name": session_name,
+                                    "server_name": server_name,
+                                    "inner_request": message,
+                                },
                                 result_cls=JSONRPCResponse,
                             )
                         )
@@ -82,6 +94,10 @@ async def sandbox_client(
             await exec_sandbox_rpc(
                 sandbox=sandbox_environment,
                 method="kill_process",
-                params={"pid": remote_pid},
+                params={
+                    "session_name": session_name,
+                    "server_name": server_name,
+                    "pid": remote_pid,
+                },
                 result_cls=str,  # TODO: Do we need to add None support?
             )
