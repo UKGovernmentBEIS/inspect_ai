@@ -160,8 +160,6 @@ def create_server_stdio(
     args: list[str] = [],
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
-    encoding: str = "utf-8",
-    encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
 ) -> MCPServer:
     return MCPServerImpl(
         lambda: stdio_client(
@@ -170,8 +168,6 @@ def create_server_stdio(
                 args=args,
                 cwd=cwd,
                 env=env,
-                encoding=encoding,
-                encoding_error_handler=encoding_error_handler,
             )
         ),
         name=" ".join([command] + args),
@@ -184,8 +180,6 @@ def create_server_sandbox(
     args: list[str] = [],
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
-    encoding: str = "utf-8",
-    encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
     sandbox: str | None = None,
 ) -> MCPServer:
     # TODO: Confirm the lifetime concepts. By the time a request makes it to the
@@ -198,8 +192,6 @@ def create_server_sandbox(
                 args=args,
                 cwd=cwd,
                 env=env,
-                encoding=encoding,
-                encoding_error_handler=encoding_error_handler,
             ),
             server_name=name,
             sandbox_name=sandbox,

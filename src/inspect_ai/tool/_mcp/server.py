@@ -1,6 +1,6 @@
 from logging import getLogger
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.version import verify_required_version
@@ -43,8 +43,6 @@ def mcp_server_stdio(
     args: list[str] = [],
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
-    encoding: str = "utf-8",
-    encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
 ) -> MCPServer:
     """MCP Server (Stdio).
 
@@ -58,11 +56,6 @@ def mcp_server_stdio(
             environment variables (e.g. "HOME", "LOGNAME", "PATH",
             "SHELL", "TERM", and "USER" for Posix-based systems).
         cwd: The working directory to use when spawning the process.
-        encoding: The text encoding used when sending/receiving messages to the server
-            (defaults to "utf-8").
-        encoding_error_handler: The text encoding error handler.
-            See <https://docs.python.org/3/library/codecs.html#codec-base-classes> for
-            explanations of possible values
 
     Returns:
         McpClient: Client for MCP Server
@@ -70,9 +63,7 @@ def mcp_server_stdio(
     verfify_mcp_package()
     from ._mcp import create_server_stdio
 
-    return create_server_stdio(
-        command, args, cwd, env, encoding, encoding_error_handler
-    )
+    return create_server_stdio(command, args, cwd, env)
 
 
 def mcp_server_sandbox(
@@ -81,8 +72,6 @@ def mcp_server_sandbox(
     args: list[str] = [],
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
-    encoding: str = "utf-8",
-    encoding_error_handler: Literal["strict", "ignore", "replace"] = "strict",
     sandbox: str | None = None,
 ) -> MCPServer:
     """MCP Server (Sandbox).
@@ -97,11 +86,6 @@ def mcp_server_sandbox(
             environment variables (e.g. "HOME", "LOGNAME", "PATH",
             "SHELL", "TERM", and "USER" for Posix-based systems).
         cwd: The working directory to use when spawning the process.
-        encoding: The text encoding used when sending/receiving messages to the server
-            (defaults to "utf-8").
-        encoding_error_handler: The text encoding error handler.
-            See <https://docs.python.org/3/library/codecs.html#codec-base-classes> for
-            explanations of possible values
         sandbox: The sandbox to use when spawning the process.
 
     Returns:
@@ -110,9 +94,7 @@ def mcp_server_sandbox(
     verfify_mcp_package()
     from ._mcp import create_server_sandbox
 
-    return create_server_sandbox(
-        command, args, cwd, env, encoding, encoding_error_handler, sandbox
-    )
+    return create_server_sandbox(command, args, cwd, env, sandbox)
 
 
 def verfify_mcp_package() -> None:
