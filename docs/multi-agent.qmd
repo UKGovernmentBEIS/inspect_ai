@@ -14,7 +14,7 @@ There are several ways to implement multi-agent systems using the Inspect `Agent
 
 We'll cover examples of each of these below. 
 
-### Methodology
+## Methodology
 
 As you explore multi-agent architectures, it's important to remember that they often don't out-perform simple `react()` agents. We therefore recommend the following methodology for agent development:
 
