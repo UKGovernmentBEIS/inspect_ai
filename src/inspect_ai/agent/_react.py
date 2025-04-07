@@ -160,14 +160,14 @@ def react(
                     transcript().info("Agent terminated: model context window exceeded")
                     break
 
-            # check for a submission
-            answer = submitted_answer(state.output.message.tool_calls)
-            if answer is not None:
-                # remove the tool call and set the output to the answer for scoring
-                state.output.message.tool_calls = None
-                state.output.completion = (
-                    f"{state.output.completion}\n\n{answer}".strip()
-                )
+                # check for a submission
+                answer = submitted_answer(state.output.message.tool_calls)
+                if answer is not None:
+                    # remove the tool call and set the output to the answer for scoring
+                    state.output.message.tool_calls = None
+                    state.output.completion = (
+                        f"{state.output.completion}\n\n{answer}".strip()
+                    )
 
                     # exit if we are at max_attempts
                     attempt_count += 1
