@@ -85,12 +85,16 @@ website:
           href: reference/inspect_ai.tool.qmd#web_search
         - text: think
           href: reference/inspect_ai.tool.qmd#think
-        - text: mcp_tools
-          href: reference/inspect_ai.tool.qmd#mcp_tools
+        - text: mcp_connection
+          href: reference/inspect_ai.tool.qmd#mcp_connection
         - text: mcp_server_stdio
           href: reference/inspect_ai.tool.qmd#mcp_server_stdio
         - text: mcp_server_sse
           href: reference/inspect_ai.tool.qmd#mcp_server_sse
+        - text: mcp_server_sandbox
+          href: reference/inspect_ai.tool.qmd#mcp_server_sandbox
+        - text: mcp_tools
+          href: reference/inspect_ai.tool.qmd#mcp_tools
         - text: MCPServer
           href: reference/inspect_ai.tool.qmd#mcpserver
         - text: tool_with
