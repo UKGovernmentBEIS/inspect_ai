@@ -11,7 +11,7 @@ import {
 import { InspectCodeLensProvider } from "../providers/codelens/codelens-provider";
 
 class MockTextLine implements TextLine {
-  constructor(private lineText: string, private _lineNumber: number) {}
+  constructor(private lineText: string, private _lineNumber: number) { }
 
   get text(): string {
     return this.lineText;
@@ -57,7 +57,7 @@ class MockTextDocument implements TextDocument {
   }
 
   // Implement other required interface members with mock values
-  get uri(): any {
+  get uri(): Uri {
     return { scheme: "file", path: "test.py" } as Uri;
   }
   get fileName(): string {
@@ -81,10 +81,10 @@ class MockTextDocument implements TextDocument {
   save(): Thenable<boolean> {
     return Promise.resolve(true);
   }
-  offsetAt(_position: Position): number {
+  offsetAt(): number {
     return 0;
   }
-  positionAt(_offset: number): Position {
+  positionAt(): Position {
     return new Position(0, 0);
   }
   getWordRangeAtPosition(): Range | undefined {
@@ -93,7 +93,7 @@ class MockTextDocument implements TextDocument {
   validateRange(range: Range): Range {
     return range;
   }
-  validatePosition(_position: Position): Position {
+  validatePosition(): Position {
     return new Position(0, 0);
   }
   get eol(): EndOfLine {
@@ -109,7 +109,7 @@ suite("CodeLens Provider Test Suite", () => {
     provider = new InspectCodeLensProvider();
     cancellationToken = {
       isCancellationRequested: false,
-      onCancellationRequested: () => ({ dispose: () => {} }),
+      onCancellationRequested: () => ({ dispose: () => { } }),
     };
   });
 

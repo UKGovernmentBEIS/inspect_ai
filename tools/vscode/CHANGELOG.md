@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.61
+
+- Fix an issue affecting live log viewing (requires Inspect 0.3.83 or later)
+
 ## 0.3.60
 
 - Fix issue parsing task parameters with commas (Literals, Lists, Dicts, etc...)

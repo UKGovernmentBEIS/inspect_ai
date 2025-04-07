@@ -58,17 +58,6 @@ export class LogTreeDataProvider
         : "remote"
     );
     contextValue.push(element.name.endsWith(".eval") ? "eval" : "json");
-    const defaultIconPath = (element.type === "file"
-      ? element.name.endsWith(".eval")
-        ? this.context_.asAbsolutePath(
-          path.join("assets", "icon", "eval-treeview.svg")
-        )
-        : new vscode.ThemeIcon(
-          "bracket",
-          new vscode.ThemeColor("symbolIcon.classForeground")
-        )
-      : undefined);
-
 
     const uri = this.logListing_?.uriForNode(element);
 
