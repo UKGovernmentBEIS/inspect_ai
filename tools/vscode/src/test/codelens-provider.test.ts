@@ -122,7 +122,7 @@ suite("CodeLens Provider Test Suite", () => {
 
   test('should return code lenses when using "from inspect import task"', () => {
     const document = createDocument(`
-from inspect import task
+from inspect_ai import task
 
 @task
 def my_task():
@@ -138,7 +138,7 @@ def my_task():
 
   test('should return code lenses when using "from inspect import task as t"', () => {
     const document = createDocument(`
-from inspect import task as t
+from inspect_ai import task as t
 
 @t
 def my_task():
@@ -154,9 +154,9 @@ def my_task():
 
   test('should return code lenses when using "import inspect"', () => {
     const document = createDocument(`
-import inspect
+import inspect_ai
 
-@inspect.task
+@inspect_ai.task
 def my_task():
     pass`);
 
@@ -170,7 +170,7 @@ def my_task():
 
   test("should handle multiple task decorators in the same file", () => {
     const document = createDocument(`
-from inspect import task
+from inspect_ai import task
 
 @task
 def first_task():
@@ -223,7 +223,7 @@ from inspect import task
 
   test("Should handle multiline import statements", () => {
     const document = createDocument(`
-from inspect import (
+from inspect_ai import (
     Task,
     task as t,
 )
@@ -242,7 +242,7 @@ def my_task():
 
   test("Should handle multiple imports in a single line", () => {
     const document = createDocument(`
-from inspect import Task, task as t
+from inspect_ai import Task, task as t
 
 @t
 def my_task():
