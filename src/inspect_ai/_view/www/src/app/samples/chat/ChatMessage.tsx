@@ -1,12 +1,12 @@
 import clsx from "clsx";
 import { FC } from "react";
-import ExpandablePanel from "../../../components/ExpandablePanel";
 import {
   ChatMessageAssistant,
   ChatMessageSystem,
   ChatMessageTool,
   ChatMessageUser,
-} from "../../../types/log";
+} from "../../../@types/log";
+import ExpandablePanel from "../../../components/ExpandablePanel";
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
 import { iconForMsg } from "./messages";

@@ -10,7 +10,7 @@ import {
   ContentVideo,
   Events,
   Messages,
-} from "../../../types/log";
+} from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 
 export interface ResolvedMessage {

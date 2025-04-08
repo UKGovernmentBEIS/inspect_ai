@@ -1,6 +1,6 @@
 import { FC } from "react";
+import { EvalPlan, EvalScore, EvalSpec } from "../../@types/log";
 import { Card, CardBody, CardHeader } from "../../components/Card";
-import { EvalPlan, EvalScore, EvalSpec } from "../../types/log";
 import { ApplicationIcons } from "../appearance/icons";
 import { PlanDetailView } from "./PlanDetailView";
 

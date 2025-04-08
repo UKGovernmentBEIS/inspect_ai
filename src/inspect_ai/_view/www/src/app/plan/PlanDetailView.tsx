@@ -1,4 +1,4 @@
-import { EvalPlan, EvalScore, EvalSpec, Params2 } from "../../types/log";
+import { EvalPlan, EvalScore, EvalSpec, Params2 } from "../../@types/log";
 import { toTitleCase } from "../../utils/format";
 import { ghCommitUrl } from "../../utils/git";
 import { MetaDataView } from "../content/MetaDataView";

@@ -1,5 +1,5 @@
 // @ts-check
-import { Messages, SampleInitEvent } from "../../../types/log";
+import { Messages, SampleInitEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { toArray } from "../../../utils/type";
 import { ApplicationIcons } from "../../appearance/icons";

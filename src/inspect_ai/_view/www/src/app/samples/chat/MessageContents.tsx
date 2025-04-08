@@ -3,7 +3,7 @@ import {
   ChatMessageSystem,
   ChatMessageTool,
   ChatMessageUser,
-} from "../../../types/log";
+} from "../../../@types/log";
 import { MessageContent } from "./MessageContent";
 import { resolveToolInput } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";

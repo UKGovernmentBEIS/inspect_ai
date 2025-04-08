@@ -1,5 +1,5 @@
 import { FC, memo, RefObject, useMemo } from "react";
-import { Events } from "../../../types/log";
+import { Events } from "../../../@types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
 import { InfoEventView } from "./InfoEventView";

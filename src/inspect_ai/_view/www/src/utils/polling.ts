@@ -1,4 +1,4 @@
-import { Timeout } from "../types/log";
+import { Timeout } from "../@types/log";
 import { createLogger } from "./logger";
 
 export interface PollingOptions {

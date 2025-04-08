@@ -1,6 +1,6 @@
 import { FC, Fragment } from "react";
+import { ScoreEvent, Value1 } from "../../../@types/log";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
-import { ScoreEvent, Value1 } from "../../../types/log";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";

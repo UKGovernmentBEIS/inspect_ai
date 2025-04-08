@@ -15,7 +15,7 @@ import {
   StoreEvent,
   SubtaskEvent,
   ToolEvent,
-} from "../../../types/log";
+} from "../../../@types/log";
 
 export interface StateManager {
   scope: string;

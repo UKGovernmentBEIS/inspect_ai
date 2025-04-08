@@ -1,4 +1,4 @@
-import { EvalLog, EvalSample } from "../../types/log";
+import { EvalLog, EvalSample } from "../../@types/log";
 import {
   openRemoteLogFile,
   RemoteLogFile,

@@ -1,6 +1,6 @@
 import clsx from "clsx";
+import { Value2 } from "../../../../@types/log";
 import { kScoreTypePassFail } from "../../../../constants";
-import { Value2 } from "../../../../types/log";
 import { ScoreDescriptor, SelectedScore } from "../types";
 import styles from "./PassFailScoreDescriptor.module.css";
 

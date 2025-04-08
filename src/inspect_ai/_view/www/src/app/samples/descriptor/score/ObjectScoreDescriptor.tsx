@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { JSX } from "react";
+import { Value2 } from "../../../../@types/log";
 import { kScoreTypeObject } from "../../../../constants";
-import { Value2 } from "../../../../types/log";
 import { formatPrettyDecimal } from "../../../../utils/format";
 import { isNumeric } from "../../../../utils/type";
 import { ScoreDescriptor } from "../types";

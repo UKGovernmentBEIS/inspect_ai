@@ -1,6 +1,6 @@
+import { SandboxEvent } from "../../../@types/log";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
-import { SandboxEvent } from "../../../types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { EventPanel } from "./event/EventPanel";

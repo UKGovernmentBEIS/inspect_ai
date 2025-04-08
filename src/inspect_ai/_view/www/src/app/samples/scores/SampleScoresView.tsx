@@ -1,7 +1,7 @@
 import clsx from "clsx";
+import { EvalSample } from "../../../@types/log";
 import { Card, CardBody } from "../../../components/Card";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
-import { EvalSample } from "../../../types/log";
 import { inputString } from "../../../utils/format";
 
 import { FC } from "react";

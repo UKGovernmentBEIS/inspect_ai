@@ -1,5 +1,5 @@
+import { Value2 } from "../../../../@types/log";
 import { kScoreTypeNumeric } from "../../../../constants";
-import { Value2 } from "../../../../types/log";
 import { formatDecimalNoTrailingZeroes } from "../../../../utils/format";
 import { ScoreDescriptor } from "../types";
 

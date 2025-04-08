@@ -1,6 +1,4 @@
 import { FC, useMemo } from "react";
-import ExpandablePanel from "../../../../components/ExpandablePanel";
-import { ContentTool } from "../../../../app/types";
 import {
   ContentAudio,
   ContentImage,
@@ -8,7 +6,9 @@ import {
   ContentText,
   ContentVideo,
   ToolCallContent,
-} from "../../../../types/log";
+} from "../../../../@types/log";
+import { ContentTool } from "../../../../app/types";
+import ExpandablePanel from "../../../../components/ExpandablePanel";
 import { MessageContent } from "../MessageContent";
 import styles from "./ToolCallView.module.css";
 import { ToolInput } from "./ToolInput";

@@ -1,15 +1,15 @@
 import { FC, useMemo } from "react";
-import { SampleSummary } from "../../../client/api/types";
-import { MessageBand } from "../../../components/MessageBand";
-import { kInfoWorkspaceTabId } from "../../../constants";
-import { useTotalSampleCount } from "../../../state/hooks";
 import {
   EvalError,
   EvalPlan,
   EvalResults,
   EvalSpec,
   EvalStats,
-} from "../../../types/log";
+} from "../../../@types/log";
+import { SampleSummary } from "../../../client/api/types";
+import { MessageBand } from "../../../components/MessageBand";
+import { kInfoWorkspaceTabId } from "../../../constants";
+import { useTotalSampleCount } from "../../../state/hooks";
 import { PlanCard } from "../../plan/PlanCard";
 import { UsageCard } from "../../usage/UsageCard";
 import { TaskErrorCard } from "../error/TaskErrorPanel";

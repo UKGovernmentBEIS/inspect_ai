@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { StepEvent } from "../../../types/log";
+import { StepEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptComponent } from "./TranscriptView";
