@@ -1,5 +1,5 @@
 ---
-title: Model Context Protocol Tools
+title: Model Context Protocol
 ---
 
 ::: callout-note
@@ -36,7 +36,7 @@ def git_task():
         dataset=[Sample(
             "What is the git status of the working directory?"
         )],
-        solver=react(tools=git_server)
+        solver=react(tools=[git_server])
     )
 ```
 
@@ -44,7 +44,102 @@ The Git MCP server provides various tools for interacting with Git (e.g. `git_st
 
 ## MCP Servers
 
-There are three types of MCP Servers that you might use
+MCP servers can use a variety of transports. There are two transports built-in to the core implementation:
+
+-   **Standard I/O (stdio).** The stdio transport enables communication to a local process through standard input and output streams.
+
+-   **Server-Sent Events (sse).** SSE transport enables server-to-client streaming with HTTP POST requests for client-to-server communication, typically to a remote host.
+
+In addition, the Inspect implementation of MCP adds another transport:
+
+-   **Sandbox (sandbox)**. The sandbox transport enables communication to a process running in an Inspect sandbox through standard input and output streams.
+
+You can use the following functions to create interfaces to the various types of servers:
+
+|  |  |
+|------------------------------------|------------------------------------|
+| `mcp_server_stdio()` | Stdio interface to MCP server. Use this for MCP servers that run locally. |
+| `mcp_server_sse()` | SSE interface to MCP server. Use this for MCP servers available via a URL endpoint. |
+| `mcp_server_sandbox()` | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
+
+: {tbl-colwidths=\[40,60\]}
+
+Note that the sandbox MCP server is really just a stdio server than runs inside a sandbox rather than alongside the Inspect evaluation scaffold. You will generally choose to use sandbox servers when the tools provided by the server need to interact with the host system in a secure fashion (e.g. git, filesystem, or code execution tools).
+
+### Server Options
+
+For stdio and sandbox MCP servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you'll generally provide a host name and headers with credentials.
+
+Servers typically provide their documentation in the JSON format required by the `claude_desktop_config.json` file in Claude Desktop. For example, here is the documentation for configuring the [Google Maps](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#npx) server:
+
+``` json
+{
+  "mcpServers": {
+    "google-maps": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-google-maps"
+      ],
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "<YOUR_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+The `"command": "npx"` option indicates that this server was written using Node.js (other servers will be written in Python and use `"command": "python3"`.
+
+When using MCP servers with Inspect, you only need to provide the inner arguments. For example, to use this server with Inspect:
+
+``` python
+maps_server = mcp_server_stdio(
+    command="npx", 
+    args=["-y", "@modelcontextprotocol/server-google-maps"],
+    env={ "GOOGLE_MAPS_API_KEY": "<YOUR_API_KEY>" }
+)
+```
+
+If you have installed the Google Maps MCP server in a sandbox, then you would do this instead:
+
+``` python
+maps_server = mcp_server_sandbox(
+    command="npx", 
+    args=["-y", "@modelcontextprotocol/server-google-maps"],
+    env={ "GOOGLE_MAPS_API_KEY": "<YOUR_API_KEY>" }
+)
+```
+
+This will look for the MCP server in the default sandbox (you can also specify an explicit `sandbox` option if it is located in another sandbox).
+
+### Server Tools
+
+Each MCP server makes available a set of tools. For example, the Google Maps server includes [7 tools](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#tools) (e.g. `maps_search_places()` , `maps_place_details()`, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard `tools`. For example:
+
+``` python
+@task
+def map_task():
+    maps_server = mcp_server_stdio(
+        command="npx", 
+        args=["-y", "@modelcontextprotocol/server-google-maps"]
+    )
+
+    return Task(
+        dataset=[Sample(
+            "Where can I find a good comic book store in London?"
+        )],
+        solver=react(tools=[maps_server])
+    )
+```
+
+Note that the `MCPServer` interface is a `ToolSource`, which is a new interface for dynamically providing a set of tools. Inspect functions that take `Tool` or `ToolDef` classes now also take `ToolSource`. If you are creating your own agents or functions that take `tools` arguments, we recommend you do this same if you are going to be using MCP servers. For example:
+
+``` python
+@agent
+def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
+    ...
+```
 
 ## Tool Selection {#tool-selection}
 
