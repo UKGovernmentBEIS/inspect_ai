@@ -1,15 +1,15 @@
 import JSON5 from "json5";
-import { ApplicationIcons } from "../app/appearance/icons";
+import { ApplicationIcons } from "../appearance/icons";
 
-import { ANSIDisplay } from "../components/AnsiDisplay";
-import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";
-import { formatNumber } from "../utils/format";
+import { ANSIDisplay } from "../../components/AnsiDisplay";
+import { ChatMessageRenderer } from "../../samples/chat/ChatMessageRenderer";
+import { formatNumber } from "../../utils/format";
 import { MetaDataView } from "./MetaDataView";
 
 import clsx from "clsx";
 import { FC, Fragment, isValidElement, JSX, ReactNode } from "react";
-import JSONPanel from "../components/JsonPanel";
-import { isJson } from "../utils/json";
+import JSONPanel from "../../components/JsonPanel";
+import { isJson } from "../../utils/json";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer } from "./types";
 

@@ -1,6 +1,6 @@
 import { FC } from "react";
+import { Buckets, ContentRenderer } from "../../app/content/types.ts";
 import { NavPills } from "../../components/NavPills.tsx";
-import { Buckets, ContentRenderer } from "../../content/types.ts";
 import {
   ChatMessageAssistant,
   ChatMessageSystem,
