@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Remove support for `goodfire` model provider (dependency conflicts).
+- React Agent: Enable specification of `description` without `name`.
 
 ## v0.3.84 (07 April 2025)
 

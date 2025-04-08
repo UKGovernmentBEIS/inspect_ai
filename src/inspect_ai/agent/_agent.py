@@ -225,16 +225,12 @@ def agent_with(
         name = name or info.name
         description = description or info.metadata.get(AGENT_DESCRIPTION, None)
 
-    # if the name is null then raise
-    if name is None:
-        raise ValueError("You must provide a name to agent_with")
-
     # now set registry info
     set_registry_info(
         agent,
         RegistryInfo(
             type="agent",
-            name=name,
+            name=name or "agent",
             metadata={AGENT_DESCRIPTION: description}
             if description is not None
             else {},
