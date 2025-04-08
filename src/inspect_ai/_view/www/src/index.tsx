@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import api from "./api/index";
 import { Capabilities } from "./api/types";
@@ -53,7 +54,9 @@ if (!container) {
 // Render into the root
 const root = createRoot(container as HTMLElement);
 root.render(
-  <AppErrorBoundary>
-    <App api={applicationApi} />
-  </AppErrorBoundary>,
+  <StrictMode>
+    <AppErrorBoundary>
+      <App api={applicationApi} />
+    </AppErrorBoundary>
+  </StrictMode>,
 );
