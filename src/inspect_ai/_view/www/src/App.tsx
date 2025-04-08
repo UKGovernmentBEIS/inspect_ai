@@ -15,14 +15,14 @@ import "../App.css";
 import { ErrorPanel } from "./components/ErrorPanel";
 import { ProgressBar } from "./components/ProgressBar";
 
+import { Sidebar } from "./app/log-view/sidebar/Sidebar.tsx";
 import { FindBand } from "./components/FindBand";
-import { Sidebar } from "./log-view/sidebar/Sidebar.tsx";
 
 import ClipboardJS from "clipboard";
 import clsx from "clsx";
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
+import { LogView } from "./app/log-view/LogView.tsx";
 import { ClientAPI, HostMessage } from "./client/api/types.ts";
-import { LogView } from "./log-view/LogView.tsx";
 import { useSetSelectedLogIndex } from "./state/hooks.ts";
 import { useStore } from "./state/store.ts";
 

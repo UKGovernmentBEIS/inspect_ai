@@ -1,6 +1,6 @@
 import clsx from "clsx";
-import { EvalScore } from "../../types/log";
-import { formatPrettyDecimal } from "../../utils/format";
+import { EvalScore } from "../../../types/log";
+import { formatPrettyDecimal } from "../../../utils/format";
 
 import { FC } from "react";
 import { metricDisplayName } from "../utils";

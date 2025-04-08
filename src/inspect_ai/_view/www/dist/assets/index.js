@@ -15036,6 +15036,65 @@ var require_assets = __commonJS({
         }
       ) });
     };
+    const getEnabledNamespaces = () => {
+      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
+    };
+    new Set(getEnabledNamespaces());
+    const createLogger = (namespace) => {
+      const logger = {
+        debug: (message2, ...args) => {
+        },
+        info: (message2, ...args) => {
+        },
+        warn: (message2, ...args) => {
+        },
+        // Always log errors, even in production
+        error: (message2, ...args) => {
+          console.error(`[${namespace}] ${message2}`, ...args);
+        },
+        // Lazy evaluation for expensive logs
+        debugIf: (fn2) => {
+        }
+      };
+      return logger;
+    };
+    function debounce$1(func, wait, options2 = {}) {
+      let timeout = null;
+      let context;
+      let args;
+      let result2;
+      let lastCallTime = null;
+      const later = () => {
+        const last = Date.now() - (lastCallTime || 0);
+        if (last < wait && last >= 0) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!options2.leading) {
+            result2 = func.apply(context, args);
+            if (!timeout) {
+              context = null;
+              args = null;
+            }
+          }
+        }
+      };
+      return function(...callArgs) {
+        context = this;
+        args = callArgs;
+        lastCallTime = Date.now();
+        const callNow = options2.leading && !timeout;
+        if (!timeout) {
+          timeout = setTimeout(later, wait);
+        }
+        if (callNow) {
+          result2 = func.apply(context, args);
+          context = null;
+          args = null;
+        }
+        return result2;
+      };
+    }
     const createStoreImpl = (createState) => {
       let state;
       const listeners = /* @__PURE__ */ new Set();
@@ -16104,28 +16163,6 @@ var require_assets = __commonJS({
       return initializer(store.setState, get2, store);
     };
     const immer = immerImpl;
-    const getEnabledNamespaces = () => {
-      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
-    };
-    new Set(getEnabledNamespaces());
-    const createLogger = (namespace) => {
-      const logger = {
-        debug: (message2, ...args) => {
-        },
-        info: (message2, ...args) => {
-        },
-        warn: (message2, ...args) => {
-        },
-        // Always log errors, even in production
-        error: (message2, ...args) => {
-          console.error(`[${namespace}] ${message2}`, ...args);
-        },
-        // Lazy evaluation for expensive logs
-        debugIf: (fn2) => {
-        }
-      };
-      return logger;
-    };
     const kModelNone = "none/none";
     const kEvalWorkspaceTabId = "eval-tab";
     const kJsonWorkspaceTabId = "json-tab";
@@ -17359,166 +17396,6 @@ var require_assets = __commonJS({
       storeImplementation = store;
       store.getState().initialize(api2, capabilities2);
     };
-    const FindBand = () => {
-      const searchBoxRef = reactExports.useRef(null);
-      const storeHideFind = useStore((state) => state.appActions.hideFind);
-      reactExports.useEffect(() => {
-        setTimeout(() => {
-          var _a2;
-          (_a2 = searchBoxRef.current) == null ? void 0 : _a2.focus();
-        }, 10);
-      }, []);
-      const getParentExpandablePanel = reactExports.useCallback(
-        (selection) => {
-          let node2 = selection.anchorNode;
-          while (node2) {
-            if (node2 instanceof HTMLElement && node2.classList.contains("expandable-panel")) {
-              return node2;
-            }
-            node2 = node2.parentElement;
-          }
-          return void 0;
-        },
-        []
-      );
-      const handleSearch = reactExports.useCallback(
-        (back = false) => {
-          var _a2;
-          const searchTerm = ((_a2 = searchBoxRef.current) == null ? void 0 : _a2.value) ?? "";
-          const focusedElement = document.activeElement;
-          const result2 = window.find(
-            searchTerm,
-            false,
-            back,
-            false,
-            false,
-            true,
-            false
-          );
-          const noResultEl = document.getElementById("inspect-find-no-results");
-          if (!noResultEl) return;
-          noResultEl.style.opacity = result2 ? "0" : "1";
-          if (result2) {
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-              const parentPanel = getParentExpandablePanel(selection);
-              if (parentPanel) {
-                parentPanel.style.display = "block";
-                parentPanel.style.webkitLineClamp = "";
-                parentPanel.style.webkitBoxOrient = "";
-              }
-              const range = selection.getRangeAt(0);
-              const element = range.startContainer.parentElement;
-              if (element) {
-                setTimeout(() => {
-                  element.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center"
-                  });
-                }, 100);
-              }
-            }
-          }
-          focusedElement == null ? void 0 : focusedElement.focus();
-        },
-        [getParentExpandablePanel]
-      );
-      const handleKeyDown = reactExports.useCallback(
-        (e) => {
-          if (e.key === "Escape") {
-            storeHideFind();
-          } else if (e.key === "Enter") {
-            handleSearch(false);
-          }
-        },
-        [storeHideFind, handleSearch]
-      );
-      const showSearch = reactExports.useCallback(() => {
-        handleSearch(true);
-      }, [handleSearch]);
-      const hideSearch = reactExports.useCallback(() => {
-        handleSearch(false);
-      }, [handleSearch]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "findBand", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "input",
-          {
-            type: "text",
-            ref: searchBoxRef,
-            placeholder: "Find",
-            onKeyDown: handleKeyDown
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { id: "inspect-find-no-results", children: "No results" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Previous match",
-            className: "btn next",
-            onClick: showSearch,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.up })
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Next match",
-            className: "btn prev",
-            onClick: hideSearch,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.down })
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Close",
-            className: "btn close",
-            onClick: storeHideFind,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
-          }
-        )
-      ] });
-    };
-    function debounce$1(func, wait, options2 = {}) {
-      let timeout = null;
-      let context;
-      let args;
-      let result2;
-      let lastCallTime = null;
-      const later = () => {
-        const last = Date.now() - (lastCallTime || 0);
-        if (last < wait && last >= 0) {
-          timeout = setTimeout(later, wait - last);
-        } else {
-          timeout = null;
-          if (!options2.leading) {
-            result2 = func.apply(context, args);
-            if (!timeout) {
-              context = null;
-              args = null;
-            }
-          }
-        }
-      };
-      return function(...callArgs) {
-        context = this;
-        args = callArgs;
-        lastCallTime = Date.now();
-        const callNow = options2.leading && !timeout;
-        if (!timeout) {
-          timeout = setTimeout(later, wait);
-        }
-        if (callNow) {
-          result2 = func.apply(context, args);
-          context = null;
-          args = null;
-        }
-        return result2;
-      };
-    }
     const log$1 = createLogger("scrolling");
     function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
       const getScrollPosition = useStore(
@@ -18149,6 +18026,129 @@ var require_assets = __commonJS({
                 }
               )
             ]
+          }
+        )
+      ] });
+    };
+    const FindBand = () => {
+      const searchBoxRef = reactExports.useRef(null);
+      const storeHideFind = useStore((state) => state.appActions.hideFind);
+      reactExports.useEffect(() => {
+        setTimeout(() => {
+          var _a2;
+          (_a2 = searchBoxRef.current) == null ? void 0 : _a2.focus();
+        }, 10);
+      }, []);
+      const getParentExpandablePanel = reactExports.useCallback(
+        (selection) => {
+          let node2 = selection.anchorNode;
+          while (node2) {
+            if (node2 instanceof HTMLElement && node2.classList.contains("expandable-panel")) {
+              return node2;
+            }
+            node2 = node2.parentElement;
+          }
+          return void 0;
+        },
+        []
+      );
+      const handleSearch = reactExports.useCallback(
+        (back = false) => {
+          var _a2;
+          const searchTerm = ((_a2 = searchBoxRef.current) == null ? void 0 : _a2.value) ?? "";
+          const focusedElement = document.activeElement;
+          const result2 = window.find(
+            searchTerm,
+            false,
+            back,
+            false,
+            false,
+            true,
+            false
+          );
+          const noResultEl = document.getElementById("inspect-find-no-results");
+          if (!noResultEl) return;
+          noResultEl.style.opacity = result2 ? "0" : "1";
+          if (result2) {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+              const parentPanel = getParentExpandablePanel(selection);
+              if (parentPanel) {
+                parentPanel.style.display = "block";
+                parentPanel.style.webkitLineClamp = "";
+                parentPanel.style.webkitBoxOrient = "";
+              }
+              const range = selection.getRangeAt(0);
+              const element = range.startContainer.parentElement;
+              if (element) {
+                setTimeout(() => {
+                  element.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                  });
+                }, 100);
+              }
+            }
+          }
+          focusedElement == null ? void 0 : focusedElement.focus();
+        },
+        [getParentExpandablePanel]
+      );
+      const handleKeyDown = reactExports.useCallback(
+        (e) => {
+          if (e.key === "Escape") {
+            storeHideFind();
+          } else if (e.key === "Enter") {
+            handleSearch(false);
+          }
+        },
+        [storeHideFind, handleSearch]
+      );
+      const showSearch = reactExports.useCallback(() => {
+        handleSearch(true);
+      }, [handleSearch]);
+      const hideSearch = reactExports.useCallback(() => {
+        handleSearch(false);
+      }, [handleSearch]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "findBand", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: "text",
+            ref: searchBoxRef,
+            placeholder: "Find",
+            onKeyDown: handleKeyDown
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { id: "inspect-find-no-results", children: "No results" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Previous match",
+            className: "btn next",
+            onClick: showSearch,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.up })
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Next match",
+            className: "btn prev",
+            onClick: hideSearch,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.down })
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Close",
+            className: "btn close",
+            onClick: storeHideFind,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
           }
         )
       ] });
@@ -20446,6 +20446,11 @@ var require_assets = __commonJS({
           }
       }
     };
+    const Buckets = {
+      first: 0,
+      intermediate: 10,
+      final: 1e3
+    };
     const visible = "_visible_tm52u_1";
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
@@ -20537,11 +20542,6 @@ var require_assets = __commonJS({
         ),
         children2
       ] });
-    };
-    const Buckets = {
-      first: 0,
-      intermediate: 10,
-      final: 1e3
     };
     const useResizeObserver = (callback) => {
       const elementRef = reactExports.useRef(null);

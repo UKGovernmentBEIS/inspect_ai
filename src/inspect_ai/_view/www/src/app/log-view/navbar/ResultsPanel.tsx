@@ -1,11 +1,11 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { RunningMetric } from "../../client/api/types";
-import { LinkButton } from "../../components/LinkButton";
-import { Modal } from "../../components/Modal";
-import { useProperty } from "../../state/hooks";
-import { Scores } from "../../types/log";
-import { formatPrettyDecimal } from "../../utils/format";
+import { RunningMetric } from "../../../client/api/types";
+import { LinkButton } from "../../../components/LinkButton";
+import { Modal } from "../../../components/Modal";
+import { useProperty } from "../../../state/hooks";
+import { Scores } from "../../../types/log";
+import { formatPrettyDecimal } from "../../../utils/format";
 import { metricDisplayName } from "../utils";
 import styles from "./ResultsPanel.module.css";
 import { ScoreGrid } from "./ScoreGrid";

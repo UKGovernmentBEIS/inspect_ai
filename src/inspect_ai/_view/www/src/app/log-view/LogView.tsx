@@ -7,12 +7,12 @@ import {
   useCallback,
   useRef,
 } from "react";
-import { EmptyPanel } from "../components/EmptyPanel";
-import { TabPanel, TabSet } from "../components/TabSet";
+import { EmptyPanel } from "../../components/EmptyPanel";
+import { TabPanel, TabSet } from "../../components/TabSet";
 import { Navbar } from "./navbar/Navbar";
 
-import { useEvalSpec, useRefreshLog } from "../state/hooks";
-import { useStore } from "../state/store";
+import { useEvalSpec, useRefreshLog } from "../../state/hooks";
+import { useStore } from "../../state/store";
 import styles from "./LogView.module.css";
 import { useInfoTabConfig } from "./tabs/InfoTab";
 import { useJsonTabConfig } from "./tabs/JsonTab";

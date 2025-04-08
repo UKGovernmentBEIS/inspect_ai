@@ -8,14 +8,16 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
-import { ApplicationIcons } from "../../app/appearance/icons.ts";
-import { NoContentsPanel } from "../../components/NoContentsPanel.tsx";
-import { ToolButton } from "../../components/ToolButton.tsx";
-import { kEvalWorkspaceTabId } from "../../constants.ts";
-import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay.tsx";
-import { SampleDialog } from "../../samples/SampleDialog.tsx";
-import { SampleTools, ScoreFilterTools } from "../../samples/SamplesTools.tsx";
-import { SampleList } from "../../samples/list/SampleList.tsx";
+import { NoContentsPanel } from "../../../components/NoContentsPanel.tsx";
+import { ToolButton } from "../../../components/ToolButton.tsx";
+import { kEvalWorkspaceTabId } from "../../../constants.ts";
+import { InlineSampleDisplay } from "../../../samples/InlineSampleDisplay.tsx";
+import { SampleDialog } from "../../../samples/SampleDialog.tsx";
+import {
+  SampleTools,
+  ScoreFilterTools,
+} from "../../../samples/SamplesTools.tsx";
+import { SampleList } from "../../../samples/list/SampleList.tsx";
 import {
   useFilteredSamples,
   useGroupBy,
@@ -23,9 +25,10 @@ import {
   useSampleDescriptor,
   useScore,
   useTotalSampleCount,
-} from "../../state/hooks.ts";
-import { useStore } from "../../state/store.ts";
-import { Status } from "../../types/log";
+} from "../../../state/hooks.ts";
+import { useStore } from "../../../state/store.ts";
+import { Status } from "../../../types/log";
+import { ApplicationIcons } from "../../appearance/icons.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";

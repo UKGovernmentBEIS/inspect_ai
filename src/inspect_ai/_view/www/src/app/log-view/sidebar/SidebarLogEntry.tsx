@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { FC, Fragment } from "react";
-import { EvalLogHeader } from "../../client/api/types";
-import { kModelNone } from "../../constants";
+import { EvalLogHeader } from "../../../client/api/types";
+import { kModelNone } from "../../../constants";
 import { EvalStatus } from "./EvalStatus";
 import styles from "./SidebarLogEntry.module.css";
 
