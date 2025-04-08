@@ -1,19 +1,20 @@
 import { FC, useMemo } from "react";
-import { SampleSummary } from "../../client/api/types";
-import { MessageBand } from "../../components/MessageBand";
-import { ModelCard } from "../../plan/ModelCard";
-import { kInfoWorkspaceTabId } from "../../constants";
-import { PlanCard } from "../../plan/PlanCard";
-import { useTotalSampleCount } from "../../state/hooks";
+
 import {
   EvalError,
   EvalPlan,
   EvalResults,
   EvalSpec,
   EvalStats,
-} from "../../types/log";
-import { UsageCard } from "../../usage/UsageCard";
+} from "../../../types/log";
+import { UsageCard } from "../../../usage/UsageCard";
 import { TaskErrorCard } from "../error/TaskErrorPanel";
+import { useTotalSampleCount } from "../../../state/hooks";
+import { SampleSummary } from "../../../client/api/types";
+import { MessageBand } from "../../../components/MessageBand";
+import { kInfoWorkspaceTabId } from "../../../constants";
+import { ModelCard } from "../../../plan/ModelCard";
+import { PlanCard } from "../../../plan/PlanCard";
 
 // Individual hook for Info tab
 export const useInfoTabConfig = (

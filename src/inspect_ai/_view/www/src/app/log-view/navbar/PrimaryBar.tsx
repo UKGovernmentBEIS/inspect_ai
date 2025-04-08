@@ -1,13 +1,12 @@
 import clsx from "clsx";
 import { FC, useCallback } from "react";
-import { ApplicationIcons } from "../../app/appearance/icons";
-import { RunningMetric } from "../../client/api/types";
-import { CopyButton } from "../../components/CopyButton";
-import { kModelNone } from "../../constants";
-import { useStore } from "../../state/store";
-import { EvalResults, EvalSpec, Status } from "../../types/log";
-import { filename } from "../../utils/path";
-import { ModelRolesView } from "./ModelRolesView";
+import { RunningMetric } from "../../../client/api/types";
+import { CopyButton } from "../../../components/CopyButton";
+import { kModelNone } from "../../../constants";
+import { useStore } from "../../../state/store";
+import { EvalResults, EvalSpec, Status } from "../../../types/log";
+import { filename } from "../../../utils/path";
+import { ApplicationIcons } from "../../appearance/icons";
 import styles from "./PrimaryBar.module.css";
 import {
   displayScorersFromRunningMetrics,
@@ -16,6 +15,7 @@ import {
 } from "./ResultsPanel";
 import { RunningStatusPanel } from "./RunningStatusPanel";
 import { CancelledPanel, ErroredPanel } from "./StatusPanel";
+import { ModelRolesView } from "./ModelRolesView";
 
 interface PrimaryBarProps {
   showToggle: boolean;

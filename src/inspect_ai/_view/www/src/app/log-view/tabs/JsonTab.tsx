@@ -1,13 +1,12 @@
-import { filename } from "../../utils/path";
+import { filename } from "../../../utils/path";
 
 import clsx from "clsx";
 import { FC, MouseEvent, useMemo } from "react";
-import { ApplicationIcons } from "../../app/appearance/icons";
-import { DownloadPanel } from "../../components/DownloadPanel";
-import { JSONPanel } from "../../components/JsonPanel";
-import { ToolButton } from "../../components/ToolButton";
-import { kJsonWorkspaceTabId } from "../../constants";
-import { useStore } from "../../state/store";
+import { DownloadPanel } from "../../../components/DownloadPanel";
+import { JSONPanel } from "../../../components/JsonPanel";
+import { ToolButton } from "../../../components/ToolButton";
+import { kJsonWorkspaceTabId } from "../../../constants";
+import { useStore } from "../../../state/store";
 import {
   EvalError,
   EvalPlan,
@@ -15,7 +14,8 @@ import {
   EvalSpec,
   EvalStats,
   Status,
-} from "../../types/log";
+} from "../../../types/log";
+import { ApplicationIcons } from "../../appearance/icons";
 import styles from "./JsonTab.module.css";
 
 const kJsonMaxSize = 10000000;

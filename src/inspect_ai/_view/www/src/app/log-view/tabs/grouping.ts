@@ -1,7 +1,7 @@
-import { SampleSummary } from "../../client/api/types";
-import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor";
-import { ScoreLabel } from "../../types/app";
-import { Epochs } from "../../types/log";
+import { SampleSummary } from "../../../client/api/types";
+import { SamplesDescriptor } from "../../../samples/descriptor/samplesDescriptor";
+import { ScoreLabel } from "../../../types/app";
+import { Epochs } from "../../../types/log";
 import { ListItem, SampleListItem, SeparatorListItem } from "./types";
 
 export const getSampleProcessor = (
