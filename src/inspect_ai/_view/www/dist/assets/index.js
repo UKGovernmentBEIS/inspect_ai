@@ -23301,6 +23301,23 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, []);
       return throttledCallback;
     }
+    const directoryRelativeUrl = (file, dir) => {
+      if (!dir) {
+        return encodeURIComponent(file);
+      }
+      const normalizedFile = file.replace(/\\/g, "/");
+      const normalizedLogDir = dir.replace(/\\/g, "/");
+      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+      if (normalizedFile.startsWith(dirWithSlash)) {
+        const relativePath = normalizedFile.substring(dirWithSlash.length);
+        const segments = relativePath.split("/");
+        const encodedSegments = segments.map(
+          (segment) => encodeURIComponent(segment)
+        );
+        return encodedSegments.join("/");
+      }
+      return encodeURIComponent(file);
+    };
     const dirname$1 = "_dirname_16ra5_1";
     const styles$1j = {
       dirname: dirname$1
@@ -23725,12 +23742,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       ] });
     };
     const Sidebar = ({
-      logs,
       logHeaders,
       loading,
       selectedIndex,
       onSelectedIndexChanged
     }) => {
+      const logs = useStore((state) => state.logs.logs);
       const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
       const offCanvas = useStore((state) => state.app.offcanvas);
       const handleToggle = reactExports.useCallback(() => {
@@ -23782,7 +23799,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                           Link,
                           {
-                            to: `/logs/${encodeURIComponent(file.name)}`,
+                            to: `/logs/${directoryRelativeUrl(file.name, logs.log_dir)}`,
                             className: styles$1i.logLink,
                             onClick: () => {
                               onSelectedIndexChanged(index2);
@@ -81578,7 +81595,6 @@ Supported expressions:
         !fullScreen && selectedLogSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           Sidebar,
           {
-            logs,
             logHeaders,
             loading: headersLoading,
             selectedIndex: selectedLogIndex,
