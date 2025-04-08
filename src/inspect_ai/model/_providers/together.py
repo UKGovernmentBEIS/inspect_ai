@@ -68,7 +68,9 @@ def chat_choices_from_response_together(
         logprobs_models.append(Logprobs(content=logprobs_sequence))
     return [
         ChatCompletionChoice(
-            message=chat_message_assistant_from_openai(choice.message, tools),
+            message=chat_message_assistant_from_openai(
+                response.model, choice.message, tools
+            ),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=logprobs,
         )
@@ -115,6 +117,14 @@ class TogetherAIAPI(OpenAIAPI):
             )
         else:
             return ex
+
+    @override
+    def set_logprobs_params(
+        self, params: dict[str, Any], config: GenerateConfig
+    ) -> dict[str, Any]:
+        if config.logprobs is True:
+            params["logprobs"] = 1
+        return params
 
     # Together has a slightly different logprobs structure to OpenAI, so we need to remap it.
     def _chat_choices_from_response(
@@ -228,7 +238,7 @@ class TogetherRESTAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
     def chat_api_handler(self) -> ChatAPIHandler:
-        return ChatAPIHandler()
+        return ChatAPIHandler(self.model_name)
 
 
 def together_choices(

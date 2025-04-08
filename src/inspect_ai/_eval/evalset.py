@@ -1,6 +1,5 @@
 import hashlib
 import logging
-from copy import deepcopy
 from typing import Any, Literal, NamedTuple, Set, cast
 
 import rich
@@ -18,6 +17,7 @@ from typing_extensions import Unpack
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import basename, filesystem
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai.agent._agent import Agent
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir
@@ -35,9 +35,9 @@ from inspect_ai.model import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
-from inspect_ai.util._display import init_display_type
+from inspect_ai.util._display import display_type_initialized, init_display_type
 
-from .eval import eval, eval_init
+from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args
 from .task import Epochs
 from .task.resolved import ResolvedTask
@@ -67,8 +67,9 @@ def eval_set(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    solver: Solver | list[Solver] | SolverSpec | None = None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
@@ -92,6 +93,7 @@ def eval_set(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | int | None = None,
     bundle_dir: str | None = None,
     bundle_overwrite: bool = False,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -129,6 +131,7 @@ def eval_set(
         solver: Alternative solver(s) for
             evaluating task(s). ptional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
+        metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
@@ -171,6 +174,9 @@ def eval_set(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Sync sample events to log directory so that users on other systems
+            can see log updates in realtime (defaults to no syncing). Specify `True`
+            to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         bundle_dir: If specified, the log viewer and logs generated
             by this eval set will be bundled into this directory.
         bundle_overwrite: Whether to overwrite files in the bundle_dir.
@@ -196,6 +202,7 @@ def eval_set(
             sandbox_cleanup=sandbox_cleanup,
             solver=solver,
             tags=tags,
+            metadata=metadata,
             trace=trace,
             display=display,
             approval=approval,
@@ -219,6 +226,7 @@ def eval_set(
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
+            log_shared=log_shared,
             score=score,
             **kwargs,
         )
@@ -237,33 +245,25 @@ def eval_set(
         return results
 
     # initialise display (otherwise eval_init will set it to full)
-    display = init_display_type(display)
+    if not display_type_initialized():
+        display = init_display_type(display)
     if display == "conversation":
         raise RuntimeError("eval_set cannot be used with conversation display.")
 
-    # resolve tasks
-    models, _, resolved_tasks = eval_init(
-        tasks=tasks,
+    # initialize eval
+    models, _ = eval_init(
         model=model,
         model_base_url=model_base_url,
         model_args=model_args,
-        model_roles=model_roles,
-        task_args=task_args,
-        sandbox=sandbox,
         max_subprocesses=max_subprocesses,
         log_level=log_level,
         log_level_transcript=log_level_transcript,
         **kwargs,
     )
 
-    # ensure log_dir and list all logs
+    # ensure log_dir
     fs = filesystem(log_dir)
     fs.mkdir(log_dir, exist_ok=True)
-
-    # validate that:
-    #  (1) All tasks have a unique identifier
-    #  (2) All logs have identifiers that map to tasks
-    validate_eval_set_prerequisites(resolved_tasks, list_all_eval_logs(log_dir))
 
     # resolve some parameters
     retry_connections = retry_connections or 0.5
@@ -305,10 +305,20 @@ def eval_set(
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
+        # resolve tasks
+        resolved_tasks = eval_resolve_tasks(
+            tasks, task_args, models, model_roles, GenerateConfig(**kwargs), sandbox
+        )
+
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
         if len(all_logs) > 0:
             write_log_dir_manifest(log_dir)
+
+        # validate that:
+        #  (1) All tasks have a unique identifier
+        #  (2) All logs have identifiers that map to tasks
+        validate_eval_set_prerequisites(resolved_tasks, all_logs)
 
         # see which tasks are yet to run (to complete successfully we need
         # a successful eval for every [task_file/]task_name/model combination)
@@ -414,13 +424,10 @@ def as_previous_tasks(
         # want to bring this back but we'd need to resolve the
         # directory issues.
 
-        # deepcopy so the same instance is not run twice
-        prev_task = deepcopy(task.task)
-
         previous_tasks.append(
             PreviousTask(
                 id=log.header.eval.task_id,
-                task=prev_task,
+                task=task.task,
                 task_args=resolve_task_args(task.task),
                 model=task.model,
                 log=read_eval_log(log.info),

@@ -25,6 +25,10 @@ def project_startup(project: ComposeProject) -> None:
     running_projects().append(project)
 
     # track auto compose we need to cleanup
+    project_record_auto_compose(project)
+
+
+def project_record_auto_compose(project: ComposeProject) -> None:
     if project.config and is_auto_compose_file(project.config):
         auto_compose_files().add(project.config)
 

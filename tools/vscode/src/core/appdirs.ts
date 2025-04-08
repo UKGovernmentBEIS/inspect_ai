@@ -2,13 +2,17 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import process from 'node:process';
+import process from "node:process";
 
 export function appDataDir(appName: string, subdir?: string, roaming = false) {
   return appDir(appName, userDataDir, subdir, roaming);
 }
 
-export function appConfigDir(appName: string, subdir?: string, roaming = false) {
+export function appConfigDir(
+  appName: string,
+  subdir?: string,
+  roaming = false,
+) {
   return appDir(appName, userConfigDir, subdir, roaming);
 }
 
@@ -102,20 +106,21 @@ function darwinUserCacheDir(appName: string) {
 }
 
 function xdgUserDataDir(appName: string) {
-  const dataHome = process.env.XDG_DATA_HOME ||
+  const dataHome =
+    process.env.XDG_DATA_HOME ||
     path.join(process.env.HOME || "", ".local", "share");
   return path.join(dataHome, appName);
 }
 
 function xdgUserConfigDir(appName: string) {
-  const configHome = process.env.XDG_CONFIG_HOME ||
-    path.join(process.env.HOME || "", ".config");
+  const configHome =
+    process.env.XDG_CONFIG_HOME || path.join(process.env.HOME || "", ".config");
   return path.join(configHome, appName);
 }
 
 function xdgUserCacheDir(appName: string) {
-  const cacheHome = process.env.XDG_CACHE_HOME ||
-    path.join(process.env.HOME || "", ".cache");
+  const cacheHome =
+    process.env.XDG_CACHE_HOME || path.join(process.env.HOME || "", ".cache");
   return path.join(cacheHome, appName);
 }
 
@@ -129,8 +134,7 @@ function xdgUserRuntimeDir(appName: string) {
 }
 
 function windowsUserDataDir(appName: string, roaming = false) {
-  const dir =
-    (roaming ? process.env.APPDATA : process.env.LOCALAPPDATA) || "";
+  const dir = (roaming ? process.env.APPDATA : process.env.LOCALAPPDATA) || "";
   return path.join(dir, appName);
 }
 
@@ -138,5 +142,3 @@ function windowsUserCacheDir(appName: string) {
   const dir = process.env.LOCALAPPDATA || "";
   return path.join(dir, "Temp", appName, appName);
 }
-
-

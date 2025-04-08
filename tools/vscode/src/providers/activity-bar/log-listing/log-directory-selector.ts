@@ -1,9 +1,15 @@
-import { ExtensionContext, QuickPickItem, QuickPickItemKind, ThemeIcon, Uri, window } from "vscode";
+import {
+  ExtensionContext,
+  QuickPickItem,
+  QuickPickItemKind,
+  ThemeIcon,
+  Uri,
+  window,
+} from "vscode";
 import { prettyUriPath } from "../../../core/uri";
 import { activeWorkspaceFolder } from "../../../core/workspace";
 import { LogListingMRU } from "./log-listing-mru";
 import { WorkspaceEnvManager } from "../../workspace/workspace-env-provider";
-
 
 const kSeparator = "<separator>";
 const kWorkspaceLogDirectory = "<workspace-log-dir>";
@@ -12,24 +18,22 @@ const kSelectRemoteURL = "<select-remote-url>";
 const kClearRecentLocations = "<clear-recent>";
 
 export interface SelectLocationQuickPickItem extends QuickPickItem {
-  location: string
+  location: string;
 }
 
 export async function selectLogDirectory(
   context: ExtensionContext,
-  envManager: WorkspaceEnvManager
+  envManager: WorkspaceEnvManager,
 ): Promise<Uri | null | undefined> {
-
   return new Promise<Uri | null | undefined>((resolve) => {
-
     // get the default workspace env dir
     const workspaceLogDir = envManager.getDefaultLogDir();
 
     // get the mru (screen out the current workspaceLogDir)
     const mru = new LogListingMRU(context);
-    const mruLocations = mru.get().filter(
-      location => location.toString() !== workspaceLogDir.toString()
-    );
+    const mruLocations = mru
+      .get()
+      .filter((location) => location.toString() !== workspaceLogDir.toString());
 
     // build list of items
     const items: SelectLocationQuickPickItem[] = [];
@@ -37,49 +41,48 @@ export async function selectLogDirectory(
       iconPath: new ThemeIcon("code-oss"),
       label: "Workspace Log Directory",
       description: prettyUriPath(workspaceLogDir),
-      location: kWorkspaceLogDirectory
+      location: kWorkspaceLogDirectory,
     });
     items.push({
       label: "Select a location",
       kind: QuickPickItemKind.Separator,
-      location: kSeparator
+      location: kSeparator,
     });
     items.push({
       iconPath: new ThemeIcon("vm"),
       label: "Local Log Directory...",
       description: "Logs on your local machine",
-      location: kSelectLocalDirectory
+      location: kSelectLocalDirectory,
     });
     items.push({
       iconPath: new ThemeIcon("remote-explorer"),
       label: "Remote Log Directory...",
       description: "Logs in remote storage (e.g. s3://my-bucket/logs)",
-      location: kSelectRemoteURL
+      location: kSelectRemoteURL,
     });
     if (mruLocations.length > 0) {
       items.push({
         label: "Recent locations",
         kind: QuickPickItemKind.Separator,
-        location: kSeparator
+        location: kSeparator,
       });
       for (const mruLocation of mruLocations) {
         items.push({
           label: mruLocation.path.split("/").pop()!,
           description: prettyUriPath(mruLocation),
-          location: mruLocation.toString()
+          location: mruLocation.toString(),
         });
       }
       items.push({
         label: "",
         kind: QuickPickItemKind.Separator,
-        location: kSeparator
+        location: kSeparator,
       });
       items.push({
         label: "Clear recent locations",
-        location: kClearRecentLocations
+        location: kClearRecentLocations,
       });
     }
-
 
     // setup and show quick pick
     const quickPick = window.createQuickPick<SelectLocationQuickPickItem>();
@@ -116,7 +119,6 @@ export async function selectLogDirectory(
   });
 }
 
-
 export async function selectLocalDirectory(): Promise<Uri | undefined> {
   const selection = await window.showOpenDialog({
     title: `Local Log Directory`,
@@ -124,7 +126,7 @@ export async function selectLocalDirectory(): Promise<Uri | undefined> {
     canSelectFiles: false,
     canSelectFolders: true,
     canSelectMany: false,
-    defaultUri: activeWorkspaceFolder().uri
+    defaultUri: activeWorkspaceFolder().uri,
   });
   if (selection) {
     return selection[0];
@@ -150,7 +152,7 @@ export async function selectRemoteURL(): Promise<Uri | undefined> {
       } catch (e) {
         return "Specified locatoin is not a valid URI (e.g. s3://my-bucket/logs)";
       }
-    }
+    },
   });
   if (remoteUrl) {
     return Uri.parse(remoteUrl, true);

@@ -48,7 +48,7 @@ def openai() -> type[ModelAPI]:
 def anthropic() -> type[ModelAPI]:
     FEATURE = "Anthropic API"
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.47.1"
+    MIN_VERSION = "0.49.0"
 
     # verify we have the package
     try:
@@ -94,11 +94,7 @@ def vertex() -> type[ModelAPI]:
 def google() -> type[ModelAPI]:
     FEATURE = "Google API"
     PACKAGE = "google-genai"
-    MIN_VERSION = "1.2.0"
-
-    # workaround log spam
-    # https://github.com/ray-project/ray/issues/24917
-    os.environ["GRPC_ENABLE_FORK_SUPPORT"] = "0"
+    MIN_VERSION = "1.8.0"
 
     # verify we have the package
     try:
@@ -148,7 +144,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.5.1"
+    MIN_VERSION = "1.6.0"
 
     # verify we have the package
     try:
@@ -257,32 +253,10 @@ def none() -> type[ModelAPI]:
     return NoModel
 
 
-@modelapi("goodfire")
-def goodfire() -> type[ModelAPI]:
-    """Get the Goodfire API provider."""
-    FEATURE = "Goodfire API"
-    PACKAGE = "goodfire"
-    MIN_VERSION = "0.3.4"  # Support for newer Llama models and OpenAI compatibility
-
-    # verify we have the package
-    try:
-        import goodfire  # noqa: F401
-    except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
-
-    # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
-
-    # in the clear
-    from .goodfire import GoodfireAPI
-
-    return GoodfireAPI
-
-
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "1.58.1"
+    MIN_VERSION = "1.69.0"
 
     # verify we have the package
     try:

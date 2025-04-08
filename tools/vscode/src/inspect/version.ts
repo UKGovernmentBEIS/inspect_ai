@@ -1,10 +1,22 @@
 import { coerce } from "semver";
 import { inspectVersionDescriptor } from "./props";
 
-export function withMinimumInspectVersion(version: string, hasVersion: () => void, doesntHaveVersion: () => void): void;
-export function withMinimumInspectVersion<T>(version: string, hasVersion: () => T, doesntHaveVersion: () => T): T;
+export function withMinimumInspectVersion(
+  version: string,
+  hasVersion: () => void,
+  doesntHaveVersion: () => void,
+): void;
+export function withMinimumInspectVersion<T>(
+  version: string,
+  hasVersion: () => T,
+  doesntHaveVersion: () => T,
+): T;
 
-export function withMinimumInspectVersion<T>(version: string, hasVersion: () => T, doesntHaveVersion: () => T): T | void {
+export function withMinimumInspectVersion<T>(
+  version: string,
+  hasVersion: () => T,
+  doesntHaveVersion: () => T,
+): T | void {
   if (hasMinimumInspectVersion(version)) {
     return hasVersion();
   } else {
@@ -12,7 +24,10 @@ export function withMinimumInspectVersion<T>(version: string, hasVersion: () => 
   }
 }
 
-export function hasMinimumInspectVersion(version: string, strictDevCheck = false): boolean {
+export function hasMinimumInspectVersion(
+  version: string,
+  strictDevCheck = false,
+): boolean {
   const descriptor = inspectVersionDescriptor();
   if (descriptor?.isDeveloperBuild && strictDevCheck) {
     // Since this is strictly being checked, require that the version is actually greater
@@ -21,15 +36,19 @@ export function hasMinimumInspectVersion(version: string, strictDevCheck = false
     // and incremented it)
     const required = coerce(version);
     const installed = descriptor.version;
-    return installed.major >= (required?.major || 0) && installed.minor >= (required?.minor || 0) && installed.patch > (required?.patch || 0);
+    return (
+      installed.major >= (required?.major || 0) &&
+      installed.minor >= (required?.minor || 0) &&
+      installed.patch > (required?.patch || 0)
+    );
   } else {
-    if (descriptor && (descriptor.version.compare(version) >= 0 || descriptor.isDeveloperBuild)) {
+    if (
+      descriptor &&
+      (descriptor.version.compare(version) >= 0 || descriptor.isDeveloperBuild)
+    ) {
       return true;
     } else {
       return false;
     }
   }
-
-
-
 }

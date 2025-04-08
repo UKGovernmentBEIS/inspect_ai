@@ -2,10 +2,12 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai.agent._agent import Agent, is_agent
+from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.log._model import model_roles_config_to_model_roles
 
 if sys.version_info < (3, 11):
@@ -17,7 +19,11 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import display as task_display
 from inspect_ai._util.config import resolve_args
-from inspect_ai._util.constants import DEFAULT_LOG_FORMAT
+from inspect_ai._util.constants import (
+    DEFAULT_LOG_FORMAT,
+    DEFAULT_LOG_SHARED,
+    JSON_LOG_FORMAT,
+)
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.logger import warn_once
@@ -33,6 +39,7 @@ from inspect_ai.approval._policy import (
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._recorders import create_recorder_for_format
+from inspect_ai.log._recorders.buffer import cleanup_sample_buffers
 from inspect_ai.model import (
     GenerateConfig,
     GenerateConfigArgs,
@@ -69,8 +76,9 @@ def eval(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    solver: Solver | list[Solver] | SolverSpec | None = None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | None = None,
@@ -94,6 +102,7 @@ def eval(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -120,6 +129,7 @@ def eval(
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
+        metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
@@ -163,6 +173,9 @@ def eval(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Sync sample events to log directory so that users on other systems
+            can see log updates in realtime (defaults to no syncing). Specify `True`
+            to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -191,6 +204,7 @@ def eval(
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
                 tags=tags,
+                metadata=metadata,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -212,6 +226,7 @@ def eval(
                 log_samples=log_samples,
                 log_images=log_images,
                 log_buffer=log_buffer,
+                log_shared=log_shared,
                 score=score,
                 score_display=score_display,
                 **kwargs,
@@ -239,8 +254,9 @@ async def eval_async(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    solver: Solver | list[Solver] | SolverSpec | None = None,
+    solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -262,6 +278,7 @@ async def eval_async(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
@@ -281,7 +298,8 @@ async def eval_async(
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
-        tags (list[str] | None): Tags to associate with this evaluation run.
+        tags: Tags to associate with this evaluation run.
+        metadata: Metadata to associate with this evaluation run.
         approval: Tool use approval policies.
           Either a path to an approval policy config file or a list of approval policies.
           Defaults to no approval policy.
@@ -314,6 +332,7 @@ async def eval_async(
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         **kwargs: Model generation options.
@@ -343,19 +362,20 @@ async def eval_async(
 
     try:
         # intialise eval
-        model, approval, resolved_tasks = eval_init(
-            tasks=tasks,
+        model, approval = eval_init(
             model=model,
             model_base_url=model_base_url,
             model_args=model_args,
-            model_roles=model_roles,
-            task_args=task_args,
-            sandbox=sandbox,
             approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             **kwargs,
+        )
+
+        # resolve tasks
+        resolved_tasks = eval_resolve_tasks(
+            tasks, task_args, model, model_roles, GenerateConfig(**kwargs), sandbox
         )
 
         # warn and return empty string if we resolved no tasks
@@ -393,8 +413,22 @@ async def eval_async(
                 f"ERROR: You do not have write permission for the log_dir '{log_dir}'"
             )
 
+        # resolve log_shared
+        log_shared = DEFAULT_LOG_SHARED if log_shared is True else log_shared
+
+        # validate that --log-shared can't use used with 'json' format
+        if log_shared and log_format == JSON_LOG_FORMAT:
+            raise PrerequisiteError(
+                "ERROR: --log-shared is not compatible with the json log format."
+            )
+
         # resolve solver
-        solver = chain(solver) if isinstance(solver, list) else solver
+        if isinstance(solver, list):
+            solver = chain(solver)
+        elif is_agent(solver):
+            solver = as_solver(solver)
+        else:
+            solver = cast(Solver | SolverSpec | None, solver)
 
         # ensure consistency of limit and sample_id
         if sample_id is not None and limit is not None:
@@ -429,6 +463,7 @@ async def eval_async(
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
+            log_shared=log_shared,
             score_display=score_display,
         )
 
@@ -457,6 +492,7 @@ async def eval_async(
                         epochs_reducer=epochs_reducer,
                         solver=solver,
                         tags=tags,
+                        metadata=metadata,
                         score=score,
                         debug_errors=debug_errors is True,
                         **kwargs,
@@ -481,10 +517,14 @@ async def eval_async(
                 epochs_reducer=epochs_reducer,
                 solver=solver,
                 tags=tags,
+                metadata=metadata,
                 score=score,
                 **kwargs,
             )
             logs = EvalLogs(results)
+
+        # cleanup sample buffers if required
+        cleanup_sample_buffers(log_dir)
 
     finally:
         _eval_async_running = False
@@ -511,6 +551,7 @@ def eval_retry(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
     max_retries: int | None = None,
@@ -552,6 +593,9 @@ def eval_retry(
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
             chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Sync sample events to log directory so that users on other systems
+            can see log updates in realtime (defaults to no syncing). Specify `True`
+            to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         max_retries:
@@ -587,6 +631,7 @@ def eval_retry(
             log_samples=log_samples,
             log_images=log_images,
             log_buffer=log_buffer,
+            log_shared=log_shared,
             score=score,
             score_display=score_display,
             max_retries=max_retries,
@@ -613,6 +658,7 @@ async def eval_retry_async(
     log_samples: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
+    log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
     max_retries: int | None = None,
@@ -652,6 +698,8 @@ async def eval_retry_async(
         log_buffer: (int | None): Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Indicate that the log directory is shared, which results in
+            additional syncing of realtime log data for Inspect View.
         score (bool): Score output (defaults to True)
         score_display (bool | None): Show scoring metrics in realtime (defaults to True)
         max_retries (int | None):
@@ -692,7 +740,7 @@ async def eval_retry_async(
         # context to reconstruct ephemeral Task instances)
         task: str | None
         task_id = eval_log.eval.task_id
-        task_name = eval_log.eval.task
+        task_name = eval_log.eval.task_registry_name or eval_log.eval.task
         task_file = eval_log.eval.task_file
         if task_file:
             if not Path(task_file).exists():
@@ -752,6 +800,9 @@ async def eval_retry_async(
         log_buffer = (
             log_buffer if log_buffer is not None else eval_log.eval.config.log_buffer
         )
+        log_shared = (
+            log_shared if log_shared is not None else eval_log.eval.config.log_shared
+        )
         score_display = (
             score_display
             if score_display is not None
@@ -799,6 +850,7 @@ async def eval_retry_async(
                 log_samples=log_samples,
                 log_images=log_images,
                 log_buffer=log_buffer,
+                log_shared=log_shared,
                 score=score,
                 score_display=score_display,
                 **dict(config),
@@ -812,25 +864,20 @@ async def eval_retry_async(
 
 
 def eval_init(
-    tasks: Tasks,
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    model_roles: dict[str, str | Model] | None = None,
-    task_args: dict[str, Any] | str = dict(),
-    sandbox: SandboxEnvironmentType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
-) -> tuple[list[Model], list[ApprovalPolicy] | None, list[ResolvedTask]]:
+) -> tuple[list[Model], list[ApprovalPolicy] | None]:
     # init eval context
     init_eval_context(log_level, log_level_transcript, max_subprocesses)
 
     # resolve model and task args
     model_args = resolve_args(model_args)
-    task_args = resolve_args(task_args)
 
     # resolve model args from environment if not specified
     if len(model_args) == 0:
@@ -843,26 +890,32 @@ def eval_init(
     generate_config = GenerateConfig(**kwargs)
     models = resolve_models(model, model_base_url, model_args, generate_config)
 
-    # resolve model roles
-    reoslved_model_roles = resolve_model_roles(model_roles)
-
-    # resolve tasks (set active model to resolve uses of the
-    # 'default' model in tools, solvers, and scorers)
-
-    with task_display().suspend_task_app():
-        resolved_tasks: list[ResolvedTask] = []
-        for m in models:
-            init_active_model(m, generate_config)
-            resolved_tasks.extend(
-                resolve_tasks(tasks, task_args, m, reoslved_model_roles, sandbox)
-            )
-
     # resolve approval
     if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
 
-    return models, approval, resolved_tasks
+    return models, approval
+
+
+def eval_resolve_tasks(
+    tasks: Tasks,
+    task_args: dict[str, Any] | str,
+    models: list[Model],
+    model_roles: dict[str, str | Model] | None,
+    config: GenerateConfig,
+    sandbox: SandboxEnvironmentType | None,
+) -> list[ResolvedTask]:
+    resolved_model_roles = resolve_model_roles(model_roles)
+    task_args = resolve_args(task_args)
+    with task_display().suspend_task_app():
+        resolved_tasks: list[ResolvedTask] = []
+        for m in models:
+            init_active_model(m, config)
+            resolved_tasks.extend(
+                resolve_tasks(tasks, task_args, m, resolved_model_roles, sandbox)
+            )
+        return resolved_tasks
 
 
 def init_eval_display(

@@ -1,7 +1,7 @@
 import uuid
 from typing import Any, Literal, Type
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from inspect_ai.tool._tool_call import ToolCall
 
@@ -124,6 +124,10 @@ class ModelOutput(BaseModel):
     """Error message in the case of content moderation refusals."""
 
     @property
+    def empty(self) -> bool:
+        return len(self.choices) == 0
+
+    @property
     def stop_reason(self) -> StopReason:
         """First message stop reason."""
         return self.choices[0].stop_reason
@@ -153,7 +157,8 @@ class ModelOutput(BaseModel):
         else:
             self.choices.append(
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=completion), stop_reason="stop"
+                    message=ChatMessageAssistant(content=completion, model=self.model),
+                    stop_reason="stop",
                 )
             )
 
@@ -176,7 +181,9 @@ class ModelOutput(BaseModel):
             model=model,
             choices=[
                 ChatCompletionChoice(
-                    message=ChatMessageAssistant(content=content, source="generate"),
+                    message=ChatMessageAssistant(
+                        content=content, model=model, source="generate"
+                    ),
                     stop_reason=stop_reason,
                 )
             ],
@@ -188,6 +195,7 @@ class ModelOutput(BaseModel):
         model: str,
         tool_name: str,
         tool_arguments: dict[str, Any],
+        internal: JsonValue | None = None,
         tool_call_id: str | None = None,
         content: str | None = None,
     ) -> "ModelOutput":
@@ -197,6 +205,7 @@ class ModelOutput(BaseModel):
         Args:
             model: model name
             tool_name: The name of the tool.
+            internal: The model's internal info for the tool (if any).
             tool_arguments: The arguments passed to the tool.
             tool_call_id: Optional ID for the tool call. Defaults to a random UUID.
             content: Optional content to include in the message. Defaults to "tool call for tool {tool_name}".
@@ -216,13 +225,14 @@ class ModelOutput(BaseModel):
                 ChatCompletionChoice(
                     message=ChatMessageAssistant(
                         content=content,
+                        model=model,
                         source="generate",
                         tool_calls=[
                             ToolCall(
                                 id=tool_call_id,
                                 function=tool_name,
+                                internal=internal,
                                 arguments=tool_arguments,
-                                type="function",
                             )
                         ],
                     ),

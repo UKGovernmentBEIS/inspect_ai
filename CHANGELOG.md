@@ -1,15 +1,103 @@
 ## Unreleased
 
+- Remove support for `goodfire` model provider (dependency conflicts).
+
+## v0.3.84 (07 April 2025)
+
+- Bugfix: Suppress link click behavior in vscode links.
+
+## v0.3.83 (07 April 2025)
+
+- Inspect View: [Live updates](https://inspect.aisi.org.uk/log-viewer.html#live-view) to running evaluation logs.
+- [Agent](https://inspect.aisi.org.uk/agents.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
+- Scoring: New [grouped()](https://inspect.aisi.org.uk/scoring.html#metric-grouping) metric wrapper function, which applies a given metric to subgroups of samples defined by a key in sample metadata.
+- Basic Agent: New `submit_append` option to append the submit tool output to the completion rather than replacing the completion (note that the new `react()` agent appends by default).
+- Model API: New [execute_tools()](https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools) function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
+- Model API: `generate_loop()` method for calling generate with a tool use loop.
+- Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
+- Anthropic: Add support for `tool_choice="none"` (added in v0.49.0, which is now required).
+- Together AI: Updated `logprobs` to pass `1` rather than `True` (protocol change).
+- Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
+- Computer Tool: Support for use of the native Open AI computer tool (available in the model `openai/computer-use-preview`)
+- Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
+- Eval Set: Resolve tasks before each pass (ensure that each pass runs against an entirely new task instance).
+- Eval Retry: Ability to retry any task in the registry, even if it has a custom `name` (save `registry_name` separately).
+- Human Agent: Start task with clock paused and then automatically start it on container logins.
+- Typed Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
+- Typed Store: Raise error if attempting to embed a `StoreModel` within another `StoreModel`.
+- Sandbox: New `sandbox_default()` context manager for temporarily changing the default sandbox.
+- Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
+- Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
+- Display: Print warnings after task summaries for improved visibility.
+- Inspect View: Fallback to content range request if inital HEAD request fails.
+- Inspect View: Improve error message when view bundles are server from incompatible servers.
+- Inspect View: Render messages in `user` and `assistant` solver events.
+- Inspect View: Improved support for display of nested arrays.
+- Inspect View: Improved rendering of complex scores and metrics.
+- Inspect View: Properly handle filtering of dictionary scores.
+- Inspect View: Render math in model input and output using katex.
+- Inspect View: Improve sample score rendering (single scoring tab with scores rendered in a table).
+- Inspect View: Improve sample count display in sample list footer.
+- Inspect View: Properly refresh running evals when restoring from being backgrounded.
+- Bugfix: Support for calling the `score()` function within Jupyter notebooks.
+- Bugfix: Handle process lookup errors that can occur during timeout race conditions.
+- Bugfix: Correctly capture and return logs from `eval()` when a cancellation occurs.
+- Bugfix: Correctly handle custom `api_version` model argument for OpenAI on Azure.
+- Bugfix: Correct handling for `None` passed to tool call by model for optional parameters.
+- Bugfix: Cleanup automatically created `.compose.yml` when not in working directory.
+- Bugfix: Prevent exception when navigating to sample that no longer exists in running samples display.
+
+## v0.3.82 (02 April 2025)
+
+- Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.
+- Bugfix: Eval now properly exits when `max_tasks` is greater than total tasks
+
+## v0.3.81 (30 March 2025)
+
+- Requirements: Temporarily upper-bound `rich` to < 14.0.0 to workaround issue.
+
+## v0.3.80 (30 March 2025)
+
+- Google: Compatibility with httpx client in `google-genai` >= 1.8.0 (which is now required).
+- Mistral: Compatibility with tool call schema for `mistralai` >= v1.6.0 (which is now required).
+- Inspect View: Correctly parse NaN values (use JSON5 for all JSON parsing)
+
+## v0.3.79 (26 March 2025)
+
+- Google: Compatibility with v1.7 of google-genai package (create client per-generate request)
+- Bugfix: Properly record scorer and metrics when there are multiple tasks run in an eval.
+
+## v0.3.78 (25 March 2025)
+
+- OpenAI: Ensure that assistant messages always have the `msg_` prefix in responses API.
+
+## v0.3.77 (25 March 2025)
+
+- New [think()](https://inspect.aisi.org.uk/tools-standard.html#sec-think) tool that provides models with the ability to include an additional thinking step.
+- OpenAI: Support for the new [Responses API](https://inspect.ai-safety-institute.org.uk/providers.html#responses-api) and [o1-pro](https://platform.openai.com/docs/models/o1-pro) models.
+- OpenAI: Remove base64-encoded audio content from API call JSON in ModelEvent.
+- AzureAI: Support for use of native [OpenAI](https://inspect.ai-safety-institute.org.uk/providers.html#openai-on-azure) and [Mistral](https://inspect.ai-safety-institute.org.uk/providers.html#mistral-on-azure-ai) clients using service qualifiers (e.g. `openai/azure/gpt-4o-mini` or `mistral/azure/Mistral-Large-2411`). 
+- OpenRouter: Handle "error" field in response object and retry for empty responses.
+- Added `--metadata` option to eval for associating metadata with eval runs.
+- Task display: Show reasoning tokens for models that report them.
+- Anthropic: Include reasoning tokens in computation of total tokens
+- Inspect View: Properly wrap tool input for non-code inputs like `think`.
+
+## v0.3.76 (23 March 2025)
+
 - [bash_session()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-bash-session) tool for creating a stateful bash shell that retains its state across calls from the model.
 - [text_editor()](https://inspect.ai-safety-institute.org.uk/tools-standard.html#sec-text-editor) tool which enables viewing, creating and editing text files.
 - Structured Output: Properly handle Pydantic BaseModel that contains other BaseModel definitions in its schema.
 - OpenAI: Support for .wav files in audio inputs for gpt-4o-audio-preview.
+- OpenAI: Strip 'azure' prefix from model_name so that model type checks all work correctly.
+- OpenAI: Don't send `reasoning_effort` parameter to o1-preview (as it is not supported).
+- Inspect View: Fix error sorting numeric or categorical score results.
+- Inspect View: Properly wrap model API call text in the transcript.
+- Bugfix: Only initialise display in eval_set if it wasn't initialised from the CLI
 - Bugfix: Set the global log level based on the specified Inspect log level.
 - Bugfix: Resolve issue when deserialising a SubtaskEvent from a log file which does not have a completed time.
 - Bugfix: Fix unnecessary warnings about task arguments.
 - Bugfix: When a task does not take a kwargs argument, only warn if the provided argument is not valid.
-
-
 
 ## v0.3.75 (18 March 2025)
 
@@ -614,7 +702,7 @@
 
 ## v0.3.30 (18 September 2024)
 
-- Added [fork()](https://inspect.aisi.org.uk/agents-api.html#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
+- Added `fork()` function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
 - Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
 - Fix error when running `inspect info log-types`
 - Improve scorer names imported from modules by not including the the module names.
@@ -689,9 +777,9 @@
 
 ## v0.3.25 (25 August 2024)
 
-- [Store](https://inspect.aisi.org.uk/agents-api.html#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
-- [Transcript](https://inspect.aisi.org.uk/agents-api.html#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
-- [Subtasks](https://inspect.aisi.org.uk/agents-api.html#sec-subtasks) for delegating work to helper models, sub-agents, etc.
+- `Store` for manipulating arbitrary sample state from within solvers and tools.
+- `Transcripts` for detailed sample level tracking of model and tool calls, state changes, logging, etc.
+- `Subtasks` for delegating work to helper models, sub-agents, etc.
 - Integration with Anthropic [prompt caching](https://inspect.aisi.org.uk/caching.html#sec-provider-caching).
 - [fail_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).

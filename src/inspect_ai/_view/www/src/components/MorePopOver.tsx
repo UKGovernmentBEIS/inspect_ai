@@ -1,14 +1,14 @@
 import { Popover } from "bootstrap";
-import React, { useEffect, useRef } from "react";
+import { FC, ReactNode, useEffect, useRef } from "react";
 import "./MorePopover.css";
 
 interface MorePopoverProps {
   title: string;
   customClass?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
-export const MorePopover: React.FC<MorePopoverProps> = ({
+export const MorePopover: FC<MorePopoverProps> = ({
   title,
   customClass,
   children,

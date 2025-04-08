@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
@@ -12,23 +14,23 @@ from test_helpers.utils import (
 from inspect_ai.model import GenerateConfig, ModelOutput, get_model
 
 
-async def generate(model_name) -> ModelOutput:
-    model = get_model(model_name)
+async def generate(model_name, **model_args: Any) -> ModelOutput:
+    model = get_model(model_name, **model_args)
     return await model.generate(input="Hello.")
 
 
-async def generate_token_limit(model_name) -> ModelOutput:
-    model = get_model(model_name)
+async def generate_token_limit(model_name, **model_args: Any) -> ModelOutput:
+    model = get_model(model_name, **model_args)
     return await model.generate(
-        input="Tell me a story.", config=GenerateConfig(max_tokens=2)
+        input="Tell me a story.", config=GenerateConfig(max_tokens=16)
     )
 
 
-async def check_stop_reason(model_name):
-    response = await generate(model_name)
+async def check_stop_reason(model_name, **model_args: Any):
+    response = await generate(model_name, **model_args)
     assert response.choices[0].stop_reason == "stop"
 
-    response = await generate_token_limit(model_name)
+    response = await generate_token_limit(model_name, **model_args)
     assert response.choices[0].stop_reason == "max_tokens"
 
 
@@ -44,6 +46,13 @@ async def test_groq_stop_reason() -> None:
 @skip_if_trio
 async def test_openai_stop_reason() -> None:
     await check_stop_reason("openai/gpt-3.5-turbo")
+
+
+@pytest.mark.asyncio
+@skip_if_no_openai
+@skip_if_trio
+async def test_openai_responses_stop_reason() -> None:
+    await check_stop_reason("openai/gpt-4o-mini", responses_api=True)
 
 
 @pytest.mark.asyncio

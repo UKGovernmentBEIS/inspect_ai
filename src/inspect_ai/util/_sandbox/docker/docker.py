@@ -30,6 +30,7 @@ from .cleanup import (
     project_cleanup,
     project_cleanup_shutdown,
     project_cleanup_startup,
+    project_record_auto_compose,
     project_startup,
 )
 from .compose import (
@@ -77,6 +78,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             project = await ComposeProject.create(
                 name=task_project_name(task_name), config=config
             )
+
+            # record auto compose
+            project_record_auto_compose(project)
 
             # build containers which are out of date
             await compose_build(project)
@@ -310,7 +314,14 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         # write the file
         if isinstance(contents, str):
             result = await self.exec(
-                ["sh", "-e", "-c", 'tee -- "$1"', "write_file_script", file],
+                [
+                    "sh",
+                    "-e",
+                    "-c",
+                    'tee -- "$1" > /dev/null',
+                    "write_file_script",
+                    file,
+                ],
                 input=contents,
                 timeout=TIMEOUT,
             )

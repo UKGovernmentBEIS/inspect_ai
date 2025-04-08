@@ -10,6 +10,8 @@ title: "inspect_ai.model"
 ### GenerateConfigArgs
 ### ResponseSchema
 ### ModelOutput
+### ModelCall
+### ModelConversation
 ### ModelUsage
 ### StopReason
 ### ChatCompletionChoice
@@ -31,6 +33,11 @@ title: "inspect_ai.model"
 ### ContentImage
 ### ContentAudio
 ### ContentVideo
+
+## Tools
+
+### execute_tools
+### ExecuteToolsResult
 
 ## Logprobs
 

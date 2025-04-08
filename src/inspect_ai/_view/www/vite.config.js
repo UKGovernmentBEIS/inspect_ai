@@ -24,4 +24,10 @@ export default defineConfig({
   resolve: {
     dedupe: ["react", "react-dom"],
   },
+  define: {
+    __DEV_WATCH__: JSON.stringify(process.env.DEV_LOGGING === "true"),
+    __LOGGING_FILTER__: JSON.stringify(
+      process.env.DEV_LOGGING_NAMESPACES || "*",
+    ),
+  },
 });

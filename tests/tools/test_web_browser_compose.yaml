@@ -4,6 +4,5 @@ services:
     init: true
     command: "tail -f /dev/null"
   web_browser:
-    image: aisiuk/inspect-web-browser-tool
+    image: aisiuk/inspect-tool-support
     init: true
-  

@@ -3,6 +3,7 @@ from typing import Any, Literal, cast
 
 from shortuuid import uuid
 
+from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._eval.task.util import slice_dataset
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.datetime import iso_now
@@ -34,6 +35,9 @@ from inspect_ai.log._log import (
 )
 from inspect_ai.log._model import model_args_for_log, model_roles_to_model_roles_config
 from inspect_ai.log._recorders import Recorder
+from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.types import SampleEvent, SampleSummary
+from inspect_ai.log._transcript import Event
 from inspect_ai.model import (
     GenerateConfig,
     Model,
@@ -53,6 +57,7 @@ class TaskLogger:
         task_name: str,
         task_version: int,
         task_file: str | None,
+        task_registry_name: str | None,
         task_id: str | None,
         run_id: str,
         solver: SolverSpec | None,
@@ -118,6 +123,7 @@ class TaskLogger:
             task_id=task_id if task_id else uuid(),
             task_version=task_version,
             task_file=task_file,
+            task_registry_name=task_registry_name,
             task_attribs=task_attribs,
             task_args=task_args,
             solver=solver.solver if solver else None,
@@ -151,10 +157,15 @@ class TaskLogger:
 
         # size of flush buffer (how many samples we buffer before hitting storage)
         self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer()
-        self.flush_pending = 0
+        self.flush_pending: list[tuple[str | int, int]] = []
 
     async def init(self) -> None:
         self._location = await self.recorder.log_init(self.eval)
+        self._buffer_db = SampleBufferDatabase(
+            location=self._location,
+            log_images=self.eval.config.log_images is not False,
+            log_shared=self.eval.config.log_shared,
+        )
 
     @property
     def location(self) -> str:
@@ -166,21 +177,52 @@ class TaskLogger:
 
     async def log_start(self, plan: EvalPlan) -> None:
         await self.recorder.log_start(self.eval, plan)
+        await self.recorder.flush(self.eval)
 
-    async def log_sample(self, sample: EvalSample, *, flush: bool) -> None:
+    async def start_sample(self, sample: SampleSummary) -> None:
+        self._buffer_db.start_sample(sample)
+
+    def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
+        # log the sample event
+        self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
+
+    async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
         await self.recorder.log_sample(self.eval, sample)
 
+        # mark complete
+        self._buffer_db.complete_sample(
+            SampleSummary(
+                id=sample.id,
+                epoch=sample.epoch,
+                input=sample.input,
+                target=sample.target,
+                completed=True,
+                scores=sample.scores,
+                error=sample.error.message if sample.error is not None else None,
+                limit=f"{sample.limit.type}" if sample.limit is not None else None,
+            )
+        )
+
         # flush if requested
         if flush:
-            self.flush_pending += 1
-            if self.flush_pending >= self.flush_buffer:
+            self.flush_pending.append((sample.id, sample.epoch))
+            if len(self.flush_pending) >= self.flush_buffer:
+                # flush to disk
                 await self.recorder.flush(self.eval)
-                self.flush_pending = 0
+
+                # notify the event db it can remove these
+                self._buffer_db.remove_samples(self.flush_pending)
+
+                # Clear
+                self.flush_pending.clear()
 
         # track sucessful samples logged
         if sample.error is None:
             self._samples_completed += 1
+
+    def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
+        self._buffer_db.update_metrics(metrics)
 
     async def log_finish(
         self,
@@ -190,9 +232,16 @@ class TaskLogger:
         reductions: list[EvalSampleReductions] | None = None,
         error: EvalError | None = None,
     ) -> EvalLog:
-        return await self.recorder.log_finish(
+        # finish and get log
+        log = await self.recorder.log_finish(
             self.eval, status, stats, results, reductions, error
         )
+
+        # cleanup the events db
+        self._buffer_db.cleanup()
+
+        # return log
+        return log
 
 
 async def log_start(

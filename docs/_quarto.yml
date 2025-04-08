@@ -67,14 +67,7 @@ website:
                - tasks.qmd
                - datasets.qmd
                - solvers.qmd
-               - tools.qmd
                - scorers.qmd
-
-         - section: "Tools"
-           contents:
-               - tools.qmd
-               - tools-custom.qmd
-               - tools-standard.qmd
 
          - section: "Models"
            contents:
@@ -86,14 +79,21 @@ website:
                - reasoning.qmd
                - structured.qmd
 
+         - section: "Tools"
+           contents:
+               - tools.qmd
+               - tools-custom.qmd
+               - tools-standard.qmd
+               - sandboxing.qmd
+               - approval.qmd
+
          - section: "Agents"
            contents:
                - agents.qmd
-               - sandboxing.qmd
-               - agents-api.qmd
+               - multi-agent.qmd
+               - agent-custom.qmd
                - agent-bridge.qmd
                - human-agent.qmd
-               - approval.qmd
 
          - section: "Advanced"
            contents:

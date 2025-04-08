@@ -4,11 +4,12 @@ import { existsSync } from "node:fs";
 import path, { join } from "path";
 import { AbsolutePath, toAbsolutePath } from "../path";
 
-
-export function findEnvPythonPath(startDir: AbsolutePath, baseDir: AbsolutePath): AbsolutePath | null {
+export function findEnvPythonPath(
+  startDir: AbsolutePath,
+  baseDir: AbsolutePath,
+): AbsolutePath | null {
   let currentDir = startDir;
   while (currentDir.path !== baseDir.path) {
-
     // Look for a pythong environment
     const pythonPath = findEnvPython(currentDir);
     if (pythonPath) {
@@ -41,7 +42,10 @@ function findEnvPython(directory: AbsolutePath): string | null {
 }
 
 function getPythonPath(dir: string): string | null {
-  const pythonSuffixes = os.platform() === "win32" ? ["Scripts/python.exe", "python.exe"] : ["bin/python3", "bin/python"];
+  const pythonSuffixes =
+    os.platform() === "win32"
+      ? ["Scripts/python.exe", "python.exe"]
+      : ["bin/python3", "bin/python"];
   for (const suffix of pythonSuffixes) {
     const fullPath = path.join(dir, suffix);
     if (fs.existsSync(fullPath)) {
@@ -53,6 +57,7 @@ function getPythonPath(dir: string): string | null {
 }
 
 function isEnvDir(dir: string) {
-  return existsSync(join(dir, "pyvenv.cfg")) ||
-    existsSync(join(dir, "conda-meta"));
+  return (
+    existsSync(join(dir, "pyvenv.cfg")) || existsSync(join(dir, "conda-meta"))
+  );
 }

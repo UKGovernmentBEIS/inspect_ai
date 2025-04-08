@@ -22,34 +22,31 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._providers.openai_responses import generate_responses
 from inspect_ai.model._providers.util.hooks import HttpxHooks
 from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import (
-    ChatCompletionChoice,
-    ModelOutput,
-    ModelUsage,
-    StopReason,
-)
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .._openai import (
+    OpenAIResponseError,
+    is_computer_use_preview,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
+    is_o1_pro,
     is_o_series,
     openai_chat_messages,
     openai_chat_tool_choice,
     openai_chat_tools,
+    openai_handle_bad_request,
+    openai_media_filter,
 )
 from .openai_o1 import generate_o1
-from .util import (
-    environment_prerequisite_error,
-    model_base_url,
-)
+from .util import environment_prerequisite_error, model_base_url
 
 logger = getLogger(__name__)
 
@@ -65,8 +62,19 @@ class OpenAIAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        responses_api: bool | None = None,
         **model_args: Any,
     ) -> None:
+        # extract azure service prefix from model name (other providers
+        # that subclass from us like together expect to have the qualifier
+        # in the model name e.g. google/gemma-2b-it)
+        parts = model_name.split("/")
+        if parts[0] == "azure" and len(parts) > 1:
+            self.service: str | None = parts[0]
+            model_name = "/".join(parts[1:])
+        else:
+            self.service = None
+
         # call super
         super().__init__(
             model_name=model_name,
@@ -76,32 +84,28 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # extract any service prefix from model name
-        parts = model_name.split("/")
-        if len(parts) > 1:
-            self.service: str | None = parts[0]
-            model_name = "/".join(parts[1:])
-        else:
-            self.service = None
+        # note whether we are forcing the responses_api
+        self.responses_api = (
+            responses_api or self.is_o1_pro() or self.is_computer_use_preview()
+        )
 
         # resolve api_key
         if not self.api_key:
-            self.api_key = os.environ.get(
-                AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
-            )
-            # backward compatibility for when env vars determined service
-            if self.api_key and (os.environ.get(OPENAI_API_KEY, None) is None):
-                self.service = "azure"
+            if self.service == "azure":
+                self.api_key = os.environ.get(
+                    AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
+                )
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
-                if not self.api_key:
-                    raise environment_prerequisite_error(
-                        "OpenAI",
-                        [
-                            OPENAI_API_KEY,
-                            AZUREAI_OPENAI_API_KEY,
-                        ],
-                    )
+
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "OpenAI",
+                    [
+                        OPENAI_API_KEY,
+                        AZUREAI_OPENAI_API_KEY,
+                    ],
+                )
 
         # create async http client
         http_client = OpenAIAsyncHttpxClient()
@@ -123,10 +127,20 @@ class OpenAIAPI(ModelAPI):
                     + "environment variable or the --model-base-url CLI flag to set the base URL."
                 )
 
+            # resolve version
+            if model_args.get("api_version") is not None:
+                # use slightly complicated logic to allow for "api_version" to be removed
+                api_version = model_args.pop("api_version")
+            else:
+                api_version = os.environ.get(
+                    "AZUREAI_OPENAI_API_VERSION",
+                    os.environ.get("OPENAI_API_VERSION", "2025-02-01-preview"),
+                )
+
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
                 api_key=self.api_key,
+                api_version=api_version,
                 azure_endpoint=base_url,
-                azure_deployment=model_name,
                 http_client=http_client,
                 **model_args,
             )
@@ -147,18 +161,41 @@ class OpenAIAPI(ModelAPI):
     def is_o_series(self) -> bool:
         return is_o_series(self.model_name)
 
+    def is_o1_pro(self) -> bool:
+        return is_o1_pro(self.model_name)
+
     def is_o1_mini(self) -> bool:
         return is_o1_mini(self.model_name)
 
     def is_o1_preview(self) -> bool:
         return is_o1_preview(self.model_name)
 
+    def is_computer_use_preview(self) -> bool:
+        return is_computer_use_preview(self.model_name)
+
     def is_gpt(self) -> bool:
         return is_gpt(self.model_name)
 
     @override
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         await self.client.close()
+
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return not self.responses_api
+
+    @override
+    def tool_result_images(self) -> bool:
+        # o1-pro, o1, and computer_use_preview support image inputs (but we're not strictly supporting o1)
+        return self.is_o1_pro() or self.is_computer_use_preview()
+
+    @override
+    def disable_computer_screenshot_truncation(self) -> bool:
+        # Because ComputerCallOutput has a required output field of type
+        # ResponseComputerToolCallOutputScreenshot, we must have an image in
+        # order to provide a valid tool call response. Therefore, we cannot
+        # support image truncation.
+        return True
 
     async def generate(
         self,
@@ -175,6 +212,16 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 **self.completion_params(config, False),
             )
+        elif self.responses_api:
+            return await generate_responses(
+                client=self.client,
+                http_hooks=self._http_hooks,
+                model_name=self.model_name,
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+            )
 
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
@@ -187,7 +234,7 @@ class OpenAIAPI(ModelAPI):
             return ModelCall.create(
                 request=request,
                 response=response,
-                filter=image_url_filter,
+                filter=openai_media_filter,
                 time=self._http_hooks.end_request(request_id),
             )
 
@@ -219,6 +266,7 @@ class OpenAIAPI(ModelAPI):
 
             # save response for model_call
             response = completion.model_dump()
+            self.on_response(response)
 
             # parse out choices
             choices = self._chat_choices_from_response(completion, tools)
@@ -250,6 +298,12 @@ class OpenAIAPI(ModelAPI):
         except BadRequestError as e:
             return self.handle_bad_request(e), model_call()
 
+    def on_response(self, response: dict[str, Any]) -> None:
+        pass
+
+    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
+        return openai_handle_bad_request(self.model_name, ex)
+
     def _chat_choices_from_response(
         self, response: ChatCompletion, tools: list[ToolInfo]
     ) -> list[ChatCompletionChoice]:
@@ -268,6 +322,8 @@ class OpenAIAPI(ModelAPI):
                 return True
         elif isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, OpenAIResponseError):
+            return ex.code in ["rate_limit_exceeded", "server_error"]
         elif isinstance(ex, APITimeoutError):
             return True
         else:
@@ -312,16 +368,14 @@ class OpenAIAPI(ModelAPI):
             params["top_p"] = config.top_p
         if config.num_choices is not None:
             params["n"] = config.num_choices
-        if config.logprobs is not None:
-            params["logprobs"] = config.logprobs
-        if config.top_logprobs is not None:
-            params["top_logprobs"] = config.top_logprobs
+        params = self.set_logprobs_params(params, config)
         if tools and config.parallel_tool_calls is not None and not self.is_o_series():
             params["parallel_tool_calls"] = config.parallel_tool_calls
         if (
             config.reasoning_effort is not None
             and not self.is_gpt()
             and not self.is_o1_mini()
+            and not self.is_o1_preview()
         ):
             params["reasoning_effort"] = config.reasoning_effort
         if config.response_schema is not None:
@@ -339,31 +393,14 @@ class OpenAIAPI(ModelAPI):
 
         return params
 
-    # convert some well known bad request errors into ModelOutput
-    def handle_bad_request(self, e: BadRequestError) -> ModelOutput | Exception:
-        # extract message
-        if isinstance(e.body, dict) and "message" in e.body.keys():
-            content = str(e.body.get("message"))
-        else:
-            content = e.message
-
-        # narrow stop_reason
-        stop_reason: StopReason | None = None
-        if e.code == "context_length_exceeded":
-            stop_reason = "model_length"
-        elif (
-            e.code == "invalid_prompt"  # seems to happen for o1/o3
-            or e.code == "content_policy_violation"  # seems to happen for vision
-            or e.code == "content_filter"  # seems to happen on azure
-        ):
-            stop_reason = "content_filter"
-
-        if stop_reason:
-            return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason=stop_reason
-            )
-        else:
-            return e
+    def set_logprobs_params(
+        self, params: dict[str, Any], config: GenerateConfig
+    ) -> dict[str, Any]:
+        if config.logprobs is not None:
+            params["logprobs"] = config.logprobs
+        if config.top_logprobs is not None:
+            params["top_logprobs"] = config.top_logprobs
+        return params
 
 
 class OpenAIAsyncHttpxClient(httpx.AsyncClient):

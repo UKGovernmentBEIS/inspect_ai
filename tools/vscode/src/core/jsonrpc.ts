@@ -4,13 +4,13 @@ export const kMethodEvalLog = "eval_log";
 export const kMethodEvalLogSize = "eval_log_size";
 export const kMethodEvalLogBytes = "eval_log_bytes";
 export const kMethodEvalLogHeaders = "eval_log_headers";
-
+export const kMethodPendingSamples = "eval_log_pending_samples";
+export const kMethodSampleData = "eval_log_sample_data";
 
 // json rpc client (talk from the webview to the extension)
-export function webViewJsonRpcClient(
-  vscode: { postMessage(message: unknown): void }
-): JsonRpcRequestTransport {
-
+export function webViewJsonRpcClient(vscode: {
+  postMessage(message: unknown): void;
+}): JsonRpcRequestTransport {
   const target = {
     postMessage: (data: unknown) => {
       vscode.postMessage(data);
@@ -19,20 +19,22 @@ export function webViewJsonRpcClient(
       const onMessage = (ev: MessageEvent) => {
         handler(ev.data);
       };
-      window.addEventListener('message', onMessage);
+      window.addEventListener("message", onMessage);
       return () => {
-        window.removeEventListener('message', onMessage);
+        window.removeEventListener("message", onMessage);
       };
-    }
+    },
   };
 
   const { request } = jsonRpcPostMessageRequestTransport(target);
   return request;
 }
 
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type JsonRpcRequestTransport = (method: string, params: unknown[] | undefined) => Promise<any>;
+export type JsonRpcRequestTransport = (
+  method: string,
+  params: unknown[] | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+) => Promise<any>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type JsonRpcServerMethod = (params: Array<any>) => Promise<unknown>;
@@ -49,47 +51,54 @@ export interface JsonRpcError {
   data?: Record<string, unknown>;
 }
 
-export function jsonRpcError(message: string, data?: string | Record<string, unknown>, code?: number): JsonRpcError {
-  if (typeof (data) === "string") {
+export function jsonRpcError(
+  message: string,
+  data?: string | Record<string, unknown>,
+  code?: number,
+): JsonRpcError {
+  if (typeof data === "string") {
     data = { description: data };
   }
   return {
     code: code || -3200,
     message,
-    data
+    data,
   };
 }
 
 export function asJsonRpcError(error: unknown) {
-  if (typeof (error) === "object") {
+  if (typeof error === "object") {
     const err = error as Record<string, unknown>;
-    if (typeof (err.message) === "string") {
+    if (typeof err.message === "string") {
       return jsonRpcError(
         err.message,
         err.data as string | Record<string, unknown> | undefined,
-        err.code as number | undefined)
-        ;
+        err.code as number | undefined,
+      );
     }
   }
   return jsonRpcError(String(error));
 }
-
 
 export interface JsonRpcPostMessageTarget {
   postMessage: (data: unknown) => void;
   onMessage: (handler: (data: unknown) => void) => () => void;
 }
 
-export function jsonRpcPostMessageRequestTransport(target: JsonRpcPostMessageTarget): {
-  request: JsonRpcRequestTransport,
-  disconnect: () => void
+export function jsonRpcPostMessageRequestTransport(
+  target: JsonRpcPostMessageTarget,
+): {
+  request: JsonRpcRequestTransport;
+  disconnect: () => void;
 } {
-
   // track in-flight requests
-  const requests = new Map<number, { resolve: (value: unknown) => void, reject: (reason: unknown) => void }>();
+  const requests = new Map<
+    number,
+    { resolve: (value: unknown) => void; reject: (reason: unknown) => void }
+  >();
 
   // listen for responses
-  const disconnect = target.onMessage(ev => {
+  const disconnect = target.onMessage((ev) => {
     const response = asJsonRpcResponse(ev);
     if (response) {
       const request = requests.get(response.id);
@@ -108,7 +117,6 @@ export function jsonRpcPostMessageRequestTransport(target: JsonRpcPostMessageTar
   return {
     request: (method: string, params: unknown[] | undefined) => {
       return new Promise((resolve, reject) => {
-
         // provision id
         const requestId = Math.floor(Math.random() * 1000000);
 
@@ -120,30 +128,29 @@ export function jsonRpcPostMessageRequestTransport(target: JsonRpcPostMessageTar
           jsonrpc: kJsonRpcVersion,
           id: requestId,
           method,
-          params
+          params,
         };
         target.postMessage(request);
       });
     },
-    disconnect
+    disconnect,
   };
-
 }
 
 export function jsonRpcPostMessageServer(
   target: JsonRpcPostMessageTarget,
-  methods: Record<string, JsonRpcServerMethod> | ((name: string) => JsonRpcServerMethod | undefined)
+  methods:
+    | Record<string, JsonRpcServerMethod>
+    | ((name: string) => JsonRpcServerMethod | undefined),
 ) {
   // method lookup function
-  const lookupMethod = typeof (methods) === "function"
-    ? methods
-    : (name: string) => methods[name];
+  const lookupMethod =
+    typeof methods === "function" ? methods : (name: string) => methods[name];
 
   // listen for messages
-  return target.onMessage(data => {
+  return target.onMessage((data) => {
     const request = asJsonRpcRequest(data);
     if (request) {
-
       // lookup method
       const method = lookupMethod(request.method);
       if (!method) {
@@ -153,14 +160,14 @@ export function jsonRpcPostMessageServer(
 
       // dispatch method
       method(request.params || [])
-        .then(value => {
+        .then((value) => {
           target.postMessage(jsonRpcResponse(request, value));
         })
-        .catch(error => {
+        .catch((error) => {
           target.postMessage({
             jsonrpc: request.jsonrpc,
             id: request.id,
-            error: asJsonRpcError(error)
+            error: asJsonRpcError(error),
           });
         });
     }
@@ -223,23 +230,26 @@ function jsonRpcResponse(request: JsonRpcRequest, result?: unknown) {
   return {
     jsonrpc: request.jsonrpc,
     id: request.id,
-    result
+    result,
   };
 }
 
-function jsonRpcErrorResponse(request: JsonRpcRequest, code: number, message: string) {
+function jsonRpcErrorResponse(
+  request: JsonRpcRequest,
+  code: number,
+  message: string,
+) {
   return {
     jsonrpc: request.jsonrpc,
     id: request.id,
-    error: jsonRpcError(message, undefined, code)
+    error: jsonRpcError(message, undefined, code),
   };
 }
 
 function methodNotFoundResponse(request: JsonRpcRequest) {
   return jsonRpcErrorResponse(
-    request, kJsonRpcMethodNotFound,
-    `Method '${request.method}' not found.`
+    request,
+    kJsonRpcMethodNotFound,
+    `Method '${request.method}' not found.`,
   );
 }
-
-

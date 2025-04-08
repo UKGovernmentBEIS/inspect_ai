@@ -5,7 +5,7 @@ import os
 import urllib.parse
 from logging import LogRecord, getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Awaitable, Callable, Literal, cast
+from typing import Any, AsyncIterator, Awaitable, Callable, Literal, TypeVar, cast
 
 import fsspec  # type: ignore
 from aiohttp import web
@@ -25,6 +25,7 @@ from inspect_ai.log._file import (
     read_eval_log_async,
     read_eval_log_headers_async,
 )
+from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 
 from .notify import view_last_eval_time
 
@@ -130,6 +131,60 @@ def view_server(
             else []
         )
         return web.json_response(actions)
+
+    @routes.get("/api/pending-samples")
+    async def api_pending_samples(request: web.Request) -> web.Response:
+        # log file requested
+        file = query_param_required("log", request, str)
+
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        # see if there is an etag
+        client_etag = request.headers.get("If-None-Match")
+
+        # get samples and respond
+        buffer = sample_buffer(file)
+        samples = buffer.get_samples(client_etag)
+        if samples == "NotModified":
+            return web.Response(status=304)
+        elif samples is None:
+            return web.Response(status=404)
+        else:
+            return web.Response(
+                body=samples.model_dump_json(), headers={"ETag": samples.etag}
+            )
+
+    @routes.get("/api/pending-sample-data")
+    async def api_sample_events(request: web.Request) -> web.Response:
+        # log file requested
+        file = query_param_required("log", request, str)
+
+        file = urllib.parse.unquote(file)
+        validate_log_file_request(file)
+
+        # sample id information
+        id = query_param_required("id", request, str)
+        epoch = query_param_required("epoch", request, int)
+
+        # get sync info
+        after_event_id = query_param_optional("last-event-id", request, int)
+        after_attachment_id = query_param_optional("after-attachment-id", request, int)
+
+        # get samples and responsd
+        buffer = sample_buffer(file)
+        sample_data = buffer.get_sample_data(
+            id=id,
+            epoch=epoch,
+            after_event_id=after_event_id,
+            after_attachment_id=after_attachment_id,
+        )
+
+        # respond
+        if sample_data is None:
+            return web.Response(status=404)
+        else:
+            return web.Response(body=sample_data.model_dump_json())
 
     # optional auth middleware
     @web.middleware
@@ -430,3 +485,60 @@ async def async_fileystem(
     else:
         options.update({"asynchronous": True, "loop": asyncio.get_event_loop()})
         yield fsspec.filesystem(protocol, **options)
+
+
+T = TypeVar("T")  # Define type variable
+
+
+def query_param_required(
+    key: str, request: web.Request, converter: Callable[[str], T]
+) -> T:
+    """
+    Generic parameter validation function.
+
+    Args:
+        key: Parameter key to look up
+        request: aiohttp Request object
+        converter: Function to convert the string parameter to type T
+
+    Returns:
+        Converted parameter value of type T
+
+    Raises:
+        HTTPBadRequest: If parameter is missing or invalid
+    """
+    value = request.query.get(key)
+    if value is None:
+        raise web.HTTPBadRequest(text=f"Missing parameter {key}")
+
+    try:
+        return converter(value)
+    except ValueError:
+        raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")
+
+
+def query_param_optional(
+    key: str, request: web.Request, converter: Callable[[str], T]
+) -> T | None:
+    """
+    Generic parameter validation function.
+
+    Args:
+        key: Parameter key to look up
+        request: aiohttp Request object
+        converter: Function to convert the string parameter to type T
+
+    Returns:
+        Converted parameter value of type T
+
+    Raises:
+        HTTPBadRequest: If parameter is missing or invalid
+    """
+    value = request.query.get(key)
+    if value is None:
+        return None
+
+    try:
+        return converter(value)
+    except ValueError:
+        raise web.HTTPBadRequest(text=f"Invalid value {value} for {key}")

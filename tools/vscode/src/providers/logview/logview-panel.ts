@@ -5,12 +5,21 @@ import { HostWebviewPanel } from "../../hooks";
 import { inspectViewPath } from "../../inspect/props";
 import { readFileSync } from "fs";
 import { Disposable } from "../../core/dispose";
-import { jsonRpcPostMessageServer, JsonRpcPostMessageTarget, JsonRpcServerMethod, kMethodEvalLog, kMethodEvalLogBytes, kMethodEvalLogHeaders, kMethodEvalLogs, kMethodEvalLogSize } from "../../core/jsonrpc";
+import {
+  jsonRpcPostMessageServer,
+  JsonRpcPostMessageTarget,
+  JsonRpcServerMethod,
+  kMethodEvalLog,
+  kMethodEvalLogBytes,
+  kMethodEvalLogHeaders,
+  kMethodEvalLogs,
+  kMethodEvalLogSize,
+  kMethodPendingSamples,
+  kMethodSampleData,
+} from "../../core/jsonrpc";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { workspacePath } from "../../core/path";
 import { LogviewState } from "./logview-state";
-
-
 
 export class LogviewPanel extends Disposable {
   constructor(
@@ -24,18 +33,38 @@ export class LogviewPanel extends Disposable {
 
     // serve eval log api to webview
     this._rpcDisconnect = webviewPanelJsonRpcServer(panel_, {
-      [kMethodEvalLogs]: async () => type === "dir"
-        ? server.evalLogs(uri)
-        : server.evalLogsSolo(uri),
-      [kMethodEvalLog]: (params: unknown[]) => server.evalLog(params[0] as string, params[1] as number | boolean),
-      [kMethodEvalLogSize]: (params: unknown[]) => server.evalLogSize(params[0] as string),
-      [kMethodEvalLogBytes]: (params: unknown[]) => server.evalLogBytes(params[0] as string, params[1] as number, params[2] as number),
-      [kMethodEvalLogHeaders]: (params: unknown[]) => server.evalLogHeaders(params[0] as string[])
+      [kMethodEvalLogs]: async () =>
+        type === "dir" ? server.evalLogs(uri) : server.evalLogsSolo(uri),
+      [kMethodEvalLog]: (params: unknown[]) =>
+        server.evalLog(params[0] as string, params[1] as number | boolean),
+      [kMethodEvalLogSize]: (params: unknown[]) =>
+        server.evalLogSize(params[0] as string),
+      [kMethodEvalLogBytes]: (params: unknown[]) =>
+        server.evalLogBytes(
+          params[0] as string,
+          params[1] as number,
+          params[2] as number,
+        ),
+      [kMethodEvalLogHeaders]: (params: unknown[]) =>
+        server.evalLogHeaders(params[0] as string[]),
+      [kMethodPendingSamples]: (params: unknown[]) =>
+        server.evalLogPendingSamples(
+          params[0] as string,
+          params[1] as string | undefined,
+        ),
+      [kMethodSampleData]: (params: unknown[]) =>
+        server.evalLogSampleData(
+          params[0] as string,
+          params[1] as string | number,
+          params[2] as number,
+          params[3] as number | undefined,
+          params[4] as number | undefined,
+        ),
     });
 
     // serve post message api to webview
     this._pmUnsubcribe = panel_.webview.onDidReceiveMessage(
-      async (e: { type: string; url: string;[key: string]: unknown }) => {
+      async (e: { type: string; url: string; [key: string]: unknown }) => {
         switch (e.type) {
           case "openExternal":
             try {
@@ -59,7 +88,7 @@ export class LogviewPanel extends Disposable {
                     const close: MessageItem = { title: "Close" };
                     await window.showInformationMessage<MessageItem>(
                       "This file is too large to be opened by the viewer.",
-                      close
+                      close,
                     );
                   } else {
                     throw err;
@@ -69,7 +98,7 @@ export class LogviewPanel extends Disposable {
             }
             break;
         }
-      }
+      },
     );
   }
 
@@ -114,12 +143,11 @@ export class LogviewPanel extends Disposable {
         type: "updateState",
         url: state.log_file?.toString(),
       };
-      const stateScript =
-        state.log_file
-          ? `<script id="logview-state" type="application/json">${JSON.stringify(
-            stateMsg
+      const stateScript = state.log_file
+        ? `<script id="logview-state" type="application/json">${JSON.stringify(
+            stateMsg,
           )}</script>`
-          : "";
+        : "";
 
       // decorate the html tag
       indexHtml = indexHtml.replace("<html ", '<html class="vscode" ');
@@ -129,16 +157,19 @@ export class LogviewPanel extends Disposable {
         "<head>\n",
         `<head>
           <meta name="inspect-extension:version" content="${this.getExtensionVersion()}">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${this.panel_.webview.cspSource
-        } data:; font-src ${this.panel_.webview.cspSource
-        } data:; style-src ${this.panel_.webview.cspSource
-        } 'unsafe-inline'; worker-src 'self' ${this.panel_.webview.cspSource
-        } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${this.panel_.webview.cspSource
-        } blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${
+      this.panel_.webview.cspSource
+    } data:; font-src ${this.panel_.webview.cspSource} data:; style-src ${
+      this.panel_.webview.cspSource
+    } 'unsafe-inline'; worker-src 'self' ${
+      this.panel_.webview.cspSource
+    } blob:; script-src 'nonce-${nonce}' 'unsafe-eval'; connect-src ${
+      this.panel_.webview.cspSource
+    } blob:;">
     ${stateScript}
     ${overrideCssHtml}
 
-    `
+    `,
       );
 
       // function to resolve resource uri
@@ -150,7 +181,7 @@ export class LogviewPanel extends Disposable {
       // nonces for scripts
       indexHtml = indexHtml.replace(
         /<script([ >])/g,
-        `<script nonce="${nonce}"$1`
+        `<script nonce="${nonce}"$1`,
       );
 
       // Determine whether this is the old index.html format (before bundling),
@@ -173,7 +204,7 @@ export class LogviewPanel extends Disposable {
           /": "\.([^?"]+)(["?])/g,
           (_, p1: string, p2: string) => {
             return `": "${resourceUri(p1)}${p2}`;
-          }
+          },
         );
 
         // fixup App.mjs
@@ -214,10 +245,9 @@ Inspect not available.
       .version as string;
   }
 
-
   private extensionResourceUrl(parts: string[]): Uri {
     return this.panel_.webview.asWebviewUri(
-      Uri.joinPath(this.context_.extensionUri, ...parts)
+      Uri.joinPath(this.context_.extensionUri, ...parts),
     );
   }
 
@@ -225,13 +255,11 @@ Inspect not available.
   private _pmUnsubcribe: vscode.Disposable;
 }
 
-
-
 function webviewPanelJsonRpcServer(
   webviewPanel: HostWebviewPanel,
   methods:
     | Record<string, JsonRpcServerMethod>
-    | ((name: string) => JsonRpcServerMethod | undefined)
+    | ((name: string) => JsonRpcServerMethod | undefined),
 ): () => void {
   const target: JsonRpcPostMessageTarget = {
     postMessage: (data: unknown) => {
@@ -248,4 +276,3 @@ function webviewPanelJsonRpcServer(
   };
   return jsonRpcPostMessageServer(target, methods);
 }
-

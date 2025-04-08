@@ -52,12 +52,6 @@ website:
           href: reference/inspect_ai.solver.qmd#self_critique
         - text: multiple_choice
           href: reference/inspect_ai.solver.qmd#multiple_choice
-        - text: basic_agent
-          href: reference/inspect_ai.solver.qmd#basic_agent
-        - text: human_agent
-          href: reference/inspect_ai.solver.qmd#human_agent
-        - text: bridge
-          href: reference/inspect_ai.solver.qmd#bridge
         - text: chain
           href: reference/inspect_ai.solver.qmd#chain
         - text: fork
@@ -89,6 +83,8 @@ website:
           href: reference/inspect_ai.tool.qmd#computer
         - text: web_search
           href: reference/inspect_ai.tool.qmd#web_search
+        - text: think
+          href: reference/inspect_ai.tool.qmd#think
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef
@@ -113,6 +109,45 @@ website:
           href: reference/inspect_ai.tool.qmd#toolparam
         - text: tool
           href: reference/inspect_ai.tool.qmd#tool
+      - section: inspect_ai.agent
+        href: reference/inspect_ai.agent.qmd
+        contents:
+        - text: react
+          href: reference/inspect_ai.agent.qmd#react
+        - text: bridge
+          href: reference/inspect_ai.agent.qmd#bridge
+        - text: human_cli
+          href: reference/inspect_ai.agent.qmd#human_cli
+        - text: handoff
+          href: reference/inspect_ai.agent.qmd#handoff
+        - text: run
+          href: reference/inspect_ai.agent.qmd#run
+        - text: as_tool
+          href: reference/inspect_ai.agent.qmd#as_tool
+        - text: as_solver
+          href: reference/inspect_ai.agent.qmd#as_solver
+        - text: remove_tools
+          href: reference/inspect_ai.agent.qmd#remove_tools
+        - text: last_message
+          href: reference/inspect_ai.agent.qmd#last_message
+        - text: MessageFilter
+          href: reference/inspect_ai.agent.qmd#messagefilter
+        - text: Agent
+          href: reference/inspect_ai.agent.qmd#agent
+        - text: AgentState
+          href: reference/inspect_ai.agent.qmd#agentstate
+        - text: agent
+          href: reference/inspect_ai.agent.qmd#agent
+        - text: agent_with
+          href: reference/inspect_ai.agent.qmd#agent_with
+        - text: AgentPrompt
+          href: reference/inspect_ai.agent.qmd#agentprompt
+        - text: AgentAttempts
+          href: reference/inspect_ai.agent.qmd#agentattempts
+        - text: AgentContinue
+          href: reference/inspect_ai.agent.qmd#agentcontinue
+        - text: AgentSubmit
+          href: reference/inspect_ai.agent.qmd#agentsubmit
       - section: inspect_ai.scorer
         href: reference/inspect_ai.scorer.qmd
         contents:
@@ -195,6 +230,10 @@ website:
           href: reference/inspect_ai.model.qmd#responseschema
         - text: ModelOutput
           href: reference/inspect_ai.model.qmd#modeloutput
+        - text: ModelCall
+          href: reference/inspect_ai.model.qmd#modelcall
+        - text: ModelConversation
+          href: reference/inspect_ai.model.qmd#modelconversation
         - text: ModelUsage
           href: reference/inspect_ai.model.qmd#modelusage
         - text: StopReason
@@ -225,6 +264,10 @@ website:
           href: reference/inspect_ai.model.qmd#contentaudio
         - text: ContentVideo
           href: reference/inspect_ai.model.qmd#contentvideo
+        - text: execute_tools
+          href: reference/inspect_ai.model.qmd#execute_tools
+        - text: ExecuteToolsResult
+          href: reference/inspect_ai.model.qmd#executetoolsresult
         - text: Logprob
           href: reference/inspect_ai.model.qmd#logprob
         - text: Logprobs
@@ -425,6 +468,8 @@ website:
           href: reference/inspect_ai.util.qmd#sandbox
         - text: sandbox_with
           href: reference/inspect_ai.util.qmd#sandbox_with
+        - text: sandbox_default
+          href: reference/inspect_ai.util.qmd#sandbox_default
         - text: SandboxEnvironment
           href: reference/inspect_ai.util.qmd#sandboxenvironment
         - text: SandboxConnection

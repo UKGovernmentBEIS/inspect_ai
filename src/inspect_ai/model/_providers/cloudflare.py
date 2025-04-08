@@ -59,7 +59,7 @@ class CloudFlareAPI(ModelAPI):
         self.model_args = model_args
 
     @override
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         await self.client.aclose()
 
     async def generate(
@@ -141,6 +141,6 @@ class CloudFlareAPI(ModelAPI):
 
     def chat_api_handler(self) -> ChatAPIHandler:
         if "llama" in self.model_name.lower():
-            return Llama31Handler()
+            return Llama31Handler(self.model_name)
         else:
-            return ChatAPIHandler()
+            return ChatAPIHandler(self.model_name)
