@@ -6,6 +6,7 @@ import clsx from "clsx";
 import { FC, Fragment, useMemo } from "react";
 import { ApplicationIcons } from "../../app/appearance/icons";
 import { MetaDataGrid } from "../../app/content/MetaDataGrid";
+import { ModelUsagePanel } from "../../app/usage/ModelUsagePanel";
 import {
   ModelCall,
   ModelEvent,
@@ -13,7 +14,6 @@ import {
   Response,
   Tools1,
 } from "../../types/log";
-import { ModelUsagePanel } from "../../usage/ModelUsagePanel";
 import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
