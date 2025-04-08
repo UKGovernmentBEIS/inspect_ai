@@ -1,6 +1,6 @@
 import { FC, useMemo } from "react";
 import ExpandablePanel from "../../../../components/ExpandablePanel";
-import { ContentTool } from "../../../../types/app";
+import { ContentTool } from "../../../../app/types";
 import {
   ContentAudio,
   ContentImage,

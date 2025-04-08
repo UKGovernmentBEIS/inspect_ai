@@ -7,8 +7,8 @@ import {
   LogFiles,
   PendingSamples,
   SampleSummary,
-} from "./client/api/types";
-import { ScorerInfo } from "./scoring/utils";
+} from "../client/api/types";
+import { ScorerInfo } from "../scoring/utils";
 import {
   ApprovalEvent,
   ContentImage,
@@ -26,7 +26,7 @@ import {
   StoreEvent,
   SubtaskEvent,
   ToolEvent,
-} from "./types/log";
+} from "../types/log";
 
 export interface AppState {
   status: AppStatus;

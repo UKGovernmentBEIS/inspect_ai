@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { FC, Fragment, ReactNode } from "react";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
-import { ContentTool } from "../../../types/app";
+import { ContentTool } from "../../../app/types";
 import {
   ContentAudio,
   ContentImage,
