@@ -1,5 +1,9 @@
+from asyncio import timeout
+from pathlib import Path
+
 import pytest
 from test_helpers.utils import (
+    skip_if_no_docker,
     skip_if_no_mcp_fetch_package,
     skip_if_no_mcp_git_package,
     skip_if_no_mcp_package,
@@ -12,8 +16,10 @@ from inspect_ai.agent._react import react
 from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
 from inspect_ai.solver import generate, use_tools
+from inspect_ai.solver._solver import solver
 from inspect_ai.tool import MCPServer, mcp_server_stdio, mcp_tools
 from inspect_ai.tool._mcp.connection import mcp_connection
+from inspect_ai.util import sandbox
 
 
 @skip_if_no_mcp_fetch_package
@@ -118,3 +124,24 @@ async def test_mcp_sampling_fn():
         assert result.role == "assistant"
         assert isinstance(result.content, TextContent)
         assert "sky" in result.content.text
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_mcp_server_sandbox_nodejs():
+    @solver
+    def run_mcp_server():
+        async def solve(state, generate):
+            result = await sandbox().exec(["mcp-server-filesystem", "/"])
+            if "MCP Filesystem Server" not in result.stderr:
+                raise ValueError("Failed to run server")
+
+            return state
+
+        return solve
+
+    dockerfile = Path(__file__).parent / "docker-mcp-server" / "Dockerfile"
+    log = eval(
+        Task(solver=[run_mcp_server()], sandbox=("docker", dockerfile.as_posix()))
+    )[0]
+    assert log.status == "success"

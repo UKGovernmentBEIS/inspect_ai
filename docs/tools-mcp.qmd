@@ -56,17 +56,17 @@ In addition, the Inspect implementation of MCP adds another transport:
 
 You can use the following functions to create interfaces to the various types of servers:
 
-|                        |                                                                                           |
+|  |  |
 |------------------------------------|------------------------------------|
-| `mcp_server_stdio()`   | Stdio interface to MCP server. Use this for MCP servers that run locally.                 |
-| `mcp_server_sse()`     | SSE interface to MCP server. Use this for MCP servers available via a URL endpoint.       |
+| `mcp_server_stdio()` | Stdio interface to MCP server. Use this for MCP servers that run locally. |
+| `mcp_server_sse()` | SSE interface to MCP server. Use this for MCP servers available via a URL endpoint. |
 | `mcp_server_sandbox()` | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
 
 : {tbl-colwidths=\[40,60\]}
 
 Note that the sandbox MCP server is really just a stdio server than runs inside a sandbox rather than alongside the Inspect evaluation scaffold. You will generally choose to use sandbox servers when the tools provided by the server need to interact with the host system in a secure fashion (e.g. git, filesystem, or code execution tools).
 
-### Server Options
+### Server Interface
 
 For stdio and sandbox MCP servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you'll generally provide a host name and headers with credentials.
 
@@ -101,18 +101,6 @@ maps_server = mcp_server_stdio(
 )
 ```
 
-If you have installed the Google Maps MCP server in a sandbox, then you would do this instead:
-
-``` python
-maps_server = mcp_server_sandbox(
-    command="npx", 
-    args=["-y", "@modelcontextprotocol/server-google-maps"],
-    env={ "GOOGLE_MAPS_API_KEY": "<YOUR_API_KEY>" }
-)
-```
-
-This will look for the MCP server in the default sandbox (you can also specify an explicit `sandbox` option if it is located in another sandbox).
-
 ### Server Tools
 
 Each MCP server makes available a set of tools. For example, the Google Maps server includes [7 tools](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#tools) (e.g. `maps_search_places()` , `maps_place_details()`, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard `tools`. For example:
@@ -140,6 +128,53 @@ Note that the `MCPServer` interface is a `ToolSource`, which is a new interface 
 def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     ...
 ```
+
+All of the Insepct functions that take tools (e.g. `generate()`, `execute_tools()`, etc.) are compatible with the `ToolSource` type.
+
+### Sandboxes
+
+Use `mcp_server_sandbox()` when you want to run an MCP server inside an Inspect [sandbox](sandboxing.qmd). For example, you might want to do this if the server has access to the filesystem or code execution.
+
+To run an MCP server inside a sandbox, you should create a Dockerfile that includes both the `inspect-tool-support` pip package as well as any MCP servers you want to run. For example:
+
+``` {.Dockerfile filename="Dockerfile"}
+# base image
+FROM python:3.12-bookworm
+
+# nodejs (required by mcp server)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# filesystem mcp server
+RUN npm install -g @modelcontextprotocol/server-filesystem
+
+# inspect-tool-support
+ENV PATH="$PATH:/opt/inspect_tool_support/bin"
+RUN python -m venv /opt/inspect_tool_support && \
+    /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
+    /opt/inspect_tool_support/bin/inspect-tool-support post-install
+
+# run forever
+CMD ["tail", "-f", "/dev/null"]
+```
+
+Note that we install the `@modelcontextprotocol/server-filesystem` package globally so it can be run even when the container is offline. 
+
+We can now usee the `mcp_server_sandbox()` function to access the server as follows:
+
+``` python
+maps_server = mcp_server_sandbox(
+    command="mcp-server-filesystem", 
+    args=["/"]
+)
+```
+
+This will look for the MCP server in the default sandbox (you can also specify an explicit `sandbox` option if it is located in another sandbox).
+
 
 ## Tool Selection {#tool-selection}
 
