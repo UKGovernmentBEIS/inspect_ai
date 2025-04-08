@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
-import { BasicSampleData, SampleSummary } from "../../../client/api/types";
+import { Value2 } from "../../../@types/log";
 import { ScoreLabel } from "../../../app/types";
-import { Value2 } from "../../../types/log";
+import { BasicSampleData, SampleSummary } from "../../../client/api/types";
 import { arrayToString, inputString } from "../../../utils/format";
 import { getScoreDescriptorForValues } from "./score/ScoreDescriptor";
 import {

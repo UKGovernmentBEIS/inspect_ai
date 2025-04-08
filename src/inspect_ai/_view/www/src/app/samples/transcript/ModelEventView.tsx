@@ -10,7 +10,7 @@ import {
   Request,
   Response,
   Tools1,
-} from "../../../types/log";
+} from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { ModelUsagePanel } from "../../usage/ModelUsagePanel";

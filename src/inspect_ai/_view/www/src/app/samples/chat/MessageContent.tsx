@@ -1,8 +1,5 @@
 import clsx from "clsx";
 import { FC, Fragment, ReactNode } from "react";
-import ExpandablePanel from "../../../components/ExpandablePanel";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
-import { ContentTool } from "../../../app/types";
 import {
   ContentAudio,
   ContentImage,
@@ -11,7 +8,10 @@ import {
   ContentVideo,
   Format,
   Format1,
-} from "../../../types/log";
+} from "../../../@types/log";
+import { ContentTool } from "../../../app/types";
+import ExpandablePanel from "../../../components/ExpandablePanel";
+import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import styles from "./MessageContent.module.css";
 import { ToolOutput } from "./tools/ToolOutput";
 

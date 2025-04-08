@@ -1,4 +1,4 @@
-import { EvalLog } from "../../types/log";
+import { EvalLog } from "../../@types/log";
 import { asyncJsonParse } from "../../utils/json-worker";
 import { fetchRange, fetchSize } from "../remote/remoteZipFile";
 import { download_file, encodePathParts } from "./api-shared";

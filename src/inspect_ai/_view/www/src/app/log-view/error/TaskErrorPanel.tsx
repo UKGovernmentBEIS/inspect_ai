@@ -1,9 +1,9 @@
 import { FC } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 
+import { EvalError } from "../../../@types/log";
 import { ANSIDisplay } from "../../../components/AnsiDisplay";
 import { Card, CardBody, CardHeader } from "../../../components/Card";
-import { EvalError } from "../../../types/log";
 
 import styles from "./TaskErrorPanel.module.css";
 

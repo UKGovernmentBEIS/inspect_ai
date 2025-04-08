@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, Fragment } from "react";
-import { ModelUsage1 } from "../../types/log";
+import { ModelUsage1 } from "../../@types/log";
 import { formatNumber } from "../../utils/format";
 import styles from "./ModelUsagePanel.module.css";
 

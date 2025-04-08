@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
+import { Status } from "../../../@types/log";
 import { InlineSampleDisplay } from "../../../app/samples/InlineSampleDisplay.tsx";
 import { SampleDialog } from "../../../app/samples/SampleDialog.tsx";
 import {
@@ -27,7 +28,6 @@ import {
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
-import { Status } from "../../../types/log";
 import { ApplicationIcons } from "../../appearance/icons.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";

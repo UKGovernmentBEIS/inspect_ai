@@ -1,10 +1,10 @@
 import clsx from "clsx";
 import { FC, useCallback } from "react";
+import { EvalResults, EvalSpec, Status } from "../../../@types/log";
 import { RunningMetric } from "../../../client/api/types";
 import { CopyButton } from "../../../components/CopyButton";
 import { kModelNone } from "../../../constants";
 import { useStore } from "../../../state/store";
-import { EvalResults, EvalSpec, Status } from "../../../types/log";
 import { filename } from "../../../utils/path";
 import { ApplicationIcons } from "../../appearance/icons";
 import styles from "./PrimaryBar.module.css";

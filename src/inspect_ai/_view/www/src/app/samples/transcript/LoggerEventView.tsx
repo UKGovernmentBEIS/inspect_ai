@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { LoggerEvent } from "../../../types/log";
+import { LoggerEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventRow } from "./event/EventRow";
 

@@ -1,10 +1,10 @@
 import clsx from "clsx";
 import { FC, Fragment, JSX, ReactNode } from "react";
+import { JsonChange, Messages } from "../../../../@types/log";
 import {
   HumanBaselineView,
   SessionLog,
 } from "../../../../components/HumanBaselineView";
-import { JsonChange, Messages } from "../../../../types/log";
 import { ChatView } from "../../chat/ChatView";
 
 import styles from "./StateEventRenders.module.css";

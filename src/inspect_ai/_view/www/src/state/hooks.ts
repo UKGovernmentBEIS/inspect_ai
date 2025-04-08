@@ -1,5 +1,6 @@
 import { highlightElement } from "prismjs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Events } from "../@types/log";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
@@ -12,7 +13,6 @@ import {
 } from "../app/samples/sample-tools/SortFilter";
 import { SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
-import { Events } from "../types/log";
 import { createLogger } from "../utils/logger";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
 import { useStore } from "./store";

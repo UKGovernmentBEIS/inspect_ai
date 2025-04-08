@@ -7,7 +7,7 @@ import {
   Op,
   StateEvent,
   StoreEvent,
-} from "../../../../types/log";
+} from "../../../../@types/log";
 import { formatDateTime } from "../../../../utils/format";
 import { EventPanel } from "../event/EventPanel";
 import { StateDiffView } from "./StateDiffView";

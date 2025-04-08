@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import { FC } from "react";
+import { EvalSample } from "../../../@types/log";
 import { SampleSummary } from "../../../client/api/types";
 import { EmptyPanel } from "../../../components/EmptyPanel";
 import { useEvalDescriptor } from "../../../state/hooks";
-import { EvalSample } from "../../../types/log";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { SampleScores } from "./SampleScores";
 import styles from "./SampleScoresGrid.module.css";

@@ -1,4 +1,4 @@
-import { EvalSample } from "../types/log";
+import { EvalSample } from "../@types/log";
 import { resolveAttachments } from "../utils/attachments";
 
 /**

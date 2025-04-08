@@ -1,4 +1,4 @@
-import { Type14 } from "../../types/log";
+import { Type14 } from "../../@types/log";
 
 /**
  * Formats a limit message

@@ -1,4 +1,4 @@
-import { Value2 } from "../../../../types/log";
+import { Value2 } from "../../../../@types/log";
 import { ScoreDescriptor } from "../types";
 import { booleanScoreDescriptor } from "./BooleanScoreDescriptor";
 import { categoricalScoreDescriptor } from "./CategoricalScoreDescriptor";

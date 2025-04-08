@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { Input2, Input5, Result2, SubtaskEvent } from "../../../types/log";
+import { Input2, Input5, Result2, SubtaskEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataView } from "../../content/MetaDataView";
 import { EventPanel } from "./event/EventPanel";

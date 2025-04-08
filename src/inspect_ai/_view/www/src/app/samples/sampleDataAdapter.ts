@@ -1,5 +1,5 @@
+import { Events } from "../../@types/log";
 import { EventData, SampleData } from "../../client/api/types";
-import { Events } from "../../types/log";
 import { resolveAttachments } from "../../utils/attachments";
 
 export const sampleDataAdapter = () => {

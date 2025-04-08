@@ -1,8 +1,8 @@
 import { compileExpression } from "filtrex";
+import { Scores1 } from "../../../@types/log";
+import { ScoreLabel } from "../../../app/types";
 import { SampleSummary } from "../../../client/api/types";
 import { kScoreTypeBoolean } from "../../../constants";
-import { ScoreLabel } from "../../../app/types";
-import { Scores1 } from "../../../types/log";
 import { inputString } from "../../../utils/format";
 import { EvalDescriptor, ScoreDescriptor } from "../descriptor/types";
 
