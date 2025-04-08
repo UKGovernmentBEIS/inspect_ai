@@ -1,5 +1,3 @@
-# type: ignore
-
 import os
 from typing import Any, List, Literal, get_args
 

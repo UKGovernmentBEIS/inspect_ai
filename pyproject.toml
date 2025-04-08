@@ -117,6 +117,7 @@ dev = [
     "azure-ai-inference",
     "google-cloud-aiplatform",
     "google-genai",
+    "goodfire",
     "griffe",
     "groq", 
     "ipython",
