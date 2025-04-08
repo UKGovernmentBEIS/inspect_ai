@@ -1,4 +1,4 @@
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
 import { ToolEvent } from "../../types/log";
 import { resolveToolInput } from "../chat/tools/tool";
 import { ToolCallView } from "../chat/tools/ToolCallView";

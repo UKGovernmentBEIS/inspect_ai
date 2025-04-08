@@ -1,6 +1,6 @@
-import { fetchRange, fetchSize } from "../logfile/remoteZipFile";
-import { EvalLog } from "../types/log";
-import { asyncJsonParse } from "../utils/json-worker";
+import { EvalLog } from "../../types/log";
+import { asyncJsonParse } from "../../utils/json-worker";
+import { fetchRange, fetchSize } from "../remote/remoteZipFile";
 import { download_file, encodePathParts } from "./api-shared";
 import {
   Capabilities,

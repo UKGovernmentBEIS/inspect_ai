@@ -3,8 +3,8 @@ import {
   EventData,
   SampleData,
   SampleSummary,
-} from "../api/types";
-import { Event } from "../types";
+} from "../client/api/types";
+import { Event } from "../types/app";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";

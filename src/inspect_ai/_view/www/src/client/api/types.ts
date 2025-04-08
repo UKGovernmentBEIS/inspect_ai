@@ -24,7 +24,7 @@ import {
   Target,
   ToolEvent,
   Version,
-} from "../types/log";
+} from "../../types/log";
 
 export interface EvalSummary {
   version?: Version;

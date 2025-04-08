@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { SampleSummary } from "../../api/types";
+import { SampleSummary } from "../../client/api/types";
 
 export interface SampleListItem {
   label: string;

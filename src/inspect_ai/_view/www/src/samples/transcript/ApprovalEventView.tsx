@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
 import { ApprovalEvent } from "../../types/log";
 import { EventRow } from "./event/EventRow";
 

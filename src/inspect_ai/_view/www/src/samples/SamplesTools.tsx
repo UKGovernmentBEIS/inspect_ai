@@ -1,6 +1,6 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
-import { SampleSummary } from "../api/types";
+import { SampleSummary } from "../client/api/types";
 import { useScore, useScores } from "../state/hooks";
 import { useStore } from "../state/store";
 import { EpochFilter } from "./sample-tools/EpochFilter";

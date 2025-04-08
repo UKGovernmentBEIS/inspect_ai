@@ -1,11 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import api from "./api/index";
-import { Capabilities } from "./api/types";
 import { App } from "./App";
 import { AppErrorBoundary } from "./AppErrorBoundary";
+import api from "./client/api/index";
+import { Capabilities } from "./client/api/types";
+import storage from "./client/storage";
 import { initializeStore } from "./state/store";
-import storage from "./storage";
 import { getVscodeApi } from "./utils/vscode";
 
 // Resolve the api

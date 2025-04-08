@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, ReactNode, useCallback } from "react";
-import { SampleSummary } from "../../api/types";
+import { SampleSummary } from "../../client/api/types";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { PulsingDots } from "../../components/PulsingDots";
 import { useStore } from "../../state/store";

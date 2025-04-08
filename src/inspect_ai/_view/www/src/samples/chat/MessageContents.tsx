@@ -9,7 +9,7 @@ import { resolveToolInput } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
 import { FC, Fragment } from "react";
-import { ContentTool } from "../../types";
+import { ContentTool } from "../../types/app";
 import styles from "./MessageContents.module.css";
 
 interface MessageContentsProps {

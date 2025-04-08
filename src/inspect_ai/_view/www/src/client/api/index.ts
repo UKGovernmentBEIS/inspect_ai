@@ -1,6 +1,6 @@
 import JSON5 from "json5";
-import { dirname } from "../utils/path";
-import { getVscodeApi } from "../utils/vscode";
+import { dirname } from "../../utils/path";
+import { getVscodeApi } from "../../utils/vscode";
 import browserApi from "./api-browser";
 import simpleHttpApi from "./api-http";
 import vscodeApi from "./api-vscode";

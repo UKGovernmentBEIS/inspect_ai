@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
 import { ANSIDisplay } from "../../components/AnsiDisplay";
 import { InputEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";

@@ -16,9 +16,9 @@ import clsx from "clsx";
 import { EditorView, minimalSetup } from "codemirror";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 
-import { SampleSummary } from "../../../api/types";
+import { SampleSummary } from "../../../client/api/types";
 import { useEvalDescriptor } from "../../../state/hooks";
-import { ScoreFilter } from "../../../types";
+import { ScoreFilter } from "../../../types/app";
 import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
 import { getCompletions } from "./completions";

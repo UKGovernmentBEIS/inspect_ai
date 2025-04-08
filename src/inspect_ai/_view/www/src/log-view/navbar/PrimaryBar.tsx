@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { FC, useCallback } from "react";
-import { RunningMetric } from "../../api/types";
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
+import { RunningMetric } from "../../client/api/types";
 import { CopyButton } from "../../components/CopyButton";
 import { kModelNone } from "../../constants";
 import { useStore } from "../../state/store";

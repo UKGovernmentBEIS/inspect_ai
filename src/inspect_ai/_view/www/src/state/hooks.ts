@@ -1,6 +1,6 @@
 import { highlightElement } from "prismjs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { SampleSummary } from "../api/types";
+import { SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import {
   createEvalDescriptor,

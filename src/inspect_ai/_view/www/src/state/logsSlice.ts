@@ -1,5 +1,5 @@
-import { EvalLogHeader, LogFiles } from "../api/types";
-import { LogsState } from "../types";
+import { EvalLogHeader, LogFiles } from "../client/api/types";
+import { LogsState } from "../types/app";
 import { createLogger } from "../utils/logger";
 import { createLogsPolling } from "./logsPolling";
 import { StoreState } from "./store";
@@ -83,7 +83,7 @@ export const createLogsSlice = (
 
       setSelectedLogFile: (logUrl: string) => {
         const state = get();
-        const index = state.logs.logs.files.findIndex((val) =>
+        const index = state.logs.logs.files.findIndex((val: { name: string }) =>
           logUrl.endsWith(val.name),
         );
 
@@ -136,7 +136,7 @@ export const createLogsSlice = (
       // Select a specific log file
       selectLogFile: async (logUrl: string) => {
         const state = get();
-        const index = state.logs.logs.files.findIndex((val) =>
+        const index = state.logs.logs.files.findIndex((val: { name: string }) =>
           val.name.endsWith(logUrl),
         );
 

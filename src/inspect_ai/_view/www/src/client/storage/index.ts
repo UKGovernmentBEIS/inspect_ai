@@ -1,6 +1,6 @@
+import { PersistedState } from "../../state/store";
+import { getVscodeApi } from "../../utils/vscode";
 import { ClientStorage } from "../api/types";
-import { PersistedState } from "../state/store";
-import { getVscodeApi } from "../utils/vscode";
 
 const resolveStorage = (): ClientStorage | undefined => {
   const vscodeApi = getVscodeApi();

@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import styles from "./DatasetDetailView.module.css";
 import { DetailStep } from "./DetailStep";
 

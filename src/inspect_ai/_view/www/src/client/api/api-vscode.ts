@@ -1,7 +1,7 @@
 import JSON5 from "json5";
-import { asyncJsonParse } from "../utils/json-worker";
+import { asyncJsonParse } from "../../utils/json-worker";
 
-import { getVscodeApi } from "../utils/vscode";
+import { getVscodeApi } from "../../utils/vscode";
 import {
   kMethodEvalLog,
   kMethodEvalLogBytes,

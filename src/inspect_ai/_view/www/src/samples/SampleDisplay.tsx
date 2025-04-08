@@ -1,10 +1,10 @@
 import { TabPanel, TabSet } from "../components/TabSet";
-import { MetaDataView } from "../metadata/MetaDataView";
+import { MetaDataView } from "../content/MetaDataView";
 
 import { escapeSelector } from "../utils/html";
 import { isVscode } from "../utils/vscode";
 
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import { ANSIDisplay } from "../components/AnsiDisplay";
 import { ToolButton } from "../components/ToolButton";
 
@@ -17,7 +17,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
-import { SampleSummary } from "../api/types";
+import { SampleSummary } from "../client/api/types";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { JSONPanel } from "../components/JsonPanel";
 import { NoContentsPanel } from "../components/NoContentsPanel";

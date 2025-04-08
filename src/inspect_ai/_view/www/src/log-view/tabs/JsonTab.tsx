@@ -2,7 +2,7 @@ import { filename } from "../../utils/path";
 
 import clsx from "clsx";
 import { FC, MouseEvent, useMemo } from "react";
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
 import { DownloadPanel } from "../../components/DownloadPanel";
 import { JSONPanel } from "../../components/JsonPanel";
 import { ToolButton } from "../../components/ToolButton";

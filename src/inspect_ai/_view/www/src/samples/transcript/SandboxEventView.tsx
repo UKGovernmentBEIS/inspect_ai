@@ -1,7 +1,7 @@
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
 import ExpandablePanel from "../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { MetaDataGrid } from "../../metadata/MetaDataGrid";
+import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { SandboxEvent } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
