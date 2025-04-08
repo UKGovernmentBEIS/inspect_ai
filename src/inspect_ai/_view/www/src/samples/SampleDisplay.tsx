@@ -1,5 +1,5 @@
+import { MetaDataView } from "../app/content/MetaDataView";
 import { TabPanel, TabSet } from "../components/TabSet";
-import { MetaDataView } from "../content/MetaDataView";
 
 import { escapeSelector } from "../utils/html";
 import { isVscode } from "../utils/vscode";

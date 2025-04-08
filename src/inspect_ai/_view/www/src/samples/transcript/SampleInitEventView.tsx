@@ -1,6 +1,6 @@
 // @ts-check
 import { ApplicationIcons } from "../../app/appearance/icons";
-import { MetaDataGrid } from "../../content/MetaDataGrid";
+import { MetaDataGrid } from "../../app/content/MetaDataGrid";
 import { Messages, SampleInitEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { toArray } from "../../utils/type";

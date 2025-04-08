@@ -4,7 +4,7 @@ import { LoggerEvent } from "../../types/log";
 import { EventRow } from "./event/EventRow";
 
 import { FC } from "react";
-import { MetaDataGrid } from "../../content/MetaDataGrid";
+import { MetaDataGrid } from "../../app/content/MetaDataGrid";
 import { parsedJson as maybeParseJson } from "../../utils/json";
 import styles from "./LoggerEventView.module.css";
 

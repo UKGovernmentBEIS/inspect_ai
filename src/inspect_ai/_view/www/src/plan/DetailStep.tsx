@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { MetaDataGrid } from "../content/MetaDataGrid";
+import { MetaDataGrid } from "../app/content/MetaDataGrid";
 import styles from "./DetailStep.module.css";
 
 interface DetailStepProps {
