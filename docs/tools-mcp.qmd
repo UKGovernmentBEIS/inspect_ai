@@ -56,10 +56,10 @@ In addition, the Inspect implementation of MCP adds another transport:
 
 You can use the following functions to create interfaces to the various types of servers:
 
-|  |  |
+|                        |                                                                                           |
 |------------------------------------|------------------------------------|
-| `mcp_server_stdio()` | Stdio interface to MCP server. Use this for MCP servers that run locally. |
-| `mcp_server_sse()` | SSE interface to MCP server. Use this for MCP servers available via a URL endpoint. |
+| `mcp_server_stdio()`   | Stdio interface to MCP server. Use this for MCP servers that run locally.                 |
+| `mcp_server_sse()`     | SSE interface to MCP server. Use this for MCP servers available via a URL endpoint.       |
 | `mcp_server_sandbox()` | Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox. |
 
 : {tbl-colwidths=\[40,60\]}
@@ -143,4 +143,100 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
 
 ## Tool Selection {#tool-selection}
 
+To narrow the list of tools made available from an MCP Server you can use the `mcp_tools()` function. For example, to make only the geocode oriented functions available from the Google Maps server:
+
+``` python
+return Task(
+    ...,
+    solver=react(tools=[
+        mcp_tools(
+            maps_server, 
+            tools=["maps_geocode", "maps_reverse_geocode"]
+        )
+    ])
+)
+```
+
+You can also use glob wildcards in the `tools` list:
+
+``` python
+return Task(
+    ...,
+    solver=react(tools=[
+        mcp_tools(
+            maps_server, 
+            tools=["*_geocode"]
+        )
+    ])
+)
+```
+
 ## Connections
+
+MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the [Brave Search](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) server is stateless (it just processes one search at a time) whereas the [Knowledge Graph Memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) server is stateful (it maintains a knowledge graph in memory).
+
+In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it's state is maintained across calls. You can do this using context manager returned by the `mcp_connection()` function (which in turn takes a list of `ToolSource`).
+
+#### ReAct Agent
+
+The `mcp_connection()` context manager is used **automatically** by the standard `react()` agent (connections are maintained for the duration of the agent loop). For example, the following will establish a single connection to the memory server and preserve its state across calls:
+
+``` python
+memory_server = mcp_server_stdio(
+    command="npx", 
+    args=["-y", "@modelcontextprotocol/server-memory"]
+)
+
+return Task(
+    ...,
+    solver=react(tools=[memory_server])
+)
+```
+
+#### Custom Agents
+
+For general purpose custom agents, you will also likely want to use the `mcp_connection()` connect manager to preserve connections state throughout your tool use loop. For example, here is a web surfer agent that uses a web browser along with a memory server:
+
+```` python
+@agent
+def web_surfer() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Web research assistant."""
+      
+        # some general guidance for the agent
+        state.messages.append(
+            ChatMessageSystem(
+                content="You are a tenacious web researcher that is "
+                + "expert at using a web browser to answer questions. "
+                + "Use the memory tools to track your research."
+            )
+        )
+
+        # interface to memory server
+        memory_server = mcp_server_stdio(
+            command="npx", 
+            args=["-y", "@modelcontextprotocol/server-memory"]
+        )
+
+        # run tool loop w/ then update & return state
+        async with mcp_connection(memory_server):
+            messages, state.output = await get_model().generate_loop(
+                state.messages, tools=web_browser() + [memory_server]
+            )
+            state.messages.extend(messages)
+            return state
+
+    return execute
+```
+````
+
+Note that the `mcp_connection()` function can take an arbitrary list of `tools` and will discover and connect to any MCP-based `ToolSource` in the list. So if you agent takes a `tools` parameter you can just forward it on. For example:
+
+``` python
+@agent
+def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
+    async def execute(state: AgentState):
+       async with mcp_connection(tools):
+           # tool use loop
+           ...
+```
