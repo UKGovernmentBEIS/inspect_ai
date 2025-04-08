@@ -4,8 +4,8 @@ import "prismjs/components/prism-python";
 
 import clsx from "clsx";
 import { FC, Fragment, useMemo } from "react";
-import { ApplicationIcons } from "../../appearance/icons";
-import { MetaDataGrid } from "../../metadata/MetaDataGrid";
+import { ApplicationIcons } from "../../app/appearance/icons";
+import { MetaDataGrid } from "../../content/MetaDataGrid";
 import {
   ModelCall,
   ModelEvent,

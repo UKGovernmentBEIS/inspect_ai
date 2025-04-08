@@ -1,7 +1,7 @@
 import { create, StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { Capabilities, ClientAPI, ClientStorage } from "../api/types";
+import { Capabilities, ClientAPI, ClientStorage } from "../client/api/types";
 import { createLogger } from "../utils/logger";
 import { AppSlice, createAppSlice, initializeAppSlice } from "./appSlice";
 import { createLogSlice, initalializeLogSlice, LogSlice } from "./logSlice";

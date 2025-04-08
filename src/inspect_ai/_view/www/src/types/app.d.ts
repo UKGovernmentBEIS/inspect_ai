@@ -7,7 +7,7 @@ import {
   LogFiles,
   PendingSamples,
   SampleSummary,
-} from "./api/types";
+} from "./client/api/types";
 import { ScorerInfo } from "./scoring/utils";
 import {
   ApprovalEvent,

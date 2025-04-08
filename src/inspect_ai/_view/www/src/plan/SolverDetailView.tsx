@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, Fragment } from "react";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import { Steps } from "../types/log";
 import { DetailStep } from "./DetailStep";
 import styles from "./SolverDetailView.module.css";

@@ -1,10 +1,10 @@
+import { EvalLog, EvalSample } from "../../types/log";
 import {
   openRemoteLogFile,
   RemoteLogFile,
   SampleNotFoundError,
-} from "../logfile/remoteLogFile";
-import { FileSizeLimitError } from "../logfile/remoteZipFile";
-import { EvalLog, EvalSample } from "../types/log";
+} from "../remote/remoteLogFile";
+import { FileSizeLimitError } from "../remote/remoteZipFile";
 import { encodePathParts } from "./api-shared";
 import {
   ClientAPI,

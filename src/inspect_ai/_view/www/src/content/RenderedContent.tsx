@@ -1,5 +1,5 @@
 import JSON5 from "json5";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 
 import { ANSIDisplay } from "../components/AnsiDisplay";
 import { ChatMessageRenderer } from "../samples/chat/ChatMessageRenderer";

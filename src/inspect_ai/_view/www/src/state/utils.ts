@@ -1,4 +1,4 @@
-import { SampleSummary } from "../api/types";
+import { SampleSummary } from "../client/api/types";
 
 // Function to merge log samples with pending samples
 export const mergeSampleSummaries = (

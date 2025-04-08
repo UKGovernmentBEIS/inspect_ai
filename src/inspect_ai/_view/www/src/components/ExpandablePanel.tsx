@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import { useCollapsedState } from "../state/hooks";
 import { useResizeObserver } from "../utils/dom";
 import "./ExpandablePanel.css";

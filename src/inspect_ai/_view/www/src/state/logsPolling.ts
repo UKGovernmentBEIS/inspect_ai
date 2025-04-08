@@ -1,4 +1,4 @@
-import { EvalLogHeader, LogFiles } from "../api/types";
+import { EvalLogHeader, LogFiles } from "../client/api/types";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";
 import { StoreState } from "./store";

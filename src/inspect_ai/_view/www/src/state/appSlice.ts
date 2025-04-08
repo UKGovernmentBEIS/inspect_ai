@@ -1,7 +1,7 @@
 import { StateSnapshot } from "react-virtuoso";
-import { Capabilities } from "../api/types";
+import { Capabilities } from "../client/api/types";
 import { kEvalWorkspaceTabId, kSampleTranscriptTabId } from "../constants";
-import { AppState, AppStatus } from "../types";
+import { AppState, AppStatus } from "../types/app";
 import { clearDocumentSelection } from "../utils/browser";
 import { StoreState } from "./store";
 

@@ -1,7 +1,7 @@
-import { EvalSummary, PendingSamples } from "../api/types";
+import { EvalSummary, PendingSamples } from "../client/api/types";
 import { kDefaultSort, kInfoWorkspaceTabId } from "../constants";
 import { ScorerInfo } from "../scoring/utils";
-import { LogState, ScoreFilter, ScoreLabel } from "../types";
+import { LogState, ScoreFilter, ScoreLabel } from "../types/app";
 import { createLogger } from "../utils/logger";
 import { createLogPolling } from "./logPolling";
 import { StoreState } from "./store";

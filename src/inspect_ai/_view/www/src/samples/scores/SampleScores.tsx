@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { SampleSummary } from "../../api/types";
+import { SampleSummary } from "../../client/api/types";
 
 import { getScoreDescriptorForValues } from "../descriptor/score/ScoreDescriptor";
 

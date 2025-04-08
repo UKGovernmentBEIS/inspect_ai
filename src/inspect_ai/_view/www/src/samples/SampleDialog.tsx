@@ -1,4 +1,4 @@
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import { LargeModal, ModalTool, ModalTools } from "../components/LargeModal";
 
 import { FC, Ref, useCallback, useEffect, useMemo, useRef } from "react";

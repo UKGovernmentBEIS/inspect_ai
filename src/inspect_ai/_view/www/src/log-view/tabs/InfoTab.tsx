@@ -1,5 +1,5 @@
 import { FC, useMemo } from "react";
-import { SampleSummary } from "../../api/types";
+import { SampleSummary } from "../../client/api/types";
 import { MessageBand } from "../../components/MessageBand";
 import { ModelCard } from "../../plan/ModelCard";
 import { kInfoWorkspaceTabId } from "../../constants";

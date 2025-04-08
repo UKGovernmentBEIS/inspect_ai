@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
-import { ApplicationIcons } from "../../appearance/icons.ts";
+import { ApplicationIcons } from "../../app/appearance/icons.ts";
 import { NoContentsPanel } from "../../components/NoContentsPanel.tsx";
 import { ToolButton } from "../../components/ToolButton.tsx";
 import { kEvalWorkspaceTabId } from "../../constants.ts";

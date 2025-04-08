@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { RunningMetric } from "../../api/types";
+import { RunningMetric } from "../../client/api/types";
 import { LinkButton } from "../../components/LinkButton";
 import { Modal } from "../../components/Modal";
 import { useProperty } from "../../state/hooks";

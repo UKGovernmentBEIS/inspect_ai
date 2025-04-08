@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
-import { BasicSampleData, SampleSummary } from "../../api/types";
-import { ScoreLabel } from "../../types";
+import { BasicSampleData, SampleSummary } from "../../client/api/types";
+import { ScoreLabel } from "../../types/app";
 import { Value2 } from "../../types/log";
 import { arrayToString, inputString } from "../../utils/format";
 import { getScoreDescriptorForValues } from "./score/ScoreDescriptor";
