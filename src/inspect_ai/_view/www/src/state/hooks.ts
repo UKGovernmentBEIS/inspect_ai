@@ -12,9 +12,9 @@ import {
 } from "../app/samples/sample-tools/SortFilter";
 import { SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
-import { getAvailableScorers, getDefaultScorer } from "../scoring/utils";
 import { Events } from "../types/log";
 import { createLogger } from "../utils/logger";
+import { getAvailableScorers, getDefaultScorer } from "./scoring";
 import { useStore } from "./store";
 import { mergeSampleSummaries } from "./utils";
 

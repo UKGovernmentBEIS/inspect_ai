@@ -1,9 +1,9 @@
+import { LogState, ScoreFilter, ScoreLabel } from "../app/types";
 import { EvalSummary, PendingSamples } from "../client/api/types";
 import { kDefaultSort, kInfoWorkspaceTabId } from "../constants";
-import { ScorerInfo } from "../scoring/utils";
-import { LogState, ScoreFilter, ScoreLabel } from "../app/types";
 import { createLogger } from "../utils/logger";
 import { createLogPolling } from "./logPolling";
+import { ScorerInfo } from "./scoring";
 import { StoreState } from "./store";
 
 const log = createLogger("logSlice");
