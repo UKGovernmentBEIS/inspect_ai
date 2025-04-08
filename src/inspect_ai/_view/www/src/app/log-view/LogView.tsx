@@ -7,12 +7,14 @@ import {
   useCallback,
   useRef,
 } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { EmptyPanel } from "../../components/EmptyPanel";
 import { TabPanel, TabSet } from "../../components/TabSet";
 import { Navbar } from "./navbar/Navbar";
 
 import { useEvalSpec, useRefreshLog } from "../../state/hooks";
 import { useStore } from "../../state/store";
+import { directoryRelativeUrl } from "../../utils/uri";
 import styles from "./LogView.module.css";
 import { useInfoTabConfig } from "./tabs/InfoTab";
 import { useJsonTabConfig } from "./tabs/JsonTab";
@@ -21,6 +23,8 @@ import { TabDescriptor } from "./types";
 
 export const LogView: FC = () => {
   const divRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const { logPath } = useParams<{ logPath: string }>();
 
   const refreshLog = useRefreshLog();
 
@@ -30,6 +34,7 @@ export const LogView: FC = () => {
     (state) => state.log.pendingSampleSummaries?.metrics,
   );
   const logs = useStore((state) => state.logs.logs);
+  const loadedLog = useStore((state) => state.log.loadedLog);
   const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
 
   // Use individual tab config hooks
@@ -70,9 +75,19 @@ export const LogView: FC = () => {
       const id = e.currentTarget?.id;
       if (id) {
         setSelectedTab(id);
+
+        // Only update URL if we have a loaded log
+        if (loadedLog && logPath) {
+          // We already have the logPath from params, just navigate to the tab
+          navigate(`/logs/${logPath}/${id}`);
+        } else if (loadedLog) {
+          // Fallback to constructing the path if needed
+          const logPathSegment = directoryRelativeUrl(loadedLog, logs.log_dir);
+          navigate(`/logs/${logPathSegment}/${id}`);
+        }
       }
     },
-    [setSelectedTab],
+    [setSelectedTab, loadedLog, logs.log_dir, navigate, logPath],
   );
 
   if (evalSpec === undefined) {

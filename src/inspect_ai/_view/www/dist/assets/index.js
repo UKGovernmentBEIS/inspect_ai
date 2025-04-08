@@ -81435,6 +81435,8 @@ Supported expressions:
     };
     const LogView = () => {
       const divRef = reactExports.useRef(null);
+      const navigate = useNavigate();
+      const { logPath } = useParams();
       const refreshLog = useRefreshLog();
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const evalSpec = useEvalSpec();
@@ -81445,6 +81447,7 @@ Supported expressions:
         }
       );
       const logs = useStore((state) => state.logs.logs);
+      const loadedLog = useStore((state) => state.log.loadedLog);
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       const samplesTabConfig = useSamplesTabConfig(
         selectedLogSummary == null ? void 0 : selectedLogSummary.status,
@@ -81479,9 +81482,15 @@ Supported expressions:
           const id = (_a2 = e.currentTarget) == null ? void 0 : _a2.id;
           if (id) {
             setSelectedTab(id);
+            if (loadedLog && logPath) {
+              navigate(`/logs/${logPath}/${id}`);
+            } else if (loadedLog) {
+              const logPathSegment = directoryRelativeUrl(loadedLog, logs.log_dir);
+              navigate(`/logs/${logPathSegment}/${id}`);
+            }
           }
         },
-        [setSelectedTab]
+        [setSelectedTab, loadedLog, logs.log_dir, navigate, logPath]
       );
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
@@ -81544,19 +81553,23 @@ Supported expressions:
       }
     };
     const LogContainer = () => {
-      const { logPath } = useParams();
+      const { logPath, tabId } = useParams();
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+      const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {
           if (logPath) {
             await selectLogFile(decodeURIComponent(logPath));
+            if (tabId) {
+              setWorkspaceTab(tabId);
+            }
           } else {
             await refreshLogs();
           }
         };
         loadLogFromPath();
-      }, [logPath, selectLogFile, refreshLogs]);
+      }, [logPath, tabId, selectLogFile, refreshLogs, setWorkspaceTab]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(AppContent, {});
     };
     const AppContent = () => {
@@ -81766,7 +81779,7 @@ Supported expressions:
             children: []
           },
           {
-            path: "/logs/:logPath*",
+            path: "/logs/:logPath/:tabId?",
             element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogContainer, {})
           },
           {
