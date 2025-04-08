@@ -1,17 +1,17 @@
 import { highlightElement } from "prismjs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { SampleSummary } from "../client/api/types";
-import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
-} from "../samples/descriptor/samplesDescriptor";
-import { filterSamples } from "../samples/sample-tools/filters";
+} from "../app/samples/descriptor/samplesDescriptor";
+import { filterSamples } from "../app/samples/sample-tools/filters";
 import {
   byEpoch,
   bySample,
   sortSamples,
-} from "../samples/sample-tools/SortFilter";
+} from "../app/samples/sample-tools/SortFilter";
+import { SampleSummary } from "../client/api/types";
+import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { getAvailableScorers, getDefaultScorer } from "../scoring/utils";
 import { Events } from "../types/log";
 import { createLogger } from "../utils/logger";

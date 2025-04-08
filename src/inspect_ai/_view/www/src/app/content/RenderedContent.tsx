@@ -1,8 +1,8 @@
 import JSON5 from "json5";
 import { ApplicationIcons } from "../appearance/icons";
 
+import { ChatMessageRenderer } from "../../app/samples/chat/ChatMessageRenderer";
 import { ANSIDisplay } from "../../components/AnsiDisplay";
-import { ChatMessageRenderer } from "../../samples/chat/ChatMessageRenderer";
 import { formatNumber } from "../../utils/format";
 import { MetaDataView } from "./MetaDataView";
 
