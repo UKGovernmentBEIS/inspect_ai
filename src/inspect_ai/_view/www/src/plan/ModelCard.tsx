@@ -5,7 +5,7 @@ import { EvalModelConfig, EvalSpec } from "../types/log";
 import clsx from "clsx";
 import styles from "./ModelCard.module.css";
 import { ApplicationIcons } from "../app/appearance/icons";
-import { MetaDataGrid } from "../content/MetaDataGrid";
+import { MetaDataGrid } from "../app/content/MetaDataGrid";
 
 interface ModelCardProps {
   evalSpec?: EvalSpec;

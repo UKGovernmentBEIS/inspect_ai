@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { formatPrettyDecimal } from "../../utils/format";
+import { formatPrettyDecimal } from "../../../utils/format";
 import { ResultsScorer } from "./ResultsPanel";
 
 import styles from "./ScoreGrid.module.css";

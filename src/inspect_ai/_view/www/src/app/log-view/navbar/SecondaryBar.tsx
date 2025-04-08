@@ -1,18 +1,18 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { ExpandablePanel } from "../../components/ExpandablePanel";
-import { LabeledValue } from "../../components/LabeledValue";
-import { EvalDescriptor } from "../../samples/descriptor/types";
-import { scoreFilterItems } from "../../samples/sample-tools/filters";
-import { useEvalDescriptor } from "../../state/hooks";
+import { ExpandablePanel } from "../../../components/ExpandablePanel";
+import { LabeledValue } from "../../../components/LabeledValue";
+import { EvalDescriptor } from "../../../samples/descriptor/types";
+import { scoreFilterItems } from "../../../samples/sample-tools/filters";
+import { useEvalDescriptor } from "../../../state/hooks";
 import {
   EvalDataset,
   EvalPlan,
   EvalResults,
   EvalSpec,
   EvalStats,
-} from "../../types/log";
-import { formatDataset, formatDuration } from "../../utils/format";
+} from "../../../types/log";
+import { formatDataset, formatDuration } from "../../../utils/format";
 import styles from "./SecondaryBar.module.css";
 
 interface SecondaryBarProps {
