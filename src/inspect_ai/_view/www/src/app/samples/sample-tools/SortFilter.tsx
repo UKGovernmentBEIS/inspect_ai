@@ -9,7 +9,7 @@ import {
   kScoreAscVal,
   kScoreDescVal,
 } from "../../../constants";
-import { ScoreLabel } from "../../../types/app";
+import { ScoreLabel } from "../../../app/types";
 import { isNumeric } from "../../../utils/type";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import styles from "./SortFilter.module.css";

@@ -1,6 +1,6 @@
 import { SampleSummary } from "../client/api/types";
 import { kSampleMessagesTabId } from "../constants";
-import { SampleState, SampleStatus } from "../types/app";
+import { SampleState, SampleStatus } from "../app/types";
 import { EvalSample } from "../types/log";
 import { createLogger } from "../utils/logger";
 import { createSamplePolling } from "./samplePolling";
