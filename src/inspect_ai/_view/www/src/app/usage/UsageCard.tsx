@@ -1,10 +1,10 @@
 import clsx from "clsx";
-import { FontSize } from "../app/appearance/fonts";
-import { ApplicationIcons } from "../app/appearance/icons";
-import { MetaDataView } from "../app/content/MetaDataView";
-import { Card, CardBody, CardHeader } from "../components/Card";
-import { EvalStats } from "../types/log";
-import { formatDuration } from "../utils/format";
+import { FontSize } from "../../app/appearance/fonts";
+import { ApplicationIcons } from "../../app/appearance/icons";
+import { MetaDataView } from "../../app/content/MetaDataView";
+import { Card, CardBody, CardHeader } from "../../components/Card";
+import { EvalStats } from "../../types/log";
+import { formatDuration } from "../../utils/format";
 import { ModelTokenTable } from "./ModelTokenTable";
 
 import { FC } from "react";

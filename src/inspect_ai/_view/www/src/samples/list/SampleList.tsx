@@ -9,8 +9,8 @@ import {
   useRef,
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
+import { ListItem } from "../../app/log-view/tabs/types";
 import { MessageBand } from "../../components/MessageBand";
-import { ListItem } from "../../log-view/tabs/types";
 import { formatNoDecimal } from "../../utils/format";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleRow } from "./SampleRow";
