@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { EvalLogHeader } from "../../../client/api/types";
+import { EvalLogHeader } from "../../client/api/types";
 import styles from "./EvalStatus.module.css";
 import { SidebarScoreView } from "./SidebarScoreView";
 import { SidebarScoresView } from "./SidebarScoresView";
