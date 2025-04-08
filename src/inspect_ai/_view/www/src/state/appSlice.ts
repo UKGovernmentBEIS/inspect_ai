@@ -1,7 +1,7 @@
 import { StateSnapshot } from "react-virtuoso";
-import { Capabilities } from "../client/api/types";
-import { kEvalWorkspaceTabId, kSampleTranscriptTabId } from "../constants";
 import { AppState, AppStatus } from "../app/types";
+import { Capabilities } from "../client/api/types";
+import { kLogViewSamplesTabId, kSampleTranscriptTabId } from "../constants";
 import { clearDocumentSelection } from "../utils/browser";
 import { StoreState } from "./store";
 
@@ -41,7 +41,7 @@ export interface AppSlice {
   };
 }
 
-const kDefaultWorkspaceTab = kEvalWorkspaceTabId;
+const kDefaultWorkspaceTab = kLogViewSamplesTabId;
 const kDefaultSampleTab = kSampleTranscriptTabId;
 
 const initialState: AppState = {

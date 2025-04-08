@@ -2,9 +2,9 @@
 export const kModelNone = "none/none";
 
 // Workspace tab constants
-export const kEvalWorkspaceTabId = "eval-tab";
-export const kJsonWorkspaceTabId = "json-tab";
-export const kInfoWorkspaceTabId = "plan-tab";
+export const kLogViewSamplesTabId = "samples";
+export const kLogViewJsonTabId = "json";
+export const kLogViewInfoTabId = "info";
 
 // Sample tab constants
 export const kSampleMessagesTabId = `sample-display-messages`;
