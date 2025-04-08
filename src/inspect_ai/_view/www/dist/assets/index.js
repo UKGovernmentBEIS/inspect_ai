@@ -16127,9 +16127,9 @@ var require_assets = __commonJS({
       return logger;
     };
     const kModelNone = "none/none";
-    const kEvalWorkspaceTabId = "eval-tab";
-    const kJsonWorkspaceTabId = "json-tab";
-    const kInfoWorkspaceTabId = "plan-tab";
+    const kLogViewSamplesTabId = "samples";
+    const kLogViewJsonTabId = "json";
+    const kLogViewInfoTabId = "info";
     const kSampleMessagesTabId = `sample-display-messages`;
     const kSampleTranscriptTabId = `sample-display-transcript`;
     const kSampleScoringTabId = `sample-display-scoring`;
@@ -16159,7 +16159,7 @@ var require_assets = __commonJS({
         }
       }
     };
-    const kDefaultWorkspaceTab = kEvalWorkspaceTabId;
+    const kDefaultWorkspaceTab = kLogViewSamplesTabId;
     const kDefaultSampleTab = kSampleTranscriptTabId;
     const initialState$3 = {
       status: { loading: false },
@@ -16553,7 +16553,7 @@ var require_assets = __commonJS({
               state.log.selectedLogSummary = selectedLogSummary;
             });
             if (selectedLogSummary.status !== "started" && selectedLogSummary.sampleSummaries.length === 0) {
-              get2().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
+              get2().appActions.setWorkspaceTab(kLogViewInfoTabId);
             }
           },
           clearSelectedLogSummary: () => {
@@ -23318,17 +23318,25 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return encodeURIComponent(file);
     };
-    const dirname$1 = "_dirname_16ra5_1";
+    const dirname$1 = "_dirname_1qban_1";
+    const directoryLink = "_directoryLink_1qban_7";
     const styles$1h = {
-      dirname: dirname$1
+      dirname: dirname$1,
+      directoryLink
     };
     const LogDirectoryTitleView = ({
       log_dir
     }) => {
       const offCanvas = useStore((state) => state.app.offcanvas);
+      const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
+      const handleClick = reactExports.useCallback(() => {
+        if (offCanvas) {
+          setOffCanvas(false);
+        }
+      }, [offCanvas, setOffCanvas]);
       if (log_dir) {
         const displayDir = prettyDir(log_dir);
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$1h.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -23348,9 +23356,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               children: offCanvas ? displayDir : ""
             }
           )
-        ] });
+        ] }) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$1h.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" }) });
       }
     };
     const prettyDir = (path) => {
@@ -23755,6 +23763,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [offCanvas, setOffCanvas]);
       const sidebarContentsRef = reactExports.useRef(null);
       useStatefulScrollPosition(sidebarContentsRef, "sidebar-contents", 1e3);
+      const itemRefs = reactExports.useRef({});
+      reactExports.useEffect(() => {
+        var _a2;
+        if (itemRefs.current[selectedIndex]) {
+          (_a2 = itemRefs.current[selectedIndex]) == null ? void 0 : _a2.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest"
+          });
+        }
+      }, [selectedIndex]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1g.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -23789,6 +23807,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                     return /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "li",
                       {
+                        ref: (el) => {
+                          itemRefs.current[index2] = el;
+                        },
                         className: clsx(
                           "list-group-item",
                           "list-group-item-action",
@@ -44615,7 +44636,7 @@ categories: ${categories.join(" ")}`;
       const totalSampleCount = useTotalSampleCount();
       return reactExports.useMemo(() => {
         return {
-          id: kInfoWorkspaceTabId,
+          id: kLogViewInfoTabId,
           label: "Info",
           scrollable: true,
           component: InfoTab,
@@ -46655,14 +46676,14 @@ self.onmessage = function (e) {
           stats: evalStats
         };
         return {
-          id: kJsonWorkspaceTabId,
+          id: kLogViewJsonTabId,
           label: "JSON",
           scrollable: true,
           component: JsonTab,
           componentProps: {
             logFile: selectedLogFile,
             json: JSON.stringify(evalHeader, null, 2),
-            selected: selectedTab === kJsonWorkspaceTabId
+            selected: selectedTab === kLogViewJsonTabId
           },
           tools: () => [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -81090,7 +81111,7 @@ Supported expressions:
       const streamSamples = useStore((state) => state.capabilities.streamSamples);
       return reactExports.useMemo(() => {
         return {
-          id: kEvalWorkspaceTabId,
+          id: kLogViewSamplesTabId,
           scrollable: false,
           label: totalSampleCount > 1 ? "Samples" : "Sample",
           component: SamplesTab,
@@ -81266,6 +81287,8 @@ Supported expressions:
     };
     const LogView = () => {
       const divRef = reactExports.useRef(null);
+      const navigate = useNavigate();
+      const { logPath } = useParams();
       const refreshLog = useRefreshLog();
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const evalSpec = useEvalSpec();
@@ -81276,6 +81299,7 @@ Supported expressions:
         }
       );
       const logs = useStore((state) => state.logs.logs);
+      const loadedLog = useStore((state) => state.log.loadedLog);
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       const samplesTabConfig = useSamplesTabConfig(
         selectedLogSummary == null ? void 0 : selectedLogSummary.status,
@@ -81310,9 +81334,15 @@ Supported expressions:
           const id = (_a2 = e.currentTarget) == null ? void 0 : _a2.id;
           if (id) {
             setSelectedTab(id);
+            if (loadedLog && logPath) {
+              navigate(`/logs/${logPath}/${id}`);
+            } else if (loadedLog) {
+              const logPathSegment = directoryRelativeUrl(loadedLog, logs.log_dir);
+              navigate(`/logs/${logPathSegment}/${id}`);
+            }
           }
         },
-        [setSelectedTab]
+        [setSelectedTab, loadedLog, logs.log_dir, navigate, logPath]
       );
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
@@ -81375,19 +81405,23 @@ Supported expressions:
       }
     };
     const LogContainer = () => {
-      const { logPath } = useParams();
+      const { logPath, tabId } = useParams();
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+      const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {
           if (logPath) {
             await selectLogFile(decodeURIComponent(logPath));
+            if (tabId) {
+              setWorkspaceTab(tabId);
+            }
           } else {
             await refreshLogs();
           }
         };
         loadLogFromPath();
-      }, [logPath, selectLogFile, refreshLogs]);
+      }, [logPath, tabId, selectLogFile, refreshLogs, setWorkspaceTab]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(AppContent, {});
     };
     const AppContent = () => {
@@ -81597,7 +81631,7 @@ Supported expressions:
             children: []
           },
           {
-            path: "/logs/:logPath*",
+            path: "/logs/:logPath/:tabId?",
             element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogContainer, {})
           },
           {

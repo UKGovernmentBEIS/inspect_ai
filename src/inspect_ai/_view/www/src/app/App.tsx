@@ -37,24 +37,32 @@ interface AppProps {
 }
 
 /**
- * LogContainer component that handles routing to specific logs
+ * LogContainer component that handles routing to specific logs and tabs
  */
 const LogContainer: FC = () => {
-  const { logPath } = useParams<{ logPath?: string }>();
+  const { logPath, tabId } = useParams<{ logPath?: string; tabId?: string }>();
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+  const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
 
   useEffect(() => {
     const loadLogFromPath = async () => {
       if (logPath) {
         await selectLogFile(decodeURIComponent(logPath));
+
+        // Set the tab if specified in the URL
+        if (tabId) {
+          // Only set the tab if it's valid - the LogView component will handle
+          // determining if the tab exists before updating the state
+          setWorkspaceTab(tabId);
+        }
       } else {
         await refreshLogs();
       }
     };
 
     loadLogFromPath();
-  }, [logPath, selectLogFile, refreshLogs]);
+  }, [logPath, tabId, selectLogFile, refreshLogs, setWorkspaceTab]);
 
   return <AppContent />;
 };
@@ -320,7 +328,7 @@ export const App: FC<AppProps> = ({ api }) => {
         children: [],
       },
       {
-        path: "/logs/:logPath*",
+        path: "/logs/:logPath/:tabId?",
         element: <LogContainer />,
       },
       {
