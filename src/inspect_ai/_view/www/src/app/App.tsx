@@ -23,9 +23,9 @@ import clsx from "clsx";
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
 import {
   createHashRouter,
+  Navigate,
   RouterProvider,
   useParams,
-  Navigate,
 } from "react-router-dom";
 import { ClientAPI, HostMessage } from "../client/api/types.ts";
 import { useSetSelectedLogIndex } from "../state/hooks.ts";
@@ -136,7 +136,6 @@ const AppContent: FC = () => {
     <>
       {!fullScreen && selectedLogSummary ? (
         <Sidebar
-          logs={logs}
           logHeaders={logHeaders}
           loading={headersLoading}
           selectedIndex={selectedLogIndex}
