@@ -15479,6 +15479,55 @@ ul.jsondiffpatch-textdiff {
     transform: translateX(2000%);
   }
 }
+.findBand {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin-right: 20%;
+  z-index: 1060;
+  color: var(--inspect-find-foreground);
+  background-color: var(--inspect-find-background);
+  font-size: 0.9rem;
+  display: grid;
+  grid-template-columns: auto auto auto auto auto;
+  column-gap: 0.2em;
+  padding: 0.2rem;
+  border-bottom: solid 1px var(--bs-light-border-subtle);
+  border-left: solid 1px var(--bs-light-border-subtle);
+  border-right: solid 1px var(--bs-light-border-subtle);
+  box-shadow: var(--bs-box-shadow);
+}
+
+.findBand input {
+  height: 2em;
+  font-size: 0.9em;
+  margin: 0.1rem;
+  outline: none;
+  border: solid 1px var(--inspect-input-border);
+  color: var(--inspect-input-foreground);
+  background: var(--inspect-input-background);
+}
+
+#inspect-find-no-results {
+  font-size: 0.9em;
+  opacity: 0;
+  margin-top: auto;
+  margin-bottom: auto;
+  margin-right: 0.5em;
+}
+
+.findBand .btn.next,
+.findBand .btn.prev {
+  padding: 0;
+  font-size: var(--inspect-fond-size-larger);
+}
+
+.findBand .btn.close {
+  padding: 0;
+  font-size: var(--inspect-font-size-title-secondary);
+  margin-top: -0.1rem;
+  margin-bottom: -0.1rem;
+}
 ._dirname_16ra5_1 {
   overflow: hidden;
   white-space: nowrap;
@@ -15654,95 +15703,6 @@ ul.jsondiffpatch-textdiff {
   column-gap: 1rem;
   justify-content: space-between;
   margin-top: 0em;
-}
-.findBand {
-  position: absolute;
-  top: 0;
-  right: 0;
-  margin-right: 20%;
-  z-index: 1060;
-  color: var(--inspect-find-foreground);
-  background-color: var(--inspect-find-background);
-  font-size: 0.9rem;
-  display: grid;
-  grid-template-columns: auto auto auto auto auto;
-  column-gap: 0.2em;
-  padding: 0.2rem;
-  border-bottom: solid 1px var(--bs-light-border-subtle);
-  border-left: solid 1px var(--bs-light-border-subtle);
-  border-right: solid 1px var(--bs-light-border-subtle);
-  box-shadow: var(--bs-box-shadow);
-}
-
-.findBand input {
-  height: 2em;
-  font-size: 0.9em;
-  margin: 0.1rem;
-  outline: none;
-  border: solid 1px var(--inspect-input-border);
-  color: var(--inspect-input-foreground);
-  background: var(--inspect-input-background);
-}
-
-#inspect-find-no-results {
-  font-size: 0.9em;
-  opacity: 0;
-  margin-top: auto;
-  margin-bottom: auto;
-  margin-right: 0.5em;
-}
-
-.findBand .btn.next,
-.findBand .btn.prev {
-  padding: 0;
-  font-size: var(--inspect-fond-size-larger);
-}
-
-.findBand .btn.close {
-  padding: 0;
-  font-size: var(--inspect-font-size-title-secondary);
-  margin-top: -0.1rem;
-  margin-bottom: -0.1rem;
-}
-._tabs_1qj7d_1 {
-  align-items: space-between;
-}
-
-._tabContents_1qj7d_5 {
-  flex: 1;
-  overflow-y: hidden;
-}
-
-._tabContents_1qj7d_5._scrollable_1qj7d_10 {
-  overflow-y: auto;
-}
-
-._tab_1qj7d_1 {
-  color: "var(--bs-body-color)";
-  padding: 0.25rem 0.5rem;
-  border-top-left-radius: var(--bs-border-radius);
-  border-top-right-radius: var(--bs-border-radius);
-  font-weight: 500;
-  margin-top: 2px;
-  margin-bottom: -1px;
-}
-
-._tabItem_1qj7d_24 {
-  align-self: end;
-}
-
-._tabIcon_1qj7d_28 {
-  margin-right: 0.5em;
-}
-
-._tabTools_1qj7d_32 {
-  flex-basis: auto;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: end;
-  flex-wrap: wrap;
-  row-gap: 0.3rem;
 }
 ._circle_qymy9_1 {
   font-family: "Consola Regular";
@@ -16087,6 +16047,46 @@ ul.jsondiffpatch-textdiff {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
+}
+._tabs_1qj7d_1 {
+  align-items: space-between;
+}
+
+._tabContents_1qj7d_5 {
+  flex: 1;
+  overflow-y: hidden;
+}
+
+._tabContents_1qj7d_5._scrollable_1qj7d_10 {
+  overflow-y: auto;
+}
+
+._tab_1qj7d_1 {
+  color: "var(--bs-body-color)";
+  padding: 0.25rem 0.5rem;
+  border-top-left-radius: var(--bs-border-radius);
+  border-top-right-radius: var(--bs-border-radius);
+  font-weight: 500;
+  margin-top: 2px;
+  margin-bottom: -1px;
+}
+
+._tabItem_1qj7d_24 {
+  align-self: end;
+}
+
+._tabIcon_1qj7d_28 {
+  margin-right: 0.5em;
+}
+
+._tabTools_1qj7d_32 {
+  flex-basis: auto;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  flex-wrap: wrap;
+  row-gap: 0.3rem;
 }
 ._navbarContainer_838qu_1 {
   display: flex;

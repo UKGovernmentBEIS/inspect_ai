@@ -15036,65 +15036,6 @@ var require_assets = __commonJS({
         }
       ) });
     };
-    const getEnabledNamespaces = () => {
-      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
-    };
-    new Set(getEnabledNamespaces());
-    const createLogger = (namespace) => {
-      const logger = {
-        debug: (message2, ...args) => {
-        },
-        info: (message2, ...args) => {
-        },
-        warn: (message2, ...args) => {
-        },
-        // Always log errors, even in production
-        error: (message2, ...args) => {
-          console.error(`[${namespace}] ${message2}`, ...args);
-        },
-        // Lazy evaluation for expensive logs
-        debugIf: (fn2) => {
-        }
-      };
-      return logger;
-    };
-    function debounce$1(func, wait, options2 = {}) {
-      let timeout = null;
-      let context;
-      let args;
-      let result2;
-      let lastCallTime = null;
-      const later = () => {
-        const last = Date.now() - (lastCallTime || 0);
-        if (last < wait && last >= 0) {
-          timeout = setTimeout(later, wait - last);
-        } else {
-          timeout = null;
-          if (!options2.leading) {
-            result2 = func.apply(context, args);
-            if (!timeout) {
-              context = null;
-              args = null;
-            }
-          }
-        }
-      };
-      return function(...callArgs) {
-        context = this;
-        args = callArgs;
-        lastCallTime = Date.now();
-        const callNow = options2.leading && !timeout;
-        if (!timeout) {
-          timeout = setTimeout(later, wait);
-        }
-        if (callNow) {
-          result2 = func.apply(context, args);
-          context = null;
-          args = null;
-        }
-        return result2;
-      };
-    }
     const createStoreImpl = (createState) => {
       let state;
       const listeners = /* @__PURE__ */ new Set();
@@ -16163,6 +16104,28 @@ var require_assets = __commonJS({
       return initializer(store.setState, get2, store);
     };
     const immer = immerImpl;
+    const getEnabledNamespaces = () => {
+      return "*".split(",").map((ns) => ns.trim()).filter(Boolean);
+    };
+    new Set(getEnabledNamespaces());
+    const createLogger = (namespace) => {
+      const logger = {
+        debug: (message2, ...args) => {
+        },
+        info: (message2, ...args) => {
+        },
+        warn: (message2, ...args) => {
+        },
+        // Always log errors, even in production
+        error: (message2, ...args) => {
+          console.error(`[${namespace}] ${message2}`, ...args);
+        },
+        // Lazy evaluation for expensive logs
+        debugIf: (fn2) => {
+        }
+      };
+      return logger;
+    };
     const kModelNone = "none/none";
     const kEvalWorkspaceTabId = "eval-tab";
     const kJsonWorkspaceTabId = "json-tab";
@@ -17396,6 +17359,166 @@ var require_assets = __commonJS({
       storeImplementation = store;
       store.getState().initialize(api2, capabilities2);
     };
+    const FindBand = () => {
+      const searchBoxRef = reactExports.useRef(null);
+      const storeHideFind = useStore((state) => state.appActions.hideFind);
+      reactExports.useEffect(() => {
+        setTimeout(() => {
+          var _a2;
+          (_a2 = searchBoxRef.current) == null ? void 0 : _a2.focus();
+        }, 10);
+      }, []);
+      const getParentExpandablePanel = reactExports.useCallback(
+        (selection) => {
+          let node2 = selection.anchorNode;
+          while (node2) {
+            if (node2 instanceof HTMLElement && node2.classList.contains("expandable-panel")) {
+              return node2;
+            }
+            node2 = node2.parentElement;
+          }
+          return void 0;
+        },
+        []
+      );
+      const handleSearch = reactExports.useCallback(
+        (back = false) => {
+          var _a2;
+          const searchTerm = ((_a2 = searchBoxRef.current) == null ? void 0 : _a2.value) ?? "";
+          const focusedElement = document.activeElement;
+          const result2 = window.find(
+            searchTerm,
+            false,
+            back,
+            false,
+            false,
+            true,
+            false
+          );
+          const noResultEl = document.getElementById("inspect-find-no-results");
+          if (!noResultEl) return;
+          noResultEl.style.opacity = result2 ? "0" : "1";
+          if (result2) {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0) {
+              const parentPanel = getParentExpandablePanel(selection);
+              if (parentPanel) {
+                parentPanel.style.display = "block";
+                parentPanel.style.webkitLineClamp = "";
+                parentPanel.style.webkitBoxOrient = "";
+              }
+              const range = selection.getRangeAt(0);
+              const element = range.startContainer.parentElement;
+              if (element) {
+                setTimeout(() => {
+                  element.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center"
+                  });
+                }, 100);
+              }
+            }
+          }
+          focusedElement == null ? void 0 : focusedElement.focus();
+        },
+        [getParentExpandablePanel]
+      );
+      const handleKeyDown = reactExports.useCallback(
+        (e) => {
+          if (e.key === "Escape") {
+            storeHideFind();
+          } else if (e.key === "Enter") {
+            handleSearch(false);
+          }
+        },
+        [storeHideFind, handleSearch]
+      );
+      const showSearch = reactExports.useCallback(() => {
+        handleSearch(true);
+      }, [handleSearch]);
+      const hideSearch = reactExports.useCallback(() => {
+        handleSearch(false);
+      }, [handleSearch]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "findBand", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: "text",
+            ref: searchBoxRef,
+            placeholder: "Find",
+            onKeyDown: handleKeyDown
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { id: "inspect-find-no-results", children: "No results" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Previous match",
+            className: "btn next",
+            onClick: showSearch,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.up })
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Next match",
+            className: "btn prev",
+            onClick: hideSearch,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.down })
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            title: "Close",
+            className: "btn close",
+            onClick: storeHideFind,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
+          }
+        )
+      ] });
+    };
+    function debounce$1(func, wait, options2 = {}) {
+      let timeout = null;
+      let context;
+      let args;
+      let result2;
+      let lastCallTime = null;
+      const later = () => {
+        const last = Date.now() - (lastCallTime || 0);
+        if (last < wait && last >= 0) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!options2.leading) {
+            result2 = func.apply(context, args);
+            if (!timeout) {
+              context = null;
+              args = null;
+            }
+          }
+        }
+      };
+      return function(...callArgs) {
+        context = this;
+        args = callArgs;
+        lastCallTime = Date.now();
+        const callNow = options2.leading && !timeout;
+        if (!timeout) {
+          timeout = setTimeout(later, wait);
+        }
+        if (callNow) {
+          result2 = func.apply(context, args);
+          context = null;
+          args = null;
+        }
+        return result2;
+      };
+    }
     const log$1 = createLogger("scrolling");
     function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
       const getScrollPosition = useStore(
@@ -18026,129 +18149,6 @@ var require_assets = __commonJS({
                 }
               )
             ]
-          }
-        )
-      ] });
-    };
-    const FindBand = () => {
-      const searchBoxRef = reactExports.useRef(null);
-      const storeHideFind = useStore((state) => state.appActions.hideFind);
-      reactExports.useEffect(() => {
-        setTimeout(() => {
-          var _a2;
-          (_a2 = searchBoxRef.current) == null ? void 0 : _a2.focus();
-        }, 10);
-      }, []);
-      const getParentExpandablePanel = reactExports.useCallback(
-        (selection) => {
-          let node2 = selection.anchorNode;
-          while (node2) {
-            if (node2 instanceof HTMLElement && node2.classList.contains("expandable-panel")) {
-              return node2;
-            }
-            node2 = node2.parentElement;
-          }
-          return void 0;
-        },
-        []
-      );
-      const handleSearch = reactExports.useCallback(
-        (back = false) => {
-          var _a2;
-          const searchTerm = ((_a2 = searchBoxRef.current) == null ? void 0 : _a2.value) ?? "";
-          const focusedElement = document.activeElement;
-          const result2 = window.find(
-            searchTerm,
-            false,
-            back,
-            false,
-            false,
-            true,
-            false
-          );
-          const noResultEl = document.getElementById("inspect-find-no-results");
-          if (!noResultEl) return;
-          noResultEl.style.opacity = result2 ? "0" : "1";
-          if (result2) {
-            const selection = window.getSelection();
-            if (selection && selection.rangeCount > 0) {
-              const parentPanel = getParentExpandablePanel(selection);
-              if (parentPanel) {
-                parentPanel.style.display = "block";
-                parentPanel.style.webkitLineClamp = "";
-                parentPanel.style.webkitBoxOrient = "";
-              }
-              const range = selection.getRangeAt(0);
-              const element = range.startContainer.parentElement;
-              if (element) {
-                setTimeout(() => {
-                  element.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center"
-                  });
-                }, 100);
-              }
-            }
-          }
-          focusedElement == null ? void 0 : focusedElement.focus();
-        },
-        [getParentExpandablePanel]
-      );
-      const handleKeyDown = reactExports.useCallback(
-        (e) => {
-          if (e.key === "Escape") {
-            storeHideFind();
-          } else if (e.key === "Enter") {
-            handleSearch(false);
-          }
-        },
-        [storeHideFind, handleSearch]
-      );
-      const showSearch = reactExports.useCallback(() => {
-        handleSearch(true);
-      }, [handleSearch]);
-      const hideSearch = reactExports.useCallback(() => {
-        handleSearch(false);
-      }, [handleSearch]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "findBand", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "input",
-          {
-            type: "text",
-            ref: searchBoxRef,
-            placeholder: "Find",
-            onKeyDown: handleKeyDown
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { id: "inspect-find-no-results", children: "No results" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Previous match",
-            className: "btn next",
-            onClick: showSearch,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.up })
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Next match",
-            className: "btn prev",
-            onClick: hideSearch,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.down })
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            type: "button",
-            title: "Close",
-            className: "btn close",
-            onClick: storeHideFind,
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
           }
         )
       ] });
@@ -18796,136 +18796,6 @@ var require_assets = __commonJS({
     })(clipboard);
     var clipboardExports = clipboard.exports;
     const ClipboardJS = /* @__PURE__ */ getDefaultExportFromCjs(clipboardExports);
-    const EmptyPanel = ({ children: children2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
-    };
-    const tabs$1 = "_tabs_1qj7d_1";
-    const tabContents = "_tabContents_1qj7d_5";
-    const scrollable = "_scrollable_1qj7d_10";
-    const tab$1 = "_tab_1qj7d_1";
-    const tabItem = "_tabItem_1qj7d_24";
-    const tabIcon = "_tabIcon_1qj7d_28";
-    const tabTools = "_tabTools_1qj7d_32";
-    const moduleStyles = {
-      tabs: tabs$1,
-      tabContents,
-      scrollable,
-      tab: tab$1,
-      tabItem,
-      tabIcon,
-      tabTools
-    };
-    const TabSet = ({
-      id,
-      type = "tabs",
-      className: className2,
-      tabPanelsClassName,
-      tabControlsClassName,
-      tools: tools2,
-      children: children2
-    }) => {
-      const validTabs = flattenChildren(children2);
-      if (validTabs.length === 0) return null;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "ul",
-          {
-            id,
-            className: clsx("nav", `nav-${type}`, className2, moduleStyles.tabs),
-            role: "tablist",
-            "aria-orientation": "horizontal",
-            children: [
-              validTabs.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
-                Tab,
-                {
-                  index: index2,
-                  type,
-                  tab: tab2,
-                  className: tabControlsClassName
-                },
-                tab2.props.id
-              )),
-              tools2 && /* @__PURE__ */ jsxRuntimeExports.jsx(TabTools, { tools: tools2 })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanels, { id, tabs: validTabs, className: tabPanelsClassName })
-      ] });
-    };
-    const Tab = ({ type = "tabs", tab: tab2, index: index2, className: className2 }) => {
-      const tabId = tab2.props.id || computeTabId("tabset", index2);
-      const tabContentsId = computeTabContentsId(tab2.props.id);
-      const isActive = tab2.props.selected;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { role: "presentation", className: clsx("nav-item", moduleStyles.tabItem), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "button",
-        {
-          id: tabId,
-          className: clsx(
-            "nav-link",
-            className2,
-            isActive && "active",
-            type === "pills" ? moduleStyles.pill : moduleStyles.tab,
-            "text-size-small",
-            "text-style-label"
-          ),
-          type: "button",
-          role: "tab",
-          "aria-controls": tabContentsId,
-          "aria-selected": isActive,
-          onClick: tab2.props.onSelected,
-          children: [
-            tab2.props.icon && /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(tab2.props.icon, moduleStyles.tabIcon) }),
-            tab2.props.title
-          ]
-        }
-      ) });
-    };
-    const TabPanels = ({ id, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-content", className2), id: `${id}-content`, children: tabs2.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanel, { ...tab2.props, index: index2 }, tab2.props.id)) });
-    const TabPanel = ({
-      id,
-      selected: selected2,
-      style: style2,
-      scrollable: scrollable2 = true,
-      scrollRef,
-      className: className2,
-      children: children2
-    }) => {
-      const tabContentsId = computeTabContentsId(id);
-      const panelRef = reactExports.useRef(null);
-      const tabContentsRef = scrollRef || panelRef;
-      useStatefulScrollPosition(tabContentsRef, tabContentsId, 1e3, scrollable2);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          id: tabContentsId,
-          ref: tabContentsRef,
-          className: clsx(
-            "tab-pane",
-            selected2 && "show active",
-            className2,
-            moduleStyles.tabContents,
-            scrollable2 && moduleStyles.scrollable
-          ),
-          style: style2,
-          children: children2
-        }
-      );
-    };
-    const TabTools = ({ tools: tools2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-tools", moduleStyles.tabTools), children: tools2 });
-    const computeTabId = (id, index2) => `${id}-${index2}`;
-    const computeTabContentsId = (id) => `${id}-contents`;
-    const flattenChildren = (children2) => {
-      return reactExports.Children.toArray(children2).flatMap((child) => {
-        if (reactExports.isValidElement(child)) {
-          const element = child;
-          if (element.type === reactExports.Fragment) {
-            return flattenChildren(element.props.children);
-          }
-          return element;
-        }
-        return [];
-      });
-    };
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
@@ -37268,6 +37138,136 @@ categories: ${categories.join(" ")}`;
         },
         [setSelectedLogIndex, clearSelectedLogSummary, clearSelectedSample]
       );
+    };
+    const EmptyPanel = ({ children: children2 }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
+    };
+    const tabs$1 = "_tabs_1qj7d_1";
+    const tabContents = "_tabContents_1qj7d_5";
+    const scrollable = "_scrollable_1qj7d_10";
+    const tab$1 = "_tab_1qj7d_1";
+    const tabItem = "_tabItem_1qj7d_24";
+    const tabIcon = "_tabIcon_1qj7d_28";
+    const tabTools = "_tabTools_1qj7d_32";
+    const moduleStyles = {
+      tabs: tabs$1,
+      tabContents,
+      scrollable,
+      tab: tab$1,
+      tabItem,
+      tabIcon,
+      tabTools
+    };
+    const TabSet = ({
+      id,
+      type = "tabs",
+      className: className2,
+      tabPanelsClassName,
+      tabControlsClassName,
+      tools: tools2,
+      children: children2
+    }) => {
+      const validTabs = flattenChildren(children2);
+      if (validTabs.length === 0) return null;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "ul",
+          {
+            id,
+            className: clsx("nav", `nav-${type}`, className2, moduleStyles.tabs),
+            role: "tablist",
+            "aria-orientation": "horizontal",
+            children: [
+              validTabs.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+                Tab,
+                {
+                  index: index2,
+                  type,
+                  tab: tab2,
+                  className: tabControlsClassName
+                },
+                tab2.props.id
+              )),
+              tools2 && /* @__PURE__ */ jsxRuntimeExports.jsx(TabTools, { tools: tools2 })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanels, { id, tabs: validTabs, className: tabPanelsClassName })
+      ] });
+    };
+    const Tab = ({ type = "tabs", tab: tab2, index: index2, className: className2 }) => {
+      const tabId = tab2.props.id || computeTabId("tabset", index2);
+      const tabContentsId = computeTabContentsId(tab2.props.id);
+      const isActive = tab2.props.selected;
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("li", { role: "presentation", className: clsx("nav-item", moduleStyles.tabItem), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "button",
+        {
+          id: tabId,
+          className: clsx(
+            "nav-link",
+            className2,
+            isActive && "active",
+            type === "pills" ? moduleStyles.pill : moduleStyles.tab,
+            "text-size-small",
+            "text-style-label"
+          ),
+          type: "button",
+          role: "tab",
+          "aria-controls": tabContentsId,
+          "aria-selected": isActive,
+          onClick: tab2.props.onSelected,
+          children: [
+            tab2.props.icon && /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(tab2.props.icon, moduleStyles.tabIcon) }),
+            tab2.props.title
+          ]
+        }
+      ) });
+    };
+    const TabPanels = ({ id, tabs: tabs2, className: className2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-content", className2), id: `${id}-content`, children: tabs2.map((tab2, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(TabPanel, { ...tab2.props, index: index2 }, tab2.props.id)) });
+    const TabPanel = ({
+      id,
+      selected: selected2,
+      style: style2,
+      scrollable: scrollable2 = true,
+      scrollRef,
+      className: className2,
+      children: children2
+    }) => {
+      const tabContentsId = computeTabContentsId(id);
+      const panelRef = reactExports.useRef(null);
+      const tabContentsRef = scrollRef || panelRef;
+      useStatefulScrollPosition(tabContentsRef, tabContentsId, 1e3, scrollable2);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          id: tabContentsId,
+          ref: tabContentsRef,
+          className: clsx(
+            "tab-pane",
+            selected2 && "show active",
+            className2,
+            moduleStyles.tabContents,
+            scrollable2 && moduleStyles.scrollable
+          ),
+          style: style2,
+          children: children2
+        }
+      );
+    };
+    const TabTools = ({ tools: tools2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("tab-tools", moduleStyles.tabTools), children: tools2 });
+    const computeTabId = (id, index2) => `${id}-${index2}`;
+    const computeTabContentsId = (id) => `${id}-contents`;
+    const flattenChildren = (children2) => {
+      return reactExports.Children.toArray(children2).flatMap((child) => {
+        if (reactExports.isValidElement(child)) {
+          const element = child;
+          if (element.type === reactExports.Fragment) {
+            return flattenChildren(element.props.children);
+          }
+          return element;
+        }
+        return [];
+      });
     };
     const navbarWrapper = "_navbarWrapper_838qu_48";
     const styles$Z = {
