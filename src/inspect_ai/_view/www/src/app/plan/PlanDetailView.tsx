@@ -1,14 +1,14 @@
-import { MetaDataView } from "../app/content/MetaDataView";
-import { EvalPlan, EvalScore, EvalSpec, Params2 } from "../types/log";
-import { toTitleCase } from "../utils/format";
-import { ghCommitUrl } from "../utils/git";
+import { EvalPlan, EvalScore, EvalSpec, Params2 } from "../../types/log";
+import { toTitleCase } from "../../utils/format";
+import { ghCommitUrl } from "../../utils/git";
+import { MetaDataView } from "../content/MetaDataView";
 import { DatasetDetailView } from "./DatasetDetailView";
 import { ScorerDetailView } from "./ScorerDetailView";
 import { SolversDetailView } from "./SolverDetailView";
 
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { kModelNone } from "../constants";
+import { kModelNone } from "../../constants";
 import styles from "./PlanDetailView.module.css";
 
 interface PlanDetailViewProps {
