@@ -20,7 +20,7 @@ import { CancelledPanel, ErroredPanel } from "./StatusPanel";
 interface PrimaryBarProps {
   showToggle: boolean;
   status?: Status;
-  evalResults?: EvalResults;
+  evalResults?: EvalResults | null;
   runningMetrics?: RunningMetric[];
   evalSpec?: EvalSpec;
   sampleCount?: number;

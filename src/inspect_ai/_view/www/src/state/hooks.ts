@@ -25,6 +25,27 @@ export const useEvalSpec = () => {
   return selectedLogSummary?.eval;
 };
 
+export const useRefreshLog = () => {
+  const setAppStatus = useStore((state) => state.appActions.setStatus);
+  const refreshLog = useStore((state) => state.logActions.refreshLog);
+  const resetFiltering = useStore((state) => state.logActions.resetFiltering);
+
+  return useCallback(() => {
+    try {
+      setAppStatus({ loading: true, error: undefined });
+
+      refreshLog();
+      resetFiltering();
+
+      setAppStatus({ loading: false, error: undefined });
+    } catch (e) {
+      // Show an error
+      console.log(e);
+      setAppStatus({ loading: false, error: e as Error });
+    }
+  }, [refreshLog, resetFiltering, setAppStatus]);
+};
+
 // Fetches all samples summaries (both completed and incomplete)
 // without applying any filtering
 export const useSampleSummaries = () => {

@@ -4,48 +4,64 @@ import {
   FC,
   Fragment,
   MouseEvent,
-  RefObject,
   useCallback,
+  useRef,
 } from "react";
-import { RunningMetric } from "../api/types";
 import { EmptyPanel } from "../components/EmptyPanel";
 import { TabPanel, TabSet } from "../components/TabSet";
-import {
-  EvalPlan,
-  EvalResults,
-  EvalSpec,
-  EvalStats,
-  Status,
-} from "../types/log";
 import { Navbar } from "./navbar/Navbar";
+
+import { useEvalSpec, useRefreshLog } from "../state/hooks";
+import { useStore } from "../state/store";
+import styles from "./LogView.module.css";
+import { useInfoTabConfig } from "./tabs/InfoTab";
+import { useJsonTabConfig } from "./tabs/JsonTab";
+import { useSamplesTabConfig } from "./tabs/SamplesTab";
 import { TabDescriptor } from "./types";
 
-import { useStore } from "../state/store";
-import styles from "./WorkSpaceView.module.css";
+export const LogView: FC = () => {
+  const divRef = useRef<HTMLDivElement>(null);
 
-interface WorkSpaceViewProps {
-  evalSpec: EvalSpec;
-  evalPlan?: EvalPlan;
-  evalResults?: EvalResults;
-  runningMetrics?: RunningMetric[];
-  evalStats?: EvalStats;
-  status?: Status;
-  showToggle: boolean;
-  tabs: Record<string, TabDescriptor<any>>;
-  divRef: RefObject<HTMLDivElement | null>;
-}
+  const refreshLog = useRefreshLog();
 
-export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
-  evalSpec,
-  evalPlan,
-  evalResults,
-  runningMetrics,
-  evalStats,
-  status,
-  showToggle,
-  tabs,
-  divRef,
-}) => {
+  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+  const evalSpec = useEvalSpec();
+  const runningMetrics = useStore(
+    (state) => state.log.pendingSampleSummaries?.metrics,
+  );
+  const logs = useStore((state) => state.logs.logs);
+  const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
+
+  // Use individual tab config hooks
+  const samplesTabConfig = useSamplesTabConfig(
+    selectedLogSummary?.status,
+    refreshLog,
+  );
+
+  const configTabConfig = useInfoTabConfig(
+    evalSpec,
+    selectedLogSummary?.plan,
+    selectedLogSummary?.error,
+    selectedLogSummary?.results,
+    selectedLogSummary?.stats,
+  );
+
+  const jsonTabConfig = useJsonTabConfig(
+    selectedLogSummary?.version,
+    selectedLogSummary?.status,
+    evalSpec,
+    selectedLogSummary?.plan,
+    selectedLogSummary?.error,
+    selectedLogSummary?.results,
+    selectedLogSummary?.stats,
+  );
+
+  const tabs: Record<string, TabDescriptor<any>> = {
+    ...(samplesTabConfig ? { samples: samplesTabConfig } : {}),
+    config: configTabConfig,
+    json: jsonTabConfig,
+  };
+
   const selectedTab = useStore((state) => state.app.tabs.workspace);
   const setSelectedTab = useStore((state) => state.appActions.setWorkspaceTab);
 
@@ -83,11 +99,11 @@ export const WorkSpaceView: FC<WorkSpaceViewProps> = ({
       <Fragment>
         <Navbar
           evalSpec={evalSpec}
-          evalPlan={evalPlan}
-          evalResults={evalResults}
+          evalPlan={selectedLogSummary?.plan}
+          evalResults={selectedLogSummary?.results}
           runningMetrics={runningMetrics}
-          evalStats={evalStats}
-          status={status}
+          evalStats={selectedLogSummary?.stats}
+          status={selectedLogSummary?.status}
           showToggle={showToggle}
         />
         <div ref={divRef} className={clsx("workspace", styles.workspace)}>
