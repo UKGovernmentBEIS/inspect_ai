@@ -239,11 +239,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     return (
       <Fragment>
         {samplesDescriptor && totalSampleCount === 1 ? (
-          <InlineSampleDisplay
-            id="sample-display"
-            selectedTab={selectedSampleTab}
-            setSelectedTab={setSelectedSampleTab}
-          />
+          <InlineSampleDisplay />
         ) : undefined}
         {samplesDescriptor && totalSampleCount > 1 ? (
           <SampleList

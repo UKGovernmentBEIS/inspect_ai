@@ -8,25 +8,21 @@ import { useLogSelection, usePrevious, useSampleData } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import styles from "./InlineSampleDisplay.module.css";
 
-interface InlineSampleDisplayProps {
-  id: string;
-  selectedTab?: string;
-  setSelectedTab: (tab: string) => void;
-}
-
 /**
  * Inline Sample Display
  */
-export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
-  id,
-  selectedTab,
-  setSelectedTab,
-}) => {
+export const InlineSampleDisplay: FC = () => {
   // Sample hooks
   const sampleData = useSampleData();
   const loadSample = useStore((state) => state.sampleActions.loadSample);
   const pollSample = useStore((state) => state.sampleActions.pollSample);
   const logSelection = useLogSelection();
+
+  // Selected tab handling
+  const selectedSampleTab = useStore((state) => state.app.tabs.sample);
+  const setSelectedSampleTab = useStore(
+    (state) => state.appActions.setSampleTab,
+  );
 
   useEffect(() => {
     if (sampleData.running && logSelection.logFile && logSelection.sample) {
@@ -84,11 +80,11 @@ export const InlineSampleDisplay: FC<InlineSampleDisplayProps> = ({
             />
           ) : (
             <SampleDisplay
-              id={id}
+              id={"inline-sample-display"}
               sample={sampleData.sample}
               runningEvents={sampleData.running}
-              selectedTab={selectedTab}
-              setSelectedTab={setSelectedTab}
+              selectedTab={selectedSampleTab}
+              setSelectedTab={setSelectedSampleTab}
               scrollRef={scrollRef}
             />
           )}
