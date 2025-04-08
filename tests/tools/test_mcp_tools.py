@@ -13,13 +13,13 @@ from inspect_ai.dataset import Sample
 from inspect_ai.model import get_model
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import MCPServer, mcp_server_stdio, mcp_tools
+from inspect_ai.tool._mcp.connection import mcp_connection
 
 
 @skip_if_no_mcp_fetch_package
 async def test_mcp_server_stdio():
-    async with mcp_server_stdio(
-        command="python", args=["-m", "mcp_server_fetch"]
-    ) as server:
+    server = mcp_server_stdio(command="python", args=["-m", "mcp_server_fetch"])
+    async with mcp_connection(server):
         await check_fetch_server(server)
 
 
