@@ -1,3 +1,7 @@
+## Unreleased
+
+- Remove support for `goodfire` model provider (dependency conflicts).
+
 ## v0.3.84 (07 April 2025)
 
 - Bugfix: Suppress link click behavior in vscode links.
