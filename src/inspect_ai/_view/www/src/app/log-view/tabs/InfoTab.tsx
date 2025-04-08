@@ -2,7 +2,6 @@ import { FC, useMemo } from "react";
 import { SampleSummary } from "../../../client/api/types";
 import { MessageBand } from "../../../components/MessageBand";
 import { kInfoWorkspaceTabId } from "../../../constants";
-import { PlanCard } from "../../../plan/PlanCard";
 import { useTotalSampleCount } from "../../../state/hooks";
 import {
   EvalError,
@@ -11,6 +10,7 @@ import {
   EvalSpec,
   EvalStats,
 } from "../../../types/log";
+import { PlanCard } from "../../plan/PlanCard";
 import { UsageCard } from "../../usage/UsageCard";
 import { TaskErrorCard } from "../error/TaskErrorPanel";
 
