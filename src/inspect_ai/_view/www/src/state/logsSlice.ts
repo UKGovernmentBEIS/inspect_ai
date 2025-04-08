@@ -1,10 +1,15 @@
-import { EvalLogHeader, LogFiles } from "../client/api/types";
 import { LogsState } from "../app/types";
+import { EvalLogHeader, LogFiles } from "../client/api/types";
 import { createLogger } from "../utils/logger";
 import { createLogsPolling } from "./logsPolling";
 import { StoreState } from "./store";
 
 const log = createLogger("Log Slice");
+
+const kEmptyLogs: LogFiles = {
+  log_dir: "",
+  files: [],
+};
 
 export interface LogsSlice {
   logs: LogsState;
@@ -28,7 +33,7 @@ export interface LogsSlice {
 }
 
 const initialState: LogsState = {
-  logs: { log_dir: "", files: [] },
+  logs: kEmptyLogs,
   logHeaders: {},
   headersLoading: false,
   selectedLogIndex: -1,
@@ -97,7 +102,7 @@ export const createLogsSlice = (
         const api = get().api;
         if (!api) {
           console.error("API not initialized in LogsStore");
-          return { log_dir: "", files: [] };
+          return kEmptyLogs;
         }
 
         try {
@@ -106,7 +111,7 @@ export const createLogsSlice = (
         } catch (e) {
           console.log(e);
           get().appActions.setStatus({ loading: false, error: e as Error });
-          return { log_dir: "", files: [] };
+          return kEmptyLogs;
         }
       },
       refreshLogs: async () => {
@@ -115,7 +120,7 @@ export const createLogsSlice = (
         const refreshedLogs = await state.logsActions.loadLogs();
 
         // Set the logs first
-        state.logsActions.setLogs(refreshedLogs || { log_dir: "", files: [] });
+        state.logsActions.setLogs(refreshedLogs || kEmptyLogs);
 
         // Preserve the selected log even if new logs appear
         const currentLog =
@@ -150,7 +155,7 @@ export const createLogsSlice = (
             logUrl.endsWith(file.name),
           );
 
-          state.logsActions.setLogs(result || { log_dir: "", files: [] });
+          state.logsActions.setLogs(result || kEmptyLogs);
           state.logsActions.setSelectedLogIndex(
             idx !== undefined && idx > -1 ? idx : 0,
           );
