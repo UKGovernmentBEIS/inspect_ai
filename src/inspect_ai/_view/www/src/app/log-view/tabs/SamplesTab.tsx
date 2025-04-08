@@ -18,7 +18,7 @@ import {
 import { SampleList } from "../../../app/samples/list/SampleList.tsx";
 import { NoContentsPanel } from "../../../components/NoContentsPanel.tsx";
 import { ToolButton } from "../../../components/ToolButton.tsx";
-import { kEvalWorkspaceTabId } from "../../../constants.ts";
+import { kLogViewSamplesTabId } from "../../../constants.ts";
 import {
   useFilteredSamples,
   useGroupBy,
@@ -45,7 +45,7 @@ export const useSamplesTabConfig = (
 
   return useMemo(() => {
     return {
-      id: kEvalWorkspaceTabId,
+      id: kLogViewSamplesTabId,
       scrollable: false,
       label: totalSampleCount > 1 ? "Samples" : "Sample",
       component: SamplesTab,

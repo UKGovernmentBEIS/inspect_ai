@@ -1,6 +1,6 @@
 import { LogState, ScoreFilter, ScoreLabel } from "../app/types";
 import { EvalSummary, PendingSamples } from "../client/api/types";
-import { kDefaultSort, kInfoWorkspaceTabId } from "../constants";
+import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
 import { createLogPolling } from "./logPolling";
 import { ScorerInfo } from "./scoring";
@@ -96,7 +96,7 @@ export const createLogSlice = (
           selectedLogSummary.sampleSummaries.length === 0
         ) {
           // If there are no samples, use the workspace tab id by default
-          get().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
+          get().appActions.setWorkspaceTab(kLogViewInfoTabId);
         }
       },
 

@@ -13,7 +13,7 @@ import {
 import { DownloadPanel } from "../../../components/DownloadPanel";
 import { JSONPanel } from "../../../components/JsonPanel";
 import { ToolButton } from "../../../components/ToolButton";
-import { kJsonWorkspaceTabId } from "../../../constants";
+import { kLogViewJsonTabId } from "../../../constants";
 import { useStore } from "../../../state/store";
 import { ApplicationIcons } from "../../appearance/icons";
 import styles from "./JsonTab.module.css";
@@ -47,14 +47,14 @@ export const useJsonTabConfig = (
     };
 
     return {
-      id: kJsonWorkspaceTabId,
+      id: kLogViewJsonTabId,
       label: "JSON",
       scrollable: true,
       component: JsonTab,
       componentProps: {
         logFile: selectedLogFile,
         json: JSON.stringify(evalHeader, null, 2),
-        selected: selectedTab === kJsonWorkspaceTabId,
+        selected: selectedTab === kLogViewJsonTabId,
       },
       tools: () => [
         <ToolButton
