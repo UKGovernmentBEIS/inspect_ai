@@ -1,6 +1,6 @@
-import { SampleSummary } from "../../../client/api/types";
+import { Epochs } from "../../../@types/log";
 import { ScoreLabel } from "../../../app/types";
-import { Epochs } from "../../../types/log";
+import { SampleSummary } from "../../../client/api/types";
 import { SamplesDescriptor } from "../../samples/descriptor/samplesDescriptor";
 import { ListItem, SampleListItem, SeparatorListItem } from "./types";
 

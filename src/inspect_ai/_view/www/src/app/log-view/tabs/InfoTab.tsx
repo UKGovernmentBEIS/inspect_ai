@@ -5,7 +5,7 @@ import {
   EvalResults,
   EvalSpec,
   EvalStats,
-} from "../../../types/log";
+} from "../../../@types/log";
 import { UsageCard } from "../../usage/UsageCard";
 import { TaskErrorCard } from "../error/TaskErrorPanel";
 import { useTotalSampleCount } from "../../../state/hooks";

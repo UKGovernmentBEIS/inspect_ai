@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Value2 } from "../../../../types/log";
+import { Value2 } from "../../../../@types/log";
 import { ScoreDescriptor, SelectedScore } from "../types";
 import styles from "./BooleanScoreDescriptor.module.css";
 

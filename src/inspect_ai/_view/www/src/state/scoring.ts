@@ -1,5 +1,5 @@
+import { EvalResults } from "../@types/log";
 import { EvalSummary, SampleSummary } from "../client/api/types";
-import { EvalResults } from "../types/log";
 
 export interface ScorerInfo {
   name: string;

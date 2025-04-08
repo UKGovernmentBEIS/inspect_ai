@@ -1,14 +1,14 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { RunningMetric } from "../../../client/api/types";
-import { useTotalSampleCount } from "../../../state/hooks";
 import {
   EvalPlan,
   EvalResults,
   EvalSpec,
   EvalStats,
   Status,
-} from "../../../types/log";
+} from "../../../@types/log";
+import { RunningMetric } from "../../../client/api/types";
+import { useTotalSampleCount } from "../../../state/hooks";
 import styles from "./Navbar.module.css";
 import { PrimaryBar } from "./PrimaryBar";
 import { SecondaryBar } from "./SecondaryBar";

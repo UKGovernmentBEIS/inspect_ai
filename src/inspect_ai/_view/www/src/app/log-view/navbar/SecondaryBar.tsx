@@ -1,17 +1,17 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { EvalDescriptor } from "../../../app/samples/descriptor/types";
-import { scoreFilterItems } from "../../../app/samples/sample-tools/filters";
-import { ExpandablePanel } from "../../../components/ExpandablePanel";
-import { LabeledValue } from "../../../components/LabeledValue";
-import { useEvalDescriptor } from "../../../state/hooks";
 import {
   EvalDataset,
   EvalPlan,
   EvalResults,
   EvalSpec,
   EvalStats,
-} from "../../../types/log";
+} from "../../../@types/log";
+import { EvalDescriptor } from "../../../app/samples/descriptor/types";
+import { scoreFilterItems } from "../../../app/samples/sample-tools/filters";
+import { ExpandablePanel } from "../../../components/ExpandablePanel";
+import { LabeledValue } from "../../../components/LabeledValue";
+import { useEvalDescriptor } from "../../../state/hooks";
 import { formatDataset, formatDuration } from "../../../utils/format";
 import styles from "./SecondaryBar.module.css";
 

@@ -1,5 +1,5 @@
 import { FC, memo, ReactNode, RefObject, useMemo } from "react";
-import { Messages } from "../../../types/log";
+import { Messages } from "../../../@types/log";
 
 import { ChatMessageRow } from "./ChatMessageRow";
 import { ResolvedMessage, resolveMessages } from "./messages";

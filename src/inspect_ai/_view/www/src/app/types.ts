@@ -1,15 +1,5 @@
 import { StateSnapshot } from "react-virtuoso";
 import {
-  AttachmentData,
-  EvalLogHeader,
-  EvalSummary,
-  EventData,
-  LogFiles,
-  PendingSamples,
-  SampleSummary,
-} from "../client/api/types";
-import { ScorerInfo } from "../state/scoring";
-import {
   ApprovalEvent,
   ContentImage,
   ContentText,
@@ -26,7 +16,17 @@ import {
   StoreEvent,
   SubtaskEvent,
   ToolEvent,
-} from "../types/log";
+} from "../@types/log";
+import {
+  AttachmentData,
+  EvalLogHeader,
+  EvalSummary,
+  EventData,
+  LogFiles,
+  PendingSamples,
+  SampleSummary,
+} from "../client/api/types";
+import { ScorerInfo } from "../state/scoring";
 
 export interface AppState {
   status: AppStatus;

@@ -17,6 +17,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
+import { EvalSample, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
 import { Card, CardBody, CardHeader } from "../../components/Card";
 import { JSONPanel } from "../../components/JsonPanel";
@@ -31,7 +32,6 @@ import {
 } from "../../constants";
 import { useSampleSummaries } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { EvalSample, Events } from "../../types/log";
 import { formatTime } from "../../utils/format";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { ModelTokenTable } from "../usage/ModelTokenTable";

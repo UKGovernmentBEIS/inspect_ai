@@ -1,7 +1,7 @@
+import { EvalSample } from "../@types/log";
+import { SampleState, SampleStatus } from "../app/types";
 import { SampleSummary } from "../client/api/types";
 import { kSampleMessagesTabId } from "../constants";
-import { SampleState, SampleStatus } from "../app/types";
-import { EvalSample } from "../types/log";
 import { createLogger } from "../utils/logger";
 import { createSamplePolling } from "./samplePolling";
 import { resolveSample } from "./sampleUtils"; // Import the shared utility

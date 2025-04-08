@@ -1,6 +1,6 @@
 import clsx from "clsx";
+import { EvalSample, Target, TotalTime, WorkingTime } from "../../@types/log";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { EvalSample, Target, TotalTime, WorkingTime } from "../../types/log";
 import { arrayToString, formatTime, inputString } from "../../utils/format";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 

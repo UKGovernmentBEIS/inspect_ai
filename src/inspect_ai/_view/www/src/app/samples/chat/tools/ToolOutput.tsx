@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC } from "react";
-import { ContentImage, ContentText } from "../../../../types/log";
+import { ContentImage, ContentText } from "../../../../@types/log";
 import styles from "./ToolOutput.module.css";
 
 interface ToolOutputProps {

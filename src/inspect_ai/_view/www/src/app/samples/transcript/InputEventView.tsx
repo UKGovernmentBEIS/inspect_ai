@@ -1,6 +1,6 @@
 import { FC } from "react";
+import { InputEvent } from "../../../@types/log";
 import { ANSIDisplay } from "../../../components/AnsiDisplay";
-import { InputEvent } from "../../../types/log";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";

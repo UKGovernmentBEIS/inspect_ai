@@ -1,7 +1,7 @@
 import { FC } from "react";
+import { InfoEvent } from "../../../@types/log";
 import { JSONPanel } from "../../../components/JsonPanel";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
-import { InfoEvent } from "../../../types/log";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";
