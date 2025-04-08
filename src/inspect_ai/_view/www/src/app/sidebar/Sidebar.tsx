@@ -1,11 +1,11 @@
 import clsx from "clsx";
 import { FC, MouseEvent, useCallback, useRef } from "react";
 import { Fragment } from "react/jsx-runtime";
-import { EvalLogHeader, LogFiles } from "../../../client/api/types";
-import { ProgressBar } from "../../../components/ProgressBar";
-import { useStatefulScrollPosition } from "../../../state/scrolling";
-import { useStore } from "../../../state/store";
-import { ApplicationIcons } from "../../appearance/icons";
+import { EvalLogHeader, LogFiles } from "../../client/api/types";
+import { ProgressBar } from "../../components/ProgressBar";
+import { useStatefulScrollPosition } from "../../state/scrolling";
+import { useStore } from "../../state/store";
+import { ApplicationIcons } from "../appearance/icons";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";
 import styles from "./Sidebar.module.css";
 import { SidebarLogEntry } from "./SidebarLogEntry";

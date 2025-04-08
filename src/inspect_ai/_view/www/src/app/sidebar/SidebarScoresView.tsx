@@ -1,8 +1,8 @@
 import clsx from "clsx";
 import { FC, Fragment } from "react";
-import { Scores } from "../../../types/log";
-import { formatPrettyDecimal } from "../../../utils/format";
-import { metricDisplayName } from "../utils";
+import { Scores } from "../../types/log";
+import { formatPrettyDecimal } from "../../utils/format";
+import { metricDisplayName } from "../log-view/utils";
 import styles from "./SidebarScoresView.module.css";
 
 interface SidebarScoresProps {

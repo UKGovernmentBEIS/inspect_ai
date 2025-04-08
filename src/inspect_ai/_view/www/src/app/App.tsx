@@ -16,7 +16,7 @@ import { ErrorPanel } from "../components/ErrorPanel.tsx";
 import { ProgressBar } from "../components/ProgressBar.tsx";
 
 import { FindBand } from "../components/FindBand.tsx";
-import { Sidebar } from "./log-view/sidebar/Sidebar.tsx";
+import { Sidebar } from "./sidebar/Sidebar.tsx";
 
 import ClipboardJS from "clipboard";
 import clsx from "clsx";
