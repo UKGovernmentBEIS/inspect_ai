@@ -1,3 +1,7 @@
+## Unreleased
+
+- Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
+
 ## v0.3.85 (08 April 2025)
 
 - Remove support for `goodfire` model provider (dependency conflicts).
