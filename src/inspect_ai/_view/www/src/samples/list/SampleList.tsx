@@ -10,8 +10,8 @@ import {
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { MessageBand } from "../../components/MessageBand";
+import { ListItem } from "../../log-view/tabs/types";
 import { formatNoDecimal } from "../../utils/format";
-import { ListItem } from "../../workspace/tabs/types";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import { SampleRow } from "./SampleRow";
 import { SampleSeparator } from "./SampleSeparator";

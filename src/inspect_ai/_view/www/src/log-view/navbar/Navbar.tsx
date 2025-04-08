@@ -15,7 +15,7 @@ import { SecondaryBar } from "./SecondaryBar";
 
 interface NavBarProps {
   evalSpec?: EvalSpec;
-  evalResults?: EvalResults;
+  evalResults?: EvalResults | null;
   runningMetrics?: RunningMetric[];
   evalPlan?: EvalPlan;
   evalStats?: EvalStats;

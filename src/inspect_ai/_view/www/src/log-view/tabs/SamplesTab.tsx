@@ -8,9 +8,13 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
+import { ApplicationIcons } from "../../appearance/icons.ts";
 import { NoContentsPanel } from "../../components/NoContentsPanel.tsx";
+import { ToolButton } from "../../components/ToolButton.tsx";
+import { kEvalWorkspaceTabId } from "../../constants.ts";
 import { InlineSampleDisplay } from "../../samples/InlineSampleDisplay.tsx";
 import { SampleDialog } from "../../samples/SampleDialog.tsx";
+import { SampleTools, ScoreFilterTools } from "../../samples/SamplesTools.tsx";
 import { SampleList } from "../../samples/list/SampleList.tsx";
 import {
   useFilteredSamples,
@@ -21,9 +25,58 @@ import {
   useTotalSampleCount,
 } from "../../state/hooks.ts";
 import { useStore } from "../../state/store.ts";
+import { Status } from "../../types/log";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
+
+// Individual hook for Samples tab
+export const useSamplesTabConfig = (
+  evalStatus: Status | undefined,
+  refreshLog: () => void,
+) => {
+  const totalSampleCount = useTotalSampleCount();
+  const samplesDescriptor = useSampleDescriptor();
+  const sampleSummaries = useFilteredSamples();
+  const streamSamples = useStore((state) => state.capabilities.streamSamples);
+
+  return useMemo(() => {
+    return {
+      id: kEvalWorkspaceTabId,
+      scrollable: false,
+      label: totalSampleCount > 1 ? "Samples" : "Sample",
+      component: SamplesTab,
+      componentProps: {
+        running: evalStatus === "started",
+      },
+      tools: () =>
+        !samplesDescriptor
+          ? undefined
+          : totalSampleCount === 1
+            ? [<ScoreFilterTools />]
+            : [
+                <SampleTools
+                  samples={sampleSummaries || []}
+                  key="sample-tools"
+                />,
+                evalStatus === "started" && !streamSamples && (
+                  <ToolButton
+                    key="refresh"
+                    label="Refresh"
+                    icon={ApplicationIcons.refresh}
+                    onClick={refreshLog}
+                  />
+                ),
+              ],
+    };
+  }, [
+    evalStatus,
+    refreshLog,
+    sampleSummaries,
+    samplesDescriptor,
+    totalSampleCount,
+  ]);
+};
 
 interface SamplesTabProps {
   // Required props

@@ -1,7 +1,9 @@
-import { FC } from "react";
+import { FC, useMemo } from "react";
 import { SampleSummary } from "../../api/types";
 import { MessageBand } from "../../components/MessageBand";
+import { kInfoWorkspaceTabId } from "../../constants";
 import { PlanCard } from "../../plan/PlanCard";
+import { useTotalSampleCount } from "../../state/hooks";
 import {
   EvalError,
   EvalPlan,
@@ -11,6 +13,33 @@ import {
 } from "../../types/log";
 import { UsageCard } from "../../usage/UsageCard";
 import { TaskErrorCard } from "../error/TaskErrorPanel";
+
+// Individual hook for Info tab
+export const useInfoTabConfig = (
+  evalSpec: EvalSpec | undefined,
+  evalPlan: EvalPlan | undefined,
+  evalError: EvalError | undefined | null,
+  evalResults: EvalResults | undefined | null,
+  evalStats: EvalStats | undefined,
+) => {
+  const totalSampleCount = useTotalSampleCount();
+  return useMemo(() => {
+    return {
+      id: kInfoWorkspaceTabId,
+      label: "Info",
+      scrollable: true,
+      component: InfoTab,
+      componentProps: {
+        evalSpec,
+        evalPlan,
+        evalError,
+        evalResults,
+        evalStats,
+        sampleCount: totalSampleCount,
+      },
+    };
+  }, [evalSpec, evalPlan, evalError, evalResults, evalStats, totalSampleCount]);
+};
 
 interface PlanTabProps {
   evalSpec?: EvalSpec;
