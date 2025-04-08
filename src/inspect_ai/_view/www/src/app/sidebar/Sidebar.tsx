@@ -1,18 +1,18 @@
 import clsx from "clsx";
 import { FC, useCallback, useRef } from "react";
-import { Fragment } from "react/jsx-runtime";
 import { Link } from "react-router-dom";
-import { EvalLogHeader, LogFiles } from "../../client/api/types";
+import { Fragment } from "react/jsx-runtime";
+import { EvalLogHeader } from "../../client/api/types";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useStatefulScrollPosition } from "../../state/scrolling";
 import { useStore } from "../../state/store";
+import { directoryRelativeUrl } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";
 import styles from "./Sidebar.module.css";
 import { SidebarLogEntry } from "./SidebarLogEntry";
 
 interface SidebarProps {
-  logs: LogFiles;
   logHeaders: Record<string, EvalLogHeader>;
   loading: boolean;
   selectedIndex: number;
@@ -20,12 +20,12 @@ interface SidebarProps {
 }
 
 export const Sidebar: FC<SidebarProps> = ({
-  logs,
   logHeaders,
   loading,
   selectedIndex,
   onSelectedIndexChanged,
 }) => {
+  const logs = useStore((state) => state.logs.logs);
   const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
   const offCanvas = useStore((state) => state.app.offcanvas);
   const handleToggle = useCallback(() => {
@@ -82,7 +82,7 @@ export const Sidebar: FC<SidebarProps> = ({
                 data-index={index}
               >
                 <Link
-                  to={`/logs/${encodeURIComponent(file.name)}`}
+                  to={`/logs/${directoryRelativeUrl(file.name, logs.log_dir)}`}
                   className={styles.logLink}
                   onClick={() => {
                     // Also update the current index in state
