@@ -1,6 +1,3 @@
-
-
-
 export function isValidPythonFnName(input: string) {
   if (!kFnCharsRegex.test(input)) {
     return false;
@@ -48,5 +45,3 @@ const kReservedWords = [
   "with",
   "yield",
 ];
-
-

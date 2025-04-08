@@ -16,12 +16,15 @@ export const readEnv = (file: Uri): Record<string, string> => {
     .map((line) => {
       return readLine(line);
     })
-    .reduce((prev, current) => {
-      if (current) {
-        prev[current.key] = current?.value;
-      }
-      return prev;
-    }, {} as Record<string, string>);
+    .reduce(
+      (prev, current) => {
+        if (current) {
+          prev[current.key] = current?.value;
+        }
+        return prev;
+      },
+      {} as Record<string, string>,
+    );
 };
 
 export const writeEnv = (key: string, value: string, file: Uri) => {

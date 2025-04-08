@@ -10,7 +10,7 @@ export function createPreviewPanel(
   viewType: string,
   title: string,
   preserveFocus?: boolean,
-  options?: WebviewPanelOptions & WebviewOptions
+  options?: WebviewPanelOptions & WebviewOptions,
 ): HostWebviewPanel {
   return window.createWebviewPanel(
     viewType,
@@ -19,6 +19,6 @@ export function createPreviewPanel(
       viewColumn: ViewColumn.Beside,
       preserveFocus,
     },
-    options
+    options,
   ) as HostWebviewPanel;
 }

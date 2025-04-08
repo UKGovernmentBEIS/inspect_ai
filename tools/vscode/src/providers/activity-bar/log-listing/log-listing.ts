@@ -6,17 +6,17 @@ import { normalizeWindowsUri } from "../../../core/uri";
 
 export type LogNode =
   | ({
-    type: "dir";
-    iconPath?: string | ThemeIcon;
-    tooltip?: MarkdownString;
-    parent?: LogNode;
-  } & LogDirectory)
+      type: "dir";
+      iconPath?: string | ThemeIcon;
+      tooltip?: MarkdownString;
+      parent?: LogNode;
+    } & LogDirectory)
   | ({
-    type: "file";
-    iconPath?: string | ThemeIcon;
-    tooltip?: MarkdownString;
-    parent?: LogNode;
-  } & LogFile);
+      type: "file";
+      iconPath?: string | ThemeIcon;
+      tooltip?: MarkdownString;
+      parent?: LogNode;
+    } & LogFile);
 
 export interface LogDirectory {
   name: string;
@@ -38,7 +38,7 @@ export class LogListing {
   constructor(
     private readonly context: ExtensionContext,
     private readonly logDir_: Uri,
-    private readonly viewServer_: InspectViewServer
+    private readonly viewServer_: InspectViewServer,
   ) {
     this.mru_ = new LogListingMRU(context);
   }
@@ -119,7 +119,7 @@ export class LogListing {
           files: LogFile[];
         };
         const log_dir = normalizeWindowsUri(
-          logs.log_dir.endsWith("/") ? logs.log_dir : `${logs.log_dir}/`
+          logs.log_dir.endsWith("/") ? logs.log_dir : `${logs.log_dir}/`,
         );
         for (const file of logs.files) {
           file.name = normalizeWindowsUri(file.name).replace(`${log_dir}`, "");
@@ -128,13 +128,13 @@ export class LogListing {
         return tree;
       } else {
         log.error(
-          `No response retreiving logs from ${this.logDir_.toString(false)}`
+          `No response retreiving logs from ${this.logDir_.toString(false)}`,
         );
         return [];
       }
     } catch (error) {
       log.error(
-        `Unexpected error retreiving logs from ${this.logDir_.toString(false)}`
+        `Unexpected error retreiving logs from ${this.logDir_.toString(false)}`,
       );
       log.error(error instanceof Error ? error : String(error));
       return [];
@@ -143,7 +143,7 @@ export class LogListing {
 
   private findParentNode(
     nodes: LogNode[],
-    parentName: string
+    parentName: string,
   ): LogDirectory | undefined {
     for (const node of nodes) {
       if (node.type === "dir") {

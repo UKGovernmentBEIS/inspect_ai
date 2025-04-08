@@ -4,7 +4,6 @@ body {
   padding: 0 14px 0.5em 14px;
 }
 
-
 .component-container {
   display: flex;
   flex-direction: column;
@@ -20,15 +19,15 @@ body {
   justify-content: flex-start;
 }
 
-.full-width  {
+.full-width {
   width: 100%;
 }
 
 .two-cols > * {
-  flex-basis: calc(50% - .25em);
+  flex-basis: calc(50% - 0.25em);
 }
 
-.hidden { 
+.hidden {
   display: none;
 }
 
@@ -41,7 +40,6 @@ fast-number-field::part(label),
   line-height: 20px;
   margin-bottom: 1px;
 }
-
 
 fieldset > vscode-text-field:nth-child(2) {
   margin-top: 0;
@@ -68,7 +66,7 @@ vscode-panels {
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  gap: .5em;
+  gap: 0.5em;
 }
 
 .cols {
@@ -79,7 +77,6 @@ vscode-panels {
   flex-wrap: wrap;
   gap: 0.5em;
 }
-
 
 .empty-panel {
   margin-top: 1em;
@@ -121,7 +118,6 @@ vscode-panels {
 
 /* FAST COMPONENTS */
 
-
 fast-number-field::part(root),
 fast-combobox {
   background: var(--vscode-dropdown-background);
@@ -148,7 +144,6 @@ fast-combobox::part(listbox) {
   color: var(--vscode-dropdown-foreground);
 }
 
-
 fast-number-field::part(root) {
   min-width: 60px;
 }
@@ -162,7 +157,6 @@ fast-number-field:focus-within:not([disabled])::part(root) {
   box-shadow: none;
 }
 
-
 fast-option {
   color: var(--vscode-foreground);
   border-radius: calc(var(--corner-radius-round) * 1px);
@@ -170,13 +164,12 @@ fast-option {
 }
 
 fast-option.selected,
-fast-option:hover 
-{
+fast-option:hover {
   color: var(--vscode-list-activeSelectionForeground);
   background-color: var(--vscode-list-activeSelectionBackground);
 }
 
-fast-combobox::part(select-indicator)  {
+fast-combobox::part(select-indicator) {
   margin: 0;
   padding: 0;
   min-height: 10px;
@@ -189,20 +182,19 @@ fast-combobox::part(select-indicator)  {
   line-height: 10px;
 }
 
-
 fast-combobox::part(listbox) {
-  margin-top: -.5em;
+  margin-top: -0.5em;
   padding-top: 0;
   padding-bottom: 0;
 }
 
 fast-combobox::part(control) {
-  padding-left: .4em;
+  padding-left: 0.4em;
   padding-right: 0;
 }
 
 fast-combobox::part(indicator) {
-  margin-top: -.3em;
+  margin-top: -0.3em;
 }
 
 fast-combobox.open::part(control),
@@ -212,12 +204,11 @@ fast-combobox.open::part(listbox) {
 
 fast-combobox::part(option) {
   padding: 8px 16px; /* Comfortable padding for each option */
-  font-family: Consolas, 'Courier New', monospace; /* Stylistic choice */
+  font-family: Consolas, "Courier New", monospace; /* Stylistic choice */
 }
 
 fast-number-field::part(step-up-glyph),
 fast-number-field::part(step-down-glyph) {
-  
   padding: 4px 8px;
   height: 8px;
   width: 8px;
@@ -226,11 +217,11 @@ fast-number-field::part(step-down-glyph) {
 
 fast-number-field::part(step-up-glyph)::before {
   border-width: 5px;
-  border-bottom-color: var(--vscode-activityBar-foreground)
+  border-bottom-color: var(--vscode-activityBar-foreground);
 }
 fast-number-field::part(step-down-glyph)::before {
   border-width: 5px;
-  border-top-color: var(--vscode-activityBar-foreground)
+  border-top-color: var(--vscode-activityBar-foreground);
 }
 
 vscode-panels::part(tablist) {
@@ -242,8 +233,8 @@ vscode-panel-view {
 }
 
 label vscode-link::part(control) {
-  margin-bottom: -.4em;
-  margin-top: -.1em;
+  margin-bottom: -0.4em;
+  margin-top: -0.1em;
   line-height: var(--type-ramp-minus1-font-size);
 }
 
@@ -251,7 +242,7 @@ vscode-text-field::part(label) {
   font-size: var(--type-ramp-minus1-font-size);
 }
 
-vscode-checkbox{
+vscode-checkbox {
   font-size: var(--type-ramp-minus1-font-size);
 }
 

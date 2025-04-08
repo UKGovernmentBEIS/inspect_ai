@@ -5,17 +5,14 @@ import { runProcess } from "./process";
 import { AbsolutePath } from "./path";
 import { platform } from "os";
 
-export function ensureGitignore(
-  dir: AbsolutePath,
-  entries: string[]
-): boolean {
+export function ensureGitignore(dir: AbsolutePath, entries: string[]): boolean {
   // if .gitignore exists, then ensure it has the requisite entries
   const gitignorePath = path.join(dir.path, ".gitignore");
   if (existsSync(gitignorePath)) {
     const gitignore = lines(
       readFileSync(gitignorePath, {
         encoding: "utf-8",
-      })
+      }),
     ).map((line) => line.trim());
     const requiredEntries: string[] = [];
     for (const requiredEntry of entries) {
@@ -54,7 +51,6 @@ function writeGitignore(dir: string, lines: string[]) {
   writeFileSync(
     path.join(dir, ".gitignore"),
     lines.join(lineEnding) + lineEnding,
-    { encoding: "utf-8" }
+    { encoding: "utf-8" },
   );
 }
-

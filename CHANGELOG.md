@@ -2,6 +2,10 @@
 
 - Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
 
+## v0.3.84 (07 April 2025)
+
+- Bugfix: Suppress link click behavior in vscode links.
+
 ## v0.3.83 (07 April 2025)
 
 - Inspect View: [Live updates](https://inspect.aisi.org.uk/log-viewer.html#live-view) to running evaluation logs.
