@@ -12,15 +12,15 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 
 ## Overview
 
-The [Model Context Protocol](https://modelcontextprotocol.io/introduction) is a standard way to provide capabilities to LLMs. There are hundreds of [MCP Servers](https://github.com/modelcontextprotocol/servers) that provide tools for a myriad of purposes including web search and browsing, filesystem interaction, database access, git, and more.
+The [Model Context Protocol](https://modelcontextprotocol.io/introduction) is a standard way to provide capabilities to LLMs. There are hundreds of [MCP Servers](https://github.com/modelcontextprotocol/servers) that provide tools for a myriad of purposes including web search, filesystem interaction, database access, git, and more.
 
-Each MCP server provides a set of LLM tools. You can use all of the tools from a server or select a subset of tools. To use these tools in Inspect, you first define a connection to an MCP Server then pass the server's tools on to Inspect functions that take `tools` as an argument.
+Each MCP server provides a set of LLM tools. You can use all of the tools from a server or select a subset of tools. To use these tools in Inspect, you first define a connection to an MCP Server then pass the server on to Inspect functions that take `tools` as an argument.
 
 ### Example
 
-For example, here we create a connection to a [Git MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/git), and then pass it to a `react()` agent use as solver for a task:
+For example, here we create a connection to a [Git MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/git), and then pass it to a `react()` agent used as a solver for a task:
 
-```python
+``` python
 from inspect_ai import task
 from inspect_ai.agent import react
 from inspect_ai.tool import mcp_server_stdio
@@ -40,14 +40,12 @@ def git_task():
     )
 ```
 
+The Git MCP server provides various tools for interacting with Git (e.g. `git_status()`, `git_diff()`, `git_log()`, etc.). By passing the `git_server` instance to the agent we make these tools available to it. You can also filter the list of tools (which is covered below in [Tool Selection](#tool-selection)).
+
 ## MCP Servers
 
+There are three types of MCP Servers that you might use
 
-
-Link to MCP servers
-
-## Tool Selection
-
+## Tool Selection {#tool-selection}
 
 ## Connections
-
