@@ -54000,16 +54000,16 @@ ${events}
       body: body$1,
       scroller
     };
-    const InlineSampleDisplay = ({
-      id,
-      selectedTab,
-      setSelectedTab
-    }) => {
+    const InlineSampleDisplay = () => {
       var _a2, _b2, _c, _d, _e2, _f;
       const sampleData = useSampleData();
       const loadSample = useStore((state) => state.sampleActions.loadSample);
       const pollSample = useStore((state) => state.sampleActions.pollSample);
       const logSelection = useLogSelection();
+      const selectedSampleTab = useStore((state) => state.app.tabs.sample);
+      const setSelectedSampleTab = useStore(
+        (state) => state.appActions.setSampleTab
+      );
       reactExports.useEffect(() => {
         if (sampleData.running && logSelection.logFile && logSelection.sample) {
           pollSample(logSelection.logFile, logSelection.sample);
@@ -54052,11 +54052,11 @@ ${events}
         ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
           SampleDisplay,
           {
-            id,
+            id: "inline-sample-display",
             sample: sampleData.sample,
             runningEvents: sampleData.running,
-            selectedTab,
-            setSelectedTab,
+            selectedTab: selectedSampleTab,
+            setSelectedTab: setSelectedSampleTab,
             scrollRef
           }
         ) }) })
@@ -75712,14 +75712,7 @@ Supported expressions:
         }
       } else {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          samplesDescriptor && totalSampleCount === 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            InlineSampleDisplay,
-            {
-              id: "sample-display",
-              selectedTab: selectedSampleTab,
-              setSelectedTab: setSelectedSampleTab
-            }
-          ) : void 0,
+          samplesDescriptor && totalSampleCount === 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(InlineSampleDisplay, {}) : void 0,
           samplesDescriptor && totalSampleCount > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleList,
             {
