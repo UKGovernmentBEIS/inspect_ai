@@ -16,13 +16,13 @@ import { ErrorPanel } from "./components/ErrorPanel";
 import { ProgressBar } from "./components/ProgressBar";
 
 import { FindBand } from "./components/FindBand";
-import { Sidebar } from "./workspace/sidebar/Sidebar.tsx";
-import { WorkSpace } from "./workspace/WorkSpace";
+import { Sidebar } from "./log-view/sidebar/Sidebar.tsx";
 
 import ClipboardJS from "clipboard";
 import clsx from "clsx";
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
 import { ClientAPI, HostMessage } from "./api/types.ts";
+import { LogView } from "./log-view/LogView.tsx";
 import { useSetSelectedLogIndex } from "./state/hooks.ts";
 import { useStore } from "./state/store.ts";
 
@@ -67,13 +67,10 @@ export const App: FC<AppProps> = ({ api }) => {
   // Log Data
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const loadedLogFile = useStore((state) => state.log.loadedLog);
-  const runningMetrics = useStore(
-    (state) => state.log.pendingSampleSummaries?.metrics,
-  );
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
   const loadLog = useStore((state) => state.logActions.loadLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
-  const refreshLog = useStore((state) => state.logActions.refreshLog);
+
   const selectSample = useStore((state) => state.logActions.selectSample);
 
   // The main application reference
@@ -124,21 +121,6 @@ export const App: FC<AppProps> = ({ api }) => {
       });
     }
   }, [logs.log_dir, logs.files.length]);
-
-  const appRefreshLog = useCallback(() => {
-    try {
-      setAppStatus({ loading: true, error: undefined });
-
-      refreshLog();
-      resetFiltering();
-
-      setAppStatus({ loading: false, error: undefined });
-    } catch (e) {
-      // Show an error
-      console.log(e);
-      setAppStatus({ loading: false, error: e as Error });
-    }
-  }, [refreshLog, resetFiltering, setAppStatus]);
 
   const onMessage = useCallback(
     async (e: HostMessage) => {
@@ -223,8 +205,6 @@ export const App: FC<AppProps> = ({ api }) => {
   // if there are no log files, then don't show sidebar
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
 
-  const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
-
   const handleSelectedIndexChanged = useCallback(
     (index: number) => {
       setSelectedLogIndex(index);
@@ -289,28 +269,9 @@ export const App: FC<AppProps> = ({ api }) => {
             error={appStatus.error}
           />
         ) : (
-          <WorkSpace
-            task_id={selectedLogSummary?.eval?.task_id}
-            evalStatus={selectedLogSummary?.status}
-            evalError={filterNull(selectedLogSummary?.error)}
-            evalVersion={selectedLogSummary?.version}
-            evalSpec={selectedLogSummary?.eval}
-            evalPlan={selectedLogSummary?.plan}
-            evalStats={selectedLogSummary?.stats}
-            evalResults={filterNull(selectedLogSummary?.results)}
-            runningMetrics={runningMetrics}
-            showToggle={showToggle}
-            refreshLog={appRefreshLog}
-          />
+          <LogView />
         )}
       </div>
     </>
   );
-};
-
-const filterNull = <T,>(obj: T | null): T | undefined => {
-  if (obj === null) {
-    return undefined;
-  }
-  return obj;
 };

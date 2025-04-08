@@ -18,7 +18,7 @@ import styles from "./SecondaryBar.module.css";
 interface SecondaryBarProps {
   evalSpec?: EvalSpec;
   evalPlan?: EvalPlan;
-  evalResults?: EvalResults;
+  evalResults?: EvalResults | null;
   evalStats?: EvalStats;
   status?: string;
   sampleCount?: number;
