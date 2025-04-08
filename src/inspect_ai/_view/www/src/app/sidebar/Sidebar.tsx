@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, useCallback, useRef } from "react";
+import { FC, useCallback, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Fragment } from "react/jsx-runtime";
 import { EvalLogHeader } from "../../client/api/types";
@@ -34,6 +34,18 @@ export const Sidebar: FC<SidebarProps> = ({
 
   const sidebarContentsRef = useRef(null);
   useStatefulScrollPosition(sidebarContentsRef, "sidebar-contents", 1000);
+
+  // Scroll the selected log into view when it changes
+  const itemRefs = useRef<{ [index: number]: HTMLLIElement | null }>({});
+
+  useEffect(() => {
+    if (itemRefs.current[selectedIndex]) {
+      itemRefs.current[selectedIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [selectedIndex]);
 
   // No longer need the click handler as we're using Links now
 
@@ -73,6 +85,9 @@ export const Sidebar: FC<SidebarProps> = ({
             return (
               <li
                 key={file.name}
+                ref={(el) => {
+                  itemRefs.current[index] = el;
+                }}
                 className={clsx(
                   "list-group-item",
                   "list-group-item-action",
