@@ -8,7 +8,7 @@ import {
 } from "../../../@types/log";
 import { SampleSummary } from "../../../client/api/types";
 import { MessageBand } from "../../../components/MessageBand";
-import { kInfoWorkspaceTabId } from "../../../constants";
+import { kLogViewInfoTabId } from "../../../constants";
 import { useTotalSampleCount } from "../../../state/hooks";
 import { PlanCard } from "../../plan/PlanCard";
 import { UsageCard } from "../../usage/UsageCard";
@@ -25,7 +25,7 @@ export const useInfoTabConfig = (
   const totalSampleCount = useTotalSampleCount();
   return useMemo(() => {
     return {
-      id: kInfoWorkspaceTabId,
+      id: kLogViewInfoTabId,
       label: "Info",
       scrollable: true,
       component: InfoTab,
