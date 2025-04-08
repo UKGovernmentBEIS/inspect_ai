@@ -1,7 +1,7 @@
 import { FC, Fragment } from "react";
 import { ApplicationIcons } from "../../app/appearance/icons";
+import { MetaDataGrid } from "../../app/content/MetaDataGrid";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
-import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { ScoreEvent, Value1 } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
