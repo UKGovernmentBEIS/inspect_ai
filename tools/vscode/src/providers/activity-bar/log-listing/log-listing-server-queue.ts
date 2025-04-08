@@ -1,31 +1,39 @@
-import * as vscode from 'vscode';
-import { LogListing, LogNode } from './log-listing';
-import { EvalLog, EvalResults } from '../../../@types/log';
-import path from 'path';
-import { MarkdownString } from 'vscode';
-import { stringify } from 'yaml';
-import { sleep } from '../../../core/wait';
+import * as vscode from "vscode";
+import { LogListing, LogNode } from "./log-listing";
+import { EvalLog, EvalResults } from "../../../@types/log";
+import path from "path";
+import { MarkdownString } from "vscode";
+import { stringify } from "yaml";
+import { sleep } from "../../../core/wait";
 
-export const kLogListCacheName = 'logListingCache';
+export const kLogListCacheName = "logListingCache";
 
 export class LogElementQueueProcessor {
   private queue: LogNode[] = [];
   private isProcessing = false;
-  private elementCache = new Map<string, {
-    iconPath?: string | vscode.ThemeIcon;
-    tooltip?: vscode.MarkdownString;
-  }>();
+  private elementCache = new Map<
+    string,
+    {
+      iconPath?: string | vscode.ThemeIcon;
+      tooltip?: vscode.MarkdownString;
+    }
+  >();
   private processingTimeout: NodeJS.Timeout | null = null;
 
   constructor(
-    private readonly viewServer: { evalLogHeaders: (uris: string[]) => Promise<string | undefined> },
+    private readonly viewServer: {
+      evalLogHeaders: (uris: string[]) => Promise<string | undefined>;
+    },
     private readonly logListing: () => LogListing | undefined,
     private readonly context: vscode.ExtensionContext,
     private readonly onElementUpdated: (element: LogNode) => void,
     private readonly batchSize: number = 10,
   ) {
     // Load cache from workspace storage
-    const savedCache = this.context.workspaceState.get<Map<string, { iconPath?: string; tooltip?: vscode.MarkdownString }>>(kLogListCacheName);
+    const savedCache =
+      this.context.workspaceState.get<
+        Map<string, { iconPath?: string; tooltip?: vscode.MarkdownString }>
+      >(kLogListCacheName);
     if (savedCache) {
       this.elementCache = new Map(savedCache);
     } else {
@@ -60,7 +68,7 @@ export class LogElementQueueProcessor {
     try {
       // Collect all URIs
       const elementUris = new Map<string, LogNode>();
-      elements.forEach(element => {
+      elements.forEach((element) => {
         const listing = this.logListing();
         const uri = listing?.uriForNode(element);
         if (uri) {
@@ -69,7 +77,7 @@ export class LogElementQueueProcessor {
       });
       const allUris = Array.from(elementUris.keys());
 
-      // Handle cached elements (if they're in the cache, 
+      // Handle cached elements (if they're in the cache,
       // screen them out after populating them from cache)
       const uris = allUris.filter((uri) => {
         const cached = this.elementCache.get(uri);
@@ -102,7 +110,7 @@ export class LogElementQueueProcessor {
               element.iconPath = iconForStatus(
                 this.context,
                 element,
-                evalLog.status
+                evalLog.status,
               );
               element.tooltip = evalSummary(element, evalLog);
 
@@ -112,11 +120,14 @@ export class LogElementQueueProcessor {
               if (nodeUri && evalLog.status !== "started") {
                 this.elementCache.set(nodeUri.toString(), {
                   iconPath: element.iconPath,
-                  tooltip: element.tooltip
+                  tooltip: element.tooltip,
                 });
 
                 // Persist the cache
-                await this.context.workspaceState.update(kLogListCacheName, Array.from(this.elementCache.entries()));
+                await this.context.workspaceState.update(
+                  kLogListCacheName,
+                  Array.from(this.elementCache.entries()),
+                );
                 this.enforceCacheLimit();
               }
 
@@ -147,7 +158,7 @@ export class LogElementQueueProcessor {
   }
 
   enforceCacheLimit(): void {
-    // Evict the least recently used item if this exceeds 
+    // Evict the least recently used item if this exceeds
     // the max size
     if (this.elementCache.size > 500) {
       const keys = Array.from(this.elementCache.keys());
@@ -155,10 +166,12 @@ export class LogElementQueueProcessor {
     }
   }
 
-  public cachedValue(uri: string): {
-    iconPath?: string | vscode.ThemeIcon;
-    tooltip?: vscode.MarkdownString;
-  } | undefined {
+  public cachedValue(uri: string):
+    | {
+        iconPath?: string | vscode.ThemeIcon;
+        tooltip?: vscode.MarkdownString;
+      }
+    | undefined {
     return this.elementCache.get(uri);
   }
 }
@@ -166,7 +179,7 @@ export class LogElementQueueProcessor {
 function iconForStatus(
   context: vscode.ExtensionContext,
   element: LogNode,
-  status?: string
+  status?: string,
 ) {
   if (element.name.endsWith(".eval")) {
     let modifier = undefined;
@@ -184,23 +197,25 @@ function iconForStatus(
 
     if (modifier) {
       return context.asAbsolutePath(
-        path.join("assets", "icon", `eval-treeview-${modifier}.svg`)
+        path.join("assets", "icon", `eval-treeview-${modifier}.svg`),
       );
     } else {
       return context.asAbsolutePath(
-        path.join("assets", "icon", "eval-treeview.svg")
+        path.join("assets", "icon", "eval-treeview.svg"),
       );
     }
   } else {
     return new vscode.ThemeIcon(
       "bracket",
-      new vscode.ThemeColor("symbolIcon.classForeground")
+      new vscode.ThemeColor("symbolIcon.classForeground"),
     );
   }
 }
 
-
-export function evalSummary(node: LogNode, log: EvalLog): MarkdownString | undefined {
+export function evalSummary(
+  node: LogNode,
+  log: EvalLog,
+): MarkdownString | undefined {
   // build summary
   const summary = evalHeader(log);
 
@@ -247,8 +262,8 @@ function evalTarget(log: EvalLog): string {
     const epochs = eval_epochs > 1 ? ` x ${eval_epochs}` : "";
     dataset.push(
       `(${log.eval.dataset.samples}${epochs} sample` +
-      (log.eval.dataset.samples > 1 ? "s" : "") +
-      ")"
+        (log.eval.dataset.samples > 1 ? "s" : "") +
+        ")",
     );
   }
   if (dataset.length === 1) {
@@ -259,7 +274,7 @@ function evalTarget(log: EvalLog): string {
   // scorers
   if (log.results) {
     const scorer_names = new Set<string>(
-      log.results.scores.map((score) => score.scorer)
+      log.results.scores.map((score) => score.scorer),
     );
     target.push("scorers: " + Array.from(scorer_names).join(", "));
   }
@@ -300,12 +315,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 
 function evalResults(results: EvalResults): string[] {
   const scorer_names = new Set<string>(
-    results.scores.map((score) => score.name)
+    results.scores.map((score) => score.name),
   );
   const reducer_names = new Set<string>(
     results.scores
       .filter((score) => score.reducer !== null)
-      .map((score) => score.reducer || "")
+      .map((score) => score.reducer || ""),
   );
   const show_reducer = reducer_names.size > 1 || !reducer_names.has("avg");
   const output: Record<string, string> = {};

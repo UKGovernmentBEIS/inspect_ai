@@ -1,11 +1,5 @@
-
-import {
-  TextDocument,
-  Uri,
-
-} from "vscode";
+import { TextDocument, Uri } from "vscode";
 import { lines } from "../core/text";
-
 
 // Task information for a document
 export interface DocumentTaskInfo {
@@ -18,7 +12,7 @@ export interface DocumentTaskInfo {
 export interface TaskData {
   name: string;
   params: string[];
-  line: number
+  line: number;
 }
 
 // Reads tasks from a TextDocument
@@ -35,7 +29,8 @@ export function readTaskData(document: TextDocument): TaskData[] {
   const tasks: TaskData[] = [];
   const docLines = lines(document.getText());
 
-  let state: "seeking-task" | "seeking-function" | "reading-params" = "seeking-task";
+  let state: "seeking-task" | "seeking-function" | "reading-params" =
+    "seeking-task";
   let startLine = -1;
   docLines.forEach((line, idx) => {
     switch (state) {
@@ -45,28 +40,29 @@ export function readTaskData(document: TextDocument): TaskData[] {
           state = "seeking-function";
         }
         break;
-      case "seeking-function": {
-        const match = line.match(kFunctionNamePattern);
-        if (match) {
-          const fnName = match[1];
-          const task: TaskData = {
-            name: fnName,
-            params: [],
-            line: startLine
-          };
-          tasks.push(task);
+      case "seeking-function":
+        {
+          const match = line.match(kFunctionNamePattern);
+          if (match) {
+            const fnName = match[1];
+            const task: TaskData = {
+              name: fnName,
+              params: [],
+              line: startLine,
+            };
+            tasks.push(task);
 
-          const restOfLine = match[2];
-          const keepReading = readParams(restOfLine, task);
-          if (keepReading) {
-            state = "reading-params";
-          } else {
-            // We've read the complete function, go
-            // back to seeking tasks            
-            state = "seeking-task";
+            const restOfLine = match[2];
+            const keepReading = readParams(restOfLine, task);
+            if (keepReading) {
+              state = "reading-params";
+            } else {
+              // We've read the complete function, go
+              // back to seeking tasks
+              state = "seeking-task";
+            }
           }
         }
-      }
         break;
       case "reading-params": {
         const keepReading = readParams(line, tasks[tasks.length - 1]);
@@ -83,7 +79,6 @@ export function readTaskData(document: TextDocument): TaskData[] {
   return tasks;
 }
 
-
 const readParams = (line: string, task: TaskData) => {
   const paramsMatch = line.match(kParamsPattern);
   if (paramsMatch) {
@@ -98,10 +93,9 @@ const readParams = (line: string, task: TaskData) => {
   return !kFunctionEndPattern.test(line);
 };
 
-
 const parseParameters = (paramStr: string): string[] => {
   let bracketDepth = 0;
-  let currentParam = '';
+  let currentParam = "";
   const params: string[] = [];
 
   // Accumulate chars, tracking brackets and only
@@ -109,15 +103,15 @@ const parseParameters = (paramStr: string): string[] => {
   for (let i = 0; i < paramStr.length; i++) {
     const char = paramStr[i];
 
-    if (['[', '(', '{'].includes(char)) {
+    if (["[", "(", "{"].includes(char)) {
       bracketDepth++;
       currentParam += char;
-    } else if ([']', ')', '}'].includes(char)) {
+    } else if (["]", ")", "}"].includes(char)) {
       bracketDepth--;
       currentParam += char;
-    } else if (char === ',' && bracketDepth === 0) {
+    } else if (char === "," && bracketDepth === 0) {
       params.push(currentParam.trim());
-      currentParam = '';
+      currentParam = "";
     } else {
       currentParam += char;
     }
@@ -129,9 +123,11 @@ const parseParameters = (paramStr: string): string[] => {
   }
 
   // Extract parameter names
-  return params.map(param => {
-    // Get everything before the colon (the parameter name)
-    const nameMatch = param.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
-    return nameMatch ? nameMatch[1] : '';
-  }).filter(Boolean);
+  return params
+    .map((param) => {
+      // Get everything before the colon (the parameter name)
+      const nameMatch = param.match(/^\s*([a-zA-Z_][a-zA-Z0-9_]*)/);
+      return nameMatch ? nameMatch[1] : "";
+    })
+    .filter(Boolean);
 };

@@ -14,7 +14,7 @@ export function activateCodeLens(context: ExtensionContext) {
   const provider = new InspectCodeLensProvider();
   const selector = { language: "python" };
   context.subscriptions.push(
-    languages.registerCodeLensProvider(selector, provider)
+    languages.registerCodeLensProvider(selector, provider),
   );
 }
 
@@ -68,7 +68,7 @@ export class InspectCodeLensProvider implements CodeLensProvider {
 
   provideCodeLenses(
     document: TextDocument,
-    token: CancellationToken
+    token: CancellationToken,
   ): CodeLens[] {
     const lenses: CodeLens[] = [];
 

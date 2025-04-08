@@ -8,7 +8,7 @@ import {
   EndOfLine,
   Uri,
 } from "vscode";
-import { InspectCodeLensProvider } from "../providers/codelens/codelens-provider";
+import { InspectCodeLensProvider } from "../../providers/codelens/codelens-provider";
 
 class MockTextLine implements TextLine {
   constructor(

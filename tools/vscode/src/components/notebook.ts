@@ -1,10 +1,18 @@
 import { extname } from "path";
-import { NotebookCellKind, NotebookDocument, NotebookRange, Position, Range, Selection, Uri } from "vscode";
+import {
+  NotebookCellKind,
+  NotebookDocument,
+  NotebookRange,
+  Position,
+  Range,
+  Selection,
+  Uri,
+} from "vscode";
 import { TaskData, readTaskData } from "./task";
 
 export interface NotebookCellSelection {
-  cell: NotebookRange,
-  selection: Range
+  cell: NotebookRange;
+  selection: Range;
 }
 
 // Tests whether a given Uri is a notebook
@@ -20,7 +28,10 @@ export const isNotebookPath = (path: string) => {
 // Find the cell selection for a task within a notebook
 // Note that this provides both the cell range and the selection
 // within the cell
-export const taskRangeForNotebook = (task: string, document: NotebookDocument): NotebookCellSelection | undefined => {
+export const taskRangeForNotebook = (
+  task: string,
+  document: NotebookDocument,
+): NotebookCellSelection | undefined => {
   const cells = cellTasks(document);
 
   // Find the cell that contains the task
@@ -39,7 +50,7 @@ export const taskRangeForNotebook = (task: string, document: NotebookDocument): 
       const position = new Position(taskDetail.line + 1, 0);
       return {
         cell: new NotebookRange(index, index),
-        selection: new Selection(position, position)
+        selection: new Selection(position, position),
       };
     }
   }
@@ -55,14 +66,13 @@ export const firstTaskRangeForNotebook = (document: NotebookDocument) => {
 
   // If there is a cell with a task, compute its range
   if (cellTask) {
-
     // Just take the first task in the cell
     const task = cellTask.tasks[0];
     const index = cellTask.cellIndex;
     const position = new Position(task.line + 1, 0);
     return {
       cell: new NotebookRange(index, index),
-      selection: new Selection(position, position)
+      selection: new Selection(position, position),
     };
   }
 };

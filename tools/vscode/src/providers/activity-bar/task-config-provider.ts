@@ -49,9 +49,8 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
     private readonly extensionUri_: Uri,
     private readonly stateManager_: WorkspaceStateManager,
     private readonly taskManager_: ActiveTaskManager,
-    private readonly inspectManager_: InspectManager
-  ) {
-  }
+    private readonly inspectManager_: InspectManager,
+  ) {}
 
   public async resolveWebviewView(webviewView: WebviewView) {
     webviewView.webview.options = {
@@ -59,7 +58,6 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
       enableScripts: true,
       localResourceRoots: [this.extensionUri_],
     };
-
 
     const noInspectMsg = async () => {
       webviewView.description = "";
@@ -89,12 +87,12 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
     const removeStaleTaskParams = async (activeTaskInfo: DocumentTaskInfo) => {
       const currentState = this.stateManager_.getTaskState(
         activeTaskInfo.document.fsPath,
-        activeTaskInfo.activeTask?.name
+        activeTaskInfo.activeTask?.name,
       );
       const keysToRemove = Object.keys(currentState.params || {}).filter(
         (key) => {
           return !activeTaskInfo.activeTask?.params.includes(key);
-        }
+        },
       );
       if (keysToRemove.length > 0) {
         keysToRemove.forEach((key) => {
@@ -105,7 +103,7 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
         await this.stateManager_.setTaskState(
           activeTaskInfo.document.fsPath,
           currentState,
-          activeTaskInfo.activeTask?.name
+          activeTaskInfo.activeTask?.name,
         );
       }
     };
@@ -114,43 +112,43 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
       this.taskManager_.onActiveTaskChanged(
         async (e: ActiveTaskChangedEvent) => {
           await updateSidebarState(e.activeTaskInfo);
-        }
-      )
+        },
+      ),
     );
 
     // If the interpreter changes, refresh the tasks
-    this.disposables_.push(this.inspectManager_.onInspectChanged(async () => {
-      if (inspectVersion() !== null) {
-        await initMsg();
-        await this.taskManager_.refresh();
-      } else {
-        await noInspectMsg();
-      }
-    }));
+    this.disposables_.push(
+      this.inspectManager_.onInspectChanged(async () => {
+        if (inspectVersion() !== null) {
+          await initMsg();
+          await this.taskManager_.refresh();
+        } else {
+          await noInspectMsg();
+        }
+      }),
+    );
 
-    this.disposables_.push(webviewView.onDidChangeVisibility(async () => {
-      const activeTask = this.taskManager_.getActiveTaskInfo();
-      await updateTaskInfo(activeTask);
-    }));
+    this.disposables_.push(
+      webviewView.onDidChangeVisibility(async () => {
+        const activeTask = this.taskManager_.getActiveTaskInfo();
+        await updateTaskInfo(activeTask);
+      }),
+    );
 
     webviewView.webview.html = this.htmlForWebview(webviewView.webview);
     webviewView.title = "Task";
 
     await initMsg();
 
-
     const postActiveTaskMsg = async (activeTaskInfo: DocumentTaskInfo) => {
       // Ignore active task changes that don't include a task (e.g. they are files)
-      if (
-        !activeTaskInfo.activeTask ||
-        inspectVersion() === null
-      ) {
+      if (!activeTaskInfo.activeTask || inspectVersion() === null) {
         return;
       }
 
       const currentState = this.stateManager_.getTaskState(
         activeTaskInfo.document.fsPath,
-        activeTaskInfo.activeTask?.name
+        activeTaskInfo.activeTask?.name,
       );
       await webviewView.webview.postMessage({
         type: "setActiveTask",
@@ -166,7 +164,7 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
       this.taskManager_.onActiveTaskChanged(async (e) => {
         await updateSidebarState(e.activeTaskInfo);
         await updateTaskInfo(e.activeTaskInfo);
-      })
+      }),
     );
 
     if (inspectVersion() === null) {
@@ -184,7 +182,7 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
           const path = activeTask.document.fsPath;
           const currentState = this.stateManager_.getTaskState(
             path,
-            activeTask.activeTask?.name
+            activeTask.activeTask?.name,
           );
           switch (data.command) {
             case "setStateValue":
@@ -219,10 +217,10 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
           await this.stateManager_.setTaskState(
             path,
             currentState,
-            activeTask.activeTask?.name
+            activeTask.activeTask?.name,
           );
         }
-      }
+      },
     );
 
     // Attach a listener to clean up resources when the webview is disposed
@@ -240,7 +238,7 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
   private htmlForWebview(webview: Webview) {
     // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
     const scriptUri = webview.asWebviewUri(
-      Uri.joinPath(this.extensionUri_, "out", "task-config-webview.js")
+      Uri.joinPath(this.extensionUri_, "out", "task-config-webview.js"),
     );
     const codiconsUri = webview.asWebviewUri(
       Uri.joinPath(
@@ -248,8 +246,8 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
         "assets",
         "www",
         "codicon",
-        "codicon.css"
-      )
+        "codicon.css",
+      ),
     );
 
     const codiconsFontUri = webview.asWebviewUri(
@@ -258,8 +256,8 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
         "assets",
         "www",
         "codicon",
-        "codicon.ttf"
-      )
+        "codicon.ttf",
+      ),
     );
 
     // Use a nonce to only allow a specific script to be run.
@@ -275,9 +273,11 @@ export class TaskConfigurationProvider implements WebviewViewProvider {
                       and only allow scripts that have a specific nonce.
                       (See the 'webview-sample' extension sample for img-src content security policy examples)
                   -->
-                  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource
-      }; style-src ${webview.cspSource
-      } 'unsafe-inline'; script-src 'nonce-${nonce}';">
+                  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${
+                    webview.cspSource
+                  }; style-src ${
+                    webview.cspSource
+                  } 'unsafe-inline'; script-src 'nonce-${nonce}';">
                   <meta name="viewport" content="width=device-width, initial-scale=1.0">
                   <style type="text/css">
                   @font-face {
@@ -323,6 +323,6 @@ const updateSidebarState = async (taskInfo?: DocumentTaskInfo) => {
   await commands.executeCommand(
     "setContext",
     "inspect_ai.task-configuration.task-active",
-    taskInfo !== undefined
+    taskInfo !== undefined,
   );
 };

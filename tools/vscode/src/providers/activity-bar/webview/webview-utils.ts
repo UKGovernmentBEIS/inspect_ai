@@ -31,12 +31,16 @@ export const whenChanged = (id: string, fn: (value: string) => void) => {
         fn(el.value);
       }
     }
-  }
+  };
   el.addEventListener("change", handleEvent);
   el.addEventListener("keyup", debounce(handleEvent, kBounceInterval));
-}
+};
 
-export const showEmptyPanel = (message: string, controlPanelId?: string, targetId?: string) => {
+export const showEmptyPanel = (
+  message: string,
+  controlPanelId?: string,
+  targetId?: string,
+) => {
   if (controlPanelId) {
     setControlsVisible(controlPanelId, false);
   }
@@ -57,7 +61,7 @@ export const showEmptyPanel = (message: string, controlPanelId?: string, targetI
 
     targetEl.appendChild(emptyPanelEl);
   }
-}
+};
 
 export function setControlsVisible(id: string, visible: boolean) {
   const controls = document.getElementById(id);
@@ -67,6 +71,3 @@ export function setControlsVisible(id: string, visible: boolean) {
     controls?.classList.add("hidden");
   }
 }
-
-
-

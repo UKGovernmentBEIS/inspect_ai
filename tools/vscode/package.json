@@ -463,13 +463,18 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "yarn run compile-tests && yarn run compile",
     "lint": "eslint src --ext ts",
-    "test": "vscode-test"
+    "prettier": "prettier --write .",
+    "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
     "@types/async-lock": "^1.4.2",
     "@types/date-fns": "^2.6.3",
+    "@types/eslint": "^9.6.1",
+    "@types/eslint-scope": "^3.7.7",
+    "@types/estree": "^1.0.7",
     "@types/lodash": "^4.17.0",
     "@types/mocha": "^10.0.6",
+    "mocha": "^10.2.0",
     "@types/node": "18.x",
     "@types/vscode": "1.85",
     "@types/yaml": "^1.9.7",
@@ -479,8 +484,10 @@
     "@vscode/test-electron": "^2.3.9",
     "@vscode/vsce": "^2.26.1",
     "css-loader": "^7.1.1",
-    "eslint": "^8.57.0",
+    "eslint": "^9.24.0",
     "global": "^4.4.0",
+    "glob": "^10.3.10",
+    "prettier": "^3.5.3",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.5.1",
     "typescript": "^5.3.3",
@@ -488,6 +495,8 @@
     "webpack-cli": "^5.1.4"
   },
   "dependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.24.0",
     "@microsoft/fast-components": "^2.30.6",
     "@microsoft/fast-element": "^1.13.0",
     "@vscode/webview-ui-toolkit": "^1.4.0",

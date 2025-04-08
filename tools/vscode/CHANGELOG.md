@@ -104,8 +104,8 @@
 
 This version includes a signficant rework of the overall workflow for interacting with Inspect. Changes include:
 
-- The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer. 
-- The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer. 
+- The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer.
+- The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer.
 - New open log directory command allows you to select a log directory and open the Inspect Viewer for that directory
 - Support for the new Inspect `eval` log format. More information [here](https://inspect.aisi.org.uk/eval-logs.html#sec-log-format).
 
@@ -207,13 +207,13 @@ This version includes a signficant rework of the overall workflow for interactin
 
 ## 0.3.13
 
--   Ensure that inspect CLI is in the path for terminals using a global Python environment
--   Add 'Show Logs' command to the environment panel.
--   Improve models in the environment panel
-    -   Display literal provider names (rather than pretty names)
-    -   Remember the last used model for each provider
-    -   Allow free-form provide in model
-    -   Add autocomplete for Ollama
--   Fix 'Restart' when debugging to properly restart the Inspect debugging session
--   Improve performance loading task tree, selecting tasks within outline, and navigating to tasks
--   Improve task selection behavior when the activity bar is first shown
+- Ensure that inspect CLI is in the path for terminals using a global Python environment
+- Add 'Show Logs' command to the environment panel.
+- Improve models in the environment panel
+  - Display literal provider names (rather than pretty names)
+  - Remember the last used model for each provider
+  - Allow free-form provide in model
+  - Add autocomplete for Ollama
+- Fix 'Restart' when debugging to properly restart the Inspect debugging session
+- Improve performance loading task tree, selecting tasks within outline, and navigating to tasks
+- Improve task selection behavior when the activity bar is first shown
