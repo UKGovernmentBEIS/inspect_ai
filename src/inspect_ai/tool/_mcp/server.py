@@ -46,7 +46,7 @@ def mcp_server_stdio(
 ) -> MCPServer:
     """MCP Server (Stdio).
 
-    Stdio interface to MCP server.  Use this for MCP servers that run locally.
+    Stdio interface to MCP server. Use this for MCP servers that run locally.
 
     Args:
         command: The executable to run to start the server.
