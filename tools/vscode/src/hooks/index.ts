@@ -18,7 +18,7 @@ export interface ExtensionHost {
     viewType: string,
     title: string,
     preserveFocus?: boolean,
-    options?: WebviewPanelOptions & WebviewOptions
+    options?: WebviewPanelOptions & WebviewOptions,
   ): HostWebviewPanel;
 }
 

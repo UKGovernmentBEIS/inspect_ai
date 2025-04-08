@@ -1,17 +1,16 @@
 import { Command } from "../../core/command";
-import {
-  Disposable,
-  EventEmitter,
-  Event,
-  Uri,
-} from "vscode";
+import { Disposable, EventEmitter, Event, Uri } from "vscode";
 import { clearEnv, readEnv, writeEnv } from "../../core/env";
 import { isEqual } from "lodash";
 import { workspaceEnvCommands } from "./workspace-env-commands";
 import { activeWorkspaceFolder } from "../../core/workspace";
 import { log } from "../../core/log";
 import { existsSync, statSync } from "fs";
-import { toAbsolutePath, workspacePath, workspaceRelativePath } from "../../core/path";
+import {
+  toAbsolutePath,
+  workspacePath,
+  workspaceRelativePath,
+} from "../../core/path";
 import { kInspectEnvValues } from "../inspect/inspect-constants";
 import { join } from "path";
 
@@ -22,7 +21,7 @@ export function activateWorkspaceEnv(): [Command[], WorkspaceEnvManager] {
 }
 
 // Fired when the active task changes
-export interface EnvironmentChangedEvent { }
+export interface EnvironmentChangedEvent {}
 
 // Manages the workspace environment
 export class WorkspaceEnvManager implements Disposable {
@@ -30,7 +29,9 @@ export class WorkspaceEnvManager implements Disposable {
     const envUri = this.getEnvUri();
     this.env = readEnv(envUri);
     this.lastUpdated_ = Date.now();
-    const envRelativePath = workspaceRelativePath(toAbsolutePath(envUri.fsPath));
+    const envRelativePath = workspaceRelativePath(
+      toAbsolutePath(envUri.fsPath),
+    );
     log.appendLine(`Watching ${envRelativePath}`);
     this.envWatcher_ = setInterval(() => {
       if (existsSync(envUri.fsPath)) {
@@ -91,10 +92,11 @@ export class WorkspaceEnvManager implements Disposable {
       return Uri.parse(env_log, true);
     } catch {
       // This isn't a uri, bud
-      const logDir = env_log ? workspacePath(env_log).path : join(workspacePath().path, "logs");
+      const logDir = env_log
+        ? workspacePath(env_log).path
+        : join(workspacePath().path, "logs");
       return Uri.file(logDir);
     }
-
   }
 
   private readonly onEnvironmentChanged_ =

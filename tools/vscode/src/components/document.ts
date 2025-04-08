@@ -1,7 +1,6 @@
 import { Position, Selection, TextDocument, Uri, workspace } from "vscode";
 import { readTaskData } from "./task";
 
-
 // Provides a Selection for a task with a document
 export const taskRangeForDocument = async (task: string, documentUri: Uri) => {
   const taskDatas = await tasksForDocument(documentUri);
@@ -19,7 +18,6 @@ export const taskRangeForDocument = async (task: string, documentUri: Uri) => {
 };
 
 export const firstTaskRangeForDocument = async (documentUri: Uri) => {
-
   const taskDatas = await tasksForDocument(documentUri);
   if (taskDatas.length > 0) {
     const position = new Position(taskDatas[0].line + 1, 0);
@@ -33,7 +31,6 @@ const tasksForDocument = async (documentUri: Uri) => {
   const tasks = readTaskData(document);
   return tasks;
 };
-
 
 export const documentHasTasks = (document: TextDocument) => {
   const tasks = readTaskData(document);

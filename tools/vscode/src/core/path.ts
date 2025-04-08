@@ -47,7 +47,7 @@ export const toAbsolutePath = (path: string): AbsolutePath => {
     },
     child: (file: string) => {
       return toAbsolutePath(join(path, file));
-    }
+    },
   };
 };
 

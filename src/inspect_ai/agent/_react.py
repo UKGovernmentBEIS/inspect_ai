@@ -92,7 +92,7 @@ def react(
 
     # resolve on_continue
     if on_continue is None:
-        on_continue = "Please proceed to the next step using your best judgement."
+        on_continue = "If you believe you have completed the task, please call the `submit()` tool with your answer."
     if isinstance(on_continue, str):
         no_tools_continue_message = on_continue
 
@@ -161,7 +161,9 @@ def react(
             if answer is not None:
                 # remove the tool call and set the output to the answer for scoring
                 state.output.message.tool_calls = None
-                state.output.completion = answer
+                state.output.completion = (
+                    f"{state.output.completion}\n\n{answer}".strip()
+                )
 
                 # exit if we are at max_attempts
                 attempt_count += 1

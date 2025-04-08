@@ -1,12 +1,5 @@
-import { existsSync } from "fs";
 import { Uri, window } from "vscode";
-import { pathExists, workspacePath } from "../../core/path";
-import { isAbsolute } from "path";
 import { resolveLogFile } from "./logview-link-provider";
-
-
-
-
 
 export async function selectFileUri(): Promise<Uri | undefined> {
   const uriOrPath = await window.showInputBox({
@@ -24,7 +17,7 @@ export async function selectFileUri(): Promise<Uri | undefined> {
       } else {
         return "Specified location is not a valid URI (e.g. s3://my-bucket/logs)";
       }
-    }
+    },
   });
   if (uriOrPath) {
     return await resolveLogFile(uriOrPath);

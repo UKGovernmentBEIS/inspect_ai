@@ -25,7 +25,7 @@ export class CommandManager {
   private registerCommand(
     id: string,
     impl: (...args: unknown[]) => void,
-    thisArg?: unknown
+    thisArg?: unknown,
   ) {
     if (this.commands.has(id)) {
       return;

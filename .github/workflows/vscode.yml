@@ -28,10 +28,32 @@ jobs:
           pushd tools/vscode
           yarn install --immutable --immutable-cache --check-cache
 
+      - name: Lint
+        run: |
+          pushd tools/vscode
+          yarn lint
+
+      - name: Formatting
+        run: |
+          pushd tools/vscode
+          yarn prettier --check .
+
       - name: Build Extension
         run: |
           pushd tools/vscode
           yarn vsce package
+
+      - name: Setup Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+          
+      - name: Test
+        run: |
+          pushd tools/vscode
+          yarn test
 
       - name: Upload extension to Actions Artifact
         uses: actions/upload-artifact@v4

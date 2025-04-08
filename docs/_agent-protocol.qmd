@@ -4,14 +4,6 @@ title: Agent Protocol
 
 ## Overview
 
-::: callout-note
-The Inspect agent protocol described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The Inspect `Agent` protocol enables the creation of agent components that can be flexibly used in a wide variety of contexts. Agents are similar to solvers, but use a narrower interface that makes them much more versatile. A single agent can be:
 
 1.  Used as a top-level `Solver` for a task
@@ -115,7 +107,7 @@ This agent can be used in the following ways:
     print(f"The most popular movies were: {state.output.completion}")
     ```
 
-## React Agent {#react-agent}
+## ReAct Agent {#react-agent}
 
 The `react()` agent is a general purpose agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629). ReAct is the most common architecture used in agent frameworks and is the baseline against which you should measure more complex agents (it can be surprisingly difficult to hand-tune agents that perform better than a ReAct agent against a diverse set of tasks!).
 
@@ -326,7 +318,7 @@ In some cases agents will want to retain state across multiple invocations, or e
 
 ### Typed Store
 
-When developing agents, you should use the [typed-interface](agents-api.qmd#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
+When developing agents, you should use the [typed-interface](agent-custom.qmd#store-typing) to the per-sample store, which provides both type-checking and namespacing for store access.
 
 For example, here we define a typed accessor to the store by deriving from the `StoreModel` class (which in turn derives from Pydantic `BaseModel`):
 
