@@ -4,7 +4,7 @@ import {
   SampleData,
   SampleSummary,
 } from "../client/api/types";
-import { Event } from "../types/app";
+import { Event } from "../app/types";
 import { resolveAttachments } from "../utils/attachments";
 import { createLogger } from "../utils/logger";
 import { createPolling } from "../utils/polling";

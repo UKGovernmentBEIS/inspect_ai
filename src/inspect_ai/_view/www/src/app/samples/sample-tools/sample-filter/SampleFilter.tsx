@@ -18,7 +18,7 @@ import { FC, useEffect, useMemo, useRef, useState } from "react";
 
 import { SampleSummary } from "../../../../client/api/types";
 import { useEvalDescriptor } from "../../../../state/hooks";
-import { ScoreFilter } from "../../../../types/app";
+import { ScoreFilter } from "../../../../app/types";
 import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
 import { getCompletions } from "./completions";

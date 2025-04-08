@@ -1,5 +1,5 @@
 import { EvalLogHeader, LogFiles } from "../client/api/types";
-import { LogsState } from "../types/app";
+import { LogsState } from "../app/types";
 import { createLogger } from "../utils/logger";
 import { createLogsPolling } from "./logsPolling";
 import { StoreState } from "./store";

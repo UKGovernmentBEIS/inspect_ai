@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { ScoreLabel } from "../../../types/app";
+import { ScoreLabel } from "../../../app/types";
 
 import { ChangeEvent, FC, useCallback } from "react";
 import styles from "./SelectScorer.module.css";
