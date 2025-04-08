@@ -11,7 +11,7 @@ import {
   EvalSpec,
   EvalStats,
 } from "../../../types/log";
-import { UsageCard } from "../../../usage/UsageCard";
+import { UsageCard } from "../../usage/UsageCard";
 import { TaskErrorCard } from "../error/TaskErrorPanel";
 
 // Individual hook for Info tab

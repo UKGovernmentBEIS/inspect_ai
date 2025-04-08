@@ -17,6 +17,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
+import { ModelTokenTable } from "../app/usage/ModelTokenTable";
 import { SampleSummary } from "../client/api/types";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { JSONPanel } from "../components/JsonPanel";
@@ -32,7 +33,6 @@ import {
 import { useSampleSummaries } from "../state/hooks";
 import { useStore } from "../state/store";
 import { EvalSample, Events } from "../types/log";
-import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { formatTime } from "../utils/format";
 import { printHeadingHtml, printHtml } from "../utils/print";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
