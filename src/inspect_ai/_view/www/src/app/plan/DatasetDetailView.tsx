@@ -1,6 +1,6 @@
 import clsx from "clsx";
-import { MetaDataView } from "../app/content/MetaDataView";
-import { EvalDataset } from "../types/log";
+import { EvalDataset } from "../../types/log";
+import { MetaDataView } from "../content/MetaDataView";
 
 import { CSSProperties, FC } from "react";
 import styles from "./DatasetDetailView.module.css";
