@@ -66,4 +66,12 @@
 
 .item {
   cursor: pointer;
+  padding: 0;
+}
+
+.logLink {
+  display: block;
+  padding: 0.5rem 1rem;
+  color: inherit;
+  text-decoration: none;
 }

@@ -1,6 +1,7 @@
 import clsx from "clsx";
-import { FC, MouseEvent, useCallback, useRef } from "react";
+import { FC, useCallback, useRef } from "react";
 import { Fragment } from "react/jsx-runtime";
+import { Link } from "react-router-dom";
 import { EvalLogHeader, LogFiles } from "../../client/api/types";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useStatefulScrollPosition } from "../../state/scrolling";
@@ -34,13 +35,7 @@ export const Sidebar: FC<SidebarProps> = ({
   const sidebarContentsRef = useRef(null);
   useStatefulScrollPosition(sidebarContentsRef, "sidebar-contents", 1000);
 
-  const handleClick = useCallback(
-    (e: MouseEvent<HTMLLIElement>) => {
-      const index = Number((e.currentTarget as HTMLLIElement).dataset.index);
-      onSelectedIndexChanged(index);
-    },
-    [onSelectedIndexChanged],
-  );
+  // No longer need the click handler as we're using Links now
 
   return (
     <Fragment>
@@ -85,12 +80,20 @@ export const Sidebar: FC<SidebarProps> = ({
                   selectedIndex === index ? styles.active : undefined,
                 )}
                 data-index={index}
-                onClick={handleClick}
               >
-                <SidebarLogEntry
-                  logHeader={logHeader}
-                  task={file.task || "unknown task"}
-                />
+                <Link
+                  to={`/logs/${encodeURIComponent(file.name)}`}
+                  className={styles.logLink}
+                  onClick={() => {
+                    // Also update the current index in state
+                    onSelectedIndexChanged(index);
+                  }}
+                >
+                  <SidebarLogEntry
+                    logHeader={logHeader}
+                    task={file.task || "unknown task"}
+                  />
+                </Link>
               </li>
             );
           })}

@@ -15533,7 +15533,7 @@ ul.jsondiffpatch-textdiff {
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-._sidebar_ajt7u_1 {
+._sidebar_1essr_1 {
   position: fixed;
   left: 0;
   top: 0;
@@ -15547,15 +15547,15 @@ ul.jsondiffpatch-textdiff {
   transition: transform 0.3s ease-in-out;
 }
 
-._sidebarClosed_ajt7u_15 {
+._sidebarClosed_1essr_15 {
   transform: translateX(-100%);
 }
 
-._sidebarOpen_ajt7u_19 {
+._sidebarOpen_1essr_19 {
   transform: translateX(0);
 }
 
-._header_ajt7u_23 {
+._header_1essr_23 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   column-gap: 0.2rem;
@@ -15571,23 +15571,23 @@ ul.jsondiffpatch-textdiff {
   z-index: 10;
 }
 
-._toggle_ajt7u_39 {
+._toggle_1essr_39 {
   padding: 0.1rem;
   align-self: end;
   width: 40px;
   flex: 0 0 auto;
 }
 
-._progress_ajt7u_46 {
+._progress_1essr_46 {
   z-index: 3;
 }
 
-._list_ajt7u_50 {
+._list_1essr_50 {
   flex-grow: 1;
   overflow-y: auto;
 }
 
-._backdrop_ajt7u_55 {
+._backdrop_1essr_55 {
   position: fixed;
   inset: 0;
   background-color: var(--inspect-glass-color);
@@ -15595,12 +15595,20 @@ ul.jsondiffpatch-textdiff {
   z-index: 9998;
 }
 
-._active_ajt7u_63 {
+._active_1essr_63 {
   background-color: var(--bs-secondary-bg-subtle);
 }
 
-._item_ajt7u_67 {
+._item_1essr_67 {
   cursor: pointer;
+  padding: 0;
+}
+
+._logLink_1essr_72 {
+  display: block;
+  padding: 0.5rem 1rem;
+  color: inherit;
+  text-decoration: none;
 }
 ._error_srruf_1 {
   color: var(--bs-danger);
