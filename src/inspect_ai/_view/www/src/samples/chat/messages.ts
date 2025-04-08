@@ -1,4 +1,4 @@
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
 import {
   ChatMessageAssistant,
   ChatMessageSystem,

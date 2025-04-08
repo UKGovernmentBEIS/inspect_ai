@@ -21,7 +21,7 @@ import { Sidebar } from "./log-view/sidebar/Sidebar.tsx";
 import ClipboardJS from "clipboard";
 import clsx from "clsx";
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
-import { ClientAPI, HostMessage } from "./api/types.ts";
+import { ClientAPI, HostMessage } from "./client/api/types.ts";
 import { LogView } from "./log-view/LogView.tsx";
 import { useSetSelectedLogIndex } from "./state/hooks.ts";
 import { useStore } from "./state/store.ts";

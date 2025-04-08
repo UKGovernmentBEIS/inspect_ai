@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
 import { SampleLimitEvent, Type10 } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
 

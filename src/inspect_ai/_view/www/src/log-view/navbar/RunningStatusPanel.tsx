@@ -1,6 +1,6 @@
 import clsx from "clsx";
-import { RunningMetric } from "../../api/types";
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
+import { RunningMetric } from "../../client/api/types";
 
 import { FC } from "react";
 import styles from "./RunningStatusPanel.module.css";

@@ -1,4 +1,4 @@
-import { EventData, SampleData } from "../api/types";
+import { EventData, SampleData } from "../client/api/types";
 import { Events } from "../types/log";
 import { resolveAttachments } from "../utils/attachments";
 

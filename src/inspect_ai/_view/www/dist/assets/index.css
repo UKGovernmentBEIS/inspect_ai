@@ -16627,22 +16627,6 @@ ul.jsondiffpatch-textdiff {
   padding: 0 0.5em 0.1em 0.5em;
   font-size: var(--inspect-font-size-smaller);
 }
-._grid_ktnsp_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 1em;
-  row-gap: 0.2em;
-}
-
-._cell_ktnsp_8 {
-  font-weight: 400;
-  white-space: nowrap;
-}
-
-._value_ktnsp_13 {
-  white-space: pre-wrap;
-  word-wrap: anywhere;
-}
 ._container_304w9_1 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -16658,6 +16642,22 @@ ul.jsondiffpatch-textdiff {
 
 ._role_304w9_14 {
   grid-column: -1/1;
+}
+._grid_ktnsp_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 1em;
+  row-gap: 0.2em;
+}
+
+._cell_ktnsp_8 {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+._value_ktnsp_13 {
+  white-space: pre-wrap;
+  word-wrap: anywhere;
 }
 ._item_1uzhd_1 {
   margin-bottom: 0em;

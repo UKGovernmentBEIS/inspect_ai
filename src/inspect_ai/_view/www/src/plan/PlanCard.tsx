@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import { Card, CardBody, CardHeader } from "../components/Card";
 import { EvalPlan, EvalScore, EvalSpec } from "../types/log";
 import { PlanDetailView } from "./PlanDetailView";

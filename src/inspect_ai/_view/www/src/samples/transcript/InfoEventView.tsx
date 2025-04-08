@@ -1,5 +1,5 @@
 import { FC } from "react";
-import { ApplicationIcons } from "../../appearance/icons";
+import { ApplicationIcons } from "../../app/appearance/icons";
 import { JSONPanel } from "../../components/JsonPanel";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { InfoEvent } from "../../types/log";

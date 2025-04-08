@@ -5,7 +5,7 @@ import { arrayToString, formatTime, inputString } from "../utils/format";
 import { FlatSampleError } from "./error/FlatSampleErrorView";
 
 import { FC, ReactNode } from "react";
-import { SampleSummary } from "../api/types";
+import { SampleSummary } from "../client/api/types";
 import { useSampleDescriptor, useScore } from "../state/hooks";
 import styles from "./SampleSummaryView.module.css";
 import { SamplesDescriptor } from "./descriptor/samplesDescriptor";

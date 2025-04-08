@@ -6,7 +6,7 @@ import {
   ReactNode,
   useCallback,
 } from "react";
-import { ApplicationIcons } from "../../../appearance/icons";
+import { ApplicationIcons } from "../../../app/appearance/icons";
 import { EventNavs } from "./EventNavs";
 
 import { ProgressBar } from "../../../components/ProgressBar";

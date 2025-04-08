@@ -1,5 +1,5 @@
-import { ApplicationIcons } from "../../appearance/icons";
-import { ApplicationStyles } from "../../appearance/styles";
+import { ApplicationIcons } from "../../app/appearance/icons";
+import { ApplicationStyles } from "../../app/appearance/styles";
 
 import clsx from "clsx";
 import { CSSProperties, FC } from "react";

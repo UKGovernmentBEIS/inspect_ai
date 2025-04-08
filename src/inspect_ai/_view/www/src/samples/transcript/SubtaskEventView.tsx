@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { ApplicationIcons } from "../../appearance/icons";
-import { MetaDataView } from "../../metadata/MetaDataView";
+import { ApplicationIcons } from "../../app/appearance/icons";
+import { MetaDataView } from "../../content/MetaDataView";
 import { Input2, Input5, Result2, SubtaskEvent } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
 import { formatTiming, formatTitle } from "./event/utils";

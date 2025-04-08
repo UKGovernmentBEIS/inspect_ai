@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
-import { BasicSampleData } from "../../api/types";
-import { ScoreLabel } from "../../types";
+import { BasicSampleData } from "../../client/api/types";
+import { ScoreLabel } from "../../types/app";
 import { Value2 } from "../../types/log";
 
 export interface EvalDescriptor {

@@ -1,8 +1,8 @@
 import clsx from "clsx";
-import { FontSize } from "../appearance/fonts";
-import { ApplicationIcons } from "../appearance/icons";
+import { FontSize } from "../app/appearance/fonts";
+import { ApplicationIcons } from "../app/appearance/icons";
 import { Card, CardBody, CardHeader } from "../components/Card";
-import { MetaDataView } from "../metadata/MetaDataView";
+import { MetaDataView } from "../content/MetaDataView";
 import { EvalStats } from "../types/log";
 import { formatDuration } from "../utils/format";
 import { ModelTokenTable } from "./ModelTokenTable";
