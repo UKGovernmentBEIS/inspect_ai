@@ -8,16 +8,16 @@ import {
   useState,
 } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
-import { NoContentsPanel } from "../../../components/NoContentsPanel.tsx";
-import { ToolButton } from "../../../components/ToolButton.tsx";
-import { kEvalWorkspaceTabId } from "../../../constants.ts";
-import { InlineSampleDisplay } from "../../../samples/InlineSampleDisplay.tsx";
-import { SampleDialog } from "../../../samples/SampleDialog.tsx";
+import { InlineSampleDisplay } from "../../../app/samples/InlineSampleDisplay.tsx";
+import { SampleDialog } from "../../../app/samples/SampleDialog.tsx";
 import {
   SampleTools,
   ScoreFilterTools,
-} from "../../../samples/SamplesTools.tsx";
-import { SampleList } from "../../../samples/list/SampleList.tsx";
+} from "../../../app/samples/SamplesTools.tsx";
+import { SampleList } from "../../../app/samples/list/SampleList.tsx";
+import { NoContentsPanel } from "../../../components/NoContentsPanel.tsx";
+import { ToolButton } from "../../../components/ToolButton.tsx";
+import { kEvalWorkspaceTabId } from "../../../constants.ts";
 import {
   useFilteredSamples,
   useGroupBy,
