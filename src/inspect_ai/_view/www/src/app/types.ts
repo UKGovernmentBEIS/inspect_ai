@@ -8,7 +8,7 @@ import {
   PendingSamples,
   SampleSummary,
 } from "../client/api/types";
-import { ScorerInfo } from "../scoring/utils";
+import { ScorerInfo } from "../state/scoring";
 import {
   ApprovalEvent,
   ContentImage,
