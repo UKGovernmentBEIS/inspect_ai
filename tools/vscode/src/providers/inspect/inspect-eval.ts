@@ -22,7 +22,7 @@ import { findEnvPythonPath } from "../../core/python";
 
 export async function activateEvalManager(
   stateManager: WorkspaceStateManager,
-  context: ExtensionContext
+  context: ExtensionContext,
 ): Promise<[Command[], InspectEvalManager]> {
   // Activate the manager
   const inspectEvalMgr = new InspectEvalManager(stateManager, context);
@@ -32,21 +32,27 @@ export async function activateEvalManager(
   await stateManager.initializeWorkspaceId();
 
   const workspaceId = stateManager.getWorkspaceInstance();
+  const version = extensionVersion(context);
+
   const env = context.environmentVariableCollection;
   log.append(`Workspace: ${workspaceId}`);
+  log.append(`Version: ${version}`);
   log.append(`Resetting Terminal Workspace:`);
 
   env.delete("INSPECT_WORKSPACE_ID");
   env.append("INSPECT_WORKSPACE_ID", workspaceId);
 
   env.delete("INSPECT_VSCODE_EXT_VERSION");
-  env.append("INSPECT_VSCODE_EXT_VERSION", extensionVersion(context));
+  env.append("INSPECT_VSCODE_EXT_VERSION", version);
 
   return [inspectEvalCommands(inspectEvalMgr), inspectEvalMgr];
 }
 
 export class InspectEvalManager {
-  constructor(private readonly stateManager_: WorkspaceStateManager, context: ExtensionContext) {
+  constructor(
+    private readonly stateManager_: WorkspaceStateManager,
+    context: ExtensionContext,
+  ) {
     this.context_ = context;
   }
   private context_: ExtensionContext;
@@ -55,12 +61,13 @@ export class InspectEvalManager {
     // if we don't have inspect bail and let the user know
     if (!inspectVersion()) {
       await window.showWarningMessage(
-        `Unable to ${debug ? "Debug" : "Run"
+        `Unable to ${
+          debug ? "Debug" : "Run"
         } Eval (Inspect Package Not Installed)`,
         {
           modal: true,
           detail: "pip install --upgrade inspect-ai",
-        }
+        },
       );
       return;
     }
@@ -121,8 +128,12 @@ export class InspectEvalManager {
     }
 
     // Find the python environment
-    const useSubdirectoryEnvironments = workspace.getConfiguration("inspect_ai").get("useSubdirectoryEnvironments");
-    const pythonPath = useSubdirectoryEnvironments ? findEnvPythonPath(file.dirname(), activeWorkspacePath()) : undefined;
+    const useSubdirectoryEnvironments = workspace
+      .getConfiguration("inspect_ai")
+      .get("useSubdirectoryEnvironments");
+    const pythonPath = useSubdirectoryEnvironments
+      ? findEnvPythonPath(file.dirname(), activeWorkspacePath())
+      : undefined;
 
     // If we're debugging, launch using the debugger
     if (debug) {
@@ -136,7 +147,7 @@ export class InspectEvalManager {
         args.push(debugPort.toString());
       }
 
-      // Pass the workspace ID to the debug environment so we'll 
+      // Pass the workspace ID to the debug environment so we'll
       // properly target the workspace window when showing the logview
       const env = {
         INSPECT_WORKSPACE_ID: this.stateManager_.getWorkspaceInstance(),
@@ -149,7 +160,7 @@ export class InspectEvalManager {
         workspaceDir.path,
         debugPort,
         env,
-        pythonPath ? pythonPath : undefined
+        pythonPath ? pythonPath : undefined,
       );
     } else {
       // Run the command
@@ -189,7 +200,7 @@ const runDebugger = async (
   cwd: string,
   port: number,
   env?: Record<string, string>,
-  pythonPath?: AbsolutePath
+  pythonPath?: AbsolutePath,
 ) => {
   const name = "Inspect Eval";
   const debugConfiguration: DebugConfiguration = {
@@ -203,11 +214,10 @@ const runDebugger = async (
     port,
     env,
     justMyCode: false,
-    pythonPath: pythonPath?.path
+    pythonPath: pythonPath?.path,
   };
   await debug.startDebugging(activeWorkspaceFolder(), debugConfiguration);
 };
-
 
 const extensionVersion = (context: ExtensionContext) => {
   return `${(context.extension.packageJSON as { version: string }).version}`;

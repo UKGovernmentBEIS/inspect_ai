@@ -1,7 +1,6 @@
 import abc
 from contextlib import _AsyncGeneratorContextManager
 from logging import getLogger
-from types import TracebackType
 from typing import AsyncGenerator, Literal, TypeAlias
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -37,19 +36,8 @@ class MCPServer(ToolSource):
 
     """
 
-    async def __aenter__(self: "MCPServer") -> "MCPServer":
-        await self._connect()
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        await self._close()
-
     async def tools(self) -> list[Tool]:
+        """List of all tools provided by this server."""
         return await self._list_tools()
 
     @abc.abstractmethod

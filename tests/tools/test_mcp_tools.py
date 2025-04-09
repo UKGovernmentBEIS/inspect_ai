@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import pytest
 from test_helpers.utils import (
+    skip_if_no_docker,
     skip_if_no_mcp_fetch_package,
     skip_if_no_mcp_git_package,
     skip_if_no_mcp_package,
@@ -10,18 +13,49 @@ from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
 from inspect_ai.agent._react import react
 from inspect_ai.dataset import Sample
+from inspect_ai.dataset._dataset import Dataset, MemoryDataset
 from inspect_ai.model import get_model
 from inspect_ai.solver import generate, use_tools
+from inspect_ai.solver._basic_agent import basic_agent
+from inspect_ai.solver._prompt import system_message
+from inspect_ai.solver._solver import solver
 from inspect_ai.tool import MCPServer, mcp_server_stdio, mcp_tools
+from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._mcp.server import mcp_server_sandbox
+from inspect_ai.util import sandbox
 
 
 @skip_if_no_mcp_fetch_package
 async def test_mcp_server_stdio():
-    async with mcp_server_stdio(
-        command="python", args=["-m", "mcp_server_fetch"]
-    ) as server:
+    server = mcp_server_stdio(command="python", args=["-m", "mcp_server_fetch"])
+    async with mcp_connection(server):
         await check_fetch_server(server)
+
+
+@skip_if_no_mcp_fetch_package
+def test_mcp_server_sandbox():
+    log = eval(fetch_task(), model="openai/gpt-4o")[0]
+
+
+@task
+def fetch_task():
+    fetch_server = mcp_server_sandbox(
+        command="python3", args=["-m", "mcp_server_fetch"]
+    )
+
+    return Task(
+        dataset=[
+            Sample(
+                "Use the fetch tool to read the website at https://example.com/, then please tell me what is there."
+            ),
+        ],
+        solver=react(
+            name="fetch_worker",
+            prompt="Please use the fetch tools to solve the problem.",
+            tools=[mcp_tools(fetch_server)],
+        ),
+        sandbox="docker",
+    )
 
 
 # to run this test:
@@ -54,17 +88,6 @@ def git_task():
     )
 
 
-@task
-def eric_task():
-    fetch_server = mcp_server_stdio(command="python3", args=["-m", "mcp_server_fetch"])
-
-    return Task(
-        dataset=[Sample("What is the status of the git working tree?")],
-        solver=[use_tools(mcp_tools(fetch_server)), generate()],
-        # solver=[use_tools(mcp_tools(fetch_server, tools=["*_status"])), generate()],
-    )
-
-
 @skip_if_no_openai
 @skip_if_no_mcp_git_package
 def test_mcp_filter():
@@ -73,60 +96,33 @@ def test_mcp_filter():
     assert log.samples
 
 
-@skip_if_no_openai
-@skip_if_no_mcp_git_package
-def test_eric():
-    log = eval(eric_task(), model="openai/gpt-4o")[0]
-    # print(f"XXXXX {log=}")
-    assert log.status == "success"
-    assert log.samples
-
-
-@skip_if_no_mcp_fetch_package
-def test_mcp_server_sandbox():
-    log = eval(fetch_task(), model="openai/gpt-4o")[0]
-
-
-@task
-def fetch_task():
-    fetch_server = mcp_server_sandbox(
-        command="python3", args=["-m", "mcp_server_fetch"]
-    )
-
-    return Task(
-        dataset=[
-            Sample(
-                "Use the fetch tool to read the website at https://example.com/, then please tell me what is there."
-            ),
-        ],
-        solver=react(
-            name="fetch_worker",
-            prompt="Please use the fetch tools to solve the problem.",
-            tools=[mcp_tools(fetch_server)],
-        ),
-        sandbox="docker",
-    )
-
-
-@task
-def git_task_react_mcp_connection():
-    git_server = mcp_server_stdio(
+def git_server() -> MCPServer:
+    return mcp_server_stdio(
         command="python3", args=["-m", "mcp_server_git", "--repository", "."]
     )
 
-    return Task(
-        dataset=[
+
+def git_dataset() -> Dataset:
+    return MemoryDataset(
+        [
             Sample(
                 "What is the status of the git working tree for the current directory?"
             ),
             Sample(
                 "Can you tell me the git working tree status for the current directory?"
             ),
-        ],
+        ]
+    )
+
+
+@task
+def git_task_react_mcp_connection():
+    return Task(
+        dataset=git_dataset(),
         solver=react(
             name="git_worker",
             prompt="Please use the git tools to solve the problem.",
-            tools=[mcp_tools(git_server, tools=["*_status"])],
+            tools=[mcp_tools(git_server(), tools=["git_status"])],
         ),
     )
 
@@ -135,6 +131,27 @@ def git_task_react_mcp_connection():
 @skip_if_no_mcp_git_package
 def test_react_mcp_connection():
     log = eval(git_task_react_mcp_connection(), model="openai/gpt-4o")[0]
+    assert log.status == "success"
+    assert log.samples
+
+
+@task
+def git_task_basic_agent_mcp_connection():
+    return Task(
+        dataset=git_dataset(),
+        solver=[
+            system_message("Please use the git tools to solve the problem."),
+            basic_agent(
+                tools=[mcp_tools(git_server(), tools=["git_status"])],
+            ),
+        ],
+    )
+
+
+@skip_if_no_openai
+@skip_if_no_mcp_git_package
+def test_basic_agent_mcp_connection():
+    log = eval(git_task_basic_agent_mcp_connection(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
 
@@ -165,3 +182,24 @@ async def test_mcp_sampling_fn():
         assert result.role == "assistant"
         assert isinstance(result.content, TextContent)
         assert "sky" in result.content.text
+
+
+@pytest.mark.slow
+@skip_if_no_docker
+def test_mcp_server_sandbox_nodejs():
+    @solver
+    def run_mcp_server():
+        async def solve(state, generate):
+            result = await sandbox().exec(["mcp-server-filesystem", "/"])
+            if "MCP Filesystem Server" not in result.stderr:
+                raise ValueError("Failed to run server")
+
+            return state
+
+        return solve
+
+    dockerfile = Path(__file__).parent / "docker-mcp-server" / "Dockerfile"
+    log = eval(
+        Task(solver=[run_mcp_server()], sandbox=("docker", dockerfile.as_posix()))
+    )[0]
+    assert log.status == "success"

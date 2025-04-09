@@ -16,7 +16,14 @@ body[class^="vscode-"] .font-title > span:last-of-type {
   font-size: 0.8em !important;
 }
 
-body[class^="vscode-"] .workspace > div > div > div:last-child > div > div > div:last-child {
+body[class^="vscode-"]
+  .workspace
+  > div
+  > div
+  > div:last-child
+  > div
+  > div
+  > div:last-child {
   font-size: 1rem !important;
 }
 
@@ -45,6 +52,12 @@ body[class^="vscode-"] code:not(.sourceCode) {
 /* temporary hack to improve the appearance of metrics in the navbar
    to truly fix, remove 'navbar-brand' from metrics div and use `navbar-metrics` 
    to properly style it */
-body[class^="vscode-"] .navbar > div > .navbar-text:not(.navbar-brand) > div > div > div:last-of-type {
+body[class^="vscode-"]
+  .navbar
+  > div
+  > .navbar-text:not(.navbar-brand)
+  > div
+  > div
+  > div:last-of-type {
   transform: scale(0.7);
 }

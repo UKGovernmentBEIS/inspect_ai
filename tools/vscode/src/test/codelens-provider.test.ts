@@ -11,7 +11,10 @@ import {
 import { InspectCodeLensProvider } from "../providers/codelens/codelens-provider";
 
 class MockTextLine implements TextLine {
-  constructor(private lineText: string, private _lineNumber: number) {}
+  constructor(
+    private lineText: string,
+    private _lineNumber: number,
+  ) {}
 
   get text(): string {
     return this.lineText;
@@ -22,7 +25,7 @@ class MockTextLine implements TextLine {
   get range(): Range {
     return new Range(
       new Position(this._lineNumber, 0),
-      new Position(this._lineNumber, this.lineText.length)
+      new Position(this._lineNumber, this.lineText.length),
     );
   }
   get rangeIncludingLineBreak(): Range {
@@ -57,7 +60,7 @@ class MockTextDocument implements TextDocument {
   }
 
   // Implement other required interface members with mock values
-  get uri(): any {
+  get uri(): Uri {
     return { scheme: "file", path: "test.py" } as Uri;
   }
   get fileName(): string {
@@ -81,10 +84,10 @@ class MockTextDocument implements TextDocument {
   save(): Thenable<boolean> {
     return Promise.resolve(true);
   }
-  offsetAt(_position: Position): number {
+  offsetAt(): number {
     return 0;
   }
-  positionAt(_offset: number): Position {
+  positionAt(): Position {
     return new Position(0, 0);
   }
   getWordRangeAtPosition(): Range | undefined {
@@ -93,7 +96,7 @@ class MockTextDocument implements TextDocument {
   validateRange(range: Range): Range {
     return range;
   }
-  validatePosition(_position: Position): Position {
+  validatePosition(): Position {
     return new Position(0, 0);
   }
   get eol(): EndOfLine {
@@ -119,7 +122,7 @@ suite("CodeLens Provider Test Suite", () => {
 
   test('should return code lenses when using "from inspect import task"', () => {
     const document = createDocument(`
-from inspect import task
+from inspect_ai import task
 
 @task
 def my_task():
@@ -129,13 +132,13 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return two lenses (run and debug) for inspect task"
+      "Should return two lenses (run and debug) for inspect task",
     );
   });
 
   test('should return code lenses when using "from inspect import task as t"', () => {
     const document = createDocument(`
-from inspect import task as t
+from inspect_ai import task as t
 
 @t
 def my_task():
@@ -145,15 +148,15 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return lenses when task is imported with alias"
+      "Should return lenses when task is imported with alias",
     );
   });
 
   test('should return code lenses when using "import inspect"', () => {
     const document = createDocument(`
-import inspect
+import inspect_ai
 
-@inspect.task
+@inspect_ai.task
 def my_task():
     pass`);
 
@@ -161,13 +164,13 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return lenses when using full inspect import"
+      "Should return lenses when using full inspect import",
     );
   });
 
   test("should handle multiple task decorators in the same file", () => {
     const document = createDocument(`
-from inspect import task
+from inspect_ai import task
 
 @task
 def first_task():
@@ -193,7 +196,7 @@ def other_task():
     assert.strictEqual(
       lenses.length,
       0,
-      "Should not return code lenses for non-inspect task"
+      "Should not return code lenses for non-inspect task",
     );
   });
 
@@ -208,7 +211,7 @@ from inspect import task
     assert.strictEqual(
       lenses.length,
       0,
-      "Should handle malformed task decorator safely"
+      "Should handle malformed task decorator safely",
     );
   });
 
@@ -220,7 +223,7 @@ from inspect import task
 
   test("Should handle multiline import statements", () => {
     const document = createDocument(`
-from inspect import (
+from inspect_ai import (
     Task,
     task as t,
 )
@@ -233,13 +236,13 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return lenses for multiline import"
+      "Should return lenses for multiline import",
     );
   });
 
   test("Should handle multiple imports in a single line", () => {
     const document = createDocument(`
-from inspect import Task, task as t
+from inspect_ai import Task, task as t
 
 @t
 def my_task():
@@ -249,7 +252,7 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       2,
-      "Should return lenses for multiple imports in a single line"
+      "Should return lenses for multiple imports in a single line",
     );
   });
 
@@ -263,7 +266,7 @@ def my_task():
     assert.strictEqual(
       lenses.length,
       0,
-      "Should return lenses for task decorator without import"
+      "Should return lenses for task decorator without import",
     );
   });
 });

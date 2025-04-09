@@ -1,5 +1,6 @@
 import contextlib
 from copy import deepcopy
+from types import TracebackType
 from typing import AsyncIterator, Sequence
 
 from .._tool import Tool, ToolSource
@@ -10,7 +11,7 @@ from .tools import MCPToolSource
 
 @contextlib.asynccontextmanager
 async def mcp_connection(
-    tools: Sequence[Tool | ToolDef | ToolSource],
+    tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
 ) -> AsyncIterator[None]:
     """Context manager for running MCP servers required by tools.
 
@@ -23,6 +24,7 @@ async def mcp_connection(
        tools: Tools in current context.
     """
     # discover mcp servers in tools
+    tools = tools if isinstance(tools, Sequence) else [tools]
     tool_sources = [tool for tool in tools if isinstance(tool, MCPToolSource)]
     mcp_servers: list[MCPServer] = []
     for tool_source in tool_sources:
@@ -31,10 +33,29 @@ async def mcp_connection(
         elif isinstance(tool_source, MCPToolSource):
             mcp_servers.append(tool_source._server)
 
-    # await them (deep copy so they retain isolated session state)
+    # enter connection contexts
     async with contextlib.AsyncExitStack() as exit_stack:
-        for mcp_server in deepcopy(mcp_servers):
-            await exit_stack.enter_async_context(mcp_server)
+        for connection in [
+            MCPServerConnection(mcp_server) for mcp_server in mcp_servers
+        ]:
+            await exit_stack.enter_async_context(connection)
 
         # onward
         yield
+
+
+class MCPServerConnection:
+    def __init__(self, server: MCPServer) -> None:
+        self._server = deepcopy(server)
+
+    async def __aenter__(self) -> "MCPServerConnection":
+        await self._server._connect()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        await self._server._close()

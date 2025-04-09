@@ -35,18 +35,19 @@ export class InspectSettingsManager {
 
   // write the notification pref
   public setNotifyEvalComplete(notify: boolean) {
-    const configuration = workspace.getConfiguration(kInspectConfigSection,);
+    const configuration = workspace.getConfiguration(kInspectConfigSection);
     void configuration.update(kInspectConfigNotifyEvalComplete, notify, true);
   }
-
 
   // Read settings values directly from VS.Code
   private readSettings() {
     const configuration = workspace.getConfiguration(kInspectConfigSection);
-    const notifyEvalComplete = configuration.get<boolean>(kInspectConfigNotifyEvalComplete);
+    const notifyEvalComplete = configuration.get<boolean>(
+      kInspectConfigNotifyEvalComplete,
+    );
     return {
-      notifyEvalComplete: notifyEvalComplete !== undefined ? notifyEvalComplete : true
+      notifyEvalComplete:
+        notifyEvalComplete !== undefined ? notifyEvalComplete : true,
     };
   }
-
 }

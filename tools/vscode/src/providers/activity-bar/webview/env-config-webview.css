@@ -3,7 +3,7 @@
 }
 
 #model-help {
-  float:right;
+  float: right;
 }
 
 #model-help .codicon::before {
@@ -61,4 +61,3 @@
   height: 4px;
   line-height: 4px;
 }
-

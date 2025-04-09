@@ -42,3 +42,7 @@ class VSCodeLink(Link):
 
     def on_click(self) -> None:
         execute_vscode_commands(self.commands)
+
+    def action_open_link(self) -> None:
+        # Workaround to prevent the default action of opening the link in a browser
+        return None

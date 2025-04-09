@@ -16,7 +16,7 @@ export function scheduleFocusActiveEditor() {
 }
 
 export class FocusManager {
-  private lastFocused: 'editor' | 'terminal' | 'notebook' | 'none' = 'none';
+  private lastFocused: "editor" | "terminal" | "notebook" | "none" = "none";
 
   constructor(context: ExtensionContext) {
     this.initialize(context);
@@ -27,9 +27,9 @@ export class FocusManager {
     context.subscriptions.push(
       window.onDidChangeActiveTextEditor((editor) => {
         if (editor) {
-          this.lastFocused = 'editor';
+          this.lastFocused = "editor";
         }
-      })
+      }),
     );
 
     // Track terminal focus changes
@@ -37,27 +37,27 @@ export class FocusManager {
       window.onDidOpenTerminal(async (terminal) => {
         const pid = await terminal.processId;
         if (window.activeTerminal?.processId === pid) {
-          this.lastFocused = 'terminal';
+          this.lastFocused = "terminal";
         }
-      })
+      }),
     );
 
     // Handle terminal focus changes (when terminal is in focus and user types)
     context.subscriptions.push(
       window.onDidChangeTerminalState((terminal) => {
         if (terminal.state.isInteractedWith) {
-          this.lastFocused = 'terminal';
+          this.lastFocused = "terminal";
         }
-      })
+      }),
     );
 
     // Handle when terminal becomes active
     context.subscriptions.push(
       window.onDidChangeActiveTerminal((terminal) => {
         if (terminal) {
-          this.lastFocused = 'terminal';
+          this.lastFocused = "terminal";
         }
-      })
+      }),
     );
 
     // Track when window focus changes to ensure robustness
@@ -65,34 +65,34 @@ export class FocusManager {
       window.onDidChangeWindowState((windowState) => {
         if (windowState.focused) {
           if (window.activeTextEditor) {
-            this.lastFocused = 'editor';
+            this.lastFocused = "editor";
           } else if (window.activeTerminal) {
-            this.lastFocused = 'terminal';
+            this.lastFocused = "terminal";
           }
         }
-      })
+      }),
     );
 
     // Track when editors gain or lose focus
     context.subscriptions.push(
       window.onDidChangeTextEditorSelection((e) => {
         if (e.textEditor === window.activeTextEditor) {
-          this.lastFocused = 'editor';
+          this.lastFocused = "editor";
         }
-      })
+      }),
     );
 
     // Track notebook editor focus changes
     context.subscriptions.push(
       window.onDidChangeActiveNotebookEditor((notebookEditor) => {
         if (notebookEditor) {
-          this.lastFocused = 'notebook';
+          this.lastFocused = "notebook";
         }
-      })
+      }),
     );
   }
 
-  public getLastFocused(): 'editor' | 'terminal' | 'notebook' | 'none' {
+  public getLastFocused(): "editor" | "terminal" | "notebook" | "none" {
     return this.lastFocused;
   }
 }

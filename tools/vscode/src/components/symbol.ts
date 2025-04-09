@@ -6,7 +6,7 @@ export const symbolIsTask = (document: TextDocument, pred: DocumentSymbol) => {
     const textBeforeFunction = document.getText(textRange);
 
     // Check if the text contains the `@task` decorator
-    if (textBeforeFunction && textBeforeFunction.startsWith('@task')) {
+    if (textBeforeFunction && textBeforeFunction.startsWith("@task")) {
       return true;
     }
   }
