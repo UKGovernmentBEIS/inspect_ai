@@ -17,7 +17,7 @@ import { FC, useCallback, useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { ClientAPI, HostMessage } from "../client/api/types.ts";
 import { useStore } from "../state/store.ts";
-import { applicationRouter } from "./routing/appRouter.tsx";
+import { AppRouter } from "./AppRouter.tsx";
 
 interface AppProps {
   api: ClientAPI;
@@ -164,5 +164,5 @@ export const App: FC<AppProps> = ({ api }) => {
     loadLogsAndState();
   }, [setLogs, selectLogFile, refreshLogs, onMessage]);
 
-  return <RouterProvider router={applicationRouter} />;
+  return <RouterProvider router={AppRouter} />;
 };
