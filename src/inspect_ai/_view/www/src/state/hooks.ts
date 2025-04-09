@@ -1,6 +1,5 @@
 import { highlightElement } from "prismjs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
 import { Events } from "../@types/log";
 import {
   createEvalDescriptor,
@@ -15,7 +14,6 @@ import {
 import { SampleSummary } from "../client/api/types";
 import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
-import { directoryRelativeUrl } from "../utils/uri";
 import { getAvailableScorers, getDefaultScorer } from "./scoring";
 import { useStore } from "./store";
 import { mergeSampleSummaries } from "./utils";
@@ -419,126 +417,4 @@ export const useSetSelectedLogIndex = () => {
     },
     [setSelectedLogIndex, clearSelectedLogSummary, clearSelectedSample],
   );
-};
-
-/**
- * Hook that provides sample navigation utilities with proper URL handling
- * for use across the application
- */
-export const useSampleNavigation = () => {
-  const navigate = useNavigate();
-  const { logPath, tabId } = useParams<{ logPath?: string; tabId?: string }>();
-  const selectedSampleIndex = useStore(
-    (state) => state.log.selectedSampleIndex,
-  );
-  const selectSample = useStore((state) => state.logActions.selectSample);
-  const setShowingSampleDialog = useStore(
-    (state) => state.appActions.setShowingSampleDialog,
-  );
-  const sampleSummaries = useFilteredSamples();
-
-  // Get the store access values directly in the hook
-  const getSelectedLogFile = useStore(
-    (state) => state.logsActions.getSelectedLogFile,
-  );
-  const logDirectory = useStore((state) => state.logs.logs.log_dir);
-
-  // Helper function to resolve the log path for URLs
-  const resolveLogPath = useCallback(() => {
-    // If we have a logPath from URL params, use that
-    if (logPath) {
-      return logPath;
-    }
-
-    // Otherwise use the selected log file
-    const selectedLogFile = getSelectedLogFile();
-
-    if (selectedLogFile) {
-      return directoryRelativeUrl(selectedLogFile, logDirectory);
-    }
-
-    return undefined;
-  }, [logPath, getSelectedLogFile, logDirectory]);
-
-  // Navigate to a specific sample with index
-  const navigateToSample = useCallback(
-    (index: number) => {
-      if (sampleSummaries && index >= 0 && index < sampleSummaries.length) {
-        const sample = sampleSummaries[index];
-        const resolvedPath = resolveLogPath();
-
-        if (resolvedPath) {
-          // Update internal state
-          selectSample(index);
-          setShowingSampleDialog(true);
-
-          // Navigate to the sample URL
-          navigate(
-            `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample.id}/${sample.epoch}`,
-          );
-        }
-      }
-    },
-    [
-      sampleSummaries,
-      resolveLogPath,
-      selectSample,
-      setShowingSampleDialog,
-      navigate,
-      tabId,
-    ],
-  );
-
-  // Navigate to the next sample
-  const navigateToNextSample = useCallback(
-    (itemsCount: number) => {
-      const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
-      if (next > -1) {
-        navigateToSample(next);
-      }
-    },
-    [selectedSampleIndex, navigateToSample],
-  );
-
-  // Navigate to the previous sample
-  const navigateToPreviousSample = useCallback(
-    (getPreviousIndex: () => number) => {
-      const prev = getPreviousIndex();
-      if (prev > -1) {
-        navigateToSample(prev);
-      }
-    },
-    [navigateToSample],
-  );
-
-  // Get a sample URL for a specific sample
-  const getSampleUrl = useCallback(
-    (sampleId: string | number, epoch: string | number) => {
-      const resolvedPath = resolveLogPath();
-      if (resolvedPath) {
-        return `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
-      }
-      return undefined;
-    },
-    [resolveLogPath, tabId],
-  );
-
-  // Navigate back from sample dialog
-  const closeDialog = useCallback(() => {
-    const resolvedPath = resolveLogPath();
-    if (resolvedPath) {
-      navigate(`/logs/${resolvedPath}/${tabId || "samples"}`);
-    }
-  }, [resolveLogPath, navigate, tabId]);
-
-  return {
-    navigateToSample,
-    navigateToNextSample,
-    navigateToPreviousSample,
-    getSampleUrl,
-    closeDialog,
-    selectedSampleIndex,
-    selectSample,
-    setShowingSampleDialog,
-  };
 };

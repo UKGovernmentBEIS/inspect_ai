@@ -28,6 +28,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { ClientAPI, HostMessage } from "../client/api/types.ts";
+import { kLogViewSamplesTabId } from "../constants.ts";
 import { useFilteredSamples, useSetSelectedLogIndex } from "../state/hooks.ts";
 import { useStore } from "../state/store.ts";
 import { AppErrorBoundary } from "./AppErrorBoundary.tsx";
@@ -66,9 +67,12 @@ const LogContainer: FC = () => {
           // Only set the tab if it's valid - the LogView component will handle
           // determining if the tab exists before updating the state
           setWorkspaceTab(tabId);
+        } else {
+          setWorkspaceTab(kLogViewSamplesTabId);
         }
       } else {
         await refreshLogs();
+        setWorkspaceTab(kLogViewSamplesTabId);
       }
     };
 
@@ -80,12 +84,12 @@ const LogContainer: FC = () => {
     if (sampleId && filteredSamples) {
       // Find the sample with matching ID and epoch
       const targetEpoch = epoch ? parseInt(epoch, 10) : undefined;
-      const sampleIndex = filteredSamples.findIndex(
-        (sample) =>
-          sample.id === sampleId &&
-          (targetEpoch === undefined || sample.epoch === targetEpoch),
-      );
-
+      const sampleIndex = filteredSamples.findIndex((sample) => {
+        const matches =
+          String(sample.id) === sampleId &&
+          (targetEpoch === undefined || sample.epoch === targetEpoch);
+        return matches;
+      });
       if (sampleIndex >= 0) {
         selectSample(sampleIndex);
         setShowingSampleDialog(true);
