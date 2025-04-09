@@ -1,10 +1,4 @@
-
-import {
-  commands,
-  ExtensionContext,
-  Uri,
-  ViewColumn,
-} from "vscode";
+import { ExtensionContext, Uri, ViewColumn } from "vscode";
 
 import {
   InspectWebview,
@@ -24,26 +18,25 @@ import { LogviewPanel } from "./logview-panel";
 import { selectLogDirectory } from "../activity-bar/log-listing/log-directory-selector";
 import { dirname, getRelativeUri } from "../../core/uri";
 import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
-import { selectFileUri } from "./log-file-selector";
 
 const kLogViewId = "inspect.logview";
-
 
 export class InspectViewManager {
   constructor(
     private readonly context_: ExtensionContext,
     private readonly webViewManager_: InspectViewWebviewManager,
     private readonly envMgr_: WorkspaceEnvManager,
-    logsWatcher: InspectLogsWatcher
+    logsWatcher: InspectLogsWatcher,
   ) {
-
-    this.context_.subscriptions.push(logsWatcher.onInspectLogCreated(async (e) => {
-      // if this log is contained in the directory currently being viewed
-      // then do a background refresh on it
-      if (this.webViewManager_.hasWebview()) {
-        await this.webViewManager_.showLogFileIfWithinLogDir(e.log);
-      }
-    }));
+    this.context_.subscriptions.push(
+      logsWatcher.onInspectLogCreated(async (e) => {
+        // if this log is contained in the directory currently being viewed
+        // then do a background refresh on it
+        if (this.webViewManager_.hasWebview()) {
+          await this.webViewManager_.showLogFileIfWithinLogDir(e.log);
+        }
+      }),
+    );
   }
 
   public async showInspectView() {
@@ -63,7 +56,10 @@ export class InspectViewManager {
   }
 
   public logFileWillVisiblyUpdate(uri: Uri): boolean {
-    return this.webViewManager_.isVisible() && this.webViewManager_.logFileIsWithinLogDir(uri);
+    return (
+      this.webViewManager_.isVisible() &&
+      this.webViewManager_.logFileIsWithinLogDir(uri)
+    );
   }
 
   public viewColumn() {
@@ -79,7 +75,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
     inspectManager: InspectManager,
     server: InspectViewServer,
     context: ExtensionContext,
-    host: ExtensionHost
+    host: ExtensionHost,
   ) {
     // If the interpreter changes, refresh the tasks
     context.subscriptions.push(
@@ -87,7 +83,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
         if (!e.available && this.activeView_) {
           this.activeView_?.dispose();
         }
-      })
+      }),
     );
 
     // register view dir as local resource root
@@ -103,11 +99,10 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
       "Inspect View",
       localResourceRoots,
       InspectViewWebview,
-      host
+      host,
     );
   }
   private activeLogDir_: Uri | null = null;
-
 
   public async showLogFile(uri: Uri, activation?: "open" | "activate") {
     // Get the directory name using posix path methods
@@ -118,7 +113,10 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
 
   public logFileIsWithinLogDir(log_file: Uri) {
     const state = this.getWorkspaceState();
-    return state?.log_dir !== undefined && getRelativeUri(state?.log_dir, log_file) !== null;
+    return (
+      state?.log_dir !== undefined &&
+      getRelativeUri(state?.log_dir, log_file) !== null
+    );
   }
 
   public async showLogFileIfWithinLogDir(log_file: Uri) {
@@ -128,18 +126,16 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
         await this.displayLogFile({
           log_file: log_file,
           log_dir: state?.log_dir,
-          background_refresh: true
+          background_refresh: true,
         });
       }
     }
   }
 
-
   public async showLogview(
     state: LogviewState,
-    activation?: "open" | "activate"
+    activation?: "open" | "activate",
   ) {
-
     // update state for restoring the workspace
     this.setWorkspaceState(state);
 
@@ -160,13 +156,12 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
           // display a log file
           await this.activeView_?.backgroundUpdate(
             state.log_file.path,
-            state.log_dir.toString()
+            state.log_dir.toString(),
           );
         }
         return;
     }
   }
-
 
   public viewColumn() {
     return this.activeView_?.webviewPanel().viewColumn;
@@ -180,7 +175,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
 
   public async displayLogFile(
     state: LogviewState,
-    activation?: "open" | "activate"
+    activation?: "open" | "activate",
   ) {
     // Determine whether we are showing a log viewer for this directory
     // If we aren't close the log viewer so a fresh one can be opened.
@@ -201,7 +196,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
 
     // Ensure that we send the state once the view is loaded
     this.setOnShow(() => {
-      this.updateVisibleView().catch(() => { });
+      this.updateVisibleView().catch(() => {});
     });
 
     // If the view is closed, clear the state
@@ -217,7 +212,7 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
       } else if (state.log_file) {
         await this.activeView_?.backgroundUpdate(
           state.log_file.path,
-          state.log_dir.toString()
+          state.log_dir.toString(),
         );
       }
     } else {
@@ -246,12 +241,15 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
   }
 
   protected override getWorkspaceState(): LogviewState | undefined {
-    const data: Record<string, string> = this.context_.workspaceState.get(this.kInspectViewState, {});
+    const data: Record<string, string> = this.context_.workspaceState.get(
+      this.kInspectViewState,
+      {},
+    );
     if (data) {
       return {
         log_dir: Uri.parse(data["log_dir"]),
         log_file: data["log_file"] ? Uri.parse(data["log_file"]) : undefined,
-        background_refresh: !!data["background_refresh"]
+        background_refresh: !!data["background_refresh"],
       };
     } else {
       return this.lastState_;
@@ -262,11 +260,11 @@ export class InspectViewWebviewManager extends InspectWebviewManager<
     void this.context_.workspaceState.update(this.kInspectViewState, {
       log_dir: state.log_dir.toString(),
       log_file: state.log_file?.toString(),
-      background_refresh: state.background_refresh
+      background_refresh: state.background_refresh,
     });
   }
 
-  private kInspectViewState = 'inspectViewState';
+  private kInspectViewState = "inspectViewState";
 
   private lastState_?: LogviewState = undefined;
 }
@@ -287,14 +285,13 @@ const logStateEquals = (a: LogviewState, b: LogviewState) => {
 };
 
 class InspectViewWebview extends InspectWebview<LogviewState> {
-
   private readonly logviewPanel_: LogviewPanel;
 
   public constructor(
     context: ExtensionContext,
     server: InspectViewServer,
     state: LogviewState,
-    webviewPanel: HostWebviewPanel
+    webviewPanel: HostWebviewPanel,
   ) {
     super(context, server, state, webviewPanel);
 
@@ -303,13 +300,13 @@ class InspectViewWebview extends InspectWebview<LogviewState> {
       context,
       server,
       "dir",
-      state.log_dir
+      state.log_dir,
     );
     this._register(this.logviewPanel_);
 
     this._register(
       this._webviewPanel.webview.onDidReceiveMessage(
-        async (e: { type: string; url: string;[key: string]: unknown }) => {
+        async (e: { type: string; url: string; [key: string]: unknown }) => {
           switch (e.type) {
             case "displayLogFile":
               {
@@ -321,14 +318,14 @@ class InspectViewWebview extends InspectWebview<LogviewState> {
                   await this._manager.displayLogFile(state, "open");
                 } else {
                   await showError(
-                    "Unable to display log file because of a missing log_dir or manager. This is an unexpected error, please report it."
+                    "Unable to display log file because of a missing log_dir or manager. This is an unexpected error, please report it.",
                   );
                 }
               }
               break;
           }
-        }
-      )
+        },
+      ),
     );
 
     this.show(state);
@@ -360,4 +357,3 @@ class InspectViewWebview extends InspectWebview<LogviewState> {
     return this.logviewPanel_.getHtml(state);
   }
 }
-

@@ -12,7 +12,7 @@ from .appdirs import inspect_data_dir
 
 logger = getLogger(__name__)
 
-EXTENSION_COMMAND_VERSIONS = {"inspect.openLogViewer": Version(0, 3, 60)}
+EXTENSION_COMMAND_VERSIONS = {"inspect.openLogViewer": Version(0, 3, 61)}
 
 
 class VSCodeCommand(BaseModel):

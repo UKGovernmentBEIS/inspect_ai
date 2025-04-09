@@ -4,7 +4,7 @@ from ._as_tool import as_tool
 from ._bridge.bridge import bridge
 from ._filter import MessageFilter, last_message, remove_tools
 from ._handoff import handoff
-from ._human.agent import human
+from ._human.agent import human_cli
 from ._react import react
 from ._run import run
 from ._types import (
@@ -16,8 +16,8 @@ from ._types import (
 
 __all__ = [
     "react",
-    "human",
     "bridge",
+    "human_cli",
     "run",
     "handoff",
     "as_tool",

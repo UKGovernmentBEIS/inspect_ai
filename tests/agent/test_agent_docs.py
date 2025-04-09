@@ -139,6 +139,7 @@ def ctf_agent(attempts=3) -> Agent:
     """)
 
     return react(
+        description="Expert at completing cybersecurity challenges.",
         prompt=INSTRUCTIONS,
         tools=[bash_session(), text_editor()],
         attempts=attempts,

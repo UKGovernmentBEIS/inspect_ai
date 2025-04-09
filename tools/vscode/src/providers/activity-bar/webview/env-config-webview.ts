@@ -1,15 +1,24 @@
 import "./vscode-controls.css";
 import "./env-config-webview.css";
 
-import { EnvConfiguration } from "../env-config-provider"
+import { EnvConfiguration } from "../env-config-provider";
 
 import {
   provideVSCodeDesignSystem,
   allComponents,
 } from "@vscode/webview-ui-toolkit";
 import { debounce } from "lodash";
-import { fastCombobox, fastOption, provideFASTDesignSystem } from "@microsoft/fast-components";
-import { showEmptyPanel, kBounceInterval, restoreInputState, restoreSelectState } from "./webview-utils";
+import {
+  fastCombobox,
+  fastOption,
+  provideFASTDesignSystem,
+} from "@microsoft/fast-components";
+import {
+  showEmptyPanel,
+  kBounceInterval,
+  restoreInputState,
+  restoreSelectState,
+} from "./webview-utils";
 
 const kModelInfo: Record<string, string> = {
   openai: "https://platform.openai.com/docs/models/overview",
@@ -18,7 +27,8 @@ const kModelInfo: Record<string, string> = {
   mistral: "https://docs.mistral.ai/platform/endpoints/",
   hf: "https://huggingface.co/models?pipeline_tag=text-generation&sort=trending",
   together: "https://docs.together.ai/docs/inference-models#chat-models",
-  bedrock: "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
+  bedrock:
+    "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html",
   azureai: "https://ai.azure.com/explore/models",
   cf: "https://developers.cloudflare.com/workers-ai/models/#text-generation",
 };
@@ -30,11 +40,7 @@ provideVSCodeDesignSystem().register(allComponents);
 declare function acquireVsCodeApi(): any;
 
 // Use the function to get the VS Code API handle
-provideFASTDesignSystem()
-  .register(
-    fastCombobox(),
-    fastOption(),
-  );
+provideFASTDesignSystem().register(fastCombobox(), fastOption());
 
 // Get access to the VS Code API from within the webview context
 const vscode = acquireVsCodeApi();
@@ -43,7 +49,6 @@ const vscode = acquireVsCodeApi();
 window.addEventListener("message", (e) => {
   switch (e.data.type) {
     case "initialize":
-
       // Set the env values
       const env = e.data.message.env;
       restoreEnv(env);
@@ -53,17 +58,14 @@ window.addEventListener("message", (e) => {
 
       attachListeners();
 
-
       break;
     case "envChanged":
-
       // Set the state values
       restoreEnv(e.data.message.env);
       break;
 
     case "noInspect":
       showEmptyPanel("Inspect package not installed", "configuration-controls");
-
   }
 });
 
@@ -114,7 +116,9 @@ function showProviderHelp() {
           questionEl.classList.add("codicon-question");
           modelHelpEl.appendChild(questionEl);
 
-          const labelContainerEl = document.getElementById("provider-label-container");
+          const labelContainerEl = document.getElementById(
+            "provider-label-container",
+          );
           labelContainerEl?.appendChild(modelHelpEl);
           modelHelpEl.addEventListener("click", () => {
             openUrl(kModelInfo[getProviderText()]);
@@ -144,9 +148,7 @@ const restoreEnv = (config: EnvConfiguration) => {
   showProviderHelp();
 };
 
-
 const attachListeners = () => {
-
   const providerChanged = (e: Event) => {
     // If the user chooses 'none' from the dropdown, this will fire
     const txt = getProviderText();
@@ -158,7 +160,7 @@ const attachListeners = () => {
       resetModel();
       showProviderHelp();
     }
-  }
+  };
 
   const el = document.getElementById("provider") as HTMLSelectElement;
 
@@ -168,11 +170,12 @@ const attachListeners = () => {
 
   setEnvWhenKeyup("model-base-url", "modelBaseUrl");
 
-  const showBaseUrlEl = document.getElementById("show-base-url") as HTMLAnchorElement;
+  const showBaseUrlEl = document.getElementById(
+    "show-base-url",
+  ) as HTMLAnchorElement;
   showBaseUrlEl.addEventListener("click", () => {
     toggleBaseUrl();
   });
-
 
   setEnvWhenKeyup("max-connections", "maxConnections");
   setEnvWhenValueChanged("max-connections", "maxConnections");
@@ -184,7 +187,6 @@ const attachListeners = () => {
   setEnvWhenKeyup("log-dir", "logDir");
   setEnvWhenValueChanged("log-level", "logLevel");
 };
-
 
 const setEnvWhenKeyup = (id: string, key: string, fn?: () => void) => {
   const el = document.getElementById(id) as HTMLInputElement;
@@ -198,16 +200,12 @@ const setEnvWhenKeyup = (id: string, key: string, fn?: () => void) => {
         if (fn) {
           fn();
         }
-      }, kBounceInterval)
+      }, kBounceInterval),
     );
   }
 };
 
-const setEnvWhenValueChanged = (
-  id: string,
-  key: string,
-  fn?: () => void,
-) => {
+const setEnvWhenValueChanged = (id: string, key: string, fn?: () => void) => {
   const el = document.getElementById(id) as HTMLSelectElement;
   el.addEventListener("change", (e: Event) => {
     if (e.target) {
@@ -229,16 +227,17 @@ function setEnvValue(key: string, value: string) {
   });
 }
 
-
 function openUrl(url: string) {
   vscode.postMessage({
     command: "openUrl",
-    url
-  })
+    url,
+  });
 }
 
 function toggleBaseUrl() {
-  const baseUrlContainerEl = document.getElementById("model-base-url-container");
+  const baseUrlContainerEl = document.getElementById(
+    "model-base-url-container",
+  );
   if (baseUrlContainerEl) {
     const hidden = baseUrlContainerEl.classList.contains("hidden");
     if (hidden) {

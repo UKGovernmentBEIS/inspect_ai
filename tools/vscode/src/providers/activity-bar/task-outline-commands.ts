@@ -35,7 +35,7 @@ import { InspectViewManager } from "../logview/logview-view";
 import { ActiveTaskManager } from "../active-task/active-task-provider";
 
 export class ShowTaskTree implements Command {
-  constructor(private readonly provider_: TaskOutLineTreeDataProvider) { }
+  constructor(private readonly provider_: TaskOutLineTreeDataProvider) {}
   async execute(): Promise<void> {
     await workspace
       .getConfiguration("inspect_ai")
@@ -47,7 +47,7 @@ export class ShowTaskTree implements Command {
 }
 
 export class ShowTaskList implements Command {
-  constructor(private readonly provider_: TaskOutLineTreeDataProvider) { }
+  constructor(private readonly provider_: TaskOutLineTreeDataProvider) {}
   async execute(): Promise<void> {
     await workspace
       .getConfiguration("inspect_ai")
@@ -59,7 +59,7 @@ export class ShowTaskList implements Command {
 }
 
 export class RunSelectedEvalCommand implements Command {
-  constructor(private readonly inspectEvalMgr_: InspectEvalManager) { }
+  constructor(private readonly inspectEvalMgr_: InspectEvalManager) {}
   async execute(treeItem: TaskTreeItem): Promise<void> {
     const path = treeItem.taskPath.path;
     const task =
@@ -68,7 +68,7 @@ export class RunSelectedEvalCommand implements Command {
     const evalPromise = this.inspectEvalMgr_.startEval(
       toAbsolutePath(path),
       task,
-      false
+      false,
     );
     const resumeFocusCommand = "inspect_ai.task-outline-view.focus";
     scheduleReturnFocus(resumeFocusCommand);
@@ -79,7 +79,7 @@ export class RunSelectedEvalCommand implements Command {
 }
 
 export class DebugSelectedEvalCommand implements Command {
-  constructor(private readonly inspectEvalMgr_: InspectEvalManager) { }
+  constructor(private readonly inspectEvalMgr_: InspectEvalManager) {}
   async execute(treeItem: TaskTreeItem): Promise<void> {
     const path = treeItem.taskPath.path;
     const task =
@@ -94,8 +94,8 @@ export class EditSelectedTaskCommand implements Command {
   constructor(
     private readonly tree_: TreeView<TaskTreeItem>,
     private inspectLogviewManager_: InspectViewManager,
-    private activeTaskManager_: ActiveTaskManager
-  ) { }
+    private activeTaskManager_: ActiveTaskManager,
+  ) {}
   async execute() {
     if (this.tree_.selection.length > 1) {
       throw new Error("Expected only a single selector for the task tree");
@@ -112,7 +112,9 @@ export class EditSelectedTaskCommand implements Command {
 
       // If this is a specific task, go right to that
       const task =
-        treeItem.taskPath.type === "task" ? treeItem.taskPath.name : treeItem.taskPath.children?.[0].name;
+        treeItem.taskPath.type === "task"
+          ? treeItem.taskPath.name
+          : treeItem.taskPath.children?.[0].name;
 
       // Note if/where the logview is showing
       const logViewColumn = this.inspectLogviewManager_.viewColumn();
@@ -208,7 +210,7 @@ export const findTargetViewColumn = (logViewColumn?: ViewColumn) => {
 };
 
 export class CreateTaskCommand implements Command {
-  constructor(private readonly context_: ExtensionContext) { }
+  constructor(private readonly context_: ExtensionContext) {}
   async execute(): Promise<void> {
     // Gather the task name
     const taskName = await window.showInputBox({

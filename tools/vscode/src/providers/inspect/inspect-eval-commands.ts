@@ -9,7 +9,7 @@ export function inspectEvalCommands(manager: InspectEvalManager): Command[] {
 }
 
 export class RunEvalCommand implements Command {
-  constructor(private readonly manager_: InspectEvalManager) { }
+  constructor(private readonly manager_: InspectEvalManager) {}
   async execute(documentUri: Uri, fnName: string): Promise<void> {
     const cwd = toAbsolutePath(documentUri.fsPath);
 
@@ -22,7 +22,7 @@ export class RunEvalCommand implements Command {
 }
 
 export class DebugEvalCommand implements Command {
-  constructor(private readonly manager_: InspectEvalManager) { }
+  constructor(private readonly manager_: InspectEvalManager) {}
   async execute(documentUri: Uri, fnName: string): Promise<void> {
     const cwd = toAbsolutePath(documentUri.fsPath);
     await this.manager_.startEval(cwd, fnName, true);
@@ -30,4 +30,3 @@ export class DebugEvalCommand implements Command {
   private static readonly id = "inspect.debugTask";
   public readonly id = DebugEvalCommand.id;
 }
-

@@ -43,7 +43,7 @@ from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
 )
-from inspect_ai.model._model import init_active_model, resolve_models
+from inspect_ai.model._model import get_model, init_active_model, resolve_models
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -751,10 +751,15 @@ async def eval_retry_async(
             else None
         )
 
+        # resolve the model
+        model = get_model(
+            model=eval_log.eval.model,
+            config=eval_log.eval.model_generate_config,
+            base_url=eval_log.eval.model_base_url,
+            **eval_log.eval.model_args,
+        )
+
         # collect the rest of the params we need for the eval
-        model = eval_log.eval.model
-        model_base_url = eval_log.eval.model_base_url
-        model_args = eval_log.eval.model_args
         task_args = eval_log.eval.task_args
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
@@ -813,8 +818,6 @@ async def eval_retry_async(
                     id=task_id, task=task, task_args=task_args, model=None, log=eval_log
                 ),
                 model=model,
-                model_base_url=model_base_url,
-                model_args=model_args,
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,

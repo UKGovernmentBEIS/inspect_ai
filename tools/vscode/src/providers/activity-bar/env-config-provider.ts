@@ -11,7 +11,10 @@ import { WorkspaceStateManager } from "../workspace/workspace-state-provider";
 import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { kInspectEnvValues } from "../inspect/inspect-constants";
 import { inspectVersion } from "../../inspect";
-import { InspectChangedEvent, InspectManager } from "../inspect/inspect-manager";
+import {
+  InspectChangedEvent,
+  InspectManager,
+} from "../inspect/inspect-manager";
 import { inspectVersionDescriptor } from "../../inspect/props";
 
 export const kActiveTaskChanged = "activeTaskChanged";
@@ -47,17 +50,17 @@ export interface EnvConfiguration {
 // A list of the auto-complete models and the minimum
 // version required in order to support the model
 const kInspectModels: Record<string, string> = {
-  "openai": "0.3.8",
-  "anthropic": "0.3.8",
-  "google": "0.3.8",
-  "mistral": "0.3.8",
-  "hf": "0.3.8",
-  "together": "0.3.8",
-  "bedrock": "0.3.8",
-  "ollama": "0.3.9",
-  "azureai": "0.3.8",
-  "cf": "0.3.8",
-  "llama-cpp-python": "0.3.39"
+  openai: "0.3.8",
+  anthropic: "0.3.8",
+  google: "0.3.8",
+  mistral: "0.3.8",
+  hf: "0.3.8",
+  together: "0.3.8",
+  bedrock: "0.3.8",
+  ollama: "0.3.9",
+  azureai: "0.3.8",
+  cf: "0.3.8",
+  "llama-cpp-python": "0.3.39",
 };
 
 const inspectModels = () => {
@@ -72,7 +75,6 @@ const inspectModels = () => {
   });
 };
 
-
 export class EnvConfigurationProvider implements WebviewViewProvider {
   public static readonly viewType = "inspect_ai.env-configuration-view";
 
@@ -80,8 +82,8 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
     private readonly extensionUri_: Uri,
     private readonly envManager_: WorkspaceEnvManager,
     private readonly stateManager_: WorkspaceStateManager,
-    private readonly inspectManager_: InspectManager
-  ) { }
+    private readonly inspectManager_: InspectManager,
+  ) {}
   private env: EnvConfiguration = {};
 
   public resolveWebviewView(webviewView: WebviewView) {
@@ -96,7 +98,6 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
     // Process UI messages
     webviewView.webview.onDidReceiveMessage(
       async (data: SetEnvCommand | InitCommand | OpenUrlCommand) => {
-
         const command = data.command;
         switch (command) {
           case "initialize": {
@@ -107,51 +108,53 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
             }
             break;
           }
-          case "setEnvValue":
-            {
-              // Set the value
-              setConfiguration(data.default, data.value, this.env);
+          case "setEnvValue": {
+            // Set the value
+            setConfiguration(data.default, data.value, this.env);
 
-              // Special case for provider, potentially restoring the 
-              // previously used model
-              let updateWebview = false;
-              if (data.default === "provider") {
-                const modelState = this.stateManager_.getModelState(data.value);
-                setConfiguration("model", modelState.lastModel || "", this.env);
-                updateWebview = true;
-              }
-
-              // Save the most recently used model for this provider
-              if (this.env.provider && data.default === "model") {
-                const modelState = this.stateManager_.getModelState(this.env.provider);
-                modelState.lastModel = data.value;
-                await this.stateManager_.setModelState(this.env.provider, modelState);
-              }
-
-              // Save the env
-              this.envManager_.setValues(configToEnv(this.env));
-
-
-              if (updateWebview) {
-                await webviewView.webview.postMessage({
-                  type: kEnvChanged,
-                  message: {
-                    env: this.env,
-                  },
-                });
-              }
-
-              break;
+            // Special case for provider, potentially restoring the
+            // previously used model
+            let updateWebview = false;
+            if (data.default === "provider") {
+              const modelState = this.stateManager_.getModelState(data.value);
+              setConfiguration("model", modelState.lastModel || "", this.env);
+              updateWebview = true;
             }
+
+            // Save the most recently used model for this provider
+            if (this.env.provider && data.default === "model") {
+              const modelState = this.stateManager_.getModelState(
+                this.env.provider,
+              );
+              modelState.lastModel = data.value;
+              await this.stateManager_.setModelState(
+                this.env.provider,
+                modelState,
+              );
+            }
+
+            // Save the env
+            this.envManager_.setValues(configToEnv(this.env));
+
+            if (updateWebview) {
+              await webviewView.webview.postMessage({
+                type: kEnvChanged,
+                message: {
+                  env: this.env,
+                },
+              });
+            }
+
+            break;
+          }
           case "openUrl":
             await env.openExternal(Uri.parse(data.url));
             break;
         }
-      }
+      },
     );
 
     const initMsg = async () => {
-
       // Merge current state
       this.env = envToConfig(this.envManager_);
 
@@ -159,7 +162,7 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
       await webviewView.webview.postMessage({
         type: kInitialize,
         message: {
-          env: this.env
+          env: this.env,
         },
       });
     };
@@ -171,24 +174,28 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
     };
 
     // Update the panel if the environment changes
-    this.disposables_.push(this.envManager_.onEnvironmentChanged(async () => {
-      this.env = envToConfig(this.envManager_);
-      await webviewView.webview.postMessage({
-        type: kEnvChanged,
-        message: {
-          env: this.env,
-        },
-      });
-    }));
+    this.disposables_.push(
+      this.envManager_.onEnvironmentChanged(async () => {
+        this.env = envToConfig(this.envManager_);
+        await webviewView.webview.postMessage({
+          type: kEnvChanged,
+          message: {
+            env: this.env,
+          },
+        });
+      }),
+    );
 
     // If the interpreter changes, refresh the tasks
-    this.disposables_.push(this.inspectManager_.onInspectChanged(async (e: InspectChangedEvent) => {
-      if (e.available) {
-        await initMsg();
-      } else {
-        await noInspectMsg();
-      }
-    }));
+    this.disposables_.push(
+      this.inspectManager_.onInspectChanged(async (e: InspectChangedEvent) => {
+        if (e.available) {
+          await initMsg();
+        } else {
+          await noInspectMsg();
+        }
+      }),
+    );
 
     // Attach a listener to clean up resources when the webview is disposed
     webviewView.onDidDispose(() => {
@@ -205,7 +212,7 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
   private htmlForWebview(webview: Webview) {
     // Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
     const scriptUri = webview.asWebviewUri(
-      Uri.joinPath(this.extensionUri_, "out", "env-config-webview.js")
+      Uri.joinPath(this.extensionUri_, "out", "env-config-webview.js"),
     );
     const codiconsUri = webview.asWebviewUri(
       Uri.joinPath(
@@ -213,8 +220,8 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
         "assets",
         "www",
         "codicon",
-        "codicon.css"
-      )
+        "codicon.css",
+      ),
     );
 
     const codiconsFontUri = webview.asWebviewUri(
@@ -223,8 +230,8 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
         "assets",
         "www",
         "codicon",
-        "codicon.ttf"
-      )
+        "codicon.ttf",
+      ),
     );
 
     // Use a nonce to only allow a specific script to be run.
@@ -244,9 +251,11 @@ export class EnvConfigurationProvider implements WebviewViewProvider {
                       and only allow scripts that have a specific nonce.
                       (See the 'webview-sample' extension sample for img-src content security policy examples)
                   -->
-                  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${webview.cspSource
-      }; style-src ${webview.cspSource
-      } 'unsafe-inline'; script-src 'nonce-${nonce}';">
+                  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; font-src ${
+                    webview.cspSource
+                  }; style-src ${
+                    webview.cspSource
+                  } 'unsafe-inline'; script-src 'nonce-${nonce}';">
                   <meta name="viewport" content="width=device-width, initial-scale=1.0">
                   <style type="text/css">
                   @font-face {
@@ -395,7 +404,7 @@ const configToEnv = (config: EnvConfiguration): Record<string, string> => {
 const setConfiguration = (
   key: string,
   value: string,
-  state: EnvConfiguration
+  state: EnvConfiguration,
 ) => {
   switch (key) {
     case "provider":
