@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.86 (09 April 2025)
 
 - Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
 - Eval Retry: Correctly restore model-specific generation config on retry.
