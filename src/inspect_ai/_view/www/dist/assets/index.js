@@ -42831,6 +42831,128 @@ categories: ${categories.join(" ")}`;
         [setSelectedLogIndex, clearSelectedLogSummary, clearSelectedSample]
       );
     };
+    const useSampleNavigation = () => {
+      const navigate = useNavigate();
+      const { logPath, tabId } = useParams();
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
+      const selectSample = useStore((state) => state.logActions.selectSample);
+      const setShowingSampleDialog = useStore(
+        (state) => state.appActions.setShowingSampleDialog
+      );
+      const sampleSummaries = useFilteredSamples();
+      const getSelectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile
+      );
+      const logDirectory = useStore((state) => state.logs.logs.log_dir);
+      const resolveLogPath = reactExports.useCallback(() => {
+        if (logPath) {
+          return logPath;
+        }
+        const selectedLogFile = getSelectedLogFile();
+        if (selectedLogFile) {
+          return directoryRelativeUrl(selectedLogFile, logDirectory);
+        }
+        return void 0;
+      }, [logPath, getSelectedLogFile, logDirectory]);
+      const navigateToSample = reactExports.useCallback(
+        (index2) => {
+          if (sampleSummaries && index2 >= 0 && index2 < sampleSummaries.length) {
+            const sample2 = sampleSummaries[index2];
+            const resolvedPath = resolveLogPath();
+            if (resolvedPath) {
+              selectSample(index2);
+              setShowingSampleDialog(true);
+              navigate(
+                `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample2.id}/${sample2.epoch}`
+              );
+            }
+          }
+        },
+        [
+          sampleSummaries,
+          resolveLogPath,
+          selectSample,
+          setShowingSampleDialog,
+          navigate,
+          tabId
+        ]
+      );
+      const navigateToNextSample = reactExports.useCallback(
+        (itemsCount) => {
+          const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
+          if (next > -1) {
+            navigateToSample(next);
+          }
+        },
+        [selectedSampleIndex, navigateToSample]
+      );
+      const navigateToPreviousSample = reactExports.useCallback(
+        (getPreviousIndex) => {
+          const prev = getPreviousIndex();
+          if (prev > -1) {
+            navigateToSample(prev);
+          }
+        },
+        [navigateToSample]
+      );
+      const getSampleUrl = reactExports.useCallback(
+        (sampleId, epoch) => {
+          const resolvedPath = resolveLogPath();
+          if (resolvedPath) {
+            return `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
+          }
+          return void 0;
+        },
+        [resolveLogPath, tabId]
+      );
+      const closeDialog = reactExports.useCallback(() => {
+        const resolvedPath = resolveLogPath();
+        if (resolvedPath) {
+          navigate(`/logs/${resolvedPath}/${tabId || "samples"}`);
+        }
+      }, [resolveLogPath, navigate, tabId]);
+      return {
+        navigateToSample,
+        navigateToNextSample,
+        navigateToPreviousSample,
+        getSampleUrl,
+        closeDialog,
+        selectedSampleIndex,
+        selectSample,
+        setShowingSampleDialog
+      };
+    };
+    class AppErrorBoundary extends reactExports.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+      }
+      static getDerivedStateFromError(error2) {
+        return { hasError: true, error: error2 };
+      }
+      componentDidCatch(error2, errorInfo) {
+        console.log({ error: error2, errorInfo });
+      }
+      render() {
+        if (this.state.hasError) {
+          console.error({ e: this.state.error });
+          if (this.state.error) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ErrorPanel,
+              {
+                title: "An unexpected error occurred.",
+                error: this.state.error
+              }
+            );
+          } else {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "An unknown error with no additional information occured." });
+          }
+        }
+        return this.props.children;
+      }
+    }
     const EmptyPanel = ({ children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
     };
@@ -59878,10 +60000,7 @@ ${events}
     const SampleDialog = ({
       id,
       title: title2,
-      nextSample,
-      prevSample,
       showingSampleDialog,
-      setShowingSampleDialog,
       selectedTab,
       setSelectedTab
     }) => {
@@ -59917,47 +60036,64 @@ ${events}
         (_e2 = sampleData.sample) == null ? void 0 : _e2.id,
         (_f = sampleData.sample) == null ? void 0 : _f.epoch
       ]);
+      const sampleNavigation = useSampleNavigation();
+      const filteredSamples = useFilteredSamples();
+      const selectedSampleIndex = sampleNavigation.selectedSampleIndex;
+      const nextSampleIndex = reactExports.useMemo(
+        () => selectedSampleIndex < filteredSamples.length - 1 ? selectedSampleIndex + 1 : -1,
+        [filteredSamples, selectedSampleIndex]
+      );
+      const prevSampleIndex = reactExports.useMemo(
+        () => selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1,
+        [selectedSampleIndex]
+      );
+      const handleNextSample = reactExports.useCallback(() => {
+        if (nextSampleIndex >= 0) {
+          sampleNavigation.navigateToSample(nextSampleIndex);
+        }
+      }, [nextSampleIndex, sampleNavigation]);
+      const handlePrevSample = reactExports.useCallback(() => {
+        if (prevSampleIndex >= 0) {
+          sampleNavigation.navigateToSample(prevSampleIndex);
+        }
+      }, [prevSampleIndex, sampleNavigation]);
       const tools2 = reactExports.useMemo(() => {
         const nextTool = {
           label: "Next Sample",
           icon: ApplicationIcons.next,
-          onClick: nextSample,
-          enabled: !!nextSample
+          onClick: handleNextSample,
+          enabled: nextSampleIndex >= 0
         };
         const prevTool = {
           label: "Previous Sample",
           icon: ApplicationIcons.previous,
-          onClick: prevSample,
-          enabled: !!prevSample
+          onClick: handlePrevSample,
+          enabled: prevSampleIndex >= 0
         };
         return {
           left: [prevTool],
           right: [nextTool]
         };
-      }, [prevSample, nextSample]);
+      }, [handlePrevSample, handleNextSample, nextSampleIndex, prevSampleIndex]);
       const handleKeyUp = reactExports.useCallback(
         (e) => {
           switch (e.key) {
             case "ArrowRight":
-              if (nextSample) {
-                nextSample();
-              }
+              handleNextSample();
               break;
             case "ArrowLeft":
-              if (prevSample) {
-                prevSample();
-              }
+              handlePrevSample();
               break;
             case "Escape":
-              setShowingSampleDialog(false);
+              sampleNavigation.closeDialog();
               break;
           }
         },
-        [prevSample, nextSample, setShowingSampleDialog]
+        [handlePrevSample, handleNextSample, sampleNavigation]
       );
       const onHide = reactExports.useCallback(() => {
-        setShowingSampleDialog(false);
-      }, [setShowingSampleDialog]);
+        sampleNavigation.closeDialog();
+      }, [sampleNavigation]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LargeModal,
         {
@@ -77339,14 +77475,14 @@ ${events}
         let prevState = update.startState.field(this.stateField);
         this.updateTooltipClass(update.state);
         if (cState != prevState) {
-          let { options: options2, selected: selected2, disabled } = cState.open;
+          let { options: options2, selected: selected2, disabled: disabled2 } = cState.open;
           if (!prevState.open || prevState.open.options != options2) {
             this.range = rangeAroundSelected(options2.length, selected2, update.state.facet(completionConfig).maxRenderedOptions);
             this.showOptions(options2, cState.id);
           }
           this.updateSel();
-          if (disabled != ((_a2 = prevState.open) === null || _a2 === void 0 ? void 0 : _a2.disabled))
-            this.dom.classList.toggle("cm-tooltip-autocomplete-disabled", !!disabled);
+          if (disabled2 != ((_a2 = prevState.open) === null || _a2 === void 0 ? void 0 : _a2.disabled))
+            this.dom.classList.toggle("cm-tooltip-autocomplete-disabled", !!disabled2);
         }
       }
       updateTooltipClass(state) {
@@ -77583,13 +77719,13 @@ ${events}
       return result2;
     }
     class CompletionDialog {
-      constructor(options2, attrs, tooltip, timestamp, selected2, disabled) {
+      constructor(options2, attrs, tooltip, timestamp, selected2, disabled2) {
         this.options = options2;
         this.attrs = attrs;
         this.tooltip = tooltip;
         this.timestamp = timestamp;
         this.selected = selected2;
-        this.disabled = disabled;
+        this.disabled = disabled2;
       }
       setSelected(selected2, id) {
         return selected2 == this.selected || selected2 >= this.options.length ? this : new CompletionDialog(this.options, makeAttrs(id, selected2), this.tooltip, this.timestamp, selected2, this.disabled);
@@ -80690,15 +80826,19 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$6.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
       ] });
     };
-    const grid = "_grid_2k7ov_1";
-    const selected = "_selected_2k7ov_13";
-    const cell = "_cell_2k7ov_17";
-    const wrapAnywhere = "_wrapAnywhere_2k7ov_22";
-    const noLeft = "_noLeft_2k7ov_26";
-    const score = "_score_2k7ov_30";
+    const grid = "_grid_1oibv_1";
+    const selected = "_selected_1oibv_13";
+    const sampleRowLink = "_sampleRowLink_1oibv_17";
+    const disabled = "_disabled_1oibv_23";
+    const cell = "_cell_1oibv_28";
+    const wrapAnywhere = "_wrapAnywhere_1oibv_33";
+    const noLeft = "_noLeft_1oibv_37";
+    const score = "_score_1oibv_41";
     const styles$5 = {
       grid,
       selected,
+      sampleRowLink,
+      disabled,
       cell,
       wrapAnywhere,
       noLeft,
@@ -80721,20 +80861,31 @@ Supported expressions:
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
       );
-      const handleClick = reactExports.useCallback(() => {
-        if (completed || streamSampleData) {
-          showSample(index2);
-        }
-      }, [index2, showSample, completed]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      const isViewable = completed || streamSampleData;
+      const sampleNavigation = useSampleNavigation();
+      const sampleUrl = isViewable ? sampleNavigation.getSampleUrl(sample2.id, sample2.epoch) : void 0;
+      const handleClick = reactExports.useCallback(
+        (e) => {
+          if (isViewable) {
+            if (!sampleUrl) {
+              sampleNavigation.navigateToSample(index2);
+              e.preventDefault();
+            }
+          } else {
+            e.preventDefault();
+          }
+        },
+        [index2, isViewable, sampleUrl, sampleNavigation]
+      );
+      const rowContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
           id: `sample-${id}`,
-          onClick: handleClick,
           className: clsx(
             styles$5.grid,
             "text-size-base",
-            selectedSampleIndex === index2 ? styles$5.selected : void 0
+            selectedSampleIndex === index2 ? styles$5.selected : void 0,
+            !isViewable && !sampleUrl ? styles$5.disabled : void 0
           ),
           style: {
             height: `${height}px`,
@@ -80785,6 +80936,7 @@ Supported expressions:
           ]
         }
       );
+      return sampleUrl && isViewable ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: sampleUrl, onClick: handleClick, className: styles$5.sampleRowLink, children: rowContent }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: isViewable ? () => showSample(index2) : void 0, children: rowContent });
     };
     const row = "_row_utdq5_1";
     const styles$4 = {
@@ -81295,12 +81447,12 @@ Supported expressions:
     };
     const SamplesTab = ({ running: running2 }) => {
       var _a2, _b2;
-      const selectSample = useStore((state) => state.logActions.selectSample);
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
       );
       const sampleSummaries = useFilteredSamples();
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const sampleNavigation = useSampleNavigation();
       const evalSampleCount = reactExports.useMemo(() => {
         const limit = selectedLogSummary == null ? void 0 : selectedLogSummary.eval.config.limit;
         const limitCount = limit === null || limit === void 0 ? void 0 : typeof limit === "number" ? limit : limit[1] - limit[0];
@@ -81326,10 +81478,9 @@ Supported expressions:
       );
       const showSample = reactExports.useCallback(
         (index2) => {
-          selectSample(index2);
-          setShowingSampleDialog(true);
+          sampleNavigation.navigateToSample(index2);
         },
-        [selectSample, setShowingSampleDialog]
+        [sampleNavigation]
       );
       reactExports.useEffect(() => {
         setTimeout(() => {
@@ -81384,17 +81535,11 @@ Supported expressions:
         return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
       }, [selectedSampleIndex]);
       const nextSample = reactExports.useCallback(() => {
-        const next = Math.min(selectedSampleIndex + 1, sampleItems.length - 1);
-        if (next > -1) {
-          selectSample(next);
-        }
-      }, [selectedSampleIndex, sampleItems, selectSample]);
+        sampleNavigation.navigateToNextSample(sampleItems.length);
+      }, [sampleNavigation, sampleItems.length]);
       const previousSample = reactExports.useCallback(() => {
-        const prev = previousSampleIndex();
-        if (prev > -1) {
-          selectSample(prev);
-        }
-      }, [previousSampleIndex, selectSample]);
+        sampleNavigation.navigateToPreviousSample(previousSampleIndex);
+      }, [sampleNavigation, previousSampleIndex]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       if (totalSampleCount === 0) {
         if (running2) {
@@ -81417,7 +81562,7 @@ Supported expressions:
               showSample
             }
           ) : void 0,
-          showingSampleDialog ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          showingSampleDialog && /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleDialog,
             {
               id: String((selectedSample == null ? void 0 : selectedSample.id) || ""),
@@ -81425,11 +81570,9 @@ Supported expressions:
               showingSampleDialog,
               setShowingSampleDialog,
               selectedTab: selectedSampleTab,
-              setSelectedTab: setSelectedSampleTab,
-              nextSample,
-              prevSample: previousSample
+              setSelectedTab: setSelectedSampleTab
             }
-          ) : void 0
+          )
         ] });
       }
     };
@@ -81553,10 +81696,15 @@ Supported expressions:
       }
     };
     const LogContainer = () => {
-      const { logPath, tabId } = useParams();
+      const { logPath, tabId, sampleId, epoch } = useParams();
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
+      const setShowingSampleDialog = useStore(
+        (state) => state.appActions.setShowingSampleDialog
+      );
+      const selectSample = useStore((state) => state.logActions.selectSample);
+      const filteredSamples = useFilteredSamples();
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {
           if (logPath) {
@@ -81570,7 +81718,21 @@ Supported expressions:
         };
         loadLogFromPath();
       }, [logPath, tabId, selectLogFile, refreshLogs, setWorkspaceTab]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(AppContent, {});
+      reactExports.useEffect(() => {
+        if (sampleId && filteredSamples) {
+          const targetEpoch = epoch ? parseInt(epoch, 10) : void 0;
+          const sampleIndex = filteredSamples.findIndex(
+            (sample2) => sample2.id === sampleId && (targetEpoch === void 0 || sample2.epoch === targetEpoch)
+          );
+          if (sampleIndex >= 0) {
+            selectSample(sampleIndex);
+            setShowingSampleDialog(true);
+          }
+        } else {
+          setShowingSampleDialog(false);
+        }
+      }, [sampleId, epoch, filteredSamples, selectSample, setShowingSampleDialog]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(AppContent, {}) });
     };
     const AppContent = () => {
       const appStatus = useStore((state) => state.app.status);
@@ -81783,6 +81945,10 @@ Supported expressions:
             element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogContainer, {})
           },
           {
+            path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
+            element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogContainer, {})
+          },
+          {
             path: "*",
             element: /* @__PURE__ */ jsxRuntimeExports.jsx(Navigate, { to: "/", replace: true })
           }
@@ -81791,35 +81957,6 @@ Supported expressions:
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(RouterProvider2, { router });
     };
-    class AppErrorBoundary extends reactExports.Component {
-      constructor(props) {
-        super(props);
-        this.state = { hasError: false };
-      }
-      static getDerivedStateFromError(error2) {
-        return { hasError: true, error: error2 };
-      }
-      componentDidCatch(error2, errorInfo) {
-        console.log({ error: error2, errorInfo });
-      }
-      render() {
-        if (this.state.hasError) {
-          console.error({ e: this.state.error });
-          if (this.state.error) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              ErrorPanel,
-              {
-                title: "An unexpected error occurred.",
-                error: this.state.error
-              }
-            );
-          } else {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "An unknown error with no additional information occured." });
-          }
-        }
-        return this.props.children;
-      }
-    }
     const resolveStorage = () => {
       const vscodeApi2 = getVscodeApi();
       if (vscodeApi2) {

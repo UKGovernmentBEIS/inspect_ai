@@ -28,8 +28,9 @@ import {
   useParams,
 } from "react-router-dom";
 import { ClientAPI, HostMessage } from "../client/api/types.ts";
-import { useSetSelectedLogIndex } from "../state/hooks.ts";
+import { useFilteredSamples, useSetSelectedLogIndex } from "../state/hooks.ts";
 import { useStore } from "../state/store.ts";
+import { AppErrorBoundary } from "./AppErrorBoundary.tsx";
 import { LogView } from "./log-view/LogView.tsx";
 
 interface AppProps {
@@ -37,13 +38,23 @@ interface AppProps {
 }
 
 /**
- * LogContainer component that handles routing to specific logs and tabs
+ * LogContainer component that handles routing to specific logs, tabs, and samples
  */
 const LogContainer: FC = () => {
-  const { logPath, tabId } = useParams<{ logPath?: string; tabId?: string }>();
+  const { logPath, tabId, sampleId, epoch } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleId?: string;
+    epoch?: string;
+  }>();
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
+  const setShowingSampleDialog = useStore(
+    (state) => state.appActions.setShowingSampleDialog,
+  );
+  const selectSample = useStore((state) => state.logActions.selectSample);
+  const filteredSamples = useFilteredSamples();
 
   useEffect(() => {
     const loadLogFromPath = async () => {
@@ -64,7 +75,33 @@ const LogContainer: FC = () => {
     loadLogFromPath();
   }, [logPath, tabId, selectLogFile, refreshLogs, setWorkspaceTab]);
 
-  return <AppContent />;
+  // Handle sample selection from URL params
+  useEffect(() => {
+    if (sampleId && filteredSamples) {
+      // Find the sample with matching ID and epoch
+      const targetEpoch = epoch ? parseInt(epoch, 10) : undefined;
+      const sampleIndex = filteredSamples.findIndex(
+        (sample) =>
+          sample.id === sampleId &&
+          (targetEpoch === undefined || sample.epoch === targetEpoch),
+      );
+
+      if (sampleIndex >= 0) {
+        selectSample(sampleIndex);
+        setShowingSampleDialog(true);
+      }
+    } else {
+      // If we don't have sample params in the URL but the dialog is showing, close it
+      // This handles the case when user navigates back from a sample
+      setShowingSampleDialog(false);
+    }
+  }, [sampleId, epoch, filteredSamples, selectSample, setShowingSampleDialog]);
+
+  return (
+    <AppErrorBoundary>
+      <AppContent />
+    </AppErrorBoundary>
+  );
 };
 
 /**
@@ -329,6 +366,10 @@ export const App: FC<AppProps> = ({ api }) => {
       },
       {
         path: "/logs/:logPath/:tabId?",
+        element: <LogContainer />,
+      },
+      {
+        path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
         element: <LogContainer />,
       },
       {
