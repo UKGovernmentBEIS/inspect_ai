@@ -32,7 +32,7 @@ def agent_loop(message_limit: int = 50):
                 else:
                     break
         except LimitExceededError as ex:
-            raise ex.with_state(state)
+            raise ex.with_conversation(state)
 
         return state
 

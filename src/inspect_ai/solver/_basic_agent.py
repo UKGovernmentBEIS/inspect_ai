@@ -250,7 +250,7 @@ def basic_agent(
 
             # propagate current state along with sample limit exceeded
             except LimitExceededError as ex:
-                raise ex.with_state(state)
+                raise ex.with_conversation(state)
 
             return state
 
