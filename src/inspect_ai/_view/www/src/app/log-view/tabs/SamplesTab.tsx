@@ -20,8 +20,8 @@ import {
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
-import { useSampleNavigation } from "../../appNavigation.ts";
 import { ApplicationIcons } from "../../appearance/icons.ts";
+import { useSampleNavigation } from "../../routing/appNavigation.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";

@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useFilteredSamples } from "../state/hooks";
-import { useStore } from "../state/store";
-import { directoryRelativeUrl } from "../utils/uri";
+import { useFilteredSamples } from "../../state/hooks";
+import { useStore } from "../../state/store";
+import { directoryRelativeUrl } from "../../utils/uri";
 
 export const useLogNavigation = () => {
   const navigate = useNavigate();
