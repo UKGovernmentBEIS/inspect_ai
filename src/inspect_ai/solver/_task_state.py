@@ -326,6 +326,10 @@ class TaskState:
         """Set limit on total tokens allowed per conversation."""
         self._token_limit.limit = tokens
 
+        from inspect_ai.log._samples import set_active_sample_token_limit
+
+        set_active_sample_token_limit(tokens)
+
     @property
     def token_usage(self) -> int:
         """Total tokens used for the current sample."""
@@ -345,8 +349,11 @@ class TaskState:
         if self._completed:
             return True
         else:
-            check_token_limit()
-            check_message_limit()
+            try:
+                check_token_limit()
+                check_message_limit()
+            except LimitExceededError as ex:
+                raise ex.with_conversation(self)
             check_sample_interrupt()
             return self._completed
 

@@ -199,28 +199,36 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
+        # short circuit no samples
+        if len(samples) == 0:
+            return
+
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
             try:
-                # Convert list of tuples into a string for SQL IN clause
-                # Format: (('id1', 1), ('id2', 2))
-                sample_conditions = ",".join(
-                    [f"('{sid}', {epoch})" for sid, epoch in samples]
+                # Build a query using individual column comparisons instead of row values
+                placeholders = " OR ".join(
+                    ["(sample_id=? AND sample_epoch=?)" for _ in samples]
                 )
 
-                # Delete associated events first due to foreign key constraint
+                # Flatten parameters for binding
+                parameters = [item for tup in samples for item in tup]
+
+                # Delete associated events first
                 events_query = f"""
                     DELETE FROM events
-                    WHERE (sample_id, sample_epoch) IN ({sample_conditions})
+                    WHERE {placeholders}
                 """
-                cursor.execute(events_query)
+                cursor.execute(events_query, parameters)
 
-                # Then delete the samples
+                # Then delete the samples using the same approach
+                placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in samples])
+
                 samples_query = f"""
                     DELETE FROM samples
-                    WHERE (id, epoch) IN ({sample_conditions})
+                    WHERE {placeholders}
                 """
-                cursor.execute(samples_query)
+                cursor.execute(samples_query, parameters)
             finally:
                 cursor.close()
 
