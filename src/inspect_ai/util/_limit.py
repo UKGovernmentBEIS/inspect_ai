@@ -79,8 +79,9 @@ class Limit(abc.ABC):
 def record_model_usage(model: str, usage: ModelUsage) -> None:
     """Record model usage against any active token limits."""
     node = leaf_node.get()
-    if node is not None:
-        node.record(model, usage)
+    if node is None:
+        return
+    node.record(model, usage)
 
 
 # TODO: Should we pre-emptively drop the "token" name from this function?
