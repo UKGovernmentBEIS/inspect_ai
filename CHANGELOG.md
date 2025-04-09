@@ -1,6 +1,13 @@
 ## Unreleased
 
 - Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
+- Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
+- Inspect View: Resolve sample attachments before including in realtime event stream.
+
+## v0.3.85 (08 April 2025)
+
+- Remove support for `goodfire` model provider (dependency conflicts).
+- React Agent: Enable specification of `description` without `name`.
 
 ## v0.3.84 (07 April 2025)
 
