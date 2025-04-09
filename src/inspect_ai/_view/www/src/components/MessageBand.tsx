@@ -1,7 +1,7 @@
 import { clsx } from "clsx";
 
 import { FC, useCallback } from "react";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import { useMessageVisibility } from "../state/hooks";
 import "./MessageBand.css";
 

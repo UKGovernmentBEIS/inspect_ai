@@ -1,20 +1,20 @@
 import { highlightElement } from "prismjs";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { SampleSummary } from "../api/types";
-import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
+import { Events } from "../@types/log";
 import {
   createEvalDescriptor,
   createSamplesDescriptor,
-} from "../samples/descriptor/samplesDescriptor";
-import { filterSamples } from "../samples/sample-tools/filters";
+} from "../app/samples/descriptor/samplesDescriptor";
+import { filterSamples } from "../app/samples/sample-tools/filters";
 import {
   byEpoch,
   bySample,
   sortSamples,
-} from "../samples/sample-tools/SortFilter";
-import { getAvailableScorers, getDefaultScorer } from "../scoring/utils";
-import { Events } from "../types/log";
+} from "../app/samples/sample-tools/SortFilter";
+import { SampleSummary } from "../client/api/types";
+import { kEpochAscVal, kSampleAscVal, kScoreAscVal } from "../constants";
 import { createLogger } from "../utils/logger";
+import { getAvailableScorers, getDefaultScorer } from "./scoring";
 import { useStore } from "./store";
 import { mergeSampleSummaries } from "./utils";
 
@@ -23,6 +23,27 @@ const log = createLogger("hooks");
 export const useEvalSpec = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   return selectedLogSummary?.eval;
+};
+
+export const useRefreshLog = () => {
+  const setAppStatus = useStore((state) => state.appActions.setStatus);
+  const refreshLog = useStore((state) => state.logActions.refreshLog);
+  const resetFiltering = useStore((state) => state.logActions.resetFiltering);
+
+  return useCallback(() => {
+    try {
+      setAppStatus({ loading: true, error: undefined });
+
+      refreshLog();
+      resetFiltering();
+
+      setAppStatus({ loading: false, error: undefined });
+    } catch (e) {
+      // Show an error
+      console.log(e);
+      setAppStatus({ loading: false, error: e as Error });
+    }
+  }, [refreshLog, resetFiltering, setAppStatus]);
 };
 
 // Fetches all samples summaries (both completed and incomplete)

@@ -1,5 +1,5 @@
 import { FC, KeyboardEvent, useCallback, useEffect, useRef } from "react";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import { useStore } from "../state/store";
 import "./FindBand.css";
 

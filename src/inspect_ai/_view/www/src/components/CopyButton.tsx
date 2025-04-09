@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { JSX, useState } from "react";
-import { ApplicationIcons } from "../appearance/icons";
+import { ApplicationIcons } from "../app/appearance/icons";
 import styles from "./CopyButton.module.css";
 
 interface CopyButtonProps {
