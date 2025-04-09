@@ -24,6 +24,7 @@ import {
   useGroupBy,
   useGroupByOrder,
   useSampleDescriptor,
+  useSampleNavigation,
   useScore,
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
@@ -87,13 +88,15 @@ interface SamplesTabProps {
 }
 
 export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
-  const selectSample = useStore((state) => state.logActions.selectSample);
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
   );
 
   const sampleSummaries = useFilteredSamples();
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+
+  // Get sample navigation utilities
+  const sampleNavigation = useSampleNavigation();
 
   // Compute the limit to apply to the sample count (this is so)
   // we can provide a total expected sample count for this evaluation
@@ -135,13 +138,12 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     (state) => state.appActions.setShowingSampleDialog,
   );
 
-  // Shows the sample dialog
+  // Shows the sample dialog and updates the URL - use the sample navigation hook
   const showSample = useCallback(
     (index: number) => {
-      selectSample(index);
-      setShowingSampleDialog(true);
+      sampleNavigation.navigateToSample(index);
     },
-    [selectSample, setShowingSampleDialog],
+    [sampleNavigation],
   );
 
   // Keep the selected item scrolled into view
@@ -209,20 +211,14 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
   }, [selectedSampleIndex]);
 
-  // Manage the next / previous state the selected sample
+  // Manage the next / previous state the selected sample using the navigation hook
   const nextSample = useCallback(() => {
-    const next = Math.min(selectedSampleIndex + 1, sampleItems.length - 1);
-    if (next > -1) {
-      selectSample(next);
-    }
-  }, [selectedSampleIndex, sampleItems, selectSample]);
+    sampleNavigation.navigateToNextSample(sampleItems.length);
+  }, [sampleNavigation, sampleItems.length]);
 
   const previousSample = useCallback(() => {
-    const prev = previousSampleIndex();
-    if (prev > -1) {
-      selectSample(prev);
-    }
-  }, [previousSampleIndex, selectSample]);
+    sampleNavigation.navigateToPreviousSample(previousSampleIndex);
+  }, [sampleNavigation, previousSampleIndex]);
 
   const title =
     selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
@@ -252,7 +248,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
             showSample={showSample}
           />
         ) : undefined}
-        {showingSampleDialog ? (
+        {showingSampleDialog && (
           <SampleDialog
             id={String(selectedSample?.id || "")}
             title={title}
@@ -260,10 +256,8 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
             setShowingSampleDialog={setShowingSampleDialog}
             selectedTab={selectedSampleTab}
             setSelectedTab={setSelectedSampleTab}
-            nextSample={nextSample}
-            prevSample={previousSample}
           />
-        ) : undefined}
+        )}
       </Fragment>
     );
   }
