@@ -6,7 +6,7 @@ import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { useStore } from "../../../state/store";
 import { arrayToString, inputString } from "../../../utils/format";
-import { useSampleNavigation } from "../../routing/appNavigation";
+import { useSampleNavigation } from "../../routing/navigationHooks";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
