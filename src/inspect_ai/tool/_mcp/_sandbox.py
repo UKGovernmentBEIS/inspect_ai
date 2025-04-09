@@ -93,7 +93,6 @@ async def sandbox_client(
         try:
             yield read_stream, write_stream
         finally:
-            print("XXXXX in finally")
             await exec_sandbox_rpc(
                 sandbox=sandbox_environment,
                 method="mcp_kill_server",

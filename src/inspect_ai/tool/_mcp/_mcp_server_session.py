@@ -3,7 +3,7 @@ import sys
 from typing import TextIO
 
 import anyio
-from anyio.abc import Process, TaskGroup
+from anyio.abc import Process
 from anyio.streams.text import TextReceiveStream
 from mcp import (
     ErrorData,
@@ -26,9 +26,6 @@ class MCPServerSession:
     async def create(
         cls, server_params: StdioServerParameters, errlog: TextIO = sys.stderr
     ) -> "MCPServerSession":
-        tg = anyio.create_task_group()
-        await tg.__aenter__()
-
         return cls(
             await anyio.open_process(
                 [server_params.command, *server_params.args],
@@ -37,14 +34,12 @@ class MCPServerSession:
                 cwd=server_params.cwd,
             ),
             server_params,
-            tg,
         )
 
     def __init__(
         self,
         process: Process,
         server_params: StdioServerParameters,
-        tg: TaskGroup,
     ) -> None:
         self._process = process
         self._server_params = server_params
@@ -52,14 +47,15 @@ class MCPServerSession:
         self._pending_requests = dict[
             str | int, asyncio.Future[JSONRPCResponse | JSONRPCError]
         ]()
-
-        self._tg = tg
-        self._tg.start_soon(self._stdout_reader)
+        self._reader_task: asyncio.Task[None] = asyncio.create_task(
+            self._stdout_reader()
+        )
 
     async def send_request(
         self, request: JSONRPCRequest
     ) -> JSONRPCResponse | JSONRPCError:
         assert self._process.stdin, "Opened process is missing stdin"
+        self._assert_not_terminated()
 
         id = request.id
         assert id not in self._pending_requests, f"Request with id {id} already exists"
@@ -80,6 +76,7 @@ class MCPServerSession:
 
     async def send_notification(self, notification: JSONRPCNotification) -> None:
         assert self._process.stdin, "Opened process is missing stdin"
+        self._assert_not_terminated()
 
         print(f"→ {notification.model_dump_json(by_alias=True, exclude_none=True)}")
         await self._process.stdin.send(
@@ -94,12 +91,25 @@ class MCPServerSession:
     async def terminate(self, timeout: int = 30) -> None:
         self._assert_not_terminated()
         self._terminated = True
-        await self._tg.__aexit__(None, None, None)
-        await self._process.__aexit__(None, None, None)
+
+        self._reader_task.cancel()
+        try:
+            await asyncio.wait_for(self._reader_task, 1.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
+
+        try:
+            self._process.terminate()
+            with anyio.fail_after(timeout):
+                await self._process.wait()
+        except (TimeoutError, asyncio.CancelledError):
+            # Force kill if taking too long
+            self._process.kill()
 
     def _resolve_request(self, response: JSONRPCResponse | JSONRPCError) -> None:
         future = self._pending_requests.pop(response.id, None)
         assert future, "No pending request for response with id {response.id}"
+        assert not future.done(), "Future should not be done before resolving"
         future.set_result(response)
 
     def _send_exception_somewhere(self, exception: Exception) -> None:
@@ -145,8 +155,9 @@ class MCPServerSession:
                     )
                     self._resolve_request(message.root)
 
-        except anyio.ClosedResourceError:
-            await anyio.lowlevel.checkpoint()
+        except (anyio.ClosedResourceError, asyncio.CancelledError):
+            # These signal shutdown
+            pass
 
     def _assert_not_terminated(self) -> None:
         assert not self._terminated, "process must not be terminated"
