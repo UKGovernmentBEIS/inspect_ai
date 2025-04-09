@@ -828,7 +828,7 @@ async def eval_retry_async(
                     id=task_id, task=task, task_args=task_args, model=None, log=eval_log
                 ),
                 model=model,
-                model_roles=model_roles,
+                model_roles=cast(dict[str, str | Model], model_roles),
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,

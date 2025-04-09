@@ -16,7 +16,7 @@ def model_roles_to_model_roles_config(
 
 def model_roles_config_to_model_roles(
     model_config: dict[str, EvalModelConfig] | None,
-) -> dict[str, str | Model] | None:
+) -> dict[str, Model] | None:
     if model_config is not None:
         return {k: model_config_to_model(v) for k, v in model_config.items()}
     else:
