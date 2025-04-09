@@ -1,3 +1,7 @@
+## Unreleased
+
+- Eval: Fix an error when attempting to display realtime metrics for an evaluation
+
 ## v0.3.86 (09 April 2025)
 
 - Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
