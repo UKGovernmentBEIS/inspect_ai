@@ -330,11 +330,6 @@ class TaskState:
         self._token_limit.limit = tokens
 
     @property
-    def token_limiter(self) -> TokenLimit:
-        """Token limit context manager."""
-        return self._token_limit
-
-    @property
     def token_usage(self) -> int:
         """Total tokens used for the current sample."""
         return sample_total_tokens()

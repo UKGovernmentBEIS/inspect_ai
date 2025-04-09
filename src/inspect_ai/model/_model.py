@@ -48,8 +48,11 @@ from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
-from inspect_ai.util._counter import get_scoped_model_usage, record_model_usage
-from inspect_ai.util._limit import SampleLimitExceededError, check_token_limit
+from inspect_ai.util._limit import (
+    SampleLimitExceededError,
+    check_token_limit,
+    record_model_usage,
+)
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store
 from ._call_tools import (
@@ -1377,10 +1380,20 @@ def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
     set_active_sample_total_messages(total_messages)
 
 
+def init_model_usage() -> None:
+    model_usage_context_var.set({})
+
+
+def init_sample_model_usage() -> None:
+    sample_model_usage_context_var.set({})
+
+
 def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     from inspect_ai.log._samples import set_active_sample_total_tokens
 
     # record usage
+    set_model_usage(model, usage, sample_model_usage_context_var.get(None))
+    set_model_usage(model, usage, model_usage_context_var.get(None))
     record_model_usage(model, usage)
 
     # compute total tokens
@@ -1401,10 +1414,24 @@ def set_model_usage(
         model_usage[model] = total_usage
 
 
+def model_usage() -> dict[str, ModelUsage]:
+    return model_usage_context_var.get()
+
+
+model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "model_usage", default={}
+)
+
+
 def sample_model_usage() -> dict[str, ModelUsage]:
-    return get_scoped_model_usage("sample")
+    return sample_model_usage_context_var.get()
 
 
 def sample_total_tokens() -> int:
     total_tokens = [usage.total_tokens for usage in iter(sample_model_usage().values())]
     return sum(total_tokens)
+
+
+sample_model_usage_context_var: ContextVar[dict[str, ModelUsage]] = ContextVar(
+    "sample_model_usage", default={}
+)

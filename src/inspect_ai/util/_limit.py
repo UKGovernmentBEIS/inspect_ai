@@ -1,23 +1,29 @@
 from __future__ import annotations
 
 import abc
+from collections import defaultdict
 from contextvars import ContextVar
+from types import TracebackType
 from typing import TYPE_CHECKING, Literal
 
-from inspect_ai.util._counter import ModelUsageCounterNode, get_counter_leaf_node
+from inspect_ai.model._model_output import ModelUsage
 
 if TYPE_CHECKING:
     # TaskState is used as a type hint only - prevent circular import.
     from inspect_ai.solver._task_state import TaskState
 
 # Stores the current execution context's leaf _TokenLimitNode.
-# Same data structure as in the util._counter module.
+# The resulting data structure is a tree of _TokenLimitNode nodes which each
+# have a pointer to their parent node. Each additional context manager inserts a new
+# child node into the tree. The fact that there can be multiple execution contexts is
+# what makes this a tree rather than a stack.
 leaf_node: ContextVar[_TokenLimitNode | None] = ContextVar(
     "leaf_node_limit", default=None
 )
 
 
 # TODO: Should/could we drop "Sample" terminology?
+# Yes. Maybe deprecate the with_state, and replace w/ with_conversation.
 class SampleLimitExceededError(Exception):
     """Exception raised when a sample limit is exceeded.
 
@@ -60,8 +66,34 @@ class Limit(abc.ABC):
     def __enter__(self) -> None:
         pass
 
-    def __exit__(self, exc_type: type, exc_val: Exception, exc_tb: type) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         pass
+
+
+def record_model_usage(model: str, usage: ModelUsage) -> None:
+    """Record model usage against any active token limits."""
+    node = leaf_node.get()
+    if node is not None:
+        node.record(model, usage)
+
+
+# TODO: Should we pre-emptively drop the "token" name from this function?
+def check_token_limit() -> None:
+    """Check if the current token usage exceeds _any_ of the token limits.
+
+    Within the current execution context (e.g. async task) and its parent contexts only.
+
+    Note that all active token limits are checked, not just the most recent one.
+    """
+    node = leaf_node.get()
+    if node is None:
+        return
+    node.check()
 
 
 def token_limit(limit: int | None) -> TokenLimit:
@@ -95,15 +127,18 @@ class TokenLimit(Limit):
 
     def __enter__(self) -> None:
         current_node = leaf_node.get()
-        new_node = _TokenLimitNode(
-            self._limit_value_wrapper, get_counter_leaf_node(), current_node
-        )
+        new_node = _TokenLimitNode(self._limit_value_wrapper, current_node)
         # Note that we don't store new_node as an instance variable, because the context
         # manager may be used across multiple execution contexts, or opened multiple
         # times.
         leaf_node.set(new_node)
 
-    def __exit__(self, exc_type: type, exc_val: Exception, exc_tb: type) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         current_node = leaf_node.get()
         assert current_node is not None, (
             "Token limit node should not be None when exiting context manager."
@@ -133,35 +168,6 @@ class TokenLimit(Limit):
             raise ValueError("Token limit value must be a non-negative integer.")
 
 
-# TODO: Should we pre-emptively drop the "token" name from this function?
-def check_token_limit() -> None:
-    """Check if the current token usage exceeds _any_ of the token limits.
-
-    Within the current execution context (e.g. async task) and its parent contexts only.
-
-    Note that all active token limits are checked, not just the most recent one.
-    """
-    node = leaf_node.get()
-    if node is None:
-        return
-    node.check()
-
-
-# TODO: This is just a convenience function. Should we keep it? (see docs example)
-def has_token_limit_been_exceeded() -> bool:
-    """Check if the current token usage exceeds _any_ of the token limits.
-
-    Within the current execution context (e.g. async task) and its parent contexts only.
-
-    Note that all active token limits are checked, not just the most recent one.
-    """
-    try:
-        check_token_limit()
-    except SampleLimitExceededError:
-        return True
-    return False
-
-
 class _LimitValueWrapper:
     """Container/wrapper type for the limit value.
 
@@ -177,28 +183,31 @@ class _TokenLimitNode:
     def __init__(
         self,
         limit: _LimitValueWrapper,
-        counter: ModelUsageCounterNode,
         parent: _TokenLimitNode | None,
     ) -> None:
         """
         Initialize a token limit node.
 
-        This is associated with the counter which was active when the context manager
-        was opened.
+        Forms part of a tree structure. Each node has a pointer to its parent, or None
+        if it is the root node.
 
-        Tracks what the token usage was when the context manager was opened, and the
-        (variable) limit.
+        Tracks the token usage for this node and its parent nodes and checks if the
+        token limit has been exceeded against a (variable) limit.
 
         Args:
           limit: The maximum number of tokens that can be used while the context
             manager is open.
-          counter: ...
-          parent: ...
+          parent: The parent node in the tree.
         """
         self._limit = limit
-        self._counter = counter
         self.parent = parent
-        self._initial_usage = counter.get_total_sum()
+        self._usage: dict[str, ModelUsage] = defaultdict(ModelUsage)
+
+    def record(self, model: str, usage: ModelUsage) -> None:
+        """Record model usage for this node and its parent nodes."""
+        if self.parent is not None:
+            self.parent.record(model, usage)
+        self._usage[model] += usage
 
     def check(self) -> None:
         """Check if this token limit or any parent limits have been exceeded."""
@@ -209,9 +218,8 @@ class _TokenLimitNode:
     def _check_self(self) -> None:
         if self._limit.value is None:
             return
-        usage = self._counter.get_total_sum() - self._initial_usage
-        if usage > self._limit.value:
-            print(f"Token limit exceeded: {usage} > {self._limit.value}")
+        total = sum(usage.total_tokens for usage in self._usage.values())
+        if total > self._limit.value:
             raise SampleLimitExceededError(
-                "token", value=usage, limit=self._limit.value
+                "token", value=total, limit=self._limit.value
             )
