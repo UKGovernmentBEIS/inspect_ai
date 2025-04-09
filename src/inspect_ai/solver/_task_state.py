@@ -355,7 +355,10 @@ class TaskState:
                 conversation=self,
             )
         else:
-            check_token_limit()
+            try:
+                check_token_limit()
+            except LimitExceededError as ex:
+                raise ex.with_conversation(self)
             check_sample_interrupt()
             return self._completed
 
