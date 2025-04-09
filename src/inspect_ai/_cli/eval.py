@@ -85,6 +85,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="YAML or JSON config file with model arguments.",
     )
     @click.option(
+        "--model-role",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_ROLE",
+        help="Named model role, e.g. --model-role critic=openai/gpt-4o",
+    )
+    @click.option(
         "-T",
         multiple=True,
         type=str,
@@ -467,6 +474,7 @@ def eval_command(
     model_base_url: str | None,
     m: tuple[str] | None,
     model_config: str | None,
+    model_role: tuple[str] | None,
     t: tuple[str] | None,
     task_config: str | None,
     s: tuple[str] | None,
@@ -545,6 +553,7 @@ def eval_command(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        model_role=model_role,
         t=t,
         task_config=task_config,
         s=s,
@@ -638,6 +647,7 @@ def eval_set_command(
     model_base_url: str | None,
     m: tuple[str] | None,
     model_config: str | None,
+    model_role: tuple[str] | None,
     t: tuple[str] | None,
     task_config: str | None,
     s: tuple[str] | None,
@@ -719,6 +729,7 @@ def eval_set_command(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        model_role=model_role,
         t=t,
         task_config=task_config,
         s=s,
@@ -775,6 +786,7 @@ def eval_exec(
     model_base_url: str | None,
     m: tuple[str] | None,
     model_config: str | None,
+    model_role: tuple[str] | None,
     t: tuple[str] | None,
     task_config: str | None,
     s: tuple[str] | None,
@@ -820,6 +832,9 @@ def eval_exec(
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
 
+    # parse model roles
+    eval_model_roles = parse_cli_args(model_role, force_str=True)
+
     # parse tags
     eval_tags = parse_comma_separated(tags)
 
@@ -858,6 +873,7 @@ def eval_exec(
             model=model,
             model_base_url=model_base_url,
             model_args=model_args,
+            model_roles=eval_model_roles,
             task_args=task_args,
             solver=SolverSpec(solver, solver_args) if solver else None,
             tags=eval_tags,
