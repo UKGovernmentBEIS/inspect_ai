@@ -49,7 +49,7 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
-    SampleLimitExceededError,
+    LimitExceededError,
     check_token_limit,
     record_model_usage,
 )
@@ -1372,7 +1372,7 @@ def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
     message_limit = active_sample_message_limit()
     if message_limit is not None:
         if total_messages >= message_limit:
-            raise SampleLimitExceededError(
+            raise LimitExceededError(
                 "message", value=total_messages, limit=message_limit
             )
 

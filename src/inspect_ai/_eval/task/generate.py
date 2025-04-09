@@ -5,7 +5,7 @@ from inspect_ai.model._cache import epoch
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.solver import TaskState
 from inspect_ai.tool import ToolFunction
-from inspect_ai.util._limit import SampleLimitExceededError
+from inspect_ai.util._limit import LimitExceededError
 
 
 async def task_generate(
@@ -66,5 +66,5 @@ async def task_generate(
                 return state
 
     # propagate current state along with sample limit exceeded
-    except SampleLimitExceededError as ex:
+    except LimitExceededError as ex:
         raise ex.with_state(state)

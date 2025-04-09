@@ -24,11 +24,7 @@ from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._limit import (
-    SampleLimitExceededError,
-    TokenLimit,
-    check_token_limit,
-)
+from inspect_ai.util._limit import LimitExceededError, check_token_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
@@ -348,7 +344,7 @@ class TaskState:
         if self._completed:
             return True
         elif self.message_limit and len(self.messages) >= self.message_limit:
-            raise SampleLimitExceededError(
+            raise LimitExceededError(
                 "message",
                 value=len(self.messages),
                 limit=self.message_limit,
@@ -458,7 +454,7 @@ class ChatMessageList(list[ChatMessage]):
         if messages_limit is not None:
             messages = len(self) + additional_items
             if messages > messages_limit:
-                raise SampleLimitExceededError(
+                raise LimitExceededError(
                     "message",
                     value=messages,
                     limit=messages_limit,

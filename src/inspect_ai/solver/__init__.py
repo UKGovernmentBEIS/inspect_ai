@@ -138,7 +138,7 @@ relocated_module_attribute(
 )
 relocated_module_attribute(
     "SampleLimitExceededError",
-    "inspect_ai.util.SampleLimitExceededError",
+    "inspect_ai.util.LimitExceededError",
     _SAMPLE_LIMIT_VERSION,
     _REMOVED_IN,
 )

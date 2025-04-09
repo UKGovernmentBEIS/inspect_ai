@@ -13,7 +13,7 @@ from inspect_ai.scorer._score import score
 from inspect_ai.solver._chain import chain
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_with import tool_with
-from inspect_ai.util._limit import SampleLimitExceededError
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._limit import token_limit as create_token_limit
 
 from ._prompt import system_message
@@ -249,7 +249,7 @@ def basic_agent(
                             )
 
             # propagate current state along with sample limit exceeded
-            except SampleLimitExceededError as ex:
+            except LimitExceededError as ex:
                 raise ex.with_state(state)
 
             return state

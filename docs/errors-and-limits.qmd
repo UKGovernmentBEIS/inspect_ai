@@ -187,7 +187,7 @@ def agent_loop(tokens: int = (1024 * 500)) -> Solver:
         # establish token limit so we have a termination condition
         with token_limit(tokens):
             while True:
-                # a SampleLimitExceededError will be raised if the limit is breached
+                # a LimitExceededError will be raised if the limit is breached
                 ...
 ```
 
@@ -210,12 +210,12 @@ def agent_loop() -> Solver:
 
 ### Custom Limit
 
-When limits are exceeded, a `SampleLimitExceededError` is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a `SampleLimitExceededError` as follows:
+When limits are exceeded, a `LimitExceededError` is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a `SampleLimitExceededError` as follows:
 
 ```python
-from inspect_ai.solver import SampleLimitExceededError
+from inspect_ai.util import LimitExceededError
 
-raise SampleLimitExceededError(
+raise LimitExceededError(
     "custom", 
     value=value,
     limit=limit,

@@ -22,16 +22,16 @@ leaf_node: ContextVar[_TokenLimitNode | None] = ContextVar(
 )
 
 
-# TODO: Should/could we drop "Sample" terminology?
-# Yes. Maybe deprecate the with_state, and replace w/ with_conversation.
-class SampleLimitExceededError(Exception):
-    """Exception raised when a sample limit is exceeded.
+class LimitExceededError(Exception):
+    """Exception raised when a limit is exceeded.
 
     Args:
        type: Type of limit exceeded.
        value: Value compared to.
        limit: Limit applied.
        message (str | None): Optional. Human readable message.
+       state: TaskState | None: Optional. TaskState object if this should override the
+         task state for scoring purposes.
     """
 
     def __init__(
@@ -50,8 +50,9 @@ class SampleLimitExceededError(Exception):
         self.state = state
         super().__init__(message)
 
-    def with_state(self, state: TaskState) -> SampleLimitExceededError:
-        return SampleLimitExceededError(
+    # TODO: Deprecate in favour of with_conversation()?
+    def with_state(self, state: TaskState) -> LimitExceededError:
+        return LimitExceededError(
             self.type,
             value=self.value,
             limit=self.limit,
@@ -113,7 +114,7 @@ class TokenLimit(Limit):
     This relies on "cooperative" checking - consumers must call check_token_limit()
     themselves whenever tokens are consumed.
 
-    When a limit is exceeded, a SampleLimitExceededError is raised.
+    When a limit is exceeded, a LimitExceededError is raised.
 
     Args:
       limit: The maximum number of tokens that can be used while the context manager is
@@ -220,6 +221,4 @@ class _TokenLimitNode:
             return
         total = sum(usage.total_tokens for usage in self._usage.values())
         if total > self._limit.value:
-            raise SampleLimitExceededError(
-                "token", value=total, limit=self._limit.value
-            )
+            raise LimitExceededError("token", value=total, limit=self._limit.value)

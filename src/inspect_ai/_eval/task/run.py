@@ -84,7 +84,7 @@ from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
-from inspect_ai.util._limit import SampleLimitExceededError
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
@@ -711,7 +711,7 @@ async def task_run_sample(
                         # handle the cancel exception
                         raise
 
-                except SampleLimitExceededError as ex:
+                except LimitExceededError as ex:
                     # sample limit event
                     transcript()._event(
                         SampleLimitEvent(

@@ -14,7 +14,7 @@ from inspect_ai.solver._solver import Generate, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util import _limit
 from inspect_ai.util._limit import (
-    SampleLimitExceededError,
+    LimitExceededError,
     TokenLimit,
     check_token_limit,
     record_model_usage,
@@ -51,6 +51,7 @@ def test_does_not_raise_error_when_limit_not_exceeded() -> None:
     _record_token_usage(10)
 
     with TokenLimit(10):
+        # TODO: Combine check_token_limit and _record_token_usage?
         _record_token_usage(10)
         check_token_limit()
 
@@ -58,7 +59,7 @@ def test_does_not_raise_error_when_limit_not_exceeded() -> None:
 def test_raises_error_when_limit_exceeded() -> None:
     with TokenLimit(10):
         _record_token_usage(11)
-        with pytest.raises(SampleLimitExceededError) as exc_info:
+        with pytest.raises(LimitExceededError) as exc_info:
             check_token_limit()
 
     assert exc_info.value.type == "token"
@@ -69,10 +70,10 @@ def test_raises_error_when_limit_exceeded() -> None:
 def test_raises_error_when_limit_repeatedly_exceeded() -> None:
     with TokenLimit(10):
         _record_token_usage(11)
-        with pytest.raises(SampleLimitExceededError):
+        with pytest.raises(LimitExceededError):
             check_token_limit()
         _record_token_usage(1)
-        with pytest.raises(SampleLimitExceededError) as exc_info:
+        with pytest.raises(LimitExceededError) as exc_info:
             check_token_limit()
 
     assert exc_info.value.type == "token"
@@ -84,7 +85,7 @@ def test_raises_error_when_limit_exceeded_incrementally() -> None:
     with TokenLimit(10):
         _record_token_usage(5)
         check_token_limit()
-        with pytest.raises(SampleLimitExceededError):
+        with pytest.raises(LimitExceededError):
             _record_token_usage(6)
             check_token_limit()
 
@@ -99,7 +100,7 @@ def test_stack_can_trigger_outer_limit() -> None:
         with TokenLimit(11):
             _record_token_usage(5)
             # Should trigger outer limit (10).
-            with pytest.raises(SampleLimitExceededError) as exc_info:
+            with pytest.raises(LimitExceededError) as exc_info:
                 check_token_limit()
 
     assert exc_info.value.limit == 10
@@ -114,7 +115,7 @@ def test_stack_can_trigger_inner_limit() -> None:
 
         with TokenLimit(5):
             _record_token_usage(6)
-            with pytest.raises(SampleLimitExceededError) as exc_info:
+            with pytest.raises(LimitExceededError) as exc_info:
                 check_token_limit()
 
     assert exc_info.value.limit == 5
@@ -142,7 +143,7 @@ def test_can_reuse_context_manager() -> None:
 
     with limit:
         _record_token_usage(11)
-        with pytest.raises(SampleLimitExceededError):
+        with pytest.raises(LimitExceededError):
             check_token_limit()
 
     with limit:
@@ -159,7 +160,7 @@ def test_can_open_same_context_manager_multiple_times() -> None:
 
         with limit:
             _record_token_usage(10)
-            with pytest.raises(SampleLimitExceededError) as exc_info:
+            with pytest.raises(LimitExceededError) as exc_info:
                 check_token_limit()
 
     assert exc_info.value.value == 20
@@ -207,7 +208,7 @@ def test_can_update_limit_value() -> None:
         _record_token_usage(15)
         check_token_limit()
 
-        with pytest.raises(SampleLimitExceededError) as exc_info:
+        with pytest.raises(LimitExceededError) as exc_info:
             # Note: the exception is raised as soon as we decrease the limit.
             limit.limit = 10
 
@@ -229,7 +230,7 @@ def test_can_update_limit_value_on_reused_context_manager() -> None:
             check_token_limit()
 
             _record_token_usage(10)
-            with pytest.raises(SampleLimitExceededError) as exc_info:
+            with pytest.raises(LimitExceededError) as exc_info:
                 check_token_limit()
 
     assert exc_info.value.value == 30
@@ -252,7 +253,7 @@ def test_parallel_subtasks(model: Model) -> None:
                 await model.generate("")
                 assert _get_token_count() == 5
 
-                with pytest.raises(SampleLimitExceededError):
+                with pytest.raises(LimitExceededError):
                     await model.generate("")
 
             return state
@@ -403,6 +404,20 @@ def test_parallel_agents(model: Model) -> None:
 
     assert result.status == "success"
     assert result.stats.model_usage["mockllm/model"].total_tokens == 5
+
+
+def test_can_use_deprecated_sample_limit_exceeded_error() -> None:
+    # SampleLimitExceededError is deprecated in favour of LimitExceededError.
+    from inspect_ai.solver import SampleLimitExceededError  # type: ignore
+
+    try:
+        with token_limit(1):
+            _record_token_usage(2)
+            check_token_limit()
+        pytest.fail("Expected SampleLimitExceededError")
+    except SampleLimitExceededError as exc_info:  # type: ignore
+        assert exc_info.__class__ == LimitExceededError
+        assert exc_info.type == "token"
 
 
 def _get_token_count() -> int:

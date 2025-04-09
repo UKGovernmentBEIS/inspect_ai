@@ -1,7 +1,7 @@
 import time
 from contextvars import ContextVar
 
-from inspect_ai.util._limit import SampleLimitExceededError
+from inspect_ai.util._limit import LimitExceededError
 
 
 def init_sample_working_limit(start_time: float, working_limit: float | None) -> None:
@@ -33,7 +33,7 @@ def check_sample_working_limit() -> None:
     running_time = time.monotonic() - _sample_start_time.get()
     working_time = running_time - sample_waiting_time()
     if working_time > working_limit:
-        raise SampleLimitExceededError(
+        raise LimitExceededError(
             type="working",
             value=int(working_time),
             limit=int(working_limit),
