@@ -317,6 +317,9 @@ class Model:
         """Model role."""
         return self._role
 
+    def _set_role(self, role: str) -> None:
+        self._role = role
+
     def __str__(self) -> str:
         return f"{ModelName(self)}"
 
@@ -415,9 +418,6 @@ class Model:
 
             # return output
             return output
-
-    def _set_role(self, role: str) -> None:
-        self._role = role
 
     async def generate_loop(
         self,
@@ -747,6 +747,7 @@ class Model:
         model = str(self)
         event = ModelEvent(
             model=model,
+            role=self.role,
             input=input,
             tools=tools,
             tool_choice=tool_choice,

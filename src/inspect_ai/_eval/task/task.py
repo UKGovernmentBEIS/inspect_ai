@@ -372,9 +372,6 @@ def resolve_model(model: str | Model | None) -> Model | None:
         return model
 
 
-# TODO: defend against models shared between roles and main models
-
-
 def resolve_model_roles(
     model_roles: dict[str, str | Model] | None,
 ) -> dict[str, Model] | None:
