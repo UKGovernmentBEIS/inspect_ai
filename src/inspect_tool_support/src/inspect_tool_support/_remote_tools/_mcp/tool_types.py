@@ -1,40 +1,24 @@
-from typing import Literal
-
-from mcp import JSONRPCRequest, JSONRPCResponse, StdioServerParameters
-from pydantic import BaseModel, RootModel
+from mcp import JSONRPCRequest, StdioServerParameters
+from mcp.types import JSONRPCNotification
+from pydantic import BaseModel
 
 
 class McpBaseParams(BaseModel):
-    session_name: str
-    server_name: str
+    session_id: int
+    """This is the id the represents the MCP session - which also correlates to a process instance."""
 
 
-class CreateProcessParams(McpBaseParams):
+class LaunchServerParams(BaseModel):
     server_params: StdioServerParameters
 
 
-class KillProcessParams(McpBaseParams):
+class KillServerParams(McpBaseParams):
     pass
 
 
-class ExecuteRequestParams(McpBaseParams):
-    inner_request: JSONRPCRequest
+class SendRequestParams(McpBaseParams):
+    request: JSONRPCRequest
 
 
-class McpParams(
-    RootModel[CreateProcessParams | KillProcessParams | ExecuteRequestParams]
-):
-    pass
-
-
-ExecuteRequestResult = JSONRPCResponse
-
-
-class NewSessionResult(BaseModel):
-    session_name: str
-
-
-CreateProcessResult = Literal["OK"]
-
-
-KillProcessResult = Literal["OK"]
+class SendNotificationParams(McpBaseParams):
+    notification: JSONRPCNotification

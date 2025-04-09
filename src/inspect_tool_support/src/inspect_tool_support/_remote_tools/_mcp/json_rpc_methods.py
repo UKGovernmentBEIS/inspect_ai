@@ -1,54 +1,69 @@
+from itertools import count
+
 from jsonrpcserver import method
-from pydantic import BaseModel
+from mcp import JSONRPCError, JSONRPCResponse
 
-from inspect_tool_support._remote_tools._mcp.controller import McpSessionController
-from inspect_tool_support._remote_tools._mcp.tool_types import (
-    CreateProcessParams,
-    CreateProcessResult,
-    ExecuteRequestParams,
-    ExecuteRequestResult,
-    KillProcessParams,
-    KillProcessResult,
-    McpParams,
-    NewSessionResult,
-)
-from inspect_tool_support._util._json_rpc_helpers import (
-    with_validated_rpc_method_params,
+from ..._util._json_rpc_helpers import with_validated_rpc_method_params
+from .mcp_server_session import MCPServerSession
+from .tool_types import (
+    KillServerParams,
+    LaunchServerParams,
+    SendNotificationParams,
+    SendRequestParams,
 )
 
-controller = McpSessionController()
+sessions = dict[int, MCPServerSession]()
+id_generator = count()
 
-
-# TODO: I need to refactor this code so that I can support no parameters. For now, we have a dummy model
-class NoParams(BaseModel):
-    pass
+# TODO: Check into with_validated_rpc_method_params's support of different
+# return types such as `int` or `None`. You can see I'm returning `1` in a
+# cases below
 
 
 @method
-async def mcp_new_session() -> object:
-    return await with_validated_rpc_method_params(NoParams, _mcp_new_session)
+async def mcp_launch_server(**params: object) -> object:
+    return await with_validated_rpc_method_params(LaunchServerParams, _launch, **params)
 
 
 @method
-async def mcp(**params: object) -> object:
-    return await with_validated_rpc_method_params(McpParams, _mcp, **params)
+async def mcp_kill_server(**params: object) -> None:
+    await with_validated_rpc_method_params(KillServerParams, _kill, **params)
 
 
-async def _mcp_new_session(_: BaseModel) -> NewSessionResult:
-    return NewSessionResult(session_name=await controller.new_session())
+@method
+async def mcp_send_request(**params: object) -> object:
+    return await with_validated_rpc_method_params(
+        SendRequestParams, _send_request, **params
+    )
 
 
-async def _mcp(
-    params: McpParams,
-) -> CreateProcessResult | KillProcessResult | ExecuteRequestResult:
-    match params.root:
-        case CreateProcessParams() as p:
-            return await controller.create_process(
-                p.session_name, p.server_name, p.server_params
-            )
-        case KillProcessParams() as p:
-            return await controller.kill_process(p.session_name, p.server_name)
-        case ExecuteRequestParams() as p:
-            return await controller.execute_request(
-                p.session_name, p.server_name, p.inner_request
-            )
+@method
+async def mcp_send_notification(**params: object) -> None:
+    await with_validated_rpc_method_params(
+        SendNotificationParams, _send_notification, **params
+    )
+
+
+async def _launch(params: LaunchServerParams) -> int:
+    session_id = next(id_generator)
+    sessions[session_id] = await MCPServerSession.create(params.server_params)
+    return session_id
+
+
+async def _kill(params: KillServerParams) -> int:
+    session = sessions.pop(params.session_id)
+    # TODO: timeout
+    timeout = 666
+    await session.terminate(timeout=timeout)
+    return 1
+
+
+async def _send_request(
+    params: SendRequestParams,
+) -> JSONRPCResponse | JSONRPCError:
+    return await sessions[params.session_id].send_request(params.request)
+
+
+async def _send_notification(params: SendNotificationParams) -> int:
+    await sessions[params.session_id].send_notification(params.notification)
+    return 1

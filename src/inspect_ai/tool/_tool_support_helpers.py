@@ -43,7 +43,7 @@ class JSONRPCResponse(RootModel[JSONRPCSuccessResponse | JSONRPCErrorResponse]):
 
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
-StrOrModelT = TypeVar("StrOrModelT", bound=str | BaseModel)
+StrOrIntOrModelT = TypeVar("StrOrIntOrModelT", bound=str | int | BaseModel)
 
 id_generator = count(666)
 
@@ -52,10 +52,10 @@ async def exec_sandbox_rpc(
     sandbox: SandboxEnvironment,
     method: str,
     params: dict[str, object] | tuple[object, ...],
-    result_cls: Type[StrOrModelT],
+    result_cls: Type[StrOrIntOrModelT],
     timeout: int | None = None,
     user: str | None = None,
-) -> StrOrModelT:
+) -> StrOrIntOrModelT:
     """
     Execute a JSON-RPC command to a sandbox environment.
 
@@ -179,8 +179,8 @@ def _rpc_call_description(
 
 def _parse_json_rpc_response(
     response_str: str,
-    result_cls: Type[StrOrModelT],
-) -> StrOrModelT | JSONRPCError:
+    result_cls: Type[StrOrIntOrModelT],
+) -> StrOrIntOrModelT | JSONRPCError:
     match JSONRPCResponse.model_validate_json(response_str).root:
         case JSONRPCErrorResponse(error=error):
             return error
@@ -190,10 +190,14 @@ def _parse_json_rpc_response(
             if result_cls is str:
                 if not isinstance(rpc_result, str):
                     raise ValueError(f"Expected string result, got {type(rpc_result)}")
-                return cast(StrOrModelT, rpc_result)
+                return cast(StrOrIntOrModelT, rpc_result)
+            elif result_cls is int:
+                if not isinstance(rpc_result, int):
+                    raise ValueError(f"Expected int result, got {type(rpc_result)}")
+                return cast(StrOrIntOrModelT, rpc_result)
             else:
                 return cast(
-                    StrOrModelT,
+                    StrOrIntOrModelT,
                     cast(BaseModel, result_cls).model_validate(rpc_result, strict=True),
                 )
         case _:

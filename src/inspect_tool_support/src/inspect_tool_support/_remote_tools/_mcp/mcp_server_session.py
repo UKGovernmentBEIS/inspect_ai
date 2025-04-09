@@ -1,10 +1,10 @@
 import asyncio
+import os
 import sys
+from asyncio.subprocess import Process
 from typing import TextIO
 
-import anyio
-from anyio.abc import Process
-from anyio.streams.text import TextReceiveStream
+import pydantic
 from mcp import (
     ErrorData,
     JSONRPCError,
@@ -27,11 +27,19 @@ class MCPServerSession:
         cls, server_params: StdioServerParameters, errlog: TextIO = sys.stderr
     ) -> "MCPServerSession":
         return cls(
-            await anyio.open_process(
-                [server_params.command, *server_params.args],
-                env=server_params.env,
-                stderr=errlog,
+            await asyncio.create_subprocess_exec(
+                server_params.command,
+                *server_params.args,
+                # TODO: I'm just passing my local env for testing. revert this before merging
+                env=(
+                    {**server_params.env, **os.environ}
+                    if server_params.env
+                    else os.environ
+                ),
                 cwd=server_params.cwd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=errlog,
             ),
             server_params,
         )
@@ -62,16 +70,22 @@ class MCPServerSession:
         future = asyncio.Future[JSONRPCResponse | JSONRPCError]()
         self._pending_requests[id] = future
 
-        print(f"→ {request.model_dump_json(by_alias=True, exclude_none=True)}")
-        await self._process.stdin.send(
-            (request.model_dump_json(by_alias=True, exclude_none=True) + "\n").encode(
-                encoding=self._server_params.encoding,
-                errors=self._server_params.encoding_error_handler,
-            )
+        is_tool_call = request.method == "tools/call"
+
+        if is_tool_call:
+            print(f"→ {request.model_dump_json(by_alias=True, exclude_none=True)}")
+        json_str = (
+            request.model_dump_json(by_alias=True, exclude_none=True) + "\n"
+        ).encode(
+            encoding=self._server_params.encoding,
+            errors=self._server_params.encoding_error_handler,
         )
+        self._process.stdin.write(json_str)
+        await self._process.stdin.drain()
 
         response = await future
-        print(f"← {response.model_dump_json(by_alias=True, exclude_none=True)}")
+        if is_tool_call:
+            print(f"← {response.model_dump_json(by_alias=True, exclude_none=True)}")
         return response
 
     async def send_notification(self, notification: JSONRPCNotification) -> None:
@@ -79,14 +93,14 @@ class MCPServerSession:
         self._assert_not_terminated()
 
         print(f"→ {notification.model_dump_json(by_alias=True, exclude_none=True)}")
-        await self._process.stdin.send(
-            (
-                notification.model_dump_json(by_alias=True, exclude_none=True) + "\n"
-            ).encode(
-                encoding=self._server_params.encoding,
-                errors=self._server_params.encoding_error_handler,
-            )
+        json_str = (
+            notification.model_dump_json(by_alias=True, exclude_none=True) + "\n"
+        ).encode(
+            encoding=self._server_params.encoding,
+            errors=self._server_params.encoding_error_handler,
         )
+        self._process.stdin.write(json_str)
+        await self._process.stdin.drain()
 
     async def terminate(self, timeout: int = 30) -> None:
         self._assert_not_terminated()
@@ -100,15 +114,14 @@ class MCPServerSession:
 
         try:
             self._process.terminate()
-            with anyio.fail_after(timeout):
-                await self._process.wait()
-        except (TimeoutError, asyncio.CancelledError):
+            await asyncio.wait_for(self._process.wait(), timeout)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
             # Force kill if taking too long
             self._process.kill()
 
     def _resolve_request(self, response: JSONRPCResponse | JSONRPCError) -> None:
         future = self._pending_requests.pop(response.id, None)
-        assert future, "No pending request for response with id {response.id}"
+        assert future, f"No pending request for response with id {response.id}"
         assert not future.done(), "Future should not be done before resolving"
         future.set_result(response)
 
@@ -120,11 +133,11 @@ class MCPServerSession:
         #
         # TODO: I'm honestly unclear if we can recover from an error like this
         #
-        for id, future in self._pending_requests.items():
+        for request_id, future in self._pending_requests.items():
             future.set_result(
                 JSONRPCError(
                     jsonrpc="2.0",
-                    id=id,
+                    id=request_id,
                     error=ErrorData(code=666, message=str(exception)),
                 )
             )
@@ -135,29 +148,37 @@ class MCPServerSession:
 
         try:
             buffer = ""
-            async for chunk in TextReceiveStream(
-                self._process.stdout,
-                encoding=self._server_params.encoding,
-                errors=self._server_params.encoding_error_handler,
-            ):
+            while True:
+                line_bytes = await self._process.stdout.readline()
+                if not line_bytes:  # EOF
+                    break
+
+                chunk = line_bytes.decode(
+                    self._server_params.encoding,
+                    errors=self._server_params.encoding_error_handler,
+                )
+
                 lines = (buffer + chunk).split("\n")
                 buffer = lines.pop()
 
                 for line in lines:
                     try:
                         message = JSONRPCMessage.model_validate_json(line)
-                    except Exception as exc:
+                    except pydantic.ValidationError as exc:
                         self._send_exception_somewhere(exc)
                         continue
 
-                    assert isinstance(message.root, JSONRPCResponse | JSONRPCError), (
-                        f"No unsolicited messages supported: {message}"
-                    )
+                    assert isinstance(
+                        message.root, JSONRPCResponse | JSONRPCError
+                    ), f"No unsolicited messages supported: {message}"
                     self._resolve_request(message.root)
 
-        except (anyio.ClosedResourceError, asyncio.CancelledError):
+        except asyncio.CancelledError:
             # These signal shutdown
             pass
+        except Exception as exc:
+            print(f"Exception while reading stdout: {exc}", file=sys.stderr)
+            raise
 
     def _assert_not_terminated(self) -> None:
         assert not self._terminated, "process must not be terminated"

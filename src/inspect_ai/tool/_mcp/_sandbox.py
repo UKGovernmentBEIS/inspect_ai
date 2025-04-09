@@ -1,5 +1,4 @@
 import sys
-import uuid
 from contextlib import asynccontextmanager
 from typing import TextIO
 
@@ -8,7 +7,10 @@ from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStre
 from mcp import JSONRPCRequest, StdioServerParameters
 from mcp.types import JSONRPCMessage, JSONRPCNotification, JSONRPCResponse
 
-from inspect_ai.tool._mcp._mcp_fake_sandbox import FakeSandbox, exec_sandbox_rpc
+from inspect_ai.tool._tool_support_helpers import (
+    exec_sandbox_rpc,
+    tool_container_sandbox,
+)
 
 from ._types import MCPServerContextEric
 
@@ -27,7 +29,7 @@ async def sandbox_client(
     # code to separate the validation of compatibility from the finding of the
     # sandbox.
     # sb1 = sandbox(sandbox_name)  # noqa: F841
-    # sandbox_environment = await tool_container_sandbox("mcp support")
+    sandbox_environment = await tool_container_sandbox("mcp support")
 
     # read_stream is remote process's stdout
     read_stream: MemoryObjectReceiveStream[JSONRPCMessage | Exception]
@@ -40,15 +42,11 @@ async def sandbox_client(
     read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
 
-    # TODO: Do the standard session creation code here
-    server_id = str(uuid.uuid4())
-    sandbox_environment = FakeSandbox()
-
-    await exec_sandbox_rpc(
+    session_id = await exec_sandbox_rpc(
         sandbox=sandbox_environment,
         method="mcp_launch_server",
-        params={"session_id": server_id, "server_params": server.model_dump()},
-        result_cls=str,
+        params={"server_params": server.model_dump()},
+        result_cls=int,
     )
 
     async def stdout_reader() -> None:
@@ -68,7 +66,7 @@ async def sandbox_client(
                                 await exec_sandbox_rpc(
                                     sandbox=sandbox_environment,
                                     method="mcp_send_request",
-                                    params={"session_id": server_id, "request": root},
+                                    params={"session_id": session_id, "request": root},
                                     result_cls=JSONRPCResponse,
                                 )
                             )
@@ -77,7 +75,7 @@ async def sandbox_client(
                         await exec_sandbox_rpc(
                             sandbox=sandbox_environment,
                             method="mcp_send_notification",
-                            params={"session_id": server_id, "notification": root},
+                            params={"session_id": session_id, "notification": root},
                             result_cls=str,
                         )
                     else:
@@ -96,6 +94,6 @@ async def sandbox_client(
             await exec_sandbox_rpc(
                 sandbox=sandbox_environment,
                 method="mcp_kill_server",
-                params={"session_id": server_id},
+                params={"session_id": session_id},
                 result_cls=str,
             )

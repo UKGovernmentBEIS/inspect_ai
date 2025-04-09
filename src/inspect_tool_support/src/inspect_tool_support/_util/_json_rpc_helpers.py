@@ -33,7 +33,7 @@ BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 
 async def with_validated_rpc_method_params(
     cls: Type[BaseModelT],
-    handler: Callable[[BaseModelT], Awaitable[str | BaseModel]],
+    handler: Callable[[BaseModelT], Awaitable[str | int | BaseModel]],
     **params: object,
 ) -> str | BaseModel:
     """

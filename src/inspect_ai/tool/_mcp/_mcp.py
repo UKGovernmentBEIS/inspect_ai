@@ -83,32 +83,31 @@ class MCPServerImpl(MCPServer):
             mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
 
             # dynamically create tools
-            tool_defs: list[ToolDef] = []
-            for mcp_tool in mcp_tools:
+            return [
+                self._tool_def_from_mcp_tool(mcp_tool).as_tool()
+                for mcp_tool in mcp_tools
+            ]
 
-                async def execute(**kwargs: Any) -> ToolResult:
-                    async with self._client_session() as tool_session:
-                        result = await tool_session.call_tool(mcp_tool.name, kwargs)
-                        if result.isError:
-                            raise ToolError(tool_result_as_text(result.content))
+    def _tool_def_from_mcp_tool(self, mcp_tool: MCPTool) -> ToolDef:
+        async def execute(**kwargs: Any) -> ToolResult:
+            async with self._client_session() as tool_session:
+                result = await tool_session.call_tool(mcp_tool.name, kwargs)
+                if result.isError:
+                    raise ToolError(tool_result_as_text(result.content))
 
-                        return [as_inspect_content(c) for c in result.content]
+                return [as_inspect_content(c) for c in result.content]
 
-                # get parameters (fill in missing ones)
-                parameters = ToolParams.model_validate(mcp_tool.inputSchema)
-                for name, param in parameters.properties.items():
-                    param.description = param.description or name
+        # get parameters (fill in missing ones)
+        parameters = ToolParams.model_validate(mcp_tool.inputSchema)
+        for name, param in parameters.properties.items():
+            param.description = param.description or name
 
-                tool_defs.append(
-                    ToolDef(
-                        execute,
-                        name=mcp_tool.name,
-                        description=mcp_tool.description,
-                        parameters=parameters,
-                    )
-                )
-
-            return [tool_def.as_tool() for tool_def in tool_defs]
+        return ToolDef(
+            execute,
+            name=mcp_tool.name,
+            description=mcp_tool.description,
+            parameters=parameters,
+        )
 
     # if we have been entered as a context manager then return that session,
     # otherwise, create a brand new session from the client
