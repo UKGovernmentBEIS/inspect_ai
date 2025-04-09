@@ -1,18 +1,14 @@
 import { FC, useEffect } from "react";
-import { createHashRouter, Navigate, useParams } from "react-router";
+import { useParams } from "react-router";
 import { kLogViewSamplesTabId } from "../../constants";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { AppErrorBoundary } from "./AppErrorBoundary";
-import { AppLayout } from "./AppLayout";
-
-// Use empty basename as default
-const basename = "";
+import { LogViewLayout } from "./LogViewLayout";
 
 /**
  * LogContainer component that handles routing to specific logs, tabs, and samples
  */
-const LogContainer: FC = () => {
+export const LogViewContainer: FC = () => {
   const { logPath, tabId, sampleId, epoch } = useParams<{
     logPath?: string;
     tabId?: string;
@@ -72,33 +68,5 @@ const LogContainer: FC = () => {
     }
   }, [sampleId, epoch, filteredSamples, selectSample, setShowingSampleDialog]);
 
-  return (
-    <AppErrorBoundary>
-      <AppLayout />
-    </AppErrorBoundary>
-  );
+  return <LogViewLayout />;
 };
-
-// Create router with our routes (using hash router for static deployments)
-export const applicationRouter = createHashRouter(
-  [
-    {
-      path: "/",
-      element: <LogContainer />,
-      children: [],
-    },
-    {
-      path: "/logs/:logPath/:tabId?",
-      element: <LogContainer />,
-    },
-    {
-      path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
-      element: <LogContainer />,
-    },
-    {
-      path: "*",
-      element: <Navigate to="/" replace />,
-    },
-  ],
-  { basename },
-);

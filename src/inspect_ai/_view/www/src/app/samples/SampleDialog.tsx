@@ -6,7 +6,7 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { useLogSelection, usePrevious, useSampleData } from "../../state/hooks";
 import { useStatefulScrollPosition } from "../../state/scrolling";
 import { useStore } from "../../state/store";
-import { useSampleNavigation } from "../routing/appNavigation";
+import { useSampleNavigation } from "../routing/navigationHooks";
 import { SampleDisplay } from "./SampleDisplay";
 
 interface SampleDialogProps {

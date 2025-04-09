@@ -5,13 +5,13 @@ import { FindBand } from "../../components/FindBand";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useSetSelectedLogIndex } from "../../state/hooks";
 import { useStore } from "../../state/store";
-import { LogView } from "../log-view/LogView";
 import { Sidebar } from "../sidebar/Sidebar";
+import { LogView } from "./LogView";
 
 /**
  * AppContent component with the main UI layout
  */
-export const AppLayout: FC = () => {
+export const LogViewLayout: FC = () => {
   // App layout and state
   const appStatus = useStore((state) => state.app.status);
   const offCanvas = useStore((state) => state.app.offcanvas);
