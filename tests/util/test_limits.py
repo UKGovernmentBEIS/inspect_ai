@@ -33,7 +33,7 @@ def model() -> Model:
 
 
 def test_can_record_model_usage_with_no_active_limits() -> None:
-    record_model_usage("model", ModelUsage(total_tokens=1))
+    record_model_usage(ModelUsage(total_tokens=1))
 
 
 def test_can_check_token_limit_with_no_active_limits() -> None:
@@ -89,19 +89,6 @@ def test_raises_error_when_limit_exceeded_incrementally() -> None:
         _consume_tokens(5)
         with pytest.raises(LimitExceededError):
             _consume_tokens(6)
-
-
-def test_sums_usage_across_multiple_models() -> None:
-    with TokenLimit(10):
-        _consume_tokens(total_tokens=5, model_name="a")
-        _consume_tokens(total_tokens=5, model_name="b")
-
-        with pytest.raises(LimitExceededError) as exc_info:
-            _consume_tokens(total_tokens=1, model_name="c")
-
-    assert exc_info.value.type == "token"
-    assert exc_info.value.value == 11
-    assert exc_info.value.limit == 10
 
 
 def test_stack_can_trigger_outer_limit() -> None:
@@ -321,6 +308,6 @@ def test_can_use_deprecated_sample_limit_exceeded_error() -> None:
         assert exc_info.type == "token"
 
 
-def _consume_tokens(total_tokens: int, model_name: str = "model") -> None:
-    record_model_usage(model_name, ModelUsage(total_tokens=total_tokens))
+def _consume_tokens(total_tokens: int) -> None:
+    record_model_usage(ModelUsage(total_tokens=total_tokens))
     check_token_limit()

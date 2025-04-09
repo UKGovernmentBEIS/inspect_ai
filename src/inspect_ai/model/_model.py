@@ -1394,7 +1394,7 @@ def record_and_check_model_usage(model: str, usage: ModelUsage) -> None:
     # record usage
     set_model_usage(model, usage, sample_model_usage_context_var.get(None))
     set_model_usage(model, usage, model_usage_context_var.get(None))
-    record_model_usage(model, usage)
+    record_model_usage(usage)
 
     # compute total tokens
     total_tokens = sample_total_tokens()

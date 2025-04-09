@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import abc
 import logging
-from collections import defaultdict
 from contextvars import ContextVar
 from types import TracebackType
 from typing import TYPE_CHECKING, Literal
@@ -91,12 +90,12 @@ class Limit(abc.ABC):
         pass
 
 
-def record_model_usage(model: str, usage: ModelUsage) -> None:
+def record_model_usage(usage: ModelUsage) -> None:
     """Record model usage against any active token limits."""
     node = leaf_node.get()
     if node is None:
         return
-    node.record(model, usage)
+    node.record(usage)
 
 
 def check_token_limit() -> None:
@@ -218,13 +217,13 @@ class _TokenLimitNode:
         """
         self._limit = limit
         self.parent = parent
-        self._usage: dict[str, ModelUsage] = defaultdict(ModelUsage)
+        self._usage = ModelUsage()
 
-    def record(self, model: str, usage: ModelUsage) -> None:
+    def record(self, usage: ModelUsage) -> None:
         """Record model usage for this node and its parent nodes."""
         if self.parent is not None:
-            self.parent.record(model, usage)
-        self._usage[model] += usage
+            self.parent.record(usage)
+        self._usage += usage
 
     def check(self) -> None:
         """Check if this token limit or any parent limits have been exceeded."""
@@ -235,6 +234,6 @@ class _TokenLimitNode:
     def _check_self(self) -> None:
         if self._limit.value is None:
             return
-        total = sum(usage.total_tokens for usage in self._usage.values())
+        total = self._usage.total_tokens
         if total > self._limit.value:
             raise LimitExceededError("token", value=total, limit=self._limit.value)
