@@ -206,23 +206,27 @@ class SampleBufferDatabase(SampleBuffer):
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
             try:
-                # create placeholders for the IN clause
-                placeholders = ",".join(["(?,?)"] * len(samples))
+                # Build a query using individual column comparisons instead of row values
+                placeholders = " OR ".join(
+                    ["(sample_id=? AND sample_epoch=?)" for _ in samples]
+                )
 
-                # flatten the list of tuples for SQLite parameter binding
+                # Flatten parameters for binding
                 parameters = [item for tup in samples for item in tup]
 
-                # Delete associated events first due to foreign key constraint
+                # Delete associated events first
                 events_query = f"""
                     DELETE FROM events
-                    WHERE (sample_id, sample_epoch) IN ({placeholders})
+                    WHERE {placeholders}
                 """
                 cursor.execute(events_query, parameters)
 
-                # Then delete the samples
+                # Then delete the samples using the same approach
+                placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in samples])
+
                 samples_query = f"""
                     DELETE FROM samples
-                    WHERE (id, epoch) IN ({placeholders})
+                    WHERE {placeholders}
                 """
                 cursor.execute(samples_query, parameters)
             finally:
