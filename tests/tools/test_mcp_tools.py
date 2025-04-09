@@ -13,8 +13,11 @@ from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
 from inspect_ai.agent._react import react
 from inspect_ai.dataset import Sample
+from inspect_ai.dataset._dataset import Dataset, MemoryDataset
 from inspect_ai.model import get_model
 from inspect_ai.solver import generate, use_tools
+from inspect_ai.solver._basic_agent import basic_agent
+from inspect_ai.solver._prompt import system_message
 from inspect_ai.solver._solver import solver
 from inspect_ai.tool import MCPServer, mcp_server_stdio, mcp_tools
 from inspect_ai.tool._mcp.connection import mcp_connection
@@ -66,25 +69,33 @@ def test_mcp_filter():
     assert log.samples
 
 
-@task
-def git_task_react_mcp_connection():
-    git_server = mcp_server_stdio(
+def git_server() -> MCPServer:
+    return mcp_server_stdio(
         command="python3", args=["-m", "mcp_server_git", "--repository", "."]
     )
 
-    return Task(
-        dataset=[
+
+def git_dataset() -> Dataset:
+    return MemoryDataset(
+        [
             Sample(
                 "What is the status of the git working tree for the current directory?"
             ),
             Sample(
                 "Can you tell me the git working tree status for the current directory?"
             ),
-        ],
+        ]
+    )
+
+
+@task
+def git_task_react_mcp_connection():
+    return Task(
+        dataset=git_dataset(),
         solver=react(
             name="git_worker",
             prompt="Please use the git tools to solve the problem.",
-            tools=[mcp_tools(git_server, tools=["git_status"])],
+            tools=[mcp_tools(git_server(), tools=["git_status"])],
         ),
     )
 
@@ -93,6 +104,27 @@ def git_task_react_mcp_connection():
 @skip_if_no_mcp_git_package
 def test_react_mcp_connection():
     log = eval(git_task_react_mcp_connection(), model="openai/gpt-4o")[0]
+    assert log.status == "success"
+    assert log.samples
+
+
+@task
+def git_task_basic_agent_mcp_connection():
+    return Task(
+        dataset=git_dataset(),
+        solver=[
+            system_message("Please use the git tools to solve the problem."),
+            basic_agent(
+                tools=[mcp_tools(git_server(), tools=["git_status"])],
+            ),
+        ],
+    )
+
+
+@skip_if_no_openai
+@skip_if_no_mcp_git_package
+def test_basic_agent_mcp_connection():
+    log = eval(git_task_basic_agent_mcp_connection(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
 

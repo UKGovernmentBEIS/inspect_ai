@@ -16,14 +16,6 @@ The [Model Context Protocol](https://modelcontextprotocol.io/introduction) is a 
 
 Each MCP server provides a set of LLM tools. You can use all of the tools from a server or select a subset of tools. To use these tools in Inspect, you first define a connection to an MCP Server then pass the server on to Inspect functions that take `tools` as an argument.
 
-::: {.callout-important appearance="simple"}
-Support for MCP relies on some new APIs that are not present in the classic `TaskState` / `generate()` pattern for tool use (e.g. `use_tools()`, `basic_agent()`).
-
-If you are already using lower-level APIs for generation and tool use (e.g. `Model.generate()`) then your exiting code will work well with MCP servers and tools.
-
-If you are using higher level APIs then you should switch to the new [Agent](agents.qmd) protocol and/or the `react()` agent if you want to incorporate MCP tools.
-:::
-
 ### Example
 
 For example, here we create a connection to a [Git MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/git), and then pass it to a `react()` agent used as a solver for a task:
@@ -74,7 +66,7 @@ You can use the following functions to create interfaces to the various types of
 
 We'll cover using stdio and sse based servers in the section below. Sandbox servers require some additional container configuration, and are covered separately in [Sandboxes](#sandboxes).
 
-### Server Interface
+### Server Command
 
 For stdio servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you'll generally provide a host name and headers with credentials.
 
@@ -135,13 +127,19 @@ def map_task():
 
 In this example we use all of the tool made available by the server. You can also select a subset of tools (this is covered below in [Tool Selection](#tool-selection)).
 
-Note that the `MCPServer` interface is a `ToolSource`, which is a new interface for dynamically providing a set of tools. Inspect generation methods that take `Tool` or `ToolDef` now also take `ToolSource`. If you are creating your own agents or functions that take `tools` arguments, we recommend you do this same if you are going to be using MCP servers. For example:
+::: {.callout-note}
+### ToolSource
+
+The `MCPServer` interface is a `ToolSource`, which is a new interface for dynamically providing a set of tools. Inspect generation methods that take `Tool` or `ToolDef` now also take `ToolSource`. 
+
+If you are creating your own agents or functions that take `tools` arguments, we recommend you do this same if you are going to be using MCP servers. For example:
 
 ``` python
 @agent
 def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     ...
 ```
+:::
 
 ## Tool Selection {#tool-selection}
 
@@ -177,11 +175,13 @@ return Task(
 
 MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the [Brave Search](https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search) server is stateless (it just processes one search at a time) whereas the [Knowledge Graph Memory](https://github.com/modelcontextprotocol/servers/tree/main/src/memory) server is stateful (it maintains a knowledge graph in memory).
 
-In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it's state is maintained across calls. You can do this using context manager returned by the `mcp_connection()` function (which in turn takes a list of `ToolSource`).
+In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it's state is maintained across calls. You can do this using the `mcp_connection()` context manager.
 
-#### ReAct Agent
+#### Standard Agents
 
-The `mcp_connection()` context manager is used **automatically** by the standard `react()` agent (connections are maintained for the duration of the agent loop). For example, the following will establish a single connection to the memory server and preserve its state across calls:
+The `mcp_connection()` context manager is used **automatically** by both  `react()` and `basic_agent()`, with the server connection being maintained for the duration of the agent loop. 
+
+For example, the following will establish a single connection to the memory server and preserve its state across calls:
 
 ``` python
 memory_server = mcp_server_stdio(
@@ -197,7 +197,7 @@ return Task(
 
 #### Custom Agents
 
-For general purpose custom agents, you will also likely want to use the `mcp_connection()` connect manager to preserve connections state throughout your tool use loop. For example, here is a web surfer agent that uses a web browser along with a memory server:
+For general purpose custom agents, you will also likely want to use the `mcp_connection()` connect manager to preserve connection state throughout your tool use loop. For example, here is a web surfer agent that uses a web browser along with a memory server:
 
 ```` python
 @agent
