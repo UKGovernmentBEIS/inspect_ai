@@ -3,6 +3,7 @@
 - Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
 - Eval Retry: Correctly restore model-specific generation config on retry.
 - Inspect View: Resolve sample attachments before including in realtime event stream.
+- Bugfix: Properly handle special characters in IDs during event database cleanup.
 
 ## v0.3.85 (08 April 2025)
 
