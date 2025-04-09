@@ -361,6 +361,8 @@ website:
           href: reference/inspect_ai.log.qmd#evaldataset
         - text: EvalConfig
           href: reference/inspect_ai.log.qmd#evalconfig
+        - text: EvalModelConfig
+          href: reference/inspect_ai.log.qmd#evalmodelconfig
         - text: EvalRevision
           href: reference/inspect_ai.log.qmd#evalrevision
         - text: EvalPlan
