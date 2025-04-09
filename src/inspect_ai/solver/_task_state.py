@@ -348,7 +348,7 @@ class TaskState:
                 "message",
                 value=len(self.messages),
                 limit=self.message_limit,
-                state=self,
+                conversation=self,
             )
         else:
             check_token_limit()
@@ -459,7 +459,7 @@ class ChatMessageList(list[ChatMessage]):
                     value=messages,
                     limit=messages_limit,
                     message=None,
-                    state=self.parent_state,
+                    conversation=self.parent_state,
                 )
 
     def append(self, item: ChatMessage) -> None:
