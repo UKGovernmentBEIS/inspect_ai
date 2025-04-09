@@ -28,6 +28,7 @@ from inspect_ai.log._file import (
     read_eval_log_headers,
     write_log_dir_manifest,
 )
+from inspect_ai.log._model import model_roles_to_model_roles_config
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -564,16 +565,28 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         task_name = task.task.name
         task_args = task.task_args
         model = str(task.model)
+        model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
         task_args = task.eval.task_args
         model = str(task.eval.model)
+        model_roles = task.eval.model_roles or {}
 
     # hash for task args
     task_args_hash = hashlib.sha256(
         to_json(task_args, exclude_none=True, fallback=lambda _x: None)
     ).hexdigest()
+
+    # hash for model roles
+    if len(model_roles):
+        model = (
+            model
+            + "/"
+            + hashlib.sha256(
+                to_json(model_roles, exclude_none=True, fallback=lambda _x: None)
+            ).hexdigest()
+        )
 
     if task_file:
         return f"{task_file}@{task_name}#{task_args_hash}/{model}"
