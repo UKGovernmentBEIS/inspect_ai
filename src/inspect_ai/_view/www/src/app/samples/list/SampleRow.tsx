@@ -1,12 +1,12 @@
 import clsx from "clsx";
-import React, { FC, ReactNode, useCallback } from "react";
+import { FC, ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { SampleSummary } from "../../../client/api/types";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
-import { useSampleNavigation } from "../../../state/hooks";
 import { useStore } from "../../../state/store";
 import { arrayToString, inputString } from "../../../utils/format";
+import { useSampleNavigation } from "../../appNavigation";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
@@ -47,21 +47,6 @@ export const SampleRow: FC<SampleRowProps> = ({
   const sampleUrl = isViewable
     ? sampleNavigation.getSampleUrl(sample.id, sample.epoch)
     : undefined;
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (isViewable) {
-        if (!sampleUrl) {
-          // Fall back to directly navigating through the hook
-          sampleNavigation.navigateToSample(index);
-          e.preventDefault();
-        }
-      } else {
-        e.preventDefault();
-      }
-    },
-    [index, isViewable, sampleUrl, sampleNavigation],
-  );
 
   const rowContent = (
     <div
@@ -132,7 +117,7 @@ export const SampleRow: FC<SampleRowProps> = ({
 
   // Render the row content either as a link or directly
   return sampleUrl && isViewable ? (
-    <Link to={sampleUrl} onClick={handleClick} className={styles.sampleRowLink}>
+    <Link to={sampleUrl} className={styles.sampleRowLink}>
       {rowContent}
     </Link>
   ) : (

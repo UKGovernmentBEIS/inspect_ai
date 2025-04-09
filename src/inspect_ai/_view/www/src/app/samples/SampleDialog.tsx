@@ -3,15 +3,10 @@ import { ApplicationIcons } from "../appearance/icons";
 
 import { FC, Ref, useCallback, useEffect, useMemo, useRef } from "react";
 import { ErrorPanel } from "../../components/ErrorPanel";
-import {
-  useFilteredSamples,
-  useLogSelection,
-  usePrevious,
-  useSampleData,
-  useSampleNavigation,
-} from "../../state/hooks";
+import { useLogSelection, usePrevious, useSampleData } from "../../state/hooks";
 import { useStatefulScrollPosition } from "../../state/scrolling";
 import { useStore } from "../../state/store";
+import { useSampleNavigation } from "../appNavigation";
 import { SampleDisplay } from "./SampleDisplay";
 
 interface SampleDialogProps {
@@ -83,81 +78,59 @@ export const SampleDialog: FC<SampleDialogProps> = ({
 
   // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();
-  const filteredSamples = useFilteredSamples();
-  const selectedSampleIndex = sampleNavigation.selectedSampleIndex;
-
-  // Calculate next and previous sample indexes
-  const nextSampleIndex = useMemo(
-    () =>
-      selectedSampleIndex < filteredSamples.length - 1
-        ? selectedSampleIndex + 1
-        : -1,
-    [filteredSamples, selectedSampleIndex],
-  );
-
-  const prevSampleIndex = useMemo(
-    () => (selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1),
-    [selectedSampleIndex],
-  );
-
-  // Create navigation handlers using only our hook
-  const handleNextSample = useCallback(() => {
-    // Only use the navigation hook for URL handling
-    if (nextSampleIndex >= 0) {
-      sampleNavigation.navigateToSample(nextSampleIndex);
-    }
-  }, [nextSampleIndex, sampleNavigation]);
-
-  const handlePrevSample = useCallback(() => {
-    // Only use the navigation hook for URL handling
-    if (prevSampleIndex >= 0) {
-      sampleNavigation.navigateToSample(prevSampleIndex);
-    }
-  }, [prevSampleIndex, sampleNavigation]);
 
   // Tools
   const tools = useMemo<ModalTools>(() => {
     const nextTool: ModalTool = {
       label: "Next Sample",
       icon: ApplicationIcons.next,
-      onClick: handleNextSample,
-      enabled: nextSampleIndex >= 0,
+      onClick: sampleNavigation.nextSample,
+      enabled: sampleNavigation.nextEnabled,
     };
 
     const prevTool: ModalTool = {
       label: "Previous Sample",
       icon: ApplicationIcons.previous,
-      onClick: handlePrevSample,
-      enabled: prevSampleIndex >= 0,
+      onClick: sampleNavigation.previousSample,
+      enabled: sampleNavigation.previousEnabled,
     };
 
     return {
       left: [prevTool],
       right: [nextTool],
     };
-  }, [handlePrevSample, handleNextSample, nextSampleIndex, prevSampleIndex]);
+  }, [
+    sampleNavigation.nextSample,
+    sampleNavigation.previousSample,
+    sampleNavigation.nextEnabled,
+    sampleNavigation.previousEnabled,
+  ]);
 
   const handleKeyUp = useCallback(
     (e: KeyboardEvent) => {
       switch (e.key) {
         case "ArrowRight":
-          handleNextSample();
+          sampleNavigation.nextSample();
           break;
         case "ArrowLeft":
-          handlePrevSample();
+          sampleNavigation.previousSample();
           break;
         case "Escape":
           // Use the navigation hook to close the dialog
-          sampleNavigation.closeDialog();
+          sampleNavigation.clearSampleUrl();
           break;
       }
     },
-    [handlePrevSample, handleNextSample, sampleNavigation],
+    [
+      sampleNavigation.nextSample,
+      sampleNavigation.previousSample,
+      sampleNavigation.clearSampleUrl,
+    ],
   );
 
   const onHide = useCallback(() => {
     // Use the navigation hook to close the dialog
-    sampleNavigation.closeDialog();
+    sampleNavigation.clearSampleUrl();
   }, [sampleNavigation]);
 
   // Provide the dialog

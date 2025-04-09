@@ -1,12 +1,4 @@
-import {
-  FC,
-  Fragment,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { FC, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { VirtuosoHandle } from "react-virtuoso";
 import { Status } from "../../../@types/log";
 import { InlineSampleDisplay } from "../../../app/samples/InlineSampleDisplay.tsx";
@@ -24,11 +16,11 @@ import {
   useGroupBy,
   useGroupByOrder,
   useSampleDescriptor,
-  useSampleNavigation,
   useScore,
   useTotalSampleCount,
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
+import { useSampleNavigation } from "../../appNavigation.ts";
 import { ApplicationIcons } from "../../appearance/icons.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
@@ -138,14 +130,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     (state) => state.appActions.setShowingSampleDialog,
   );
 
-  // Shows the sample dialog and updates the URL - use the sample navigation hook
-  const showSample = useCallback(
-    (index: number) => {
-      sampleNavigation.navigateToSample(index);
-    },
-    [sampleNavigation],
-  );
-
   // Keep the selected item scrolled into view
   useEffect(() => {
     setTimeout(() => {
@@ -207,19 +191,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     );
   }, [sampleSummaries, sampleProcessor]);
 
-  const previousSampleIndex = useCallback(() => {
-    return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
-  }, [selectedSampleIndex]);
-
-  // Manage the next / previous state the selected sample using the navigation hook
-  const nextSample = useCallback(() => {
-    sampleNavigation.navigateToNextSample(sampleItems.length);
-  }, [sampleNavigation, sampleItems.length]);
-
-  const previousSample = useCallback(() => {
-    sampleNavigation.navigateToPreviousSample(previousSampleIndex);
-  }, [sampleNavigation, previousSampleIndex]);
-
   const title =
     selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex
       ? sampleItems[selectedSampleIndex].label
@@ -243,9 +214,9 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
             items={items}
             totalItemCount={evalSampleCount}
             running={running}
-            nextSample={nextSample}
-            prevSample={previousSample}
-            showSample={showSample}
+            nextSample={sampleNavigation.nextSample}
+            prevSample={sampleNavigation.previousSample}
+            showSample={sampleNavigation.showSample}
           />
         ) : undefined}
         {showingSampleDialog && (

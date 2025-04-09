@@ -42831,99 +42831,6 @@ categories: ${categories.join(" ")}`;
         [setSelectedLogIndex, clearSelectedLogSummary, clearSelectedSample]
       );
     };
-    const useSampleNavigation = () => {
-      const navigate = useNavigate();
-      const { logPath, tabId } = useParams();
-      const selectedSampleIndex = useStore(
-        (state) => state.log.selectedSampleIndex
-      );
-      const selectSample = useStore((state) => state.logActions.selectSample);
-      const setShowingSampleDialog = useStore(
-        (state) => state.appActions.setShowingSampleDialog
-      );
-      const sampleSummaries = useFilteredSamples();
-      const getSelectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile
-      );
-      const logDirectory = useStore((state) => state.logs.logs.log_dir);
-      const resolveLogPath = reactExports.useCallback(() => {
-        if (logPath) {
-          return logPath;
-        }
-        const selectedLogFile = getSelectedLogFile();
-        if (selectedLogFile) {
-          return directoryRelativeUrl(selectedLogFile, logDirectory);
-        }
-        return void 0;
-      }, [logPath, getSelectedLogFile, logDirectory]);
-      const navigateToSample = reactExports.useCallback(
-        (index2) => {
-          if (sampleSummaries && index2 >= 0 && index2 < sampleSummaries.length) {
-            const sample2 = sampleSummaries[index2];
-            const resolvedPath = resolveLogPath();
-            if (resolvedPath) {
-              selectSample(index2);
-              setShowingSampleDialog(true);
-              navigate(
-                `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample2.id}/${sample2.epoch}`
-              );
-            }
-          }
-        },
-        [
-          sampleSummaries,
-          resolveLogPath,
-          selectSample,
-          setShowingSampleDialog,
-          navigate,
-          tabId
-        ]
-      );
-      const navigateToNextSample = reactExports.useCallback(
-        (itemsCount) => {
-          const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
-          if (next > -1) {
-            navigateToSample(next);
-          }
-        },
-        [selectedSampleIndex, navigateToSample]
-      );
-      const navigateToPreviousSample = reactExports.useCallback(
-        (getPreviousIndex) => {
-          const prev = getPreviousIndex();
-          if (prev > -1) {
-            navigateToSample(prev);
-          }
-        },
-        [navigateToSample]
-      );
-      const getSampleUrl = reactExports.useCallback(
-        (sampleId, epoch) => {
-          const resolvedPath = resolveLogPath();
-          if (resolvedPath) {
-            return `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
-          }
-          return void 0;
-        },
-        [resolveLogPath, tabId]
-      );
-      const closeDialog = reactExports.useCallback(() => {
-        const resolvedPath = resolveLogPath();
-        if (resolvedPath) {
-          navigate(`/logs/${resolvedPath}/${tabId || "samples"}`);
-        }
-      }, [resolveLogPath, navigate, tabId]);
-      return {
-        navigateToSample,
-        navigateToNextSample,
-        navigateToPreviousSample,
-        getSampleUrl,
-        closeDialog,
-        selectedSampleIndex,
-        selectSample,
-        setShowingSampleDialog
-      };
-    };
     class AppErrorBoundary extends reactExports.Component {
       constructor(props) {
         super(props);
@@ -44004,6 +43911,113 @@ categories: ${categories.join(" ")}`;
           }
         )
       ] });
+    };
+    const useLogNavigation = () => {
+      const navigate = useNavigate();
+      const { logPath } = useParams();
+      const logs = useStore((state) => state.logs.logs);
+      const loadedLog = useStore((state) => state.log.loadedLog);
+      const selectTab = reactExports.useCallback(
+        (tabId) => {
+          if (loadedLog && logPath) {
+            navigate(`/logs/${logPath}/${tabId}`);
+          } else if (loadedLog) {
+            const logPathSegment = directoryRelativeUrl(loadedLog, logs.log_dir);
+            navigate(`/logs/${logPathSegment}/${tabId}`);
+          }
+        },
+        [loadedLog, logPath, logs.log_dir, navigate]
+      );
+      return {
+        selectTab
+      };
+    };
+    const useSampleNavigation = () => {
+      const navigate = useNavigate();
+      const logDirectory = useStore((state) => state.logs.logs.log_dir);
+      const { logPath, tabId } = useParams();
+      const getSelectedLogFile = useStore(
+        (state) => state.logsActions.getSelectedLogFile
+      );
+      const resolveLogPath = reactExports.useCallback(() => {
+        if (logPath) {
+          return logPath;
+        }
+        const selectedLogFile = getSelectedLogFile();
+        if (selectedLogFile) {
+          return directoryRelativeUrl(selectedLogFile, logDirectory);
+        }
+        return void 0;
+      }, [logPath, getSelectedLogFile, logDirectory]);
+      const sampleSummaries = useFilteredSamples();
+      const selectedSampleIndex = useStore(
+        (state) => state.log.selectedSampleIndex
+      );
+      const selectSample = useStore((state) => state.logActions.selectSample);
+      const setShowingSampleDialog = useStore(
+        (state) => state.appActions.setShowingSampleDialog
+      );
+      const showSample = reactExports.useCallback(
+        (index2) => {
+          if (sampleSummaries && index2 >= 0 && index2 < sampleSummaries.length) {
+            const sample2 = sampleSummaries[index2];
+            const resolvedPath = resolveLogPath();
+            if (resolvedPath) {
+              selectSample(index2);
+              setShowingSampleDialog(true);
+              navigate(
+                `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample2.id}/${sample2.epoch}`
+              );
+            }
+          }
+        },
+        [
+          sampleSummaries,
+          resolveLogPath,
+          selectSample,
+          setShowingSampleDialog,
+          navigate,
+          tabId
+        ]
+      );
+      const nextSample = reactExports.useCallback(() => {
+        const itemsCount = sampleSummaries.length;
+        const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
+        if (next > -1) {
+          showSample(next);
+        }
+      }, [selectedSampleIndex, showSample]);
+      const previousSample = reactExports.useCallback(() => {
+        const prev = selectedSampleIndex - 1;
+        if (prev > -1) {
+          showSample(prev);
+        }
+      }, [selectedSampleIndex, showSample]);
+      const getSampleUrl = reactExports.useCallback(
+        (sampleId, epoch) => {
+          const resolvedPath = resolveLogPath();
+          if (resolvedPath) {
+            return `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
+          }
+          return void 0;
+        },
+        [resolveLogPath, tabId]
+      );
+      const clearSampleUrl = reactExports.useCallback(() => {
+        const resolvedPath = resolveLogPath();
+        if (resolvedPath) {
+          navigate(`/logs/${resolvedPath}/${tabId || "samples"}`);
+        }
+      }, [resolveLogPath, navigate, tabId]);
+      return {
+        showSample,
+        nextEnabled: selectedSampleIndex < sampleSummaries.length - 1,
+        nextSample,
+        previousEnabled: selectedSampleIndex > 0,
+        previousSample,
+        getSampleUrl,
+        clearSampleUrl
+      };
     };
     const workspace = "_workspace_1r3mu_1";
     const tabContainer = "_tabContainer_1r3mu_6";
@@ -60037,62 +60051,51 @@ ${events}
         (_f = sampleData.sample) == null ? void 0 : _f.epoch
       ]);
       const sampleNavigation = useSampleNavigation();
-      const filteredSamples = useFilteredSamples();
-      const selectedSampleIndex = sampleNavigation.selectedSampleIndex;
-      const nextSampleIndex = reactExports.useMemo(
-        () => selectedSampleIndex < filteredSamples.length - 1 ? selectedSampleIndex + 1 : -1,
-        [filteredSamples, selectedSampleIndex]
-      );
-      const prevSampleIndex = reactExports.useMemo(
-        () => selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1,
-        [selectedSampleIndex]
-      );
-      const handleNextSample = reactExports.useCallback(() => {
-        if (nextSampleIndex >= 0) {
-          sampleNavigation.navigateToSample(nextSampleIndex);
-        }
-      }, [nextSampleIndex, sampleNavigation]);
-      const handlePrevSample = reactExports.useCallback(() => {
-        if (prevSampleIndex >= 0) {
-          sampleNavigation.navigateToSample(prevSampleIndex);
-        }
-      }, [prevSampleIndex, sampleNavigation]);
       const tools2 = reactExports.useMemo(() => {
         const nextTool = {
           label: "Next Sample",
           icon: ApplicationIcons.next,
-          onClick: handleNextSample,
-          enabled: nextSampleIndex >= 0
+          onClick: sampleNavigation.nextSample,
+          enabled: sampleNavigation.nextEnabled
         };
         const prevTool = {
           label: "Previous Sample",
           icon: ApplicationIcons.previous,
-          onClick: handlePrevSample,
-          enabled: prevSampleIndex >= 0
+          onClick: sampleNavigation.previousSample,
+          enabled: sampleNavigation.previousEnabled
         };
         return {
           left: [prevTool],
           right: [nextTool]
         };
-      }, [handlePrevSample, handleNextSample, nextSampleIndex, prevSampleIndex]);
+      }, [
+        sampleNavigation.nextSample,
+        sampleNavigation.previousSample,
+        sampleNavigation.nextEnabled,
+        sampleNavigation.previousEnabled
+      ]);
       const handleKeyUp = reactExports.useCallback(
         (e) => {
           switch (e.key) {
             case "ArrowRight":
-              handleNextSample();
+              sampleNavigation.nextSample();
               break;
             case "ArrowLeft":
-              handlePrevSample();
+              sampleNavigation.previousSample();
               break;
             case "Escape":
-              sampleNavigation.closeDialog();
+              sampleNavigation.clearSampleUrl();
               break;
           }
         },
-        [handlePrevSample, handleNextSample, sampleNavigation]
+        [
+          sampleNavigation.nextSample,
+          sampleNavigation.previousSample,
+          sampleNavigation.clearSampleUrl
+        ]
       );
       const onHide = reactExports.useCallback(() => {
-        sampleNavigation.closeDialog();
+        sampleNavigation.clearSampleUrl();
       }, [sampleNavigation]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LargeModal,
@@ -80864,19 +80867,6 @@ Supported expressions:
       const isViewable = completed || streamSampleData;
       const sampleNavigation = useSampleNavigation();
       const sampleUrl = isViewable ? sampleNavigation.getSampleUrl(sample2.id, sample2.epoch) : void 0;
-      const handleClick = reactExports.useCallback(
-        (e) => {
-          if (isViewable) {
-            if (!sampleUrl) {
-              sampleNavigation.navigateToSample(index2);
-              e.preventDefault();
-            }
-          } else {
-            e.preventDefault();
-          }
-        },
-        [index2, isViewable, sampleUrl, sampleNavigation]
-      );
       const rowContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -80936,7 +80926,7 @@ Supported expressions:
           ]
         }
       );
-      return sampleUrl && isViewable ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: sampleUrl, onClick: handleClick, className: styles$5.sampleRowLink, children: rowContent }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: isViewable ? () => showSample(index2) : void 0, children: rowContent });
+      return sampleUrl && isViewable ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: sampleUrl, className: styles$5.sampleRowLink, children: rowContent }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: isViewable ? () => showSample(index2) : void 0, children: rowContent });
     };
     const row = "_row_utdq5_1";
     const styles$4 = {
@@ -81476,12 +81466,6 @@ Supported expressions:
       const setShowingSampleDialog = useStore(
         (state) => state.appActions.setShowingSampleDialog
       );
-      const showSample = reactExports.useCallback(
-        (index2) => {
-          sampleNavigation.navigateToSample(index2);
-        },
-        [sampleNavigation]
-      );
       reactExports.useEffect(() => {
         setTimeout(() => {
           if (sampleListHandle.current) {
@@ -81519,8 +81503,8 @@ Supported expressions:
       reactExports.useEffect(() => {
         const resolvedSamples = sampleSummaries == null ? void 0 : sampleSummaries.flatMap((sample2, index2) => {
           const results = [];
-          const previousSample2 = index2 !== 0 ? sampleSummaries[index2 - 1] : void 0;
-          const items2 = sampleProcessor ? sampleProcessor(sample2, index2, previousSample2) : [];
+          const previousSample = index2 !== 0 ? sampleSummaries[index2 - 1] : void 0;
+          const items2 = sampleProcessor ? sampleProcessor(sample2, index2, previousSample) : [];
           results.push(...items2);
           return results;
         });
@@ -81531,15 +81515,6 @@ Supported expressions:
           }) : []
         );
       }, [sampleSummaries, sampleProcessor]);
-      const previousSampleIndex = reactExports.useCallback(() => {
-        return selectedSampleIndex > 0 ? selectedSampleIndex - 1 : -1;
-      }, [selectedSampleIndex]);
-      const nextSample = reactExports.useCallback(() => {
-        sampleNavigation.navigateToNextSample(sampleItems.length);
-      }, [sampleNavigation, sampleItems.length]);
-      const previousSample = reactExports.useCallback(() => {
-        sampleNavigation.navigateToPreviousSample(previousSampleIndex);
-      }, [sampleNavigation, previousSampleIndex]);
       const title2 = selectedSampleIndex > -1 && sampleItems.length > selectedSampleIndex ? sampleItems[selectedSampleIndex].label : "";
       if (totalSampleCount === 0) {
         if (running2) {
@@ -81557,9 +81532,9 @@ Supported expressions:
               items,
               totalItemCount: evalSampleCount,
               running: running2,
-              nextSample,
-              prevSample: previousSample,
-              showSample
+              nextSample: sampleNavigation.nextSample,
+              prevSample: sampleNavigation.previousSample,
+              showSample: sampleNavigation.showSample
             }
           ) : void 0,
           showingSampleDialog && /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -81578,9 +81553,8 @@ Supported expressions:
     };
     const LogView = () => {
       const divRef = reactExports.useRef(null);
-      const navigate = useNavigate();
-      const { logPath } = useParams();
       const refreshLog = useRefreshLog();
+      const navigation = useLogNavigation();
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const evalSpec = useEvalSpec();
       const runningMetrics = useStore(
@@ -81590,7 +81564,6 @@ Supported expressions:
         }
       );
       const logs = useStore((state) => state.logs.logs);
-      const loadedLog = useStore((state) => state.log.loadedLog);
       const showToggle = logs.files.length > 1 || !!logs.log_dir || false;
       const samplesTabConfig = useSamplesTabConfig(
         selectedLogSummary == null ? void 0 : selectedLogSummary.status,
@@ -81625,15 +81598,10 @@ Supported expressions:
           const id = (_a2 = e.currentTarget) == null ? void 0 : _a2.id;
           if (id) {
             setSelectedTab(id);
-            if (loadedLog && logPath) {
-              navigate(`/logs/${logPath}/${id}`);
-            } else if (loadedLog) {
-              const logPathSegment = directoryRelativeUrl(loadedLog, logs.log_dir);
-              navigate(`/logs/${logPathSegment}/${id}`);
-            }
+            navigation.selectTab(id);
           }
         },
-        [setSelectedTab, loadedLog, logs.log_dir, navigate, logPath]
+        [setSelectedTab, navigation.selectTab]
       );
       if (evalSpec === void 0) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EmptyPanel, {});
@@ -81711,9 +81679,12 @@ Supported expressions:
             await selectLogFile(decodeURIComponent(logPath));
             if (tabId) {
               setWorkspaceTab(tabId);
+            } else {
+              setWorkspaceTab(kLogViewSamplesTabId);
             }
           } else {
             await refreshLogs();
+            setWorkspaceTab(kLogViewSamplesTabId);
           }
         };
         loadLogFromPath();
@@ -81721,9 +81692,10 @@ Supported expressions:
       reactExports.useEffect(() => {
         if (sampleId && filteredSamples) {
           const targetEpoch = epoch ? parseInt(epoch, 10) : void 0;
-          const sampleIndex = filteredSamples.findIndex(
-            (sample2) => sample2.id === sampleId && (targetEpoch === void 0 || sample2.epoch === targetEpoch)
-          );
+          const sampleIndex = filteredSamples.findIndex((sample2) => {
+            const matches = String(sample2.id) === sampleId && (targetEpoch === void 0 || sample2.epoch === targetEpoch);
+            return matches;
+          });
           if (sampleIndex >= 0) {
             selectSample(sampleIndex);
             setShowingSampleDialog(true);
