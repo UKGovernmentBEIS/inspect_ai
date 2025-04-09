@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
+- Inspect View: Resolve sample attachments before including in realtime event stream.
 
 ## v0.3.85 (08 April 2025)
 
