@@ -97,7 +97,6 @@ def record_model_usage(model: str, usage: ModelUsage) -> None:
     node.record(model, usage)
 
 
-# TODO: Should we pre-emptively drop the "token" name from this function?
 def check_token_limit() -> None:
     """Check if the current token usage exceeds _any_ of the token limits.
 
