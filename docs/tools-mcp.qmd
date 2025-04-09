@@ -64,11 +64,13 @@ You can use the following functions to create interfaces to the various types of
 
 : {tbl-colwidths=\[40,60\]}
 
-Note that the sandbox MCP server is really just a stdio server than runs inside a sandbox rather than alongside the Inspect evaluation scaffold. You will generally choose to use sandbox servers when the tools provided by the server need to interact with the host system in a secure fashion (e.g. git, filesystem, or code execution tools).
+We'll cover using stdio and sse based servers in the section below. Sandbox servers require some additional container configuration, and are covered separately in [Sandboxes](#sandboxes).
+
+
 
 ### Server Interface
 
-For stdio and sandbox MCP servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you'll generally provide a host name and headers with credentials.
+For stdio servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you'll generally provide a host name and headers with credentials.
 
 Servers typically provide their documentation in the JSON format required by the `claude_desktop_config.json` file in Claude Desktop. For example, here is the documentation for configuring the [Google Maps](https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#npx) server:
 
@@ -89,9 +91,8 @@ Servers typically provide their documentation in the JSON format required by the
 }
 ```
 
-The `"command": "npx"` option indicates that this server was written using Node.js (other servers will be written in Python and use `"command": "python3"`.
 
-When using MCP servers with Inspect, you only need to provide the inner arguments. For example, to use this server with Inspect:
+When using MCP servers with Inspect, you only need to provide the inner arguments. For example, to use the Google Maps server with Inspect:
 
 ``` python
 maps_server = mcp_server_stdio(
@@ -100,6 +101,12 @@ maps_server = mcp_server_stdio(
     env={ "GOOGLE_MAPS_API_KEY": "<YOUR_API_KEY>" }
 )
 ```
+
+::: {.callout-note}
+#### Node.js Prerequisite
+
+The `"command": "npx"` option indicates that this server was written using Node.js (other servers may be written in Python and use `"command": "python3"`). Using Node.js based MCP servers requires that you install Node.js (<https://nodejs.org/en/download>).
+:::
 
 ### Server Tools
 
@@ -121,6 +128,8 @@ def map_task():
     )
 ```
 
+In this example we use all of the tool made available by the server. You can also select a subset of tools (this is covered below in [Tool Selection](#tool-selection)).
+
 Note that the `MCPServer` interface is a `ToolSource`, which is a new interface for dynamically providing a set of tools. Inspect functions that take `Tool` or `ToolDef` classes now also take `ToolSource`. If you are creating your own agents or functions that take `tools` arguments, we recommend you do this same if you are going to be using MCP servers. For example:
 
 ``` python
@@ -128,53 +137,6 @@ Note that the `MCPServer` interface is a `ToolSource`, which is a new interface 
 def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
     ...
 ```
-
-All of the Insepct functions that take tools (e.g. `generate()`, `execute_tools()`, etc.) are compatible with the `ToolSource` type.
-
-### Sandboxes
-
-Use `mcp_server_sandbox()` when you want to run an MCP server inside an Inspect [sandbox](sandboxing.qmd). For example, you might want to do this if the server has access to the filesystem or code execution.
-
-To run an MCP server inside a sandbox, you should create a Dockerfile that includes both the `inspect-tool-support` pip package as well as any MCP servers you want to run. For example:
-
-``` {.Dockerfile filename="Dockerfile"}
-# base image
-FROM python:3.12-bookworm
-
-# nodejs (required by mcp server)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-# filesystem mcp server
-RUN npm install -g @modelcontextprotocol/server-filesystem
-
-# inspect-tool-support
-ENV PATH="$PATH:/opt/inspect_tool_support/bin"
-RUN python -m venv /opt/inspect_tool_support && \
-    /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
-    /opt/inspect_tool_support/bin/inspect-tool-support post-install
-
-# run forever
-CMD ["tail", "-f", "/dev/null"]
-```
-
-Note that we install the `@modelcontextprotocol/server-filesystem` package globally so it can be run even when the container is offline. 
-
-We can now usee the `mcp_server_sandbox()` function to access the server as follows:
-
-``` python
-maps_server = mcp_server_sandbox(
-    command="mcp-server-filesystem", 
-    args=["/"]
-)
-```
-
-This will look for the MCP server in the default sandbox (you can also specify an explicit `sandbox` option if it is located in another sandbox).
-
 
 ## Tool Selection {#tool-selection}
 
@@ -275,3 +237,63 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
            # tool use loop
            ...
 ```
+
+## Sandboxes
+
+Sandbox servers are stdio servers than run inside a [sandbox](sandboxing.qmd) rather than alongside the Inspect evaluation scaffold. You will generally choose to use sandbox servers when the tools provided by the server need to interact with the host system in a secure fashion (e.g. git, filesystem, or code execution tools).
+
+### Configuration
+
+To run an MCP server inside a sandbox, you should create a `Dockerfile` that includes both the `inspect-tool-support` pip package as well as any MCP servers you want to run. The easiest way to do this is to derive from the standard `aisiuk/inspect-tool-support` Docker image. 
+
+For example, here we create a `Dockerfile` that enables us to use the [Filesystem MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem):
+
+``` {.Dockerfile filename="Dockerfile"}
+# base image
+FROM aisiuk/inspect-tool-support
+
+# nodejs (required by mcp server)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# filesystem mcp server
+RUN npm install -g @modelcontextprotocol/server-filesystem
+```
+
+Note that we install the `@modelcontextprotocol/server-filesystem` package globally so it is availale to sandbox users and can be run even when the container is disconnected from the Internet. 
+
+You are not required to inherit from the `aisiuk/inspect-tool-support` base image. If you want to use another base image please see **Custom Base Image** below for details on how to do this.
+
+::: {.callout-note collapse="true"}
+#### Custom Base Image
+If you are inheriting from a different base image then you can equivalently satisfiy the `inspect-tool-support` dependency by adding this to your Dockerfile:
+
+```Dockerfile
+ENV PATH="$PATH:/opt/inspect_tool_support/bin"
+RUN python -m venv /opt/inspect_tool_support && \
+    /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
+    /opt/inspect_tool_support/bin/inspect-tool-support post-install
+```
+:::
+
+
+### Running the Server
+
+Installing the package globally means we'll want to invoke it using its global executable name (rather than via `npx`). You can typically find this in the `"bin"` section of a server's `package.json` file. For example, here is where the Filesystem MCP Server [defines its global binary](https://github.com/modelcontextprotocol/servers/blob/368e3b23ca08c629a500c63e9bbe1233012a1f9a/src/filesystem/package.json#L10-L12).
+
+We can now use the `mcp_server_sandbox()` function to run the server as follows:
+
+``` python
+maps_server = mcp_server_sandbox(
+    command="mcp-server-filesystem", 
+    args=["/"]
+)
+```
+
+This will look for the MCP server in the default sandbox (you can also specify an explicit `sandbox` option if it is located in another sandbox).
+
+`

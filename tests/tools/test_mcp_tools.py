@@ -1,4 +1,3 @@
-from asyncio import timeout
 from pathlib import Path
 
 import pytest
