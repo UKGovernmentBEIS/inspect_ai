@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 # have a pointer to their parent node. Each additional context manager inserts a new
 # child node into the tree. The fact that there can be multiple execution contexts is
 # what makes this a tree rather than a stack.
-leaf_node: ContextVar[_TokenLimitNode | None] = ContextVar(
-    "leaf_node_limit", default=None
+token_limit_leaf_node: ContextVar[_TokenLimitNode | None] = ContextVar(
+    "token_leaf_node", default=None
 )
 
 
@@ -92,7 +92,7 @@ class Limit(abc.ABC):
 
 def record_model_usage(usage: ModelUsage) -> None:
     """Record model usage against any active token limits."""
-    node = leaf_node.get()
+    node = token_limit_leaf_node.get()
     if node is None:
         return
     node.record(usage)
@@ -105,7 +105,7 @@ def check_token_limit() -> None:
 
     Note that all active token limits are checked, not just the most recent one.
     """
-    node = leaf_node.get()
+    node = token_limit_leaf_node.get()
     if node is None:
         return
     node.check()
@@ -141,12 +141,12 @@ class TokenLimit(Limit):
         self._limit_value_wrapper = _LimitValueWrapper(limit)
 
     def __enter__(self) -> Limit:
-        current_node = leaf_node.get()
+        current_node = token_limit_leaf_node.get()
         new_node = _TokenLimitNode(self._limit_value_wrapper, current_node)
         # Note that we don't store new_node as an instance variable, because the context
         # manager may be used across multiple execution contexts, or opened multiple
         # times.
-        leaf_node.set(new_node)
+        token_limit_leaf_node.set(new_node)
         return self
 
     def __exit__(
@@ -155,11 +155,11 @@ class TokenLimit(Limit):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        current_node = leaf_node.get()
+        current_node = token_limit_leaf_node.get()
         assert current_node is not None, (
             "Token limit node should not be None when exiting context manager."
         )
-        leaf_node.set(current_node.parent)
+        token_limit_leaf_node.set(current_node.parent)
 
     @property
     def limit(self) -> int | None:
