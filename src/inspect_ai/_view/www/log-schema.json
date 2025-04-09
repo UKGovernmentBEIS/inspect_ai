@@ -2287,6 +2287,9 @@
           "title": "Model",
           "type": "string"
         },
+        "model_generate_config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
         "model_base_url": {
           "anyOf": [
             {
@@ -2407,6 +2410,7 @@
         "dataset",
         "sandbox",
         "model",
+        "model_generate_config",
         "model_base_url",
         "model_args",
         "model_roles",
@@ -3359,6 +3363,18 @@
           "title": "Model",
           "type": "string"
         },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
         "input": {
           "items": {
             "anyOf": [
@@ -3479,6 +3495,7 @@
         "pending",
         "event",
         "model",
+        "role",
         "input",
         "tools",
         "tool_choice",

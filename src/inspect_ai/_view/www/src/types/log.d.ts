@@ -24,11 +24,6 @@ export type SampleIds = (number | string)[] | null;
 export type Shuffled = boolean | null;
 export type Type = string;
 export type Model = string;
-export type ModelBaseUrl = string | null;
-export type ModelRoles = {
-  [k: string]: EvalModelConfig;
-} | null;
-export type Model1 = string;
 export type MaxRetries = number | null;
 export type Timeout = number | null;
 export type MaxConnections = number | null;
@@ -69,6 +64,11 @@ export type Anyof = JSONSchema[] | null;
 export type Required = string[] | null;
 export type Description1 = string | null;
 export type Strict = boolean | null;
+export type ModelBaseUrl = string | null;
+export type ModelRoles = {
+  [k: string]: EvalModelConfig;
+} | null;
+export type Model1 = string;
 export type BaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type SampleId = string | number | (string | number)[] | null;
@@ -351,6 +351,7 @@ export type WorkingStart5 = number;
 export type Pending5 = boolean | null;
 export type Event5 = "model";
 export type Model4 = string;
+export type Role4 = string | null;
 export type Input3 = (
   | ChatMessageSystem
   | ChatMessageUser
@@ -581,6 +582,7 @@ export interface EvalSpec {
   dataset: EvalDataset;
   sandbox: SandboxEnvironmentSpec | null;
   model: Model;
+  model_generate_config: GenerateConfig;
   model_base_url: ModelBaseUrl;
   model_args: ModelArgs;
   model_roles: ModelRoles;
@@ -612,16 +614,6 @@ export interface SandboxEnvironmentSpec {
 }
 export interface Config {
   [k: string]: unknown;
-}
-export interface ModelArgs {}
-/**
- * Model config.
- */
-export interface EvalModelConfig {
-  model: Model1;
-  config: GenerateConfig;
-  base_url: BaseUrl;
-  args: Args;
 }
 /**
  * Model generation options.
@@ -678,6 +670,16 @@ export interface JSONSchema {
 }
 export interface Default {
   [k: string]: unknown;
+}
+export interface ModelArgs {}
+/**
+ * Model config.
+ */
+export interface EvalModelConfig {
+  model: Model1;
+  config: GenerateConfig;
+  base_url: BaseUrl;
+  args: Args;
 }
 export interface Args {}
 /**
@@ -1147,6 +1149,7 @@ export interface ModelEvent {
   pending: Pending5;
   event: Event5;
   model: Model4;
+  role: Role4;
   input: Input3;
   tools: Tools1;
   tool_choice: ToolChoice;
