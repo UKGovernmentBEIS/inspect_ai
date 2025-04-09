@@ -24,7 +24,12 @@ from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._limit import LimitExceededError, check_token_limit
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    check_message_limit,
+    check_token_limit,
+)
+from inspect_ai.util._limit import message_limit as create_message_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
@@ -164,7 +169,7 @@ class TaskState:
         self._messages: list[ChatMessage] = ChatMessageList(messages, self)
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
-        self._message_limit = message_limit
+        self._message_limit = create_message_limit(message_limit)
         self._token_limit = create_token_limit(token_limit)
         self._completed = completed
         self._store = Store()
@@ -304,16 +309,12 @@ class TaskState:
     @property
     def message_limit(self) -> int | None:
         """Limit on total messages allowed per conversation."""
-        return self._message_limit
+        return self._message_limit.limit
 
     @message_limit.setter
     def message_limit(self, messages: int | None) -> None:
         """Set limit on total messages allowed per conversation."""
-        self._message_limit = messages
-
-        from inspect_ai.log._samples import set_active_sample_message_limit
-
-        set_active_sample_message_limit(messages)
+        self._message_limit.limit = messages
 
     @property
     def token_limit(self) -> int | None:
@@ -343,15 +344,9 @@ class TaskState:
 
         if self._completed:
             return True
-        elif self.message_limit and len(self.messages) >= self.message_limit:
-            raise LimitExceededError(
-                "message",
-                value=len(self.messages),
-                limit=self.message_limit,
-                conversation=self,
-            )
         else:
             check_token_limit()
+            check_message_limit()
             check_sample_interrupt()
             return self._completed
 
