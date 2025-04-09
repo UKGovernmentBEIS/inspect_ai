@@ -77,9 +77,11 @@ class LimitExceededError(Exception):
 class Limit(abc.ABC):
     """Base class for all limits."""
 
-    def __enter__(self) -> None:
+    @abc.abstractmethod
+    def __enter__(self) -> Limit:
         pass
 
+    @abc.abstractmethod
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
@@ -139,13 +141,14 @@ class TokenLimit(Limit):
         self._validate_token_limit(limit)
         self._limit_value_wrapper = _LimitValueWrapper(limit)
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> Limit:
         current_node = leaf_node.get()
         new_node = _TokenLimitNode(self._limit_value_wrapper, current_node)
         # Note that we don't store new_node as an instance variable, because the context
         # manager may be used across multiple execution contexts, or opened multiple
         # times.
         leaf_node.set(new_node)
+        return self
 
     def __exit__(
         self,
