@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Eval: Fix an error when attempting to display realtime metrics for an evaluation
+- Inspect Score: preserve existing scores in TaskState when computing additional scores.
 
 ## v0.3.86 (09 April 2025)
 

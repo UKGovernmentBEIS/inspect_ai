@@ -110,6 +110,7 @@ async def score_async(
             output=sample.output,
             completed=True,
             metadata=sample.metadata,
+            scores=sample.scores,
         )
         for sample in log.samples
     ]
