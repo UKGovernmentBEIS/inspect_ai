@@ -208,7 +208,7 @@ class _TokenLimitNode:
         if it is the root node.
 
         Tracks the token usage for this node and its parent nodes and checks if the
-        token limit has been exceeded against a (variable) limit.
+        usage has exceeded a (variable) limit.
 
         Args:
           limit: The maximum number of tokens that can be used while the context
