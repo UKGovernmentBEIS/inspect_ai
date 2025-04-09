@@ -259,7 +259,7 @@ class SampleBufferDatabase(SampleBuffer):
 
                 # fetch data
                 return Samples(
-                    samples=list(self._get_samples(conn)),
+                    samples=list(self._get_samples(conn, True)),
                     metrics=task_data.metrics,
                     refresh=self.update_interval,
                     etag=str(task_data.version),
