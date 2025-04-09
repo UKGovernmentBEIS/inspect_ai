@@ -139,6 +139,7 @@ class TaskLogger:
             tags=tags,
             solver_args=solver.args if solver else None,
             model=str(ModelName(model)),
+            model_generate_config=model.config,
             model_base_url=model.api.base_url,
             dataset=EvalDataset(
                 name=dataset.name,

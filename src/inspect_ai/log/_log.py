@@ -599,6 +599,9 @@ class EvalSpec(BaseModel):
     model: str
     """Model used for eval."""
 
+    model_generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
+    """Generate config specified for model instance."""
+
     model_base_url: str | None = Field(default=None)
     """Optional override of model base url"""
 
