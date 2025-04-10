@@ -368,7 +368,11 @@ class AnthropicAPI(ModelAPI):
         content: str | None = None
         stop_reason: StopReason | None = None
 
-        if "prompt is too long" in error:
+        # NOTE: Using case insensitive matching because the Anthropic Bedrock API seems to capitalize the work 'input' in its error message, other times it doesn't.
+        if any(
+            message in error.lower()
+            for message in ["prompt is too long", "input is too long"]
+        ):
             if (
                 isinstance(ex.body, dict)
                 and "error" in ex.body.keys()
