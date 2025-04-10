@@ -43955,13 +43955,13 @@ categories: ${categories.join(" ")}`;
         const itemsCount = sampleSummaries.length;
         const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
         if (next > -1) {
-          showSample(next);
+          selectSample(next);
         }
       }, [selectedSampleIndex, showSample]);
       const previousSample = reactExports.useCallback(() => {
         const prev = selectedSampleIndex - 1;
         if (prev > -1) {
-          showSample(prev);
+          selectSample(prev);
         }
       }, [selectedSampleIndex, showSample]);
       const getSampleUrl = reactExports.useCallback(
@@ -59899,6 +59899,12 @@ ${events}
       const modalFooter = footer2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: footer2 }) : "";
       const modalRef = reactExports.useRef(null);
       scrollRef = scrollRef || modalRef;
+      const dialogRef = reactExports.useRef(null);
+      reactExports.useEffect(() => {
+        if (visible2 && dialogRef.current) {
+          dialogRef.current.focus();
+        }
+      }, [visible2]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
@@ -59911,6 +59917,7 @@ ${events}
           role: "dialog",
           onKeyUp: onkeyup,
           tabIndex: visible2 ? 0 : void 0,
+          ref: dialogRef,
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -81428,7 +81435,7 @@ Supported expressions:
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
       const sampleListHandle = reactExports.useRef(null);
-      const sampleDialogRef = reactExports.useRef(null);
+      reactExports.useRef(null);
       const selectedSampleTab = useStore((state) => state.app.tabs.sample);
       const setSelectedSampleTab = useStore(
         (state) => state.appActions.setSampleTab
@@ -81444,14 +81451,6 @@ Supported expressions:
           }
         }, 0);
       }, [selectedSampleIndex]);
-      reactExports.useEffect(() => {
-        if (showingSampleDialog) {
-          setTimeout(() => {
-            var _a3;
-            (_a3 = sampleDialogRef.current) == null ? void 0 : _a3.focus();
-          }, 0);
-        }
-      }, [showingSampleDialog]);
       const sampleProcessor = reactExports.useMemo(() => {
         var _a3, _b3;
         if (!samplesDescriptor) return void 0;

@@ -119,7 +119,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const [sampleItems, setSampleItems] = useState<ListItem[]>([]);
 
   const sampleListHandle = useRef<VirtuosoHandle | null>(null);
-  const sampleDialogRef = useRef<HTMLDivElement>(null);
 
   const selectedSampleTab = useStore((state) => state.app.tabs.sample);
   const setSelectedSampleTab = useStore(
@@ -138,15 +137,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
       }
     }, 0);
   }, [selectedSampleIndex]);
-
-  // Focus the dialog when it is shown
-  useEffect(() => {
-    if (showingSampleDialog) {
-      setTimeout(() => {
-        sampleDialogRef.current?.focus();
-      }, 0);
-    }
-  }, [showingSampleDialog]);
 
   const sampleProcessor = useMemo(() => {
     if (!samplesDescriptor) return undefined;
