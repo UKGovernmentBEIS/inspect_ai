@@ -368,7 +368,7 @@ class AnthropicAPI(ModelAPI):
         content: str | None = None
         stop_reason: StopReason | None = None
 
-        # NOTE: Using case insensitive matching the Anthropic Bedrock API seems to capitalize the work 'input' in its error message, other times it doesn't.
+        # NOTE: Using case insensitive matching because the Anthropic Bedrock API seems to capitalize the work 'input' in its error message, other times it doesn't.
         if any(
             message in error.lower()
             for message in ["prompt is too long", "input is too long"]
