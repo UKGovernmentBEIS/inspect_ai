@@ -270,7 +270,7 @@ class Model:
         self.api = api
         self.config = config
         self.model_args = model_args
-        self._role: str | None
+        self._role: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
