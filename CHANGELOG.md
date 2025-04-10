@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Eval: Fix an error when attempting to display realtime metrics for an evaluation
+- Eval: Fix an error when attempting to display realtime metrics for an evaluation.
+- Log Viewer: Fix an error when displaying a running log with a null metric value.
 
 ## v0.3.86 (09 April 2025)
 
