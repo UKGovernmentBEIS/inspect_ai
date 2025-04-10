@@ -7,6 +7,7 @@ import { kModelNone } from "../../constants";
 import { useStore } from "../../state/store";
 import { EvalResults, EvalSpec, Status } from "../../types/log";
 import { filename } from "../../utils/path";
+import { ModelRolesView } from "./ModelRolesView";
 import styles from "./PrimaryBar.module.css";
 import {
   displayScorersFromRunningMetrics,
@@ -106,6 +107,9 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
             </div>
             {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
           </div>
+          {evalSpec?.model_roles ? (
+            <ModelRolesView roles={evalSpec.model_roles} />
+          ) : undefined}
         </div>
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>
