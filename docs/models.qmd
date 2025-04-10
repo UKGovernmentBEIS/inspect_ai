@@ -153,7 +153,15 @@ By default if there is a no "grader" role explicitly defined then `get_model()` 
 ```python
 model = get_model(role="grader", default="openai/gpt-4o")
 ```
+#### Multiple Roles
 
+You can define as many named roles as you need. When using `eval()` roles are specified using a dictionary. When using `inspect eval` you can include multiple `--model-role` options on the command line:
+
+```bash
+inspect eval math.py \
+   --model-role red_team=google/gemini-2.0-flash \
+   --model-role blue_team=openai/gpt-4o-mini
+```
 
 
 ### Model Caching
