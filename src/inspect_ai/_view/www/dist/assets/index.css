@@ -19650,6 +19650,22 @@ span.ap-marker-container:hover span.ap-marker {
 ._text_1yknn_20 {
   margin-top: -2px;
 }
+._container_304w9_1 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  row-gap: 2em;
+  column-gap: 1em;
+}
+
+._modelInfo_304w9_8 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 1em;
+}
+
+._role_304w9_14 {
+  grid-column: -1/1;
+}
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
