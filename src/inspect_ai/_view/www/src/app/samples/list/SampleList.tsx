@@ -230,11 +230,12 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
           main: 10,
           reverse: 10,
         }}
-        className={clsx(className)}
+        className={clsx(className, 'samples-list')}
         onKeyDown={onkeydown}
         skipAnimationFrameInResizeObserver={true}
         isScrolling={isScrolling}
         restoreStateFrom={getRestoreState()}
+        tabIndex={0}
       />
       <SampleFooter
         sampleCount={sampleCount}

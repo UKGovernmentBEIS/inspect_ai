@@ -81161,11 +81161,12 @@ Supported expressions:
               main: 10,
               reverse: 10
             },
-            className: clsx(className2),
+            className: clsx(className2, "samples-list"),
             onKeyDown: onkeydown,
             skipAnimationFrameInResizeObserver: true,
             isScrolling,
-            restoreStateFrom: getRestoreState()
+            restoreStateFrom: getRestoreState(),
+            tabIndex: 0
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -81435,7 +81436,6 @@ Supported expressions:
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
       const sampleListHandle = reactExports.useRef(null);
-      reactExports.useRef(null);
       const selectedSampleTab = useStore((state) => state.app.tabs.sample);
       const setSelectedSampleTab = useStore(
         (state) => state.appActions.setSampleTab
@@ -81451,6 +81451,18 @@ Supported expressions:
           }
         }, 0);
       }, [selectedSampleIndex]);
+      const previousShowingDialogRef = reactExports.useRef(showingSampleDialog);
+      reactExports.useEffect(() => {
+        if (previousShowingDialogRef.current && !showingSampleDialog && sampleListHandle.current) {
+          setTimeout(() => {
+            const element = document.querySelector(".samples-list");
+            if (element instanceof HTMLElement) {
+              element.focus();
+            }
+          }, 10);
+        }
+        previousShowingDialogRef.current = showingSampleDialog;
+      }, [showingSampleDialog]);
       const sampleProcessor = reactExports.useMemo(() => {
         var _a3, _b3;
         if (!samplesDescriptor) return void 0;

@@ -138,6 +138,21 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
     }, 0);
   }, [selectedSampleIndex]);
 
+  // Focus the sample list when sample dialog is hidden, but only when it's being dismissed
+  const previousShowingDialogRef = useRef(showingSampleDialog);
+  useEffect(() => {
+    // Only focus when transitioning from showing dialog to not showing dialog
+    if (previousShowingDialogRef.current && !showingSampleDialog && sampleListHandle.current) {
+      setTimeout(() => {
+        const element = document.querySelector(".samples-list");
+        if (element instanceof HTMLElement) {
+          element.focus();
+        }
+      }, 10);
+    }
+    previousShowingDialogRef.current = showingSampleDialog;
+  }, [showingSampleDialog]);
+
   const sampleProcessor = useMemo(() => {
     if (!samplesDescriptor) return undefined;
 
