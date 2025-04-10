@@ -902,12 +902,18 @@ def get_model(
         if model_for_role is not None:
             return model_for_role
 
+    # if a default was specified then use it as the model if
+    # no model was passed
+    if model is None:
+        if isinstance(default, Model):
+            if role is not None:
+                default._set_role(role)
+            return default
+        else:
+            model = default
+
     # now try finding an 'ambient' model (active or env var)
     if model is None:
-        # return default if specified
-        if default is not None:
-            return get_model(default)
-
         # return active_model if there is one
         active = active_model()
         if active:
@@ -929,6 +935,7 @@ def get_model(
     if memoize:
         model_cache_key = (
             model
+            + str(role)
             + config.model_dump_json(exclude_none=True)
             + str(base_url)
             + str(api_key)
@@ -969,11 +976,11 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config, model_args)
+        if role is not None:
+            m._set_role(role)
         if memoize:
             _models[model_cache_key] = m
         return m
-    elif default is not None:
-        return get_model(default)
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
