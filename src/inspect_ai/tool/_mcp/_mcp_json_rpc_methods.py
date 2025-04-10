@@ -25,7 +25,7 @@ async def mcp_kill_server(**params: object) -> None:
     validated = KillServerParams.model_validate(params)
     session = sessions.pop(validated.session_id)
     # TODO: timeout
-    timeout = 666
+    timeout = 5
     await session.terminate(timeout=timeout)
 
 
