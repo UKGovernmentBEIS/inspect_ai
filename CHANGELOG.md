@@ -1,8 +1,7 @@
 ## Unreleased
 
-- Score: Preserve existing scores in TaskState when computing additional scores.
+- Eval: Fix an error when attempting to display realtime metrics for an evaluation.
 - Log Viewer: Fix an error when displaying a running log with a null metric value.
-- Bugfix: Fix an error when attempting to display realtime metrics for an evaluation.
 
 ## v0.3.86 (09 April 2025)
 

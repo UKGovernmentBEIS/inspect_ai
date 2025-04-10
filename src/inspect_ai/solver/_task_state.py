@@ -152,7 +152,6 @@ class TaskState:
         token_limit: int | None = None,
         completed: bool = False,
         metadata: dict[str, Any] = {},
-        scores: dict[str, Score] | None = None,
     ) -> None:
         self._model = model
         self._sample_id = sample_id
@@ -168,7 +167,6 @@ class TaskState:
         self._completed = completed
         self._store = Store()
         self._uuid = uuid()
-        self.scores = scores
 
         if choices:
             self.choices = Choices(choices)
