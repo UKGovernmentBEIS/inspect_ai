@@ -235,7 +235,7 @@ class AnthropicAPI(ModelAPI):
         content: str | None = None
         stop_reason: StopReason | None = None
 
-        if "prompt is too long" in error:
+        if "prompt is too long" in error or "Input is too long" in error:
             if (
                 isinstance(ex.body, dict)
                 and "error" in ex.body.keys()

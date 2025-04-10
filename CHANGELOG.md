@@ -18,6 +18,7 @@
 - Log viewer: metadata which contains images will now render the images.
 - Log viewer: show custom tool call views in messages display.
 - Bugfix: Correctly read and forward image detail property.
+- Bugfix: Update string matching in the AnthropicAPI to correctly BadRequestErrors related to prompts being too long.
 
 ## v0.3.47 (18 November 2024) 
 
