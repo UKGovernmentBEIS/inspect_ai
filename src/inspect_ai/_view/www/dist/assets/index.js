@@ -63828,12 +63828,13 @@ Supported expressions:
           break;
         }
       }
+      const panelTitle = event.role ? `Model Call (${event.role}): ${event.model}` : `Model Call: ${event.model}`;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
           id,
           className: className2,
-          title: formatTitle(`Model Call: ${event.model}`, totalUsage, callTime),
+          title: formatTitle(panelTitle, totalUsage, callTime),
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.model,
           children: [
