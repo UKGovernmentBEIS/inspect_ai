@@ -1,6 +1,6 @@
 import { FC } from "react";
 import { ApplicationIcons } from "../../appearance/icons";
-import { SampleLimitEvent, Type9 } from "../../types/log";
+import { SampleLimitEvent, Type10 } from "../../types/log";
 import { EventPanel } from "./event/EventPanel";
 
 interface SampleLimitEventViewProps {
@@ -17,7 +17,7 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
   event,
   className,
 }) => {
-  const resolve_title = (type: Type9) => {
+  const resolve_title = (type: Type10) => {
     switch (type) {
       case "custom":
         return "Custom Limit Exceeded";
@@ -34,7 +34,7 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
     }
   };
 
-  const resolve_icon = (type: Type9) => {
+  const resolve_icon = (type: Type10) => {
     switch (type) {
       case "custom":
         return ApplicationIcons.limits.custom;

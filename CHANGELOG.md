@@ -1,3 +1,7 @@
+## Unreleased
+
+- Tools: Restore formerly required (but now deprecated) `type` field to `ToolCall`.
+
 ## v0.3.87 (10 April 2025)
 
 - Eval: Fix an error when attempting to display realtime metrics for an evaluation.

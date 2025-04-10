@@ -53,6 +53,9 @@ class ToolCall:
     view: ToolCallContent | None = field(default=None)
     """Custom view of tool call input."""
 
+    type: str | None = field(default=None)
+    """Tool call type (deprecated)."""
+
 
 @dataclass
 class ToolCallError:
