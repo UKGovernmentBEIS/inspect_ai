@@ -2250,6 +2250,9 @@
           "title": "Model",
           "type": "string"
         },
+        "model_generate_config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
         "model_base_url": {
           "anyOf": [
             {
@@ -2355,6 +2358,7 @@
         "dataset",
         "sandbox",
         "model",
+        "model_generate_config",
         "model_base_url",
         "model_args",
         "config",
