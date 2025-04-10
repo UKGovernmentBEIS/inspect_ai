@@ -112,6 +112,50 @@ You can also pass provider specific parameters as additional arguments to `get_m
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
+### Model Roles
+
+::: callout-note
+The model roles feature described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+Model roles enable you to create aliases for the various models used in your tasks, and then dynamically vary those roles when running an evaluation. 
+
+For example, here is a scorer that utilizes a "grader" role when binding to a model:
+
+```python
+@scorer(metrics=[accuracy(), stderr()])
+def model_grader() -> Scorer:
+    async def score(state: TaskState, target: Target):
+        model = get_model(role="grader")
+        ...
+```
+
+Model roles can in turn be specified when using `inspect eval` or calling the `eval()` function:
+
+```bash
+inspect eval math.py --model-role grader=google/gemini-2.0-flash
+```
+
+Or with `eval()`:
+
+```python
+eval("math.py", model_roles = { "grader": "google/gemini-2.0-flash" })
+```
+
+#### Role Defaults
+
+By default if there is a no "grader" role explicitly defined then `get_model()` will return the default model for the evaluation. You can specify an alternate default model as follows:
+
+```python
+model = get_model(role="grader", default="openai/gpt-4o")
+```
+
+
+
 ### Model Caching
 
 By default, calls to `get_model()` are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
