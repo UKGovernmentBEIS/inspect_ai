@@ -972,7 +972,8 @@ def get_model(
         if memoize:
             _models[model_cache_key] = m
         return m
-
+    elif default is not None:
+        return get_model(default)
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
