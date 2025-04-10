@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Tools: Restore formerly required (but now deprecated) `type` field to `ToolCall`.
-- Bugfix: Update string matching in the AnthropicAPI to correctly BadRequestErrors related to prompts being too long.
+- Bugfix: Update string matching in the AnthropicAPI to correctly handle BadRequestErrors related to prompts being too long.
 
 ## v0.3.87 (10 April 2025)
 
