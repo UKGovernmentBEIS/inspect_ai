@@ -354,5 +354,5 @@ class _MessageLimitNode(_LimitNode[int]):
             return
         if self._usage > self._limit.value:
             raise LimitExceededError(
-                "token", value=self._usage, limit=self._limit.value
+                "message", value=self._usage, limit=self._limit.value
             )
