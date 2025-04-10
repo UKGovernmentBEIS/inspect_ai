@@ -119,14 +119,14 @@ export const createLogsSlice = (
         const state = get();
         const refreshedLogs = await state.logsActions.loadLogs();
 
-        // Set the logs first
-        state.logsActions.setLogs(refreshedLogs || kEmptyLogs);
-
         // Preserve the selected log even if new logs appear
         const currentLog =
-          refreshedLogs.files[
+          state.logs.logs.files[
             state.logs.selectedLogIndex > -1 ? state.logs.selectedLogIndex : 0
           ];
+
+        // Set the logs first
+        state.logsActions.setLogs(refreshedLogs || kEmptyLogs);
 
         if (currentLog) {
           const newIndex = refreshedLogs?.files.findIndex((file) =>
@@ -152,7 +152,7 @@ export const createLogsSlice = (
           // It isn't yet loaded, so refresh the logs and try to load it from there
           const result = await state.logsActions.loadLogs();
           const idx = result?.files.findIndex((file) =>
-            logUrl.endsWith(file.name),
+            file.name.endsWith(logUrl),
           );
 
           state.logsActions.setLogs(result || kEmptyLogs);

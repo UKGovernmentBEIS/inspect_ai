@@ -23,6 +23,10 @@ export const LogViewContainer: FC = () => {
   );
   const selectSample = useStore((state) => state.logActions.selectSample);
   const filteredSamples = useFilteredSamples();
+  const setStatus = useStore((state) => state.appActions.setStatus);
+  const setSelectedLogIndex = useStore(
+    (state) => state.logsActions.setSelectedLogIndex,
+  );
 
   useEffect(() => {
     const loadLogFromPath = async () => {
@@ -38,13 +42,36 @@ export const LogViewContainer: FC = () => {
           setWorkspaceTab(kLogViewSamplesTabId);
         }
       } else {
+        setStatus({
+          loading: true,
+          error: undefined,
+        });
+        // Refresh the list of logs
         await refreshLogs();
+
+        // Select the first log in the list
+        setSelectedLogIndex(0);
+
+        // Reset the log/task tab
         setWorkspaceTab(kLogViewSamplesTabId);
+
+        setStatus({
+          loading: false,
+          error: undefined,
+        });
       }
     };
 
     loadLogFromPath();
-  }, [logPath, tabId, selectLogFile, refreshLogs, setWorkspaceTab]);
+  }, [
+    logPath,
+    tabId,
+    selectLogFile,
+    refreshLogs,
+    setWorkspaceTab,
+    setSelectedLogIndex,
+    setStatus,
+  ]);
 
   // Handle sample selection from URL params
   useEffect(() => {
