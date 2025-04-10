@@ -101,15 +101,16 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
               ""
             )}
           </div>
+          {evalSpec?.model_roles ? (
+            <ModelRolesView roles={evalSpec.model_roles} />
+          ) : undefined}
+
           <div className={clsx("text-size-small", styles.secondaryContainer)}>
             <div className={clsx("navbar-secondary-text", "text-truncate")}>
               {logFileName}
             </div>
             {selectedLogFile ? <CopyButton value={selectedLogFile} /> : ""}
           </div>
-          {evalSpec?.model_roles ? (
-            <ModelRolesView roles={evalSpec.model_roles} />
-          ) : undefined}
         </div>
       </div>
       <div className={clsx(styles.taskStatus, "navbar-text")}>

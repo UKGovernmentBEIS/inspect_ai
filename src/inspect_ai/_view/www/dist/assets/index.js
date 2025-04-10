@@ -73973,15 +73973,16 @@ ${events}
         }
       );
     };
-    const container$3 = "_container_no09c_1";
-    const grid = "_grid_no09c_8";
+    const container$3 = "_container_q17yq_1";
+    const grid = "_grid_q17yq_10";
     const styles$9 = {
       container: container$3,
       grid
     };
     const ModelRolesView = ({ roles }) => {
       roles = roles || {};
-      const modelEls = Object.keys(roles).map((key2, index2) => {
+      const singleLine = Object.keys(roles).length !== 1;
+      const modelEls = Object.keys(roles).map((key2) => {
         const role = key2;
         const roleData = roles[role];
         const model2 = roleData.model;
@@ -73989,7 +73990,7 @@ ${events}
           "div",
           {
             className: clsx(
-              styles$9.grid,
+              singleLine ? styles$9.grid : void 0,
               "text-style-secondary",
               "text-size-smallest"
             ),
@@ -74004,7 +74005,7 @@ ${events}
           key2
         );
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$9.container, children: modelEls });
+      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$9.container, children: modelEls }) : void 0;
     };
     const container$2 = "_container_291sb_1";
     const wrapper = "_wrapper_291sb_8";
@@ -74576,11 +74577,11 @@ ${events}
                     }
                   ) : ""
                 ] }),
+                (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
                 /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$8.secondaryContainer), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
                   selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
-                ] }),
-                (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0
+                ] })
               ] })
             ]
           }

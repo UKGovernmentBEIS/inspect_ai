@@ -3,6 +3,8 @@
   flex-direction: row;
   flex-wrap: wrap;
   gap: 0;
+  margin-top: -0.2rem;
+  margin-bottom: 0.2rem;
 }
 
 .grid {

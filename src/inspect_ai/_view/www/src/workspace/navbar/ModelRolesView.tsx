@@ -13,14 +13,20 @@ interface ModelRolesViewProps {
  */
 export const ModelRolesView: FC<ModelRolesViewProps> = ({ roles }) => {
   roles = roles || {};
-  const modelEls = Object.keys(roles).map((key, index) => {
+
+  // Render as a single line if there is only a single
+  // model role
+  const singleLine = Object.keys(roles).length !== 1;
+
+  // Render a layout of model roles
+  const modelEls = Object.keys(roles).map((key) => {
     const role = key;
     const roleData = roles[role];
     const model = roleData.model;
     return (
       <div
         className={clsx(
-          styles.grid,
+          singleLine ? styles.grid : undefined,
           "text-style-secondary",
           "text-size-smallest",
         )}
@@ -31,5 +37,7 @@ export const ModelRolesView: FC<ModelRolesViewProps> = ({ roles }) => {
       </div>
     );
   });
-  return <div className={styles.container}>{modelEls}</div>;
+  return modelEls.length > 0 ? (
+    <div className={styles.container}>{modelEls}</div>
+  ) : undefined;
 };
