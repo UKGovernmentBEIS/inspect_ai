@@ -1,3 +1,8 @@
+## v0.3.87 (10 April 2025)
+
+- Eval: Fix an error when attempting to display realtime metrics for an evaluation.
+- Log Viewer: Fix an error when displaying a running log with a null metric value.
+
 ## v0.3.86 (09 April 2025)
 
 - Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.

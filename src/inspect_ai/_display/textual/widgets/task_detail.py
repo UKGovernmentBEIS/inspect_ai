@@ -221,13 +221,13 @@ class TaskMetrics(Widget):
             self.recompute_grid()
 
     def on_mount(self) -> None:
-        self.recompute_grid(True)
+        self.call_after_refresh(self.recompute_grid)
 
-    def recompute_grid(self, force: bool = False) -> None:
-        if not self.is_mounted and not force:
+    def recompute_grid(self) -> None:
+        if not self.is_mounted:
             return
-        grid = self.query_one(f"#{self.grid_id()}")
 
+        grid = self.query_one(f"#{self.grid_id()}")
         grid.remove_children()
         for metric in self.metrics:
             # Add the value static but keep it around
