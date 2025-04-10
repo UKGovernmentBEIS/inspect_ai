@@ -46,8 +46,6 @@ async def apply_tool_approval(
             case "reject":
                 return False, approval
             case "terminate":
-                if state:
-                    state.completed = True
                 return False, approval
             case "escalate":
                 raise RuntimeError("Unexpected 'escalate' from policy approver.")

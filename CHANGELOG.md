@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Tools: Restore formerly required (but now deprecated) `type` field to `ToolCall`.
+- Approval: Raise operator limit exceeded error for tool approval termination action.
 
 ## v0.3.87 (10 April 2025)
 
