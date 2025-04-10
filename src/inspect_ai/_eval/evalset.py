@@ -419,18 +419,13 @@ def as_previous_tasks(
 
     previous_tasks: list[PreviousTask] = []
     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-        # NOTE: we used to try to recreate registry objects by
-        # by just passing the task name, but that didn't work
-        # when evals were run from another directory. we may
-        # want to bring this back but we'd need to resolve the
-        # directory issues.
-
         previous_tasks.append(
             PreviousTask(
                 id=log.header.eval.task_id,
                 task=task.task,
                 task_args=resolve_task_args(task.task),
                 model=task.model,
+                model_roles=task.model_roles,
                 log=read_eval_log(log.info),
             )
         )

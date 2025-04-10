@@ -322,6 +322,7 @@ class PreviousTask:
     task: str | Task
     task_args: dict[str, Any]
     model: Model | None
+    model_roles: dict[str, Model] | None
     log: EvalLog
 
 

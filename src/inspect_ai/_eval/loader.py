@@ -55,8 +55,6 @@ def resolve_tasks(
     model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
 ) -> list[ResolvedTask]:
-    ## TODO: how to use model_roles here?
-
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         return [
             ResolvedTask(
@@ -64,7 +62,7 @@ def resolve_tasks(
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
                 model=task.model or model,
-                model_roles=None,
+                model_roles=task.model_roles or model_roles,
                 sandbox=resolve_task_sandbox(task, sandbox),
                 sequence=sequence,
             )
@@ -113,7 +111,9 @@ def resolve_tasks(
                 task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
                 model=previous_task.model or loaded_task.model or model,
-                model_roles=None,
+                model_roles=(
+                    previous_task.model_roles or loaded_task.model_roles or model_roles
+                ),
                 sandbox=previous_task.log.eval.sandbox,
                 sequence=sequence,
                 id=previous_task.id,

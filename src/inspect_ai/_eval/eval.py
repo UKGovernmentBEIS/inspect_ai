@@ -825,7 +825,12 @@ async def eval_retry_async(
         log = (
             await eval_async(
                 tasks=PreviousTask(
-                    id=task_id, task=task, task_args=task_args, model=None, log=eval_log
+                    id=task_id,
+                    task=task,
+                    task_args=task_args,
+                    model=None,
+                    model_roles=None,
+                    log=eval_log,
                 ),
                 model=model,
                 model_roles=cast(dict[str, str | Model], model_roles),
