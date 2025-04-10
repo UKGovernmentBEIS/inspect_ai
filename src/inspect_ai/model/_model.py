@@ -840,6 +840,7 @@ def get_model(
     model: str | Model | None = None,
     *,
     role: str | None = None,
+    default: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
     api_key: str | None = None,
@@ -871,7 +872,10 @@ def get_model(
           evaluated is returned (or if there is no evaluation
           then the model referred to by `INSPECT_EVAL_MODEL`).
        role: Optional named role for model (e.g. for roles specified
-          at the task or eval level)
+          at the task or eval level). Provide a `default` as a fallback
+          in the case where the `role` hasn't been externally specified.
+       default: Optional. Fallback model in case the specified
+          `model` or `role` is not found.
        config: Configuration for model.
        base_url: Optional. Alternate base URL for model.
        api_key: Optional. API key for model.
@@ -900,6 +904,10 @@ def get_model(
 
     # now try finding an 'ambient' model (active or env var)
     if model is None:
+        # return default if specified
+        if default is not None:
+            return get_model(default)
+
         # return active_model if there is one
         active = active_model()
         if active:
