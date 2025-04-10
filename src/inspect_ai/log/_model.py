@@ -37,8 +37,8 @@ def model_config_to_model(model_config: EvalModelConfig) -> Model:
         model=model_config.model,
         config=model_config.config,
         base_url=model_config.base_url,
-        model_args=model_config.args,
         memoize=False,
+        **model_config.args,
     )
 
 
