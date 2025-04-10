@@ -24,7 +24,7 @@ def approval_demo() -> Task:
         ],
         solver=react(
             prompt=dedent("""
-                "You will ba asked to demonstrate various uses of the bash and python tools. Please make only one tool call at a time rather than attempting to demonstrate multiple uses in a single call."""),
+                "You will be asked to demonstrate various uses of the bash and python tools. Please make only one tool call at a time rather than attempting to demonstrate multiple uses in a single call."""),
             tools=[bash(), python()],
         ),
         sandbox="docker",
