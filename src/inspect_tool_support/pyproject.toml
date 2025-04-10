@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["inspect_tool_support*"]
+
+[tool.setuptools.package-data]
+"inspect_tool_support" = ["**/*.svg", "**/*.md"]
+
+
+[tool.ruff]
+extend-exclude = ["docs"]
+src = ["."]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # flake8
+    "D",      # pydocstyle
+    "I",      # isort
+    "SIM101", # duplicate isinstance
+    "UP038",  # non-pep604-isinstance
+    # "RET", # flake8-return
+    # "RUF", # ruff rules
+]
+ignore = ["E203", "E501", "D10", "D212", "D415"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge"]
+warn_unused_ignores = true
+no_implicit_reexport = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_configs = true
+# This mypy_path config is a bit odd, it's included to get mypy to resolve
+# imports correctly in test files. For example, imports such as
+# `from test_helpers.utils import ...` fail mypy without this configuration,
+# despite actually working when running tests.
+#
+# Revisit this if it interferes with mypy running on `src`  due to name
+# conflicts, but that will hopefully be unlikely.
+mypy_path = "tests"
+
+[[tool.mypy.overrides]]
+module = ["inspect_ai.*"]
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+extra_checks = true
+disable_error_code = "unused-ignore"
+
+[tool.check-wheel-contents]
+ignore = ["W002", "W009"]
+
+[project]
+name = "inspect_tool_support"
+version = "0.1.7"
+description = "Sandbox container tool code for inspect_ai"
+authors = [{ name = "UK AI Security Institute" }]
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT License" }
+# dynamic = ["version", "dependencies"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "aiohttp",
+    "httpx",
+    "jsonrpcserver",
+    "pydantic",
+    "returns",
+    "tenacity",
+    "playwright",
+    "psutil",
+]
+
+[project.urls]
+CHANGELOG="https://raw.githubusercontent.com/UKGovernmentBEIS/inspect_ai/refs/heads/feature/tool-support-fast-follow/src/inspect_tool_support/CHANGELOG.md"
+
+[project.scripts]
+inspect-tool-support = "inspect_tool_support._cli.main:main"
+
+[project.optional-dependencies]
+dev = [
+    "types-psutil"
+]
+
+dist = ["twine", "build"]

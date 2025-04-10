@@ -4,6 +4,7 @@ from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Solver, TaskState, basic_agent, solver, system_message
+from inspect_ai.solver._solver import Generate
 from inspect_ai.tool import Tool, tool
 
 
@@ -161,23 +162,61 @@ def test_basic_agent_retries_with_custom_incorrect_message():
     def custom_incorrect_message(state: TaskState, scores: list[Score]):
         return f"Your response to the input '{state.input}' was incorrect: {scores[0].explanation}"
 
-    addition_task = Task(
-        dataset=[Sample(input="What is 1 + 1?", target="2")],
-        solver=basic_agent(
-            tools=[addition()],
-            max_attempts=3,
-            message_limit=30,
-            incorrect_message=custom_incorrect_message,
-        ),
-        scorer=compare_quantities(),
+    async def async_custom_incorrect_message(state: TaskState, scores: list[Score]):
+        return f"Your response to the input '{state.input}' was incorrect: {scores[0].explanation}"
+
+    def check_task(incorrect_message):
+        addition_task = Task(
+            dataset=[Sample(input="What is 1 + 1?", target="2")],
+            solver=basic_agent(
+                tools=[addition()],
+                max_attempts=3,
+                message_limit=30,
+                incorrect_message=incorrect_message,
+            ),
+            scorer=compare_quantities(),
+        )
+        log = eval(addition_task, mockllm_model(["5", "1", "2"]), display="plain")[0]
+        assert log.results.scores[0].metrics["accuracy"].value == 1
+        user_msgs = [
+            m.content for m in log.samples[0].messages if isinstance(m, ChatMessageUser)
+        ]
+        assert user_msgs == [
+            "What is 1 + 1?",
+            "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too high",
+            "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too low",
+        ]
+
+    check_task(custom_incorrect_message)
+    check_task(async_custom_incorrect_message)
+
+
+def test_basic_agent_provide_answer():
+    @solver
+    def validate_answer() -> Solver:
+        async def execute(state: TaskState, generate: Generate) -> TaskState:
+            if state.output.completion == "2":
+                raise RuntimeError("Submitted answer not properly concatenated")
+            return state
+
+        return execute
+
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=[
+            basic_agent(
+                tools=[addition()],
+                max_attempts=1,
+                message_limit=30,
+                submit_append=True,
+            ),
+            validate_answer(),
+        ],
+        scorer=includes(),
     )
-    log = eval(addition_task, mockllm_model(["5", "1", "2"]))[0]
+    log = eval(task, mockllm_model(["2"]))[0]
     assert log.results.scores[0].metrics["accuracy"].value == 1
-    user_msgs = [
-        m.content for m in log.samples[0].messages if isinstance(m, ChatMessageUser)
-    ]
-    assert user_msgs == [
-        "What is 1 + 1?",
-        "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too high",
-        "Your response to the input 'What is 1 + 1?' was incorrect: Answer is too low",
-    ]
+
+
+if __name__ == "__main__":
+    test_basic_agent_retries_with_custom_incorrect_message()

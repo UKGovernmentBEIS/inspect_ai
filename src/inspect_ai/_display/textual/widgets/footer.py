@@ -26,8 +26,8 @@ class AppFooter(Widget):
     right: reactive[RenderableType] = reactive("")
 
     def compose(self) -> ComposeResult:
-        yield Static(id="footer-left")
-        yield Static(id="footer-right")
+        yield Static(id="footer-left", markup=False)
+        yield Static(id="footer-right", markup=False)
 
     def watch_left(self, new_left: RenderableType) -> None:
         footer_left = cast(Static, self.query_one("#footer-left"))
@@ -36,3 +36,7 @@ class AppFooter(Widget):
     def watch_right(self, new_right: RenderableType) -> None:
         footer_right = cast(Static, self.query_one("#footer-right"))
         footer_right.update(new_right)
+        if footer_right.tooltip is None:
+            footer_right.tooltip = (
+                "Execute 'inspect trace http' for a log of all HTTP requests."
+            )

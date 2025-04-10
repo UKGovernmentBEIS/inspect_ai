@@ -20,12 +20,12 @@ def convert_eval_logs(
 
     Args:
         path (str): Path to source log file(s). Should be either a single
-          log file or a directory containing log files.
+            log file or a directory containing log files.
         to (Literal["eval", "json"]): Format to convert to. If a file is
-          already in the target format it will just be copied to the output dir.
+            already in the target format it will just be copied to the output dir.
         output_dir (str): Output directory to write converted log file(s) to.
         overwrite (bool): Overwrite existing log files (defaults to `False`,
-          raising an error if the output file path already exists).
+            raising an error if the output file path already exists).
     """
     from inspect_ai._display import display
 

@@ -37,7 +37,6 @@ def test_sample_transcript():
     #         to_jsonable_python(log.samples[0].transcript, exclude_none=True), indent=2
     #     )
     # )
-
-    assert log.samples[0].transcript.events[1].type == "solver"
-    assert log.samples[0].transcript.events[3].data == "1"
-    assert log.samples[0].transcript.events[6].event == "state"
+    assert log.samples[0].transcript.events[4].type == "solver"
+    assert log.samples[0].transcript.events[6].data == "1"
+    assert log.samples[0].transcript.events[9].event == "state"

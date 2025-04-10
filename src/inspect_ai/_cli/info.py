@@ -5,7 +5,7 @@ import click
 from inspect_ai import __version__
 from inspect_ai._util.constants import PKG_PATH
 from inspect_ai._view.server import resolve_header_only
-from inspect_ai.log._file import eval_log_json, read_eval_log
+from inspect_ai.log._file import eval_log_json_str, read_eval_log
 
 from .log import headers, schema, types
 
@@ -25,6 +25,7 @@ def info_command() -> None:
     help="Output version and path info as JSON",
 )
 def version(json: bool) -> None:
+    """Output version and path info."""
     if json:
         print(dumps(dict(version=__version__, path=PKG_PATH.as_posix()), indent=2))
     else:
@@ -46,7 +47,7 @@ def log(path: str, header_only: int) -> None:
     header_only = resolve_header_only(path, header_only)
 
     log = read_eval_log(path, header_only=header_only)
-    print(eval_log_json(log))
+    print(eval_log_json_str(log))
 
 
 @info_command.command("log-file-headers", hidden=True)

@@ -1,13 +1,13 @@
 cff-version: 1.2.0
-title: 'Inspect AI: Framework for Large Language Model Evaluations'
+title: "Inspect AI: Framework for Large Language Model Evaluations"
 message: >-
   If you cite this software, please do so using the
   metadata from this file.
 type: software
 authors:
-  - name: UK AI Safety Institute
-    website: 'https://www.aisi.gov.uk/'
-repository-code: 'https://github.com/UKGovernmentBEIS/inspect_ai'
-url: 'https://inspect.ai-safety-institute.org.uk/'
+  - name: UK AI Security Institute
+    website: "https://www.aisi.gov.uk/"
+repository-code: "https://github.com/UKGovernmentBEIS/inspect_ai"
+url: "https://inspect.aisi.org.uk/"
 license: MIT
 date-released: "2024-05-10"

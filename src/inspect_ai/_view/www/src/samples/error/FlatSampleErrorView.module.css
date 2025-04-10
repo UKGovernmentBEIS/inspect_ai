@@ -1,0 +1,20 @@
+.flatBody {
+  color: var(--bs-danger);
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.2em;
+  margin-top: 0.4rem;
+}
+
+.iconSmall {
+  font-size: var(--inspect-font-size-small);
+  line-height: var(--inspect-font-size-small);
+  height: var(--inspect-font-size-small);
+}
+
+.lineBase {
+  font-size: var(--inspect-font-size-base);
+  line-height: var(--inspect-font-size-base);
+  height: var(--inspect-font-size-base);
+  max-width: 30em;
+}

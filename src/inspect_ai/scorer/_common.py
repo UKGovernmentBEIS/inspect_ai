@@ -1,3 +1,4 @@
+import re
 from typing import Callable, Literal
 
 from inspect_ai._util.text import (
@@ -24,19 +25,13 @@ def str_match_scorer(match: Callable[[str, str], tuple[str, bool]]) -> Scorer:
         for value in target:
             answer, matched = match(state.output.completion, value)
             if matched:
-                explanation = (
-                    state.output.completion
-                    if state.output.completion != answer
-                    else None
-                )
                 return Score(
                     value=CORRECT, answer=answer, explanation=state.output.completion
                 )
 
-        explanation = (
-            state.output.completion if state.output.completion != answer else None
+        return Score(
+            value=INCORRECT, answer=answer, explanation=state.output.completion
         )
-        return Score(value=INCORRECT, answer=answer, explanation=explanation)
 
     return score
 
@@ -60,17 +55,17 @@ def match_str(
     if ignore_case:
         v = v.casefold()
         t = t.casefold()
-    if numeric:
+    if numeric and t.isnumeric():
         # remove punctuation
         v = strip_numeric_punctuation(v)
         t = strip_numeric_punctuation(t)
         # normalize as required
         t = normalize_number(t)
         if location == "begin":
-            words = v.split(" ")
+            words = re.split(r"\s+", v)
             v = first_number_normalized(words)
         elif location == "end":
-            words = v.split(" ")
+            words = re.split(r"\s+", v)
             words.reverse()
             v = first_number_normalized(words)
         elif location == "exact":

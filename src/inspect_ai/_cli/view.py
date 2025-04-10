@@ -39,7 +39,10 @@ def start_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 @common_options
 @click.pass_context
 def view_command(ctx: click.Context, **kwargs: Unpack[CommonOptions]) -> None:
-    """View command group."""
+    """Inspect log viewer.
+
+    Learn more about using the log viewer at https://inspect.aisi.org.uk/log-viewer.html.
+    """
     if ctx.invoked_subcommand is None:
         ctx.invoke(start, **kwargs)
     else:
@@ -63,6 +66,10 @@ def start(
     INSPECT_VIEW_AUTHORIZATION_TOKEN = "INSPECT_VIEW_AUTHORIZATION_TOKEN"
     authorization = os.environ.get(INSPECT_VIEW_AUTHORIZATION_TOKEN, None)
     if authorization:
+        # this indicates we are in vscode -- we want to set the log level to HTTP
+        # in vscode, updated versions of the extension do this but we set it
+        # manually here as a temporary bridge for running against older versions
+        common["log_level"] = "HTTP"
         del os.environ[INSPECT_VIEW_AUTHORIZATION_TOKEN]
         os.unsetenv(INSPECT_VIEW_AUTHORIZATION_TOKEN)
 
@@ -74,7 +81,6 @@ def start(
         port=port,
         authorization=authorization,
         log_level=common["log_level"],
-        log_level_transcript=common["log_level_transcript"],
     )
 
 

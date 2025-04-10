@@ -1,17 +1,15 @@
 import base64
+from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
-    DEFAULT_MAX_RETRIES,
-    DEFAULT_MAX_TOKENS,
-    DEFAULT_TIMEOUT,
-)
+from inspect_ai._util._async import current_async_backend
+from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
-from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.images import image_as_data
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
+from inspect_ai._util.images import file_as_data
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
@@ -27,14 +25,13 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import (
-    ChatCompletionChoice,
-    ModelOutput,
-    ModelUsage,
-)
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
     model_base_url,
 )
+from .util.hooks import ConverseHooks
+
+logger = getLogger(__name__)
 
 # Model for Bedrock Converse API (Response)
 # generated from: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/bedrock-runtime/client/converse.html#converse
@@ -236,14 +233,26 @@ class BedrockAPI(ModelAPI):
         self,
         model_name: str,
         base_url: str | None,
+        api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
         super().__init__(
             model_name=model_name,
             base_url=model_base_url(base_url, "BEDROCK_BASE_URL"),
+            api_key=api_key,
+            api_key_vars=[],
             config=config,
         )
+
+        # raise if we are using trio
+        if current_async_backend() == "trio":
+            raise PrerequisiteError(
+                "ERROR: The bedrock provider does not work with the trio async backend."
+            )
+
+        # save model_args
+        self.model_args = model_args
 
         # import aioboto3 on demand
         try:
@@ -254,6 +263,9 @@ class BedrockAPI(ModelAPI):
             # Create a shared session to be used when generating
             self.session = aioboto3.Session()
 
+            # create time tracker
+            self._http_hooks = ConverseHooks(self.session)
+
         except ImportError:
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
 
@@ -263,6 +275,9 @@ class BedrockAPI(ModelAPI):
 
     @override
     def max_tokens(self) -> int | None:
+        if "llama3-70" in self.model_name or "llama3-8" in self.model_name:
+            return 2048
+
         if "llama3" in self.model_name or "claude3" in self.model_name:
             return 4096
 
@@ -274,15 +289,25 @@ class BedrockAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         from botocore.exceptions import ClientError
 
         # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
-            if ex.response["Error"]["Code"] == "ThrottlingException":
-                return True
-
-        return super().is_rate_limit(ex)
+            error_code = ex.response.get("Error", {}).get("Code", "")
+            return error_code in [
+                "ThrottlingException",
+                "RequestLimitExceeded",
+                "Throttling",
+                "RequestThrottled",
+                "TooManyRequestsException",
+                "ProvisionedThroughputExceededException",
+                "TransactionInProgressException",
+                "RequestTimeout",
+                "ServiceUnavailable",
+            ]
+        else:
+            return False
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -298,24 +323,20 @@ class BedrockAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         from botocore.config import Config
         from botocore.exceptions import ClientError
 
         # The bedrock client
-        async with self.session.client(
+        request_id = self._http_hooks.start_request()
+        async with self.session.client(  # type: ignore[call-overload]
             service_name="bedrock-runtime",
             endpoint_url=self.base_url,
             config=Config(
-                connect_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                read_timeout=config.timeout if config.timeout else DEFAULT_TIMEOUT,
-                retries=dict(
-                    max_attempts=config.max_retries
-                    if config.max_retries
-                    else DEFAULT_MAX_RETRIES,
-                    mode="adaptive",
-                ),
+                retries=dict(mode="adaptive"),
+                user_agent_extra=self._http_hooks.user_agent_extra(request_id),
             ),
+            **self.model_args,
         ) as client:
             # Process the tools
             resolved_tools = converse_tools(tools)
@@ -329,25 +350,34 @@ class BedrockAPI(ModelAPI):
             # Resolve the input messages into converse messages
             system, messages = await converse_messages(input)
 
-            try:
-                # Make the request
-                request = ConverseClientConverseRequest(
-                    modelId=self.model_name,
-                    messages=messages,
-                    system=system,
-                    inferenceConfig=ConverseInferenceConfig(
-                        maxTokens=config.max_tokens,
-                        temperature=config.temperature,
-                        topP=config.top_p,
-                        stopSequences=config.stop_seqs,
+            # Make the request
+            request = ConverseClientConverseRequest(
+                modelId=self.model_name,
+                messages=messages,
+                system=system,
+                inferenceConfig=ConverseInferenceConfig(
+                    maxTokens=config.max_tokens,
+                    temperature=config.temperature,
+                    topP=config.top_p,
+                    stopSequences=config.stop_seqs,
+                ),
+                additionalModelRequestFields={
+                    "top_k": config.top_k,
+                    **config.model_config,
+                },
+                toolConfig=tool_config,
+            )
+
+            def model_call(response: dict[str, Any] | None = None) -> ModelCall:
+                return ModelCall.create(
+                    request=replace_bytes_with_placeholder(
+                        request.model_dump(exclude_none=True)
                     ),
-                    additionalModelRequestFields={
-                        "top_k": config.top_k,
-                        **config.model_config,
-                    },
-                    toolConfig=tool_config,
+                    response=response,
+                    time=self._http_hooks.end_request(request_id),
                 )
 
+            try:
                 # Process the reponse
                 response = await client.converse(
                     **request.model_dump(exclude_none=True)
@@ -356,32 +386,24 @@ class BedrockAPI(ModelAPI):
 
             except ClientError as ex:
                 # Look for an explicit validation exception
-                if (
-                    ex.response["Error"]["Code"] == "ValidationException"
-                    and "Too many input tokens" in ex.response["Error"]["Message"]
-                ):
+                if ex.response["Error"]["Code"] == "ValidationException":
                     response = ex.response["Error"]["Message"]
-                    return ModelOutput.from_content(
-                        model=self.model_name,
-                        content=response,
-                        stop_reason="model_length",
-                    )
+                    if "Too many input tokens" in response:
+                        return ModelOutput.from_content(
+                            model=self.model_name,
+                            content=response,
+                            stop_reason="model_length",
+                        )
+                    else:
+                        return ex, model_call(None)
                 else:
                     raise ex
 
         # create a model output from the response
         output = model_output_from_response(self.model_name, converse_response, tools)
 
-        # record call
-        call = ModelCall.create(
-            request=replace_bytes_with_placeholder(
-                request.model_dump(exclude_none=True)
-            ),
-            response=response,
-        )
-
         # return
-        return output, call
+        return output, model_call(response)
 
 
 async def converse_messages(
@@ -420,12 +442,13 @@ def model_output_from_response(
             content.append(ContentText(type="text", text=c.text))
         elif c.image is not None:
             base64_image = base64.b64encode(c.image.source.bytes).decode("utf-8")
-            content.append(ContentImage(image=base64_image))
+            content.append(
+                ContentImage(image=f"data:image/{c.image.format};base64,{base64_image}")
+            )
         elif c.toolUse is not None:
             tool_calls.append(
                 ToolCall(
                     id=c.toolUse.toolUseId,
-                    type="function",
                     function=c.toolUse.name,
                     arguments=cast(dict[str, Any], c.toolUse.input or {}),
                 )
@@ -436,7 +459,7 @@ def model_output_from_response(
     # resolve choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=content, tool_calls=tool_calls, source="generate"
+            content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
         stop_reason=message_stop_reason(response.stopReason),
     )
@@ -538,6 +561,7 @@ async def converse_chat_message(
                 "Tool call is missing a tool call id, which is required for Converse API"
             )
         if message.function is None:
+            print(message)
             raise ValueError(
                 "Tool call is missing a function, which is required for Converse API"
             )
@@ -555,7 +579,7 @@ async def converse_chat_message(
                 if c.type == "text":
                     tool_result_content.append(ConverseToolResultContent(text=c.text))
                 elif c.type == "image":
-                    image_data, image_type = await image_as_data(c.image)
+                    image_data, image_type = await file_as_data(c.image)
                     tool_result_content.append(
                         ConverseToolResultContent(
                             image=ConverseImage(
@@ -594,7 +618,7 @@ async def converse_contents(
         result: list[ConverseMessageContent] = []
         for c in content:
             if c.type == "image":
-                image_data, image_type = await image_as_data(c.image)
+                image_data, image_type = await file_as_data(c.image)
                 result.append(
                     ConverseMessageContent(
                         image=ConverseImage(
@@ -658,6 +682,8 @@ def converse_image_type(type: str) -> ConverseImageFormat:
             return "png"
         case "image/webp":
             return "webp"
+        case "image/jpeg":
+            return "jpeg"
         case _:
             raise ValueError(
                 f"Image mime type {type} is not supported for Bedrock Converse models."
@@ -673,7 +699,11 @@ def converse_tools(tools: list[ToolInfo]) -> list[ConverseTool] | None:
         tool_spec = ConverseToolSpec(
             name=tool.name,
             description=tool.description,
-            inputSchema={"json": tool.parameters.model_dump(exclude_none=True)},
+            inputSchema={
+                "json": tool.parameters.model_dump(
+                    exclude_none=True, exclude={"additionalProperties"}
+                )
+            },
         )
         result.append(ConverseTool(toolSpec=tool_spec))
     return result

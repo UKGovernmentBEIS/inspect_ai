@@ -1,0 +1,2 @@
+{ "input": [ { "role": "user", "content": [{ "type": "text", "text": "What words are spoken in this audio sample?"}, { "type": "audio", "audio": "sample.mp3", "format": "mp3" }]} ], "target": "pluck the bright rose without leaves" }
+{ "input": [ { "role": "user", "content": [{ "type": "text", "text": "What words are spoken in this audio sample?"}, { "type": "audio", "audio": "sample.wav", "format": "wav" }]} ], "target": "pluck the bright rose without leaves" }

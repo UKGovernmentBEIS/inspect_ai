@@ -90,7 +90,7 @@ If you do need to interact with the underlying JSON (e.g., when reading logs fro
 
 ## Image Logging
 
-By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unweildy (i.e. if your `.json` log file grows to 100mb or larger as a result).
+By default, full base64 encoded copies of images are included in the log file. Image logging will not create performance problems when using `.eval` logs, however if you are using `.json` logs then large numbers of images could become unwieldy (i.e. if your `.json` log file grows to 100mb or larger as a result).
 
 You can disable this using the `--no-log-images` flag. For example, here we enable the `.json` log format and disable image logging:
 
@@ -131,14 +131,6 @@ if log.status == "success":
 In the section below we'll talk more about how to deal with logs from failed evaluations (e.g. retrying the eval).
 
 ### Location
-
-::: {.callout-note appearance="simple"}
-The `location` property described below is supported only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 The `EvalLog` object returned from `eval()` and `read_eval_log()` has a `location` property that indicates the storage location it was written to or read from.
 
@@ -254,11 +246,8 @@ Note you will most typically *not* want to resolve attachments. The two cases th
 
 {{< include _sample-preservation.md >}}
 
-::: {.callout-note appearance="simple"}
-### Eval Sets
-
 We've discussed how to manage retries for a single evaluation run interactively. For the case of running many evaluation tasks in batch and retrying those which failed, see the documentation on [Eval Sets](eval-sets.qmd)
-:::
+
 
 ## Amazon S3 {#sec-amazon-s3}
 

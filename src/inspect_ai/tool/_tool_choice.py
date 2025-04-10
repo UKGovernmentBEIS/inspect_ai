@@ -4,8 +4,10 @@ from typing import Literal, Union
 
 @dataclass
 class ToolFunction:
+    """Indicate that a specific tool function should be called."""
+
     name: str
-    """The name of the function to call."""
+    """The name of the tool function to call."""
 
 
 ToolChoice = Union[Literal["auto", "any", "none"], ToolFunction]

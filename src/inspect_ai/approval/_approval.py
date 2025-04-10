@@ -17,6 +17,8 @@ Possible values:
 
 
 class Approval(BaseModel):
+    """Approval details (decision, explanation, etc.)"""
+
     decision: ApprovalDecision
     """Approval decision."""
 

@@ -1,6 +1,7 @@
-import asyncio
 import inspect
+from datetime import datetime
 from functools import wraps
+from logging import getLogger
 from typing import (
     Any,
     Callable,
@@ -11,8 +12,10 @@ from typing import (
     runtime_checkable,
 )
 
-from inspect_ai._util._async import is_callable_coroutine
+from inspect_ai._util._async import is_callable_coroutine, tg_collect
 from inspect_ai._util.content import Content
+from inspect_ai._util.trace import trace_action
+from inspect_ai._util.working import sample_waiting_time
 from inspect_ai.util._store import Store, dict_jsonable, init_subtask_store
 
 SubtaskResult = str | int | float | bool | list[Content]
@@ -20,23 +23,26 @@ SubtaskResult = str | int | float | bool | list[Content]
 RT = TypeVar("RT", SubtaskResult, Any)
 
 
+logger = getLogger(__name__)
+
+
 @runtime_checkable
 class Subtask(Protocol):
-    """Subtask with distinct `Store` and `Transcript`.
-
-    Args:
-      *args (Any): Arguments for the subtask.
-      **kwargs (Any): Keyword arguments for the subtask.
-
-    Returns:
-      Result of subtask.
-    """
-
     async def __call__(
         self,
         *args: Any,
         **kwargs: Any,
-    ) -> Any: ...
+    ) -> Any:
+        """Subtask with distinct `Store` and `Transcript`.
+
+        Args:
+            *args (Any): Arguments for the subtask.
+            **kwargs (Any): Keyword arguments for the subtask.
+
+        Returns:
+            Result of subtask.
+        """
+        ...
 
 
 @overload
@@ -66,11 +72,10 @@ def subtask(
     r"""Decorator for subtasks.
 
     Args:
-        func (Subtask): Subtask implementation.
-        name (str | None): Name for subtask (defaults to function name)
-        store (store | None): Store to use for subtask
-        type (str | None): Type to use for subtask
-        input (dict[str, Any] | None): Input to log for subtask
+        name: Name for subtask (defaults to function name)
+        store: Store to use for subtask
+        type: Type to use for subtask
+        input: Input to log for subtask
 
     Returns:
         Function which runs the Subtask, providing an isolated
@@ -118,26 +123,36 @@ def subtask(
                 init_subtask(subtask_name, store if store else Store())
 
                 # run the subtask
-                with track_store_changes():  # type: ignore
-                    result = await func(*args, **kwargs)
+                with trace_action(logger, "Subtask", subtask_name):
+                    with track_store_changes():  # type: ignore
+                        result = await func(*args, **kwargs)
 
                 # return result and event
                 return result, list(transcript().events)
 
             # create subtask event
+            waiting_time_start = sample_waiting_time()
             event = SubtaskEvent(
                 name=subtask_name, input=log_input, type=type, pending=True
             )
             transcript()._event(event)
 
             # create and run the task as a coroutine
-            asyncio_task = asyncio.create_task(run())
-            result, events = await asyncio_task
+            result, events = (await tg_collect([run]))[0]
+
+            # time accounting
+            completed = datetime.now()
+            waiting_time_end = sample_waiting_time()
+            event.completed = completed
+            event.working_time = (completed - event.timestamp).total_seconds() - (
+                waiting_time_end - waiting_time_start
+            )
 
             # update event
             event.result = result
             event.events = events
             event.pending = None
+            transcript()._event_updated(event)
 
             # return result
             return result

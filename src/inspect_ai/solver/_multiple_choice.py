@@ -1,12 +1,18 @@
+import logging
 import re
 from enum import Enum
 from random import Random
-from typing import Match
+from typing import Match, TypedDict
 
+from typing_extensions import Unpack
+
+from inspect_ai._util.logger import warn_once
 from inspect_ai.util import resource
 
 from ._solver import Generate, Solver, solver
 from ._task_state import Choices, TaskState
+
+logger = logging.getLogger(__name__)
 
 SINGLE_ANSWER_TEMPLATE = r"""
 Answer the following multiple choice question. The entire content of your response should be of the following format: 'ANSWER: $LETTER' (without quotes) where LETTER is one of {letters}.
@@ -201,52 +207,58 @@ class MultipleChoiceTemplate(str, Enum):
     MULTIPLE_ANSWER_COT = MULTIPLE_ANSWER_TEMPLATE_COT
 
 
+class DeprecatedArgs(TypedDict, total=False):
+    shuffle: bool | Random
+
+
 @solver
 def multiple_choice(
     *,
     template: str | None = None,
     cot: bool = False,
     multiple_correct: bool = False,
-    shuffle: bool | Random = False,
+    **kwargs: Unpack[DeprecatedArgs],
 ) -> Solver:
-    """Multiple choice question solver.
-
-    Formats a multiple choice question prompt, then calls `generate()`
-
-    ### Usage
+    """Multiple choice question solver. Formats a multiple choice question prompt, then calls `generate()`.
 
     Note that due to the way this solver works, it has some constraints:
 
-        1. The `Sample` must have the `choices` attribute set.
-        2. The only built-in compatible scorer is the `choice` scorer.
-        3. It calls `generate()` internally, so you don't need to call it again
-
-    ### Shuffling
-
-    If the choices are shuffled, we will unshuffle them in the message history
-    after the model has been called, essentially rewriting history. It is
-    something to be aware of if writing custom scorers or solvers that interact
-    with this scorer.
+    1. The `Sample` must have the `choices` attribute set.
+    2. The only built-in compatible scorer is the `choice` scorer.
+    3. It calls `generate()` internally, so you don't need to call it again
 
     Args:
-      template (str | None): Template to use for the multiple choice question.
+      template: Template to use for the multiple choice question.
         The defaults vary based on the options and are taken from the `MultipleChoiceTemplate` enum. The template will have questions and possible answers substituted into it before being sent to the model. Consequently it requires three specific template variables:
-        - `{question}`: The question to be asked.
-        - `{choices}`: The choices available, which will be formatted as a
+
+          - `{question}`: The question to be asked.
+          - `{choices}`: The choices available, which will be formatted as a
             list of A) ... B) ... etc. before sending to the model.
-        - `{letters}`: (optional) A string of letters representing the choices, e.g.
+          - `{letters}`: (optional) A string of letters representing the choices, e.g.
             "A,B,C". Used to be explicit to the model about the possible answers.
-      cot (bool): Default `False`. Whether the solver should perform chain-of-thought
+      cot: Default `False`. Whether the solver should perform chain-of-thought
         reasoning before answering. NOTE: this has no effect if you provide a custom template.
-      multiple_correct (bool): Default `False`. Whether to allow multiple
+      multiple_correct: Default `False`. Whether to allow multiple
         answers to the multiple choice question. For example, "What numbers are
         squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
         as `False` if there's exactly one correct answer from the choices
         available. NOTE: this has no effect if you provide a custom template.
-      shuffle (bool | Random): Default `False`. Whether to shuffle the choices
-        in the multiple.  Passing a `Random` instance will use that for shuffling,
-        if `True` a new `Random` instance will be created.
+      **kwargs (Any): Deprecated arguments for backward compatibility.
+
+    #### Shuffling
+
+    You can shuffle choices when you load your dataset by using the `shuffle_choices` method or parameter of the datasets API.
     """
+    shuffle: bool | Random = False
+    if "shuffle" in kwargs:
+        shuffle = kwargs["shuffle"]
+
+        if shuffle:
+            warn_once(
+                logger,
+                "The multiple choice shuffle parameter is deprecated. Please shuffle choices at the time your dataset is read by using the shuffle_choices method/parameter of the datasets API.",
+            )
+
     if template and not valid_template(template):
         raise ValueError(
             "The template must contain '{question}' and '{choices}' placeholders for string substitution."

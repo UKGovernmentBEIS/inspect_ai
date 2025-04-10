@@ -1,0 +1,16 @@
+.container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.item {
+  margin-bottom: 0;
+}
+
+.separator {
+  margin-left: 0.3em;
+  margin-right: 0.3em;
+  margin-top: 0;
+  margin-bottom: -0.1em;
+}

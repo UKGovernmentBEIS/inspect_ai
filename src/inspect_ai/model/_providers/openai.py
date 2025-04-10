@@ -1,61 +1,55 @@
-import json
 import os
+import socket
+from logging import getLogger
 from typing import Any
 
+import httpx
 from openai import (
-    APIConnectionError,
+    DEFAULT_CONNECTION_LIMITS,
+    DEFAULT_TIMEOUT,
+    APIStatusError,
     APITimeoutError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
-    InternalServerError,
     RateLimitError,
+    UnprocessableEntityError,
 )
 from openai._types import NOT_GIVEN
-from openai.types.chat import (
-    ChatCompletion,
-    ChatCompletionAssistantMessageParam,
-    ChatCompletionContentPartImageParam,
-    ChatCompletionContentPartParam,
-    ChatCompletionContentPartTextParam,
-    ChatCompletionMessage,
-    ChatCompletionMessageParam,
-    ChatCompletionMessageToolCallParam,
-    ChatCompletionNamedToolChoiceParam,
-    ChatCompletionSystemMessageParam,
-    ChatCompletionToolChoiceOptionParam,
-    ChatCompletionToolMessageParam,
-    ChatCompletionToolParam,
-    ChatCompletionUserMessageParam,
-)
-from openai.types.shared_params.function_definition import FunctionDefinition
+from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES
-from inspect_ai._util.content import Content
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.images import image_as_data_uri
-from inspect_ai._util.url import is_data_uri, is_http_url
-from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.logger import warn_once
+from inspect_ai.model._openai import chat_choices_from_openai
+from inspect_ai.model._providers.openai_responses import generate_responses
+from inspect_ai.model._providers.util.hooks import HttpxHooks
+from inspect_ai.tool import ToolChoice, ToolInfo
 
-from .._chat_message import ChatMessage, ChatMessageAssistant
+from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._image import image_url_filter
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import (
-    ChatCompletionChoice,
-    Logprobs,
-    ModelOutput,
-    ModelUsage,
+from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._openai import (
+    OpenAIResponseError,
+    is_computer_use_preview,
+    is_gpt,
+    is_o1_mini,
+    is_o1_preview,
+    is_o1_pro,
+    is_o_series,
+    openai_chat_messages,
+    openai_chat_tool_choice,
+    openai_chat_tools,
+    openai_handle_bad_request,
+    openai_media_filter,
 )
 from .openai_o1 import generate_o1
-from .util import (
-    as_stop_reason,
-    environment_prerequisite_error,
-    model_base_url,
-    parse_tool_call,
-)
+from .util import environment_prerequisite_error, model_base_url
+
+logger = getLogger(__name__)
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
@@ -69,8 +63,19 @@ class OpenAIAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        responses_api: bool | None = None,
         **model_args: Any,
     ) -> None:
+        # extract azure service prefix from model name (other providers
+        # that subclass from us like together expect to have the qualifier
+        # in the model name e.g. google/gemma-2b-it)
+        parts = model_name.split("/")
+        if parts[0] == "azure" and len(parts) > 1:
+            self.service: str | None = parts[0]
+            model_name = "/".join(parts[1:])
+        else:
+            self.service = None
+
         # call super
         super().__init__(
             model_name=model_name,
@@ -80,33 +85,34 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # pull out azure model_arg
-        AZURE_MODEL_ARG = "azure"
-        is_azure = False
-        if AZURE_MODEL_ARG in model_args:
-            is_azure = model_args.get(AZURE_MODEL_ARG, False)
-            del model_args[AZURE_MODEL_ARG]
+        # note whether we are forcing the responses_api
+        self.responses_api = (
+            responses_api or self.is_o1_pro() or self.is_computer_use_preview()
+        )
 
         # resolve api_key
         if not self.api_key:
-            self.api_key = os.environ.get(
-                AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
-            )
-            if self.api_key:
-                is_azure = True
+            if self.service == "azure":
+                self.api_key = os.environ.get(
+                    AZUREAI_OPENAI_API_KEY, os.environ.get(AZURE_OPENAI_API_KEY, None)
+                )
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
-                if not self.api_key:
-                    raise environment_prerequisite_error(
-                        "OpenAI",
-                        [
-                            OPENAI_API_KEY,
-                            AZUREAI_OPENAI_API_KEY,
-                        ],
-                    )
+
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "OpenAI",
+                    [
+                        OPENAI_API_KEY,
+                        AZUREAI_OPENAI_API_KEY,
+                    ],
+                )
+
+        # create async http client
+        http_client = OpenAIAsyncHttpxClient()
 
         # azure client
-        if is_azure:
+        if self.is_azure():
             # resolve base_url
             base_url = model_base_url(
                 base_url,
@@ -122,24 +128,75 @@ class OpenAIAPI(ModelAPI):
                     + "environment variable or the --model-base-url CLI flag to set the base URL."
                 )
 
+            # resolve version
+            if model_args.get("api_version") is not None:
+                # use slightly complicated logic to allow for "api_version" to be removed
+                api_version = model_args.pop("api_version")
+            else:
+                api_version = os.environ.get(
+                    "AZUREAI_OPENAI_API_VERSION",
+                    os.environ.get("OPENAI_API_VERSION", "2025-02-01-preview"),
+                )
+
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
                 api_key=self.api_key,
+                api_version=api_version,
                 azure_endpoint=base_url,
-                azure_deployment=model_name,
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
+                http_client=http_client,
                 **model_args,
             )
         else:
             self.client = AsyncOpenAI(
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
-                max_retries=(
-                    config.max_retries if config.max_retries else DEFAULT_MAX_RETRIES
-                ),
+                http_client=http_client,
                 **model_args,
             )
+
+        # create time tracker
+        self._http_hooks = HttpxHooks(self.client._client)
+
+    def is_azure(self) -> bool:
+        return self.service == "azure"
+
+    def is_o_series(self) -> bool:
+        return is_o_series(self.model_name)
+
+    def is_o1_pro(self) -> bool:
+        return is_o1_pro(self.model_name)
+
+    def is_o1_mini(self) -> bool:
+        return is_o1_mini(self.model_name)
+
+    def is_o1_preview(self) -> bool:
+        return is_o1_preview(self.model_name)
+
+    def is_computer_use_preview(self) -> bool:
+        return is_computer_use_preview(self.model_name)
+
+    def is_gpt(self) -> bool:
+        return is_gpt(self.model_name)
+
+    @override
+    async def aclose(self) -> None:
+        await self.client.close()
+
+    @override
+    def emulate_reasoning_history(self) -> bool:
+        return not self.responses_api
+
+    @override
+    def tool_result_images(self) -> bool:
+        # o1-pro, o1, and computer_use_preview support image inputs (but we're not strictly supporting o1)
+        return self.is_o1_pro() or self.is_computer_use_preview()
+
+    @override
+    def disable_computer_screenshot_truncation(self) -> bool:
+        # Because ComputerCallOutput has a required output field of type
+        # ResponseComputerToolCallOutputScreenshot, we must have an image in
+        # order to provide a valid tool call response. Therefore, we cannot
+        # support image truncation.
+        return True
 
     async def generate(
         self,
@@ -147,15 +204,28 @@ class OpenAIAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput | tuple[ModelOutput, ModelCall]:
-        # short-circuit to call o1- model
-        if self.model_name.startswith("o1-"):
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # short-circuit to call o1- models that are text only
+        if self.is_o1_preview() or self.is_o1_mini():
             return await generate_o1(
                 client=self.client,
                 input=input,
                 tools=tools,
                 **self.completion_params(config, False),
             )
+        elif self.responses_api:
+            return await generate_responses(
+                client=self.client,
+                http_hooks=self._http_hooks,
+                model_name=self.model_name,
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+            )
+
+        # allocate request_id (so we can see it from ModelCall)
+        request_id = self._http_hooks.start_request()
 
         # setup request and response for ModelCall
         request: dict[str, Any] = {}
@@ -165,7 +235,8 @@ class OpenAIAPI(ModelAPI):
             return ModelCall.create(
                 request=request,
                 response=response,
-                filter=image_url_filter,
+                filter=openai_media_filter,
+                time=self._http_hooks.end_request(request_id),
             )
 
         # unlike text models, vision models require a max_tokens (and set it to a very low
@@ -179,9 +250,12 @@ class OpenAIAPI(ModelAPI):
 
         # prepare request (we do this so we can log the ModelCall)
         request = dict(
-            messages=await as_openai_chat_messages(input),
-            tools=chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
-            tool_choice=chat_tool_choice(tool_choice) if len(tools) > 0 else NOT_GIVEN,
+            messages=await openai_chat_messages(input, self.model_name),
+            tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
+            tool_choice=openai_chat_tool_choice(tool_choice)
+            if len(tools) > 0
+            else NOT_GIVEN,
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             **self.completion_params(config, len(tools) > 0),
         )
 
@@ -193,6 +267,7 @@ class OpenAIAPI(ModelAPI):
 
             # save response for model_call
             response = completion.model_dump()
+            self.on_response(response)
 
             # parse out choices
             choices = self._chat_choices_from_response(completion, tools)
@@ -205,35 +280,55 @@ class OpenAIAPI(ModelAPI):
                     ModelUsage(
                         input_tokens=completion.usage.prompt_tokens,
                         output_tokens=completion.usage.completion_tokens,
+                        input_tokens_cache_read=(
+                            completion.usage.prompt_tokens_details.cached_tokens
+                            if completion.usage.prompt_tokens_details is not None
+                            else None  # openai only have cache read stats/pricing.
+                        ),
+                        reasoning_tokens=(
+                            completion.usage.completion_tokens_details.reasoning_tokens
+                            if completion.usage.completion_tokens_details is not None
+                            else None
+                        ),
                         total_tokens=completion.usage.total_tokens,
                     )
                     if completion.usage
                     else None
                 ),
             ), model_call()
-        except BadRequestError as e:
+        except (BadRequestError, UnprocessableEntityError) as e:
             return self.handle_bad_request(e), model_call()
+
+    def on_response(self, response: dict[str, Any]) -> None:
+        pass
+
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
+        return openai_handle_bad_request(self.model_name, ex)
 
     def _chat_choices_from_response(
         self, response: ChatCompletion, tools: list[ToolInfo]
     ) -> list[ChatCompletionChoice]:
         # adding this as a method so we can override from other classes (e.g together)
-        return chat_choices_from_response(response, tools)
+        return chat_choices_from_openai(response, tools)
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, RateLimitError):
             # Do not retry on these rate limit errors
-            if (
-                "Request too large" not in ex.message
-                and "You exceeded your current quota" not in ex.message
-            ):
+            # The quota exceeded one is related to monthly account quotas.
+            if "You exceeded your current quota" in ex.message:
+                warn_once(logger, f"OpenAI quota exceeded, not retrying: {ex.message}")
+                return False
+            else:
                 return True
-        elif isinstance(
-            ex, (APIConnectionError | APITimeoutError | InternalServerError)
-        ):
+        elif isinstance(ex, APIStatusError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, OpenAIResponseError):
+            return ex.code in ["rate_limit_exceeded", "server_error"]
+        elif isinstance(ex, APITimeoutError):
             return True
-        return False
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
@@ -245,7 +340,10 @@ class OpenAIAPI(ModelAPI):
             model=self.model_name,
         )
         if config.max_tokens is not None:
-            params["max_tokens"] = config.max_tokens
+            if self.is_o_series():
+                params["max_completion_tokens"] = config.max_tokens
+            else:
+                params["max_tokens"] = config.max_tokens
         if config.frequency_penalty is not None:
             params["frequency_penalty"] = config.frequency_penalty
         if config.stop_seqs is not None:
@@ -257,174 +355,86 @@ class OpenAIAPI(ModelAPI):
         if config.seed is not None:
             params["seed"] = config.seed
         if config.temperature is not None:
-            params["temperature"] = config.temperature
+            if self.is_o_series():
+                warn_once(
+                    logger,
+                    "o series models do not support the 'temperature' parameter (temperature is always 1).",
+                )
+            else:
+                params["temperature"] = config.temperature
         # TogetherAPI requires temperature w/ num_choices
         elif config.num_choices is not None:
             params["temperature"] = 1
         if config.top_p is not None:
             params["top_p"] = config.top_p
-        if config.timeout is not None:
-            params["timeout"] = float(config.timeout)
         if config.num_choices is not None:
             params["n"] = config.num_choices
+        params = self.set_logprobs_params(params, config)
+        if tools and config.parallel_tool_calls is not None and not self.is_o_series():
+            params["parallel_tool_calls"] = config.parallel_tool_calls
+        if (
+            config.reasoning_effort is not None
+            and not self.is_gpt()
+            and not self.is_o1_mini()
+            and not self.is_o1_preview()
+        ):
+            params["reasoning_effort"] = config.reasoning_effort
+        if config.response_schema is not None:
+            params["response_format"] = dict(
+                type="json_schema",
+                json_schema=dict(
+                    name=config.response_schema.name,
+                    schema=config.response_schema.json_schema.model_dump(
+                        exclude_none=True
+                    ),
+                    description=config.response_schema.description,
+                    strict=config.response_schema.strict,
+                ),
+            )
+
+        return params
+
+    def set_logprobs_params(
+        self, params: dict[str, Any], config: GenerateConfig
+    ) -> dict[str, Any]:
         if config.logprobs is not None:
             params["logprobs"] = config.logprobs
         if config.top_logprobs is not None:
             params["top_logprobs"] = config.top_logprobs
-        if tools and config.parallel_tool_calls is not None:
-            params["parallel_tool_calls"] = config.parallel_tool_calls
-
         return params
 
-    # convert some well known bad request errors into ModelOutput
-    def handle_bad_request(self, e: BadRequestError) -> ModelOutput:
-        if e.status_code == 400 and e.code == "context_length_exceeded":
-            if isinstance(e.body, dict) and "message" in e.body.keys():
-                content = str(e.body.get("message"))
-            else:
-                content = e.message
-            return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason="model_length"
-            )
-        else:
-            raise e
 
+class OpenAIAsyncHttpxClient(httpx.AsyncClient):
+    """Custom async client that deals better with long running Async requests.
 
-async def as_openai_chat_messages(
-    messages: list[ChatMessage],
-) -> list[ChatCompletionMessageParam]:
-    return [await openai_chat_message(message) for message in messages]
+    Based on Anthropic DefaultAsyncHttpClient implementation that they
+    released along with Claude 3.7 as well as the OpenAI DefaultAsyncHttpxClient
 
+    """
 
-async def openai_chat_message(message: ChatMessage) -> ChatCompletionMessageParam:
-    if message.role == "system":
-        return ChatCompletionSystemMessageParam(role=message.role, content=message.text)
-    elif message.role == "user":
-        return ChatCompletionUserMessageParam(
-            role=message.role,
-            content=(
-                message.content
-                if isinstance(message.content, str)
-                else [
-                    await as_chat_completion_part(content)
-                    for content in message.content
-                ]
-            ),
-        )
-    elif message.role == "assistant":
-        if message.tool_calls:
-            return ChatCompletionAssistantMessageParam(
-                role=message.role,
-                content=message.text,
-                tool_calls=[chat_tool_call(call) for call in message.tool_calls],
-            )
-        else:
-            return ChatCompletionAssistantMessageParam(
-                role=message.role, content=message.text
-            )
-    elif message.role == "tool":
-        return ChatCompletionToolMessageParam(
-            role=message.role,
-            content=(
-                f"Error: {message.error.message}" if message.error else message.text
-            ),
-            tool_call_id=str(message.tool_call_id),
-        )
-    else:
-        raise ValueError(f"Unexpected message role {message.role}")
+    def __init__(self, **kwargs: Any) -> None:
+        # This is based on the openai DefaultAsyncHttpxClient:
+        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
+        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
+        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
+        kwargs.setdefault("follow_redirects", True)
 
+        # This is based on the anthrpopic changes for claude 3.7:
+        # https://github.com/anthropics/anthropic-sdk-python/commit/c5387e69e799f14e44006ea4e54fdf32f2f74393#diff-3acba71f89118b06b03f2ba9f782c49ceed5bb9f68d62727d929f1841b61d12bR1387-R1403
 
-def chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallParam:
-    return ChatCompletionMessageToolCallParam(
-        id=tool_call.id,
-        function=dict(
-            name=tool_call.function, arguments=json.dumps(tool_call.arguments)
-        ),
-        type=tool_call.type,
-    )
-
-
-def chat_tools(tools: list[ToolInfo]) -> list[ChatCompletionToolParam]:
-    return [chat_tool_param(tool) for tool in tools]
-
-
-def chat_tool_param(tool: ToolInfo) -> ChatCompletionToolParam:
-    function = FunctionDefinition(
-        name=tool.name,
-        description=tool.description,
-        parameters=tool.parameters.model_dump(exclude_none=True),
-    )
-    return ChatCompletionToolParam(type="function", function=function)
-
-
-def chat_tool_choice(tool_choice: ToolChoice) -> ChatCompletionToolChoiceOptionParam:
-    if isinstance(tool_choice, ToolFunction):
-        return ChatCompletionNamedToolChoiceParam(
-            type="function", function=dict(name=tool_choice.name)
-        )
-    # openai supports 'any' via the 'required' keyword
-    elif tool_choice == "any":
-        return "required"
-    else:
-        return tool_choice
-
-
-def chat_tool_calls(
-    message: ChatCompletionMessage, tools: list[ToolInfo]
-) -> list[ToolCall] | None:
-    if message.tool_calls:
-        return [
-            parse_tool_call(call.id, call.function.name, call.function.arguments, tools)
-            for call in message.tool_calls
+        # set socket options to deal with long running reasoning requests
+        socket_options = [
+            (socket.SOL_SOCKET, socket.SO_KEEPALIVE, True),
+            (socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 60),
+            (socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5),
         ]
-    else:
-        return None
+        TCP_KEEPIDLE = getattr(socket, "TCP_KEEPIDLE", None)
+        if TCP_KEEPIDLE is not None:
+            socket_options.append((socket.IPPROTO_TCP, TCP_KEEPIDLE, 60))
 
-
-def chat_choices_from_response(
-    response: ChatCompletion, tools: list[ToolInfo]
-) -> list[ChatCompletionChoice]:
-    choices = list(response.choices)
-    choices.sort(key=lambda c: c.index)
-    return [
-        ChatCompletionChoice(
-            message=chat_message_assistant(choice.message, tools),
-            stop_reason=as_stop_reason(choice.finish_reason),
-            logprobs=(
-                Logprobs(**choice.logprobs.model_dump())
-                if choice.logprobs is not None
-                else None
-            ),
+        kwargs["transport"] = httpx.AsyncHTTPTransport(
+            limits=DEFAULT_CONNECTION_LIMITS,
+            socket_options=socket_options,
         )
-        for choice in choices
-    ]
 
-
-def chat_message_assistant(
-    message: ChatCompletionMessage, tools: list[ToolInfo]
-) -> ChatMessageAssistant:
-    return ChatMessageAssistant(
-        content=message.content or "",
-        source="generate",
-        tool_calls=chat_tool_calls(message, tools),
-    )
-
-
-async def as_chat_completion_part(
-    content: Content,
-) -> ChatCompletionContentPartParam:
-    if content.type == "text":
-        return ChatCompletionContentPartTextParam(type="text", text=content.text)
-    else:
-        # API takes URL or base64 encoded file. If it's a remote file or
-        # data URL leave it alone, otherwise encode it
-        image_url = content.image
-        detail = content.detail
-
-        if not is_http_url(image_url) and not is_data_uri(image_url):
-            image_url = await image_as_data_uri(image_url)
-
-        return ChatCompletionContentPartImageParam(
-            type="image_url",
-            image_url=dict(url=image_url, detail=detail),
-        )
+        super().__init__(**kwargs)

@@ -2,23 +2,26 @@ import functools
 from typing import Any, Callable, Literal, cast
 
 import click
+import rich
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_DISPLAY,
     DEFAULT_LOG_LEVEL,
-    DEFAULT_LOG_LEVEL_TRANSCRIPT,
 )
-from inspect_ai._util.display import init_display_type
+from inspect_ai._util.dotenv import init_cli_env
+from inspect_ai.util._display import init_display_type
+
+from .util import parse_cli_args
 
 
 class CommonOptions(TypedDict):
     log_level: str
-    log_level_transcript: str
     log_dir: str
-    display: Literal["full", "rich", "plain", "none"]
+    display: Literal["full", "conversation", "rich", "plain", "none"]
     no_ansi: bool | None
+    env: tuple[str] | None
     debug: bool
     debug_port: int
     debug_errors: bool
@@ -34,16 +37,6 @@ def log_level_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=DEFAULT_LOG_LEVEL,
         envvar="INSPECT_LOG_LEVEL",
         help=f"Set the log level (defaults to '{DEFAULT_LOG_LEVEL}')",
-    )
-    @click.option(
-        "--log-level-transcript",
-        type=click.Choice(
-            [level.lower() for level in ALL_LOG_LEVELS],
-            case_sensitive=False,
-        ),
-        default=DEFAULT_LOG_LEVEL_TRANSCRIPT,
-        envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
-        help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
     )
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> click.Context:
@@ -64,7 +57,9 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     )
     @click.option(
         "--display",
-        type=click.Choice(["full", "rich", "plain", "none"], case_sensitive=False),
+        type=click.Choice(
+            ["full", "conversation", "rich", "plain", "none"], case_sensitive=False
+        ),
         default=DEFAULT_DISPLAY,
         envvar="INSPECT_DISPLAY",
         help="Set the display type (defaults to 'full')",
@@ -76,6 +71,13 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         hidden=True,
         help="Do not print ANSI control characters.",
         envvar="INSPECT_NO_ANSI",
+    )
+    @click.option(
+        "--env",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_ENV",
+        help="Define an environment variable e.g. --env NAME=value (--env can be specified multiple times)",
     )
     @click.option(
         "--debug", is_flag=True, envvar="INSPECT_DEBUG", help="Wait to attach debugger"
@@ -101,9 +103,14 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def process_common_options(options: CommonOptions) -> None:
+    # set environment variables
+    env_args = parse_cli_args(options["env"])
+    init_cli_env(env_args)
+
     # propagate display
     if options["no_ansi"]:
-        display = "plain"
+        display = "rich"
+        rich.reconfigure(no_color=True)
     else:
         display = options["display"].lower().strip()
     init_display_type(display)

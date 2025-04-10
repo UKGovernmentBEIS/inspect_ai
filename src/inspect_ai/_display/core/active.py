@@ -3,21 +3,24 @@ from contextvars import ContextVar
 
 import rich
 
-from inspect_ai._util.display import display_type
-from inspect_ai.util._trace import trace_enabled
+from inspect_ai.util._display import display_type
 
+from ..plain.display import PlainDisplay
 from ..rich.display import RichDisplay
 from ..textual.display import TextualDisplay
 from .display import Display, TaskScreen
+
+_active_display: Display | None = None
 
 
 def display() -> Display:
     global _active_display
     if _active_display is None:
-        if (
+        if display_type() == "plain":
+            _active_display = PlainDisplay()
+        elif (
             display_type() == "full"
             and sys.stdout.isatty()
-            and not trace_enabled()
             and not rich.get_console().is_jupyter
         ):
             _active_display = TextualDisplay()
@@ -25,9 +28,6 @@ def display() -> Display:
             _active_display = RichDisplay()
 
     return _active_display
-
-
-_active_display: Display | None = None
 
 
 def task_screen() -> TaskScreen:

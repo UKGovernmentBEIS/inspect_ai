@@ -1,0 +1,16 @@
+.grid {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 1em;
+  row-gap: 0.2em;
+}
+
+.cell {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.value {
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}

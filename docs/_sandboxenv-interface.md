@@ -10,6 +10,7 @@ class SandboxEnvironment:
         env: dict[str, str] = {},
         user: str | None = None,
         timeout: int | None = None,
+        timeout_retry: bool = True
     ) -> ExecResult[str]:
         """
         Raises:
@@ -19,7 +20,7 @@ class SandboxEnvironment:
           PermissionError: If the user does not have
             permission to execute the command.
           OutputLimitExceededError: If an output stream
-            exceeds the 1 MiB limit.
+            exceeds the 10 MiB limit.
         """
         ...
 
@@ -51,8 +52,19 @@ class SandboxEnvironment:
             exceeds the 100 MiB limit.
         """
         ...
+
+    async def connection(self) -> SandboxConnection:
+        """
+        Raises:
+           NotImplementedError: For sandboxes that don't provide connections
+           ConnectionError: If sandbox is not currently running.
+        """
 ```
 
-Note that `write_file()` automatically creates parent directories as required if they don't exist.
+The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don't exist.
+
+The `connection()` method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.
+
+Note that to deal with potential unreliability of container services, the `exec()` method includes a `timeout_retry` parameter that defaults to `True`. For sandbox implementations this parameter is _advisory_ (they should only use it if potential unreliablity exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e. the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify `timeout_retry=False` to override this behavior.
 
 For each method there is a documented set of errors that are raised: these are _expected_ errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, _unexpected_ errors may occur (e.g. a networking error connecting to a remote container): these errors are not reported to the model and fail the `Sample` with an error state. 

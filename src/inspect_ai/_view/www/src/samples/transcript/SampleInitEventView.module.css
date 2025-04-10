@@ -1,0 +1,23 @@
+.noMargin {
+  margin-bottom: 0;
+}
+
+.code {
+  background: var(--bs-light);
+  border-radius: var(--bs-border-radius);
+}
+
+.sample {
+  margin: 1em 0em;
+}
+
+.section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
+  overflow-wrap: break-word;
+}
+
+.metadata {
+  margin: 0.5em 0;
+}

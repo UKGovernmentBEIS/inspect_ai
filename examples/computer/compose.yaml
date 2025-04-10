@@ -1,0 +1,17 @@
+services:
+  default:
+    image: aisiuk/inspect-computer-tool
+    init: true
+
+    # You can vnc into each container by using the following port mapping which will 
+    # dynamically bind to host ports. The specific bindings can be found by using 
+    # `docker inspect <container_id_or_name>`. This info is included in Running Samples
+    # tab. The output will look something like:
+    #
+    #  service   container   host     url
+    #  VNC       5900        61029    vnc://localhost:61029
+    #  noVNC     6080        61030    http://localhost:61030?view_only=true&autoconnect=true
+
+    ports:
+      - "5900"
+      - "6080"

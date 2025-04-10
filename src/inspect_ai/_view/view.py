@@ -28,11 +28,10 @@ def view(
     port: int = DEFAULT_VIEW_PORT,
     authorization: str | None = None,
     log_level: str | None = None,
-    log_level_transcript: str | None = None,
     fs_options: dict[str, Any] = {},
 ) -> None:
     init_dotenv()
-    init_logger(log_level, log_level_transcript)
+    init_logger(log_level)
 
     # initialize the log_dir
     log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")

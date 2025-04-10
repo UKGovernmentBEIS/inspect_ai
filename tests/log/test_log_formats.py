@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -39,7 +40,29 @@ def test_log_format_round_trip_single(original_log, temp_dir):
         new_log.location = None
 
         # Compare the logs
-        assert original_log == new_log, f"Round-trip failed for {format} format"
+        assert original_log.model_dump_json() == new_log.model_dump_json(), (
+            f"Round-trip failed for {format} format"
+        )
+
+
+def test_eval_format_round_trip_overwrite(original_log, temp_dir):
+    format = "eval"
+
+    # Write it to a new file in the current format
+    new_log_path = (temp_dir / f"new_log.{format}").as_posix()
+    write_eval_log(original_log, new_log_path, format=format)
+
+    # make a copy of the log file for later comparison
+    copy_log_path = (temp_dir / f"new_log_copy.{format}").as_posix()
+    shutil.copy(new_log_path, copy_log_path)
+
+    # Overwrite the file
+    write_eval_log(original_log, new_log_path, format=format)
+
+    # ensure the zip file matches the original after overwriting
+    assert compare_zip_contents(new_log_path, copy_log_path), (
+        "EVAL zip file contents changed after rewriting file"
+    )
 
 
 def test_log_format_round_trip_cross(original_log, temp_dir):
@@ -61,7 +84,9 @@ def test_log_format_round_trip_cross(original_log, temp_dir):
     new_json_log.location = None
 
     # Compare the logs
-    assert original_log == new_json_log, "Cross-format round-trip failed"
+    assert original_log.model_dump_json() == new_json_log.model_dump_json(), (
+        "Cross-format round-trip failed"
+    )
 
 
 def test_log_format_equality(original_log, temp_dir):
@@ -80,7 +105,9 @@ def test_log_format_equality(original_log, temp_dir):
     eval_log.location = None
 
     # Compare the logs
-    assert json_log == eval_log, "Logs in different formats are not identical"
+    assert json_log.model_dump_json() == eval_log.model_dump_json(), (
+        "Logs in different formats are not identical"
+    )
 
 
 def test_log_format_detection(original_log, temp_dir):
@@ -99,7 +126,9 @@ def test_log_format_detection(original_log, temp_dir):
     eval_log.location = None
 
     # Compare the logs
-    assert json_log == eval_log, "Auto format detection failed"
+    assert json_log.model_dump_json() == eval_log.model_dump_json(), (
+        "Auto format detection failed"
+    )
 
 
 def test_log_format_eval_zip_structure(original_log, temp_dir):
@@ -114,9 +143,9 @@ def test_log_format_eval_zip_structure(original_log, temp_dir):
     write_eval_log(eval_log, new_eval_log_path, format="eval")
 
     # Compare the two EVAL files
-    assert compare_zip_contents(
-        eval_log_path, new_eval_log_path
-    ), "EVAL zip file contents changed after round trip"
+    assert compare_zip_contents(eval_log_path, new_eval_log_path), (
+        "EVAL zip file contents changed after round trip"
+    )
 
 
 def test_log_format_eval_zip_json_integrity(original_log, temp_dir):
@@ -152,9 +181,9 @@ def test_log_format_eval_zip_roundtrip(original_log, temp_dir):
     new_json_log.location = None
 
     # Compare the original and new JSON logs
-    assert (
-        original_log == new_json_log
-    ), "JSON content changed after roundtrip through EVAL format"
+    assert original_log.model_dump_json() == new_json_log.model_dump_json(), (
+        "JSON content changed after roundtrip through EVAL format"
+    )
 
 
 def compare_zip_contents(zip_file1: Path, zip_file2: Path) -> bool:

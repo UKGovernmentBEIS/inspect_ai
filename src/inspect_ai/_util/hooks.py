@@ -17,19 +17,29 @@ from .error import PrerequisiteError
 #
 # Telemetry can be optionally enabled by setting an INSPECT_TELEMETRY
 # environment variable that points to a function in a package which
-# conforms to the TelemetrySend signature below.
+# conforms to the TelemetrySend signature below. A return value of True
+# indicates that the telemetry event was handled.
 
-# There are currently two types of telemetry sent:
-#    - model_usage (type ModelUsage)
-#    - eval_log    (type EvalLog)
+# There are currently three types of telemetry sent:
+#    - model_usage       (JSON string of the model usage)
+#    - eval_log_location (file path or URL string of the eval log)
+#    - eval_log          (JSON string of the eval log)
+#                        [only sent if eval_log_location unhandled]
+# The eval_log_location type is preferred over eval_log as it means we can take
+# advantage of the .eval format and avoid loading the whole log into memory.
 
-TelemetrySend = Callable[[str, str], Awaitable[None]]
+TelemetrySend = Callable[[str, str], Awaitable[bool]]
 
 
-async def send_telemetry(type: Literal["model_usage", "eval_log"], json: str) -> None:
+async def send_telemetry(
+    type: Literal["model_usage", "eval_log", "eval_log_location"], json: str
+) -> Literal["handled", "not_handled", "no_subscribers"]:
     global _send_telemetry
     if _send_telemetry:
-        await _send_telemetry(type, json)
+        if await _send_telemetry(type, json):
+            return "handled"
+        return "not_handled"
+    return "no_subscribers"
 
 
 _send_telemetry: TelemetrySend | None = None

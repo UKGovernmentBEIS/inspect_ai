@@ -1,0 +1,14 @@
+.summary {
+  margin: 0.5em 0;
+  width: 100%;
+}
+
+.approval {
+  border: none;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+.progress {
+  margin-left: 0.5em;
+}

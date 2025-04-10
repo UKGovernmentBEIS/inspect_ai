@@ -1,3 +1,4 @@
+from logging import getLogger
 from typing import Any, Literal, get_args
 
 import ijson  # type: ignore
@@ -6,12 +7,10 @@ from pydantic import BaseModel
 from pydantic_core import from_json
 from typing_extensions import override
 
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION
+from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import (
-    absolute_file_path,
-    file,
-)
+from inspect_ai._util.file import absolute_file_path, file
+from inspect_ai._util.trace import trace_action
 
 from .._log import (
     EvalLog,
@@ -24,6 +23,8 @@ from .._log import (
     sort_samples,
 )
 from .file import FileRecorder
+
+logger = getLogger(__name__)
 
 
 class JSONRecorder(FileRecorder):
@@ -57,7 +58,7 @@ class JSONRecorder(FileRecorder):
         self.data: dict[str, JSONRecorder.JSONLogFile] = {}
 
     @override
-    def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
+    async def log_init(self, eval: EvalSpec, location: str | None = None) -> str:
         # initialize file log for this eval
         # compute an absolute path if it's a relative ref
         # (so that the writes go to the correct place even
@@ -75,19 +76,19 @@ class JSONRecorder(FileRecorder):
         return file
 
     @override
-    def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
+    async def log_start(self, eval: EvalSpec, plan: EvalPlan) -> None:
         log = self.data[self._log_file_key(eval)]
         log.data.plan = plan
 
     @override
-    def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
+    async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
         log = self.data[self._log_file_key(eval)]
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
 
     @override
-    def log_finish(
+    async def log_finish(
         self,
         spec: EvalSpec,
         status: Literal["started", "success", "cancelled", "error"],
@@ -104,7 +105,7 @@ class JSONRecorder(FileRecorder):
             log.data.error = error
         if reductions:
             log.data.reductions = reductions
-        self.write_log(log.file, log.data)
+        await self.write_log(log.file, log.data)
         log.data.location = log.file
 
         # stop tracking this data
@@ -114,13 +115,13 @@ class JSONRecorder(FileRecorder):
         return log.data
 
     @override
-    def flush(self, eval: EvalSpec) -> None:
+    async def flush(self, eval: EvalSpec) -> None:
         log = self.data[self._log_file_key(eval)]
-        self.write_log(log.file, log.data)
+        await self.write_log(log.file, log.data)
 
     @override
     @classmethod
-    def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
         if header_only:
             try:
                 return _read_header_streaming(location)
@@ -138,11 +139,11 @@ class JSONRecorder(FileRecorder):
                 else:
                     raise ValueError(f"Unable to read log file: {location}") from ex
 
-        # parse full log (also used as a fallback for header_only encountering NaN or Inf)
+        # full reads (and fallback to streaing reads if they encounter invalid json characters)
         with file(location, "r") as f:
             # parse w/ pydantic
             raw_data = from_json(f.read())
-            log = EvalLog(**raw_data)
+            log = EvalLog.model_validate(raw_data, context=DESERIALIZING_CONTEXT)
             log.location = location
 
             # fail for unknown version
@@ -166,15 +167,19 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    def write_log(cls, location: str, log: EvalLog) -> None:
+    async def write_log(cls, location: str, log: EvalLog) -> None:
         from inspect_ai.log._file import eval_log_json
 
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
 
-        with file(location, "w") as f:
-            f.write(eval_log_json(log))
+        # get log as bytes
+        log_bytes = eval_log_json(log)
+
+        with trace_action(logger, "Log Write", location):
+            with file(location, "wb") as f:
+                f.write(log_bytes)
 
 
 def _validate_version(ver: int) -> None:
@@ -211,12 +216,18 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         f.seek(0)
 
         # Parse the log file, stopping before parsing samples
+        status: Literal["started", "success", "cancelled", "error"] | None = None
+        eval: EvalSpec | None = None
+        plan: EvalPlan | None = None
+        results: EvalResults | None = None
+        stats: EvalStats | None = None
+        error: EvalError | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(
                     Literal["started", "success", "cancelled", "error"]
                 )
-                status: Literal["started", "success", "cancelled", "error"] = v
+                status = v
             if k == "eval":
                 eval = EvalSpec(**v)
             elif k == "plan":
@@ -231,6 +242,11 @@ def _read_header_streaming(log_file: str) -> EvalLog:
             elif k == "error":
                 error = EvalError(**v)
                 break
+
+    assert status, "Must encounter a 'status'"
+    assert eval, "Must encounter a 'eval'"
+    assert plan, "Must encounter a 'plan'"
+    assert stats, "Must encounter a 'stats'"
 
     return EvalLog(
         eval=eval,

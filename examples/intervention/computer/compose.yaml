@@ -1,0 +1,8 @@
+services:
+  default:
+    image: aisiuk/inspect-computer-tool
+    init: true
+    # Dynamically assign ports for vnc and novnc
+    ports:
+      - "5900"
+      - "6080"

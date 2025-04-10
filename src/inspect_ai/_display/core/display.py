@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import (
     Any,
     AsyncIterator,
+    Callable,
     Coroutine,
     Iterator,
     Protocol,
@@ -14,10 +15,13 @@ from typing import (
 )
 
 import rich
+from pydantic import BaseModel, Field, field_validator
 from rich.console import Console
 
 from inspect_ai.log import EvalConfig, EvalResults, EvalStats
 from inspect_ai.model import GenerateConfig, ModelName
+
+from ...util._panel import InputPanel
 
 
 @runtime_checkable
@@ -81,6 +85,8 @@ class TaskWithResult:
 
 TR = TypeVar("TR")
 
+TP = TypeVar("TP", bound=InputPanel)
+
 
 class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
     def __exit__(self, *excinfo: Any) -> None:
@@ -95,11 +101,34 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
     ) -> Iterator[Console]:
         yield rich.get_console()
 
+    async def input_panel(self, panel_type: type[TP]) -> TP:
+        raise NotImplementedError("input_panel not implemented by current display")
+
+
+class TaskDisplayMetric(BaseModel):
+    scorer: str
+    name: str
+    value: float | int | None = Field(default=None)
+    reducer: str | None = Field(default=None)
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def handle_null_value(cls, v: Any) -> Union[float, int, None]:
+        if v is None:
+            return None
+        if isinstance(v, float | int):
+            return v
+        raise ValueError(f"Expected float, int, or None, got {type(v)}")
+
 
 @runtime_checkable
 class TaskDisplay(Protocol):
     @contextlib.contextmanager
     def progress(self) -> Iterator[Progress]: ...
+
+    def sample_complete(self, complete: int, total: int) -> None: ...
+
+    def update_metrics(self, scores: list[TaskDisplayMetric]) -> None: ...
 
     def complete(self, result: TaskResult) -> None: ...
 
@@ -111,7 +140,7 @@ class Display(Protocol):
     @contextlib.contextmanager
     def progress(self, total: int) -> Iterator[Progress]: ...
 
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR: ...
+    def run_task_app(self, main: Callable[[], Coroutine[None, None, TR]]) -> TR: ...
 
     @contextlib.contextmanager
     def suspend_task_app(self) -> Iterator[None]: ...
@@ -124,3 +153,5 @@ class Display(Protocol):
 
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]: ...
+
+    def display_counter(self, caption: str, value: str) -> None: ...

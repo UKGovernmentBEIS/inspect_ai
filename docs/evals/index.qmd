@@ -1,0 +1,25 @@
+---
+title: "Inspect Evals"
+page-layout: article
+listing:
+  id: evals
+  template: evals.ejs
+  contents: evals.yml
+  page-size: 100
+  categories: true
+  image-height: "0px"
+  filter-ui: false
+css: evals.css
+aliases: 
+  - /examples.html
+  - /examples/index.html
+---
+
+
+[Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) is a repository of community contributed evaluations featuring implementations of many popular benchmarks and papers. 
+
+These evals can be `pip` installed and run with a single command against any model. They are also useful as a learning resource as they demonstrate a wide variety of evaluation types and techniques.
+
+::: {#evals}
+:::
+

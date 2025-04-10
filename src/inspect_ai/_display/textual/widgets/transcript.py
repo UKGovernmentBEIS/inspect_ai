@@ -9,12 +9,13 @@ from textual.containers import ScrollableContainer
 from textual.widget import Widget
 from textual.widgets import Static
 
-from inspect_ai._util.content import ContentText
-from inspect_ai._util.format import format_function_call
+from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai._util.rich import lines_display
 from inspect_ai._util.transcript import (
     set_transcript_markdown_options,
+    transcript_function,
     transcript_markdown,
+    transcript_reasoning,
     transcript_separator,
 )
 from inspect_ai.log._samples import ActiveSample
@@ -33,9 +34,13 @@ from inspect_ai.log._transcript import (
     SubtaskEvent,
     ToolEvent,
 )
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageUser,
+)
 from inspect_ai.model._render import messages_preceding_assistant
 from inspect_ai.tool._tool import ToolResult
+from inspect_ai.tool._tool_transcript import transcript_tool_call
 
 
 class TranscriptView(ScrollableContainer):
@@ -111,7 +116,7 @@ class TranscriptView(ScrollableContainer):
                         )
                         if isinstance(d.content, Markdown):
                             set_transcript_markdown_options(d.content)
-                        widgets.append(Static(d.content))
+                        widgets.append(Static(d.content, markup=False))
                         widgets.append(Static(Text(" ")))
         return widgets
 
@@ -170,8 +175,8 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
     # content
     content: list[RenderableType] = []
 
-    def append_message(message: ChatMessage, text: str | None = None) -> None:
-        content.extend(render_message(message, text))
+    def append_message(message: ChatMessage) -> None:
+        content.extend(render_message(message))
 
     # render preceding messages
     preceding = messages_preceding_assistant(event.input)
@@ -187,24 +192,28 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
     return EventDisplay(f"model: {event.model}", Group(*content))
 
 
-def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
-    # render sub-events
-    display: list[EventDisplay] = []
-    if event.events:
-        for e in event.events:
-            display.extend(render_event(e) or [])
-
-    # render the call
+def render_sub_events(events: list[Event]) -> list[RenderableType]:
     content: list[RenderableType] = []
-    if event.view:
-        if event.view.title:
-            content.append(Text.from_markup(f"[bold]{event.view.title}[/bold]\n"))
-        if event.view.format == "markdown":
-            content.append(transcript_markdown(event.view.content))
-        else:
-            content.append(event.view.content)
-    else:
-        content.append(render_function_call(event.function, event.arguments))
+    for e in events:
+        event_displays = render_event(e) or []
+        for d in event_displays:
+            if d.content:
+                content.append(Text("  "))
+                content.append(transcript_separator(d.title, "black", "··"))
+                if isinstance(d.content, Markdown):
+                    set_transcript_markdown_options(d.content)
+                content.append(d.content)
+
+    return content
+
+
+def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
+    # render the call
+    content = transcript_tool_call(event)
+
+    # render sub-events
+    if event.events:
+        content.extend(render_sub_events(event.events))
 
     # render the output
     if isinstance(event.result, list):
@@ -223,7 +232,7 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
         result = str(result).strip()
         content.extend(lines_display(result, 50))
 
-    return display + [EventDisplay("tool call", Group(*content))]
+    return [EventDisplay("tool call", Group(*content))]
 
 
 def render_step_event(event: StepEvent) -> EventDisplay:
@@ -249,22 +258,24 @@ def render_score_event(event: ScoreEvent) -> EventDisplay:
     table.add_column("", justify="left")
     table.add_row("Target", str(event.target).strip())
     if event.score.answer:
-        table.add_row("Answer", transcript_markdown(event.score.answer))
+        table.add_row("Answer", transcript_markdown(event.score.answer, escape=True))
     table.add_row("Score", str(event.score.value).strip())
     if event.score.explanation:
-        table.add_row("Explanation", transcript_markdown(event.score.explanation))
+        table.add_row(
+            "Explanation", transcript_markdown(event.score.explanation, escape=True)
+        )
 
     return EventDisplay("score", table)
 
 
 def render_subtask_event(event: SubtaskEvent) -> list[EventDisplay]:
-    # render sub-events
-    display: list[EventDisplay] = []
-    if event.events:
-        for e in event.events:
-            display.extend(render_event(e) or [])
+    # render header
+    content: list[RenderableType] = [transcript_function(event.name, event.input)]
 
-    content: list[RenderableType] = [render_function_call(event.name, event.input)]
+    # render sub-events
+    if event.events:
+        content.extend(render_sub_events(event.events))
+
     if event.result:
         content.append(Text())
         if isinstance(event.result, str | int | float | bool | None):
@@ -272,7 +283,7 @@ def render_subtask_event(event: SubtaskEvent) -> list[EventDisplay]:
         else:
             content.append(render_as_json(event.result))
 
-    return display + [EventDisplay(f"subtask: {event.name}", Group(*content))]
+    return [EventDisplay(f"subtask: {event.name}", Group(*content))]
 
 
 def render_input_event(event: InputEvent) -> EventDisplay:
@@ -307,11 +318,6 @@ def render_error_event(event: ErrorEvent) -> EventDisplay:
     return EventDisplay("error", event.error.traceback.strip())
 
 
-def render_function_call(function: str, arguments: dict[str, Any]) -> RenderableType:
-    call = format_function_call(function, arguments)
-    return transcript_markdown("```python\n" + call + "\n```\n")
-
-
 def render_as_json(json: Any) -> RenderableType:
     return transcript_markdown(
         "```json\n"
@@ -320,16 +326,22 @@ def render_as_json(json: Any) -> RenderableType:
     )
 
 
-def render_message(
-    message: ChatMessage, text: str | None = None
-) -> list[RenderableType]:
+def render_message(message: ChatMessage) -> list[RenderableType]:
     content: list[RenderableType] = [
         Text(message.role.capitalize(), style="bold"),
         Text(),
     ]
-    text = text or message.text
-    if text:
-        content.extend([transcript_markdown(text.strip())])
+
+    # deal with plain text or with content blocks
+    if isinstance(message.content, str):
+        content.extend([transcript_markdown(message.text.strip(), escape=True)])
+    else:
+        for c in message.content:
+            if isinstance(c, ContentReasoning):
+                content.extend(transcript_reasoning(c))
+            elif isinstance(c, ContentText):
+                content.extend([transcript_markdown(c.text.strip(), escape=True)])
+
     return content
 
 

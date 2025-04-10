@@ -1,0 +1,38 @@
+.target {
+  padding-left: 0;
+}
+
+.answer {
+  padding-left: 0;
+}
+
+.grid {
+  display: grid;
+  grid-column-gap: 0.5em;
+  border-bottom: solid var(--bs-border-color) 1px;
+  margin-bottom: 1em;
+  padding: 0em 1em 1em 1em;
+}
+
+.centerLabel {
+  display: flex;
+  justify-content: center;
+}
+
+.centerValue {
+  display: flex;
+  align-items: center;
+}
+
+.wrap {
+  word-wrap: anywhere;
+}
+
+.titled:hover {
+  cursor: pointer;
+}
+
+.value {
+  flex-direction: column;
+  padding-top: 0.1em;
+}

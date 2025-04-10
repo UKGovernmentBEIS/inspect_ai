@@ -1,0 +1,9 @@
+{
+  "security.workspace.trust.enabled": false,
+  "update.showReleaseNotes": false,
+  "editor.cursorBlinking": "solid",
+  "editor.cursorWidth": 3,
+  "workbench.colorCustomizations": {
+    "editorCursor.foreground": "#FF0000"
+  }
+}

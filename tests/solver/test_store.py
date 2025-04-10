@@ -35,11 +35,13 @@ def test_sample_store():
 
 
 def test_tool_store():
-    @tool(prompt="If you are asked to get a cookie, call the get_cookie function.")
+    @tool
     def get_cookie():
         async def exec():
             """
             Tool for getting the cookie.
+
+            If you are asked to get a cookie, call the get_cookie function.
 
             Returns: The cookie.
             """
@@ -90,3 +92,21 @@ def test_tool_store():
         ).text
         == "42"
     )
+
+
+def test_store_create():
+    @solver
+    def store_solver():
+        async def solve(state: TaskState, generate: Generate):
+            COLORS = ["red", "green", "blue"]
+            colors = state.store.get("colors", COLORS.copy())
+            colors.append("orange")
+            assert state.store.get("colors") == (COLORS + ["orange"])
+            return state
+
+        return solve
+
+    task = Task(solver=[store_solver()])
+
+    log = eval(task, model="mockllm/model")[0]
+    assert log.status == "success"

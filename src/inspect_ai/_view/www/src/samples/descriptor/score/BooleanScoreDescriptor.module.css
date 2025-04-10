@@ -1,0 +1,22 @@
+.circle {
+  font-family: "Consola Regular";
+  width: 40px;
+  height: 30px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 15px;
+  padding-top: 1px;
+}
+
+.green {
+  background-color: var(--bs-success);
+  border-color: var(--bs-success);
+  color: var(--bs-body-bg);
+}
+
+.red {
+  background-color: var(--bs-danger);
+  border-color: var(--bs-danger);
+  color: var(--bs-body-bg);
+}

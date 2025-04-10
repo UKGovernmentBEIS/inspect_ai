@@ -60,11 +60,18 @@ with input_screen() as console:
 
 The `Prompt` class is designed to be subclassed for more specialized inputs. The `IntPrompt` and `FloatPrompt` classes are built-in, but you can also create your own more customised prompts (the `Confirm` class is another example of this). See the [prompt.py](https://github.com/Textualize/rich/blob/master/rich/prompt.py) source code for additional details.
 
-## Trace Mode {#sec-trace-mode}
+## Conversation Display {#sec-conversation-display}
 
-When introducing interactions it's often useful to see a trace of message activity for additional context. You can do this via the `--trace` CLI option (or `trace` parameter of the `eval()` function). For example:
+When introducing interactions it's often useful to see the full chat conversation printed for additional context. You can do this via the `--display=conversation` CLI option, for example:
 
-{{< include _trace.md >}}
+``` bash
+$ inspect eval theory.py --display conversation
+```
+
+In conversation display mode, all messages exchanged with the model are printed to the terminal (tool output is truncated at 100 lines).
+
+Note that enabling conversation display automatically sets `max_tasks` and `max_samples` to 1, as otherwise messages from concurrently running samples would be interleaved together in an incoherent jumble.
+
 
 
 ## Progress

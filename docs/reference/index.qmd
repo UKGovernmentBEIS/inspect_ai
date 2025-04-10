@@ -1,0 +1,56 @@
+---
+title: Reference
+tbl-colwidths: [35,66]
+toc-depth: 4
+---
+
+
+#### Python API
+
+|  |  |
+|----|----|
+| [inspect_ai](inspect_ai.qmd) | Tasks, evaluation, and scoring. |
+| [inspect_ai.solver](inspect_ai.solver.qmd) | Prompting and elicitation. |
+| [inspect_ai.tool](inspect_ai.tool.qmd) | Built-in and custom tool functions. |
+| [inspect_ai.agent](inspect_ai.agent.qmd) | Agent scaffols and protocol. |
+| [inspect_ai.scorer](inspect_ai.scorer.qmd) | Task scoring and metrics. |
+| [inspect_ai.model](inspect_ai.model.qmd) | Model interface and providers. |
+| [inspect_ai.dataset](inspect_ai.dataset.qmd) | Reading samples from datasets. |
+| [inspect_ai.approval](inspect_ai.approval.qmd) | Approvers and approval policies. |
+| [inspect_ai.log](inspect_ai.log.qmd) | List, read, write, and analyse logs. |
+| [inspect_ai.util](inspect_ai.util.qmd) | Miscellaneous utility functions. |
+
+: {.borderless}
+
+#### Inspect CLI
+
+|  |  |
+|------------------------------------|------------------------------------|
+| [inspect eval](inspect_eval.qmd) | Evaluate one or more tasks. |
+| [inspect eval-retry](inspect_eval-retry.qmd) | Retry an evaluation task. |
+| [inspect eval-set](inspect_eval-set.qmd) | Evaluate a set of tasks with retries. |
+| [inspect score](inspect_score.qmd) | Score a previous evaluation run. |
+| [inspect view](inspect_view.qmd) | Inspect log viewer |
+| [inspect_log](inspect_log.qmd) | Query, read, write, and convert logs. |
+| [inspect trace](inspect_trace.qmd) | List and read execution traces. |
+| [inspect sandbox](inspect_sandbox.qmd) | Manage sandbox environments. |
+| [inspect cache](inspect_cache.qmd) | Manage the Inspect model cache. |
+| [inspect list](inspect_list.qmd) | List tasks on the filesystem. |
+| [inspect info](inspect_info.qmd) | Read version and configuration. |
+
+: {.borderless}
+
+
+```{=html}
+<style>
+.table td {
+    padding-bottom: 0 !important;
+}
+a {
+    text-decoration: none;
+}
+a:hover {
+    text-decoration: underline;
+}
+</style>
+```

@@ -11,9 +11,11 @@ export function activateInspectManager(context: ExtensionContext) {
   // Initialize the terminal with the inspect bin path
   // on the path (if needed)
   const terminalEnv = terminalEnvironment(context);
-  context.subscriptions.push(inspectManager.onInspectChanged((e: InspectChangedEvent) => {
-    terminalEnv.update(e.binPath);
-  }));
+  context.subscriptions.push(
+    inspectManager.onInspectChanged((e: InspectChangedEvent) => {
+      terminalEnv.update(e.binPath);
+    }),
+  );
   terminalEnv.update(inspectBinPath());
 
   return inspectManager;
@@ -31,7 +33,7 @@ export class InspectManager implements Disposable {
     context.subscriptions.push(
       pythonInterpreter().onDidChange(() => {
         this.updateInspectAvailable();
-      })
+      }),
     );
     this.updateInspectAvailable();
   }
@@ -47,7 +49,10 @@ export class InspectManager implements Disposable {
     const valueChanged = this.inspectBinPath_ !== binPath?.path;
     if (valueChanged) {
       this.inspectBinPath_ = binPath?.path;
-      this.onInspectChanged_.fire({ available: !!this.inspectBinPath_, binPath });
+      this.onInspectChanged_.fire({
+        available: !!this.inspectBinPath_,
+        binPath,
+      });
     }
     if (!available) {
       this.watchForInspect();
@@ -87,14 +92,13 @@ export class InspectManager implements Disposable {
 const terminalEnvironment = (context: ExtensionContext) => {
   const filter = (binPath: AbsolutePath | null) => {
     switch (process.platform) {
-      case "win32":
-        {
-          const localPath = process.env['LocalAppData'];
-          if (localPath) {
-            return binPath?.path.startsWith(localPath);
-          }
-          return false;
+      case "win32": {
+        const localPath = process.env["LocalAppData"];
+        if (localPath) {
+          return binPath?.path.startsWith(localPath);
         }
+        return false;
+      }
       case "linux":
         return binPath && binPath.path.includes(".local/bin");
       default:
@@ -106,12 +110,12 @@ const terminalEnvironment = (context: ExtensionContext) => {
     update: (binPath: AbsolutePath | null) => {
       // The path info
       const env = context.environmentVariableCollection;
-      env.delete('PATH');
+      env.delete("PATH");
       // Actually update the path
       const binDir = binPath?.dirname();
       if (binDir && filter(binPath)) {
-        env.append('PATH', `${delimiter}${binDir.path}`);
+        env.append("PATH", `${delimiter}${binDir.path}`);
       }
-    }
+    },
   };
 };

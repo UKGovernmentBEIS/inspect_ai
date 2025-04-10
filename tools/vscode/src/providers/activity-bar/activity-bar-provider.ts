@@ -8,11 +8,15 @@ import { WorkspaceEnvManager } from "../workspace/workspace-env-provider";
 import { WorkspaceStateManager } from "../workspace/workspace-state-provider";
 import { TaskConfigurationProvider } from "./task-config-provider";
 import { InspectManager } from "../inspect/inspect-manager";
-import { DebugConfigTaskCommand, RunConfigTaskCommand } from "./task-config-commands";
+import {
+  DebugConfigTaskCommand,
+  RunConfigTaskCommand,
+} from "./task-config-commands";
 import { InspectViewManager } from "../logview/logview-view";
 import { activateLogListing } from "./log-listing/log-listing-provider";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { InspectLogsWatcher } from "../inspect/inspect-logs-watcher";
+import { end, start } from "../../core/log";
 
 export async function activateActivityBar(
   inspectManager: InspectManager,
@@ -24,23 +28,54 @@ export async function activateActivityBar(
   workspaceEnvMgr: WorkspaceEnvManager,
   inspectViewServer: InspectViewServer,
   logsWatcher: InspectLogsWatcher,
-  context: ExtensionContext
+  context: ExtensionContext,
 ) {
-
-  const [outlineCommands, treeDataProvider] = await activateTaskOutline(context, inspectEvalMgr, workspaceTaskMgr, activeTaskManager, inspectManager, inspectLogviewManager);
-  context.subscriptions.push(treeDataProvider);
-
-  const [logsCommands, logsDispose] = await activateLogListing(context, workspaceEnvMgr, inspectViewServer, logsWatcher);
+  start("Log Listing");
+  const [logsCommands, logsDispose] = await activateLogListing(
+    context,
+    workspaceEnvMgr,
+    inspectViewServer,
+    logsWatcher,
+  );
   context.subscriptions.push(...logsDispose);
+  end("Log Listing");
 
-  const envProvider = new EnvConfigurationProvider(context.extensionUri, workspaceEnvMgr, workspaceStateMgr, inspectManager);
+  start("Task Outline");
+  const [outlineCommands, treeDataProvider] = await activateTaskOutline(
+    context,
+    inspectEvalMgr,
+    workspaceTaskMgr,
+    activeTaskManager,
+    inspectManager,
+    inspectLogviewManager,
+  );
+  context.subscriptions.push(treeDataProvider);
+  end("Task Outline");
+
+  const envProvider = new EnvConfigurationProvider(
+    context.extensionUri,
+    workspaceEnvMgr,
+    workspaceStateMgr,
+    inspectManager,
+  );
   context.subscriptions.push(
-    window.registerWebviewViewProvider(EnvConfigurationProvider.viewType, envProvider)
+    window.registerWebviewViewProvider(
+      EnvConfigurationProvider.viewType,
+      envProvider,
+    ),
   );
 
-  const taskConfigProvider = new TaskConfigurationProvider(context.extensionUri, workspaceStateMgr, activeTaskManager, inspectManager);
+  const taskConfigProvider = new TaskConfigurationProvider(
+    context.extensionUri,
+    workspaceStateMgr,
+    activeTaskManager,
+    inspectManager,
+  );
   context.subscriptions.push(
-    window.registerWebviewViewProvider(TaskConfigurationProvider.viewType, taskConfigProvider)
+    window.registerWebviewViewProvider(
+      TaskConfigurationProvider.viewType,
+      taskConfigProvider,
+    ),
   );
   const taskConfigCommands = [
     new RunConfigTaskCommand(activeTaskManager, inspectEvalMgr),
@@ -49,4 +84,3 @@ export async function activateActivityBar(
 
   return [...outlineCommands, ...taskConfigCommands, ...logsCommands];
 }
-

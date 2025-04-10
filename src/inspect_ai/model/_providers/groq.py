@@ -1,11 +1,13 @@
 import json
 import os
+from copy import copy
 from typing import Any, Dict, Iterable, List, Optional
 
 import httpx
 from groq import (
+    APIStatusError,
+    APITimeoutError,
     AsyncGroq,
-    RateLimitError,
 )
 from groq.types.chat import (
     ChatCompletion,
@@ -19,14 +21,20 @@ from groq.types.chat import (
     ChatCompletionToolMessageParam,
     ChatCompletionUserMessageParam,
 )
+from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.constants import DEFAULT_MAX_RETRIES, DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import Content
-from inspect_ai._util.images import image_as_data_uri
-from inspect_ai._util.url import is_data_uri, is_http_url
+from inspect_ai._util.constants import (
+    BASE_64_DATA_REMOVED,
+    DEFAULT_MAX_TOKENS,
+)
+from inspect_ai._util.content import Content, ContentReasoning, ContentText
+from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.images import file_as_data_uri
+from inspect_ai._util.url import is_http_url
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
+from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -37,13 +45,17 @@ from .._chat_message import (
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
-from .util import (
+from .._model_output import (
+    ChatCompletionChoice,
+    ModelOutput,
+    ModelUsage,
     as_stop_reason,
+)
+from .util import (
     environment_prerequisite_error,
     model_base_url,
-    parse_tool_call,
 )
+from .util.hooks import HttpxHooks
 
 GROQ_API_KEY = "GROQ_API_KEY"
 
@@ -73,15 +85,16 @@ class GroqAPI(ModelAPI):
         self.client = AsyncGroq(
             api_key=self.api_key,
             base_url=model_base_url(base_url, "GROQ_BASE_URL"),
-            max_retries=(
-                config.max_retries
-                if config.max_retries is not None
-                else DEFAULT_MAX_RETRIES
-            ),
-            timeout=config.timeout if config.timeout is not None else 60.0,
             **model_args,
             http_client=httpx.AsyncClient(limits=httpx.Limits(max_connections=None)),
         )
+
+        # create time tracker
+        self._http_hooks = HttpxHooks(self.client._client)
+
+    @override
+    async def aclose(self) -> None:
+        await self.client.close()
 
     async def generate(
         self,
@@ -90,6 +103,21 @@ class GroqAPI(ModelAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> tuple[ModelOutput, ModelCall]:
+        # allocate request_id (so we can see it from ModelCall)
+        request_id = self._http_hooks.start_request()
+
+        # setup request and response for ModelCall
+        request: dict[str, Any] = {}
+        response: dict[str, Any] = {}
+
+        def model_call() -> ModelCall:
+            return ModelCall.create(
+                request=request,
+                response=response,
+                filter=model_call_filter,
+                time=self._http_hooks.end_request(request_id),
+            )
+
         messages = await as_groq_chat_messages(input)
 
         params = self.completion_params(config)
@@ -101,51 +129,52 @@ class GroqAPI(ModelAPI):
             if config.parallel_tool_calls is not None:
                 params["parallel_tool_calls"] = config.parallel_tool_calls
 
-        response: ChatCompletion = await self.client.chat.completions.create(
+        request = dict(
             messages=messages,
             model=self.model_name,
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
             **params,
         )
 
+        completion: ChatCompletion = await self.client.chat.completions.create(
+            **request,
+        )
+
+        response = completion.model_dump()
+
         # extract metadata
         metadata: dict[str, Any] = {
-            "id": response.id,
-            "system_fingerprint": response.system_fingerprint,
-            "created": response.created,
+            "id": completion.id,
+            "system_fingerprint": completion.system_fingerprint,
+            "created": completion.created,
         }
-        if response.usage:
+        if completion.usage:
             metadata = metadata | {
-                "queue_time": response.usage.queue_time,
-                "prompt_time": response.usage.prompt_time,
-                "completion_time": response.usage.completion_time,
-                "total_time": response.usage.total_time,
+                "queue_time": completion.usage.queue_time,
+                "prompt_time": completion.usage.prompt_time,
+                "completion_time": completion.usage.completion_time,
+                "total_time": completion.usage.total_time,
             }
 
         # extract output
-        choices = self._chat_choices_from_response(response, tools)
+        choices = self._chat_choices_from_response(completion, tools)
         output = ModelOutput(
-            model=response.model,
+            model=completion.model,
             choices=choices,
             usage=(
                 ModelUsage(
-                    input_tokens=response.usage.prompt_tokens,
-                    output_tokens=response.usage.completion_tokens,
-                    total_tokens=response.usage.total_tokens,
+                    input_tokens=completion.usage.prompt_tokens,
+                    output_tokens=completion.usage.completion_tokens,
+                    total_tokens=completion.usage.total_tokens,
                 )
-                if response.usage
+                if completion.usage
                 else None
             ),
             metadata=metadata,
         )
 
-        # record call
-        call = ModelCall.create(
-            request=dict(messages=messages, model=self.model_name, **params),
-            response=response.model_dump(),
-        )
-
         # return
-        return output, call
+        return output, model_call()
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}
@@ -174,15 +203,20 @@ class GroqAPI(ModelAPI):
         choices.sort(key=lambda c: c.index)
         return [
             ChatCompletionChoice(
-                message=chat_message_assistant(choice.message, tools),
+                message=chat_message_assistant(self.model_name, choice.message, tools),
                 stop_reason=as_stop_reason(choice.finish_reason),
             )
             for choice in choices
         ]
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return isinstance(ex, RateLimitError)
+    def should_retry(self, ex: Exception) -> bool:
+        if isinstance(ex, APIStatusError):
+            return is_retryable_http_status(ex.status_code)
+        elif isinstance(ex, APITimeoutError):
+            return True
+        else:
+            return False
 
     @override
     def connection_key(self) -> str:
@@ -248,18 +282,20 @@ async def as_chat_completion_part(
 ) -> ChatCompletionContentPartParam:
     if content.type == "text":
         return ChatCompletionContentPartTextParam(type="text", text=content.text)
-    else:
+    elif content.type == "image":
         # API takes URL or base64 encoded file. If it's a remote file or data URL leave it alone, otherwise encode it
         image_url = content.image
         detail = content.detail
 
-        if not is_http_url(image_url) and not is_data_uri(image_url):
-            image_url = await image_as_data_uri(image_url)
+        if not is_http_url(image_url):
+            image_url = await file_as_data_uri(image_url)
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
             image_url=dict(url=image_url, detail=detail),
         )
+    else:
+        raise RuntimeError("Groq models do not support audio or video inputs.")
 
 
 def chat_tools(tools: List[ToolInfo]) -> List[Dict[str, Any]]:
@@ -287,9 +323,29 @@ def chat_tool_calls(message: Any, tools: list[ToolInfo]) -> Optional[List[ToolCa
     return None
 
 
-def chat_message_assistant(message: Any, tools: list[ToolInfo]) -> ChatMessageAssistant:
+def chat_message_assistant(
+    model: str, message: Any, tools: list[ToolInfo]
+) -> ChatMessageAssistant:
+    reasoning = getattr(message, "reasoning", None)
+    if reasoning is not None:
+        content: str | list[Content] = [
+            ContentReasoning(reasoning=str(reasoning)),
+            ContentText(text=message.content or ""),
+        ]
+    else:
+        content = message.content or ""
+
     return ChatMessageAssistant(
-        content=message.content or "",
+        content=content,
+        model=model,
         source="generate",
         tool_calls=chat_tool_calls(message, tools),
     )
+
+
+def model_call_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
+    # remove base64 encoded images
+    if key == "image_url" and isinstance(value, dict):
+        value = copy(value)
+        value.update(url=BASE_64_DATA_REMOVED)
+    return value

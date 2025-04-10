@@ -66,7 +66,6 @@ def test_solvers_termination():
 
     log = eval(task, model=model, message_limit=2)[0]
     assert len(log.samples[0].messages) == 2
-    assert log.samples[0].output.completion == "finished"
 
 
 def test_invalid_solvers_error():

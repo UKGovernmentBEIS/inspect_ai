@@ -2,13 +2,25 @@ project:
    type: website
    resources: 
       - CNAME
-  
+      - llms.txt
+   pre-render: 
+      - reference/filter/sidebar.py
+   post-render: 
+      - scripts/post-render.sh
+
+metadata-files: 
+  - reference/_sidebar.yml  
+
+filters:
+  - at: pre-quarto
+    path: reference/filter/interlink.lua
+ 
 website:
    title: "Inspect"
    bread-crumbs: true
    page-navigation: true
    repo-url: https://github.com/UKGovernmentBEIS/inspect_ai
-   site-url: https://inspect.ai-safety-institute.org.uk/
+   site-url: https://inspect.aisi.org.uk/
    repo-actions: [issue]
    twitter-card:
       title: "Inspect"
@@ -19,53 +31,85 @@ website:
       title: "Inspect"
       description: "Open-source framework for large language model evaluations"
       image: /images/inspect.png
-   sidebar:
-      style: floating
+   navbar:
+      title: "Inspect AI"
+      background: light
       search: true
-      header: >
-         [![](/images/aisi-logo.png){fig-alt="UK AI Safety Institute Website"}](https://aisi.gov.uk/)
-      tools:
-        - icon: github
-          href: https://github.com/UKGovernmentBEIS/inspect_ai
-          text: "Source Code"
-      contents:
-        - text: Welcome
-          href: index.qmd   
-        - section: "Basics"
-          contents:
-            - tutorial.qmd
-            - workflow.qmd
-            - examples/index.qmd
-            - log-viewer.qmd
-            - text: "VS Code"
-              href: vscode.qmd
+      logo: images/aisi-logo.svg
+      logo-href: https://www.aisi.gov.uk/     
+      left:      
+          - text: "User Guide"
+            href: index.qmd
+          - text: "Reference"
+            href: reference/index.qmd
+          - text: "Evals"
+            href: evals/index.qmd
+      right: 
+          - icon: github
+            href: https://github.com/UKGovernmentBEIS/inspect_ai
+      
+   sidebar:
+      - title: Guide
+        style: docked
+        contents:
+         - section: "Basics"
+           contents:
+               - text: "Welcome"
+                 href: index.qmd
+               - tutorial.qmd
+               - options.qmd
+               - log-viewer.qmd
+               - text: "VS Code"
+                 href: vscode.qmd
 
-        - section: "Components"
-          contents: 
-            - solvers.qmd
-            - tools.qmd
-            - agents.qmd
-            - scorers.qmd
-            - datasets.qmd
-            - models.qmd
+         - section: "Components"
+           contents: 
+               - tasks.qmd
+               - datasets.qmd
+               - solvers.qmd
+               - scorers.qmd
 
-        - section: "Advanced"
-          contents:
-            - eval-sets.qmd
-            - text: "Errors & Limits"
-              href: errors-and-limits.qmd
-            - caching.qmd
-            - parallelism.qmd
-            - agents-api.qmd
-            - interactivity.qmd
-            - approval.qmd
-            - eval-logs.qmd
-            - extensions.qmd
+         - section: "Models"
+           contents:
+               - models.qmd
+               - text: "Providers"
+                 href: providers.qmd
+               - caching.qmd
+               - multimodal.qmd
+               - reasoning.qmd
+               - structured.qmd
 
+         - section: "Tools"
+           contents:
+               - tools.qmd
+               - tools-custom.qmd
+               - tools-standard.qmd
+               - sandboxing.qmd
+               - approval.qmd
+
+         - section: "Agents"
+           contents:
+               - agents.qmd
+               - multi-agent.qmd
+               - agent-custom.qmd
+               - agent-bridge.qmd
+               - human-agent.qmd
+
+         - section: "Advanced"
+           contents:
+               - eval-logs.qmd
+               - eval-sets.qmd
+               - text: "Errors & Limits"
+                 href: errors-and-limits.qmd
+               - typing.qmd
+               - tracing.qmd
+               - parallelism.qmd
+               - interactivity.qmd
+               - extensions.qmd
 
    page-footer: 
       left: 
-         - text: UK AI Safety Institute
+         - text: UK AI Security Institute
            href: https://aisi.gov.uk/
       center: 
          - text: Code
@@ -79,8 +123,8 @@ website:
        
       right:
          - icon: twitter
-           href: https://twitter.com/AISafetyInst
-           aria-label: UK AI Safety Institute Twitter
+           href: https://x.com/AISecurityInst
+           aria-label: UK AI Security Institute Twitter
          - icon: github
            href: https://github.com/UKGovernmentBEIS/inspect_ai/
            aria-label: Inspect on GitHub
@@ -96,7 +140,6 @@ format:
      toc-depth: 3
      number-sections: false
      code-annotations: select
-
 
 execute: 
   enabled: false

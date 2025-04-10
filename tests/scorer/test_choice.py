@@ -6,7 +6,7 @@ from test_helpers.utils import simple_task_state
 from inspect_ai.scorer import CORRECT, INCORRECT, Target, choice
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_single_letter():
     scorer = choice()
     state = simple_task_state(
@@ -22,7 +22,7 @@ async def test_score_single_letter():
     assert result.explanation == "ANSWER: A"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_multiple_letters():
     scorer = choice()
     state = simple_task_state(
@@ -38,7 +38,7 @@ async def test_score_multiple_letters():
     assert result.explanation == "ANSWER: A, B"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_letter_incorrect_if_false_positives_found():
     scorer = choice()
     state = simple_task_state(
@@ -55,7 +55,7 @@ async def test_letter_incorrect_if_false_positives_found():
     assert result.explanation == "ANSWER: A, B"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_letter_incorrect_if_missed_correct_answers():
     scorer = choice()
     state = simple_task_state(
@@ -72,7 +72,7 @@ async def test_letter_incorrect_if_missed_correct_answers():
     assert result.explanation == "ANSWER: A"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_shuffled_positions_letter():
     scorer = choice()
     state = simple_task_state(
@@ -98,7 +98,7 @@ async def test_score_shuffled_positions_letter():
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_correct_single_answer():
     scorer = choice()
     state = simple_task_state(model_output="ANSWERS: A", choices=["A"])
@@ -110,7 +110,7 @@ async def test_correct_single_answer():
     assert result.explanation == "ANSWERS: A"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_correct_multiple_answers_one_incorrect():
     scorer = choice()
     state = simple_task_state(model_output="ANSWERS: ", choices=["A"])
@@ -122,7 +122,7 @@ async def test_correct_multiple_answers_one_incorrect():
     assert result.explanation == "ANSWERS: "
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_correct_multiple_answers_all_incorrect():
     scorer = choice()
     state = simple_task_state(model_output="ANSWERS: ", choices=["A", "B"])

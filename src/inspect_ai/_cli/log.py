@@ -14,7 +14,7 @@ from inspect_ai._util.constants import PKG_PATH
 from inspect_ai.log import list_eval_logs
 from inspect_ai.log._convert import convert_eval_logs
 from inspect_ai.log._file import (
-    eval_log_json,
+    eval_log_json_str,
     read_eval_log,
     read_eval_log_headers,
 )
@@ -29,6 +29,8 @@ def log_command() -> None:
     The default format is 'eval'. You can change this by setting the INSPECT_LOG_FORMAT environment variable or using the --log-format command line option.
 
     The 'log' commands enable you to read Inspect logs uniformly as JSON no matter their physical storage format, and also enable you to read only the headers (everything but the samples) from log files, which is useful for very large logs.
+
+    Learn more about managing log files at https://inspect.aisi.org.uk/eval-logs.html.
     """
     return None
 
@@ -127,7 +129,7 @@ def list_command(
 def dump_command(path: str, header_only: bool) -> None:
     """Print log file contents as JSON."""
     log = read_eval_log(path, header_only=header_only)
-    print(eval_log_json(log))
+    print(eval_log_json_str(log))
 
 
 @log_command.command("convert")

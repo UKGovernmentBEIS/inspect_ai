@@ -1,5 +1,5 @@
+import atexit
 import os
-from contextvars import ContextVar
 from logging import (
     INFO,
     WARNING,
@@ -11,6 +11,7 @@ from logging import (
     getLevelName,
     getLogger,
 )
+from pathlib import Path
 
 import rich
 from rich.console import ConsoleRenderable
@@ -18,25 +19,35 @@ from rich.logging import RichHandler
 from rich.text import Text
 from typing_extensions import override
 
-from inspect_ai._util.constants import (
+from .constants import (
     ALL_LOG_LEVELS,
     DEFAULT_LOG_LEVEL,
     DEFAULT_LOG_LEVEL_TRANSCRIPT,
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
-    SANDBOX,
-    SANDBOX_LOG_LEVEL,
+    TRACE,
+    TRACE_LOG_LEVEL,
 )
-from inspect_ai._util.error import PrerequisiteError
+from .error import PrerequisiteError
+from .trace import (
+    TraceFormatter,
+    compress_trace_log,
+    inspect_trace_file,
+    rotate_trace_files,
+)
+
+TRACE_FILE_NAME = "trace.log"
 
 
 # log handler that filters messages to stderr and the log file
 class LogHandler(RichHandler):
-    def __init__(self, levelno: int, transcript_levelno: int) -> None:
-        super().__init__(levelno, console=rich.get_console())
+    def __init__(
+        self, capture_levelno: int, display_levelno: int, transcript_levelno: int
+    ) -> None:
+        super().__init__(capture_levelno, console=rich.get_console())
         self.transcript_levelno = transcript_levelno
-        self.display_level = WARNING
+        self.display_level = display_levelno
         # log into an external file if requested via env var
         file_logger = os.environ.get("INSPECT_PY_LOGGER_FILE", None)
         self.file_logger = FileHandler(file_logger) if file_logger else None
@@ -52,21 +63,20 @@ class LogHandler(RichHandler):
         else:
             self.file_logger_level = 0
 
+        # add a trace file handler
+        rotate_trace_files()  # remove oldest if > 10 trace files
+        env_trace_file = os.environ.get("INSPECT_TRACE_FILE", None)
+        trace_file = Path(env_trace_file) if env_trace_file else inspect_trace_file()
+        self.trace_logger = FileHandler(trace_file)
+        self.trace_logger.setFormatter(TraceFormatter())
+        atexit.register(compress_trace_log(self.trace_logger))
+
+        # set trace level
+        trace_level = os.environ.get("INSPECT_TRACE_LEVEL", TRACE_LOG_LEVEL)
+        self.trace_logger_level = int(getLevelName(trace_level.upper()))
+
     @override
     def emit(self, record: LogRecord) -> None:
-        # demote httpx and return notifications to log_level http
-        if (
-            record.name == "httpx"
-            or "http" in record.name
-            or "Retrying request" in record.getMessage()
-        ):
-            record.levelno = HTTP
-            record.levelname = HTTP_LOG_LEVEL
-
-        # skip httpx event loop is closed errors
-        if "Event loop is closed" in record.getMessage():
-            return
-
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level:
             super().emit(record)
@@ -79,10 +89,13 @@ class LogHandler(RichHandler):
         ):
             self.file_logger.emit(record)
 
-        # eval log always gets info level and higher records
-        # eval log only gets debug or http if we opt-in
-        write = record.levelno >= self.transcript_levelno
-        notify_logger_record(record, write)
+        # write to trace if the trace level matches.
+        if self.trace_logger and record.levelno >= self.trace_logger_level:
+            self.trace_logger.emit(record)
+
+        # eval log gets transcript level or higher
+        if record.levelno >= self.transcript_levelno:
+            log_to_transcript(record)
 
     @override
     def render_message(self, record: LogRecord, message: str) -> ConsoleRenderable:
@@ -91,16 +104,14 @@ class LogHandler(RichHandler):
 
 # initialize logging -- this function can be called multiple times
 # in the lifetime of the process (the levelno will update globally)
-def init_logger(
-    log_level: str | None = None, log_level_transcript: str | None = None
-) -> None:
+def init_logger(log_level: str | None, log_level_transcript: str | None = None) -> None:
     # backwards compatibility for 'tools'
-    if log_level == "tools":
-        log_level = "sandbox"
+    if log_level == "sandbox" or log_level == "tools":
+        log_level = "trace"
 
     # register http and tools levels
     addLevelName(HTTP, HTTP_LOG_LEVEL)
-    addLevelName(SANDBOX, SANDBOX_LOG_LEVEL)
+    addLevelName(TRACE, TRACE_LOG_LEVEL)
 
     def validate_level(option: str, level: str) -> None:
         if level not in ALL_LOG_LEVELS:
@@ -115,7 +126,7 @@ def init_logger(
     ).upper()
     validate_level("log level", log_level)
 
-    # reolve log file level
+    # reolve transcript log level
     log_level_transcript = (
         log_level_transcript
         if log_level_transcript
@@ -127,46 +138,43 @@ def init_logger(
     levelno = getLevelName(log_level)
     transcript_levelno = getLevelName(log_level_transcript)
 
+    # set capture level for our logs (we won't actually display/write all of them)
+    capture_level = min(TRACE, levelno, transcript_levelno)
+
     # init logging handler on demand
     global _logHandler
     if not _logHandler:
-        _logHandler = LogHandler(min(HTTP, levelno), transcript_levelno)
+        _logHandler = LogHandler(
+            capture_levelno=capture_level,
+            display_levelno=levelno,
+            transcript_levelno=transcript_levelno,
+        )
+
+        # set the global log level
+        getLogger().setLevel(log_level)
+
+        # set the log level for our package
+        getLogger(PKG_NAME).setLevel(capture_level)
+        getLogger(PKG_NAME).addHandler(_logHandler)
+        getLogger(PKG_NAME).propagate = False
+
+        # add our logger to the global handlers
         getLogger().addHandler(_logHandler)
 
-    # establish default capture level
-    capture_level = min(HTTP, levelno)
-
-    # see all the messages (we won't actually display/write all of them)
-    getLogger().setLevel(capture_level)
-    getLogger(PKG_NAME).setLevel(capture_level)
-    getLogger("httpx").setLevel(capture_level)
-
-    # set the levelno on the global handler
-    _logHandler.display_level = levelno
+        # httpx currently logs all requests at the INFO level
+        # this is a bit aggressive and we already do this at
+        # our own HTTP level
+        getLogger("httpx").setLevel(WARNING)
 
 
 _logHandler: LogHandler | None = None
 
 
-def notify_logger_record(record: LogRecord, write: bool) -> None:
+def log_to_transcript(record: LogRecord) -> None:
     from inspect_ai.log._message import LoggingMessage
     from inspect_ai.log._transcript import LoggerEvent, transcript
 
-    if write:
-        transcript()._event(LoggerEvent(message=LoggingMessage.from_log_record(record)))
-    if record.levelno <= INFO and "429" in record.getMessage():
-        _rate_limit_count_context_var.set(_rate_limit_count_context_var.get() + 1)
-
-
-_rate_limit_count_context_var = ContextVar[int]("rate_limit_count", default=0)
-
-
-def init_http_rate_limit_count() -> None:
-    _rate_limit_count_context_var.set(0)
-
-
-def http_rate_limit_count() -> int:
-    return _rate_limit_count_context_var.get()
+    transcript()._event(LoggerEvent(message=LoggingMessage._from_log_record(record)))
 
 
 def warn_once(logger: Logger, message: str) -> None:

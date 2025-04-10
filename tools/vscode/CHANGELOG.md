@@ -1,5 +1,85 @@
 # Changelog
 
+## 0.3.61
+
+- Fix an issue affecting live log viewing (requires Inspect 0.3.83 or later)
+
+## 0.3.60
+
+- Fix issue parsing task parameters with commas (Literals, Lists, Dicts, etc...)
+- Support for live log viewing (requires Inspect 0.3.83 or later)
+
+## 0.3.59
+
+- Minor changes to support future features
+
+## 0.3.58
+
+- Re-use viewers when using the open log file command.
+
+## 0.3.57
+
+- Add open log file command (paste a path to a local or remote log file in the command palette to open it in the Inspect viewer)
+
+## 0.3.56
+
+- Improve startup performance and task detection performance
+
+## 0.3.55
+
+- Remove display of status icons in log listing (it causes performance issues).
+
+## 0.3.54
+
+- Add startup output channel to monitor extension startup performance
+- Screen additional directories when scanning for tasks
+
+## 0.3.53
+
+- Fix 'Invalid Tree Item' error
+
+## 0.3.52
+
+- Don't add entries to the `.gitignore` file.
+
+## 0.3.51
+
+- Improve performance of log listing rendering by caching information in the workspace.
+
+## 0.3.50
+
+- Use the integrated terminal when debugging tasks.
+
+## 0.3.49
+
+- Improve code lense detection of Inspect tasks (ty @tobiasraabe)
+- Use icon to reflect log status in log listing activity panel (red = error, yellow = cancelled, green = running)
+
+## 0.3.48
+
+- Properly shutdown the `inspect view` process when exiting VSCode.
+
+## 0.3.47
+
+- Minor improvements
+
+## 0.3.46
+
+- Update Bedrock models help link to point to more helpful page.
+
+## 0.3.45
+
+- `.eval` file links are now clickable in the terminal when an evaluation completes
+- Improve task listing performance when rendering the task list in the activity bar
+
+## 0.3.44
+
+- Fix incorrect url encoding when copying links to remote log files.
+
+## 0.3.43
+
+- Add support for links which open the log viewer directly in VSCode. You may copy links to remote log files from the logs panel of the Inspect Activity Panel.
+
 ## 0.3.42
 
 - Improve support for selecting text in the full screen terminal
@@ -24,10 +104,10 @@
 
 This version includes a signficant rework of the overall workflow for interacting with Inspect. Changes include:
 
-- The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer. 
-- The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer. 
+- The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer.
+- The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer.
 - New open log directory command allows you to select a log directory and open the Inspect Viewer for that directory
-- Support for the new Inspect `eval` log format. More information [here](https://inspect.ai-safety-institute.org.uk/eval-logs.html#sec-log-format).
+- Support for the new Inspect `eval` log format. More information [here](https://inspect.aisi.org.uk/eval-logs.html#sec-log-format).
 
 ## 0.3.36
 
@@ -127,13 +207,13 @@ This version includes a signficant rework of the overall workflow for interactin
 
 ## 0.3.13
 
--   Ensure that inspect CLI is in the path for terminals using a global Python environment
--   Add 'Show Logs' command to the environment panel.
--   Improve models in the environment panel
-    -   Display literal provider names (rather than pretty names)
-    -   Remember the last used model for each provider
-    -   Allow free-form provide in model
-    -   Add autocomplete for Ollama
--   Fix 'Restart' when debugging to properly restart the Inspect debugging session
--   Improve performance loading task tree, selecting tasks within outline, and navigating to tasks
--   Improve task selection behavior when the activity bar is first shown
+- Ensure that inspect CLI is in the path for terminals using a global Python environment
+- Add 'Show Logs' command to the environment panel.
+- Improve models in the environment panel
+  - Display literal provider names (rather than pretty names)
+  - Remember the last used model for each provider
+  - Allow free-form provide in model
+  - Add autocomplete for Ollama
+- Fix 'Restart' when debugging to properly restart the Inspect debugging session
+- Improve performance loading task tree, selecting tasks within outline, and navigating to tasks
+- Improve task selection behavior when the activity bar is first shown

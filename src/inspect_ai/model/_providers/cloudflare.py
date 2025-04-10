@@ -16,9 +16,10 @@ from .util import (
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
-    is_chat_api_rate_limit,
     model_base_url,
+    should_retry_chat_api_error,
 )
+from .util.hooks import HttpxHooks
 
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
 
@@ -50,11 +51,16 @@ class CloudFlareAPI(ModelAPI):
             if not self.api_key:
                 raise environment_prerequisite_error("CloudFlare", CLOUDFLARE_API_TOKEN)
         self.client = httpx.AsyncClient()
+        self._http_hooks = HttpxHooks(self.client)
         base_url = model_base_url(base_url, "CLOUDFLARE_BASE_URL")
         self.base_url = (
             base_url if base_url else "https://api.cloudflare.com/client/v4/accounts"
         )
         self.model_args = model_args
+
+    @override
+    async def aclose(self) -> None:
+        await self.client.aclose()
 
     async def generate(
         self,
@@ -72,14 +78,29 @@ class CloudFlareAPI(ModelAPI):
             json["max_tokens"] = config.max_tokens
         json["messages"] = chat_api_input(input, tools, self.chat_api_handler())
 
+        # request_id
+        request_id = self._http_hooks.start_request()
+
+        # setup response
+        response: dict[str, Any] = {}
+
+        def model_call() -> ModelCall:
+            return ModelCall.create(
+                request=json,
+                response=response,
+                time=self._http_hooks.end_request(request_id),
+            )
+
         # make the call
         response = await chat_api_request(
             self.client,
             model_name=self.model_name,
             url=f"{chat_url}/{self.model_name}",
-            headers={"Authorization": f"Bearer {self.api_key}"},
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                HttpxHooks.REQUEST_ID_HEADER: request_id,
+            },
             json=json,
-            config=config,
         )
 
         # handle response
@@ -98,20 +119,15 @@ class CloudFlareAPI(ModelAPI):
                 ],
             )
 
-            # record call
-            call = ModelCall.create(
-                request=dict(model_name=self.model_name, **json), response=response
-            )
-
             # return
-            return output, call
+            return output, model_call()
         else:
             error = str(response.get("errors", "Unknown"))
             raise RuntimeError(f"Error calling {self.model_name}: {error}")
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return is_chat_api_rate_limit(ex)
+    def should_retry(self, ex: Exception) -> bool:
+        return should_retry_chat_api_error(ex)
 
     # cloudflare enforces rate limits by model for each account
     @override
@@ -125,6 +141,6 @@ class CloudFlareAPI(ModelAPI):
 
     def chat_api_handler(self) -> ChatAPIHandler:
         if "llama" in self.model_name.lower():
-            return Llama31Handler()
+            return Llama31Handler(self.model_name)
         else:
-            return ChatAPIHandler()
+            return ChatAPIHandler(self.model_name)

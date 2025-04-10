@@ -11,24 +11,57 @@ from typing import (
     runtime_checkable,
 )
 
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.registry import (
     RegistryInfo,
+    is_registry_object,
     registry_add,
     registry_name,
     registry_tag,
 )
 
-from . import Content
-from ._tool_call import ToolCallViewer
+from ._tool_call import ToolCallModelInput, ToolCallViewer
 
 logger = getLogger(__name__)
 
 
-ToolResult = str | int | float | bool | list[Content]
+ToolResult = (
+    str
+    | int
+    | float
+    | bool
+    | ContentText
+    | ContentReasoning
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+    | list[ContentText | ContentReasoning | ContentImage | ContentAudio | ContentVideo]
+)
+"""Valid types for results from tool calls."""
 
 
 class ToolError(Exception):
+    """Exception thrown from tool call.
+
+    If you throw a `ToolError` form within a tool call,
+    the error will be reported to the model for further
+    processing (rather than ending the sample). If you want
+    to raise a fatal error from a tool call use an appropriate
+    standard exception type (e.g. `RuntimeError`, `ValueError`, etc.)
+    """
+
     def __init__(self, message: str) -> None:
+        """Create a ToolError.
+
+        Args:
+          message: Error message to report to the model.
+        """
         super().__init__(message)
         self.message = message
 
@@ -53,11 +86,21 @@ class Tool(Protocol):
         r"""Additional tool that an agent can use to solve a task.
 
         Args:
-            *args (Any): Arguments for the tool.
-            **kwargs (Any): Keyword arguments for the tool.
+          *args: Arguments for the tool.
+          **kwargs: Keyword arguments for the tool.
 
         Returns:
             Result of tool call.
+
+        Examples:
+          ```python
+          @tool
+          def add() -> Tool:
+              async def execute(x: int, y: int) -> int:
+                  return x + y
+
+              return execute
+          ```
         """
         ...
 
@@ -97,6 +140,7 @@ def tool(
     *,
     name: str | None = None,
     viewer: ToolCallViewer | None = None,
+    model_input: ToolCallModelInput | None = None,
     parallel: bool = True,
     prompt: str | None = None,
 ) -> Callable[[Callable[P, Tool]], Callable[P, Tool]]: ...
@@ -107,29 +151,36 @@ def tool(
     *,
     name: str | None = None,
     viewer: ToolCallViewer | None = None,
+    model_input: ToolCallModelInput | None = None,
     parallel: bool = True,
     prompt: str | None = None,
 ) -> Callable[P, Tool] | Callable[[Callable[P, Tool]], Callable[P, Tool]]:
     r"""Decorator for registering tools.
 
     Args:
-        func (ToolType | None): Tool function
-        name (str | None):
-            Optional name for tool. If the decorator has no name
+        func: Tool function
+        name: Optional name for tool. If the decorator has no name
             argument then the name of the tool creation function
             will be used as the name of the tool.
-        viewer (ToolCallViewer | None): Provide a custom view
-            of tool call and context.
-        parallel (bool):
-            Does this tool support parallel execution?
-            (defaults to True).
-        prompt (str):
-            Deprecated (provide all descriptive information about
+        viewer: Provide a custom view of tool call and context.
+        model_input: Provide a custom function for playing back tool results as model input.
+        parallel: Does this tool support parallel execution? (defaults to `True`).
+        prompt: Deprecated (provide all descriptive information about
             the tool within the tool function's doc comment)
 
 
     Returns:
         Tool with registry attributes.
+
+    Examples:
+        ```python
+        @tool
+        def add() -> Tool:
+            async def execute(x: int, y: int) -> int:
+                return x + y
+
+            return execute
+        ```
     """
     if prompt:
         from inspect_ai._util.logger import warn_once
@@ -150,7 +201,25 @@ def tool(
         # wrap instantiations of scorer so they carry registry info and metrics
         @wraps(tool_type)
         def tool_wrapper(*args: P.args, **kwargs: P.kwargs) -> Tool:
+            # create the tool
             tool = tool_type(*args, **kwargs)
+
+            # this might already have registry info, in that case
+            # capture it and use it as defaults
+            from inspect_ai.tool._tool_def import tool_registry_info
+
+            tool_parallel = parallel
+            tool_viewer = viewer
+            tool_model_input = model_input
+            if is_registry_object(tool):
+                _, _, reg_parallel, reg_viewer, reg_model_input = tool_registry_info(
+                    tool
+                )
+                tool_parallel = parallel and reg_parallel
+                tool_viewer = viewer or reg_viewer
+                tool_model_input = model_input or reg_model_input
+
+            # tag the object
             registry_tag(
                 tool_type,
                 tool,
@@ -159,8 +228,12 @@ def tool(
                     name=tool_name,
                     metadata={
                         TOOL_PROMPT: prompt,
-                        TOOL_PARALLEL: parallel,
-                        TOOL_VIEWER: viewer,
+                        TOOL_PARALLEL: tool_parallel,
+                        TOOL_VIEWER: tool_viewer,
+                        TOOL_MODEL_INPUT: (
+                            tool_model_input
+                            or getattr(tool, TOOL_INIT_MODEL_INPUT, None)
+                        ),
                     },
                 ),
                 *args,
@@ -180,3 +253,7 @@ def tool(
 TOOL_PROMPT = "prompt"
 TOOL_PARALLEL = "parallel"
 TOOL_VIEWER = "viewer"
+TOOL_MODEL_INPUT = "model_input"
+
+
+TOOL_INIT_MODEL_INPUT = "__TOOL_INIT_MODEL_INPUT__"

@@ -1,113 +1,52 @@
 ---
-title: Models 
+title: Using Models
 ---
 
 ## Overview
 
-Inspect has built in support for a variety of language model API providers and can be extended to support arbitrary additions ones. Built-in model API providers, their dependencies, and environment variables required to use them are as follows:
+Inspect has support for a wide variety of language model APIs and can be extended to support arbitrary additional ones. Support for the following providers is built in to Inspect:
 
-| Model API | Dependencies | Environment Variables |
-|---------------|--------------------|--------------------------------------|
-| OpenAI | `pip install openai` | `OPENAI_API_KEY` |
-| Anthropic | `pip install anthropic` | `ANTHROPIC_API_KEY` |
-| Google | `pip install google-generativeai` | `GOOGLE_API_KEY` |
-| Mistral | `pip install mistralai` | `MISTRAL_API_KEY` |
-| Grok | `pip install openai` | `GROK_API_KEY` |
-| TogetherAI | `pip install openai` | `TOGETHER_API_KEY` |
-| AWS Bedrock | `pip install aioboto3` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_DEFAULT_REGION` |
-| Azure AI | None required | `AZURE_API_KEY` and `INSPECT_EVAL_MODEL_BASE_URL` |
-| Groq | `pip install groq` | `GROQ_API_KEY` |
-| Cloudflare | None required | `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` |
-| Hugging Face | `pip install transformers` | None required |
-| vLLM | `pip install vllm` | None required |
-| Ollama | `pip install openai` | None required |
-| llama-cpp-python | `pip install openai` | None required |
-| Vertex | `pip install google-cloud-aiplatform` | None required |
+{{< include _model-providers.md >}}
 
-: {tbl-colwidths="\[18,45,37\]"}
+Below we'll describe various ways to specify and provide options to models in Inspect evaluations. Review this first, then see the provider-specific sections for additional usage details and available options.
 
-::: {.callout-note appearance="minimal"}
-Note that some providers ([Grok](https://docs.x.ai/api/integrations#openai-sdk), [Ollama](https://github.com/ollama/ollama/blob/main/docs/openai.md), [llama-cpp-python](https://llama-cpp-python.readthedocs.io/en/latest/server/) and [TogetherAI](https://docs.together.ai/docs/openai-api-compatibility)) support the OpenAI Python package as a client, which is why you need to `pip install openai` for these providers even though you aren't actually interacting with the OpenAI service when you use them.
-:::
-
-## Using Models
-
-To select a model for use in an evaluation task you specify it using a *model name*. Model names include their API provider and the specific model to use (e.g. `openai/gpt-4`) Here are the supported providers along with example model names and links to documentation on all available models:
-
-| Provider | Example | Docs |
-|--------------|--------------|---------------------------------------------|
-| OpenAI | `openai/gpt-3.5-turbo` | [OpenAI Models](https://platform.openai.com/docs/models/overview) |
-| Anthropic | `anthropic/claude-2.1` | [Anthropic Models](https://docs.anthropic.com/claude/docs/models-overview) |
-| Google | `google/gemini-1.0-pro` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models) |
-| Mistral | `mistral/mistral-large-latest` | [Mistral Models](https://docs.mistral.ai/platform/endpoints/) |
-| Grok | `grok/grok-beta` | [Grok Models](https://docs.x.ai/docs#models) |
-| Hugging Face | `hf/openai-community/gpt2` | [Hugging Face Models](https://huggingface.co/models?pipeline_tag=text-generation&sort=trending) |
-| vLLM | `vllm/openai-community/gpt2` | [vLLM Models](https://docs.vllm.ai/en/latest/models/supported_models.html) |
-| Ollama | `ollama/llama3` | [Ollama Models](https://ollama.com/library) |
-| llama-cpp-python | `llama-cpp-python/llama3` | [llama-cpp-python Models](https://llama-cpp-python.readthedocs.io/en/latest/#openai-compatible-web-server) |
-| TogetherAI | `together/google/gemma-7b-it` | [TogetherAI Models](https://docs.together.ai/docs/inference-models#chat-models) |
-| AWS Bedrock | `bedrock/meta.llama2-70b-chat-v1` | [AWS Bedrock Models](https://aws.amazon.com/bedrock/) |
-| Azure AI | `azureai/azure-deployment-name` | [Azure AI Models](https://ai.azure.com/explore/models) |
-| Vertex | `vertex/gemini-1.5-flash` | [Google Models](https://cloud.google.com/vertex-ai/generative-ai/docs/model-reference/inference#supported_models) |
-| Groq | `groq/mixtral-8x7b-32768` | [Groq Models](https://console.groq.com/docs/models) |
-| Cloudflare | `cf/meta/llama-2-7b-chat-fp16` | [Cloudflare Models](https://developers.cloudflare.com/workers-ai/models/#text-generation) |
-
-: {tbl-colwidths="\[18,45,37\]"}
+## Selecting a Model
 
 To select a model for an evaluation, pass it's name on the command line or use the `model` argument of the `eval()` function:
 
 ``` bash
-$ inspect eval security_guide --model openai/gpt-3.5-turbo
-$ inspect eval security_guide --model anthropic/claude-instant-1.2
+inspect eval arc.py --model openai/gpt-4o-mini
+inspect eval arc.py --model anthropic/claude-3-5-sonnet-latest
 ```
 
 Or:
 
 ``` python
-eval(security_guide, model="openai/gpt-3.5-turbo")
-eval(security_guide, model="anthropic/claude-instant-1.2")
+eval("arc.py", model="openai/gpt-4o-mini")
+eval("arc.py", model="anthropic/claude-3-5-sonnet-latest")
 ```
 
 Alternatively, you can set the `INSPECT_EVAL_MODEL` environment variable (either in the shell or a `.env` file) to select a model externally:
 
 ``` bash
-INSPECT_EVAL_MODEL=google/gemini-1.0-pro
+INSPECT_EVAL_MODEL=google/gemini-1.5-pro
 ```
 
-::: {.callout-note appearance="simple"}
-If are using Google, Azure AI, AWS Bedrock, Hugging Face, or vLLM you should additionally consult the sections below on using the [Azure AI](#azure-ai), [AWS Bedrock](#aws-bedrock), [Google](#google), [Hugging Face](#sec-hugging-face-transformers), and [vLLM](#sec-vllm) providers to learn more about available models and their usage and authentication requirements.
-:::
+#### No Model
 
-### Model Base URL
+Some evaluations will either not make use of models or call the lower-level `get_model()` function to explicitly access models for different roles (see the [Model API](#model-api) section below for details on this). 
 
-Each model also can use a different base URL than the default (e.g. if running through a proxy server). The base URL can be specified with the same prefix as the `API_KEY`, for example, the following are all valid base URLs:
+In these cases, you are not required to specify a `--model`. If you happen to have an `INSPECT_EVAL_MODEL` defined and you want to prevent your evaluation from using it, you can explcitly specify no model as follows:
 
-| Provider         | Environment Variable        |
-|------------------|-----------------------------|
-| OpenAI           | `OPENAI_BASE_URL`           |
-| Anthropic        | `ANTHROPIC_BASE_URL`        |
-| Google           | `GOOGLE_BASE_URL`           |
-| Mistral          | `MISTRAL_BASE_URL`          |
-| Grok             | `GROK_BASE_URL`             |
-| TogetherAI       | `TOGETHER_BASE_URL`         |
-| Ollama           | `OLLAMA_BASE_URL`           |
-| llama-cpp-python | `LLAMA_CPP_PYTHON_BASE_URL` |
-| AWS Bedrock      | `BEDROCK_BASE_URL`          |
-| Azure AI         | `AZUREAI_BASE_URL`          |
-| Groq             | `GROQ_BASE_URL`             |
-| Cloudflare       | `CLOUDFLARE_BASE_URL`       |
+```bash
+inspect eval arc.py --model none
+```
 
-: {tbl-colwidths="\[50,50\]"}
+Or from Python:
 
-In addition, there are separate base URL variables for running various frontier models on Azure and Bedrock:
-
-| Provider (Model)    | Environment Variable         |
-|---------------------|------------------------------|
-| AzureAI (OpenAI)    | `AZUREAI_OPENAI_BASE_URL`    |
-| AzureAI (Mistral)   | `AZUREAI_MISTRAL_BASE_URL`   |
-| Bedrock (Anthropic) | `BEDROCK_ANTHROPIC_BASE_URL` |
-
-: {tbl-colwidths="\[50,50\]"}
+```python
+eval("arc.py", model=None)
+```
 
 ## Generation Config
 
@@ -116,325 +55,97 @@ There are a variety of configuration options that affect the behaviour of model 
 You can specify generation options either on the command line or in direct calls to `eval()`. For example:
 
 ``` bash
-$ inspect eval --model openai/gpt-4 --temperature 0.9
-$ inspect eval --model google/gemini-1.0-pro --max-connections 20
+inspect eval arc.py --model openai/gpt-4 --temperature 0.9
+inspect eval arc.py --model google/gemini-1.5-pro --max-connections 20
 ```
 
 Or:
 
 ``` python
-eval(security_guide, model="openai/gpt-4", temperature=0.9)
-eval(security_guide, model="google/gemini-1.0-pro", max_connections=20)
+eval("arc.py", model="openai/gpt-4", temperature=0.9)
+eval("arc.py", model="google/gemini-1.5-pro", max_connections=20)
 ```
 
-Use `inspect eval --help` to learn about all of the available generation config options. \|
-
-### Connections and Rate Limits
-
-Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
-
-If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this). Note that the next section describes how you can set a model-provider specific value for `max_connections` as well as other generation options.
-
-## Provider Notes
-
-This section provides additional documentation on using the Azure AI, AWS Bedrock, Hugging Face, and vLLM providers.
-
-### Azure AI {#azure-ai}
-
-[Azure AI](https://azure.microsoft.com/en-us/solutions/ai) provides hosting of models from OpenAI and Mistral as well as a wide variety of other open models. One special requirement for models hosted on Azure is that you need to specify a model base URL. You can do this using the `AZUREAI_OPENAI_BASE_URL` and `AZUREAI_MISTRAL_BASE_URL` environment variables or the `--model-base-url` command line parameter. You can find the model base URL for your specific deployment in the Azure model admin interface.
-
-#### OpenAI
-
-To use OpenAI models on Azure AI, specify an `AZUREAI_OPENAI_API_KEY` along with an `AZUREAI_OPENAI_BASE_URL`. You can then use the normal `openai` provider, but you'll need to specify a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployed model name was `gpt4-1106-preview-ythre:`
-
-``` bash
-$ export AZUREAI_OPENAI_API_KEY=key
-$ export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
-$ inspect eval --model openai/gpt4-1106-preview-ythre
-```
-
-The complete list of environment variables (and how they map to the parameters of the `AzureOpenAI` client) is as follows:
-
--   `api_key` from `AZUREAI_OPENAI_API_KEY`
--   `azure_endpoint` from `AZUREAI_OPENAI_BASE_URL`
--   `organization` from `OPENAI_ORG_ID`
--   `api_version` from `OPENAI_API_VERSION`
-
-The OpenAI provider will choose whether to make a connection to the main OpenAI service or Azure based on the presence of environment variables. If the `AZUREAI_OPENAI_API_KEY` variable is defined Azure will be used, otherwise OpenAI will be used (via the `OPENAI_API_KEY`). You can override this default behaviour using the `azure` model argument. For example:
-
-``` bash
-$ inspect eval eval.py -M azure=true  # force azure
-$ inspect eval eval.py -M azure=false # force no azure
-```
-
-#### Mistral
-
-To use Mistral models on Azure AI, specify an `AZURE_MISTRAL_API_KEY` along with an `INSPECT_EVAL_MODEL_BASE_URL`. You can then use the normal `mistral` provider, but you'll need to specify a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployment model name was `mistral-large-ctwi:`
-
-``` bash
-$ export AZUREAI_MISTRAL_API_KEY=key
-$ export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com
-$ inspect eval --model mistral/mistral-large-ctwi
-```
-
-#### Other Models
-
-Azure AI supports many other model types, you can access these using the `azureai` model provider. As with OpenAI and Mistral, you'll need to specify an `AZUREAI_API_KEY` along with an `AZUREAI_BASE_URL`, as well as use the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model as the model name. For example:
-
-``` bash
-$ export AZUREAI_API_KEY=key
-$ export AZUREAI_BASE_URL=https://your-url-at.azure.com
-$ inspect eval --model azureai/llama-2-70b-chat-wnsnw
-```
-
-### AWS Bedrock {#aws-bedrock}
-
-[AWS Bedrock](https://aws.amazon.com/bedrock/) provides hosting of models from Anthropic as well as a wide variety of other open models. Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
-
-You should be sure that you have the appropriate AWS credentials before accessing models on Bedrock. Once credentials are configured, use the `bedrock` provider along with the requisite Bedrock model name. For example, here's how you would access models from a variety of providers:
-
-``` bash
-$ export AWS_ACCESS_KEY_ID=ACCESSKEY
-$ export AWS_SECRET_ACCESS_KEY=SECRETACCESSKEY
-$ export AWS_DEFAULT_REGION=us-east-1
-
-$ inspect eval bedrock/anthropic.claude-3-haiku-20240307-v1:0
-$ inspect eval bedrock/mistral.mistral-7b-instruct-v0:2
-$ inspect eval bedrock/meta.llama2-70b-chat-v1
-```
-
-You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
-
-### Google {#google}
-
-Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The four categories of safety settings are as follows:
-
-| Category | Description |
-|-----------------|-------------------------------------------------------|
-| `sexually_explicit` | Contains references to sexual acts or other lewd content. |
-| `hate_speech` | Content that is rude, disrespectful, or profane. |
-| `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
-| `dangerous_content` | Promotes, facilitates, or encourages harmful acts. |
-
-: {tbl-colwidths="\[35,65\]"}
-
-For each category, the following block thresholds are available:
-
-| Block Threshold | Description |
-|-------------------|-----------------------------------------------------|
-| `none` | Always show regardless of probability of unsafe content |
-| `only_high` | Block when high probability of unsafe content |
-| `medium_and_above` | Block when medium or high probability of unsafe content |
-| `low_and_above` | Block when low, medium or high probability of unsafe content |
-
-: {tbl-colwidths="\[35,65\]"}
-
-By default, Inspect sets all four categories to `none` (enabling all content). You can override these defaults by using the `safety_settings` model argument. For example:
-
-``` python
-safety_settings = dict(
-  dangerous_content = "medium_and_above",
-  hate_speech = "low_and_above"
-)
-eval(
-  "eval.py",
-  model_args=dict(safety_settings=safety_settings)
-)
-```
-
-This also can be done from the command line:
-
-``` bash
-$ inspect eval eval.py -M "safety_settings={'hate_speech': 'low_and_above'}"
-```
-
-### Google Vertex AI {#google-vertex}
-
-::: {.callout-note appearance="simple"}
-Vertex AI is a different service to Google AI, see a comparison matrix [here](https://cloud.google.com/vertex-ai/generative-ai/docs/migrate/migrate-google-ai#google-ai). Make sure you are using the appropriate model provider.
-:::
-
-The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn't use the standard `BASE_URL`/`API_KEY` approach that others do. Consequently you don't need to set these environment variables, instead you should [configure your environment](https://cloud.google.com/vertex-ai/generative-ai/docs/start/quickstarts/quickstart-multimodal#expandable-1) appropriately. Additional configuration can be passed in through the `vertex_init_args` parameter if required:
-
-``` bash
-$ inspect eval eval.py -M "vertex_init_args={'project': 'my-project', location: 'eu-west2-b'}"
-```
-
-Vertex AI provides the same `safety_settings` outlined in the [Google] provider.
-
-### Hugging Face {#sec-hugging-face-transformers}
-
-The Hugging Face provider implements support for local models using the [transformers](https://pypi.org/project/transformers/) package. You can use any Hugging Face model by specifying it with the `hf/` prefix. For example:
-
-``` bash
-$ inspect eval popularity --model hf/openai-community/gpt2
-```
-
-#### Batching
-
-Concurrency for REST API based models is managed using the `max_connections` option. The same option is used for `transformers` inference---up to `max_connections` calls to `generate()` will be batched together (note that batches will proceed at a smaller size if no new calls to `generate()` have occurred in the last 2 seconds).
-
-The default batch size for Hugging Face is 32, but you should tune your `max_connections` to maximise performance and ensure that batches don't exceed available GPU memory. The [Pipeline Batching](https://huggingface.co/docs/transformers/main_classes/pipelines#pipeline-batching) section of the transformers documentation is a helpful guide to the ways batch size and performance interact.
-
-#### Device
-
-The PyTorch `cuda` device will be used automatically if CUDA is available (as will the Mac OS `mps` device). If you want to override the device used, use the `device` model argument. For example:
-
-``` bash
-$ inspect eval popularity --model hf/openai-community/gpt2 -M device=cuda:0
-```
-
-This also works in calls to `eval()`:
-
-``` python
-eval(popularity, model="hf/openai-community/gpt2", model_args=dict(device="cuda:0"))
-```
-
-Or in a call to `get_model()`
-
-``` python
-model = get_model("hf/openai-community/gpt2", device="cuda:0")
-```
-
-#### Local Models
-
-In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
-
-``` bash
-$ inspect eval popularity --model hf/local -M model_path=./my-model
-```
-
-Or using the `eval()` function:
-
-``` python
-eval(popularity, model="hf/local", model_args=dict(model_path="./my-model"))
-```
-
-Or in a call to `get_model()`
-
-``` python
-model = get_model("hf/local", model_path="./my-model")
-```
-
-### vLLM {#sec-vllm}
-
-The `vllm` provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. You can access any Hugging Face model by specifying it with the `vllm/` prefix. For example:
-
-``` bash
-$ inspect eval popularity --model vllm/openai-community/gpt2
-```
-
-You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/latest/getting_started/quickstart.html) for details on this.
-
-vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
-
-::: {.callout-tip appearance="simple"}
-Rather than doing inference locally, you can also connect to a remote vLLM server. See the section below on [vLLM Server](#sec-vllm-server) for details).
-:::
-
-#### Device
-
-The `device` option is also available for vLLM models, and you can use it to specify the device(s) to run the model on. For example:
-
-``` bash
-$ inspect eval popularity --model vllm/meta-llama/Meta-Llama-3-8B-Instruct -M device='0,1,2,3'
-```
-
-#### Batching
-
-vLLM automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32.
-
-#### Local Models
-
-Similar to the Hugging Face provider, you can also use local models with the vLLM provider. Use `vllm/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
-
-``` bash
-$ inspect eval popularity --model vllm/local -M model_path=./my-model
-```
-
-#### vLLM Server {#sec-vllm-server}
-
-vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the OpenAI provider rather than the vLLM provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:
-
-``` bash
-$ export OPENAI_BASE_URL=http://localhost:8080/v1
-$ export OPENAI_API_KEY=<your-server-api-key>
-$ inspect eval ctf.py --model openai/meta-llama/Meta-Llama-3-8B-Instruct
-```
-
-You can also use the CLI arguments `--model-base-url` and `-M api-key=<your-key>` rather than setting environment variables.
-
-See the vLLM documentation on [Server Mode](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html) for additional details.
-
-## Helper Models
-
-Often you'll want to use language models in the implementation of [Solvers](#sec-solvers) and [Scorers](#sec-scorers). Inspect includes some critique solvers and model graded scorers that do this, and you'll often want to do the same in your own.
-
-Helper models will by default use the same model instance and configuration as the model being evaluated, however this can be overridden using the `model` argument.
-
-``` python
-self_critique(model = "google/gemini-1.0-pro")
-```
-
-You can also pass a fully instantiated `Model` object (for example, if you wanted to override its default configuration) by using the `get_model()` function. For example, here we'll provide custom models for both critique and scoring:
-
-``` python
-from inspect_ai import Task, task
-from inspect_ai.dataset import json_dataset
-from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import chain_of_thought, generate, self_critique
-
-@task
-def theory_of_mind():
-
-  critique_model = get_model("google/gemini-1.0-pro")
-
-  grader_model = get_model("anthropic/claude-2.1", config = GenerateConfig(
-    temperature = 0.9,
-    max_connections = 10
-  ))
-
-  return Task(
-     dataset=json_dataset("theory_of_mind.jsonl"),
-     solver=[
-         chain_of_thought(),
-         generate(),
-         self_critique(model = critique_model)
-     ],
-     scorer=model_graded_fact(model = grader_model),
-  )
-```
+Use `inspect eval --help` to learn about all of the available generation config options.
 
 ## Model Args
 
-The section above illustrates passing model specific arguments to local models on the command line, in `eval()`, and in `get_model()`. This actually works for all model types, so if there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use this method to do it. For example, here we specify the `transport` option for a Google Gemini model:
+If there is an additional aspect of a model you want to tweak that isn't covered by the `GenerateConfig`, you can use model args to pass additional arguments to model clients. For example, here we specify the `location` option for a Google Gemini model:
 
 ``` bash
-inspect eval popularity --model google/gemini-1.0-pro -M transport:grpc
+inspect eval arc.py --model google/gemini-1.5-pro -M location=us-east5
 ```
 
-The additional `model_args` are forwarded as follows for the various providers:
+See the documentation for the requisite model provider for information on how model args are passed through to model clients.
 
-| Provider         | Forwarded to                           |
-|------------------|----------------------------------------|
-| OpenAI           | `AsyncOpenAI`                          |
-| Anthropic        | `AsyncAnthropic`                       |
-| Google           | `genai.configure`                      |
-| Mistral          | `Mistral`                              |
-| Hugging Face     | `AutoModelForCausalLM.from_pretrained` |
-| vLLM             | `SamplingParams`                       |
-| Ollama           | `AsyncOpenAI`                          |
-| llama-cpp-python | `AsyncOpenAI`                          |
-| TogetherAI       | `AsyncOpenAI`                          |
-| Groq             | `AsyncGroq`                            |
-| AzureAI          | Chat HTTP Post Body                    |
-| Cloudflare       | Chat HTTP Post Body                    |
+## Max Connections
 
-: {tbl-colwidths="\[30,70\]"}
+Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
 
-See the documentation for the requisite model provider for more information on the additional model options that can be passed to these functions and classes.
+By default, Inspect uses a `max_connections` value of 10. You can increase this consistent with your account limits. If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this).
 
-## Custom Models
+## Model API
 
-If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.qmd#sec-model-api-extensions) for additional details.
+The `--model` which is set for an evaluation is automatically used by the `generate()` solver, as well as for other solvers and scorers built to use the currently evaluated model. If you are implementing a `Solver` or `Scorer` and want to use the currently evaluated model, call `get_model()` with no arguments:
+
+```python
+from inspect_ai.model import get_model
+
+model = get_model()
+response = await model.generate("Say hello")
+```
+
+If you want to use other models in your solvers and scorers, call `get_model()` with an alternate model name, along with optional generation config. For example:
+
+```python
+model = get_model("openai/gpt-4o")
+
+model = get_model(
+    "openai/gpt-4o",
+    config=GenerateConfig(temperature=0.9)
+)
+```
+
+You can also pass provider specific parameters as additional arguments to `get_model()`. For example:
+
+```python
+model = get_model("hf/openai-community/gpt2", device="cuda:0")
+```
+
+### Model Caching
+
+By default, calls to `get_model()` are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
+
+```python
+model = get_model("openai/gpt-4o", memoize=False)
+```
+
+Finally, if you prefer to create and fully close model clients at their place of use, you can use the async context manager built in to the `Model` class. For example:
+
+```python
+async with get_model("openai/gpt-4o") as model:
+    eval(mytask(), model=model)
+```
+
+If you are not in an async context there is also a sync context manager available:
+
+```python
+with get_model("hf/Qwen/Qwen2.5-72B") as model:
+    eval(mytask(), model=model)
+```
+
+Note though that this *won't work* with model providers that require an async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama, llama-cpp-python, and CloudFlare).
+
+
+## Learning More
+
+- [Providers](providers.qmd) covers usage details and available options for the various supported providers.
+
+- [Caching](caching.qmd) explains how to cache model output to reduce the number of API calls made.
+
+- [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
+
+- [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
+ 
+- [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
+

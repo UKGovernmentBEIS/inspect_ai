@@ -6,7 +6,7 @@ from inspect_ai import eval_async
 from inspect_ai.model import GenerateConfig, Model, get_model
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_azureai
 async def test_azureai_api() -> None:
     model = get_azureai_model()
@@ -15,7 +15,7 @@ async def test_azureai_api() -> None:
     assert len(response.completion) >= 1
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_azureai
 async def test_azureai_api_repeat_eval() -> None:
     model = get_azureai_model()
@@ -26,7 +26,7 @@ async def test_azureai_api_repeat_eval() -> None:
 
 def get_azureai_model() -> Model:
     return get_model(
-        model="azureai/Meta-Llama-3-1-405B-Instruct-twe",
+        model="azureai/Llama-3.3-70B-Instruct",
         azure=True,
         config=GenerateConfig(
             frequency_penalty=0.0,

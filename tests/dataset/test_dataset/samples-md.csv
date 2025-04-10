@@ -1,2 +1,2 @@
 input,target,label,metadata
-"Say 'Hello, World'","Hello, World","Hello, World","{""foo"": ""bar""}"
+"Say 'Hello, World'","Hello, World","Hello, World","{""name"": ""jim"",""age"": 42, ""foo"": ""bar""}"

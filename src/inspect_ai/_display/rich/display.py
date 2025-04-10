@@ -1,8 +1,8 @@
-import asyncio
 import contextlib
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Callable, Coroutine, Iterator
 
+import anyio
 import rich
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
@@ -11,11 +11,12 @@ from rich.progress import Progress as RProgress
 from rich.table import Table
 from typing_extensions import override
 
+from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH
-from inspect_ai._util.display import display_type
-from inspect_ai._util.throttle import throttle
+from inspect_ai._util.platform import running_in_notebook
 from inspect_ai.log._transcript import InputEvent, transcript
-from inspect_ai.util._trace import trace_enabled
+from inspect_ai.util._display import display_type
+from inspect_ai.util._throttle import throttle
 
 from ..core.config import task_config
 from ..core.display import (
@@ -23,6 +24,7 @@ from ..core.display import (
     Display,
     Progress,
     TaskDisplay,
+    TaskDisplayMetric,
     TaskProfile,
     TaskResult,
     TaskScreen,
@@ -30,7 +32,7 @@ from ..core.display import (
     TaskWithResult,
 )
 from ..core.footer import task_footer
-from ..core.panel import task_panel, task_title, tasks_title
+from ..core.panel import task_panel, task_targets, task_title, tasks_title
 from ..core.progress import (
     RichProgress,
     progress_description,
@@ -38,7 +40,7 @@ from ..core.progress import (
     progress_status_icon,
     rich_progress,
 )
-from ..core.results import tasks_results
+from ..core.results import task_metric, tasks_results
 from ..core.rich import (
     is_vscode_notebook,
     record_console_input,
@@ -59,7 +61,7 @@ class RichDisplay(Display):
         self.progress_ui: RProgress | None = None
         self.parallel = False
         self.live: Live | None = None
-        self.timer_handle: asyncio.TimerHandle | None = None
+        self.counters: dict[str, str] = {}
         rich_initialise()
 
     @override
@@ -73,8 +75,11 @@ class RichDisplay(Display):
             yield RichProgress(total, progress)
 
     @override
-    def run_task_app(self, main: Coroutine[Any, Any, TR]) -> TR:
-        return asyncio.run(main)
+    def run_task_app(self, main: Callable[[], Coroutine[None, None, TR]]) -> TR:
+        if running_in_notebook():
+            return run_coroutine(main())
+        else:
+            return anyio.run(main, backend=configured_async_backend())
 
     @override
     @contextlib.contextmanager
@@ -103,13 +108,15 @@ class RichDisplay(Display):
                 with RichTaskScreen(live) as task_screen:
                     self.live = live
 
-                    # enque a display update
-                    self.timer_handle = asyncio.get_event_loop().call_later(
-                        1, self._update_display
-                    )
+                    async with anyio.create_task_group() as tg:
+                        # update display every second while running
+                        tg.start_soon(self._update_display_loop)
 
-                    # yield
-                    yield task_screen
+                        # let the task screen run
+                        try:
+                            yield task_screen
+                        finally:
+                            tg.cancel_scope.cancel()
 
                 # render task results (re-enable live if necessary)
                 if not live.is_started:
@@ -123,17 +130,10 @@ class RichDisplay(Display):
             self.progress_ui = None
             self.parallel = False
             self.live = None
-            if self.timer_handle:
-                self.timer_handle.cancel()
 
     @override
     @contextlib.contextmanager
     def task(self, profile: TaskProfile) -> Iterator[TaskDisplay]:
-        # if there is no ansi display than all of the below will
-        # be a no-op, so we print a simple text message for the task
-        if display_type() == "plain":
-            rich.get_console().print(task_no_ansi(profile))
-
         # for typechekcer
         if self.tasks is None:
             self.tasks = []
@@ -150,26 +150,40 @@ class RichDisplay(Display):
     @throttle(1)
     def _update_display(self) -> None:
         if (
-            self.tasks is not None
+            display_type() != "conversation"
+            and self.tasks is not None
             and self.tasks
             and self.progress_ui is not None
             and self.live is not None
             and self.live.is_started
         ):
             if self.parallel:
-                r = tasks_live_status(self.total_tasks, self.tasks, self.progress_ui)
+                r = tasks_live_status(
+                    self.total_tasks, self.tasks, self.progress_ui, self.counters
+                )
             else:
-                r = task_live_status(self.tasks, self.progress_ui)
+                r = task_live_status(self.tasks, self.progress_ui, self.counters)
             self.live.update(r, refresh=True)
 
-        self.timer_handle = asyncio.get_event_loop().call_later(1, self._update_display)
+    async def _update_display_loop(self) -> None:
+        try:
+            while True:
+                await anyio.sleep(1)
+                self._update_display()
+        except Exception:
+            pass
+
+    @override
+    def display_counter(self, caption: str, value: str) -> None:
+        self.counters[caption] = value
+        self._update_display()
 
 
 class RichTaskScreen(TaskScreen):
     def __init__(self, live: Live) -> None:
         self.theme = rich_theme()
         self.live = live
-        status_text = "Working" if trace_enabled() else "Task running"
+        status_text = "Working" if display_type() == "conversation" else "Task running"
         self.status = self.live.console.status(
             f"[{self.theme.meta} bold]{status_text}...[/{self.theme.meta} bold]",
             spinner="clock",
@@ -188,7 +202,7 @@ class RichTaskScreen(TaskScreen):
     ) -> Iterator[Console]:
         # determine transient based on trace mode
         if transient is None:
-            transient = not trace_enabled()
+            transient = display_type() != "conversation"
 
         # clear live task status and transient status
         self.live.update("", refresh=True)
@@ -276,29 +290,46 @@ class RichTaskDisplay(TaskDisplay):
         yield self.p
 
     @override
+    def sample_complete(self, complete: int, total: int) -> None:
+        self.p.update_count(complete, total)
+
+    @override
+    def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
+        if len(metrics) > 0:
+            self.p.update_score(task_metric(metrics))
+
+    @override
     def complete(self, result: TaskResult) -> None:
         self.status.result = result
         self.p.complete()
 
 
-def task_live_status(tasks: list[TaskStatus], progress: RProgress) -> RenderableType:
+def task_live_status(
+    tasks: list[TaskStatus], progress: RProgress, counters: dict[str, str]
+) -> RenderableType:
     theme = rich_theme()
-    body: list[RenderableType] = ["", progress]
-    config = task_config(tasks[0].profile, style=theme.light)
-    if config:
-        body = [config] + body
 
+    # the panel contents
+    config = task_config(tasks[0].profile, style=theme.light)
+    targets = task_targets(tasks[0].profile)
+    subtitle = config, targets
+
+    # the panel
     return task_panel(
         profile=tasks[0].profile,
         show_model=len(tasks) == 1,
-        body=Group(*body),
-        footer=task_footer(theme.light),
+        body=Group("", progress),
+        subtitle=subtitle,
+        footer=task_footer(counters, theme.light),
         log_location=None,
     )
 
 
 def tasks_live_status(
-    total_tasks: int, tasks: list[TaskStatus], progress: RProgress
+    total_tasks: int,
+    tasks: list[TaskStatus],
+    progress: RProgress,
+    counters: dict[str, str],
 ) -> RenderableType:
     # rendering context
     theme = rich_theme()
@@ -317,13 +348,20 @@ def tasks_live_status(
     footer_table = Table.grid(expand=True)
     footer_table.add_column()
     footer_table.add_column(justify="right")
-    footer = task_footer(theme.light)
+    footer = task_footer(counters, theme.light)
     footer_table.add_row()
     footer_table.add_row(footer[0], footer[1])
 
+    # build a layout table
+    layout_table = Table.grid(expand=True)
+    layout_table.add_column()
+    layout_table.add_row(config)
+    layout_table.add_row(progress)
+    layout_table.add_row(footer_table)
+
     # create panel w/ title
     panel = Panel(
-        Group(config, progress, footer_table, fit=False),
+        layout_table,
         title=f"[bold][{theme.meta}]{tasks_title(completed, total_tasks)}[/{theme.meta}][/bold]",
         title_align="left",
         width=width,

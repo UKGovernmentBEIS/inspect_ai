@@ -1,11 +1,13 @@
-import asyncio
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Awaitable, Callable, Set
 
+import anyio
 from rich import box, print
 from rich.panel import Panel
 from rich.table import Table
+
+from inspect_ai._util._async import coro_print_exceptions
 
 from .compose import compose_down, compose_ls, compose_ps
 from .config import is_auto_compose_file, safe_cleanup_auto_compose
@@ -23,6 +25,10 @@ def project_startup(project: ComposeProject) -> None:
     running_projects().append(project)
 
     # track auto compose we need to cleanup
+    project_record_auto_compose(project)
+
+
+def project_record_auto_compose(project: ComposeProject) -> None:
     if project.config and is_auto_compose_file(project.config):
         auto_compose_files().add(project.config)
 
@@ -56,17 +62,22 @@ async def project_cleanup_shutdown(cleanup: bool) -> None:
                     title_style="bold",
                     title_justify="left",
                 )
+                table.add_column("Sample ID")
+                table.add_column("Epoch")
                 table.add_column("Container(s)", no_wrap=True)
-                table.add_column("Cleanup")
                 for project in shutdown_projects:
                     containers = await compose_ps(project, all=True)
                     table.add_row(
+                        str(project.sample_id) if project.sample_id is not None else "",
+                        str(project.epoch if project.epoch is not None else ""),
                         "\n".join(container["Name"] for container in containers),
-                        f"[blue]inspect sandbox cleanup docker {project.name}[/blue]",
                     )
                 print(table)
                 print(
-                    "\nCleanup all environments with: [blue]inspect sandbox cleanup docker[/blue]\n"
+                    "\n"
+                    "Cleanup all containers  : [blue]inspect sandbox cleanup docker[/blue]\n"
+                    "Cleanup single container: [blue]inspect sandbox cleanup docker <container-id>[/blue]",
+                    "\n",
                 )
 
         # remove auto-compose files
@@ -89,13 +100,15 @@ async def cleanup_projects(
     )
 
     # cleanup all of the projects in parallel
-    tasks = [cleanup_fn(project, False) for project in projects]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # report errors
-    for result in results:
-        if result is not None:
-            print(f"Error cleaning up Docker environment: {result}")
+    async with anyio.create_task_group() as tg:
+        for project in projects:
+            tg.start_soon(
+                coro_print_exceptions,
+                "cleaning up Docker environment",
+                cleanup_fn,
+                project,
+                False,
+            )
 
 
 async def cli_cleanup(project_name: str | None) -> None:
@@ -136,7 +149,7 @@ def auto_compose_files() -> Set[str]:
 
 
 _running_projects: ContextVar[list[ComposeProject]] = ContextVar(
-    "docker_running_projects"
+    "docker_running_projects", default=[]
 )
 
 _auto_compose_files: ContextVar[Set[str]] = ContextVar("docker_auto_compose_files")

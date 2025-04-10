@@ -36,21 +36,21 @@ export async function isPortAvailable(port: number, hostName: string) {
 }
 
 async function listen(port: number, hostName: string): Promise<boolean> {
+  // First check the socket
+  const socketInUse = await checkSocket(port, hostName);
+  if (socketInUse) {
+    return true;
+  }
 
-    // First check the socket
-    const socketInUse = await checkSocket(port, hostName);
-    if (socketInUse) {
-      return true;
-    }
-
-
-    return await isServerListening(port, hostName);
+  return await isServerListening(port, hostName);
 }
 
-export async function isServerListening(port: number, hostName: string) : Promise<boolean> {
+export async function isServerListening(
+  port: number,
+  hostName: string,
+): Promise<boolean> {
   const server = createServer();
   return new Promise((resolve, reject) => {
-
     server.listen(port, hostName);
     server.on("listening", () => {
       console.log(`Server listening on ${hostName}:${port}`);
@@ -58,7 +58,7 @@ export async function isServerListening(port: number, hostName: string) : Promis
         server.removeAllListeners();
         resolve(false);
       });
-    });  
+    });
     server.on("error", (err: ServerError) => {
       console.log(`Server error: ${err.code}`);
       if (err.code === "EADDRINUSE") {
@@ -68,30 +68,29 @@ export async function isServerListening(port: number, hostName: string) : Promis
       }
     });
   });
-
 }
- 
+
 function checkSocket(port: number, hostName: string) {
-    return new Promise((resolve, reject) => {
-      const client = new Socket();
-  
-      client.once('connect', () => {
-        client.destroy();
-        resolve(true); // Port is in use
-      });
-  
-      client.once('error', (err: ServerError) => {
-        client.destroy();
-        if (err.code === 'ECONNREFUSED') {
-          resolve(false); // Port is not in use
-        } else {
-          reject(err); // Some other error occurred
-        }
-      });
-  
-      client.connect(port, hostName);
+  return new Promise((resolve, reject) => {
+    const client = new Socket();
+
+    client.once("connect", () => {
+      client.destroy();
+      resolve(true); // Port is in use
     });
-  }
+
+    client.once("error", (err: ServerError) => {
+      client.destroy();
+      if (err.code === "ECONNREFUSED") {
+        resolve(false); // Port is not in use
+      } else {
+        reject(err); // Some other error occurred
+      }
+    });
+
+    client.connect(port, hostName);
+  });
+}
 
 function isPortSafe(port: number): boolean {
   // https://superuser.com/a/188070

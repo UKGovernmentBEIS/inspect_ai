@@ -1,0 +1,105 @@
+.simpleMetricsRows {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: end;
+  height: 100%;
+  align-items: center;
+  max-height: 15em;
+  overflow: scroll;
+}
+
+.multiMetricsRows {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: end;
+  align-items: center;
+  margin-top: 0.2rem;
+  padding-bottom: 0.4rem;
+  row-gap: 1em;
+  max-height: 15em;
+  overflow: scroll;
+  align-items: baseline;
+}
+
+.verticalMetricReducer {
+  font-size: var(--inspect-font-size-smaller);
+  text-align: center;
+  padding-top: 0.3rem;
+  margin-bottom: -0.3rem;
+}
+
+.verticalMetricName {
+  font-size: var(--inspect-font-size-smaller);
+  text-align: center;
+  padding-top: 0.3rem;
+  margin-bottom: -0.2rem;
+  border-bottom: solid var(--bs-border-color) 1px;
+}
+
+.verticalMetricValue {
+  font-weight: 500;
+  text-align: center;
+}
+
+.multiScorer {
+  padding-left: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0.5em 1em;
+}
+
+.multiScorerIndent {
+  padding-left: 1.5em;
+}
+
+.multiScorerReducer {
+  text-align: center;
+  margin-bottom: -0.3rem;
+  margin-top: 0.2em;
+}
+
+.multiScorerLabel {
+  text-align: center;
+  border-bottom: solid var(--bs-border-color) 1px;
+  margin-bottom: -0.1rem;
+}
+
+.multiScorerValue {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-auto-rows: auto;
+  grid-column-gap: 0.3rem;
+  grid-row-gap: 0;
+  padding-top: 0.3em;
+}
+
+.multiScorerValueContent {
+  font-weight: 600;
+  text-align: center;
+}
+
+.multiScoreMetricGrid {
+  display: grid;
+  grid-template-rows: auto auto;
+  column-gap: 1em;
+  padding: 0 0.2em;
+  justify-content: center;
+}
+
+.moreButton {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  padding-right: 0;
+}
+
+.metricsSummary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.modalScores {
+  padding-bottom: 4em;
+}

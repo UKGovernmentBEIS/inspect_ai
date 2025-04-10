@@ -1,7 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
+
+from inspect_ai._util.content import Content
 
 
 class ToolCallContent(BaseModel):
@@ -11,10 +13,10 @@ class ToolCallContent(BaseModel):
     """Optional (plain text) title for tool call content."""
 
     format: Literal["text", "markdown"]
-    """Format."""
+    """Format (text or markdown)."""
 
     content: str
-    """Content."""
+    """Text or markdown content."""
 
 
 class ToolCallView(BaseModel):
@@ -42,18 +44,23 @@ class ToolCall:
     arguments: dict[str, Any]
     """Arguments to function."""
 
-    type: Literal["function"]
-    """Type of tool call (currently only 'function')"""
+    internal: JsonValue | None = field(default=None)
+    """Model provider specific payload - typically used to aid transformation back to model types."""
 
     parse_error: str | None = field(default=None)
     """Error which occurred parsing tool call."""
 
-    view: ToolCallContent | None = Field(default=None)
+    view: ToolCallContent | None = field(default=None)
     """Custom view of tool call input."""
+
+    type: str | None = field(default=None)
+    """Tool call type (deprecated)."""
 
 
 @dataclass
 class ToolCallError:
+    """Error raised by a tool call."""
+
     type: Literal[
         "parsing",
         "timeout",
@@ -65,9 +72,29 @@ class ToolCallError:
         "approval",
         "unknown",
     ]
+    """Error type."""
 
     message: str
+    """Error message."""
 
 
 ToolCallViewer = Callable[[ToolCall], ToolCallView]
 """Custom view renderer for tool calls."""
+
+
+class ToolCallModelInputHints(TypedDict):
+    # This type is a little sketchy but it allows tools to customize their
+    # input hook behavior based on model limitations without creating a tight
+    # coupling to the model provider.
+    disable_computer_screenshot_truncation: bool
+    """The model does not support the truncation/redaction of computer screenshots."""
+
+
+ToolCallModelInput = Callable[
+    [int, int, str | list[Content], ToolCallModelInputHints], str | list[Content]
+]
+"""Determine how tool call results are played back as model input.
+
+The first argument is an index into the total number of tool results
+for this tool in the message history, the second is the total number.
+"""

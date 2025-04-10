@@ -1,16 +1,19 @@
 import abc
 import random
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Iterator,
     Sequence,
+    Type,
+    TypeVar,
     Union,
     overload,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from typing_extensions import override
 
 from inspect_ai.model import ChatMessage
@@ -20,8 +23,12 @@ from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
 
+MT = TypeVar("MT", bound=BaseModel)
+
 
 class Sample(BaseModel):
+    r"""Sample for an evaluation task."""
+
     def __init__(
         self,
         input: str | list[ChatMessage],
@@ -33,22 +40,22 @@ class Sample(BaseModel):
         files: dict[str, str] | None = None,
         setup: str | None = None,
     ) -> None:
-        r"""Sample to be used in an evaluation task.
+        r"""Create a Sample.
 
         Args:
-            input (str | list[ChatMessage]): The input to be submitted to the model.
-            choices (list[str] | None): Optional. List of available answer choices
-            (used only for multiple-choice evals).
-            target (str | list[str]): Optional. Ideal target output. May be a literal value
+            input: The input to be submitted to the model.
+            choices: Optional. List of available answer choices
+                (used only for multiple-choice evals).
+            target: Optional. Ideal target output. May be a literal value
                 or narrative text to be used by a model grader.
-            id (int | str | None): Optional. Unique identifier for sample.
-            metadata (dict[str,Any] | None): Optional. Arbitrary metadata associated with the sample.
-            sandbox (SandboxEnvironmentType | None): Sandbox environment type
-            (or optionally a str or tuple with a shorthand spec)
-            files (dict[str, str] | None): Optional. Files that go along with the sample (copied to
-            SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
-            setup (str | None): Optional. Setup script to run for sample (run
-            within default SandboxEnvironment).
+            id: Optional. Unique identifier for sample.
+            metadata: Optional. Arbitrary metadata associated with the sample.
+                sandbox (SandboxEnvironmentType | None): Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+            sandbox: Optional. Sandbox specification for this sample.
+            files: Optional. Files that go along with the sample (copied to
+                SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
+            setup: Optional. Setup script to run for sample (run
+                within default SandboxEnvironment).
         """
         super().__init__(
             input=input,
@@ -75,6 +82,20 @@ class Sample(BaseModel):
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Arbitrary metadata associated with the sample."""
+
+    def metadata_as(self, metadata_cls: Type[MT]) -> MT:
+        """Metadata as a Pydantic model.
+
+        Args:
+           metadata_cls: BaseModel derived class.
+
+        Returns:
+           BaseModel: Instance of metadata_cls.
+        """
+        if self.metadata is None:
+            raise ValueError("Sample does not have metadata")
+
+        return metadata_as(self.metadata, metadata_cls)
 
     sandbox: SandboxEnvironmentSpec | None = Field(default=None)
     """Sandbox environment type and optional config file."""
@@ -138,14 +159,6 @@ class Dataset(Sequence[Sample], abc.ABC):
     def __len__(self) -> int: ...
 
     @abc.abstractmethod
-    def shuffle(self, seed: int | None = None) -> None:
-        """Shuffle the order of the dataset (in place).
-
-        Args:
-           seed: (int | None): Random seed for shuffling (optional).
-        """
-
-    @abc.abstractmethod
     def sort(
         self,
         reverse: bool = False,
@@ -158,8 +171,8 @@ class Dataset(Sequence[Sample], abc.ABC):
         The key function defaults to measuring the length of the sample's input field.
 
         Args:
-            reverse (bool): if true, sort in descending order. Defaults to False.
-            key (Callable[[Any], Any]): a callable mapping each item to a numeric value (optional, defaults to sample_input_len).
+            reverse: If `Treu`, sort in descending order. Defaults to False.
+            key: a callable mapping each item to a numeric value (optional, defaults to sample_input_len).
         """
 
     @abc.abstractmethod
@@ -169,50 +182,56 @@ class Dataset(Sequence[Sample], abc.ABC):
         """Filter the dataset using a predicate.
 
         Args:
-          predicate (Callable[[Sample], bool]): Filtering function.
-          name (str | None): Name for filtered dataset (optional).
+          predicate: Filtering function.
+          name: Name for filtered dataset (optional).
 
         Returns:
           Filtered dataset.
         """
 
+    @abc.abstractmethod
+    def shuffle(self, seed: int | None = None) -> None:
+        """Shuffle the order of the dataset (in place).
 
-class FieldSpec(BaseModel):
-    r"""Specification for mapping data source fields to sample fields.
+        Args:
+           seed: Random seed for shuffling (optional).
+        """
 
-    Args:
-        input (str): Name of the field containing the sample input.
-        target (str): Name of the field containing the sample target.
-        choices (str): Optional. Name of field containing the list of answer choices.
-        id (str): Optional. Unique identifier for the sample.
-        metadata (list[str] | None): List of additional field names that should be read as metadata.
-        sandbox (str): Optional. Sandbox type along with optional config file
-        files (str): Optional. Files that go along with the sample.
-        setup (str): Optional. Setup script to run for sample .
-    """
+    @abc.abstractmethod
+    def shuffle_choices(self, seed: int | None = None) -> None:
+        """Shuffle the order of the choices with each sample.
 
-    input: str = Field(default="input")
+        Args:
+           seed: Random seed for shuffling (optional).
+        """
+
+
+@dataclass
+class FieldSpec:
+    r"""Specification for mapping data source fields to sample fields."""
+
+    input: str = field(default="input")
     """Name of the field containing the sample input."""
 
-    target: str = Field(default="target")
+    target: str = field(default="target")
     """Name of the field containing the sample target."""
 
-    choices: str = Field(default="choices")
+    choices: str = field(default="choices")
     """Name of field containing the list of answer choices."""
 
-    id: str = Field(default="id")
+    id: str = field(default="id")
     """ Unique identifier for the sample."""
 
-    metadata: list[str] | None = Field(default=None)
+    metadata: list[str] | Type[BaseModel] | None = field(default=None)
     """List of additional field names that should be read as metadata."""
 
-    sandbox: str = Field(default="sandbox")
+    sandbox: str = field(default="sandbox")
     """Sandbox type along with optional config file."""
 
-    files: str = Field(default="files")
+    files: str = field(default="files")
     """Files that go along wtih the sample."""
 
-    setup: str = Field(default="setup")
+    setup: str = field(default="setup")
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
 
@@ -296,6 +315,34 @@ class MemoryDataset(Dataset):
         self._shuffled = True
 
     @override
+    def shuffle_choices(self, seed: int | None = None) -> None:
+        rand = random.Random(seed)
+        for sample in self.samples:
+            if not sample.choices:
+                continue
+            # The original positions
+            positions = list(range(len(sample.choices)))
+
+            # Shuffle the choices
+            rand.shuffle(positions)
+            shuffled_choices = [sample.choices[i] for i in positions]
+
+            # Map of original position / target letter
+            position_map = {i: chr(65 + new_i) for new_i, i in enumerate(positions)}
+
+            # Update to the shuffled choices and target
+            sample.choices = shuffled_choices
+            sample.target = self._remap_target(sample.target, position_map=position_map)
+
+    def _remap_target(
+        self, target: str | list[str], position_map: dict[int, str]
+    ) -> str | list[str]:
+        if isinstance(target, list):
+            return [position_map[ord(t) - 65] for t in target]
+        else:
+            return position_map[ord(target) - 65]
+
+    @override
     def sort(
         self,
         reverse: bool = False,
@@ -313,3 +360,24 @@ class MemoryDataset(Dataset):
             samples=[sample for sample in self if predicate(sample)],
             shuffled=self.shuffled,
         )
+
+
+def metadata_as(metadata: dict[str, Any], metadata_cls: Type[MT]) -> MT:
+    # validate that metadata_cls is frozen
+    if not metadata_cls.model_config.get("frozen", False):
+        raise ValueError(
+            f"Metadata model {metadata_cls.__name__} must have frozen=True"
+        )
+
+    # filter to only fields in the model
+    model_fields = {
+        k: v
+        for k, v in metadata.items()
+        if k in metadata_cls.__pydantic_fields__.keys()
+    }
+
+    # parse and return model instance
+    try:
+        return metadata_cls(**model_fields)
+    except ValidationError as ex:
+        raise ValueError(f"Could not parse metadata into {metadata_cls.__name__}: {ex}")

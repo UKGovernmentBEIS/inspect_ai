@@ -1,9 +1,28 @@
 from contextvars import ContextVar
 from copy import deepcopy
-from typing import Literal, Union
+from typing import Any, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing_extensions import TypedDict
+
+from inspect_ai.util._json import JSONSchema
+
+
+class ResponseSchema(BaseModel):
+    """Schema for model response when using Structured Output."""
+
+    name: str
+    """The name of the response schema. Must be a-z, A-Z, 0-9, or contain underscores and dashes, with a maximum length of 64."""
+
+    json_schema: JSONSchema
+    """The schema for the response format, described as a JSON Schema object."""
+
+    description: str | None = Field(default=None)
+    """A description of what the response format is for, used by the model to determine how to respond in the format."""
+
+    strict: bool | None = Field(default=None)
+    """Whether to enable strict schema adherence when generating the output. If set to true, the model will always follow the exact schema defined in the schema field.
+    OpenAI and Mistral only."""
 
 
 class GenerateConfigArgs(TypedDict, total=False):
@@ -34,7 +53,7 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
 
     best_of: int | None
-    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only."""
+    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). vLLM only."""
 
     frequency_penalty: float | None
     """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, and vLLM only."""
@@ -48,9 +67,6 @@ class GenerateConfigArgs(TypedDict, total=False):
     seed: int | None
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
-    suffix: str | None
-    """The suffix that comes after a completion of inserted text. OpenAI only."""
-
     top_k: int | None
     """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, and HuggingFace only."""
 
@@ -58,13 +74,16 @@ class GenerateConfigArgs(TypedDict, total=False):
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, and TogetherAI only."""
 
     logprobs: bool | None
-    """Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, and Huggingface only."""
+    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
 
     top_logprobs: int | None
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, and Huggingface only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, and Huggingface only."""
 
     parallel_tool_calls: bool | None
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
+
+    internal_tools: bool | None
+    """Whether to automatically map tools to model internal implementations (e.g. 'computer' for anthropic)."""
 
     max_tool_output: int | None
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
@@ -72,9 +91,21 @@ class GenerateConfigArgs(TypedDict, total=False):
     cache_prompt: Literal["auto"] | bool | None
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
 
+    reasoning_effort: Literal["low", "medium", "high"] | None
+    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
+
+    reasoning_tokens: int | None
+    """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
+
+    reasoning_history: Literal["none", "all", "last", "auto"] | None
+    """Include reasoning in chat message history sent to generate."""
+
+    response_schema: ResponseSchema | None
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
+
 
 class GenerateConfig(BaseModel):
-    """Base class for model generation configs."""
+    """Model generation options."""
 
     max_retries: int | None = Field(default=None)
     """Maximum number of times to retry request (defaults to 5)."""
@@ -101,7 +132,7 @@ class GenerateConfig(BaseModel):
     """Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence."""
 
     best_of: int | None = Field(default=None)
-    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI and vLLM only."""
+    """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). vLLM only."""
 
     frequency_penalty: float | None = Field(default=None)
     """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, and vLLM only."""
@@ -115,9 +146,6 @@ class GenerateConfig(BaseModel):
     seed: int | None = Field(default=None)
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
-    suffix: str | None = Field(default=None)
-    """The suffix that comes after a completion of inserted text. OpenAI only."""
-
     top_k: int | None = Field(default=None)
     """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only."""
 
@@ -125,19 +153,49 @@ class GenerateConfig(BaseModel):
     """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only."""
 
     logprobs: bool | None = Field(default=None)
-    """Return log probabilities of the output tokens. OpenAI, Google, Grok, TogetherAI, Huggingface, and vLLM only."""
+    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
 
     top_logprobs: int | None = Field(default=None)
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, Huggingface, and vLLM only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, Huggingface, and vLLM only."""
 
     parallel_tool_calls: bool | None = Field(default=None)
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
+
+    internal_tools: bool | None = Field(default=None)
+    """Whether to automatically map tools to model internal implementations (e.g. 'computer' for anthropic)."""
 
     max_tool_output: int | None = Field(default=None)
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
     """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
+
+    reasoning_effort: Literal["low", "medium", "high"] | None = Field(default=None)
+    """Constrains effort on reasoning for reasoning models (defaults to `medium`). Open AI o1 models only."""
+
+    reasoning_tokens: int | None = Field(default=None)
+    """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
+
+    reasoning_history: Literal["none", "all", "last", "auto"] | None = Field(
+        default=None
+    )
+    """Include reasoning in chat message history sent to generate."""
+
+    response_schema: ResponseSchema | None = Field(default=None)
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
+
+    # migrate reasoning_history as a bool
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_reasoning(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            reasoning_history = data.get("reasoning_history", None)
+            if reasoning_history is True:
+                data["reasoning_history"] = "all"
+            elif reasoning_history is False:
+                data["reasoning_history"] = "none"
+
+        return data
 
     def merge(
         self, other: Union["GenerateConfig", GenerateConfigArgs]

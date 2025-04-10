@@ -10,11 +10,15 @@ from pathlib import Path
 from typing import Any, BinaryIO, Iterator, Literal, cast, overload
 from urllib.parse import urlparse
 
-import fsspec  # type: ignore
-from fsspec.core import split_protocol  # type: ignore
+import fsspec  # type: ignore  # type: ignore
+from fsspec.core import split_protocol  # type: ignore  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from s3fs import S3FileSystem  # type: ignore
+from shortuuid import uuid
+
+from inspect_ai._util._async import configured_async_backend, current_async_backend
+from inspect_ai._util.error import PrerequisiteError
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -154,6 +158,9 @@ class FileInfo(BaseModel):
     mtime: float | None
     """File modification time (None if the file is a directory on S3)."""
 
+    etag: str | None = Field(default=None)
+    """Etag (provided by some remote filesystems)"""
+
 
 class FileSystem:
     def __init__(self, fs: Any) -> None:
@@ -166,16 +173,40 @@ class FileSystem:
     def exists(self, path: str) -> bool:
         return self.fs.exists(path) is True
 
+    def touch(self, path: str) -> None:
+        self.fs.touch(path)
+
     def rm(
         self, path: str, recursive: bool = False, maxdepth: int | None = None
     ) -> None:
         self.fs.rm(path, recursive=recursive, maxdepth=maxdepth)
 
+    def mv(self, lpath: str, rpath: str) -> None:
+        self.fs.mv(lpath, rpath)
+
     def mkdir(self, path: str, exist_ok: bool = False) -> None:
-        self.fs.makedirs(path, exist_ok=exist_ok)
+        if self.is_s3():
+            # try to avoid calling create_bucket on s3 filesystems (as that requires distinct
+            # privileges from being able to write to an existing bucket). we do this by
+            # first calling mkdir w/ create_parents=False and then only if that fails
+            # with FileNotFound do we attempt to create the bucket by calling mkdirs
+            try:
+                self.fs.makedir(path, create_parents=False)
+            except FileExistsError:
+                if exist_ok:
+                    pass
+                else:
+                    raise
+            except FileNotFoundError:
+                self.fs.makedirs(path, exist_ok=exist_ok)
+        else:
+            self.fs.makedirs(path, exist_ok=exist_ok)
 
     def info(self, path: str, **kwargs: dict[str, Any]) -> FileInfo:
         return self._file_info(self.fs.info(path, **kwargs))
+
+    def path_as_uri(self, path: str) -> str:
+        return str(self.fs.unstrip_protocol(path))
 
     def ls(
         self, path: str, recursive: bool = False, **kwargs: dict[str, Any]
@@ -199,6 +230,16 @@ class FileSystem:
 
     def is_local(self) -> bool:
         return isinstance(self.fs, fsspec.implementations.local.LocalFileSystem)
+
+    def is_writeable(self, path: str) -> bool:
+        try:
+            path = path.rstrip("/\\")
+            touch_file = f"{path}{self.fs.sep}{uuid()}"
+            self.touch(touch_file)
+            self.rm(touch_file)
+            return True
+        except PermissionError:
+            return False
 
     def is_async(self) -> bool:
         return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
@@ -235,11 +276,18 @@ class FileSystem:
         else:
             file["mtime"] = None
 
+        # S3 filesystems provided an ETag
+        if "ETag" in file.keys():
+            etag: str | None = file["ETag"].strip('"')
+        else:
+            etag = None
+
         return FileInfo(
             name=file["name"],
             type=file["type"],
             size=file["size"],
             mtime=file["mtime"],
+            etag=etag,
         )
 
 
@@ -262,7 +310,7 @@ def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     options.update(fs_options)
 
     # create filesystem
-    fs, path = fsspec.core.url_to_fs(path)
+    fs, path = fsspec.core.url_to_fs(path, **options)
     return FileSystem(fs)
 
 
@@ -274,8 +322,31 @@ def absolute_file_path(file: str) -> str:
     return file
 
 
+def to_uri(path_or_uri: str) -> str:
+    # Check if it's already a URI
+    parsed = urlparse(path_or_uri)
+
+    if parsed.scheme:
+        # Already has a scheme, return as is
+        return path_or_uri
+
+    # It's a file path, convert to URI
+    path_obj = Path(path_or_uri).absolute()
+    return path_obj.as_uri()
+
+
 def default_fs_options(file: str) -> dict[str, Any]:
-    options = deepcopy(DEFAULT_FS_OPTIONS.get(urlparse(file).scheme, {}))
+    scheme = urlparse(file).scheme
+    if (
+        scheme == "s3"
+        and configured_async_backend() == "trio"
+        and current_async_backend() == "trio"
+    ):
+        raise PrerequisiteError(
+            "ERROR: The s3 interface is not supported when running under the trio async backend."
+        )
+
+    options = deepcopy(DEFAULT_FS_OPTIONS.get(scheme, {}))
     # disable caching for all filesystems
     options.update(
         dict(
@@ -312,7 +383,7 @@ def safe_filename(s: str, max_length: int = 255) -> str:
     Returns:
         str: A safe filename string
 
-    Example:
+    Examples:
         >>> safe_filename("Hello/World?.txt")
         'Hello_World.txt'
     """

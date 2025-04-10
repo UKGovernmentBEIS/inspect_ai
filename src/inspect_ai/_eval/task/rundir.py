@@ -6,9 +6,12 @@ from contextvars import ContextVar
 from functools import wraps
 from typing import Any, Callable, Iterator, TypeVar
 
+from inspect_ai._eval.task.task import Task
+from inspect_ai._eval.task.util import task_chdir
+
 TASK_DIRECTORY_ATTRIB = "task_directory"
 
-_task_run_dir = ContextVar[str]("task_run_dir")
+_task_chdir = ContextVar[str | None]("_task_chdir", default=None)
 
 T = TypeVar("T", bound="asyncio.BaseEventLoop")
 
@@ -46,12 +49,16 @@ def task_run_dir_switching() -> Iterator[None]:
 
 
 @contextmanager
-def set_task_run_dir(run_dir: str) -> Iterator[None]:
-    token = _task_run_dir.set(run_dir)
-    try:
+def set_task_chdir(task: Task) -> Iterator[None]:
+    chdir = task_chdir(task)
+    if chdir is not None:
+        token = _task_chdir.set(chdir)
+        try:
+            yield
+        finally:
+            _task_chdir.reset(token)
+    else:
         yield
-    finally:
-        _task_run_dir.reset(token)
 
 
 if sys.platform == "win32":
@@ -63,9 +70,9 @@ else:
 def _wrap_callback(callback: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(callback)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        run_dir = _task_run_dir.get(None)
-        if run_dir is not None and run_dir != os.getcwd():
-            os.chdir(run_dir)
+        chdir = _task_chdir.get(None)
+        if chdir is not None and chdir != os.getcwd():
+            os.chdir(chdir)
         return callback(*args, **kwargs)
 
     return wrapper

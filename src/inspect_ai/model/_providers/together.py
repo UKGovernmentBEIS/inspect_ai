@@ -3,7 +3,7 @@ from json import dumps
 from typing import Any
 
 import httpx
-from openai import BadRequestError
+from openai import APIStatusError
 from openai.types.chat import (
     ChatCompletion,
 )
@@ -24,18 +24,18 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     StopReason,
+    as_stop_reason,
 )
+from .._openai import chat_message_assistant_from_openai
 from .openai import (
     OpenAIAPI,
-    chat_message_assistant,
 )
 from .util import (
-    as_stop_reason,
     chat_api_input,
     chat_api_request,
     environment_prerequisite_error,
-    is_chat_api_rate_limit,
     model_base_url,
+    should_retry_chat_api_error,
 )
 
 
@@ -68,7 +68,9 @@ def chat_choices_from_response_together(
         logprobs_models.append(Logprobs(content=logprobs_sequence))
     return [
         ChatCompletionChoice(
-            message=chat_message_assistant(choice.message, tools),
+            message=chat_message_assistant_from_openai(
+                response.model, choice.message, tools
+            ),
             stop_reason=as_stop_reason(choice.finish_reason),
             logprobs=logprobs,
         )
@@ -99,22 +101,30 @@ class TogetherAIAPI(OpenAIAPI):
 
     # Together uses a default of 512 so we bump it up
     @override
-    def max_tokens(self) -> int:
+    def max_tokens(self) -> int | None:
         return DEFAULT_MAX_TOKENS
 
     @override
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput:
-        if ex.status_code == 400 and "max_new_tokens" in ex.message:
-            response = ex.response.json()
-            if "error" in response and "message" in response.get("error"):
-                content = response.get("error").get("message")
-            else:
-                content = str(response)
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
+        response = ex.response.json()
+        if "error" in response and "message" in response.get("error"):
+            content = response.get("error").get("message")
+        else:
+            content = str(response)
+        if "max_new_tokens" in ex.message:
             return ModelOutput.from_content(
                 model=self.model_name, content=content, stop_reason="model_length"
             )
         else:
-            raise ex
+            return ex
+
+    @override
+    def set_logprobs_params(
+        self, params: dict[str, Any], config: GenerateConfig
+    ) -> dict[str, Any]:
+        if config.logprobs is True:
+            params["logprobs"] = 1
+        return params
 
     # Together has a slightly different logprobs structure to OpenAI, so we need to remap it.
     def _chat_choices_from_response(
@@ -186,7 +196,6 @@ class TogetherRESTAPI(ModelAPI):
             url=f"{chat_url}",
             headers={"Authorization": f"Bearer {self.api_key}"},
             json=json,
-            config=config,
         )
 
         if "error" in response:
@@ -215,8 +224,8 @@ class TogetherRESTAPI(ModelAPI):
             return ModelOutput(model=model, choices=choices, usage=usage)
 
     @override
-    def is_rate_limit(self, ex: BaseException) -> bool:
-        return is_chat_api_rate_limit(ex)
+    def should_retry(self, ex: Exception) -> bool:
+        return should_retry_chat_api_error(ex)
 
     # cloudflare enforces rate limits by model for each account
     @override
@@ -229,7 +238,7 @@ class TogetherRESTAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
     def chat_api_handler(self) -> ChatAPIHandler:
-        return ChatAPIHandler()
+        return ChatAPIHandler(self.model_name)
 
 
 def together_choices(

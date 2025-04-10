@@ -2,8 +2,6 @@ import os
 from logging import getLogger
 from pathlib import Path
 
-import aiofiles
-
 logger = getLogger(__name__)
 
 
@@ -17,7 +15,7 @@ CONFIG_FILES = [
 DOCKERFILE = "Dockerfile"
 
 
-async def resolve_compose_file(parent: str = "") -> str:
+def resolve_compose_file(parent: str = "") -> str:
     # existing compose file provides all the config we need
     compose = find_compose_file(parent)
     if compose is not None:
@@ -29,11 +27,13 @@ async def resolve_compose_file(parent: str = "") -> str:
 
     # dockerfile just needs a compose.yaml synthesized
     elif has_dockerfile(parent):
-        return await auto_compose_file(COMPOSE_DOCKERFILE_YAML, parent)
+        return auto_compose_file(
+            COMPOSE_DOCKERFILE_YAML.format(dockerfile=DOCKERFILE), parent
+        )
 
     # otherwise provide a generic python container
     else:
-        return await auto_compose_file(COMPOSE_GENERIC_YAML, parent)
+        return auto_compose_file(COMPOSE_GENERIC_YAML, parent)
 
 
 def find_compose_file(parent: str = "") -> str | None:
@@ -44,7 +44,8 @@ def find_compose_file(parent: str = "") -> str | None:
 
 
 def is_dockerfile(file: str) -> bool:
-    return os.path.basename(file) == DOCKERFILE
+    path = Path(file)
+    return path.stem == DOCKERFILE or path.suffix == f".{DOCKERFILE}"
 
 
 def has_dockerfile(parent: str = "") -> bool:
@@ -59,9 +60,9 @@ def is_auto_compose_file(file: str) -> bool:
     return os.path.basename(file) == AUTO_COMPOSE_YAML
 
 
-async def ensure_auto_compose_file(file: str | None) -> None:
+def ensure_auto_compose_file(file: str | None) -> None:
     if file is not None and is_auto_compose_file(file) and not os.path.exists(file):
-        await resolve_compose_file(os.path.dirname(file))
+        resolve_compose_file(os.path.dirname(file))
 
 
 def safe_cleanup_auto_compose(file: str | None) -> None:
@@ -81,7 +82,7 @@ COMPOSE_COMMENT = """# inspect auto-generated docker compose file
 COMPOSE_GENERIC_YAML = f"""{COMPOSE_COMMENT}
 services:
   default:
-    image: "python:3.12-bookworm"
+    image: "aisiuk/inspect-tool-support"
     command: "tail -f /dev/null"
     init: true
     network_mode: none
@@ -93,6 +94,7 @@ services:
   default:
     build:
       context: "."
+      dockerfile: "{{dockerfile}}"
     command: "tail -f /dev/null"
     init: true
     network_mode: none
@@ -100,8 +102,8 @@ services:
 """
 
 
-async def auto_compose_file(contents: str, parent: str = "") -> str:
+def auto_compose_file(contents: str, parent: str = "") -> str:
     path = os.path.join(parent, AUTO_COMPOSE_YAML)
-    async with aiofiles.open(path, "w", encoding="utf-8") as f:
-        await f.write(contents)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(contents)
     return Path(path).resolve().as_posix()

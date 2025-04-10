@@ -8,6 +8,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -23,9 +27,6 @@
         "event": {
           "const": "approval",
           "default": "approval",
-          "enum": [
-            "approval"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -88,6 +89,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "message",
@@ -155,6 +157,7 @@
       "type": "object"
     },
     "ChatCompletionChoice": {
+      "description": "Choice generated for completion.",
       "properties": {
         "message": {
           "$ref": "#/$defs/ChatMessageAssistant"
@@ -194,7 +197,20 @@
       "additionalProperties": false
     },
     "ChatMessageAssistant": {
+      "description": "Assistant chat message.",
       "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
         "content": {
           "anyOf": [
             {
@@ -207,7 +223,16 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -232,12 +257,20 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "role": {
           "const": "assistant",
           "default": "assistant",
-          "enum": [
-            "assistant"
-          ],
           "title": "Role",
           "type": "string"
         },
@@ -255,20 +288,48 @@
           ],
           "default": null,
           "title": "Tool Calls"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
         }
       },
       "required": [
+        "id",
         "content",
         "source",
+        "internal",
         "role",
-        "tool_calls"
+        "tool_calls",
+        "model"
       ],
       "title": "ChatMessageAssistant",
       "type": "object",
       "additionalProperties": false
     },
     "ChatMessageSystem": {
+      "description": "System chat message.",
       "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
         "content": {
           "anyOf": [
             {
@@ -281,7 +342,16 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -306,19 +376,29 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "role": {
           "const": "system",
           "default": "system",
-          "enum": [
-            "system"
-          ],
           "title": "Role",
           "type": "string"
         }
       },
       "required": [
+        "id",
         "content",
         "source",
+        "internal",
         "role"
       ],
       "title": "ChatMessageSystem",
@@ -326,7 +406,20 @@
       "additionalProperties": false
     },
     "ChatMessageTool": {
+      "description": "Tool chat message.",
       "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
         "content": {
           "anyOf": [
             {
@@ -339,7 +432,16 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -364,12 +466,20 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "role": {
           "const": "tool",
           "default": "tool",
-          "enum": [
-            "tool"
-          ],
           "title": "Role",
           "type": "string"
         },
@@ -410,8 +520,10 @@
         }
       },
       "required": [
+        "id",
         "content",
         "source",
+        "internal",
         "role",
         "tool_call_id",
         "function",
@@ -422,7 +534,20 @@
       "additionalProperties": false
     },
     "ChatMessageUser": {
+      "description": "User chat message.",
       "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
+        },
         "content": {
           "anyOf": [
             {
@@ -435,7 +560,16 @@
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -460,33 +594,88 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "role": {
           "const": "user",
           "default": "user",
-          "enum": [
-            "user"
-          ],
           "title": "Role",
           "type": "string"
+        },
+        "tool_call_id": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Call Id"
         }
       },
       "required": [
+        "id",
         "content",
         "source",
-        "role"
+        "internal",
+        "role",
+        "tool_call_id"
       ],
       "title": "ChatMessageUser",
       "type": "object",
       "additionalProperties": false
     },
+    "ContentAudio": {
+      "description": "Audio content.",
+      "properties": {
+        "type": {
+          "const": "audio",
+          "default": "audio",
+          "title": "Type",
+          "type": "string"
+        },
+        "audio": {
+          "title": "Audio",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "wav",
+            "mp3"
+          ],
+          "title": "Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "audio",
+        "format"
+      ],
+      "title": "ContentAudio",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ContentImage": {
+      "description": "Image content.",
       "properties": {
         "type": {
           "const": "image",
           "default": "image",
-          "enum": [
-            "image"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -514,27 +703,111 @@
       "type": "object",
       "additionalProperties": false
     },
+    "ContentReasoning": {
+      "description": "Reasoning content.\n\nSee the specification for [thinking blocks](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#understanding-thinking-blocks) for Claude models.",
+      "properties": {
+        "type": {
+          "const": "reasoning",
+          "default": "reasoning",
+          "title": "Type",
+          "type": "string"
+        },
+        "reasoning": {
+          "title": "Reasoning",
+          "type": "string"
+        },
+        "signature": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Signature"
+        },
+        "redacted": {
+          "default": false,
+          "title": "Redacted",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "reasoning",
+        "signature",
+        "redacted"
+      ],
+      "title": "ContentReasoning",
+      "type": "object",
+      "additionalProperties": false
+    },
     "ContentText": {
+      "description": "Text content.",
       "properties": {
         "type": {
           "const": "text",
           "default": "text",
-          "enum": [
-            "text"
-          ],
           "title": "Type",
           "type": "string"
         },
         "text": {
           "title": "Text",
           "type": "string"
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Refusal"
         }
       },
       "required": [
         "type",
-        "text"
+        "text",
+        "refusal"
       ],
       "title": "ContentText",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "ContentVideo": {
+      "description": "Video content.",
+      "properties": {
+        "type": {
+          "const": "video",
+          "default": "video",
+          "title": "Type",
+          "type": "string"
+        },
+        "video": {
+          "title": "Video",
+          "type": "string"
+        },
+        "format": {
+          "enum": [
+            "mp4",
+            "mpeg",
+            "mov"
+          ],
+          "title": "Format",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "video",
+        "format"
+      ],
+      "title": "ContentVideo",
       "type": "object",
       "additionalProperties": false
     },
@@ -545,6 +818,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -561,9 +838,6 @@
         "event": {
           "const": "error",
           "default": "error",
-          "enum": [
-            "error"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -573,6 +847,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "error"
@@ -582,6 +857,7 @@
       "additionalProperties": false
     },
     "EvalConfig": {
+      "description": "Configuration used for evaluation.",
       "properties": {
         "limit": {
           "anyOf": [
@@ -607,6 +883,34 @@
           ],
           "default": null,
           "title": "Limit"
+        },
+        "sample_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Id"
         },
         "epochs": {
           "anyOf": [
@@ -634,18 +938,6 @@
           ],
           "default": null,
           "title": "Epochs Reducer"
-        },
-        "trace": {
-          "anyOf": [
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Trace"
         },
         "approval": {
           "anyOf": [
@@ -709,6 +1001,18 @@
           "default": null,
           "title": "Time Limit"
         },
+        "working_limit": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Limit"
+        },
         "max_samples": {
           "anyOf": [
             {
@@ -744,6 +1048,18 @@
           ],
           "default": null,
           "title": "Max Subprocesses"
+        },
+        "max_sandboxes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Sandboxes"
         },
         "sandbox_cleanup": {
           "anyOf": [
@@ -792,31 +1108,60 @@
           ],
           "default": null,
           "title": "Log Buffer"
+        },
+        "log_shared": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Shared"
+        },
+        "score_display": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score Display"
         }
       },
       "title": "EvalConfig",
       "type": "object",
       "required": [
         "limit",
+        "sample_id",
         "epochs",
         "epochs_reducer",
-        "trace",
         "approval",
         "fail_on_error",
         "message_limit",
         "token_limit",
         "time_limit",
+        "working_limit",
         "max_samples",
         "max_tasks",
         "max_subprocesses",
+        "max_sandboxes",
         "sandbox_cleanup",
         "log_samples",
         "log_images",
-        "log_buffer"
+        "log_buffer",
+        "log_shared",
+        "score_display"
       ],
       "additionalProperties": false
     },
     "EvalDataset": {
+      "description": "Dataset used for evaluation.",
       "properties": {
         "name": {
           "anyOf": [
@@ -901,6 +1246,7 @@
       "additionalProperties": false
     },
     "EvalError": {
+      "description": "Eval error details.",
       "properties": {
         "message": {
           "title": "Message",
@@ -925,6 +1271,7 @@
       "additionalProperties": false
     },
     "EvalMetric": {
+      "description": "Metric for evaluation score.",
       "properties": {
         "name": {
           "title": "Name",
@@ -941,8 +1288,8 @@
           ],
           "title": "Value"
         },
-        "options": {
-          "title": "Options",
+        "params": {
+          "title": "Params",
           "type": "object"
         },
         "metadata": {
@@ -961,14 +1308,42 @@
       "required": [
         "name",
         "value",
-        "options",
+        "params",
         "metadata"
       ],
       "title": "EvalMetric",
       "type": "object",
       "additionalProperties": false
     },
+    "EvalMetricDefinition": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        }
+      },
+      "required": [
+        "name",
+        "options"
+      ],
+      "title": "EvalMetricDefinition",
+      "type": "object",
+      "additionalProperties": false
+    },
     "EvalPlan": {
+      "description": "Plan (solvers) used in evaluation.",
       "properties": {
         "name": {
           "default": "plan",
@@ -1010,14 +1385,18 @@
             "presence_penalty": null,
             "logit_bias": null,
             "seed": null,
-            "suffix": null,
             "top_k": null,
             "num_choices": null,
             "logprobs": null,
             "top_logprobs": null,
             "parallel_tool_calls": null,
+            "internal_tools": null,
             "max_tool_output": null,
-            "cache_prompt": null
+            "cache_prompt": null,
+            "reasoning_effort": null,
+            "reasoning_tokens": null,
+            "reasoning_history": null,
+            "response_schema": null
           }
         }
       },
@@ -1032,6 +1411,7 @@
       "additionalProperties": false
     },
     "EvalPlanStep": {
+      "description": "Solver step.",
       "properties": {
         "solver": {
           "title": "Solver",
@@ -1051,6 +1431,7 @@
       "additionalProperties": false
     },
     "EvalResults": {
+      "description": "Scoring results from evaluation.",
       "properties": {
         "total_samples": {
           "default": 0,
@@ -1094,12 +1475,10 @@
       "additionalProperties": false
     },
     "EvalRevision": {
+      "description": "Git revision for evaluation.",
       "properties": {
         "type": {
           "const": "git",
-          "enum": [
-            "git"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -1122,6 +1501,7 @@
       "additionalProperties": false
     },
     "EvalSample": {
+      "description": "Sample from evaluation task.",
       "properties": {
         "id": {
           "anyOf": [
@@ -1288,6 +1668,9 @@
                 "$ref": "#/$defs/SampleLimitEvent"
               },
               {
+                "$ref": "#/$defs/SandboxEvent"
+              },
+              {
                 "$ref": "#/$defs/StateEvent"
               },
               {
@@ -1335,6 +1718,42 @@
           "title": "Model Usage",
           "type": "object"
         },
+        "total_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Time"
+        },
+        "working_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Time"
+        },
+        "uuid": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uuid"
+        },
         "error": {
           "anyOf": [
             {
@@ -1381,6 +1800,9 @@
         "store",
         "events",
         "model_usage",
+        "total_time",
+        "working_time",
+        "uuid",
         "error",
         "attachments",
         "limit"
@@ -1390,14 +1812,17 @@
       "additionalProperties": false
     },
     "EvalSampleLimit": {
+      "description": "Limit encontered by sample.",
       "properties": {
         "type": {
           "enum": [
             "context",
             "time",
+            "working",
             "message",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"
@@ -1416,6 +1841,7 @@
       "additionalProperties": false
     },
     "EvalSampleReductions": {
+      "description": "Score reductions.",
       "properties": {
         "scorer": {
           "title": "Scorer",
@@ -1435,7 +1861,7 @@
         },
         "samples": {
           "items": {
-            "$ref": "#/$defs/SampleScore"
+            "$ref": "#/$defs/EvalSampleScore"
           },
           "title": "Samples",
           "type": "array"
@@ -1450,7 +1876,132 @@
       "type": "object",
       "additionalProperties": false
     },
+    "EvalSampleScore": {
+      "description": "Score and sample_id scored.",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            }
+          ],
+          "title": "Value"
+        },
+        "answer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Answer"
+        },
+        "explanation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        },
+        "sample_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sample Id"
+        }
+      },
+      "required": [
+        "value",
+        "answer",
+        "explanation",
+        "metadata",
+        "sample_id"
+      ],
+      "title": "EvalSampleScore",
+      "type": "object",
+      "additionalProperties": false
+    },
     "EvalScore": {
+      "description": "Score for evaluation task.",
       "properties": {
         "name": {
           "title": "Name",
@@ -1508,7 +2059,86 @@
       "type": "object",
       "additionalProperties": false
     },
+    "EvalScorer": {
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Options"
+        },
+        "metrics": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/EvalMetricDefinition"
+                  },
+                  {
+                    "additionalProperties": {
+                      "items": {
+                        "$ref": "#/$defs/EvalMetricDefinition"
+                      },
+                      "type": "array"
+                    },
+                    "type": "object"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/EvalMetricDefinition"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metrics"
+        },
+        "metadata": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metadata"
+        }
+      },
+      "required": [
+        "name",
+        "options",
+        "metrics",
+        "metadata"
+      ],
+      "title": "EvalScorer",
+      "type": "object",
+      "additionalProperties": false
+    },
     "EvalSpec": {
+      "description": "Eval target and configuration.",
       "properties": {
         "run_id": {
           "title": "Run Id",
@@ -1542,6 +2172,18 @@
           ],
           "default": null,
           "title": "Task File"
+        },
+        "task_registry_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Registry Name"
         },
         "task_attribs": {
           "title": "Task Attribs",
@@ -1608,6 +2250,9 @@
           "title": "Model",
           "type": "string"
         },
+        "model_generate_config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
         "model_base_url": {
           "anyOf": [
             {
@@ -1656,6 +2301,45 @@
           ],
           "default": null,
           "title": "Metadata"
+        },
+        "scorers": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EvalScorer"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scorers"
+        },
+        "metrics": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EvalMetricDefinition"
+              },
+              "type": "array"
+            },
+            {
+              "additionalProperties": {
+                "items": {
+                  "$ref": "#/$defs/EvalMetricDefinition"
+                },
+                "type": "array"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Metrics"
         }
       },
       "required": [
@@ -1665,6 +2349,7 @@
         "task_id",
         "task_version",
         "task_file",
+        "task_registry_name",
         "task_attribs",
         "task_args",
         "solver",
@@ -1673,18 +2358,22 @@
         "dataset",
         "sandbox",
         "model",
+        "model_generate_config",
         "model_base_url",
         "model_args",
         "config",
         "revision",
         "packages",
-        "metadata"
+        "metadata",
+        "scorers",
+        "metrics"
       ],
       "title": "EvalSpec",
       "type": "object",
       "additionalProperties": false
     },
     "EvalStats": {
+      "description": "Timing and usage statistics.",
       "properties": {
         "started_at": {
           "title": "Started At",
@@ -1712,7 +2401,7 @@
       "additionalProperties": false
     },
     "GenerateConfig": {
-      "description": "Base class for model generation configs.",
+      "description": "Model generation options.",
       "properties": {
         "max_retries": {
           "anyOf": [
@@ -1876,18 +2565,6 @@
           "default": null,
           "title": "Seed"
         },
-        "suffix": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Suffix"
-        },
         "top_k": {
           "anyOf": [
             {
@@ -1948,6 +2625,18 @@
           "default": null,
           "title": "Parallel Tool Calls"
         },
+        "internal_tools": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Internal Tools"
+        },
         "max_tool_output": {
           "anyOf": [
             {
@@ -1964,9 +2653,6 @@
           "anyOf": [
             {
               "const": "auto",
-              "enum": [
-                "auto"
-              ],
               "type": "string"
             },
             {
@@ -1978,6 +2664,64 @@
           ],
           "default": null,
           "title": "Cache Prompt"
+        },
+        "reasoning_effort": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Effort"
+        },
+        "reasoning_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Tokens"
+        },
+        "reasoning_history": {
+          "anyOf": [
+            {
+              "enum": [
+                "none",
+                "all",
+                "last",
+                "auto"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning History"
+        },
+        "response_schema": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResponseSchema"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "GenerateConfig",
@@ -1996,14 +2740,18 @@
         "presence_penalty",
         "logit_bias",
         "seed",
-        "suffix",
         "top_k",
         "num_choices",
         "logprobs",
         "top_logprobs",
         "parallel_tool_calls",
+        "internal_tools",
         "max_tool_output",
-        "cache_prompt"
+        "cache_prompt",
+        "reasoning_effort",
+        "reasoning_tokens",
+        "reasoning_history",
+        "response_schema"
       ],
       "additionalProperties": false
     },
@@ -2014,6 +2762,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -2030,11 +2782,20 @@
         "event": {
           "const": "info",
           "default": "info",
-          "enum": [
-            "info"
-          ],
           "title": "Event",
           "type": "string"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source"
         },
         "data": {
           "$ref": "#/$defs/JsonValue"
@@ -2042,8 +2803,10 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
+        "source",
         "data"
       ],
       "title": "InfoEvent",
@@ -2057,6 +2820,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -2073,9 +2840,6 @@
         "event": {
           "const": "input",
           "default": "input",
-          "enum": [
-            "input"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2090,6 +2854,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "input",
@@ -2097,6 +2862,146 @@
       ],
       "title": "InputEvent",
       "type": "object",
+      "additionalProperties": false
+    },
+    "JSONSchema": {
+      "description": "JSON Schema for type.",
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "string",
+                "integer",
+                "number",
+                "boolean",
+                "array",
+                "object",
+                "null"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "default": {
+          "default": null,
+          "title": "Default"
+        },
+        "enum": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enum"
+        },
+        "items": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JSONSchema"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "properties": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JSONSchema"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Properties"
+        },
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JSONSchema"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Additionalproperties"
+        },
+        "anyOf": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/JSONSchema"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Anyof"
+        },
+        "required": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required"
+        }
+      },
+      "title": "JSONSchema",
+      "type": "object",
+      "required": [
+        "type",
+        "description",
+        "default",
+        "enum",
+        "items",
+        "properties",
+        "additionalProperties",
+        "anyOf",
+        "required"
+      ],
       "additionalProperties": false
     },
     "JsonChange": {
@@ -2159,6 +3064,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -2174,9 +3083,6 @@
         "event": {
           "const": "logger",
           "default": "logger",
-          "enum": [
-            "logger"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2186,6 +3092,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "message"
@@ -2195,6 +3102,7 @@
       "additionalProperties": false
     },
     "LoggingMessage": {
+      "description": "Message written to Python log.",
       "properties": {
         "name": {
           "anyOf": [
@@ -2211,6 +3119,7 @@
         "level": {
           "enum": [
             "debug",
+            "trace",
             "http",
             "sandbox",
             "info",
@@ -2344,11 +3253,24 @@
           },
           "title": "Response",
           "type": "object"
+        },
+        "time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time"
         }
       },
       "required": [
         "request",
-        "response"
+        "response",
+        "time"
       ],
       "title": "ModelCall",
       "type": "object",
@@ -2361,6 +3283,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -2377,9 +3303,6 @@
         "event": {
           "const": "model",
           "default": "model",
-          "enum": [
-            "model"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2436,6 +3359,18 @@
         "output": {
           "$ref": "#/$defs/ModelOutput"
         },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
         "cache": {
           "anyOf": [
             {
@@ -2462,10 +3397,36 @@
             }
           ],
           "default": null
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed"
+        },
+        "working_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Time"
         }
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "model",
@@ -2474,14 +3435,18 @@
         "tool_choice",
         "config",
         "output",
+        "error",
         "cache",
-        "call"
+        "call",
+        "completed",
+        "working_time"
       ],
       "title": "ModelEvent",
       "type": "object",
       "additionalProperties": false
     },
     "ModelOutput": {
+      "description": "Output from model generation.",
       "properties": {
         "model": {
           "title": "Model",
@@ -2505,6 +3470,18 @@
             }
           ],
           "default": null
+        },
+        "time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Time"
         },
         "metadata": {
           "anyOf": [
@@ -2537,12 +3514,14 @@
         "model",
         "choices",
         "usage",
+        "time",
         "metadata",
         "error"
       ],
       "additionalProperties": false
     },
     "ModelUsage": {
+      "description": "Token usage for completion.",
       "properties": {
         "input_tokens": {
           "default": 0,
@@ -2582,6 +3561,18 @@
           ],
           "default": null,
           "title": "Input Tokens Cache Read"
+        },
+        "reasoning_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Tokens"
         }
       },
       "title": "ModelUsage",
@@ -2591,11 +3582,58 @@
         "output_tokens",
         "total_tokens",
         "input_tokens_cache_write",
-        "input_tokens_cache_read"
+        "input_tokens_cache_read",
+        "reasoning_tokens"
       ],
       "additionalProperties": false
     },
+    "ResponseSchema": {
+      "description": "Schema for model response when using Structured Output.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "json_schema": {
+          "$ref": "#/$defs/JSONSchema"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "strict": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strict"
+        }
+      },
+      "required": [
+        "name",
+        "json_schema",
+        "description",
+        "strict"
+      ],
+      "title": "ResponseSchema",
+      "type": "object",
+      "additionalProperties": false
+    },
     "Sample": {
+      "description": "Sample for an evaluation task.",
       "properties": {
         "input": {
           "anyOf": [
@@ -2741,6 +3779,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -2756,9 +3798,6 @@
         "event": {
           "const": "sample_init",
           "default": "sample_init",
-          "enum": [
-            "sample_init"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2771,6 +3810,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "sample",
@@ -2788,6 +3828,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -2803,9 +3847,6 @@
         "event": {
           "const": "sample_limit",
           "default": "sample_limit",
-          "enum": [
-            "sample_limit"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -2813,8 +3854,10 @@
           "enum": [
             "message",
             "time",
+            "working",
             "token",
-            "operator"
+            "operator",
+            "custom"
           ],
           "title": "Type",
           "type": "string"
@@ -2838,6 +3881,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "type",
@@ -2848,68 +3892,93 @@
       "type": "object",
       "additionalProperties": false
     },
-    "SampleScore": {
-      "description": "Score for a Sample\n\nArgs:\n   sample_id: (str | int | None) Unique id of a sample",
+    "SandboxEnvironmentSpec": {
+      "description": "Specification of a SandboxEnvironment.",
       "properties": {
-        "value": {
+        "type": {
+          "title": "Type",
+          "type": "string"
+        },
+        "config": {
+          "default": null,
+          "title": "Config"
+        }
+      },
+      "required": [
+        "type",
+        "config"
+      ],
+      "title": "SandboxEnvironmentSpec",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "SandboxEvent": {
+      "description": "Sandbox execution or I/O",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
+        "pending": {
           "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            },
             {
               "type": "boolean"
             },
             {
-              "items": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "boolean"
-                  }
-                ]
-              },
-              "type": "array"
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
+        "event": {
+          "const": "sandbox",
+          "default": "sandbox",
+          "title": "Event",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "exec",
+            "read_file",
+            "write_file"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "cmd": {
+          "anyOf": [
+            {
+              "type": "string"
             },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cmd"
+        },
+        "options": {
+          "anyOf": [
             {
               "additionalProperties": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+                "$ref": "#/$defs/JsonValue"
               },
               "type": "object"
+            },
+            {
+              "type": "null"
             }
           ],
-          "title": "Value"
+          "default": null,
+          "title": "Options"
         },
-        "answer": {
+        "file": {
           "anyOf": [
             {
               "type": "string"
@@ -2919,9 +3988,9 @@
             }
           ],
           "default": null,
-          "title": "Answer"
+          "title": "File"
         },
-        "explanation": {
+        "input": {
           "anyOf": [
             {
               "type": "string"
@@ -2931,25 +4000,10 @@
             }
           ],
           "default": null,
-          "title": "Explanation"
+          "title": "Input"
         },
-        "metadata": {
+        "result": {
           "anyOf": [
-            {
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Metadata"
-        },
-        "sample_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
             {
               "type": "integer"
             },
@@ -2958,29 +4012,9 @@
             }
           ],
           "default": null,
-          "title": "Sample Id"
-        }
-      },
-      "required": [
-        "value",
-        "answer",
-        "explanation",
-        "metadata",
-        "sample_id"
-      ],
-      "title": "SampleScore",
-      "type": "object",
-      "additionalProperties": false
-    },
-    "SandboxEnvironmentSpec": {
-      "maxItems": 2,
-      "minItems": 1,
-      "prefixItems": [
-        {
-          "title": "Type",
-          "type": "string"
+          "title": "Result"
         },
-        {
+        "output": {
           "anyOf": [
             {
               "type": "string"
@@ -2990,13 +4024,42 @@
             }
           ],
           "default": null,
-          "title": "Config"
+          "title": "Output"
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed"
         }
+      },
+      "required": [
+        "timestamp",
+        "working_start",
+        "pending",
+        "event",
+        "action",
+        "cmd",
+        "options",
+        "file",
+        "input",
+        "result",
+        "output",
+        "completed"
       ],
-      "type": "array"
+      "title": "SandboxEvent",
+      "type": "object",
+      "additionalProperties": false
     },
     "Score": {
-      "description": "Score generated by a scorer.\n\nArgs:\n   value (Value): Score value.\n   answer (str | None): Answer extracted from model output (optional).\n   explanation (str | None): Explanation of score (optional).\n   metadata (dict[str,Any]): Additional metadata related to the score.",
+      "description": "Score generated by a scorer.",
       "properties": {
         "value": {
           "anyOf": [
@@ -3104,12 +4167,16 @@
       "additionalProperties": false
     },
     "ScoreEvent": {
-      "description": "Event with sample score.",
+      "description": "Event with score.\n\nCan be the final score for a `Sample`, or can be an intermediate score\nresulting from a call to `score`.",
       "properties": {
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -3126,9 +4193,6 @@
         "event": {
           "const": "score",
           "default": "score",
-          "enum": [
-            "score"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3152,14 +4216,21 @@
           ],
           "default": null,
           "title": "Target"
+        },
+        "intermediate": {
+          "default": false,
+          "title": "Intermediate",
+          "type": "boolean"
         }
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "score",
-        "target"
+        "target",
+        "intermediate"
       ],
       "title": "ScoreEvent",
       "type": "object",
@@ -3172,6 +4243,10 @@
           "format": "date-time",
           "title": "Timestamp",
           "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
         },
         "pending": {
           "anyOf": [
@@ -3188,9 +4263,6 @@
         "event": {
           "const": "state",
           "default": "state",
-          "enum": [
-            "state"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3204,6 +4276,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "changes"
@@ -3220,6 +4293,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3235,9 +4312,6 @@
         "event": {
           "const": "step",
           "default": "step",
-          "enum": [
-            "step"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3268,6 +4342,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "action",
@@ -3286,6 +4361,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3301,9 +4380,6 @@
         "event": {
           "const": "store",
           "default": "store",
-          "enum": [
-            "store"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3317,6 +4393,7 @@
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "changes"
@@ -3333,6 +4410,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3348,9 +4429,6 @@
         "event": {
           "const": "subtask",
           "default": "subtask",
-          "enum": [
-            "subtask"
-          ],
           "title": "Event",
           "type": "string"
         },
@@ -3386,6 +4464,9 @@
               },
               {
                 "$ref": "#/$defs/SampleLimitEvent"
+              },
+              {
+                "$ref": "#/$defs/SandboxEvent"
               },
               {
                 "$ref": "#/$defs/StateEvent"
@@ -3427,17 +4508,45 @@
           },
           "title": "Events",
           "type": "array"
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed"
+        },
+        "working_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Time"
         }
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "name",
         "type",
         "input",
         "result",
-        "events"
+        "events",
+        "completed",
+        "working_time"
       ],
       "title": "SubtaskEvent",
       "type": "object",
@@ -3457,13 +4566,16 @@
           "title": "Arguments",
           "type": "object"
         },
-        "type": {
-          "const": "function",
-          "enum": [
-            "function"
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Type",
-          "type": "string"
+          "default": null
         },
         "parse_error": {
           "anyOf": [
@@ -3487,15 +4599,28 @@
             }
           ],
           "default": null
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
         }
       },
       "required": [
         "id",
         "function",
         "arguments",
-        "type",
+        "internal",
         "parse_error",
-        "view"
+        "view",
+        "type"
       ],
       "title": "ToolCall",
       "type": "object",
@@ -3610,6 +4735,10 @@
           "title": "Timestamp",
           "type": "string"
         },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
         "pending": {
           "anyOf": [
             {
@@ -3625,18 +4754,12 @@
         "event": {
           "const": "tool",
           "default": "tool",
-          "enum": [
-            "tool"
-          ],
           "title": "Event",
           "type": "string"
         },
         "type": {
           "const": "function",
           "default": "function",
-          "enum": [
-            "function"
-          ],
           "title": "Type",
           "type": "string"
         },
@@ -3654,6 +4777,17 @@
           },
           "title": "Arguments",
           "type": "object"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "view": {
           "anyOf": [
@@ -3681,13 +4815,37 @@
               "type": "boolean"
             },
             {
+              "$ref": "#/$defs/ContentText"
+            },
+            {
+              "$ref": "#/$defs/ContentReasoning"
+            },
+            {
+              "$ref": "#/$defs/ContentImage"
+            },
+            {
+              "$ref": "#/$defs/ContentAudio"
+            },
+            {
+              "$ref": "#/$defs/ContentVideo"
+            },
+            {
               "items": {
                 "anyOf": [
                   {
                     "$ref": "#/$defs/ContentText"
                   },
                   {
+                    "$ref": "#/$defs/ContentReasoning"
+                  },
+                  {
                     "$ref": "#/$defs/ContentImage"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentAudio"
+                  },
+                  {
+                    "$ref": "#/$defs/ContentVideo"
                   }
                 ]
               },
@@ -3739,6 +4897,9 @@
                 "$ref": "#/$defs/SampleLimitEvent"
               },
               {
+                "$ref": "#/$defs/SandboxEvent"
+              },
+              {
                 "$ref": "#/$defs/StateEvent"
               },
               {
@@ -3778,21 +4939,76 @@
           },
           "title": "Events",
           "type": "array"
+        },
+        "completed": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed"
+        },
+        "working_time": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Working Time"
+        },
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "failed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failed"
         }
       },
       "required": [
         "timestamp",
+        "working_start",
         "pending",
         "event",
         "type",
         "id",
         "function",
         "arguments",
+        "internal",
         "view",
         "result",
         "truncated",
         "error",
-        "events"
+        "events",
+        "completed",
+        "working_time",
+        "agent",
+        "failed"
       ],
       "title": "ToolEvent",
       "type": "object",
@@ -3836,141 +5052,19 @@
       "type": "object",
       "additionalProperties": false
     },
-    "ToolParam": {
-      "description": "Description of tool parameter in JSON Schema format.",
-      "properties": {
-        "type": {
-          "default": "null",
-          "enum": [
-            "string",
-            "integer",
-            "number",
-            "boolean",
-            "array",
-            "object",
-            "null"
-          ],
-          "title": "Type",
-          "type": "string"
-        },
-        "description": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Description"
-        },
-        "default": {
-          "default": null,
-          "title": "Default"
-        },
-        "items": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolParam"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "properties": {
-          "anyOf": [
-            {
-              "additionalProperties": {
-                "$ref": "#/$defs/ToolParam"
-              },
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Properties"
-        },
-        "additionalProperties": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/ToolParam"
-            },
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Additionalproperties"
-        },
-        "anyOf": {
-          "anyOf": [
-            {
-              "items": {
-                "$ref": "#/$defs/ToolParam"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Anyof"
-        },
-        "required": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Required"
-        }
-      },
-      "title": "ToolParam",
-      "type": "object",
-      "required": [
-        "type",
-        "description",
-        "default",
-        "items",
-        "properties",
-        "additionalProperties",
-        "anyOf",
-        "required"
-      ],
-      "additionalProperties": false
-    },
     "ToolParams": {
       "description": "Description of tool parameters object in JSON Schema format.",
       "properties": {
         "type": {
           "const": "object",
           "default": "object",
-          "enum": [
-            "object"
-          ],
           "title": "Type",
           "type": "string"
         },
         "properties": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/ToolParam"
+            "$ref": "#/$defs/JSONSchema"
           },
           "title": "Properties"
         },
@@ -4034,6 +5128,7 @@
       "additionalProperties": false
     }
   },
+  "description": "Evaluation log.",
   "properties": {
     "version": {
       "default": 2,
@@ -4055,35 +5150,7 @@
       "$ref": "#/$defs/EvalSpec"
     },
     "plan": {
-      "$ref": "#/$defs/EvalPlan",
-      "default": {
-        "name": "plan",
-        "steps": [],
-        "finish": null,
-        "config": {
-          "best_of": null,
-          "cache_prompt": null,
-          "frequency_penalty": null,
-          "logit_bias": null,
-          "logprobs": null,
-          "max_connections": null,
-          "max_retries": null,
-          "max_tokens": null,
-          "max_tool_output": null,
-          "num_choices": null,
-          "parallel_tool_calls": null,
-          "presence_penalty": null,
-          "seed": null,
-          "stop_seqs": null,
-          "suffix": null,
-          "system_message": null,
-          "temperature": null,
-          "timeout": null,
-          "top_k": null,
-          "top_logprobs": null,
-          "top_p": null
-        }
-      }
+      "$ref": "#/$defs/EvalPlan"
     },
     "results": {
       "anyOf": [
@@ -4097,12 +5164,7 @@
       "default": null
     },
     "stats": {
-      "$ref": "#/$defs/EvalStats",
-      "default": {
-        "started_at": "",
-        "completed_at": "",
-        "model_usage": {}
-      }
+      "$ref": "#/$defs/EvalStats"
     },
     "error": {
       "anyOf": [

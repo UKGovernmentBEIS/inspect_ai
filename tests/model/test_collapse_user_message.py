@@ -65,7 +65,7 @@ def test_collapse_consecutive_user_messages_with_image_message(
     )
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_user_tool_messages() -> None:
     # Anthropic converts 'tool' messages into 'user' messages with tool content.
@@ -82,7 +82,6 @@ async def test_anthropic_user_tool_messages() -> None:
                     tool_calls=[
                         ToolCall(
                             id="toolu_01AhP9RozXEJSnuxMLcY8Xaf",
-                            type="function",
                             function="addition",
                             arguments={"x": 1, "y": 1},
                         )

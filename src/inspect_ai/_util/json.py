@@ -1,12 +1,15 @@
-from typing import Any, Literal, cast
+from typing import (
+    Any,
+    Literal,
+    cast,
+)
 
 import jsonpatch
 from pydantic import BaseModel, Field, JsonValue
-from pydantic_core import to_jsonable_python
+from pydantic_core import to_json, to_jsonable_python
 
 JSONType = Literal["string", "integer", "number", "boolean", "array", "object", "null"]
-
-PythonType = Literal["str", "int", "float", "bool", "list", "dict", "None"]
+"""Valid types within JSON schema."""
 
 
 def jsonable_python(x: Any) -> Any:
@@ -21,6 +24,14 @@ def jsonable_dict(x: Any) -> dict[str, JsonValue]:
         raise TypeError(
             f"jsonable_dict must be passed an object with fields (type passed was {type(x)})"
         )
+
+
+def to_json_safe(x: Any) -> bytes:
+    return to_json(value=x, indent=2, exclude_none=True, fallback=lambda _x: None)
+
+
+def to_json_str_safe(x: Any) -> str:
+    return to_json_safe(x).decode()
 
 
 def python_type_to_json_type(python_type: str | None) -> JSONType:
@@ -45,28 +56,6 @@ def python_type_to_json_type(python_type: str | None) -> JSONType:
         case _:
             raise ValueError(
                 f"Unsupported type: {python_type} for Python to JSON conversion."
-            )
-
-
-def json_type_to_python_type(json_type: str) -> PythonType:
-    match json_type:
-        case "string":
-            return "str"
-        case "integer":
-            return "int"
-        case "number":
-            return "float"
-        case "boolean":
-            return "bool"
-        case "array":
-            return "list"
-        case "object":
-            return "dict"
-        case "null":
-            return "None"
-        case _:
-            raise ValueError(
-                f"Unsupported type: {json_type} for JSON to Python conversion."
             )
 
 
@@ -103,10 +92,20 @@ def json_changes(
                 paths = json_change.path.split("/")[1:]
                 replaced = before
                 for path in paths:
-                    index: Any = int(path) if path.isnumeric() else path
+                    decoded_path = decode_json_pointer_segment(path)
+                    index: Any = (
+                        int(decoded_path) if decoded_path.isnumeric() else decoded_path
+                    )
                     replaced = replaced[index]
                 json_change.replaced = replaced
             changes.append(json_change)
         return changes
     else:
         return None
+
+
+def decode_json_pointer_segment(segment: str) -> str:
+    """Decode a single JSON Pointer segment."""
+    # JSON points encode ~ and / because they are special characters
+    # this decodes these values (https://www.rfc-editor.org/rfc/rfc6901)
+    return segment.replace("~1", "/").replace("~0", "~")
