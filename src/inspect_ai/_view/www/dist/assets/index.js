@@ -22966,8 +22966,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             log$5.debug("REFRESH LOGS");
             const state = get2();
             const refreshedLogs = await state.logsActions.loadLogs();
+            const currentLog = state.logs.logs.files[state.logs.selectedLogIndex > -1 ? state.logs.selectedLogIndex : 0];
             state.logsActions.setLogs(refreshedLogs || kEmptyLogs);
-            const currentLog = refreshedLogs.files[state.logs.selectedLogIndex > -1 ? state.logs.selectedLogIndex : 0];
             if (currentLog) {
               const newIndex = refreshedLogs == null ? void 0 : refreshedLogs.files.findIndex(
                 (file) => currentLog.name.endsWith(file.name)
@@ -22988,7 +22988,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             } else {
               const result2 = await state.logsActions.loadLogs();
               const idx = result2 == null ? void 0 : result2.files.findIndex(
-                (file) => logUrl.endsWith(file.name)
+                (file) => file.name.endsWith(logUrl)
               );
               state.logsActions.setLogs(result2 || kEmptyLogs);
               state.logsActions.setSelectedLogIndex(
@@ -81744,6 +81744,10 @@ Supported expressions:
       );
       const selectSample = useStore((state) => state.logActions.selectSample);
       const filteredSamples = useFilteredSamples();
+      const setStatus = useStore((state) => state.appActions.setStatus);
+      const setSelectedLogIndex = useStore(
+        (state) => state.logsActions.setSelectedLogIndex
+      );
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {
           if (logPath) {
@@ -81754,12 +81758,29 @@ Supported expressions:
               setWorkspaceTab(kLogViewSamplesTabId);
             }
           } else {
+            setStatus({
+              loading: true,
+              error: void 0
+            });
             await refreshLogs();
+            setSelectedLogIndex(0);
             setWorkspaceTab(kLogViewSamplesTabId);
+            setStatus({
+              loading: false,
+              error: void 0
+            });
           }
         };
         loadLogFromPath();
-      }, [logPath, tabId, selectLogFile, refreshLogs, setWorkspaceTab]);
+      }, [
+        logPath,
+        tabId,
+        selectLogFile,
+        refreshLogs,
+        setWorkspaceTab,
+        setSelectedLogIndex,
+        setStatus
+      ]);
       reactExports.useEffect(() => {
         if (sampleId && filteredSamples) {
           const targetEpoch = epoch ? parseInt(epoch, 10) : void 0;
