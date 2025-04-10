@@ -2,6 +2,7 @@
 
 - Tools: Restore formerly required (but now deprecated) `type` field to `ToolCall`.
 - Approval: Raise operator limit exceeded error for tool approval termination action.
+- Anthropic: Don't include side count of `reasoning_tokens` in `total_tokens` (they are already included).
 
 ## v0.3.87 (10 April 2025)
 
