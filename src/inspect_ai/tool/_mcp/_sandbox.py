@@ -40,15 +40,13 @@ async def sandbox_client(
     read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
 
-    # TODO: Do the standard session creation code here
-    server_id = str(uuid.uuid4())
     sandbox_environment = FakeSandbox()
 
-    await exec_sandbox_rpc(
+    session_id = await exec_sandbox_rpc(
         sandbox=sandbox_environment,
         method="mcp_launch_server",
-        params={"session_id": server_id, "server_params": server.model_dump()},
-        result_cls=str,
+        params={"server_params": server.model_dump()},
+        result_cls=int,
     )
 
     async def stdout_reader() -> None:
@@ -68,7 +66,7 @@ async def sandbox_client(
                                 await exec_sandbox_rpc(
                                     sandbox=sandbox_environment,
                                     method="mcp_send_request",
-                                    params={"session_id": server_id, "request": root},
+                                    params={"session_id": session_id, "request": root},
                                     result_cls=JSONRPCResponse,
                                 )
                             )
@@ -77,7 +75,7 @@ async def sandbox_client(
                         await exec_sandbox_rpc(
                             sandbox=sandbox_environment,
                             method="mcp_send_notification",
-                            params={"session_id": server_id, "notification": root},
+                            params={"session_id": session_id, "notification": root},
                             result_cls=str,
                         )
                     else:
@@ -96,6 +94,6 @@ async def sandbox_client(
             await exec_sandbox_rpc(
                 sandbox=sandbox_environment,
                 method="mcp_kill_server",
-                params={"session_id": server_id},
+                params={"session_id": session_id},
                 result_cls=str,
             )

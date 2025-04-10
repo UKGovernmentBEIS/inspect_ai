@@ -4,11 +4,11 @@ from pydantic import BaseModel
 
 
 class McpBaseParams(BaseModel):
-    session_id: str
+    session_id: int
     """This is the id the represents the MCP session - which also correlates to a process instance."""
 
 
-class LaunchServerParams(McpBaseParams):
+class LaunchServerParams(BaseModel):
     server_params: StdioServerParameters
 
 

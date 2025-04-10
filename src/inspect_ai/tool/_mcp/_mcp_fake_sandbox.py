@@ -9,7 +9,7 @@ from ._mcp_json_rpc_methods import (
     mcp_send_request,
 )
 
-StrOrModelT = TypeVar("StrOrModelT", bound=str | BaseModel)
+StrIntOrModelT = TypeVar("StrIntOrModelT", bound=str | int | BaseModel)
 
 
 class FakeSandbox:
@@ -20,9 +20,9 @@ async def exec_sandbox_rpc(
     sandbox: FakeSandbox,
     method: str,
     params: dict[str, object] | tuple[object, ...],
-    result_cls: Type[StrOrModelT],
+    result_cls: Type[StrIntOrModelT],
     timeout: int | None = None,
-) -> StrOrModelT:
+) -> StrIntOrModelT:
     assert isinstance(params, dict)
     match method:
         case "mcp_launch_server":

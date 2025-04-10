@@ -1,6 +1,8 @@
+from itertools import count
+
 from mcp import JSONRPCError, JSONRPCResponse
 
-from ._mcp_controller import MCPController
+from ._mcp_server_session import MCPServerSession
 from ._mcp_types import (
     KillServerParams,
     LaunchServerParams,
@@ -8,20 +10,30 @@ from ._mcp_types import (
     SendRequestParams,
 )
 
-controller = MCPController()
+sessions = dict[int, MCPServerSession]()
+id_generator = count()
 
 
-async def mcp_launch_server(**params: object) -> None:
-    await controller.launch_server(LaunchServerParams.model_validate(params))
+async def mcp_launch_server(**params: object) -> int:
+    validated = LaunchServerParams.model_validate(params)
+    session_id = next(id_generator)
+    sessions[session_id] = await MCPServerSession.create(validated.server_params)
+    return session_id
 
 
 async def mcp_kill_server(**params: object) -> None:
-    await controller.kill_server(KillServerParams.model_validate(params))
+    validated = KillServerParams.model_validate(params)
+    session = sessions.pop(validated.session_id)
+    # TODO: timeout
+    timeout = 666
+    await session.terminate(timeout=timeout)
 
 
 async def mcp_send_request(**params: object) -> JSONRPCResponse | JSONRPCError:
-    return await controller.send_request(SendRequestParams.model_validate(params))
+    validated = SendRequestParams.model_validate(params)
+    return await sessions[validated.session_id].send_request(validated.request)
 
 
 async def mcp_send_notification(**params: object) -> None:
-    await controller.send_notification(SendNotificationParams.model_validate(params))
+    validated = SendNotificationParams.model_validate(params)
+    await sessions[validated.session_id].send_notification(validated.notification)

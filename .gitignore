@@ -180,3 +180,5 @@ node_modules/
 /.luarc.json
 /.Rproj.user
 *.Rproj
+
+**/CLAUDE.local.md
