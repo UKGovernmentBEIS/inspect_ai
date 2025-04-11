@@ -3,6 +3,7 @@ from textwrap import dedent
 
 import anyio
 import pytest
+from tests.test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.solver import Generate, Solver, TaskState, solver
@@ -11,6 +12,7 @@ from inspect_ai.util._sandbox.service import sandbox_service
 
 
 @pytest.mark.slow
+@skip_if_no_docker
 @pytest.mark.parametrize("user", ["root", "nonroot", None])
 def test_sandbox_service(user: str | None):
     log = eval(
