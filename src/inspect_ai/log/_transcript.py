@@ -123,6 +123,9 @@ class ModelEvent(BaseEvent):
     model: str
     """Model name."""
 
+    role: str | None = Field(default=None)
+    """Model role."""
+
     input: list[ChatMessage]
     """Model input (list of messages)."""
 

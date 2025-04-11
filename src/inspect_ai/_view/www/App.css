@@ -31,6 +31,7 @@
   --inspect-font-size-base: 0.9rem;
   --inspect-font-size-small: 0.8rem;
   --inspect-font-size-smaller: 0.8rem;
+  --inspect-font-size-smallest: 0.7rem;
 
   /* Inspect Glass */
   --inspect-glass-color: #000000;
@@ -111,6 +112,10 @@ body[class^="vscode-"] .app-main-grid {
 
 .text-size-smaller {
   font-size: var(--inspect-font-size-smaller);
+}
+
+.text-size-smallest {
+  font-size: var(--inspect-font-size-smallest);
 }
 
 .text-truncate {

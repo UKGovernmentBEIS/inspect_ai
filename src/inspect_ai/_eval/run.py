@@ -199,6 +199,7 @@ async def eval_run(
                     solver=eval_solver_spec,
                     tags=tags,
                     model=resolved_task.model,
+                    model_roles=resolved_task.model_roles,
                     dataset=task.dataset,
                     scorer=eval_scorer_specs,
                     metrics=eval_metrics,
@@ -217,6 +218,7 @@ async def eval_run(
                     TaskRunOptions(
                         task=task,
                         model=resolved_task.model,
+                        model_roles=resolved_task.model_roles,
                         sandbox=resolved_task.sandbox,
                         logger=logger,
                         eval_wd=eval_wd,

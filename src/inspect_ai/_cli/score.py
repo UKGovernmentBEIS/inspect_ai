@@ -11,13 +11,12 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_config
 from inspect_ai._display import display
 from inspect_ai._display.core.rich import rich_theme
-from inspect_ai._eval.context import init_eval_context, init_task_context
+from inspect_ai._eval.context import init_eval_context
 from inspect_ai._eval.score import ScoreAction, task_score
 from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.file import basename, dirname, exists
 from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders import create_recorder_for_location
-from inspect_ai.model import get_model
 
 from .common import CommonOptions, common_options, process_common_options
 
@@ -108,16 +107,6 @@ async def score(
     # check that there are samples therein
     if eval_log.samples is None or len(eval_log.samples) == 0:
         raise ValueError(f"{log_file} does not include samples to score")
-
-    # get the model then initialize the async context
-    model = get_model(
-        model=eval_log.eval.model,
-        config=eval_log.plan.config,
-        **eval_log.eval.model_args,
-    )
-
-    # initialize active model
-    init_task_context(model)
 
     # re-score the task
     eval_log = await task_score(
