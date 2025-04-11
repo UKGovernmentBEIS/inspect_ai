@@ -1,6 +1,5 @@
 from importlib import metadata as importlib_metadata
-from inspect import isgenerator
-from typing import Any, Iterator, Literal, cast
+from typing import Any, Literal, cast
 
 from shortuuid import uuid
 
@@ -34,6 +33,7 @@ from inspect_ai.log._log import (
     EvalScorer,
     eval_config_defaults,
 )
+from inspect_ai.log._model import model_args_for_log, model_roles_to_model_roles_config
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent, SampleSummary
@@ -63,6 +63,7 @@ class TaskLogger:
         solver: SolverSpec | None,
         tags: list[str] | None,
         model: Model,
+        model_roles: dict[str, Model] | None,
         dataset: Dataset,
         scorer: list[ScorerSpec] | None,
         metrics: list[MetricSpec] | dict[str, list[MetricSpec]] | None,
@@ -84,17 +85,7 @@ class TaskLogger:
         packages = {PKG_NAME: importlib_metadata.version(PKG_NAME)}
 
         # redact authentication oriented model_args
-        model_args = model_args.copy()
-        if "api_key" in model_args:
-            del model_args["api_key"]
-        model_args = {k: v for k, v in model_args.items() if not k.startswith("aws_")}
-
-        # don't try to serialise generators
-        model_args = {
-            k: v
-            for k, v in model_args.items()
-            if not isgenerator(v) and not isinstance(v, Iterator)
-        }
+        model_args = model_args_for_log(model_args)
 
         # cwd_relative_path for sandbox config
         if sandbox and isinstance(sandbox.config, str):
@@ -141,6 +132,7 @@ class TaskLogger:
             model=str(ModelName(model)),
             model_generate_config=model.config,
             model_base_url=model.api.base_url,
+            model_roles=model_roles_to_model_roles_config(model_roles),
             dataset=EvalDataset(
                 name=dataset.name,
                 location=cwd_relative_path(dataset.location),

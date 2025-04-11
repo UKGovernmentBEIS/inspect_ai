@@ -121,6 +121,7 @@ SAMPLE_TOTAL_PROGRESS_UNITS = 1
 class TaskRunOptions:
     task: Task
     model: Model
+    model_roles: dict[str, Model] | None
     sandbox: SandboxEnvironmentSpec | None
     logger: TaskLogger
     eval_wd: str
@@ -137,6 +138,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     # destructure options
     task = options.task
     model = options.model
+    model_roles = options.model_roles
     sandbox = options.sandbox
     logger = options.logger
     eval_wd = options.eval_wd
@@ -151,7 +153,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
     # init task context
-    init_task_context(model, options.task.approval, generate_config)
+    init_task_context(model, model_roles, options.task.approval, generate_config)
 
     # establish chdir for duration of execution (if a task has chdir=True)
     with set_task_chdir(task):

@@ -281,6 +281,7 @@ class Model:
         self.api = api
         self.config = config
         self.model_args = model_args
+        self._role: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -321,6 +322,14 @@ class Model:
     def name(self) -> str:
         """Model name."""
         return self.api.model_name
+
+    @property
+    def role(self) -> str | None:
+        """Model role."""
+        return self._role
+
+    def _set_role(self, role: str) -> None:
+        self._role = role
 
     def __str__(self) -> str:
         return f"{ModelName(self)}"
@@ -758,6 +767,7 @@ class Model:
         model = str(self)
         event = ModelEvent(
             model=model,
+            role=self.role,
             input=input,
             tools=tools,
             tool_choice=tool_choice,
@@ -848,6 +858,9 @@ class ModelName:
 
 def get_model(
     model: str | Model | None = None,
+    *,
+    role: str | None = None,
+    default: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
     api_key: str | None = None,
@@ -878,6 +891,11 @@ def get_model(
           if `None` is passed then the model currently being
           evaluated is returned (or if there is no evaluation
           then the model referred to by `INSPECT_EVAL_MODEL`).
+       role: Optional named role for model (e.g. for roles specified
+          at the task or eval level). Provide a `default` as a fallback
+          in the case where the `role` hasn't been externally specified.
+       default: Optional. Fallback model in case the specified
+          `model` or `role` is not found.
        config: Configuration for model.
        base_url: Optional. Alternate base URL for model.
        api_key: Optional. API key for model.
@@ -897,6 +915,22 @@ def get_model(
     # next see if this is the special "none" model
     if model == "none":
         model = "none/none"
+
+    # resolve model role
+    if role is not None:
+        model_for_role = model_roles().get(role, None)
+        if model_for_role is not None:
+            return model_for_role
+
+    # if a default was specified then use it as the model if
+    # no model was passed
+    if model is None:
+        if isinstance(default, Model):
+            if role is not None:
+                default._set_role(role)
+            return default
+        else:
+            model = default
 
     # now try finding an 'ambient' model (active or env var)
     if model is None:
@@ -921,6 +955,7 @@ def get_model(
     if memoize:
         model_cache_key = (
             model
+            + str(role)
             + config.model_dump_json(exclude_none=True)
             + str(base_url)
             + str(api_key)
@@ -961,10 +996,11 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config, model_args)
+        if role is not None:
+            m._set_role(role)
         if memoize:
             _models[model_cache_key] = m
         return m
-
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
@@ -1373,10 +1409,20 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
-# shared contexts for asyncio tasks
+def init_model_roles(roles: dict[str, Model]) -> None:
+    _model_roles.set(roles)
+
+
+def model_roles() -> dict[str, Model]:
+    return _model_roles.get()
+
+
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
+_model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={})
 
+
+# shared contexts for asyncio tasks
 def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import (
         active_sample_message_limit,

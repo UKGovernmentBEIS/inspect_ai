@@ -54,6 +54,7 @@ class Task:
         metrics: list[Metric] | dict[str, list[Metric]] | None = None,
         model: str | Model | None = None,
         config: GenerateConfig = GenerateConfig(),
+        model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
         approval: str | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
@@ -79,7 +80,8 @@ class Task:
             scorer: Scorer used to evaluate model output.
             metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
             model: Default model for task (Optional, defaults to eval model).
-            config: Model generation config.
+            config: Model generation config for default model (does not apply to model roles)
+            model_roles: Named roles for use in `get_model()`.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
             approval: Tool use approval policies.
                 Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.
@@ -136,6 +138,7 @@ class Task:
         self.metrics = metrics
         self.model = resolve_model(model)
         self.config = config
+        self.model_roles = resolve_model_roles(model_roles)
         self.sandbox = resolve_sandbox_environment(sandbox)
         self.approval = resolve_approval(approval)
         epochs = resolve_epochs(epochs)
@@ -185,6 +188,7 @@ def task_with(
     metrics: list[Metric] | dict[str, list[Metric]] | None | NotGiven = NOT_GIVEN,
     model: str | Model | NotGiven = NOT_GIVEN,
     config: GenerateConfig | NotGiven = NOT_GIVEN,
+    model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
     approval: str | list[ApprovalPolicy] | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
@@ -214,7 +218,8 @@ def task_with(
         scorer: Scorer used to evaluate model output.
         metrics: Alternative metrics (overrides the metrics provided by the specified scorer).
         model: Default model for task (Optional, defaults to eval model).
-        config: Model generation config.
+        config: Model generation config for default model (does not apply to model roles)
+        model_roles: Named roles for use in `get_model()`.
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         approval: Tool use approval policies.
             Either a path to an approval policy config file or a list of approval policies. Defaults to no approval policy.
@@ -257,6 +262,8 @@ def task_with(
         task.model = resolve_model(model)
     if not isinstance(config, NotGiven):
         task.config = config
+    if not isinstance(model_roles, NotGiven):
+        task.model_roles = resolve_model_roles(model_roles)
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
     if not isinstance(approval, NotGiven):
@@ -315,6 +322,7 @@ class PreviousTask:
     task: str | Task
     task_args: dict[str, Any]
     model: Model | None
+    model_roles: dict[str, Model] | None
     log: EvalLog
 
 
@@ -363,6 +371,21 @@ def resolve_model(model: str | Model | None) -> Model | None:
         return get_model(model)
     else:
         return model
+
+
+def resolve_model_roles(
+    model_roles: dict[str, str | Model] | None,
+) -> dict[str, Model] | None:
+    if model_roles is not None:
+        resolved_model_roles = {
+            k: get_model(v, memoize=False) if isinstance(v, str) else v
+            for k, v in model_roles.items()
+        }
+        for k, v in resolved_model_roles.items():
+            v._set_role(k)
+        return resolved_model_roles
+    else:
+        return None
 
 
 def resolve_scorer(scorer: Scorer | list[Scorer] | None) -> list[Scorer] | None:

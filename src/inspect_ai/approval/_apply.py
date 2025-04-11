@@ -2,6 +2,7 @@ from contextvars import ContextVar
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai.approval._approval import Approval
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallContent,
@@ -14,10 +15,11 @@ from ._policy import ApprovalPolicy, policy_approver
 
 
 async def apply_tool_approval(
-    message: str, call: ToolCall, viewer: ToolCallViewer | None
+    message: str,
+    call: ToolCall,
+    viewer: ToolCallViewer | None,
+    history: list[ChatMessage],
 ) -> tuple[bool, Approval | None]:
-    from inspect_ai.solver._task_state import sample_state
-
     approver = _tool_approver.get(None)
     if approver:
         # resolve view
@@ -28,15 +30,12 @@ async def apply_tool_approval(
         else:
             view = default_tool_call_viewer(call)
 
-        # current sample state
-        state = sample_state()
-
         # call approver
         approval = await approver(
             message=message,
             call=call,
             view=view,
-            state=state,
+            history=history,
         )
 
         # process decision
@@ -46,8 +45,6 @@ async def apply_tool_approval(
             case "reject":
                 return False, approval
             case "terminate":
-                if state:
-                    state.completed = True
                 return False, approval
             case "escalate":
                 raise RuntimeError("Unexpected 'escalate' from policy approver.")

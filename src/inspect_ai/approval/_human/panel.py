@@ -10,7 +10,7 @@ from textual.widgets import Button, Static
 from typing_extensions import override
 
 from inspect_ai._util.registry import registry_unqualified_name
-from inspect_ai.solver._task_state import TaskState
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._panel import InputPanel, input_panel
 
@@ -29,7 +29,7 @@ async def panel_approval(
     message: str,
     call: ToolCall,
     view: ToolCallView,
-    state: TaskState | None,
+    history: list[ChatMessage],
     choices: list[ApprovalDecision],
 ) -> Approval:
     # ensure the approvals panel is shown
@@ -39,7 +39,7 @@ async def panel_approval(
     approvals = human_approval_manager()
     id = approvals.request_approval(
         ApprovalRequest(
-            message=message, call=call, view=view, state=state, choices=choices
+            message=message, call=call, view=view, history=history, choices=choices
         )
     )
     try:

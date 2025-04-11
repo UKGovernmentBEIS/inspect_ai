@@ -13,6 +13,7 @@ class ResolvedTask:
     task_args: dict[str, Any]
     task_file: str | None
     model: Model
+    model_roles: dict[str, Model] | None
     sandbox: SandboxEnvironmentSpec | None
     sequence: int
     id: str | None = field(default=None)
