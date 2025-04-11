@@ -252,7 +252,7 @@ def eval_set(
         raise RuntimeError("eval_set cannot be used with conversation display.")
 
     # initialize eval
-    models, _ = eval_init(
+    models = eval_init(
         model=model,
         model_base_url=model_base_url,
         model_args=model_args,
@@ -307,8 +307,14 @@ def eval_set(
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
         # resolve tasks
-        resolved_tasks = eval_resolve_tasks(
-            tasks, task_args, models, model_roles, GenerateConfig(**kwargs), sandbox
+        resolved_tasks, _ = eval_resolve_tasks(
+            tasks,
+            task_args,
+            models,
+            model_roles,
+            GenerateConfig(**kwargs),
+            approval,
+            sandbox,
         )
 
         # list all logs currently in the log directory (update manifest if there are some)

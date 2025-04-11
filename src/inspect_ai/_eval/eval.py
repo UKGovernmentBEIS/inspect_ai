@@ -362,11 +362,10 @@ async def eval_async(
 
     try:
         # intialise eval
-        model, approval = eval_init(
+        model = eval_init(
             model=model,
             model_base_url=model_base_url,
             model_args=model_args,
-            approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -374,8 +373,14 @@ async def eval_async(
         )
 
         # resolve tasks
-        resolved_tasks = eval_resolve_tasks(
-            tasks, task_args, model, model_roles, GenerateConfig(**kwargs), sandbox
+        resolved_tasks, approval = eval_resolve_tasks(
+            tasks,
+            task_args,
+            model,
+            model_roles,
+            GenerateConfig(**kwargs),
+            approval,
+            sandbox,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -877,12 +882,11 @@ def eval_init(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
-) -> tuple[list[Model], list[ApprovalPolicy] | None]:
+) -> list[Model]:
     # init eval context
     init_eval_context(log_level, log_level_transcript, max_subprocesses)
 
@@ -896,16 +900,10 @@ def eval_init(
             args = [arg.strip() for arg in env_model_args.split(" ")]
             model_args = parse_cli_args(args)
 
-    # resolve models
+    # resolve and return models
     generate_config = GenerateConfig(**kwargs)
     models = resolve_models(model, model_base_url, model_args, generate_config)
-
-    # resolve approval
-    if isinstance(approval, str | ApprovalPolicyConfig):
-        approval = approval_policies_from_config(approval)
-    init_tool_approval(approval)
-
-    return models, approval
+    return models
 
 
 def eval_resolve_tasks(
@@ -914,8 +912,9 @@ def eval_resolve_tasks(
     models: list[Model],
     model_roles: dict[str, str | Model] | None,
     config: GenerateConfig,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
-) -> list[ResolvedTask]:
+) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     resolved_model_roles = resolve_model_roles(model_roles)
     task_args = resolve_args(task_args)
     with task_display().suspend_task_app():
@@ -925,7 +924,13 @@ def eval_resolve_tasks(
             resolved_tasks.extend(
                 resolve_tasks(tasks, task_args, m, resolved_model_roles, sandbox)
             )
-        return resolved_tasks
+
+    if isinstance(approval, str | ApprovalPolicyConfig):
+        approval = approval_policies_from_config(approval)
+    init_tool_approval(approval)
+
+    # return tasks and approval
+    return resolved_tasks, approval
 
 
 def init_eval_display(
