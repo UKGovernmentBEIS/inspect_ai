@@ -1,4 +1,5 @@
 from inspect_ai._util.trace import trace_action, trace_message
+from inspect_ai.util._limit import Limit, LimitExceededError, token_limit
 
 from ._concurrency import concurrency
 from ._console import input_screen
@@ -41,9 +42,11 @@ __all__ = [
     "JSONType",
     "JSONSchema",
     "json_schema",
+    "Limit",
     "OutputLimitExceededError",
     "resource",
     "subprocess",
+    "LimitExceededError",
     "SandboxEnvironment",
     "SandboxEnvironmentConfigType",
     "SandboxEnvironmentLimits",
@@ -62,6 +65,7 @@ __all__ = [
     "Subtask",
     "subtask",
     "throttle",
+    "token_limit",
     "trace_action",
     "trace_message",
 ]

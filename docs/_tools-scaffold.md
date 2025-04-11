@@ -31,8 +31,8 @@ def agent_loop(message_limit: int = 50):
                     state.messages.extend(call_tools(output.message, state.tools))
                 else:
                     break
-        except SampleLimitExceededError as ex:
-            raise ex.with_state(state)
+        except LimitExceededError as ex:
+            raise ex.with_conversation(state)
 
         return state
 

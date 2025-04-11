@@ -177,31 +177,55 @@ def intercode_ctf():
     )
 ```
 
-As with `message_limit`, it's also possible for a solver to set the `token_limit` directly on the `TaskState`:
+### Context Manager
+
+::: callout-note
+The `token_limit()` context manager described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+It's also possible for solvers, scorers or agents to limit their token usage, independently of the sample token limit:
 
 ``` python
 @solver
-def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
+def agent_loop(tokens: int = (1024 * 500)) -> Solver:
     async def solve(state: TaskState, generate: Generate):
 
         # establish token limit so we have a termination condition
-        state.token_limit = token_limit
-
-        ...
+        with token_limit(tokens):
+            while True:
+                # a LimitExceededError will be raised if the limit is breached
+                ...
 ```
 
 ::: {.callout-important}
-It's important to note that the `token_limit` is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
+It's important to note that `Task.token_limit` is for all tokens used within the execution of a sample and `token_limit()` is for all tokens used within the sample _while the context manager is open_. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 :::
+
+The context managers returned by `token_limit` can be stacked:
+
+``` python
+@solver
+def agent_loop() -> Solver:
+    async def solve(state: TaskState, generate: Generate):
+
+        with token_limit(1024 * 500):
+            ...
+            with token_limit(1024 * 10):
+                ...
+```
 
 ### Custom Limit
 
-When limits are exceeded, a `SampleLimitExceededError` is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a `SampleLimitExceededError` as follows:
+When limits are exceeded, a `LimitExceededError` is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a `LimitExceededError` as follows:
 
 ```python
-from inspect_ai.solver import SampleLimitExceededError
+from inspect_ai.util import LimitExceededError
 
-raise SampleLimitExceededError(
+raise LimitExceededError(
     "custom", 
     value=value,
     limit=limit,
