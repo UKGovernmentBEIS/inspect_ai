@@ -316,6 +316,10 @@ class TaskState:
         """Set limit on total messages allowed per conversation."""
         self._message_limit.limit = messages
 
+        from inspect_ai.log._samples import set_active_sample_message_limit
+
+        set_active_sample_message_limit(messages)
+
     @property
     def token_limit(self) -> int | None:
         """Limit on total tokens allowed per conversation."""
@@ -351,7 +355,7 @@ class TaskState:
         else:
             try:
                 check_token_limit()
-                check_message_limit()
+                check_message_limit(len(self.messages))
             except LimitExceededError as ex:
                 raise ex.with_conversation(self)
             check_sample_interrupt()
@@ -450,19 +454,8 @@ class ChatMessageList(list[ChatMessage]):
         super().__init__(items)
 
     def _check_size(self, additional_items: int = 1) -> None:
-        from inspect_ai.log._samples import active_sample_message_limit
-
-        messages_limit = active_sample_message_limit()
-        if messages_limit is not None:
-            messages = len(self) + additional_items
-            if messages > messages_limit:
-                raise LimitExceededError(
-                    "message",
-                    value=messages,
-                    limit=messages_limit,
-                    message=None,
-                    conversation=self.parent_state,
-                )
+        # TODO: Why is additional_items always 1?
+        check_message_limit(len(self) + additional_items)
 
     def append(self, item: ChatMessage) -> None:
         self._check_size()

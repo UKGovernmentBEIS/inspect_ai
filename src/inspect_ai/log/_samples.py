@@ -135,6 +135,12 @@ def active_sample_message_limit() -> int | None:
         return None
 
 
+def set_active_sample_message_limit(message_limit: int | None) -> None:
+    active = sample_active()
+    if active:
+        active.message_limit = message_limit
+
+
 def set_active_sample_total_messages(total_messages: int) -> None:
     active = sample_active()
     if active:

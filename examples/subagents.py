@@ -1,4 +1,5 @@
 import asyncio
+
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import exact
@@ -14,7 +15,9 @@ def my_solver():
     async def solve(state: TaskState, generate: Generate):
         await generate(state)
 
-        await fork(state, [inner_fork() for _ in range(3)])
+        results = await fork(state, [inner_fork() for _ in range(3)])
+
+        print(results)
 
         return state
 
