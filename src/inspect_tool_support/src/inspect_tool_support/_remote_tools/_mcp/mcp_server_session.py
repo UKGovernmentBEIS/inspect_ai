@@ -168,9 +168,9 @@ class MCPServerSession:
                         self._send_exception_somewhere(exc)
                         continue
 
-                    assert isinstance(
-                        message.root, JSONRPCResponse | JSONRPCError
-                    ), f"No unsolicited messages supported: {message}"
+                    assert isinstance(message.root, JSONRPCResponse | JSONRPCError), (
+                        f"No unsolicited messages supported: {message}"
+                    )
                     self._resolve_request(message.root)
 
         except asyncio.CancelledError:
