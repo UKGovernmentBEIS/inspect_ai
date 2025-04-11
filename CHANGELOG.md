@@ -2,6 +2,7 @@
 
 - [Model Roles](https://inspect.aisi.org.uk/models.html#model-roles) for creating aliases to models used in a task (e.g. "grader", "red_team", "blue_team", etc.)
 - Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
+- Bugfix: Correctly resolve approvers in the same source file as tasks. 
 
 ## v0.3.88 (11 April 2025)
 
