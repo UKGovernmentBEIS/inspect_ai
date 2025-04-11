@@ -1,0 +1,6 @@
+services:
+  default:
+    build:
+      context: .
+      dockerfile: human.Dockerfile
+    init: true

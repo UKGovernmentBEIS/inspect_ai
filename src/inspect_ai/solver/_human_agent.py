@@ -13,6 +13,7 @@ def human_agent(
     answer: bool | str = True,
     intermediate_scoring: bool = False,
     record_session: bool = True,
+    user: str | None = None,
 ) -> Solver:
     """Human solver for agentic tasks that run in a Linux environment.
 
@@ -32,6 +33,7 @@ def human_agent(
           that the answer matches the expected format.
        intermediate_scoring: Allow the human agent to check their score while working.
        record_session: Record all user commands and outputs in the sandbox bash session.
+       user: User to login as. Defaults to the sandbox environment's default user.
 
     Returns:
        Solver: Human agent solver.
@@ -48,5 +50,6 @@ def human_agent(
             answer=answer,
             intermediate_scoring=intermediate_scoring,
             record_session=record_session,
+            user=user,
         )
     )

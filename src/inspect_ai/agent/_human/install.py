@@ -17,7 +17,9 @@ RECORD_SESSION_DIR = "/var/tmp/user-sessions"
 
 
 async def install_human_agent(
-    commands: list[HumanAgentCommand], record_session: bool
+    user: str | None,
+    commands: list[HumanAgentCommand],
+    record_session: bool,
 ) -> None:
     # see if we have already installed
     if not (await sandbox().exec(["mkdir", HUMAN_AGENT_DIR])).success:
@@ -35,7 +37,7 @@ async def install_human_agent(
     await checked_write_file(f"{INSTALL_DIR}/{BASHRC}", bash_rc, executable=True)
 
     # write and run installation script
-    install_sh = human_agent_install_sh()
+    install_sh = human_agent_install_sh(user)
     await checked_write_file(f"{INSTALL_DIR}/{INSTALL_SH}", install_sh, executable=True)
     await checked_exec(["bash", f"./{INSTALL_SH}"], cwd=INSTALL_DIR)
     await checked_exec(["rm", "-rf", INSTALL_DIR])
@@ -177,8 +179,8 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     INSTRUCTIONS = dedent("""
     if [ -z "$INSTRUCTIONS_SHOWN" ]; then
         export INSTRUCTIONS_SHOWN=1
-        task instructions > instructions.txt
-        cat instructions.txt
+        task instructions > ~/instructions.txt
+        cat ~/instructions.txt
     fi
     """).lstrip()
 
@@ -190,7 +192,7 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, INSTRUCTIONS, CLOCK])
 
 
-def human_agent_install_sh() -> str:
+def human_agent_install_sh(user: str | None) -> str:
     return dedent(f"""
     #!/usr/bin/env bash
 
@@ -201,25 +203,36 @@ def human_agent_install_sh() -> str:
     # copy command script
     cp {TASK_PY} $HUMAN_AGENT
 
-    # append to .bashrc
-    cat {BASHRC} >> ~/{BASHRC}
+    # get user's home directory
+    USER="{user or ""}"
+    if [ -z "$USER" ]; then
+        USER=$(whoami)
+    fi
+    USER_HOME=$(getent passwd $USER | cut -d: -f6)
+
+    # append to user's .bashrc
+    cat {BASHRC} >> $USER_HOME/{BASHRC}
     """)
 
 
 async def checked_exec(
     cmd: list[str],
+    user: str | None = None,
     input: str | bytes | None = None,
     cwd: str | None = None,
 ) -> str:
-    result = await sandbox().exec(cmd, input=input, cwd=cwd)
+    result = await sandbox().exec(cmd, user=user, input=input, cwd=cwd)
     if not result.success:
         raise RuntimeError(f"Error executing command {' '.join(cmd)}: {result.stderr}")
     return result.stdout
 
 
 async def checked_write_file(
-    file: str, contents: str, executable: bool = False
+    file: str,
+    contents: str,
+    user: str | None = None,
+    executable: bool = False,
 ) -> None:
-    await checked_exec(["tee", "--", file], input=contents)
+    await checked_exec(["tee", "--", file], user=user, input=contents)
     if executable:
-        await checked_exec(["chmod", "+x", file])
+        await checked_exec(["chmod", "+x", file], user=user)
