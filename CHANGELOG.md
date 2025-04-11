@@ -2,7 +2,13 @@
 
 - [Model Roles](https://inspect.aisi.org.uk/models.html#model-roles) for creating aliases to models used in a task (e.g. "grader", "red_team", "blue_team", etc.)
 - Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
+
+## v0.3.88 (11 April 2025)
+
 - Tools: Restore formerly required (but now deprecated) `type` field to `ToolCall`.
+- Approval: Raise operator limit exceeded error for tool approval termination action.
+- Anthropic: Don't include side count of `reasoning_tokens` in `total_tokens` (they are already included).
+- Anthropic: Update string matching to correctly handle BadRequestErrors related to prompts being too long.
 
 ## v0.3.87 (10 April 2025)
 
