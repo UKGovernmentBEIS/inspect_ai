@@ -192,7 +192,7 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, INSTRUCTIONS, CLOCK])
 
 
-def human_agent_install_sh(user: str) -> str:
+def human_agent_install_sh(user: str | None) -> str:
     return dedent(f"""
     #!/usr/bin/env bash
 
@@ -204,7 +204,11 @@ def human_agent_install_sh(user: str) -> str:
     cp {TASK_PY} $HUMAN_AGENT
 
     # get user's home directory
-    USER_HOME=$(getent passwd {user} | cut -d: -f6)
+    USER="{user or ""}"
+    if [ -z "$USER" ]; then
+        USER=$(whoami)
+    fi
+    USER_HOME=$(getent passwd $USER | cut -d: -f6)
 
     # append to user's .bashrc
     cat {BASHRC} >> $USER_HOME/{BASHRC}

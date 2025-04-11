@@ -5,6 +5,6 @@ from inspect_ai.solver._human_agent import human_agent
 @task
 def human() -> Task:
     return Task(
-        solver=human_agent(user="nonroot"),
+        solver=human_agent(),
         sandbox=("docker", "compose.yaml"),
     )
