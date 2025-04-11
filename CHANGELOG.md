@@ -4,6 +4,7 @@
 - Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
 - Approval: Approvers now take `history` argument (rather than `TaskState`) to better handle agent conversation state.
 - Bugfix: Correctly resolve approvers in the same source file as tasks. 
+- Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
 
 ## v0.3.88 (11 April 2025)
 
