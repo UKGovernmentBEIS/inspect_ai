@@ -157,6 +157,8 @@ def agent_loop(message_limit: int = 50):
 
 Message limits are checked whenever you call `generate()` on the main model being evaluated. The `message_limit` is compared to the number of messages passed in `input` parameter to `generate()`.
 
+TODO: Add note on the fact that we will raise LimitExceededError if we're at capacity and about to do another generate().
+
 ### Token Limit
 
 Here we set a `token_limit` of 500K for each sample within a task:

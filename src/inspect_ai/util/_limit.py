@@ -278,7 +278,7 @@ class _LimitValueWrapper:
         self.value = value
 
 
-T = TypeVar("T")
+# T = TypeVar("T")
 
 
 # class _LimitNode(abc.ABC, Generic[T]):
