@@ -1,0 +1,6 @@
+services:
+  default:
+    build:
+      context: .
+      dockerfile: sandbox-service.Dockerfile
+    init: true
