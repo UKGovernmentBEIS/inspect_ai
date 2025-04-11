@@ -68,11 +68,11 @@ def appending_solver():
 
 
 @solver
-def overwriting_solver(messages: int):
+def overwriting_solver():
     async def solve(state: TaskState, generate: Generate):
-        state.messages = [
-            ChatMessageUser(content="message") for _ in range(0, messages)
-        ]
+        # keep overwriting with an increasing number of messages until we hit a limit
+        while True:
+            state.messages = state.messages + [ChatMessageUser(content="message")]
 
         return state
 
@@ -137,19 +137,7 @@ def test_message_limit_append():
 
 
 def test_message_limit_overwrite():
-    message_limit = randint(1, 3) * 2
-    task = Task(
-        dataset=[Sample(input="Say Hello", target="Hello")],
-        solver=overwriting_solver(10),
-        scorer=match(),
-        message_limit=message_limit,
-    )
-
-    log = eval(task, model="mockllm/model")[0]
-    assert log.samples
-    # The overwriting solver should have been blocked by the message limit.
-    assert len(log.samples[0].messages) == 1
-    check_limit_event(log, "message")
+    check_message_limit(overwriting_solver())
 
 
 def test_message_limit_reached_before_assistant_message():
