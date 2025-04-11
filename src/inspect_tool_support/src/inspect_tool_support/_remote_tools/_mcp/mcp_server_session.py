@@ -61,9 +61,9 @@ class MCPServerSession:
         self._assert_not_terminated()
 
         request_id = request.id
-        assert (
-            request_id not in self._requests
-        ), f"Request with id {request_id} already exists"
+        assert request_id not in self._requests, (
+            f"Request with id {request_id} already exists"
+        )
         future = asyncio.Future[JSONRPCResponse | JSONRPCError]()
         self._requests[request_id] = future
 
@@ -162,9 +162,9 @@ class MCPServerSession:
                         self._send_exception_somewhere(exc)
                         continue
 
-                    assert isinstance(
-                        message.root, JSONRPCResponse | JSONRPCError
-                    ), f"No unsolicited messages supported: {message}"
+                    assert isinstance(message.root, JSONRPCResponse | JSONRPCError), (
+                        f"No unsolicited messages supported: {message}"
+                    )
                     self._resolve_request(message.root)
 
         except asyncio.CancelledError:
