@@ -1,5 +1,6 @@
 from copy import copy, deepcopy
 from functools import wraps
+from inspect import signature
 from typing import (
     Any,
     Callable,
@@ -7,6 +8,7 @@ from typing import (
     Protocol,
     TypeGuard,
     cast,
+    get_type_hints,
     overload,
     runtime_checkable,
 )
@@ -188,6 +190,16 @@ def agent(
                 **kwargs,
             )
             return agent
+
+        # If a user's code runs "from __future__ import annotations", all type annotations are stored as strings,
+        # which can break introspection-based mechanisms (like inspecting a function’s signature).
+        # The following two lines resolve these string annotations using the original function's globals,
+        # ensuring that any forward references (e.g., "Agent") are evaluated to their actual types,
+        # and then reassign the original function's signature to the wrapper.
+        agent_wrapper.__annotations__ = get_type_hints(
+            agent_wrapper, agent_type.__globals__
+        )
+        agent_wrapper.__signature__ = signature(agent_type)  # type: ignore[attr-defined]
 
         # register
         return agent_register(cast(Callable[P, Agent], agent_wrapper), agent_name)
