@@ -3,7 +3,7 @@ from textwrap import dedent
 
 import anyio
 import pytest
-from tests.test_helpers.utils import skip_if_no_docker
+from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval
 from inspect_ai.solver import Generate, Solver, TaskState, solver
