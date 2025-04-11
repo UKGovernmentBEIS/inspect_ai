@@ -496,7 +496,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         return Approval(
             decision=decision, 

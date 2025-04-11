@@ -17,13 +17,12 @@ providers is built in to Inspect:
 If the provider you are using is not listed above, you may still be able
 to use it if:
 
-1.  It is available via OpenRouter (see the docs on using
-    [OpenRouter](providers.qmd#openrouter) with Inspect).
+1.  It provides an OpenAI compatible API endpoint. In this scenario, use
+    the Inspect [OpenAI Compatible API](providers.qmd#openai-api)
+    interface.
 
-2.  It provides an OpenAI compatible API endpoint. In this scenario, use
-    the Inspect [OpenAI](providers.qmd#openai) interface and set the
-    `OPENAI_BASE_URL` environment variable to the apprpriate value for
-    your provider.
+2.  It is available via OpenRouter (see the docs on using
+    [OpenRouter](providers.qmd#openrouter) with Inspect).
 
 You can also create [Model API Extensions](extensions.qmd#model-apis) to
 add model providers using their native interface.
@@ -643,14 +642,15 @@ $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 ### vLLM Server
 
 vLLM provides an HTTP server that implements OpenAI’s Chat API. To use
-this with Inspect, use the `openai` provider rather than the `vllm`
-provider, setting the model base URL to point to the vLLM server rather
-than OpenAI. For example:
+this with Inspect, use the `openai-api` provider rather than the `vllm`
+provider, setting the model base URL to point to the vLLM server. For
+example:
 
 ``` bash
-$ export OPENAI_BASE_URL=http://localhost:8080/v1
-$ export OPENAI_API_KEY=<your-server-api-key>
-$ inspect eval arc.py --model openai/meta-llama/Meta-Llama-3-8B-Instruct
+$ export VLLM_BASE_URL=http://localhost:8080/v1
+$ export VLLM_API_KEY=<your-server-api-key>
+$ inspect eval arc.py \
+    --model openai-api/vllm/meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
 See the vLLM documentation on [Server
@@ -700,6 +700,45 @@ llama-cpp-python provider
 | Variable | Description |
 |----|----|
 | `LLAMA_CPP_PYTHON_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:8000/v1`) |
+
+## OpenAI Compatible
+
+> [!NOTE]
+>
+> The `openai-api` provider described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+If your model provider makes an OpenAI API compatible endpoint
+available, you can use it with Inspect via the `openai-api` provider,
+which uses the following model naming convention:
+
+    openai-api/<provider-name>/<model-name>
+
+Inspect will read environment variables corresponding to the api key and
+base url of your provider using the following convention (note that the
+provider name is capitalized):
+
+    <PROVIDER-NAME>_API_KEY
+    <PROVIDER-NAME>_BASE_URL
+
+### Example
+
+Together already has it’s own Inspect provider but is still useful for
+purposes of demonstrating the `openai-api` provider since it implements
+an OpenAI compatible endpoint. Here’s how you would interface with
+Together using the `openai-api` provider:
+
+``` bash
+TOGETHER_API_KEY=<your-together-api-key>
+TOGETHER_BASE_URL=https://api.together.xyz/v1
+inspect eval arc.py \
+   --model openai-api/together/deepseek-ai/DeepSeek-R1
+```
 
 ## OpenRouter
 
