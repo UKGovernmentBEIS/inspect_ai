@@ -23,7 +23,7 @@ def my_solver():
 @solver
 def inner_fork():
     async def solve(state: TaskState, generate: Generate):
-        with message_limit(4):
+        with message_limit(2):
             await generate(state)
             await generate(state)
             await generate(state)
