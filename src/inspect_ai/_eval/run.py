@@ -361,12 +361,21 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                         f"task: {task_options.task.name} ({task_options.model})",
                     ):
                         async with anyio.create_task_group() as tg:
+                            # Create a factory function that captures the current
+                            # task_options. Otherwise, we suffer from Python's
+                            # late/by reference binding behavior.
+                            # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
+                            def create_task_runner(
+                                options: TaskRunOptions = task_options,
+                            ) -> Callable[[], Awaitable[None]]:
+                                async def run_task() -> None:
+                                    nonlocal result
+                                    result = await task_run(options)
+                                    results.append(result)
 
-                            async def run_task() -> None:
-                                result = await task_run(task_options)
-                                results.append(result)
+                                return run_task
 
-                            tg.start_soon(run_task)
+                            tg.start_soon(create_task_runner())
 
                 except Exception as ex:
                     # errors generally don't escape from tasks (the exception being if an error

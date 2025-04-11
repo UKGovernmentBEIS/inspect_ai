@@ -234,9 +234,15 @@ def validate_tool_parameters(tool_name: str, parameters: dict[str, ToolParam]) -
     # validate that we have types/descriptions for paramters
     for param_name, param in parameters.items():
 
-        def raise_not_provided_error(context: str) -> None:
+        def raise_not_provided_error(
+            context: str,
+            # Use the default value trick to avoid Python's late binding of
+            # closures issue.
+            # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
+            bound_name: str = param_name,
+        ) -> None:
             raise ValueError(
-                f"{context} provided for parameter '{param_name}' of function '{tool_name}'."
+                f"{context} provided for parameter '{bound_name}' of function '{tool_name}'."
             )
 
         if param.type is None and not param.anyOf and not param.enum:
