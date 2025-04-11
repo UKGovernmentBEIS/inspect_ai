@@ -1,16 +1,13 @@
 import json
-import os
 from typing import Any, TypedDict
 
 from typing_extensions import NotRequired, override
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model._openai import OpenAIResponseError
-from inspect_ai.model._providers.util import model_base_url
-from inspect_ai.model._providers.util.util import environment_prerequisite_error
 
 from .._generate_config import GenerateConfig
-from .openai import OpenAIAPI
+from .openai_compatible import OpenAICompatibleAPI
 
 OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
 
@@ -37,7 +34,7 @@ class OpenRouterError(Exception):
         )
 
 
-class OpenRouterAPI(OpenAIAPI):
+class OpenRouterAPI(OpenAICompatibleAPI):
     def __init__(
         self,
         model_name: str,
@@ -46,16 +43,6 @@ class OpenRouterAPI(OpenAIAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ) -> None:
-        # api_key
-        if not api_key:
-            api_key = os.environ.get(OPENROUTER_API_KEY, None)
-            if not api_key:
-                raise environment_prerequisite_error("OpenRouter", OPENROUTER_API_KEY)
-
-        # base_url
-        base_url = model_base_url(base_url, "OPENROUTER_BASE_URL")
-        base_url = base_url if base_url else "https://openrouter.ai/api/v1"
-
         # collect known model args that we forward to generate
         def collect_model_arg(name: str) -> Any | None:
             nonlocal model_args
@@ -88,6 +75,8 @@ class OpenRouterAPI(OpenAIAPI):
             base_url=base_url,
             api_key=api_key,
             config=config,
+            service="OpenRouter",
+            service_base_url="https://openrouter.ai/api/v1",
             **model_args,
         )
 
