@@ -371,7 +371,11 @@ class AnthropicAPI(ModelAPI):
         # NOTE: Using case insensitive matching because the Anthropic Bedrock API seems to capitalize the work 'input' in its error message, other times it doesn't.
         if any(
             message in error.lower()
-            for message in ["prompt is too long", "input is too long"]
+            for message in [
+                "prompt is too long",
+                "input is too long",
+                "input length and `max_tokens` exceed context limit",
+            ]
         ):
             if (
                 isinstance(ex.body, dict)
