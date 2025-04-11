@@ -83,9 +83,10 @@ def overwriting_solver():
 def message_appending_scorer(model: Model) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         await model.generate("Hello")
-        # state.messages.append(
-        #     ChatMessageUser(content="A scorer inserted this message.")
-        # )
+        state.messages.append(
+            ChatMessageUser(content="A scorer inserted this message.")
+        )
+        state.completed
 
         return Score(value=1)
 
@@ -178,7 +179,7 @@ def test_message_limit_can_be_reached_without_error():
 
 def test_message_limit_does_not_apply_to_scorer():
     model = get_model("mockllm/model")
-    message_limit = 0
+    message_limit = 1  # 1 for user
     task = Task(
         dataset=[Sample(input="Say Hello only.", target="Hello")],
         solver=[],  # No solvers; straight to scorer.

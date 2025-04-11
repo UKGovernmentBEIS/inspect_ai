@@ -244,7 +244,11 @@ class MessageLimit(Limit):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        pass
+        current_node = message_limit_leaf_node.get()
+        assert current_node is not None, (
+            "Message limit node should not be None when exiting context manager."
+        )
+        message_limit_leaf_node.set(current_node.parent)
 
     @property
     def limit(self) -> int | None:
