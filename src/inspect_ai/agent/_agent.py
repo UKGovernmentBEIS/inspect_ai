@@ -34,6 +34,7 @@ class AgentState:
         self._messages = messages
         self._output: ModelOutput | None = None
 
+    # TODO: Consider using ChatMessageList for limiting messages.
     @property
     def messages(self) -> list[ChatMessage]:
         """Conversation history."""

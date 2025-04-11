@@ -179,13 +179,12 @@ def test_message_limit_can_be_reached_without_error():
 
 def test_message_limit_does_not_apply_to_scorer():
     model = get_model("mockllm/model")
-    message_limit = 1  # 1 for user
     task = Task(
         dataset=[Sample(input="Say Hello only.", target="Hello")],
         solver=[],  # No solvers; straight to scorer.
         scorer=message_appending_scorer(model=model),
         # The message limit should only apply to the solvers, not the scorer.
-        message_limit=message_limit,
+        message_limit=1,  # 1 for user
     )
 
     log = eval(task, model=model)[0]

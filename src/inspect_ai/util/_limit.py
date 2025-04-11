@@ -135,6 +135,9 @@ def token_limit(limit: int | None) -> TokenLimit:
     return TokenLimit(limit)
 
 
+# TODO: We want to store the current message count when the context manager is opened.
+# We should discount the initial message count when checking how many messages have been
+# used.
 def message_limit(limit: int | None) -> MessageLimit:
     """Create a MessageLimit."""
     return MessageLimit(limit)
@@ -208,6 +211,7 @@ class TokenLimit(Limit):
             raise ValueError("Token limit value must be a non-negative integer.")
 
 
+# TODO: Extract common functionality.
 class MessageLimit(Limit):
     """Limits the total number of messages which can be used.
 
@@ -266,7 +270,7 @@ class MessageLimit(Limit):
         """
         self._validate_message_limit(value)
         self._limit_value_wrapper.value = value
-        # TODO: Don't have count.
+        # TODO: We don't have the count stored/recorded so we can't check the limit.
         # check_message_limit()
 
     def _validate_message_limit(self, value: int | None) -> None:

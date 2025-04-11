@@ -447,6 +447,11 @@ def sample_jsonable(sample: Sample) -> dict[str, Any]:
 
 
 class ChatMessageList(list[ChatMessage]):
+    """A limited list of `ChatMessage` objects.
+
+    Raises an exception if an operation would exceed the message limit.
+    """
+
     def __init__(self, iterable: Iterable[ChatMessage], parent_state: TaskState):
         self.parent_state = parent_state
         items, length = self._iterable_length(iterable)
