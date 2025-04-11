@@ -17,7 +17,7 @@ from inspect_ai.scorer._metrics import mean
 from inspect_ai.scorer._scorer import Scorer, scorer
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver import Generate, TaskState, solver
-from inspect_ai.solver._solver import Solver
+from inspect_ai.solver._solver import Solver, generate
 from inspect_ai.util._concurrency import concurrency
 
 
@@ -80,6 +80,19 @@ def overwriting_solver(messages: int):
 
 
 @scorer(metrics=[mean()])
+def message_appending_scorer(model: Model) -> Scorer:
+    async def score(state: TaskState, target: Target) -> Score:
+        await model.generate("Hello")
+        # state.messages.append(
+        #     ChatMessageUser(content="A scorer inserted this message.")
+        # )
+
+        return Score(value=1)
+
+    return score
+
+
+@scorer(metrics=[mean()])
 def token_consuming_scorer(model: Model, min_tokens: int) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         while state.token_usage < min_tokens:
@@ -104,7 +117,7 @@ def check_message_limit(solver: Solver):
     message_limit = randint(1, 3) * 2
     task = Task(
         dataset=[Sample(input="Say Hello", target="Hello")],
-        solver=looping_solver(),
+        solver=solver,
         scorer=match(),
         message_limit=message_limit,
     )
@@ -124,7 +137,74 @@ def test_message_limit_append():
 
 
 def test_message_limit_overwrite():
-    check_message_limit(overwriting_solver(10))
+    message_limit = randint(1, 3) * 2
+    task = Task(
+        dataset=[Sample(input="Say Hello", target="Hello")],
+        solver=overwriting_solver(10),
+        scorer=match(),
+        message_limit=message_limit,
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+    assert log.samples
+    # The overwriting solver should have been blocked by the message limit.
+    assert len(log.samples[0].messages) == 1
+    check_limit_event(log, "message")
+
+
+def test_message_limit_reached_before_assistant_message():
+    task = Task(
+        dataset=[Sample(input="Say Hello only.", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+        message_limit=1,  # 1 for user, 0 for assistant
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert check_limit_event(log, "message")
+    assert log.samples is not None
+    assert len(log.samples[0].messages) == 1
+    assert log.status == "success"
+
+
+def test_message_limit_can_be_reached_without_error():
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[ModelOutput.from_content(model="mockllm", content="Hello")],
+    )
+    task = Task(
+        dataset=[Sample(input="Say Hello only.", target="Hello")],
+        solver=[generate()],
+        scorer=match(),
+        message_limit=2,  # 1 for user, 1 for assistant
+    )
+
+    log = eval(task, model=model)[0]
+
+    assert find_limit_event(log) is None
+    assert log.samples is not None
+    assert len(log.samples[0].messages) == 2
+    assert log.status == "success"
+
+
+def test_message_limit_does_not_apply_to_scorer():
+    model = get_model("mockllm/model")
+    message_limit = 0
+    task = Task(
+        dataset=[Sample(input="Say Hello only.", target="Hello")],
+        solver=[],  # No solvers; straight to scorer.
+        scorer=message_appending_scorer(model=model),
+        # The message limit should only apply to the solvers, not the scorer.
+        message_limit=message_limit,
+    )
+
+    log = eval(task, model=model)[0]
+
+    # generate() was called when we had already reached the message limit, but there are
+    # no limit events because the scorer is not subject to the message limit.
+    assert find_limit_event(log) is None
+    assert log.status == "success"
 
 
 def test_token_limit():
@@ -166,6 +246,7 @@ def test_token_limit_does_not_apply_to_scorer():
     # Total tokens exceed the limit, but there are no limit events because it was only
     # exceeded by the scorer.
     assert find_limit_event(log) is None
+    assert log.status == "success"
 
 
 def test_time_limit():

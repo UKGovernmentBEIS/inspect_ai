@@ -355,9 +355,9 @@ class TaskState:
         else:
             try:
                 check_token_limit()
-                check_message_limit(len(self.messages))
-            except LimitExceededError as ex:
-                raise ex.with_conversation(self)
+                check_message_limit(len(self.messages), raise_for_equal=True)
+            except LimitExceededError:
+                return False
             check_sample_interrupt()
             return self._completed
 
@@ -453,12 +453,11 @@ class ChatMessageList(list[ChatMessage]):
         self._check_size(length)
         super().__init__(items)
 
-    def _check_size(self, additional_items: int = 1) -> None:
-        # TODO: Why is additional_items always 1?
-        check_message_limit(len(self) + additional_items)
+    def _check_size(self, additional_items: int) -> None:
+        check_message_limit(len(self) + additional_items, raise_for_equal=False)
 
     def append(self, item: ChatMessage) -> None:
-        self._check_size()
+        self._check_size(1)
         super().append(item)
 
     def extend(self, items: Iterable[ChatMessage]) -> None:
@@ -467,7 +466,7 @@ class ChatMessageList(list[ChatMessage]):
         super().extend(items)
 
     def insert(self, index: SupportsIndex, item: ChatMessage) -> None:
-        self._check_size()
+        self._check_size(1)
         super().insert(index, item)
 
     @overload

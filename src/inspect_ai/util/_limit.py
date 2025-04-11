@@ -75,6 +75,9 @@ class LimitExceededError(Exception):
             conversation=conversation,
         )
 
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__}({self.type=}, {self.value=}, {self.limit=})"
+
 
 class Limit(abc.ABC):
     """Base class for all limits."""
@@ -114,7 +117,7 @@ def check_token_limit() -> None:
     node.check()
 
 
-def check_message_limit(count: int) -> None:
+def check_message_limit(count: int, raise_for_equal: bool) -> None:
     """Check if the current message usage exceeds _any_ of the message limits.
 
     Within the current execution context (e.g. async task) and its parent contexts only.
@@ -124,7 +127,7 @@ def check_message_limit(count: int) -> None:
     node = message_limit_leaf_node.get()
     if node is None:
         return
-    node.check(count)
+    node.check(count, raise_for_equal)
 
 
 def token_limit(limit: int | None) -> TokenLimit:
@@ -428,14 +431,16 @@ class _MessageLimitNode:
         self._limit = limit
         self.parent = parent
 
-    def check(self, count: int) -> None:
+    def check(self, count: int, raise_for_equal: bool) -> None:
         """Check if this message limit or any parent limits have been exceeded."""
-        self._check_self(count)
+        self._check_self(count, raise_for_equal)
         if self.parent is not None:
-            self.parent.check(count)
+            self.parent.check(count, raise_for_equal)
 
-    def _check_self(self, count: int) -> None:
+    def _check_self(self, count: int, raise_for_equal: bool) -> None:
         if self._limit.value is None:
             return
         if count > self._limit.value:
+            raise LimitExceededError("message", value=count, limit=self._limit.value)
+        if raise_for_equal and count == self._limit.value:
             raise LimitExceededError("message", value=count, limit=self._limit.value)

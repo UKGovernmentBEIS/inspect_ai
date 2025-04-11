@@ -1365,11 +1365,11 @@ active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import set_active_sample_total_messages
 
-    total_messages = 1 if isinstance(input, str) else len(input)
-    check_message_limit(total_messages)
+    existing_message_count = 1 if isinstance(input, str) else len(input)
+    check_message_limit(existing_message_count, raise_for_equal=True)
 
     # set total messages
-    set_active_sample_total_messages(total_messages)
+    set_active_sample_total_messages(existing_message_count)
 
 
 def init_model_usage() -> None:

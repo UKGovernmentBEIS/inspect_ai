@@ -235,5 +235,48 @@ def test_basic_agent_respects_token_limit():
     assert sum(usage.total_tokens for usage in log.stats.model_usage.values()) == 14
 
 
+def test_basic_agent_respects_message_limit():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(message_limit=3),
+        scorer=includes(),
+    )
+    model = get_model("mockllm/model")
+
+    log = eval(task, model)[0]
+
+    assert log.status == "success"
+    assert len(log.samples[0].messages) == 3
+
+
+def test_basic_agent_uses_task_message_limit():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(),
+        scorer=includes(),
+        message_limit=3,
+    )
+    model = get_model("mockllm/model")
+
+    log = eval(task, model)[0]
+
+    assert log.status == "success"
+    assert len(log.samples[0].messages) == 3
+
+
+def test_basic_agent_defaults_to_50_message_limit():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(),
+        scorer=includes(),
+    )
+    model = get_model("mockllm/model")
+
+    log = eval(task, model)[0]
+
+    assert log.status == "success"
+    assert len(log.samples[0].messages) == 50
+
+
 if __name__ == "__main__":
     test_basic_agent_retries_with_custom_incorrect_message()

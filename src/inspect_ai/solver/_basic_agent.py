@@ -14,6 +14,7 @@ from inspect_ai.solver._chain import chain
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import message_limit as create_message_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
 
 from ._prompt import system_message
@@ -171,13 +172,16 @@ def basic_agent(
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # resolve message_limit -- prefer parameter then fall back to task
             # (if there is no message_limit then default to 50)
-            state.message_limit = message_limit or state.message_limit or 50
+            resolved_message_limit = message_limit or state.message_limit or 50
 
             # track attempts
             attempts = 0
 
             try:
-                with create_token_limit(token_limit):
+                with (
+                    create_token_limit(token_limit),
+                    create_message_limit(resolved_message_limit),
+                ):
                     # main loop (state.completed checks message_limit and token_limit)
                     while not state.completed:
                         # generate output and append assistant message
