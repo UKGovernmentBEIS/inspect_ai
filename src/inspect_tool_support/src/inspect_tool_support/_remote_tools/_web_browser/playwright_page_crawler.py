@@ -292,6 +292,3 @@ class PageCrawler:
         except (asyncio.TimeoutError, TimeoutError):
             # No navigation occurred within the timeout period
             pass
-        except (asyncio.TimeoutError, TimeoutError):
-            # No navigation occurred within the timeout period
-            pass
