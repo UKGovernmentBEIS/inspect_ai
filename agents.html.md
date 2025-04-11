@@ -286,15 +286,22 @@ implement this type of custom scheme. For example:
 
 ``` python
 @agent
-def best_of_n(n: int, discriminator: str | Model) -> Agent:
+def best_of_n(n: int, discriminator: str | Model):
 
-    async def execute(state: AgentState) -> AgentState:
-        # sample from the model `n` times then use the `discriminator` 
-        # to pick the best response and return it
+    async def execute(state: AgentState, tools: list[Tool]):
+        # resolve model
+        discriminator = get_model(discriminator)
+
+        # sample from the model `n` times then use the
+        # `discriminator` to pick the best response and return it
+
         return state
 
     return execute
 ```
+
+Note that when you pass an `Agent` as the `model` it must include a
+`tools` parameter so that the ReAct agent can forward its tools.
 
 ## Learning More
 

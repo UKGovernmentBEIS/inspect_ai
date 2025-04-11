@@ -204,9 +204,8 @@ execution).
 > In order to distinguish successful generate requests from rate limited
 > and retried requests, Inspect installs hooks into the HTTP client of
 > various model packages. This is not possible for some models
-> (`vertex`, `azureai`, and `goodfire`), and in these cases the
-> `working_time` will include any internal retries that the model client
-> performs.
+> (`vertex`, and `azureai`) and in these cases the `working_time` will
+> include any internal retries that the model client performs.
 
 ### Message Limit
 

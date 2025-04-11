@@ -11,7 +11,7 @@ providers is built in to Inspect:
 |----|----|
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
-| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare), [Goodfire](providers.qmd#goodfire) |
+| Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare) |
 | Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
 
 If the provider you are using is not listed above, you may still be able
@@ -199,6 +199,105 @@ with get_model("hf/Qwen/Qwen2.5-72B") as model:
 Note though that this *won’t work* with model providers that require an
 async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama,
 llama-cpp-python, and CloudFlare).
+
+## Model Roles
+
+> [!NOTE]
+>
+> The model roles feature described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Model roles enable you to create aliases for the various models used in
+your tasks, and then dynamically vary those roles when running an
+evaluation. For example, you might have a “critic” or “monitor” role, or
+perhaps “red_team” and “blue_team” roles. Roles are included in the log
+and displayed in model events within the transcript.
+
+Here is a scorer that utilises a “grader” role when binding to a model:
+
+``` python
+@scorer(metrics=[accuracy(), stderr()])
+def model_grader() -> Scorer:
+    async def score(state: TaskState, target: Target):
+        model = get_model(role="grader")
+        ...
+```
+
+By default if there is no “grader” role specified, the default model for
+the evaluation will be returned. Model roles can be specified when using
+`inspect eval` or calling the `eval()` function:
+
+``` bash
+inspect eval math.py --model-role grader=google/gemini-2.0-flash
+```
+
+Or with `eval()`:
+
+``` python
+eval("math.py", model_roles = { "grader": "google/gemini-2.0-flash" })
+```
+
+### Role Defaults
+
+By default if there is a no role explicitly defined then
+`get_model(role="...")` will return the default model for the
+evaluation. You can specify an alternate default model as follows:
+
+``` python
+model = get_model(role="grader", default="openai/gpt-4o")
+```
+
+This means that you can use model roles as a means of external
+configurability even if you aren’t yet explicitly taking advantage of
+them.
+
+### Roles for Tasks
+
+In some cases it may not be convenient to specify `model_roles` in the
+top level call to `eval()`. For example, you might be running an [Eval
+Set](eval-sets.qmd) to explore the behaviour of different models for a
+given role. In this case, do not specify `model_roles` at the eval
+level, rather, specify them at the task level.
+
+For example, imagine we have a task named `blues_clues` that we want to
+vary the red and blue teams for in an eval set:
+
+``` python
+from inspect_ai import eval_set, task_with
+from ctf_tasks import blues_clues 
+
+tasks = [
+    task_with(blues_clues(), model_roles = {
+        "red_team": "openai/gpt-4o",
+        "blue_team": "google/gemini-2.0-flash"
+    }),()
+    task_with(blues_clues, model_roles = {
+        "red_team": "google/gemini-2.0-flash",
+        "blue_team": "openai/gpt-4o"
+    })
+]
+
+eval_set(tasks, log_dir="...")
+```
+
+Note that we also don’t specify a `model` for this eval (it doesn’t have
+a main model but rather just the red and blue team roles).
+
+As illustrated above, you can define as many named roles as you need.
+When using `eval()` or `Task` roles are specified using a dictionary.
+When using `inspect eval` you can include multiple `--model-role`
+options on the command line:
+
+``` bash
+inspect eval math.py \
+   --model-role red_team=google/gemini-2.0-flash \
+   --model-role blue_team=openai/gpt-4o-mini
+```
 
 ## Learning More
 
