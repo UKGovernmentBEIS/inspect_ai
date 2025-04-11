@@ -1,8 +1,7 @@
 import asyncio
-import os
 import sys
 from asyncio.subprocess import Process
-from typing import TextIO
+from typing import Literal, TextIO
 
 import pydantic
 from mcp import (
@@ -30,34 +29,30 @@ class MCPServerSession:
             await asyncio.create_subprocess_exec(
                 server_params.command,
                 *server_params.args,
-                # TODO: I'm just passing my local env for testing. revert this before merging
-                env=(
-                    {**server_params.env, **os.environ}
-                    if server_params.env
-                    else os.environ
-                ),
+                env=server_params.env,
                 cwd=server_params.cwd,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=errlog,
             ),
-            server_params,
+            server_params.encoding,
+            server_params.encoding_error_handler,
         )
 
     def __init__(
         self,
         process: Process,
-        server_params: StdioServerParameters,
+        encoding: str,
+        encoding_error_handler: Literal["strict", "ignore", "replace"],
     ) -> None:
         self._process = process
-        self._server_params = server_params
+        self._encoding = encoding
+        self._encoding_error_handler = encoding_error_handler
         self._terminated = False
-        self._pending_requests = dict[
+        self._requests = dict[
             str | int, asyncio.Future[JSONRPCResponse | JSONRPCError]
         ]()
-        self._reader_task: asyncio.Task[None] = asyncio.create_task(
-            self._stdout_reader()
-        )
+        self._reader = asyncio.create_task(self._stdout_reader())
 
     async def send_request(
         self, request: JSONRPCRequest
@@ -65,50 +60,36 @@ class MCPServerSession:
         assert self._process.stdin, "Opened process is missing stdin"
         self._assert_not_terminated()
 
-        id = request.id
-        assert id not in self._pending_requests, f"Request with id {id} already exists"
+        request_id = request.id
+        assert (
+            request_id not in self._requests
+        ), f"Request with id {request_id} already exists"
         future = asyncio.Future[JSONRPCResponse | JSONRPCError]()
-        self._pending_requests[id] = future
+        self._requests[request_id] = future
 
-        is_tool_call = request.method == "tools/call"
-
-        if is_tool_call:
-            print(f"→ {request.model_dump_json(by_alias=True, exclude_none=True)}")
-        json_str = (
-            request.model_dump_json(by_alias=True, exclude_none=True) + "\n"
-        ).encode(
-            encoding=self._server_params.encoding,
-            errors=self._server_params.encoding_error_handler,
-        )
-        self._process.stdin.write(json_str)
+        # print(f"→ {request.model_dump_json(by_alias=True, exclude_none=True)}")
+        self._process.stdin.write(self._bytes_from_json_message(request))
         await self._process.stdin.drain()
 
         response = await future
-        if is_tool_call:
-            print(f"← {response.model_dump_json(by_alias=True, exclude_none=True)}")
+        # print(f"← {response.model_dump_json(by_alias=True, exclude_none=True)}")
         return response
 
     async def send_notification(self, notification: JSONRPCNotification) -> None:
         assert self._process.stdin, "Opened process is missing stdin"
         self._assert_not_terminated()
 
-        print(f"→ {notification.model_dump_json(by_alias=True, exclude_none=True)}")
-        json_str = (
-            notification.model_dump_json(by_alias=True, exclude_none=True) + "\n"
-        ).encode(
-            encoding=self._server_params.encoding,
-            errors=self._server_params.encoding_error_handler,
-        )
-        self._process.stdin.write(json_str)
+        # print(f"→ {notification.model_dump_json(by_alias=True, exclude_none=True)}")
+        self._process.stdin.write(self._bytes_from_json_message(notification))
         await self._process.stdin.drain()
 
     async def terminate(self, timeout: int = 30) -> None:
         self._assert_not_terminated()
         self._terminated = True
 
-        self._reader_task.cancel()
+        self._reader.cancel()
         try:
-            await asyncio.wait_for(self._reader_task, 1.0)
+            await asyncio.wait_for(self._reader, 1.0)
         except (asyncio.TimeoutError, asyncio.CancelledError):
             pass
 
@@ -119,8 +100,25 @@ class MCPServerSession:
             # Force kill if taking too long
             self._process.kill()
 
+    def _bytes_from_json_message(
+        self, message: JSONRPCRequest | JSONRPCNotification
+    ) -> bytes:
+        return self._encode(
+            message.model_dump_json(by_alias=True, exclude_none=True) + "\n"
+        )
+
+    def _encode(self, message: str) -> bytes:
+        return message.encode(
+            encoding=self._encoding, errors=self._encoding_error_handler
+        )
+
+    def _decode(self, message: bytes) -> str:
+        return message.decode(
+            encoding=self._encoding, errors=self._encoding_error_handler
+        )
+
     def _resolve_request(self, response: JSONRPCResponse | JSONRPCError) -> None:
-        future = self._pending_requests.pop(response.id, None)
+        future = self._requests.pop(response.id, None)
         assert future, f"No pending request for response with id {response.id}"
         assert not future.done(), "Future should not be done before resolving"
         future.set_result(response)
@@ -133,7 +131,7 @@ class MCPServerSession:
         #
         # TODO: I'm honestly unclear if we can recover from an error like this
         #
-        for request_id, future in self._pending_requests.items():
+        for request_id, future in self._requests.items():
             future.set_result(
                 JSONRPCError(
                     jsonrpc="2.0",
@@ -141,7 +139,7 @@ class MCPServerSession:
                     error=ErrorData(code=666, message=str(exception)),
                 )
             )
-        self._pending_requests.clear()
+        self._requests.clear()
 
     async def _stdout_reader(self) -> None:
         assert self._process.stdout, "Opened process is missing stdout"
@@ -153,11 +151,7 @@ class MCPServerSession:
                 if not line_bytes:  # EOF
                     break
 
-                chunk = line_bytes.decode(
-                    self._server_params.encoding,
-                    errors=self._server_params.encoding_error_handler,
-                )
-
+                chunk = self._decode(line_bytes)
                 lines = (buffer + chunk).split("\n")
                 buffer = lines.pop()
 
@@ -168,16 +162,16 @@ class MCPServerSession:
                         self._send_exception_somewhere(exc)
                         continue
 
-                    assert isinstance(message.root, JSONRPCResponse | JSONRPCError), (
-                        f"No unsolicited messages supported: {message}"
-                    )
+                    assert isinstance(
+                        message.root, JSONRPCResponse | JSONRPCError
+                    ), f"No unsolicited messages supported: {message}"
                     self._resolve_request(message.root)
 
         except asyncio.CancelledError:
-            # These signal shutdown
             pass
         except Exception as exc:
-            print(f"Exception while reading stdout: {exc}", file=sys.stderr)
+            # not much good can come of this
+            print(f"Exception processing stdout: {exc}", file=sys.stderr)
             raise
 
     def _assert_not_terminated(self) -> None:
