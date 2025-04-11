@@ -150,7 +150,7 @@ def test_message_limit_reached_before_assistant_message():
 
     log = eval(task, model="mockllm/model")[0]
 
-    assert check_limit_event(log, "message")
+    check_limit_event(log, "message")
     assert log.samples is not None
     assert len(log.samples[0].messages) == 1
     assert log.status == "success"
