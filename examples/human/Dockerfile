@@ -1,13 +1,15 @@
 FROM ubuntu:24.04
 
-# Update the package lists
-RUN apt-get update -y && apt-get upgrade -y
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        curl \
+        python3 \
+        python3-pip \
+        python3-dev \
+        python3-venv && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install any necessary packages
-RUN apt-get install -y curl python3 python3-pip python3-dev python3-venv
-
-# Create a non-root user
 RUN useradd -m nonroot
 
-# Specify the command to run when the container starts
-CMD ["/bin/bash"]
+CMD ["tail", "-f", "/dev/null"]
