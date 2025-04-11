@@ -425,7 +425,15 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             return SandboxConnection(
                 type="docker",
                 command=shlex.join(
-                    ["docker", "exec", "-it", "--user", user, container, "bash", "-l"]
+                    [
+                        "docker",
+                        "exec",
+                        "-it",
+                        *(["--user", user] if user else []),
+                        container,
+                        "bash",
+                        "-l",
+                    ]
                 ),
                 vscode_command=[
                     "remote-containers.attachToRunningContainer",
