@@ -1,13 +1,10 @@
-import asyncio
-
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import exact
 from inspect_ai.solver._fork import fork
 from inspect_ai.solver._solver import Generate, solver
 from inspect_ai.solver._task_state import TaskState
-
-# This is the simplest possible Inspect eval, useful for testing your configuration / network / platform etc.
+from inspect_ai.util._limit import message_limit
 
 
 @solver
@@ -16,7 +13,6 @@ def my_solver():
         await generate(state)
 
         results = await fork(state, [inner_fork() for _ in range(3)])
-
         print(results)
 
         return state
@@ -27,11 +23,10 @@ def my_solver():
 @solver
 def inner_fork():
     async def solve(state: TaskState, generate: Generate):
-        await generate(state)
-        await asyncio.sleep(0)
-        await generate(state)
-        await asyncio.sleep(0)
-        await generate(state)
+        with message_limit(4):
+            await generate(state)
+            await generate(state)
+            await generate(state)
 
         return state
 
@@ -49,7 +44,7 @@ def hello_world():
         ],
         solver=[my_solver()],
         scorer=exact(),
-        message_limit=4,
+        message_limit=5,  # 1 user, 1 assistant, 3 for each subagent
     )
 
 
