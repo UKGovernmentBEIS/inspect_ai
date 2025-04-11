@@ -3,7 +3,7 @@ from contextvars import ContextVar
 from typing import Callable, Literal, NamedTuple
 
 from inspect_ai._util.future import Future
-from inspect_ai.solver._task_state import TaskState
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 from .._approval import Approval, ApprovalDecision
@@ -13,7 +13,7 @@ class ApprovalRequest(NamedTuple):
     message: str
     call: ToolCall
     view: ToolCallView
-    state: TaskState | None
+    history: list[ChatMessage]
     choices: list[ApprovalDecision]
 
 

@@ -7,7 +7,7 @@ from inspect_ai import Task, task
 from inspect_ai.agent import react
 from inspect_ai.approval import Approval, Approver, approver
 from inspect_ai.dataset import Sample
-from inspect_ai.solver import TaskState
+from inspect_ai.model import ChatMessage
 from inspect_ai.tool import ToolCall, ToolCallView, bash, python
 
 
@@ -56,7 +56,7 @@ def bash_allowlist(
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         # evaluate the first argument no matter its name (for compatiblity
         # with a broader range of bash command executing tools)
@@ -153,7 +153,7 @@ def python_allowlist(
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         # evaluate the first argument no matter its name (for compatiblity
         # with a broader range of python code executing tools)

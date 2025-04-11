@@ -348,7 +348,9 @@ async def call_tool(
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
 
-    approved, approval = await apply_tool_approval(message, call, tool_def.viewer)
+    approved, approval = await apply_tool_approval(
+        message, call, tool_def.viewer, conversation
+    )
     if not approved:
         if approval and approval.decision == "terminate":
             from inspect_ai.solver._limit import SampleLimitExceededError
