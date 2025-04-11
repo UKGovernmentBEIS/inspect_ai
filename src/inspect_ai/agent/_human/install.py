@@ -22,31 +22,25 @@ async def install_human_agent(
     record_session: bool,
 ) -> None:
     # see if we have already installed
-    if not (await sandbox().exec(["mkdir", HUMAN_AGENT_DIR], user=user)).success:
+    if not (await sandbox().exec(["mkdir", HUMAN_AGENT_DIR])).success:
         return
 
     # setup installation directory
-    await checked_exec(["mkdir", "-p", INSTALL_DIR], user=user)
+    await checked_exec(["mkdir", "-p", INSTALL_DIR])
 
     # generate task.py
     task_py = human_agent_commands(commands)
-    await checked_write_file(
-        f"{INSTALL_DIR}/{TASK_PY}", task_py, user=user, executable=True
-    )
+    await checked_write_file(f"{INSTALL_DIR}/{TASK_PY}", task_py, executable=True)
 
     # generate .bashrc
     bash_rc = human_agent_bashrc(commands, record_session)
-    await checked_write_file(
-        f"{INSTALL_DIR}/{BASHRC}", bash_rc, user=user, executable=True
-    )
+    await checked_write_file(f"{INSTALL_DIR}/{BASHRC}", bash_rc, executable=True)
 
     # write and run installation script
-    install_sh = human_agent_install_sh()
-    await checked_write_file(
-        f"{INSTALL_DIR}/{INSTALL_SH}", install_sh, user=user, executable=True
-    )
-    await checked_exec(["bash", f"./{INSTALL_SH}"], user=user, cwd=INSTALL_DIR)
-    await checked_exec(["rm", "-rf", INSTALL_DIR], user=user)
+    install_sh = human_agent_install_sh(user)
+    await checked_write_file(f"{INSTALL_DIR}/{INSTALL_SH}", install_sh, executable=True)
+    await checked_exec(["bash", f"./{INSTALL_SH}"], cwd=INSTALL_DIR)
+    await checked_exec(["rm", "-rf", INSTALL_DIR])
 
 
 def human_agent_commands(commands: list[HumanAgentCommand]) -> str:
@@ -198,7 +192,7 @@ def human_agent_bashrc(commands: list[HumanAgentCommand], record_session: bool) 
     return "\n".join([TERMINAL_CHECK, COMMANDS, RECORDING, INSTRUCTIONS, CLOCK])
 
 
-def human_agent_install_sh() -> str:
+def human_agent_install_sh(user: str) -> str:
     return dedent(f"""
     #!/usr/bin/env bash
 
@@ -209,8 +203,11 @@ def human_agent_install_sh() -> str:
     # copy command script
     cp {TASK_PY} $HUMAN_AGENT
 
-    # append to .bashrc
-    cat {BASHRC} >> ~/{BASHRC}
+    # get user's home directory
+    USER_HOME=$(getent passwd {user} | cut -d: -f6)
+
+    # append to user's .bashrc
+    cat {BASHRC} >> $USER_HOME/{BASHRC}
     """)
 
 
