@@ -2,8 +2,6 @@ import concurrent.futures
 import re
 import subprocess
 import time
-from contextlib import redirect_stdout
-from io import StringIO
 from pathlib import Path
 
 import pytest
@@ -16,48 +14,75 @@ from inspect_ai.agent._human.agent import human_cli
 @pytest.mark.slow
 @skip_if_no_docker
 @pytest.mark.parametrize("user", ["root", "nonroot", None])
-def test_human_cli(user: str | None):
-    task = Task(
-        solver=human_cli(user=user),
-        sandbox=("docker", (Path(__file__).parent / "compose.human.yaml").as_posix()),
-    )
-
-    stdout = StringIO()
-
+def test_human_cli(capsys: pytest.CaptureFixture[str], user: str | None):
     def run_eval():
-        with redirect_stdout(stdout):
-            return eval(task, display="plain")[0]
+        task = Task(
+            solver=human_cli(user=user),
+            sandbox=(
+                "docker",
+                (Path(__file__).parent / "compose.human.yaml").as_posix(),
+            ),
+        )
+        return eval(task, display="plain")[0]
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(run_eval)
 
-        while True:
-            if match := re.search(r"inspect-task-[^\s]+", stdout.getvalue()):
-                container_name = match.group(0)
-                assert container_name, "Expected to find task ID in docker exec command"
-                break
-            time.sleep(1)
+        try:
+            out = ""
+            container_name = None
+            for _ in range(10):
+                out += capsys.readouterr().out
+                if match := re.search(r"inspect-task-\S+-default-1", out):
+                    container_name = match.group(0)
+                    break
+                time.sleep(1)
 
-        docker_exec = [
-            "docker",
-            "exec",
-            "-it",
-            *(["-u", user] if user else []),
-            container_name,
-            "bash",
-            "-l",
-            "-c",
-        ]
-        subprocess.run(docker_exec + ["python3 /opt/human_agent/task.py start"])
-        subprocess.run(
-            docker_exec
-            + [
-                'echo -e "y\\n" | python3 /opt/human_agent/task.py submit "test"',
-            ],
-        )
+            if not container_name:
+                raise Exception("Failed to find container name")
 
-        concurrent.futures.wait([future])
+            docker_exec = [
+                "docker",
+                "exec",
+                *(["-u", user] if user else []),
+                container_name,
+                "bash",
+                "-l",
+                "-c",
+            ]
 
-        log = future.result()
-        assert log.status == "success"
-        assert log.samples[0].output.choices[0].message.content == "test"
+            human_agent_found = False
+            for _ in range(10):
+                result = subprocess.run(
+                    docker_exec
+                    + ["ls /var/tmp/sandbox-services/human_agent/human_agent.py"]
+                )
+                if result.returncode == 0:
+                    human_agent_found = True
+                    break
+                time.sleep(1)
+
+            if not human_agent_found:
+                raise Exception("Human agent not found")
+
+            subprocess.check_call(
+                docker_exec + ["python3 /opt/human_agent/task.py start"]
+            )
+            subprocess.check_call(
+                docker_exec
+                + [
+                    'echo -e "y\\n" | python3 /opt/human_agent/task.py submit "test"',
+                ],
+            )
+
+            done, _ = concurrent.futures.wait([future], timeout=5)
+            if future in done:
+                log = future.result()
+                assert log.status == "success"
+                assert log.samples[0].output.choices[0].message.content == "test"
+            else:
+                raise Exception("eval() did not complete within timeout")
+
+        except Exception:
+            concurrent.futures.wait([future], timeout=1)
+            raise
