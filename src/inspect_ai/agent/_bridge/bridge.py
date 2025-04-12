@@ -53,7 +53,7 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Agen
 
     async def execute(state: AgentState) -> AgentState:
         # create input (use standard gpt-4 message encoding -- i.e. no 'developer' messages)
-        messages = await openai_chat_messages(state.messages, model="gpt-4")
+        messages = await openai_chat_messages(state.messages)
         input = BridgeInput(messages=messages, input=messages)
 
         # run target function
