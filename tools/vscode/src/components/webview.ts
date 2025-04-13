@@ -32,9 +32,9 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
       context: ExtensionContext,
       server: InspectViewServer,
       state: S,
-      webviewPanel: HostWebviewPanel
+      webviewPanel: HostWebviewPanel,
     ) => T,
-    private host_: ExtensionHost
+    private host_: ExtensionHost,
   ) {
     this.extensionUri_ = context_.extensionUri;
 
@@ -51,7 +51,7 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
           }
           return Promise.resolve();
         },
-      })
+      }),
     );
 
     this.focusManager_ = new FocusManager(context_);
@@ -103,12 +103,11 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     return !!this.activeView_ && this.activeView_.webviewPanel().active;
   }
 
-  protected onViewStateChanged() { }
+  protected onViewStateChanged() {}
 
   protected getWorkspaceState(): S | undefined {
     return undefined;
   }
-
 
   private resolveOnShow() {
     if (this.onShow_) {
@@ -123,13 +122,13 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
     if (lastFocused === "terminal") {
       // The terminal
       setTimeout(() => {
-        commands.executeCommand('workbench.action.terminal.focus').then(
+        commands.executeCommand("workbench.action.terminal.focus").then(
           () => {
             // Command executed successfully
           },
           (error) => {
             log.append("Couldn't focus terminal.\n" + error);
-          }
+          },
         );
       }, 50);
     } else if (lastFocused === "editor") {
@@ -139,28 +138,34 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
         if (!isNotebook(editor.document.uri)) {
           setTimeout(() => {
             // Refocus the active document by calling showTextDocument with the active editor
-            window.showTextDocument(editor.document, editor.viewColumn).then(() => {
-
-            }, (error) => {
-              log.append("Couldn't focus editor.\n" + error);
-            });
+            window.showTextDocument(editor.document, editor.viewColumn).then(
+              () => {},
+              (error) => {
+                log.append("Couldn't focus editor.\n" + error);
+              },
+            );
           }, 50);
         }
-
       }
     } else if (lastFocused === "notebook") {
       // A notebook
       setTimeout(() => {
         if (window.activeNotebookEditor) {
-          window.activeNotebookEditor.revealRange(window.activeNotebookEditor.selection);
+          window.activeNotebookEditor.revealRange(
+            window.activeNotebookEditor.selection,
+          );
         }
       }, 50);
     }
   }
 
-
   private restoreWebview(panel: HostWebviewPanel, state: S): void {
-    const view = new this.webviewType_(this.context_, this.server_, state, panel);
+    const view = new this.webviewType_(
+      this.context_,
+      this.server_,
+      state,
+      panel,
+    );
     this.registerWebviewListeners(view);
     this.activeView_ = view;
   }
@@ -168,7 +173,7 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
   private createWebview(
     context: ExtensionContext,
     state: S,
-    showOptions?: ShowOptions
+    showOptions?: ShowOptions,
   ): T {
     const previewPanel = this.host_.createPreviewPanel(
       this.viewType_,
@@ -182,10 +187,15 @@ export class InspectWebviewManager<T extends InspectWebview<S>, S> {
           ...this.localResourceRoots,
           Uri.joinPath(context.extensionUri, "assets", "www"),
         ],
-      }
+      },
     );
 
-    const inspectWebView = new this.webviewType_(context, this.server_, state, previewPanel);
+    const inspectWebView = new this.webviewType_(
+      context,
+      this.server_,
+      state,
+      previewPanel,
+    );
     return inspectWebView;
   }
 
@@ -233,7 +243,7 @@ export abstract class InspectWebview<T> extends Disposable {
     private readonly _context: ExtensionContext,
     private readonly _server: InspectViewServer,
     state: T,
-    webviewPanel: HostWebviewPanel
+    webviewPanel: HostWebviewPanel,
   ) {
     super();
 
@@ -241,7 +251,7 @@ export abstract class InspectWebview<T> extends Disposable {
     this._register(
       this._webviewPanel.onDidDispose(() => {
         this.dispose();
-      })
+      }),
     );
   }
 
@@ -275,7 +285,7 @@ export abstract class InspectWebview<T> extends Disposable {
     css: string[],
     headerHtml: string,
     bodyHtml: string,
-    allowUnsafe = false
+    allowUnsafe = false,
   ) {
     const nonce = getNonce();
 
@@ -287,7 +297,7 @@ export abstract class InspectWebview<T> extends Disposable {
       return (
         html +
         `<script src="${this.extensionResourceUrl(
-          script
+          script,
         ).toString()}" nonce="${nonce}"></script>\n`
       );
     }, "");
@@ -314,10 +324,12 @@ export abstract class InspectWebview<T> extends Disposable {
                   <meta http-equiv="Content-Security-Policy" content="
                       default-src 'none';
                       font-src ${this._webviewPanel.webview.cspSource};
-                      style-src ${this._webviewPanel.webview.cspSource} ${allowUnsafe ? "'unsafe-inline'" : ""
-      };
-                      script-src 'nonce-${nonce}' ${allowUnsafe ? "'unsafe-eval'" : ""
-      };
+                      style-src ${this._webviewPanel.webview.cspSource} ${
+                        allowUnsafe ? "'unsafe-inline'" : ""
+                      };
+                      script-src 'nonce-${nonce}' ${
+                        allowUnsafe ? "'unsafe-eval'" : ""
+                      };
             connect-src ${this._webviewPanel.webview.cspSource} ;
                       frame-src *;
                       ">
@@ -343,7 +355,7 @@ export abstract class InspectWebview<T> extends Disposable {
 
   protected extensionResourceUrl(parts: string[]): Uri {
     return this._webviewPanel.webview.asWebviewUri(
-      Uri.joinPath(this._context.extensionUri, ...parts)
+      Uri.joinPath(this._context.extensionUri, ...parts),
     );
   }
 

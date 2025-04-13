@@ -65,11 +65,11 @@ def appending_solver():
 
 
 @solver
-def overwriting_solver(messages: int):
+def overwriting_solver():
     async def solve(state: TaskState, generate: Generate):
-        state.messages = [
-            ChatMessageUser(content="message") for _ in range(0, messages)
-        ]
+        # keep overwriting with an increasing number of messages until we hit a limit
+        while True:
+            state.messages = state.messages + [ChatMessageUser(content="message")]
 
         return state
 
@@ -91,7 +91,7 @@ def check_message_limit(solver: Solver):
     message_limit = randint(1, 3) * 2
     task = Task(
         dataset=[Sample(input="Say Hello", target="Hello")],
-        solver=looping_solver(),
+        solver=solver,
         scorer=match(),
         message_limit=message_limit,
     )
@@ -111,7 +111,7 @@ def test_message_limit_append():
 
 
 def test_message_limit_overwrite():
-    check_message_limit(overwriting_solver(10))
+    check_message_limit(overwriting_solver())
 
 
 @skip_if_no_openai

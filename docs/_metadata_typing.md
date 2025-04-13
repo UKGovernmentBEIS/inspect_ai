@@ -30,5 +30,5 @@ metadata = state.metadata_as(PopularityMetadata)
 
 Note again that the intended semantics of `metadata` are read-only, so attempting to write into the returned metadata will raise a Pydantic `FrozenInstanceError`. 
 
-If you need per-sample mutable data, use the [sample store](agents-api.qmd#sample-store), which also supports [typing](agents-api.qmd#store-typing) using Pydantic models. 
+If you need per-sample mutable data, use the [sample store](agent-custom.qmd#sample-store), which also supports [typing](agent-custom.qmd#store-typing) using Pydantic models. 
 

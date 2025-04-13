@@ -4,9 +4,11 @@ import sys
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from inspect_ai._eval.task.task import resolve_model_roles
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
+from inspect_ai.log._model import model_roles_config_to_model_roles
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -43,7 +45,7 @@ from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
 )
-from inspect_ai.model._model import init_active_model, resolve_models
+from inspect_ai.model._model import get_model, init_active_model, resolve_models
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
@@ -70,6 +72,7 @@ def eval(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
+    model_roles: dict[str, str | Model] | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -116,6 +119,7 @@ def eval(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
+        model_roles: Named roles for use in `get_model()`.
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -194,6 +198,7 @@ def eval(
                 model=model,
                 model_base_url=model_base_url,
                 model_args=model_args,
+                model_roles=model_roles,
                 task_args=task_args,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
@@ -245,6 +250,7 @@ async def eval_async(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
+    model_roles: dict[str, str | Model] | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -286,7 +292,8 @@ async def eval_async(
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
         model_base_url: Base URL for communicating with the model API.
-        model_args: Model creation args (as a dictionary or as a path to a JSON or YAML config file)
+        model_args: Model creation args (as a dictionary or as a path to a JSON or YAML config file
+        model_roles: Named roles for use in `get_model()`.
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
@@ -355,11 +362,10 @@ async def eval_async(
 
     try:
         # intialise eval
-        model, approval = eval_init(
+        model = eval_init(
             model=model,
             model_base_url=model_base_url,
             model_args=model_args,
-            approval=approval,
             max_subprocesses=max_subprocesses,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
@@ -367,8 +373,14 @@ async def eval_async(
         )
 
         # resolve tasks
-        resolved_tasks = eval_resolve_tasks(
-            tasks, task_args, model, GenerateConfig(**kwargs), sandbox
+        resolved_tasks, approval = eval_resolve_tasks(
+            tasks,
+            task_args,
+            model,
+            model_roles,
+            GenerateConfig(**kwargs),
+            approval,
+            sandbox,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -751,10 +763,18 @@ async def eval_retry_async(
             else None
         )
 
+        # resolve the model
+        model = get_model(
+            model=eval_log.eval.model,
+            config=eval_log.eval.model_generate_config,
+            base_url=eval_log.eval.model_base_url,
+            **eval_log.eval.model_args,
+        )
+
+        # resolve model roles
+        model_roles = model_roles_config_to_model_roles(eval_log.eval.model_roles)
+
         # collect the rest of the params we need for the eval
-        model = eval_log.eval.model
-        model_base_url = eval_log.eval.model_base_url
-        model_args = eval_log.eval.model_args
         task_args = eval_log.eval.task_args
         tags = eval_log.eval.tags
         limit = eval_log.eval.config.limit
@@ -810,11 +830,15 @@ async def eval_retry_async(
         log = (
             await eval_async(
                 tasks=PreviousTask(
-                    id=task_id, task=task, task_args=task_args, model=None, log=eval_log
+                    id=task_id,
+                    task=task,
+                    task_args=task_args,
+                    model=None,
+                    model_roles=None,
+                    log=eval_log,
                 ),
                 model=model,
-                model_base_url=model_base_url,
-                model_args=model_args,
+                model_roles=cast(dict[str, str | Model], model_roles),
                 task_args=task_args,
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
@@ -858,12 +882,11 @@ def eval_init(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
-    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     max_subprocesses: int | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
-) -> tuple[list[Model], list[ApprovalPolicy] | None]:
+) -> list[Model]:
     # init eval context
     init_eval_context(log_level, log_level_transcript, max_subprocesses)
 
@@ -877,32 +900,37 @@ def eval_init(
             args = [arg.strip() for arg in env_model_args.split(" ")]
             model_args = parse_cli_args(args)
 
-    # resolve models
+    # resolve and return models
     generate_config = GenerateConfig(**kwargs)
     models = resolve_models(model, model_base_url, model_args, generate_config)
-
-    # resolve approval
-    if isinstance(approval, str | ApprovalPolicyConfig):
-        approval = approval_policies_from_config(approval)
-    init_tool_approval(approval)
-
-    return models, approval
+    return models
 
 
 def eval_resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any] | str,
     models: list[Model],
+    model_roles: dict[str, str | Model] | None,
     config: GenerateConfig,
+    approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
-) -> list[ResolvedTask]:
+) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
+    resolved_model_roles = resolve_model_roles(model_roles)
     task_args = resolve_args(task_args)
     with task_display().suspend_task_app():
         resolved_tasks: list[ResolvedTask] = []
         for m in models:
             init_active_model(m, config)
-            resolved_tasks.extend(resolve_tasks(tasks, task_args, m, sandbox))
-        return resolved_tasks
+            resolved_tasks.extend(
+                resolve_tasks(tasks, task_args, m, resolved_model_roles, sandbox)
+            )
+
+    if isinstance(approval, str | ApprovalPolicyConfig):
+        approval = approval_policies_from_config(approval)
+    init_tool_approval(approval)
+
+    # return tasks and approval
+    return resolved_tasks, approval
 
 
 def init_eval_display(

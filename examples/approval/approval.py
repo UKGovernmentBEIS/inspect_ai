@@ -1,11 +1,13 @@
 import ast
 import shlex
+from textwrap import dedent
 from typing import Set
 
 from inspect_ai import Task, task
+from inspect_ai.agent import react
 from inspect_ai.approval import Approval, Approver, approver
 from inspect_ai.dataset import Sample
-from inspect_ai.solver import TaskState, generate, system_message, use_tools
+from inspect_ai.model import ChatMessage
 from inspect_ai.tool import ToolCall, ToolCallView, bash, python
 
 
@@ -20,13 +22,11 @@ def approval_demo() -> Task:
                 input="Please use the python tool to the use of the Python print function, then demonstrate the math.factorial function, then demonstrate the use of the shutil.rmtree function."
             ),
         ],
-        solver=[
-            system_message(
-                "You will ba asked to demonstrate various uses of the bash and python tools. Please make only one tool call at a time rather than attempting to demonstrate multiple uses in a single call."
-            ),
-            use_tools(bash(), python()),
-            generate(),
-        ],
+        solver=react(
+            prompt=dedent("""
+                "You will be asked to demonstrate various uses of the bash and python tools. Please make only one tool call at a time rather than attempting to demonstrate multiple uses in a single call."""),
+            tools=[bash(), python()],
+        ),
         sandbox="docker",
     )
 
@@ -56,7 +56,7 @@ def bash_allowlist(
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         # evaluate the first argument no matter its name (for compatiblity
         # with a broader range of bash command executing tools)
@@ -153,7 +153,7 @@ def python_allowlist(
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         # evaluate the first argument no matter its name (for compatiblity
         # with a broader range of python code executing tools)

@@ -293,5 +293,7 @@ def _dict_for_rare_string_data(
     """Creates a dictionary from a RareStringData object enabling lookups given a node index."""
     return {
         NodeIndex(index): value
-        for index, value in zip(rare_string_data.index, rare_string_data.value)
+        for index, value in zip(
+            rare_string_data.index, rare_string_data.value, strict=True
+        )
     }

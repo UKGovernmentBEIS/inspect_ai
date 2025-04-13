@@ -551,6 +551,22 @@ class EvalRevision(BaseModel):
     """Revision commit."""
 
 
+class EvalModelConfig(BaseModel):
+    """Model config."""
+
+    model: str
+    """Model name."""
+
+    config: GenerateConfig = Field(default_factory=GenerateConfig)
+    """Generate config"""
+
+    base_url: str | None = Field(default=None)
+    """Model base url."""
+
+    args: dict[str, Any] = Field(default_factory=dict)
+    """Model specific arguments."""
+
+
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -599,11 +615,17 @@ class EvalSpec(BaseModel):
     model: str
     """Model used for eval."""
 
+    model_generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
+    """Generate config specified for model instance."""
+
     model_base_url: str | None = Field(default=None)
     """Optional override of model base url"""
 
     model_args: dict[str, Any] = Field(default_factory=dict)
     """Model specific arguments."""
+
+    model_roles: dict[str, EvalModelConfig] | None = Field(default=None)
+    """Model roles."""
 
     config: EvalConfig
     """Configuration values for eval."""

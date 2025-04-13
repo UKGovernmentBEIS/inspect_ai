@@ -1,6 +1,7 @@
 import { FC } from "react";
 import { SampleSummary } from "../../api/types";
 import { MessageBand } from "../../components/MessageBand";
+import { ModelCard } from "../../plan/ModelCard";
 import { PlanCard } from "../../plan/PlanCard";
 import {
   EvalError,
@@ -55,6 +56,7 @@ export const InfoTab: FC<PlanTabProps> = ({
           evalPlan={evalPlan}
           scores={evalResults?.scores}
         />
+        {evalSpec ? <ModelCard evalSpec={evalSpec} /> : undefined}
         {evalStatus !== "started" ? <UsageCard stats={evalStats} /> : undefined}
         {evalStatus === "error" && evalError ? (
           <TaskErrorCard error={evalError} />

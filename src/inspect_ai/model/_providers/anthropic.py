@@ -368,7 +368,15 @@ class AnthropicAPI(ModelAPI):
         content: str | None = None
         stop_reason: StopReason | None = None
 
-        if "prompt is too long" in error:
+        # NOTE: Using case insensitive matching because the Anthropic Bedrock API seems to capitalize the work 'input' in its error message, other times it doesn't.
+        if any(
+            message in error.lower()
+            for message in [
+                "prompt is too long",
+                "input is too long",
+                "input length and `max_tokens` exceed context limit",
+            ]
+        ):
             if (
                 isinstance(ex.body, dict)
                 and "error" in ex.body.keys()
@@ -639,11 +647,7 @@ def message_tool_choice(
     elif tool_choice == "any":
         return {"type": "any"}
     elif tool_choice == "none":
-        warn_once(
-            logger,
-            'The Anthropic API does not support tool_choice="none" (using "auto" instead)',
-        )
-        return {"type": "auto"}
+        return {"type": "none"}
     else:
         return {"type": "auto"}
 
@@ -814,8 +818,7 @@ async def model_output_from_message(
         message.usage.input_tokens
         + (input_tokens_cache_write or 0)
         + (input_tokens_cache_read or 0)
-        + message.usage.output_tokens
-        + reasoning_tokens
+        + message.usage.output_tokens  # includes reasoning tokens
     )
     return ModelOutput(
         model=message.model,

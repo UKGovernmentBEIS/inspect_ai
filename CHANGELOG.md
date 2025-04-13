@@ -1,10 +1,53 @@
 ## Unreleased
 
-- [Agent](https://inspect.aisi.org.uk/agent-protocol.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
+- [Model Roles](https://inspect.aisi.org.uk/models.html#model-roles) for creating aliases to models used in a task (e.g. "grader", "red_team", "blue_team", etc.)
+- New [openai-api](https://inspect.aisi.org.uk/providers.html#openai-api) model provider for interfacing with arbitrary services that have Open AI API compatible endpoints.
+- Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
+- Approval: Approvers now take `history` argument (rather than `TaskState`) to better handle agent conversation state.
+- Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
+- Registry: Exported `registry_create()` function for dynamic creation of registry objects (e.g. `@task`, `@solver`, etc.).
+- Bugfix: Correctly resolve approvers in the same source file as tasks. 
+- Bugfix: Ensure agent decorator resolves string annotations from `__future__` as needed.
+
+## v0.3.88 (11 April 2025)
+
+- Tools: Restore formerly required (but now deprecated) `type` field to `ToolCall`.
+- Approval: Raise operator limit exceeded error for tool approval termination action.
+- Anthropic: Don't include side count of `reasoning_tokens` in `total_tokens` (they are already included).
+- Anthropic: Update string matching to correctly handle BadRequestErrors related to prompts being too long.
+
+## v0.3.87 (10 April 2025)
+
+- Eval: Fix an error when attempting to display realtime metrics for an evaluation.
+- Log Viewer: Fix an error when displaying a running log with a null metric value.
+
+## v0.3.86 (09 April 2025)
+
+- Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
+- Eval Retry: Correctly restore model-specific generation config on retry.
+- Inspect View: Resolve sample attachments before including in realtime event stream.
+- Bugfix: Properly handle special characters in IDs during event database cleanup.
+
+## v0.3.85 (08 April 2025)
+
+- Remove support for `goodfire` model provider (dependency conflicts).
+- React Agent: Enable specification of `description` without `name`.
+
+## v0.3.84 (07 April 2025)
+
+- Bugfix: Suppress link click behavior in vscode links.
+
+## v0.3.83 (07 April 2025)
+
+- Inspect View: [Live updates](https://inspect.aisi.org.uk/log-viewer.html#live-view) to running evaluation logs.
+- [Agent](https://inspect.aisi.org.uk/agents.html) protocol and [inspect_ai.agent](https://inspect.aisi.org.uk/reference/inspect_ai.agent.html) module with new system for creating, composing, and executing agents.
 - Scoring: New [grouped()](https://inspect.aisi.org.uk/scoring.html#metric-grouping) metric wrapper function, which applies a given metric to subgroups of samples defined by a key in sample metadata.
+- Basic Agent: New `submit_append` option to append the submit tool output to the completion rather than replacing the completion (note that the new `react()` agent appends by default).
 - Model API: New [execute_tools()](https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools) function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
 - Model API: `generate_loop()` method for calling generate with a tool use loop.
 - Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
+- Anthropic: Add support for `tool_choice="none"` (added in v0.49.0, which is now required).
+- Together AI: Updated `logprobs` to pass `1` rather than `True` (protocol change).
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
 - Computer Tool: Support for use of the native Open AI computer tool (available in the model `openai/computer-use-preview`)
 - Task API: `task_with()` and `tool_with()` no longer copy the input task or tool (rather, they modify it in place and return it).
@@ -17,7 +60,6 @@
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
 - Display: Print warnings after task summaries for improved visibility.
-- Inspect View: Live updates to running evaluation logs.
 - Inspect View: Fallback to content range request if inital HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
 - Inspect View: Render messages in `user` and `assistant` solver events.
@@ -34,6 +76,7 @@
 - Bugfix: Correctly handle custom `api_version` model argument for OpenAI on Azure.
 - Bugfix: Correct handling for `None` passed to tool call by model for optional parameters.
 - Bugfix: Cleanup automatically created `.compose.yml` when not in working directory.
+- Bugfix: Prevent exception when navigating to sample that no longer exists in running samples display.
 
 ## v0.3.82 (02 April 2025)
 
@@ -690,7 +733,7 @@
 
 ## v0.3.30 (18 September 2024)
 
-- Added [fork()](https://inspect.aisi.org.uk/agents-api.html#sec-forking) function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
+- Added `fork()` function to fork a `TaskState` and evaluate it against multiple solvers in parallel.
 - Ensure that Scores produced after being reduced still retain `answer`, `explanation`, and `metadata`.
 - Fix error when running `inspect info log-types`
 - Improve scorer names imported from modules by not including the the module names.
@@ -765,9 +808,9 @@
 
 ## v0.3.25 (25 August 2024)
 
-- [Store](https://inspect.aisi.org.uk/agents-api.html#sharing-state) for manipulating arbitrary sample state from within solvers and tools.
-- [Transcript](https://inspect.aisi.org.uk/agents-api.html#transcripts) for detailed sample level tracking of model and tool calls, state changes, logging, etc.
-- [Subtasks](https://inspect.aisi.org.uk/agents-api.html#sec-subtasks) for delegating work to helper models, sub-agents, etc.
+- `Store` for manipulating arbitrary sample state from within solvers and tools.
+- `Transcripts` for detailed sample level tracking of model and tool calls, state changes, logging, etc.
+- `Subtasks` for delegating work to helper models, sub-agents, etc.
 - Integration with Anthropic [prompt caching](https://inspect.aisi.org.uk/caching.html#sec-provider-caching).
 - [fail_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#failure-threshold) option to tolerate some threshold of sample failures without failing the evaluation.
 - Specify `init` value in default Docker compose file so that exit signals are handled correctly (substantially improves container shutdown performance).

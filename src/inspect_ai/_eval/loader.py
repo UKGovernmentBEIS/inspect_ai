@@ -52,6 +52,7 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
+    model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
@@ -61,6 +62,7 @@ def resolve_tasks(
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
                 model=task.model or model,
+                model_roles=task.model_roles or model_roles,
                 sandbox=resolve_task_sandbox(task, sandbox),
                 sequence=sequence,
             )
@@ -109,6 +111,9 @@ def resolve_tasks(
                 task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
                 model=previous_task.model or loaded_task.model or model,
+                model_roles=(
+                    previous_task.model_roles or loaded_task.model_roles or model_roles
+                ),
                 sandbox=previous_task.log.eval.sandbox,
                 sequence=sequence,
                 id=previous_task.id,
@@ -423,7 +428,15 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
         if solver_file is None:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
-            return cast(Solver, registry_create("solver", solver_name, **spec.args))
+            elif registry_lookup("solver", solver_name) is not None:
+                return cast(Solver, registry_create("solver", solver_name, **spec.args))
+            elif registry_lookup("agent", solver_name) is not None:
+                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                return as_solver(agent)
+            else:
+                raise ValueError(
+                    f"Unkonwn solver {solver_name} (not registered as a @solver or @agent)"
+                )
 
         # we do have a solver file
         else:

@@ -174,7 +174,7 @@ def test_openai_responses_tools():
 
 @skip_if_no_anthropic
 def test_anthropic_tools():
-    check_tools("anthropic/claude-3-sonnet-20240229", disable=["none"])
+    check_tools("anthropic/claude-3-sonnet-20240229")
 
 
 @skip_if_no_mistral

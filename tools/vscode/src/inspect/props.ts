@@ -14,8 +14,8 @@ export const kPythonPackageName = "inspect_ai";
 
 export interface VersionDescriptor {
   raw: string;
-  version: SemVer,
-  isDeveloperBuild: boolean
+  version: SemVer;
+  isDeveloperBuild: boolean;
 }
 
 // we cache the results of these functions so long as
@@ -27,7 +27,7 @@ class InspectPropsCache implements Disposable {
   constructor(
     private binPath_: AbsolutePath | null,
     private version_: VersionDescriptor | null,
-    private viewPath_: AbsolutePath | null
+    private viewPath_: AbsolutePath | null,
   ) {
     this.eventHandle_ = pythonInterpreter().onDidChange(() => {
       log.info("Resetting Inspect props to null");
@@ -95,11 +95,11 @@ export function inspectVersionDescriptor(): VersionDescriptor | null {
 
         const parsedVersion = coerce(version.version);
         if (parsedVersion) {
-          const isDeveloperVersion = version.version.indexOf('.dev') > -1;
+          const isDeveloperVersion = version.version.indexOf(".dev") > -1;
           const inspectVersion = {
             raw: version.version,
             version: parsedVersion,
-            isDeveloperBuild: isDeveloperVersion
+            isDeveloperBuild: isDeveloperVersion,
           };
           inspectPropsCache_.setVersion(inspectVersion);
           return inspectVersion;
@@ -142,9 +142,7 @@ export function inspectViewPath(): AbsolutePath | null {
         if (!existsSync(viewPath.path)) {
           // The dist folder is only available on newer versions, this is for
           // backwards compatibility only
-          viewPath = toAbsolutePath(version.path)
-            .child("_view")
-            .child("www");
+          viewPath = toAbsolutePath(version.path).child("_view").child("www");
         }
         inspectPropsCache_.setViewPath(viewPath);
         return viewPath;
@@ -185,12 +183,13 @@ export function inspectBinPath(): AbsolutePath | null {
 export function inspectLastEvalPaths(): AbsolutePath[] {
   const descriptor = inspectVersionDescriptor();
   const fileName =
-    descriptor && descriptor.version.compare(kInspectChangeEvalSignalVersion) < 0
+    descriptor &&
+    descriptor.version.compare(kInspectChangeEvalSignalVersion) < 0
       ? "last-eval"
       : "last-eval-result";
 
   return [userRuntimeDir(kPythonPackageName), userDataDir(kPythonPackageName)]
-    .map(dir => join(dir, "view", fileName))
+    .map((dir) => join(dir, "view", fileName))
     .map(toAbsolutePath);
 }
 

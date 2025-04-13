@@ -7,14 +7,14 @@ import { dirname, join } from "path";
 export function runPythonModule(
   module: string,
   args: string[],
-  cwd?: AbsolutePath
+  cwd?: AbsolutePath,
 ) {
   return runPython(["-m", module, ...args], cwd);
 }
 
 export function pythonBinaryPath(
   interpreter: PythonInterpreter,
-  binary: string
+  binary: string,
 ): AbsolutePath | null {
   // First look within the bin dir of the interpreter
   if (interpreter.pythonBinDir) {
@@ -83,7 +83,7 @@ export function spawnPython(
   lifecycle?: {
     onError?: (error: Error) => void;
     onClose?: (code: number) => void;
-  }
+  },
 ) {
   const execCommand = pythonInterpreter().execCommand;
   if (execCommand) {
@@ -106,7 +106,7 @@ export function spawnPythonModule(
   lifecycle?: {
     onError?: (error: Error) => void;
     onClose?: (code: number) => void;
-  }
+  },
 ) {
   return spawnPython(["-m", module, ...args], cwd, io, lifecycle);
 }

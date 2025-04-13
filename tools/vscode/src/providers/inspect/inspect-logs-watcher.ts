@@ -9,18 +9,16 @@ import { kInspectChangeEvalSignalVersion } from "./inspect-constants";
 import { resolveToUri } from "../../core/uri";
 
 export interface InspectLogCreatedEvent {
-  log: Uri
+  log: Uri;
   externalWorkspace: boolean;
 }
 
 export class InspectLogsWatcher implements Disposable {
-  constructor(
-    private readonly workspaceStateManager_: WorkspaceStateManager,
-  ) {
+  constructor(private readonly workspaceStateManager_: WorkspaceStateManager) {
     log.appendLine("Watching for evaluation logs");
     this.lastEval_ = Date.now();
 
-    const evalSignalFiles = inspectLastEvalPaths().map(path => path.path);
+    const evalSignalFiles = inspectLastEvalPaths().map((path) => path.path);
 
     this.watchInterval_ = setInterval(() => {
       for (const evalSignalFile of evalSignalFiles) {
@@ -31,7 +29,9 @@ export class InspectLogsWatcher implements Disposable {
 
             let evalLogPath: string | undefined;
             let workspaceId;
-            const contents = readFileSync(evalSignalFile, { encoding: "utf-8" });
+            const contents = readFileSync(evalSignalFile, {
+              encoding: "utf-8",
+            });
 
             // Parse the eval signal file result
             withMinimumInspectVersion(
@@ -48,12 +48,15 @@ export class InspectLogsWatcher implements Disposable {
               () => {
                 // 0.3.8 or earlier
                 evalLogPath = contents;
-              }
+              },
             );
 
             if (evalLogPath !== undefined) {
               // see if this is another instance of vscode
-              const externalWorkspace = !!workspaceId && workspaceId !== this.workspaceStateManager_.getWorkspaceInstance();
+              const externalWorkspace =
+                !!workspaceId &&
+                workspaceId !==
+                  this.workspaceStateManager_.getWorkspaceInstance();
 
               // log
               log.appendLine(`New log: ${evalLogPath}`);
@@ -61,11 +64,13 @@ export class InspectLogsWatcher implements Disposable {
               // fire event
               try {
                 const logUri = resolveToUri(evalLogPath);
-                this.onInspectLogCreated_.fire({ log: logUri, externalWorkspace });
+                this.onInspectLogCreated_.fire({
+                  log: logUri,
+                  externalWorkspace,
+                });
               } catch (error) {
                 log.appendLine(`Unexpected error parsing URI ${evalLogPath}`);
               }
-
             }
           }
         }

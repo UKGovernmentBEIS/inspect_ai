@@ -3,7 +3,7 @@ import { Command } from "../../core/command";
 import { randomInt } from "../../core/random";
 
 export function activateWorkspaceState(
-  context: ExtensionContext
+  context: ExtensionContext,
 ): [Command[], WorkspaceStateManager] {
   const stateManager = new WorkspaceStateManager(context);
   return [[], stateManager];
@@ -24,19 +24,20 @@ export interface ModelState {
 }
 
 export class WorkspaceStateManager {
-  constructor(private readonly context_: ExtensionContext) {
-  }
+  constructor(private readonly context_: ExtensionContext) {}
 
   public async initializeWorkspaceId() {
-    const existingKey = this.context_.workspaceState.get<string>('INSPECT_WORKSPACE_ID');
+    const existingKey = this.context_.workspaceState.get<string>(
+      "INSPECT_WORKSPACE_ID",
+    );
     if (!existingKey) {
       const key = `${Date.now()}-${randomInt(0, 100000)}`;
-      await this.context_.workspaceState.update('INSPECT_WORKSPACE_ID', key);
+      await this.context_.workspaceState.update("INSPECT_WORKSPACE_ID", key);
     }
   }
 
   public getWorkspaceInstance(): string {
-    return this.context_.workspaceState.get<string>('INSPECT_WORKSPACE_ID')!;
+    return this.context_.workspaceState.get<string>("INSPECT_WORKSPACE_ID")!;
   }
 
   public getState(key: string) {
@@ -48,11 +49,20 @@ export class WorkspaceStateManager {
   }
 
   public getTaskState(taskFilePath: string, taskName?: string): DocumentState {
-    return this.context_.workspaceState.get(taskKey(taskFilePath, taskName)) || {};
+    return (
+      this.context_.workspaceState.get(taskKey(taskFilePath, taskName)) || {}
+    );
   }
 
-  public async setTaskState(taskFilePath: string, state: DocumentState, taskName?: string) {
-    await this.context_.workspaceState.update(taskKey(taskFilePath, taskName), state);
+  public async setTaskState(
+    taskFilePath: string,
+    state: DocumentState,
+    taskName?: string,
+  ) {
+    await this.context_.workspaceState.update(
+      taskKey(taskFilePath, taskName),
+      state,
+    );
   }
 
   public getModelState(provider: string): ModelState {
@@ -75,4 +85,3 @@ function taskKey(file: string, task?: string) {
 function modelKey(provider: string) {
   return `provider-${provider}`;
 }
-

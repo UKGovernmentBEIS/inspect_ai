@@ -52,12 +52,6 @@ website:
           href: reference/inspect_ai.solver.qmd#self_critique
         - text: multiple_choice
           href: reference/inspect_ai.solver.qmd#multiple_choice
-        - text: basic_agent
-          href: reference/inspect_ai.solver.qmd#basic_agent
-        - text: human_agent
-          href: reference/inspect_ai.solver.qmd#human_agent
-        - text: bridge
-          href: reference/inspect_ai.solver.qmd#bridge
         - text: chain
           href: reference/inspect_ai.solver.qmd#chain
         - text: fork
@@ -122,8 +116,8 @@ website:
           href: reference/inspect_ai.agent.qmd#react
         - text: bridge
           href: reference/inspect_ai.agent.qmd#bridge
-        - text: human
-          href: reference/inspect_ai.agent.qmd#human
+        - text: human_cli
+          href: reference/inspect_ai.agent.qmd#human_cli
         - text: handoff
           href: reference/inspect_ai.agent.qmd#handoff
         - text: run
@@ -367,6 +361,8 @@ website:
           href: reference/inspect_ai.log.qmd#evaldataset
         - text: EvalConfig
           href: reference/inspect_ai.log.qmd#evalconfig
+        - text: EvalModelConfig
+          href: reference/inspect_ai.log.qmd#evalmodelconfig
         - text: EvalRevision
           href: reference/inspect_ai.log.qmd#evalrevision
         - text: EvalPlan
@@ -482,6 +478,10 @@ website:
           href: reference/inspect_ai.util.qmd#sandboxconnection
         - text: sandboxenv
           href: reference/inspect_ai.util.qmd#sandboxenv
+        - text: registry_create
+          href: reference/inspect_ai.util.qmd#registry_create
+        - text: RegistryType
+          href: reference/inspect_ai.util.qmd#registrytype
         - text: JSONType
           href: reference/inspect_ai.util.qmd#jsontype
         - text: JSONSchema

@@ -50,7 +50,7 @@ export interface SampleDataResponse {
 export interface RunningMetric {
   scorer: string;
   name: string;
-  value?: number;
+  value?: number | null;
   reducer?: string;
 }
 

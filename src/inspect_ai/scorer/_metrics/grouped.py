@@ -8,10 +8,12 @@ from inspect_ai.scorer._metric import (
     SampleScore,
     Value,
     ValueToFloat,
+    metric,
     value_to_float,
 )
 
 
+@metric
 def grouped(
     metric: Metric,
     group_key: str,
@@ -22,14 +24,6 @@ def grouped(
 ) -> Metric:
     """
     Creates a grouped metric that applies the given metric to subgroups of samples.
-
-    ::: {.callout-note}
-    The `grouped()` function is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
 
     Args:
       metric: The metric to apply to each group of samples.
