@@ -44,7 +44,7 @@ The following is a simple `web_surfer()` agent that uses the
 on top of the standard `react()` agent (described in more depth below):
 
 ``` python
-from inspect_ai.agent react
+from inspect_ai.agent import react
 from inspect_ai.tool import web_browser
 
 web_surfer = react(
@@ -89,7 +89,7 @@ This agent can be used in the following ways:
 
     ``` python
     from inspect_ai.agent import handoff
-    from inspect_ai.solver use_tools, generate
+    from inspect_ai.solver import use_tools, generate
     from math_tools import addition
 
     eval(
@@ -105,7 +105,7 @@ This agent can be used in the following ways:
 
     ``` python
     from inspect_ai.agent import as_tool
-    from inspect_ai.solver use_tools, generate
+    from inspect_ai.solver import use_tools, generate
 
     eval(
         task="research_bench", 
