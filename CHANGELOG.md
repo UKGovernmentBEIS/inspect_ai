@@ -4,7 +4,11 @@
 - New [openai-api](https://inspect.aisi.org.uk/providers.html#openai-api) model provider for interfacing with arbitrary services that have Open AI API compatible endpoints.
 - Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
 - Approval: Approvers now take `history` argument (rather than `TaskState`) to better handle agent conversation state.
+- Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
+- Registry: Exported `registry_create()` function for dynamic creation of registry objects (e.g. `@task`, `@solver`, etc.).
+- Remove `chdir` option from `@task` (tasks can no longer change their working directory during execution).
 - Bugfix: Correctly resolve approvers in the same source file as tasks. 
+- Bugfix: Ensure agent decorator resolves string annotations from `__future__` as needed.
 
 ## v0.3.88 (11 April 2025)
 
