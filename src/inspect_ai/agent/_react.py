@@ -17,6 +17,7 @@ from inspect_ai.tool._tool_with import tool_with
 from ._agent import Agent, AgentState, agent, agent_with
 from ._handoff import has_handoff
 from ._types import (
+    DEFAULT_CONTINUE_PROMPT,
     AgentAttempts,
     AgentContinue,
     AgentPrompt,
@@ -68,9 +69,12 @@ def react(
        attempts: Configure agent to make multiple attempts.
        submit: Configure submit tool used by agent.
        on_continue: Message to play back to the model to urge it to continue.
-          Optionally, can also be an async function to call to determine whether
-          the loop should continue (executed on every turn) and what message
-          to play back.
+          Use the placeholder {submit} to refer to the submit tool within the message.
+          Alternatively, an async function to call to determine whether the loop
+          should continue and what message to play back. Note that this function
+          is called on _every_ iteration of the loop so if you only want to send
+          a message back when the model fails to call tools you need to code
+          that behavior explicitly.
 
     Returns:
         ReAct agent.
@@ -91,14 +95,13 @@ def react(
         system_message = None
 
     # resolve on_continue
-    if on_continue is None:
-        on_continue = "If you believe you have completed the task, please call the `submit()` tool with your answer."
+    on_continue = on_continue or DEFAULT_CONTINUE_PROMPT
     if isinstance(on_continue, str):
         no_tools_continue_message = on_continue
 
         async def no_tools_continue(state: AgentState) -> bool | str:
             if state.output is None or not state.output.message.tool_calls:
-                return no_tools_continue_message
+                return no_tools_continue_message.format(submit=submit.name)
             else:
                 return True
 
