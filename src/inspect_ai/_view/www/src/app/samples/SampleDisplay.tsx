@@ -45,8 +45,6 @@ import { TranscriptVirtualList } from "./transcript/TranscriptView";
 interface SampleDisplayProps {
   id: string;
   sample?: EvalSample;
-  selectedTab?: string;
-  setSelectedTab: (tab: string) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
   runningEvents?: Events;
 }
@@ -57,8 +55,6 @@ interface SampleDisplayProps {
 export const SampleDisplay: FC<SampleDisplayProps> = ({
   id,
   sample,
-  selectedTab,
-  setSelectedTab,
   scrollRef,
   runningEvents: runningSampleData,
 }) => {
@@ -68,6 +64,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
   );
+
+  // Selected tab handling
+  const selectedTab = useStore((state) => state.app.tabs.sample);
+  const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
 
   const sampleSummary = sampleSummaries[selectedSampleIndex];
 

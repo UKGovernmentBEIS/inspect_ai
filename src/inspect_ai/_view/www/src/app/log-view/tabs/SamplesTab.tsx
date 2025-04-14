@@ -120,15 +120,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
 
   const sampleListHandle = useRef<VirtuosoHandle | null>(null);
 
-  const selectedSampleTab = useStore((state) => state.app.tabs.sample);
-  const setSelectedSampleTab = useStore(
-    (state) => state.appActions.setSampleTab,
-  );
-  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
-  const setShowingSampleDialog = useStore(
-    (state) => state.appActions.setShowingSampleDialog,
-  );
-
   // Keep the selected item scrolled into view
   useEffect(() => {
     setTimeout(() => {
@@ -137,6 +128,8 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
       }
     }, 0);
   }, [selectedSampleIndex]);
+
+  const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
 
   // Focus the sample list when sample dialog is hidden, but only when it's being dismissed
   const previousShowingDialogRef = useRef(showingSampleDialog);
@@ -233,9 +226,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
             id={String(selectedSample?.id || "")}
             title={title}
             showingSampleDialog={showingSampleDialog}
-            setShowingSampleDialog={setShowingSampleDialog}
-            selectedTab={selectedSampleTab}
-            setSelectedTab={setSelectedSampleTab}
           />
         )}
       </Fragment>
