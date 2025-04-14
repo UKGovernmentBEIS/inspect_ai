@@ -1,4 +1,3 @@
-import functools
 import json
 import traceback
 from typing import Awaitable, Callable, ParamSpec, Type, TypeVar
@@ -195,14 +194,10 @@ def validated_json_rpc_method(cls: Type[BaseModelT]):
     """
 
     def decorator(func: Callable[[BaseModelT], Awaitable[R]]) -> Callable[..., object]:
-        @method
-        @functools.wraps(func)
         async def wrapper(**params: object) -> object:
-            async def handler(validated_params: BaseModelT) -> R:
-                return await func(validated_params)
+            return await with_validated_rpc_method_params(cls, func, **params)
 
-            return await with_validated_rpc_method_params(cls, handler, **params)
-
-        return wrapper
+        wrapper.__name__ = func.__name__
+        return method(wrapper)
 
     return decorator

@@ -89,6 +89,7 @@ dependencies = [
     "aiohttp",
     "httpx",
     "jsonrpcserver",
+    "mcp",
     "pydantic",
     "returns",
     "tenacity",
