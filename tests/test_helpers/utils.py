@@ -92,7 +92,7 @@ def skip_if_no_grok(func):
 
 
 def skip_if_no_cloudflare(func):
-    return pytest.mark.api(skip_if_env_var("CLOUDFLARE_API_TOKEN", exists=False)(func))
+    return pytest.mark.api(skip_if_env_var("CLOUDFLARE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_together(func):
