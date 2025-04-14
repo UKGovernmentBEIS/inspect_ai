@@ -24,6 +24,9 @@ export interface StoreState extends AppSlice, LogsSlice, LogSlice, SampleSlice {
   cleanup: () => void;
 }
 
+export let storeImplementation: UseBoundStore<StoreApi<StoreState>> | null =
+  null;
+
 // The data that will actually be persisted
 export type PersistedState = {
   app: AppSlice["app"];
@@ -31,9 +34,6 @@ export type PersistedState = {
   logs: LogsSlice["logs"];
   sample: SampleSlice["sample"];
 };
-
-// The store implementation (this will be set when the store is initialized)
-let storeImplementation: UseBoundStore<StoreApi<StoreState>> | null = null;
 
 // Create a proxy store that forwards calls to the real store once initialized
 export const useStore = ((selector?: any) => {

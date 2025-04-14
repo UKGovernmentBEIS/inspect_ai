@@ -81793,28 +81793,14 @@ Supported expressions:
       ]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
-    const RouteTracker = () => {
-      const location = useLocation();
-      useNavigate();
-      const setUrlHash = useStore((state) => state.appActions.setUrlHash);
-      const storedHash = useStore((state) => state.app.urlHash);
-      const restoredRef = reactExports.useRef(false);
-      reactExports.useEffect(() => {
-        if (storedHash && !restoredRef.current) {
-          storedHash.startsWith("#") ? storedHash.slice(1) : storedHash;
-          restoredRef.current = true;
-        }
-      }, []);
-      reactExports.useEffect(() => {
-        setUrlHash(location.pathname);
-      }, [location]);
-      return null;
-    };
     const AppLayout = () => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(RouteTracker, {}),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Outlet, {})
-      ] });
+      const location = useLocation();
+      reactExports.useEffect(() => {
+        if (storeImplementation) {
+          storeImplementation.getState().appActions.setUrlHash(location.pathname);
+        }
+      }, [location]);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Outlet, {}) });
     };
     const AppRouter = createHashRouter(
       [
@@ -81822,6 +81808,13 @@ Supported expressions:
           path: "/",
           element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppLayout, {}),
           // Use the layout component
+          loader: () => {
+            if (!storeImplementation) {
+              return { initialRoute: null };
+            }
+            const storedHash = storeImplementation.getState().app.urlHash;
+            return { initialRoute: storedHash };
+          },
           children: [
             {
               index: true,
@@ -81997,6 +81990,7 @@ Supported expressions:
       }
     }
     initializeStore(applicationApi, capabilities, applicationStorage);
+    restoreHash();
     const containerId = "app";
     const container = document.getElementById(containerId);
     if (!container) {
@@ -82009,6 +82003,20 @@ Supported expressions:
     root.render(
       /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.StrictMode, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, { api: applicationApi }) })
     );
+    function restoreHash() {
+      if (storeImplementation && storeImplementation.getState().app.urlHash) {
+        const storedHash = storeImplementation.getState().app.urlHash;
+        if (storedHash) {
+          if (storedHash.startsWith("/")) {
+            window.location.hash = storedHash;
+          } else if (storedHash.startsWith("#")) {
+            window.location.hash = storedHash;
+          } else {
+            window.location.hash = "#" + storedHash;
+          }
+        }
+      }
+    }
   }
 });
 export default require_assets();
