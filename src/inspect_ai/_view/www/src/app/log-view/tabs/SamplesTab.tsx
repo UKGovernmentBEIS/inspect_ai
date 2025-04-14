@@ -21,7 +21,6 @@ import {
 } from "../../../state/hooks.ts";
 import { useStore } from "../../../state/store.ts";
 import { ApplicationIcons } from "../../appearance/icons.ts";
-import { useSampleNavigation } from "../../routing/navigationHooks.ts";
 import { RunningNoSamples } from "./RunningNoSamples.tsx";
 import { getSampleProcessor } from "./grouping.ts";
 import { ListItem } from "./types.ts";
@@ -86,9 +85,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
 
   const sampleSummaries = useFilteredSamples();
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-
-  // Get sample navigation utilities
-  const sampleNavigation = useSampleNavigation();
 
   // Compute the limit to apply to the sample count (this is so)
   // we can provide a total expected sample count for this evaluation
@@ -216,9 +212,6 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
             items={items}
             totalItemCount={evalSampleCount}
             running={running}
-            nextSample={sampleNavigation.nextSample}
-            prevSample={sampleNavigation.previousSample}
-            showSample={sampleNavigation.showSample}
           />
         ) : undefined}
         {showingSampleDialog && (
