@@ -353,9 +353,9 @@ async def call_tool(
     )
     if not approved:
         if approval and approval.decision == "terminate":
-            from inspect_ai.solver._limit import SampleLimitExceededError
+            from inspect_ai.util._limit import LimitExceededError
 
-            raise SampleLimitExceededError(
+            raise LimitExceededError(
                 "operator",
                 value=1,
                 limit=1,
