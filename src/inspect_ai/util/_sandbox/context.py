@@ -24,7 +24,7 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
     """Get the SandboxEnvironment for the current sample.
 
     Args:
-      name (str | None): Optional sandbox environmnent name.
+      name (str | None): Optional sandbox environment name.
 
     Return:
       SandboxEnvironment instance.
@@ -45,7 +45,7 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
         environment = environments.get(name, None)
         if not environment:
             raise ValueError(
-                f"SandboxEnvironment '{name}' is not a recoginized environment name."
+                f"SandboxEnvironment '{name}' is not a recognized environment name."
             )
         return environment
 
