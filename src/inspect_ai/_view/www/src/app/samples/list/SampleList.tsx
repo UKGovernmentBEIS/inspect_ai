@@ -20,6 +20,7 @@ import clsx from "clsx";
 import { useProperty, useSampleDescriptor } from "../../../state/hooks";
 import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
+import { useSampleNavigation } from "../../routing/navigationHooks";
 import { SampleFooter } from "./SampleFooter";
 import { SampleHeader } from "./SampleHeader";
 import styles from "./SampleList.module.css";
@@ -31,9 +32,6 @@ interface SampleListProps {
   items: ListItem[];
   totalItemCount: number;
   running: boolean;
-  nextSample: () => void;
-  prevSample: () => void;
-  showSample: (index: number) => void;
   className?: string | string[];
   listHandle: RefObject<VirtuosoHandle | null>;
 }
@@ -41,21 +39,15 @@ interface SampleListProps {
 export const kSampleFollowProp = "sample-list";
 
 export const SampleList: FC<SampleListProps> = memo((props) => {
-  const {
-    items,
-    totalItemCount,
-    running,
-    nextSample,
-    prevSample,
-    showSample,
-    className,
-    listHandle,
-  } = props;
+  const { items, totalItemCount, running, className, listHandle } = props;
 
   const { getRestoreState, isScrolling } = useVirtuosoState(
     listHandle,
     "sample-list",
   );
+
+  // Get sample navigation utilities
+  const sampleNavigation = useSampleNavigation();
 
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
@@ -107,23 +99,28 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     (e: KeyboardEvent<HTMLDivElement>) => {
       switch (e.key) {
         case "ArrowUp":
-          prevSample();
+          sampleNavigation.previousSample();
           e.preventDefault();
           e.stopPropagation();
           break;
         case "ArrowDown":
-          nextSample();
+          sampleNavigation.nextSample();
           e.preventDefault();
           e.stopPropagation();
           break;
         case "Enter":
-          showSample(selectedSampleIndex);
+          sampleNavigation.showSample(selectedSampleIndex);
           e.preventDefault();
           e.stopPropagation();
           break;
       }
     },
-    [selectedSampleIndex, nextSample, prevSample, showSample],
+    [
+      selectedSampleIndex,
+      sampleNavigation.nextSample,
+      sampleNavigation.previousSample,
+      sampleNavigation.showSample,
+    ],
   );
 
   const gridColumnsTemplate = useMemo(() => {
@@ -143,7 +140,6 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
             completed={item.completed}
             scoreRendered={item.scoreRendered}
             gridColumnsTemplate={gridColumnsTemplate}
-            showSample={showSample}
           />
         );
       } else if (item.type === "separator") {
@@ -158,7 +154,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         return null;
       }
     },
-    [showSample, gridColumnsTemplate],
+    [gridColumnsTemplate],
   );
 
   const { input, limit, answer, target } = gridColumns(samplesDescriptor);

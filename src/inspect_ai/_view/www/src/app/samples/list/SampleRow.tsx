@@ -1,6 +1,5 @@
 import clsx from "clsx";
 import { FC, ReactNode } from "react";
-import { Link } from "react-router-dom";
 import { SampleSummary } from "../../../client/api/types";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
@@ -19,7 +18,6 @@ interface SampleRowProps {
   scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
-  showSample: (index: number) => void;
 }
 
 export const SampleRow: FC<SampleRowProps> = ({
@@ -31,7 +29,6 @@ export const SampleRow: FC<SampleRowProps> = ({
   scoreRendered,
   gridColumnsTemplate,
   height,
-  showSample,
 }) => {
   const streamSampleData = useStore(
     (state) => state.capabilities.streamSampleData,
@@ -42,8 +39,10 @@ export const SampleRow: FC<SampleRowProps> = ({
   // Determine if this sample can be viewed (completed or streaming)
   const isViewable = completed || streamSampleData;
 
-  // Use sample navigation hook to get sample URL
+  // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();
+
+  // Use sample navigation hook to get sample URL
   const sampleUrl = isViewable
     ? sampleNavigation.getSampleUrl(sample.id, sample.epoch)
     : undefined;
@@ -116,12 +115,12 @@ export const SampleRow: FC<SampleRowProps> = ({
   );
 
   // Render the row content either as a link or directly
-  return sampleUrl && isViewable ? (
-    <Link to={sampleUrl} className={styles.sampleRowLink}>
-      {rowContent}
-    </Link>
-  ) : (
-    <div onClick={isViewable ? () => showSample(index) : undefined}>
+  return (
+    <div
+      onClick={
+        isViewable ? () => sampleNavigation.showSample(index) : undefined
+      }
+    >
       {rowContent}
     </div>
   );
