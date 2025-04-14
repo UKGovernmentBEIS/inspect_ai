@@ -67,6 +67,15 @@ def skip_if_no_openai(func):
     )
 
 
+def skip_if_no_openai_azure(func):
+    return pytest.mark.skipif(
+        importlib.util.find_spec("openai") is None
+        or os.environ.get("AZUREAI_OPENAI_API_KEY") is None
+        or os.environ.get("AZUREAI_OPENAI_BASE_URL") is None,
+        reason="Test requires both OpenAI package and AZUREAI_OPENAI_API_KEY and AZUREAI_OPENAI_BASE_URL environment variables",
+    )(func)
+
+
 def skip_if_no_openai_package(func):
     return skip_if_no_package("openai")(func)
 
