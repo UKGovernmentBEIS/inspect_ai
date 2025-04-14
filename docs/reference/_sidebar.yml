@@ -478,6 +478,10 @@ website:
           href: reference/inspect_ai.util.qmd#sandboxconnection
         - text: sandboxenv
           href: reference/inspect_ai.util.qmd#sandboxenv
+        - text: registry_create
+          href: reference/inspect_ai.util.qmd#registry_create
+        - text: RegistryType
+          href: reference/inspect_ai.util.qmd#registrytype
         - text: JSONType
           href: reference/inspect_ai.util.qmd#jsontype
         - text: JSONSchema

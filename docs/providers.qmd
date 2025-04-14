@@ -228,13 +228,23 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek {#deepseek}
 
-To use [DeepSeek](https://www.deepseek.com/) models, install the `openai` package (which DeepSeek provides a compatible backend for) and set your credentials using the `OPENAI_API_KEY` environment variable. Then, when running inspect, use the  `--model-base-url` option to point to DeepSeek's base URL, and the `--model` option to specify a model:
+::: callout-note
+The `openai-api` provider used to interface with DeepSeek is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
 
 ```bash
 pip install openai
-export OPENAI_API_KEY=your-deepseek-api-key
-inspect eval arc.py --model-base-url https://api.deepseek.com --model openai/deepseek-reasoner 
+export DEEPSEEK_API_KEY=your-deepseek-api-key
+export DEEPSEEK_BASE_URL=https://api.deepseek.com
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
 ```
+
 
 ## Grok {#grok}
 
@@ -482,12 +492,13 @@ $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 
 ### vLLM Server
 
-vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the `openai` provider rather than the `vllm` provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:
+vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the `openai-api` provider rather than the `vllm` provider, setting the model base URL to point to the vLLM server. For example:
 
 ``` bash
-$ export OPENAI_BASE_URL=http://localhost:8080/v1
-$ export OPENAI_API_KEY=<your-server-api-key>
-$ inspect eval arc.py --model openai/meta-llama/Meta-Llama-3-8B-Instruct
+$ export VLLM_BASE_URL=http://localhost:8080/v1
+$ export VLLM_API_KEY=<your-server-api-key>
+$ inspect eval arc.py \
+    --model openai-api/vllm/meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
 See the vLLM documentation on [Server Mode](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html) for additional details.
@@ -525,6 +536,39 @@ The following environment variables are supported by the llama-cpp-python provid
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `LLAMA_CPP_PYTHON_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:8000/v1`) |
+
+## OpenAI Compatible {#openai-api}
+
+::: callout-note
+The `openai-api` provider described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+If your model provider makes an OpenAI API compatible endpoint available, you can use it with Inspect via the `openai-api` provider, which uses the following model naming convention:
+
+```
+openai-api/<provider-name>/<model-name>
+```
+
+Inspect will read environment variables corresponding to the api key and base url of your provider using the following convention (note that the provider name is capitalized):
+
+```
+<PROVIDER-NAME>_API_KEY
+<PROVIDER-NAME>_BASE_URL
+```
+
+### Example
+
+Here is how you would access DeepSeek using the `openai-api` provider:
+
+```bash
+export DEEPSEEK_API_KEY=your-deepseek-api-key
+export DEEPSEEK_BASE_URL=https://api.deepseek.com
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
+```
 
 ## OpenRouter
 

@@ -44,6 +44,17 @@ def openai() -> type[ModelAPI]:
     return OpenAIAPI
 
 
+@modelapi(name="openai-api")
+def openai_api() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("OpenAI Compatible API")
+
+    # in the clear
+    from .openai_compatible import OpenAICompatibleAPI
+
+    return OpenAICompatibleAPI
+
+
 @modelapi(name="anthropic")
 def anthropic() -> type[ModelAPI]:
     FEATURE = "Anthropic API"
