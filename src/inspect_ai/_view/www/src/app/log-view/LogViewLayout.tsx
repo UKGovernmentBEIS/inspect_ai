@@ -3,7 +3,6 @@ import { FC, KeyboardEvent, useCallback, useRef } from "react";
 import { ErrorPanel } from "../../components/ErrorPanel";
 import { FindBand } from "../../components/FindBand";
 import { ProgressBar } from "../../components/ProgressBar";
-import { useSetSelectedLogIndex } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { Sidebar } from "../sidebar/Sidebar";
 import { LogView } from "./LogView";
@@ -32,7 +31,6 @@ export const LogViewLayout: FC = () => {
   const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
   const logHeaders = useStore((state) => state.logs.logHeaders);
   const headersLoading = useStore((state) => state.logs.headersLoading);
-  const setSelectedLogIndex = useSetSelectedLogIndex();
 
   // Log Data
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
@@ -46,24 +44,19 @@ export const LogViewLayout: FC = () => {
   // if there are no log files, then don't show sidebar
   const fullScreen = logs.files.length === 1 && !logs.log_dir;
 
-  const handleSelectedIndexChanged = useCallback(
-    (index: number) => {
-      setSelectedLogIndex(index);
-      setOffCanvas(false);
-      resetFiltering();
-      clearSampleTab();
-      clearWorkspaceTab();
-      selectSample(0);
-    },
-    [
-      setSelectedLogIndex,
-      setOffCanvas,
-      resetFiltering,
-      clearSampleTab,
-      clearWorkspaceTab,
-      selectSample,
-    ],
-  );
+  const handleSelectedIndexChanged = useCallback(() => {
+    setOffCanvas(false);
+    resetFiltering();
+    clearSampleTab();
+    clearWorkspaceTab();
+    selectSample(0);
+  }, [
+    setOffCanvas,
+    resetFiltering,
+    clearSampleTab,
+    clearWorkspaceTab,
+    selectSample,
+  ]);
 
   const handleKeyboard = useCallback(
     (e: KeyboardEvent) => {
