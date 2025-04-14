@@ -12,7 +12,8 @@ def my_solver():
     async def solve(state: TaskState, generate: Generate):
         await generate(state)
 
-        results = await fork(state, [inner_fork() for _ in range(3)])
+        # Each fork gets their own copy of the TaskState
+        results = await fork(state, [my_fork() for _ in range(3)])
         print(results)
 
         return state
@@ -21,12 +22,12 @@ def my_solver():
 
 
 @solver
-def inner_fork():
+def my_fork():
     async def solve(state: TaskState, generate: Generate):
-        with message_limit(2):
-            await generate(state)
-            await generate(state)
-            await generate(state)
+        # with message_limit(2):
+        await generate(state)
+        await generate(state)
+        await generate(state)
 
         return state
 

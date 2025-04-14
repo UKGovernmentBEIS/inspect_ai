@@ -14,7 +14,7 @@ from inspect_ai.tool._tool_info import parse_tool_info
 from ._agent import Agent, AgentState
 
 
-def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
+def as_solver(agent: Agent, message_limit: int | None, **agent_kwargs: Any) -> Solver:
     """Convert an agent to a solver.
 
     Note that agents used as solvers will only receive their first parameter
@@ -23,6 +23,7 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
 
     Args:
        agent: Agent to convert.
+       message_limit: ...
        **agent_kwargs: Arguments to curry to Agent function (required
           if the agent has parameters without default values).
 
@@ -54,7 +55,8 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # run agent
             agent_state = await agent(
-                AgentState(messages=state.messages), **agent_kwargs
+                AgentState(messages=state.messages, message_limit=message_limit),
+                **agent_kwargs,
             )
 
             # update messages

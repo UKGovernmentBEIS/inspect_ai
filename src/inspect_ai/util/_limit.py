@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # child node into the tree. The fact that there can be multiple execution contexts is
 # what makes this a tree rather than a stack.
 token_limit_leaf_node: ContextVar[_TokenLimitNode | None] = ContextVar(
-    "token_limit_leaf_node", default=None
+    "token_leaf_node", default=None
 )
 
 
@@ -119,9 +119,6 @@ def token_limit(limit: int | None) -> TokenLimit:
     return TokenLimit(limit)
 
 
-# TODO: We want to store the current message count when the context manager is opened.
-# We should discount the initial message count when checking how many messages have been
-# used.
 def message_limit(limit: int | None) -> MessageLimit:
     """Create a MessageLimit."""
     return MessageLimit(limit)

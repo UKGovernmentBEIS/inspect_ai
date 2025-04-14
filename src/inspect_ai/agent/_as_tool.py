@@ -15,7 +15,12 @@ from ._agent import AGENT_DESCRIPTION, Agent, AgentState
 
 
 @tool
-def as_tool(agent: Agent, description: str | None = None, **agent_kwargs: Any) -> Tool:
+def as_tool(
+    agent: Agent,
+    description: str | None = None,
+    message_limit: int | None = None,
+    **agent_kwargs: Any,
+) -> Tool:
     """Convert an agent to a tool.
 
     By default the model will see all of the agent's arguments as
@@ -27,6 +32,7 @@ def as_tool(agent: Agent, description: str | None = None, **agent_kwargs: Any) -
     Args:
        agent: Agent to convert.
        description: Tool description (defaults to agent description)
+       message_limit: ...
        **agent_kwargs: Arguments to curry to Agent function (arguments
           provided here will not be presented to the model as part
           of the tool interface).
@@ -42,7 +48,9 @@ def as_tool(agent: Agent, description: str | None = None, **agent_kwargs: Any) -
 
     async def execute(input: str, *args: Any, **kwargs: Any) -> ToolResult:
         # prepare state and call agent
-        state = AgentState(messages=[ChatMessageUser(content=input)])
+        state = AgentState(
+            messages=[ChatMessageUser(content=input)], message_limit=message_limit
+        )
         state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # find assistant message to read content from (prefer output)

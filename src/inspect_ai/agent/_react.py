@@ -142,8 +142,6 @@ def react(
     tools = tools or []
     tools.append(tool_with(submit_tool(), submit.name, submit.description))
 
-    message_limiter = create_message_limit(message_limit)
-
     async def execute(state: AgentState) -> AgentState:
         # prepend system message if we have one
         if system_message:
@@ -151,6 +149,8 @@ def react(
 
         # track attempts
         attempt_count = 0
+
+        message_limiter = create_message_limit(message_limit)
 
         try:
             # main loop = will terminate after submit (subject to max_attempts)
