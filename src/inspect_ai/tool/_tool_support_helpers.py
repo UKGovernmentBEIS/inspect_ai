@@ -112,37 +112,32 @@ INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB = "aisiuk/inspect-tool-support"
 
 
 async def tool_container_sandbox(
-    tool_name: str, *, sandbox_name: str | None
+    tool_name: str, *, sandbox_name: str | None = None
 ) -> SandboxEnvironment:
-    sb = await sandbox_with(SANDBOX_CLI, True, name=sandbox_name)
-    if sb:
+    if sb := await sandbox_with(SANDBOX_CLI, True, name=sandbox_name):
         return sb
-    else:
-        # This sort of programmatic sentence building will not cut it if we ever
-        # support other languages.
-        sentence_part = (
-            "any of the sandboxes"
-            if sandbox_name is None
-            else f"the sandbox '{sandbox_name}'"
-        )
-        msg = dedent(f"""
-                The {tool_name} service was not found in {sentence_part} for this sample. Please add the {tool_name} to your configuration.
 
-                For example, the following Docker compose file uses the {INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB} reference image as its default sandbox:
+    # This sort of programmatic sentence building will not cut it if we ever
+    # support other languages.
+    raise PrerequisiteError(
+        dedent(f"""
+            The {tool_name} service was not found in {"any of the sandboxes" if sandbox_name is None else f"the sandbox '{sandbox_name}'"} for this sample. Please add the {tool_name} to your configuration.
 
-                services:
-                  default:
-                    image: "{INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB}"
-                    init: true
+            For example, the following Docker compose file uses the {INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB} reference image as its default sandbox:
 
-                Alternatively, you can include the service into your own Dockerfile:
+            services:
+              default:
+                image: "{INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB}"
+                init: true
 
-                ENV PATH="$PATH:/opt/inspect_tool_support/bin"
-                RUN python -m venv /opt/inspect_tool_support && \\
-                    /opt/inspect_tool_support/bin/pip install inspect-tool-support && \\
-                    /opt/inspect_tool_support/bin/inspect-tool-support post-install
-                """).strip()
-        raise PrerequisiteError(msg)
+            Alternatively, you can include the service into your own Dockerfile:
+
+            ENV PATH="$PATH:/opt/inspect_tool_support/bin"
+            RUN python -m venv /opt/inspect_tool_support && \\
+                /opt/inspect_tool_support/bin/pip install inspect-tool-support && \\
+                /opt/inspect_tool_support/bin/inspect-tool-support post-install
+            """).strip()
+    )
 
 
 def _create_json_rpc_request(
