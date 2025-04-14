@@ -62,7 +62,10 @@ async def sandbox_client(
                                 await exec_sandbox_rpc(
                                     sandbox=sandbox_environment,
                                     method="mcp_send_request",
-                                    params={"session_id": session_id, "request": root},
+                                    params={
+                                        "session_id": session_id,
+                                        "request": root.model_dump(),
+                                    },
                                     result_cls=JSONRPCResponse,
                                 )
                             )
@@ -71,8 +74,12 @@ async def sandbox_client(
                         await exec_sandbox_rpc(
                             sandbox=sandbox_environment,
                             method="mcp_send_notification",
-                            params={"session_id": session_id, "notification": root},
-                            result_cls=str,
+                            params={
+                                "session_id": session_id,
+                                "notification": root.model_dump(),
+                            },
+                            result_cls=type(None),
+                            is_notification=True,
                         )
                     else:
                         assert False, f"Unexpected message type {message=}"
@@ -91,5 +98,5 @@ async def sandbox_client(
                 sandbox=sandbox_environment,
                 method="mcp_kill_server",
                 params={"session_id": session_id},
-                result_cls=str,
+                result_cls=type(None),
             )

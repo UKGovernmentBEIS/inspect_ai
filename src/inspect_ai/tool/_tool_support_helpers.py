@@ -43,7 +43,9 @@ class JSONRPCResponse(RootModel[JSONRPCSuccessResponse | JSONRPCErrorResponse]):
 
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
-StrOrIntOrModelT = TypeVar("StrOrIntOrModelT", bound=str | int | BaseModel)
+StrOrIntOrModelTOrNone = TypeVar(
+    "StrOrIntOrModelTOrNone", bound=str | int | BaseModel | None
+)
 
 id_generator = count(666)
 
@@ -52,10 +54,11 @@ async def exec_sandbox_rpc(
     sandbox: SandboxEnvironment,
     method: str,
     params: dict[str, object] | tuple[object, ...],
-    result_cls: Type[StrOrIntOrModelT],
+    result_cls: Type[StrOrIntOrModelTOrNone],
     timeout: int | None = None,
     user: str | None = None,
-) -> StrOrIntOrModelT:
+    is_notification: bool = False,
+) -> StrOrIntOrModelTOrNone:
     """
     Execute a JSON-RPC command to a sandbox environment.
 
@@ -76,35 +79,45 @@ async def exec_sandbox_rpc(
       RuntimeError: If the sandbox execution fails or if there is an error in the JSON-RPC response.
       ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
     """
+    req = _create_json_rpc_request(method, params, is_notification)
+    print(f"XXXX sending {req=}")
     exec_result = await sandbox.exec(
         [SANDBOX_CLI, "exec"],
-        input=_create_json_rpc_request(method, params),
+        input=req,
         timeout=timeout,
         user=user,
     )
+    print(f"XXXX received {exec_result=}")
 
     if not exec_result.success:
         raise RuntimeError(
             f"Sandbox.exec failure executing {_rpc_call_description(method, params)}: {exec_result.stderr}"
         )
 
-    match _parse_json_rpc_response(exec_result.stdout, result_cls):
-        case JSONRPCError(code=-32601 | -32602, message=message):
-            raise ToolParsingError(message)
-        case JSONRPCError(code=-32000, message=message):
-            raise ToolError(message)
-        case JSONRPCError(code=code, message=message):
+    if is_notification:
+        if exec_result.stdout.strip():
             raise RuntimeError(
-                f"Error executing tool command {_rpc_call_description(method, params)}: {code=} {message}"
+                f"Notification sent a response {_rpc_call_description(method, params)}: {exec_result.stdout}"
             )
-        # case result_cls() as model: yields a mypy error since it has narrowed model down
-        # to BaseModel and not BaseModelT. ???
-        case model if isinstance(model, result_cls):
-            return model
-        case not_possible:
-            raise RuntimeError(
-                f"Error executing tool command {_rpc_call_description(method, params)}: {not_possible}"
-            )
+        return cast(StrOrIntOrModelTOrNone, None)
+    else:
+        match _parse_json_rpc_response(exec_result.stdout, result_cls):
+            case JSONRPCError(code=-32601 | -32602, message=message):
+                raise ToolParsingError(message)
+            case JSONRPCError(code=-32000, message=message):
+                raise ToolError(message)
+            case JSONRPCError(code=code, message=message):
+                raise RuntimeError(
+                    f"Error executing tool command {_rpc_call_description(method, params)}: {code=} {message}"
+                )
+            # case result_cls() as model: yields a mypy error since it has narrowed model down
+            # to BaseModel and not BaseModelT. ???
+            case model if isinstance(model, result_cls):
+                return model
+            case not_possible:
+                raise RuntimeError(
+                    f"Error executing tool command {_rpc_call_description(method, params)}: {not_possible}"
+                )
 
 
 SANDBOX_CLI = "inspect-tool-support"
@@ -141,16 +154,17 @@ async def tool_container_sandbox(
 
 
 def _create_json_rpc_request(
-    method: str, params: dict[str, object] | tuple[object, ...]
+    method: str,
+    params: dict[str, object] | tuple[object, ...],
+    is_notification: bool,
 ) -> str:
-    return json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "method": method,
-            "id": next(id_generator),
-            "params": list(params) if isinstance(params, tuple) else params,
-        }
-    )
+    eric = {
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": list(params) if isinstance(params, tuple) else params,
+        **({"id": next(id_generator)} if not is_notification else {}),
+    }
+    return json.dumps(eric)
 
 
 def _rpc_call_description(
@@ -183,8 +197,8 @@ def _rpc_call_description(
 
 def _parse_json_rpc_response(
     response_str: str,
-    result_cls: Type[StrOrIntOrModelT],
-) -> StrOrIntOrModelT | JSONRPCError:
+    result_cls: Type[StrOrIntOrModelTOrNone],
+) -> StrOrIntOrModelTOrNone | JSONRPCError:
     match JSONRPCResponse.model_validate_json(response_str).root:
         case JSONRPCErrorResponse(error=error):
             return error
@@ -194,14 +208,18 @@ def _parse_json_rpc_response(
             if result_cls is str:
                 if not isinstance(rpc_result, str):
                     raise ValueError(f"Expected string result, got {type(rpc_result)}")
-                return cast(StrOrIntOrModelT, rpc_result)
+                return cast(StrOrIntOrModelTOrNone, rpc_result)
             elif result_cls is int:
                 if not isinstance(rpc_result, int):
                     raise ValueError(f"Expected int result, got {type(rpc_result)}")
-                return cast(StrOrIntOrModelT, rpc_result)
+                return cast(StrOrIntOrModelTOrNone, rpc_result)
+            elif result_cls is type(None):
+                if rpc_result is not None:
+                    raise ValueError(f"Expected None result, got {type(rpc_result)}")
+                return cast(StrOrIntOrModelTOrNone, rpc_result)
             else:
                 return cast(
-                    StrOrIntOrModelT,
+                    StrOrIntOrModelTOrNone,
                     cast(BaseModel, result_cls).model_validate(rpc_result, strict=True),
                 )
         case _:
