@@ -19605,7 +19605,14 @@ var require_assets = __commonJS({
       );
       return navigate;
     }
-    reactExports.createContext(null);
+    var OutletContext = reactExports.createContext(null);
+    function useOutlet(context) {
+      let outlet = reactExports.useContext(RouteContext).outlet;
+      if (outlet) {
+        return /* @__PURE__ */ reactExports.createElement(OutletContext.Provider, { value: context }, outlet);
+      }
+      return outlet;
+    }
     function useParams() {
       let { matches } = reactExports.useContext(RouteContext);
       let routeMatch = matches[matches.length - 1];
@@ -20245,6 +20252,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         navigate(JSON.parse(jsonPath), { replace: replace2, state, relative });
       }, [navigate, jsonPath, relative, replace2, state]);
       return null;
+    }
+    function Outlet(props) {
+      return useOutlet(props.context);
     }
     function Router({
       basename: basenameProp = "/",
@@ -59506,17 +59516,15 @@ ${events}
         }
       }
     );
-    const SampleDisplay = ({
-      id,
-      sample: sample2,
-      scrollRef,
-      runningEvents: runningSampleData
-    }) => {
+    const SampleDisplay = ({ id, scrollRef }) => {
       const baseId = `sample-dialog`;
       const sampleSummaries = useSampleSummaries();
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
       );
+      const sampleData = useSampleData();
+      const sample2 = sampleData.sample;
+      const runningSampleData = sampleData.running;
       const selectedTab = useStore((state) => state.app.tabs.sample);
       const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
       const sampleSummary = sampleSummaries[selectedSampleIndex];
@@ -60023,7 +60031,7 @@ ${events}
         var _a3, _b3;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = logSelection.sample.completed !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.sample) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || currentSampleCompleted !== prevCompleted) {
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.sample) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
@@ -60093,15 +60101,7 @@ ${events}
           onHide,
           showProgress: sampleData.status === "loading" || sampleData.status === "streaming",
           scrollRef,
-          children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-            SampleDisplay,
-            {
-              id,
-              sample: sampleData.sample,
-              runningEvents: sampleData.running,
-              scrollRef
-            }
-          )
+          children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(SampleDisplay, { id, scrollRef })
         }
       );
     };
@@ -81765,6 +81765,9 @@ Supported expressions:
         setSelectedLogIndex,
         setStatus
       ]);
+      const clearSample = useStore(
+        (state) => state.sampleActions.clearSelectedSample
+      );
       reactExports.useEffect(() => {
         if (sampleId && filteredSamples) {
           const targetEpoch = epoch ? parseInt(epoch, 10) : void 0;
@@ -81777,55 +81780,63 @@ Supported expressions:
             setShowingSampleDialog(true);
           }
         } else {
+          clearSample();
           setShowingSampleDialog(false);
         }
-      }, [sampleId, epoch, filteredSamples, selectSample, setShowingSampleDialog]);
+      }, [
+        sampleId,
+        epoch,
+        filteredSamples,
+        selectSample,
+        setShowingSampleDialog,
+        clearSample
+      ]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
     const RouteTracker = () => {
       const location = useLocation();
-      const navigate = useNavigate();
+      useNavigate();
       const setUrlHash = useStore((state) => state.appActions.setUrlHash);
       const storedHash = useStore((state) => state.app.urlHash);
-      const hasRestoredHash = reactExports.useRef(false);
+      const restoredRef = reactExports.useRef(false);
       reactExports.useEffect(() => {
-        if (storedHash && !hasRestoredHash.current) {
-          hasRestoredHash.current = true;
-          const currentHash = location.pathname;
-          if (currentHash !== storedHash) {
-            const target2 = storedHash.startsWith("#") ? storedHash.slice(1) : storedHash;
-            navigate(target2, { replace: true });
-          }
+        if (storedHash && !restoredRef.current) {
+          storedHash.startsWith("#") ? storedHash.slice(1) : storedHash;
+          restoredRef.current = true;
         }
-      }, [storedHash, location, navigate]);
+      }, []);
       reactExports.useEffect(() => {
         setUrlHash(location.pathname);
       }, [location]);
       return null;
     };
+    const AppLayout = () => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(RouteTracker, {}),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Outlet, {})
+      ] });
+    };
     const AppRouter = createHashRouter(
       [
         {
           path: "/",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(RouteTracker, {}),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
-          ] }),
-          children: []
-        },
-        {
-          path: "/logs/:logPath/:tabId?",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(RouteTracker, {}),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
-          ] })
-        },
-        {
-          path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(RouteTracker, {}),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
-          ] })
+          element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppLayout, {}),
+          // Use the layout component
+          children: [
+            {
+              index: true,
+              // This will match exactly the "/" path
+              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+            },
+            {
+              path: "logs/:logPath/:tabId?",
+              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+            },
+            {
+              path: "logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
+              element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+            }
+          ]
         },
         {
           path: "*",

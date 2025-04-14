@@ -9,24 +9,18 @@ export const RouteTracker = () => {
   const setUrlHash = useStore((state) => state.appActions.setUrlHash);
   const storedHash = useStore((state) => state.app.urlHash);
 
-  // Restore a saved hash one time
-  const hasRestoredHash = useRef(false);
-
-  // Restore saved hash on mount
+  // Restore a saved hash at mount, if one has been stored
+  const restoredRef = useRef<boolean>(false);
   useEffect(() => {
-    if (storedHash && !hasRestoredHash.current) {
-      hasRestoredHash.current = true;
-
-      const currentHash = location.pathname;
-      if (currentHash !== storedHash) {
-        // Navigate to the saved hash (remove the leading # if needed)
-        const target = storedHash.startsWith("#")
-          ? storedHash.slice(1)
-          : storedHash;
-        navigate(target, { replace: true });
-      }
+    if (storedHash && !restoredRef.current) {
+      const target = storedHash.startsWith("#")
+        ? storedHash.slice(1)
+        : storedHash;
+      //navigate(target, { replace: true });
+      restoredRef.current = true;
+    
     }
-  }, [storedHash, location, navigate]);
+  }, []);
 
   // Track changes
   useEffect(() => {

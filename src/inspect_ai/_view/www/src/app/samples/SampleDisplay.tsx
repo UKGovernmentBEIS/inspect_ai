@@ -30,7 +30,7 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../../constants";
-import { useSampleSummaries } from "../../state/hooks";
+import { useSampleData, useSampleSummaries } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
 import { printHeadingHtml, printHtml } from "../../utils/print";
@@ -44,26 +44,23 @@ import { TranscriptVirtualList } from "./transcript/TranscriptView";
 
 interface SampleDisplayProps {
   id: string;
-  sample?: EvalSample;
   scrollRef: RefObject<HTMLDivElement | null>;
-  runningEvents?: Events;
 }
 
 /**
  * Component to display a sample with relevant context and visibility control.
  */
-export const SampleDisplay: FC<SampleDisplayProps> = ({
-  id,
-  sample,
-  scrollRef,
-  runningEvents: runningSampleData,
-}) => {
+export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Tab ids
   const baseId = `sample-dialog`;
   const sampleSummaries = useSampleSummaries();
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
   );
+
+  const sampleData = useSampleData();
+  const sample = sampleData.sample;
+  const runningSampleData = sampleData.running;
 
   // Selected tab handling
   const selectedTab = useStore((state) => state.app.tabs.sample);

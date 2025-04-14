@@ -6,6 +6,7 @@ import { ErrorPanel } from "../../components/ErrorPanel";
 import { useLogSelection, usePrevious, useSampleData } from "../../state/hooks";
 import { useStatefulScrollPosition } from "../../state/scrolling";
 import { useStore } from "../../state/store";
+import { useWhyDidYouUpdate } from "../../utils/react";
 import { useSampleNavigation } from "../routing/navigationHooks";
 import { SampleDisplay } from "./SampleDisplay";
 
@@ -46,6 +47,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       : true,
   );
   const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
+  
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
       const currentSampleCompleted =
@@ -54,10 +56,10 @@ export const SampleDialog: FC<SampleDialogProps> = ({
           : true;
 
       if (
-        prevLogFile !== logSelection.logFile ||
+        (prevLogFile !== undefined && prevLogFile !== logSelection.logFile) ||
         sampleData.sample?.id !== logSelection.sample.id ||
         sampleData.sample?.epoch !== logSelection.sample.epoch ||
-        currentSampleCompleted !== prevCompleted
+        (prevCompleted !== undefined && currentSampleCompleted !== prevCompleted)
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
@@ -145,12 +147,7 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       {sampleData.error ? (
         <ErrorPanel title="Sample Error" error={sampleData.error} />
       ) : (
-        <SampleDisplay
-          id={id}
-          sample={sampleData.sample}
-          runningEvents={sampleData.running}
-          scrollRef={scrollRef}
-        />
+        <SampleDisplay id={id} scrollRef={scrollRef} />
       )}
     </LargeModal>
   );
