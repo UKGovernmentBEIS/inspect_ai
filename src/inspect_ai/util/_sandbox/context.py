@@ -50,7 +50,9 @@ def sandbox(name: str | None = None) -> SandboxEnvironment:
         return environment
 
 
-async def sandbox_with(file: str, on_path: bool = False) -> SandboxEnvironment | None:
+async def sandbox_with(
+    file: str, on_path: bool = False, *, name: str | None = None
+) -> SandboxEnvironment | None:
     """Get the SandboxEnvironment for the current sample that has the specified file.
 
     Args:
@@ -58,9 +60,12 @@ async def sandbox_with(file: str, on_path: bool = False) -> SandboxEnvironment |
         True, file should be a filename that exists on the system path.
       on_path (bool): If True, file is a filename to be verified using "which".
         If False, file is a path to be checked within the sandbox environments.
+      name (str | None): Optional sandbox environment name.
+
 
     Return:
-      SandboxEnvironment instance or None if no sandboxes had the file.
+      SandboxEnvironment instance or None if none of the sandboxes (or the named
+      sandbox) had the file.
     """
     # get environments and with mapping
     environments = sandbox_environments_context_var.get(None)
@@ -71,13 +76,19 @@ async def sandbox_with(file: str, on_path: bool = False) -> SandboxEnvironment |
         raise_no_sandbox()
 
     # if we've already discovered the sandbox for this file then return it
-    environment_with_key = f"{file}:{on_path}"
+    environment_with_key = f"{name or ''}:{file}:{on_path}"
     environment = environments_with.get(environment_with_key, None)
     if environment is not None:
         return environment
 
-    # look in each sandbox
-    for _, environment in environments.items():
+    # look in each (or the named) sandbox
+    for environment in (
+        environments.values()
+        if name is None
+        else [named_env]
+        if (named_env := environments.get(name, None))
+        else []
+    ):
         try:
             if on_path:
                 # can we find the file on the path?

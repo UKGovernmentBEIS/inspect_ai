@@ -23,13 +23,9 @@ async def sandbox_client(
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
 ) -> MCPServerContextEric:
-    # TODO: The way I modeled this for inspect-tool-support did not support
-    # passing in a sandbox name. `tool_container_sandbox` just returns the
-    # first sandbox found with the support code installed. I could refactor the
-    # code to separate the validation of compatibility from the finding of the
-    # sandbox.
-    # sb1 = sandbox(sandbox_name)  # noqa: F841
-    sandbox_environment = await tool_container_sandbox("mcp support")
+    sandbox_environment = await tool_container_sandbox(
+        "mcp support", sandbox_name=sandbox_name
+    )
 
     # read_stream is remote process's stdout
     read_stream: MemoryObjectReceiveStream[JSONRPCMessage | Exception]

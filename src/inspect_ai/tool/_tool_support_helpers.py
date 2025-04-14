@@ -111,13 +111,22 @@ SANDBOX_CLI = "inspect-tool-support"
 INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB = "aisiuk/inspect-tool-support"
 
 
-async def tool_container_sandbox(tool_name: str) -> SandboxEnvironment:
-    sb = await sandbox_with(SANDBOX_CLI, True)
+async def tool_container_sandbox(
+    tool_name: str, *, sandbox_name: str | None
+) -> SandboxEnvironment:
+    sb = await sandbox_with(SANDBOX_CLI, True, name=sandbox_name)
     if sb:
         return sb
     else:
+        # This sort of programmatic sentence building will not cut it if we ever
+        # support other languages.
+        sentence_part = (
+            "any of the sandboxes"
+            if sandbox_name is None
+            else f"the sandbox '{sandbox_name}'"
+        )
         msg = dedent(f"""
-                The {tool_name} service was not found in any of the sandboxes for this sample. Please add the {tool_name} to your configuration.
+                The {tool_name} service was not found in {sentence_part} for this sample. Please add the {tool_name} to your configuration.
 
                 For example, the following Docker compose file uses the {INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB} reference image as its default sandbox:
 
