@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_bedrock,
     skip_if_no_cloudflare,
     skip_if_no_google,
     skip_if_no_grok,
@@ -30,6 +31,7 @@ GROK_BETA = "grok/grok-beta"
 GROQ_LLAMA_3_70B = "groq/llama3-70b-8192"
 CLOUDFLARE_LLAMA_3_1_8B = "cf/meta/llama-3.1-8b-instruct-awq"
 TOGETHER_LLAMA_3_3_70B = "together/meta-llama/Llama-3.3-70B-Instruct-Turbo"
+BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
 
 MODELS = {
     GPT_4O: 128000,
@@ -41,6 +43,7 @@ MODELS = {
     GROQ_LLAMA_3_70B: 8192,
     CLOUDFLARE_LLAMA_3_1_8B: 128000,
     TOGETHER_LLAMA_3_3_70B: 128000,
+    BEDROCK_NOVA_LITE_1_0: 128000,
 }
 
 
@@ -136,3 +139,9 @@ async def test_model_length_cloudflare():
 @skip_if_no_together
 async def test_model_length_together():
     await check_model_length(TOGETHER_LLAMA_3_3_70B)
+
+
+@pytest.mark.asyncio
+@skip_if_no_bedrock
+async def test_model_length_bedrock():
+    await check_model_length(BEDROCK_NOVA_LITE_1_0)
