@@ -10,6 +10,7 @@ from test_helpers.utils import (
     skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
+    skip_if_no_together,
 )
 
 from inspect_ai.model import get_model
@@ -27,6 +28,7 @@ MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
 GROK_BETA = "grok/grok-beta"
 GROQ_LLAMA_3_70B = "groq/llama3-70b-8192"
 CLOUDFLARE_LLAMA_3_1_8B = "cf/meta/llama-3.1-8b-instruct-awq"
+TOGETHER_LLAMA_3_3_70B = "together/meta-llama/Llama-3.3-70B-Instruct-Turbo"
 
 MODELS = {
     GPT_4O: 128000,
@@ -37,6 +39,7 @@ MODELS = {
     GROK_BETA: 131072,
     GROQ_LLAMA_3_70B: 8192,
     CLOUDFLARE_LLAMA_3_1_8B: 128000,
+    TOGETHER_LLAMA_3_3_70B: 128000,
 }
 
 
@@ -126,3 +129,9 @@ async def test_model_length_groq():
 @skip_if_no_cloudflare
 async def test_model_length_cloudflare():
     await check_model_length(CLOUDFLARE_LLAMA_3_1_8B)
+
+
+@pytest.mark.asyncio
+@skip_if_no_together
+async def test_model_length_together():
+    await check_model_length(TOGETHER_LLAMA_3_3_70B)
