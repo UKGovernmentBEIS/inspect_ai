@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
+    skip_if_no_cloudflare,
     skip_if_no_google,
     skip_if_no_grok,
     skip_if_no_groq,
@@ -25,6 +26,7 @@ GEMINI_1_5_FLASH = "google/gemini-1.5-flash"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
 GROK_BETA = "grok/grok-beta"
 GROQ_LLAMA_3_70B = "groq/llama3-70b-8192"
+CLOUDFLARE_LLAMA_3_1_8B = "cf/meta/llama-3.1-8b-instruct-awq"
 
 MODELS = {
     GPT_4O: 128000,
@@ -34,6 +36,7 @@ MODELS = {
     MISTRAL_LARGE_2411: 131000,
     GROK_BETA: 131072,
     GROQ_LLAMA_3_70B: 8192,
+    CLOUDFLARE_LLAMA_3_1_8B: 128000,
 }
 
 
@@ -117,3 +120,9 @@ async def test_model_length_grok():
 @skip_if_no_groq
 async def test_model_length_groq():
     await check_model_length(GROQ_LLAMA_3_70B, max_chars=50000)
+
+
+@pytest.mark.asyncio
+@skip_if_no_cloudflare
+async def test_model_length_cloudflare():
+    await check_model_length(CLOUDFLARE_LLAMA_3_1_8B)
