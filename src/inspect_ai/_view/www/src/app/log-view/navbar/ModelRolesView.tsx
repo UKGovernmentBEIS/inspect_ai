@@ -3,6 +3,7 @@ import { FC } from "react";
 import clsx from "clsx";
 import { ModelRoles } from "../../../types/log";
 import styles from "./ModelRolesView.module.css";
+import { ModelRoles } from "../../../@types/log";
 
 interface ModelRolesViewProps {
   roles: ModelRoles;
