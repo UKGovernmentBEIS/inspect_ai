@@ -1,7 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
-import { AppErrorBoundary } from "./app/AppErrorBoundary";
 import api from "./client/api/index";
 import { Capabilities } from "./client/api/types";
 import storage from "./client/storage";
@@ -55,8 +54,6 @@ if (!container) {
 const root = createRoot(container as HTMLElement);
 root.render(
   <StrictMode>
-    <AppErrorBoundary>
-      <App api={applicationApi} />
-    </AppErrorBoundary>
+    <App api={applicationApi} />
   </StrictMode>,
 );
