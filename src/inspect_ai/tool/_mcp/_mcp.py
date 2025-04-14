@@ -1,4 +1,5 @@
 import contextlib
+import sys
 from contextlib import AsyncExitStack
 from copy import deepcopy
 from fnmatch import fnmatch
@@ -13,6 +14,7 @@ from mcp.types import EmbeddedResource, ImageContent, TextContent, TextResourceC
 from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
+from inspect_ai._util.format import format_function_call
 from inspect_ai._util.trace import trace_action
 from inspect_ai.tool._mcp._sandbox import sandbox_client
 from inspect_ai.tool._mcp.sampling import as_inspect_content
@@ -43,20 +45,22 @@ class MCPServerImpl(MCPServer):
 
     @override
     async def _connect(self) -> None:
-        with trace_action(logger, "MCPServer", f"connect: {self._name}"):
-            assert self._session is None
-            assert self._exit_stack is None
-            self._exit_stack = AsyncExitStack()
-            await self._exit_stack.__aenter__()
+        assert self._session is None
+        assert self._exit_stack is None
+        self._exit_stack = AsyncExitStack()
+        await self._exit_stack.__aenter__()
+        with trace_action(logger, "MCPServer", f"create client ({self._name})"):
             read, write = await self._exit_stack.enter_async_context(self._client())
+        with trace_action(logger, "MCPServer", f"create session ({self._name})"):
             self._session = await self._exit_stack.enter_async_context(
                 ClientSession(read, write, sampling_callback=self._sampling_fn())
             )
+        with trace_action(logger, "MCPServer", f"intialize session ({self._name})"):
             await self._session.initialize()
 
     @override
     async def _close(self) -> None:
-        with trace_action(logger, "MCPServer", f"disconnect: {self._name}"):
+        with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
             assert self._session is not None
             assert self._exit_stack is not None
             try:
@@ -77,7 +81,8 @@ class MCPServerImpl(MCPServer):
                     return any([fnmatch(tool.name, t) for t in tools])
 
             # get the underlying tools on the server
-            mcp_tools = (await session.list_tools()).tools
+            with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
+                mcp_tools = (await session.list_tools()).tools
 
             # filter them
             mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
@@ -91,7 +96,13 @@ class MCPServerImpl(MCPServer):
     def _tool_def_from_mcp_tool(self, mcp_tool: MCPTool) -> ToolDef:
         async def execute(**kwargs: Any) -> ToolResult:
             async with self._client_session() as tool_session:
-                result = await tool_session.call_tool(mcp_tool.name, kwargs)
+                mcp_call = format_function_call(
+                    mcp_tool.name, kwargs, width=sys.maxsize
+                )
+                with trace_action(
+                    logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
+                ):
+                    result = await tool_session.call_tool(mcp_tool.name, kwargs)
                 if result.isError:
                     raise ToolError(tool_result_as_text(result.content))
 
@@ -116,12 +127,22 @@ class MCPServerImpl(MCPServer):
         if self._session is not None:
             yield self._session
         else:
-            async with self._client() as (read, write):
-                async with ClientSession(
-                    read, write, sampling_callback=self._sampling_fn()
-                ) as session:
+            async with AsyncExitStack() as exit_stack:
+                with trace_action(logger, "MCPServer", f"create client ({self._name})"):
+                    read, write = await exit_stack.enter_async_context(self._client())
+                with trace_action(
+                    logger, "MCPServer", f"create session ({self._name})"
+                ):
+                    session = await exit_stack.enter_async_context(
+                        ClientSession(
+                            read, write, sampling_callback=self._sampling_fn()
+                        )
+                    )
+                with trace_action(
+                    logger, "MCPServer", f"intialize session ({self._name})"
+                ):
                     await session.initialize()
-                    yield session
+                yield session
 
     def _sampling_fn(self) -> SamplingFnT | None:
         from inspect_ai.model._model import active_model
