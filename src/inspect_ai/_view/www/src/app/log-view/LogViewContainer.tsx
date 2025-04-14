@@ -73,6 +73,10 @@ export const LogViewContainer: FC = () => {
     setStatus,
   ]);
 
+  const clearSample = useStore(
+    (state) => state.sampleActions.clearSelectedSample,
+  );
+
   // Handle sample selection from URL params
   useEffect(() => {
     if (sampleId && filteredSamples) {
@@ -91,9 +95,17 @@ export const LogViewContainer: FC = () => {
     } else {
       // If we don't have sample params in the URL but the dialog is showing, close it
       // This handles the case when user navigates back from a sample
+      clearSample();
       setShowingSampleDialog(false);
     }
-  }, [sampleId, epoch, filteredSamples, selectSample, setShowingSampleDialog]);
+  }, [
+    sampleId,
+    epoch,
+    filteredSamples,
+    selectSample,
+    setShowingSampleDialog,
+    clearSample,
+  ]);
 
   return <LogViewLayout />;
 };
