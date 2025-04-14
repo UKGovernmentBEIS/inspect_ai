@@ -67,6 +67,15 @@ def skip_if_no_openai(func):
     )
 
 
+def skip_if_no_openai_azure(func):
+    return pytest.mark.skipif(
+        importlib.util.find_spec("openai") is None
+        or os.environ.get("AZUREAI_OPENAI_API_KEY") is None
+        or os.environ.get("AZUREAI_OPENAI_BASE_URL") is None,
+        reason="Test requires both OpenAI package and AZUREAI_OPENAI_API_KEY and AZUREAI_OPENAI_BASE_URL environment variables",
+    )(func)
+
+
 def skip_if_no_openai_package(func):
     return skip_if_no_package("openai")(func)
 
@@ -111,6 +120,10 @@ def skip_if_no_llama_cpp_python(func):
     return pytest.mark.api(
         skip_if_env_var("ENABLE_LLAMA_CPP_PYTHON_TESTS", exists=False)(func)
     )
+
+
+def skip_if_no_bedrock(func):
+    return pytest.mark.api(skip_if_env_var("ENABLE_BEDROCK_TESTS", exists=False)(func))
 
 
 def skip_if_no_vertex(func):

@@ -1,15 +1,18 @@
 import os
 from typing import Any
 
+from openai import APIStatusError
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
 
 from ...model import GenerateConfig
 from .util import environment_prerequisite_error
 
 # https://developers.cloudflare.com/workers-ai/models/#text-generation
+# https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/
 
 CLOUDFLARE_API_KEY = "CLOUDFLARE_API_KEY"
 CLOUDFLARE_API_TOKEN = "CLOUDFLARE_API_TOKEN"
@@ -42,6 +45,16 @@ class CloudFlareAPI(OpenAICompatibleAPI):
             service_base_url=f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}/ai/v1",
             **model_args,
         )
+
+    @override
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
+        if ex.status_code == 403:
+            content = str(ex)
+            if "context window limit" in content:
+                return ModelOutput.from_content(
+                    self.model_name, content=content, stop_reason="model_length"
+                )
+        return ex
 
     # cloudflare enforces rate limits by model for each account
     @override
