@@ -142,7 +142,11 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const previousShowingDialogRef = useRef(showingSampleDialog);
   useEffect(() => {
     // Only focus when transitioning from showing dialog to not showing dialog
-    if (previousShowingDialogRef.current && !showingSampleDialog && sampleListHandle.current) {
+    if (
+      previousShowingDialogRef.current &&
+      !showingSampleDialog &&
+      sampleListHandle.current
+    ) {
       setTimeout(() => {
         const element = document.querySelector(".samples-list");
         if (element instanceof HTMLElement) {

@@ -3,7 +3,7 @@ import { FC } from "react";
 import clsx from "clsx";
 import styles from "./ModelCard.module.css";
 import { Card, CardHeader, CardBody } from "../../components/Card";
-import { EvalSpec, EvalModelConfig } from "../../types/log";
+import { EvalSpec, EvalModelConfig } from "../../@types/log";
 import { ApplicationIcons } from "../appearance/icons";
 import { MetaDataGrid } from "../content/MetaDataGrid";
 
