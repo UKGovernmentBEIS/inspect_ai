@@ -228,13 +228,23 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek {#deepseek}
 
-To use [DeepSeek](https://www.deepseek.com/) models, install the `openai` package (which DeepSeek provides a compatible backend for) and set your credentials using the `OPENAI_API_KEY` environment variable. Then, when running inspect, use the  `--model-base-url` option to point to DeepSeek's base URL, and the `--model` option to specify a model:
+::: callout-note
+The `openai-api` provider used to interface with DeepSeek is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
 
 ```bash
 pip install openai
-export OPENAI_API_KEY=your-deepseek-api-key
-inspect eval arc.py --model-base-url https://api.deepseek.com --model openai/deepseek-reasoner 
+export DEEPSEEK_API_KEY=your-deepseek-api-key
+export DEEPSEEK_BASE_URL=https://api.deepseek.com
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
 ```
+
 
 ## Grok {#grok}
 
@@ -552,15 +562,13 @@ Inspect will read environment variables corresponding to the api key and base ur
 
 ### Example
 
-Together already has it's own Inspect provider but is still useful for purposes of demonstrating the `openai-api` provider since it implements an OpenAI compatible endpoint. Here's how you would interface with Together using the `openai-api` provider:
+Here is how you would access DeepSeek using the `openai-api` provider:
 
 ```bash
-TOGETHER_API_KEY=<your-together-api-key>
-TOGETHER_BASE_URL=https://api.together.xyz/v1
-inspect eval arc.py \
-   --model openai-api/together/deepseek-ai/DeepSeek-R1
+export DEEPSEEK_API_KEY=your-deepseek-api-key
+export DEEPSEEK_BASE_URL=https://api.deepseek.com
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
 ```
-
 
 ## OpenRouter
 
