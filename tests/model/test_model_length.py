@@ -5,6 +5,8 @@ import pytest
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_grok,
+    skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
 )
@@ -21,6 +23,8 @@ GPT_4O_AZURE = "openai/azure/gpt-4o"
 CLAUDE_3_5_HAIKU = "anthropic/claude-3-5-haiku-latest"
 GEMINI_1_5_FLASH = "google/gemini-1.5-flash"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
+GROK_BETA = "grok/grok-beta"
+GROQ_LLAMA_3_70B = "groq/llama3-70b-8192"
 
 MODELS = {
     GPT_4O: 128000,
@@ -28,10 +32,14 @@ MODELS = {
     CLAUDE_3_5_HAIKU: 200000,
     GEMINI_1_5_FLASH: 1000000,
     MISTRAL_LARGE_2411: 131000,
+    GROK_BETA: 131072,
+    GROQ_LLAMA_3_70B: 8192,
 }
 
 
-async def check_model_length(model: str, **model_args: Any) -> None:
+async def check_model_length(
+    model: str, max_chars: int | None = None, **model_args: Any
+) -> None:
     # context window for model
     model_tokens = MODELS.get(model, None)
     assert model_tokens
@@ -42,6 +50,10 @@ async def check_model_length(model: str, **model_args: Any) -> None:
         message = gatsby
     for _ in range(0, (model_tokens // GATSBY_TOKENS) + 2):
         message = f"{message}\n\n{gatsby}"
+
+    # apply max_chars
+    if max_chars is not None:
+        message = message[0:max_chars]
 
     # run inference
     output = await get_model(model, **model_args).generate(
@@ -93,3 +105,15 @@ async def test_model_length_google():
 @skip_if_no_mistral
 async def test_model_length_mistral():
     await check_model_length(MISTRAL_LARGE_2411)
+
+
+@pytest.mark.asyncio
+@skip_if_no_grok
+async def test_model_length_grok():
+    await check_model_length(GROK_BETA)
+
+
+@pytest.mark.asyncio
+@skip_if_no_groq
+async def test_model_length_groq():
+    await check_model_length(GROQ_LLAMA_3_70B, max_chars=50000)
