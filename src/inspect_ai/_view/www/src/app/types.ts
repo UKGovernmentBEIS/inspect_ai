@@ -44,6 +44,7 @@ export interface AppState {
   collapsed: Record<string, boolean>;
   messages: Record<string, boolean>;
   propertyBags: Record<string, Record<string, unknown>>;
+  urlHash?: string;
 }
 
 export interface LogsState {

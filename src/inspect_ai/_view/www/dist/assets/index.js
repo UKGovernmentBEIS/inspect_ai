@@ -22476,6 +22476,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 state.app.propertyBags[bagName] = rest;
               }
             });
+          },
+          setUrlHash: (urlHash) => {
+            set2((state) => {
+              state.app.urlHash = urlHash;
+            });
           }
         }
       };
@@ -81777,20 +81782,50 @@ Supported expressions:
       }, [sampleId, epoch, filteredSamples, selectSample, setShowingSampleDialog]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
+    const RouteTracker = () => {
+      const location = useLocation();
+      const navigate = useNavigate();
+      const setUrlHash = useStore((state) => state.appActions.setUrlHash);
+      const storedHash = useStore((state) => state.app.urlHash);
+      const hasRestoredHash = reactExports.useRef(false);
+      reactExports.useEffect(() => {
+        if (storedHash && !hasRestoredHash.current) {
+          hasRestoredHash.current = true;
+          const currentHash = location.pathname;
+          if (currentHash !== storedHash) {
+            const target2 = storedHash.startsWith("#") ? storedHash.slice(1) : storedHash;
+            navigate(target2, { replace: true });
+          }
+        }
+      }, [storedHash, location, navigate]);
+      reactExports.useEffect(() => {
+        setUrlHash(location.pathname);
+      }, [location]);
+      return null;
+    };
     const AppRouter = createHashRouter(
       [
         {
           path: "/",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}) }),
+          element: /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(RouteTracker, {}),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+          ] }),
           children: []
         },
         {
           path: "/logs/:logPath/:tabId?",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}) })
+          element: /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(RouteTracker, {}),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+          ] })
         },
         {
           path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}) })
+          element: /* @__PURE__ */ jsxRuntimeExports.jsxs(AppErrorBoundary, { children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(RouteTracker, {}),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+          ] })
         },
         {
           path: "*",
