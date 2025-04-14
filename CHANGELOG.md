@@ -13,6 +13,7 @@
 - `INSPECT_EVAL_LOG_FILE_PATTERN` environment variable for setting the eval log file pattern.
 - Bugfix: Correctly resolve approvers in the same source file as tasks. 
 - Bugfix: Ensure agent decorator resolves string annotations from `__future__` as needed.
+- Bugfix: Correctly handle string `dict` keys that are numeric in store diffs.
 
 ## v0.3.88 (11 April 2025)
 
