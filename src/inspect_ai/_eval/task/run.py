@@ -745,6 +745,8 @@ async def task_run_sample(
                     timeout_cm = anyio.fail_after(time_limit / 2)
 
                 # TODO: Do we need to "turn off" message limit?
+                # A scorer would only end up hitting a LimitExceededError if it adds to
+                # the `ModelConversation`/`TaskState.messages`.
                 set_sample_state(state)
 
                 # scoring

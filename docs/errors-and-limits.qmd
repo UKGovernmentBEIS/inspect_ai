@@ -155,9 +155,10 @@ def agent_loop(message_limit: int = 50):
         ...
 ```
 
-Message limits are checked whenever you call `generate()` on the main model being evaluated. The `message_limit` is compared to the number of messages passed in `input` parameter to `generate()`.
+Message limits are checked whenever the `messages` list on `TaskState` or `AgentState` is mutated. A `LimitExceededError` is raised if the message count exceeds the limit.
 
-TODO: Add note on the fact that we will raise LimitExceededError if we're at capacity and about to do another generate().
+They are also checked on every call to `TaskState.completed`, and a `LimitExceededError` will be raised if the message count is equal to or exceeds the limit. This is to avoid proceeding to another (wasteful) generate call if we're already at the limit.
+
 
 ### Token Limit
 

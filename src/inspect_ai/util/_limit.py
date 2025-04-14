@@ -30,6 +30,10 @@ token_limit_leaf_node: ContextVar[_TokenLimitNode | None] = ContextVar(
 class LimitExceededError(Exception):
     """Exception raised when a limit is exceeded.
 
+    In some scenarios this error may be raised when `value >= limit` to
+    prevent another operation which is guaranteed to exceed the limit from being
+    wastefully performed.
+
     Args:
        type: Type of limit exceeded.
        value: Value compared to.
@@ -76,6 +80,7 @@ class LimitExceededError(Exception):
         return f"{self.__class__.__name__}({self.type=}, {self.value=}, {self.limit=})"
 
 
+# TODO: Not true for message limit.
 class Limit(abc.ABC):
     """Base class for all limits."""
 
@@ -117,11 +122,6 @@ def check_token_limit() -> None:
 def token_limit(limit: int | None) -> TokenLimit:
     """Create a TokenLimit."""
     return TokenLimit(limit)
-
-
-def message_limit(limit: int | None) -> MessageLimit:
-    """Create a MessageLimit."""
-    return MessageLimit(limit)
 
 
 class TokenLimit(Limit):
@@ -192,22 +192,35 @@ class TokenLimit(Limit):
             raise ValueError("Token limit value must be a non-negative integer.")
 
 
+def message_limit(limit: int | None) -> MessageLimit:
+    """Create a MessageLimit."""
+    return MessageLimit(limit)
+
+
 # TODO: Does this still want to be a ctx manager so that we can "stop" applying the
 # limit for scoring? Although if we're not raising an error in generate() any more, so
 # long as we aren't appending to state.messages in a scorer, we should be okay?
 class MessageLimit:
     def __init__(self, limit: int | None) -> None:
-        self.limit = limit
+        self._limit = limit
         self._validate_message_limit(limit)
 
     def check(self, count: int, raise_for_equal: bool) -> None:
-        if self.limit is None:
+        if self._limit is None:
             return
         # TODO: Do we want to subtract the initial count? Or is this a hard conversation
         # length limit?
-        usage = count
-        if usage > self.limit or (raise_for_equal and usage == self.limit):
-            raise LimitExceededError("message", value=usage, limit=self.limit)
+        if count > self._limit or (raise_for_equal and count == self._limit):
+            raise LimitExceededError("message", value=count, limit=self._limit)
+
+    @property
+    def limit(self) -> int | None:
+        return self._limit
+
+    @limit.setter
+    def limit(self, value: int | None) -> None:
+        self._validate_message_limit(value)
+        self._limit = value
 
     def _validate_message_limit(self, value: int | None) -> None:
         if value is not None and value < 0:

@@ -4,7 +4,6 @@ from inspect_ai.scorer import exact
 from inspect_ai.solver._fork import fork
 from inspect_ai.solver._solver import Generate, solver
 from inspect_ai.solver._task_state import TaskState
-from inspect_ai.util._limit import message_limit
 
 
 @solver

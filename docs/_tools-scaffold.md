@@ -10,31 +10,32 @@ For example, here is a complete solver agent that has essentially the same imple
 
 ``` python
 @solver
-def agent_loop(max_messages: int = 50):
+def agent_loop(message_limit: int = 50):
     async def solve(state: TaskState, generate: Generate):
 
         # establish messages limit so we have a termination condition
-        with message_limit(max_messages):
+        # TODO: Update example to follow new way of setting message limits.
+        state.message_limit = message_limit
 
-            try:
-                # call the model in a loop
-                while not state.completed:
-                    # call model
-                    output = await get_model().generate(state.messages, state.tools)
+        try:
+            # call the model in a loop
+            while not state.completed:
+                # call model
+                output = await get_model().generate(state.messages, state.tools)
 
-                    # update state
-                    state.output = output
-                    state.messages.append(output.message)
+                # update state
+                state.output = output
+                state.messages.append(output.message)
 
-                    # make tool calls or terminate if there are none
-                    if output.message.tool_calls:
-                        state.messages.extend(call_tools(output.message, state.tools))
-                    else:
-                        break
-            except LimitExceededError as ex:
-                raise ex.with_conversation(state)
+                # make tool calls or terminate if there are none
+                if output.message.tool_calls:
+                    state.messages.extend(call_tools(output.message, state.tools))
+                else:
+                    break
+        except LimitExceededError as ex:
+            raise ex.with_conversation(state)
 
-            return state
+        return state
 
     return solve
 ```

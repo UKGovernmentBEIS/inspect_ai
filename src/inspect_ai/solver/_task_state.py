@@ -306,7 +306,7 @@ class TaskState:
     @property
     def message_limit(self) -> int | None:
         """Limit on total messages allowed per conversation."""
-        return self._message_limit.limit
+        return self._message_limit._limit
 
     @message_limit.setter
     def message_limit(self, messages: int | None) -> None:
@@ -314,7 +314,7 @@ class TaskState:
 
         Also checks whether the current messahge count exceeds the new limit,
         """
-        self._message_limit.limit = messages
+        self._message_limit._limit = messages
         self._message_limit.check(len(self.messages), raise_for_equal=False)
 
         from inspect_ai.log._samples import set_active_sample_message_limit

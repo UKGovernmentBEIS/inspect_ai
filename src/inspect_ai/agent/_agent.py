@@ -81,7 +81,7 @@ class AgentState:
 
     def __copy__(self) -> "AgentState":
         state = AgentState(
-            messages=copy(self.messages), message_limit=self._message_limit.limit
+            messages=copy(self.messages), message_limit=self._message_limit._limit
         )
         state.output = self.output.model_copy()
         return state
@@ -89,7 +89,7 @@ class AgentState:
     def __deepcopy__(self, memo: dict[int, Any]) -> "AgentState":
         state = AgentState(
             messages=deepcopy(self.messages, memo),
-            message_limit=self._message_limit.limit,
+            message_limit=self._message_limit._limit,
         )
         state.output = self.output.model_copy(deep=True)
         return state

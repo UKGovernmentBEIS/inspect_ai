@@ -14,7 +14,9 @@ from inspect_ai.tool._tool_info import parse_tool_info
 from ._agent import Agent, AgentState
 
 
-def as_solver(agent: Agent, message_limit: int | None, **agent_kwargs: Any) -> Solver:
+def as_solver(
+    agent: Agent, message_limit: int | None = None, **agent_kwargs: Any
+) -> Solver:
     """Convert an agent to a solver.
 
     Note that agents used as solvers will only receive their first parameter
