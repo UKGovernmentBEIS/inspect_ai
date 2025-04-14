@@ -18,12 +18,6 @@ export const InlineSampleDisplay: FC = () => {
   const pollSample = useStore((state) => state.sampleActions.pollSample);
   const logSelection = useLogSelection();
 
-  // Selected tab handling
-  const selectedSampleTab = useStore((state) => state.app.tabs.sample);
-  const setSelectedSampleTab = useStore(
-    (state) => state.appActions.setSampleTab,
-  );
-
   useEffect(() => {
     if (sampleData.running && logSelection.logFile && logSelection.sample) {
       pollSample(logSelection.logFile, logSelection.sample);
@@ -83,8 +77,6 @@ export const InlineSampleDisplay: FC = () => {
               id={"inline-sample-display"}
               sample={sampleData.sample}
               runningEvents={sampleData.running}
-              selectedTab={selectedSampleTab}
-              setSelectedTab={setSelectedSampleTab}
               scrollRef={scrollRef}
             />
           )}

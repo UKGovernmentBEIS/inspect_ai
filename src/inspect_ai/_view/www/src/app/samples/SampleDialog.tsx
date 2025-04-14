@@ -12,10 +12,7 @@ import { SampleDisplay } from "./SampleDisplay";
 interface SampleDialogProps {
   id: string;
   title: string;
-  selectedTab?: string;
-  setSelectedTab: (tab: string) => void;
   showingSampleDialog: boolean;
-  setShowingSampleDialog: (showing: boolean) => void;
 }
 
 /**
@@ -25,8 +22,6 @@ export const SampleDialog: FC<SampleDialogProps> = ({
   id,
   title,
   showingSampleDialog,
-  selectedTab,
-  setSelectedTab,
 }) => {
   // Scroll referernce (attach stateful trackign)
   const scrollRef: Ref<HTMLDivElement> = useRef(null);
@@ -154,8 +149,6 @@ export const SampleDialog: FC<SampleDialogProps> = ({
           id={id}
           sample={sampleData.sample}
           runningEvents={sampleData.running}
-          selectedTab={selectedTab}
-          setSelectedTab={setSelectedTab}
           scrollRef={scrollRef}
         />
       )}
