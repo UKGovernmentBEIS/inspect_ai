@@ -38,6 +38,8 @@ export interface AppSlice {
     getPropertyValue: <T>(bagName: string, key: string, defaultValue?: T) => T;
     setPropertyValue: <T>(bagName: string, key: string, value: T) => void;
     removePropertyValue: (bagName: string, key: string) => void;
+
+    setUrlHash: (urlHash: string) => void;
   };
 }
 
@@ -221,6 +223,12 @@ export const createAppSlice = (
             const { [key]: _, ...rest } = state.app.propertyBags[bagName];
             state.app.propertyBags[bagName] = rest;
           }
+        });
+      },
+
+      setUrlHash: (urlHash: string) => {
+        set((state) => {
+          state.app.urlHash = urlHash;
         });
       },
     },
