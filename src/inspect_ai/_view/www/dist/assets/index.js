@@ -23527,6 +23527,125 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       storeImplementation = store;
       store.getState().initialize(api2, capabilities2);
     };
+    const loggingIcons = {
+      notset: "bi bi-card-text",
+      debug: "bi bi-bug",
+      http: "bi bi-download",
+      info: "bi bi-info-square",
+      warning: "bi bi-exclamation-triangle",
+      error: "bi bi-x-circle",
+      critical: "bi bi-fire"
+    };
+    const ApplicationIcons = {
+      approve: "bi bi-shield",
+      approvals: {
+        approve: "bi bi-shield-check",
+        reject: "bi bi-shield-x",
+        terminate: "bi bi-shield-exclamation",
+        escalate: "bi bi-box-arrow-up",
+        modify: "bi bi-pencil-square"
+      },
+      arrows: {
+        right: "bi bi-arrow-right",
+        down: "bi bi-arrow-down",
+        up: "bi bi-arrow-up"
+      },
+      chevron: {
+        right: "bi bi-chevron-right",
+        down: "bi bi-chevron-down"
+      },
+      collapse: {
+        up: "bi bi-chevron-up"
+      },
+      close: "bi bi-x",
+      config: "bi bi-gear",
+      confirm: "bi bi-check",
+      copy: "bi bi-copy",
+      error: "bi bi-exclamation-circle",
+      "expand-down": "bi bi-chevron-down",
+      info: "bi bi-info-circle",
+      input: "bi bi-terminal",
+      limits: {
+        messages: "bi bi-chat-right-text",
+        custom: "bi bi-person-workspace",
+        operator: "bi bi-person-workspace",
+        tokens: "bi bi-list",
+        time: "bi bi-clock",
+        execution: "bi bi-stopwatch"
+      },
+      logging: loggingIcons,
+      menu: "bi bi-list",
+      metadata: "bi bi-table",
+      model: "bi bi-grid-3x3-gap",
+      next: "bi bi-chevron-right",
+      noSamples: "bi bi-ban",
+      play: "bi bi-play-fill",
+      previous: "bi bi-chevron-left",
+      refresh: "bi bi-arrow-clockwise",
+      role: {
+        user: "bi bi-person",
+        system: "bi bi-cpu",
+        assistant: "bi bi-robot",
+        tool: "bi bi-tools",
+        unknown: "bi bi-patch-question"
+      },
+      running: "bi bi-stars",
+      sample: "bi bi-database",
+      sandbox: "bi bi-box-seam",
+      scorer: "bi bi-calculator",
+      search: "bi bi-search",
+      solvers: {
+        use_tools: "bi bi-tools"
+      },
+      usage: "bi bi-stopwatch"
+    };
+    const ErrorPanel = ({ title: title2, error: error2 }) => {
+      const message2 = error2.message;
+      const stack2 = error2.stack;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "error-panel centered-flex", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "error-panel-heading centered-flex", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: `${ApplicationIcons.error} error-icon` }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: title2 || "" })
+        ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "error-panel-body", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          "Error: ",
+          message2 || "",
+          stack2 && error2.displayStack !== false && /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: "error-panel-stack", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
+            "at ",
+            stack2
+          ] }) })
+        ] }) })
+      ] });
+    };
+    class AppErrorBoundary extends reactExports.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+      }
+      static getDerivedStateFromError(error2) {
+        return { hasError: true, error: error2 };
+      }
+      componentDidCatch(error2, errorInfo) {
+        console.log({ error: error2, errorInfo });
+      }
+      render() {
+        if (this.state.hasError) {
+          console.error({ e: this.state.error });
+          if (this.state.error) {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ErrorPanel,
+              {
+                title: "An unexpected error occurred.",
+                error: this.state.error
+              }
+            );
+          } else {
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "An unknown error with no additional information occured." });
+          }
+        }
+        return this.props.children;
+      }
+    }
     const arrayToString = (val) => {
       val = Array.isArray(val) ? val : [val];
       return val.join(", ");
@@ -23779,78 +23898,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1j.container), children: scores2 }, `score-value`);
         }
       };
-    };
-    const loggingIcons = {
-      notset: "bi bi-card-text",
-      debug: "bi bi-bug",
-      http: "bi bi-download",
-      info: "bi bi-info-square",
-      warning: "bi bi-exclamation-triangle",
-      error: "bi bi-x-circle",
-      critical: "bi bi-fire"
-    };
-    const ApplicationIcons = {
-      approve: "bi bi-shield",
-      approvals: {
-        approve: "bi bi-shield-check",
-        reject: "bi bi-shield-x",
-        terminate: "bi bi-shield-exclamation",
-        escalate: "bi bi-box-arrow-up",
-        modify: "bi bi-pencil-square"
-      },
-      arrows: {
-        right: "bi bi-arrow-right",
-        down: "bi bi-arrow-down",
-        up: "bi bi-arrow-up"
-      },
-      chevron: {
-        right: "bi bi-chevron-right",
-        down: "bi bi-chevron-down"
-      },
-      collapse: {
-        up: "bi bi-chevron-up"
-      },
-      close: "bi bi-x",
-      config: "bi bi-gear",
-      confirm: "bi bi-check",
-      copy: "bi bi-copy",
-      error: "bi bi-exclamation-circle",
-      "expand-down": "bi bi-chevron-down",
-      info: "bi bi-info-circle",
-      input: "bi bi-terminal",
-      limits: {
-        messages: "bi bi-chat-right-text",
-        custom: "bi bi-person-workspace",
-        operator: "bi bi-person-workspace",
-        tokens: "bi bi-list",
-        time: "bi bi-clock",
-        execution: "bi bi-stopwatch"
-      },
-      logging: loggingIcons,
-      menu: "bi bi-list",
-      metadata: "bi bi-table",
-      model: "bi bi-grid-3x3-gap",
-      next: "bi bi-chevron-right",
-      noSamples: "bi bi-ban",
-      play: "bi bi-play-fill",
-      previous: "bi bi-chevron-left",
-      refresh: "bi bi-arrow-clockwise",
-      role: {
-        user: "bi bi-person",
-        system: "bi bi-cpu",
-        assistant: "bi bi-robot",
-        tool: "bi bi-tools",
-        unknown: "bi bi-patch-question"
-      },
-      running: "bi bi-stars",
-      sample: "bi bi-database",
-      sandbox: "bi bi-box-seam",
-      scorer: "bi bi-calculator",
-      search: "bi bi-search",
-      solvers: {
-        use_tools: "bi bi-tools"
-      },
-      usage: "bi bi-stopwatch"
     };
     const visible = "_visible_tm52u_1";
     const hidden$2 = "_hidden_tm52u_5";
@@ -42049,43 +42096,6 @@ categories: ${categories.join(" ")}`;
       }, [toolCallContent]);
       return toolViewRef;
     };
-    const useSetSelectedLogIndex = () => {
-      const setSelectedLogIndex = useStore(
-        (state) => state.logsActions.setSelectedLogIndex
-      );
-      const clearSelectedSample = useStore(
-        (state) => state.sampleActions.clearSelectedSample
-      );
-      const clearSelectedLogSummary = useStore(
-        (state) => state.logActions.clearSelectedLogSummary
-      );
-      return reactExports.useCallback(
-        (index2) => {
-          clearSelectedSample();
-          clearSelectedLogSummary();
-          setSelectedLogIndex(index2);
-        },
-        [setSelectedLogIndex, clearSelectedLogSummary, clearSelectedSample]
-      );
-    };
-    const ErrorPanel = ({ title: title2, error: error2 }) => {
-      const message2 = error2.message;
-      const stack2 = error2.stack;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "error-panel centered-flex", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "error-panel-heading centered-flex", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: `${ApplicationIcons.error} error-icon` }) }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: title2 || "" })
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "error-panel-body", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-          "Error: ",
-          message2 || "",
-          stack2 && error2.displayStack !== false && /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: "error-panel-stack", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
-            "at ",
-            stack2
-          ] }) })
-        ] }) })
-      ] });
-    };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
       const storeHideFind = useStore((state) => state.appActions.hideFind);
@@ -44330,18 +44340,10 @@ categories: ${categories.join(" ")}`;
         )
       ] });
     };
-    const container$d = "_container_304w9_1";
-    const modelInfo = "_modelInfo_304w9_8";
-    const role = "_role_304w9_14";
-    const styles$J = {
-      container: container$d,
-      modelInfo,
-      role
-    };
     const grid$4 = "_grid_ktnsp_1";
     const cell$2 = "_cell_ktnsp_8";
     const value$1 = "_value_ktnsp_13";
-    const styles$I = {
+    const styles$J = {
       grid: grid$4,
       cell: cell$2,
       value: value$1
@@ -44371,7 +44373,7 @@ categories: ${categories.join(" ")}`;
             {
               className: clsx(
                 `${baseId}-key`,
-                styles$I.cell,
+                styles$J.cell,
                 "text-style-label",
                 "text-style-secondary",
                 "text-size-small"
@@ -44382,13 +44384,13 @@ categories: ${categories.join(" ")}`;
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx(styles$I.value, `${baseId}-value`, "text-size-small"),
+              className: clsx(styles$J.value, `${baseId}-value`, "text-size-small"),
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 })
             }
           )
         ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$I.grid), style: style2, children: entryEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$J.grid), style: style2, children: entryEls });
     };
     const entryRecords = (entries) => {
       if (!entries) {
@@ -44401,6 +44403,14 @@ categories: ${categories.join(" ")}`;
       } else {
         return entries;
       }
+    };
+    const container$d = "_container_304w9_1";
+    const modelInfo = "_modelInfo_304w9_8";
+    const role = "_role_304w9_14";
+    const styles$I = {
+      container: container$d,
+      modelInfo,
+      role
     };
     const ModelCard = ({ evalSpec }) => {
       if (!evalSpec) {
@@ -44418,18 +44428,18 @@ categories: ${categories.join(" ")}`;
       const noneEl = /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-style-secondary", children: "None" });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { icon: ApplicationIcons.model, label: "Models" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-model-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$J.container, children: Object.keys(modelsInfo || {}).map((modelKey) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-model-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.container, children: Object.keys(modelsInfo || {}).map((modelKey) => {
           const modelInfo2 = modelsInfo[modelKey];
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
-              className: clsx(styles$J.modelInfo, "text-size-small"),
+              className: clsx(styles$I.modelInfo, "text-size-small"),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "div",
                   {
                     className: clsx(
-                      styles$J.role,
+                      styles$I.role,
                       "text-style-label",
                       "text-style-secondary"
                     ),
@@ -59494,8 +59504,6 @@ ${events}
     const SampleDisplay = ({
       id,
       sample: sample2,
-      selectedTab,
-      setSelectedTab,
       scrollRef,
       runningEvents: runningSampleData
     }) => {
@@ -59504,6 +59512,8 @@ ${events}
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
       );
+      const selectedTab = useStore((state) => state.app.tabs.sample);
+      const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
       const sampleSummary = sampleSummaries[selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || runningSampleData;
       const sampleMessages = reactExports.useMemo(() => {
@@ -59805,10 +59815,6 @@ ${events}
       const loadSample = useStore((state) => state.sampleActions.loadSample);
       const pollSample = useStore((state) => state.sampleActions.pollSample);
       const logSelection = useLogSelection();
-      const selectedSampleTab = useStore((state) => state.app.tabs.sample);
-      const setSelectedSampleTab = useStore(
-        (state) => state.appActions.setSampleTab
-      );
       reactExports.useEffect(() => {
         if (sampleData.running && logSelection.logFile && logSelection.sample) {
           pollSample(logSelection.logFile, logSelection.sample);
@@ -59854,8 +59860,6 @@ ${events}
             id: "inline-sample-display",
             sample: sampleData.sample,
             runningEvents: sampleData.running,
-            selectedTab: selectedSampleTab,
-            setSelectedTab: setSelectedSampleTab,
             scrollRef
           }
         ) }) })
@@ -59992,9 +59996,7 @@ ${events}
     const SampleDialog = ({
       id,
       title: title2,
-      showingSampleDialog,
-      selectedTab,
-      setSelectedTab
+      showingSampleDialog
     }) => {
       var _a2, _b2, _c, _d, _e2, _f;
       const scrollRef = reactExports.useRef(null);
@@ -60092,8 +60094,6 @@ ${events}
               id,
               sample: sampleData.sample,
               runningEvents: sampleData.running,
-              selectedTab,
-              setSelectedTab,
               scrollRef
             }
           )
@@ -81436,14 +81436,6 @@ Supported expressions:
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
       const sampleListHandle = reactExports.useRef(null);
-      const selectedSampleTab = useStore((state) => state.app.tabs.sample);
-      const setSelectedSampleTab = useStore(
-        (state) => state.appActions.setSampleTab
-      );
-      const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
-      const setShowingSampleDialog = useStore(
-        (state) => state.appActions.setShowingSampleDialog
-      );
       reactExports.useEffect(() => {
         setTimeout(() => {
           if (sampleListHandle.current) {
@@ -81451,6 +81443,7 @@ Supported expressions:
           }
         }, 0);
       }, [selectedSampleIndex]);
+      const showingSampleDialog = useStore((state) => state.app.dialogs.sample);
       const previousShowingDialogRef = reactExports.useRef(showingSampleDialog);
       reactExports.useEffect(() => {
         if (previousShowingDialogRef.current && !showingSampleDialog && sampleListHandle.current) {
@@ -81524,10 +81517,7 @@ Supported expressions:
             {
               id: String((selectedSample == null ? void 0 : selectedSample.id) || ""),
               title: title2,
-              showingSampleDialog,
-              setShowingSampleDialog,
-              selectedTab: selectedSampleTab,
-              setSelectedTab: setSelectedSampleTab
+              showingSampleDialog
             }
           )
         ] });
@@ -81661,30 +81651,24 @@ Supported expressions:
       const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
       const logHeaders = useStore((state) => state.logs.logHeaders);
       const headersLoading = useStore((state) => state.logs.headersLoading);
-      const setSelectedLogIndex = useSetSelectedLogIndex();
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const resetFiltering = useStore((state) => state.logActions.resetFiltering);
       const selectSample = useStore((state) => state.logActions.selectSample);
       const mainAppRef = reactExports.useRef(null);
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
-      const handleSelectedIndexChanged = reactExports.useCallback(
-        (index2) => {
-          setSelectedLogIndex(index2);
-          setOffCanvas(false);
-          resetFiltering();
-          clearSampleTab();
-          clearWorkspaceTab();
-          selectSample(0);
-        },
-        [
-          setSelectedLogIndex,
-          setOffCanvas,
-          resetFiltering,
-          clearSampleTab,
-          clearWorkspaceTab,
-          selectSample
-        ]
-      );
+      const handleSelectedIndexChanged = reactExports.useCallback(() => {
+        setOffCanvas(false);
+        resetFiltering();
+        clearSampleTab();
+        clearWorkspaceTab();
+        selectSample(0);
+      }, [
+        setOffCanvas,
+        resetFiltering,
+        clearSampleTab,
+        clearWorkspaceTab,
+        selectSample
+      ]);
       const handleKeyboard = reactExports.useCallback(
         (e) => {
           if (nativeFind || !setShowFind) {
@@ -81802,16 +81786,16 @@ Supported expressions:
       [
         {
           path: "/",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}),
+          element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}) }),
           children: []
         },
         {
           path: "/logs/:logPath/:tabId?",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+          element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}) })
         },
         {
           path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
-          element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
+          element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {}) })
         },
         {
           path: "*",
@@ -81931,35 +81915,6 @@ Supported expressions:
       }, [setLogs, selectLogFile, refreshLogs, onMessage]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(RouterProvider2, { router: AppRouter });
     };
-    class AppErrorBoundary extends reactExports.Component {
-      constructor(props) {
-        super(props);
-        this.state = { hasError: false };
-      }
-      static getDerivedStateFromError(error2) {
-        return { hasError: true, error: error2 };
-      }
-      componentDidCatch(error2, errorInfo) {
-        console.log({ error: error2, errorInfo });
-      }
-      render() {
-        if (this.state.hasError) {
-          console.error({ e: this.state.error });
-          if (this.state.error) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(
-              ErrorPanel,
-              {
-                title: "An unexpected error occurred.",
-                error: this.state.error
-              }
-            );
-          } else {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: "An unknown error with no additional information occured." });
-          }
-        }
-        return this.props.children;
-      }
-    }
     const resolveStorage = () => {
       const vscodeApi2 = getVscodeApi();
       if (vscodeApi2) {
@@ -82011,7 +81966,7 @@ Supported expressions:
     }
     const root = clientExports.createRoot(container);
     root.render(
-      /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.StrictMode, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, { api: applicationApi }) }) })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(reactExports.StrictMode, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(App, { api: applicationApi }) })
     );
   }
 });
