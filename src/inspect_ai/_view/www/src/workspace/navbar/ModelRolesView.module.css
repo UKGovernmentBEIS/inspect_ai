@@ -1,0 +1,16 @@
+.container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: -0.2rem;
+  margin-bottom: 0.2rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-rows: repeat(auto-fill, minmax(10px, 1fr));
+  grid-template-columns: 1fr;
+  gap: 0.1em;
+  padding-right: 1em;
+}

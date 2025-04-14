@@ -1,4 +1,4 @@
-from inspect_ai.solver._task_state import TaskState
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 from .._approval import Approval, ApprovalDecision
@@ -25,11 +25,11 @@ def human_approver(
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         # try to use the panel approval (available in fullscreen display)
         try:
-            return await panel_approval(message, call, view, state, choices)
+            return await panel_approval(message, call, view, history, choices)
 
         # fallback to plain console approval (available in all displays)
         except NotImplementedError:

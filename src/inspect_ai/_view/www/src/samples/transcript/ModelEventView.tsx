@@ -63,11 +63,15 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     }
   }
 
+  const panelTitle = event.role
+    ? `Model Call (${event.role}): ${event.model}`
+    : `Model Call: ${event.model}`;
+
   return (
     <EventPanel
       id={id}
       className={className}
-      title={formatTitle(`Model Call: ${event.model}`, totalUsage, callTime)}
+      title={formatTitle(panelTitle, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.model}
     >

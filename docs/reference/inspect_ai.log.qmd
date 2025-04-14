@@ -23,6 +23,7 @@ title: "inspect_ai.log"
 ### EvalSpec
 ### EvalDataset
 ### EvalConfig
+### EvalModelConfig
 ### EvalRevision
 ### EvalPlan
 ### EvalPlanStep

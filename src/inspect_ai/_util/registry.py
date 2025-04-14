@@ -14,18 +14,24 @@ from .entrypoints import ensure_entry_points
 obj_type = type
 
 RegistryType = Literal[
-    "modelapi",
     "task",
     "solver",
-    "plan",
+    "agent",
+    "tool",
     "scorer",
     "metric",
-    "tool",
-    "agent",
-    "sandboxenv",
     "score_reducer",
+    "modelapi",
+    "sandboxenv",
     "approver",
 ]
+"""Enumeration of registry object types.
+
+These are the types of objects in this system that can be
+registered using a decorator (e.g. `@task`, `@solver`).
+Registered objects can in turn be created dynamically using
+the `registry_create()` function.
+"""
 
 
 class RegistryInfo(BaseModel):
@@ -181,17 +187,28 @@ def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
 def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
     r"""Create a registry object.
 
-    Registry objects can be ordinary functions that implement a protocol,
-    factory functions that return a function based on **kwargs, or classes
-    deriving that can be created using **kwargs
+    Creates objects registered via decorator (e.g. `@task`, `@solver`). Note
+    that this can also create registered objects within Python packages, in
+    which case the name of the package should be used a prefix, e.g.
+
+    ```python
+    registry_create("scorer", "mypackage/myscorer", ...)
+    ```
+
+    Object within the Inspect package do not require a prefix, nor do
+    objects from imported modules that aren't in a package.
 
     Args:
-        type (RegistryType): Type of registry object to create
-        name (str): Name of registry options to create
-        **kwargs (Any): Optional creation arguments
+        type: Type of registry object to create
+        name: Name of registry object to create
+        **kwargs: Optional creation arguments
 
     Returns:
-        Registry object with registry info attribute
+        Instance of specified name and type.
+
+    Raises:
+        LookupError: If the named object was not found in the registry.
+        TypeError: If the specified parameters are not valid for the object.
     """
     # lookup the object
     obj = registry_lookup(type, name)
@@ -225,7 +242,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
         else:
             return obj
     else:
-        raise ValueError(f"{name} was not found in the registry")
+        raise LookupError(f"{name} was not found in the registry")
 
 
 def registry_info(o: object) -> RegistryInfo:

@@ -13,7 +13,6 @@ from typing_extensions import overload
 
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import task_file, task_run_dir
-from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -52,6 +51,7 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
+    model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
@@ -61,6 +61,7 @@ def resolve_tasks(
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
                 model=task.model or model,
+                model_roles=task.model_roles or model_roles,
                 sandbox=resolve_task_sandbox(task, sandbox),
                 sequence=sequence,
             )
@@ -109,6 +110,9 @@ def resolve_tasks(
                 task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
                 model=previous_task.model or loaded_task.model or model,
+                model_roles=(
+                    previous_task.model_roles or loaded_task.model_roles or model_roles
+                ),
                 sandbox=previous_task.log.eval.sandbox,
                 sequence=sequence,
                 id=previous_task.id,
@@ -282,16 +286,11 @@ def create_file_tasks(
             setattr(task, TASK_RUN_DIR_ATTR, run_dir)
             tasks.append(task)
 
-            # warn that chdir is deprecated
+            # warn that chdir has been removed
             if "chdir" in task.attribs:
-                if configured_async_backend() == "trio":
-                    raise RuntimeError(
-                        "The task 'chdir' attribute is not compatible with the trio async backend."
-                    )
-
                 warn_once(
                     logger,
-                    "The 'chdir' task attribute is deprecated and will be removed in a future release "
+                    "The 'chdir' task attribute is no longer supported "
                     + "(you should write your tasks to not depend on their runtime working directory)",
                 )
 

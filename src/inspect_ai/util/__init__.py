@@ -1,3 +1,4 @@
+from inspect_ai._util.registry import RegistryType, registry_create
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import Limit, LimitExceededError, token_limit
 
@@ -68,4 +69,6 @@ __all__ = [
     "token_limit",
     "trace_action",
     "trace_message",
+    "RegistryType",
+    "registry_create",
 ]

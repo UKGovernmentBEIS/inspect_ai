@@ -35,7 +35,7 @@ export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
 
   const scorers: Record<string, ResultsScorer> = {};
   metrics.forEach((metric) => {
-    if (metric.value !== undefined) {
+    if (metric.value !== undefined && metric.value !== null) {
       const key = getKey(metric);
       if (scorers[key]) {
         scorers[key].metrics.push({

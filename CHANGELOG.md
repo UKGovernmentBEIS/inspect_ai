@@ -1,3 +1,31 @@
+## Unreleased
+
+- [Model Roles](https://inspect.aisi.org.uk/models.html#model-roles) for creating aliases to models used in a task (e.g. "grader", "red_team", "blue_team", etc.)
+- New [openai-api](https://inspect.aisi.org.uk/providers.html#openai-api) model provider for interfacing with arbitrary services that have Open AI API compatible endpoints.
+- Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
+- Approval: Approvers now take `history` argument (rather than `TaskState`) to better handle agent conversation state.
+- Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
+- CloudFlare: Use OpenAI compatible REST endpoint for interface to models.
+- Model API: Improved detection of context window overflow for Grok, Groq, and CloudFlare.
+- React Agent: Improve default `on_continue()` message, including using a dynamic name for the submit tool.
+- Registry: Exported `registry_create()` function for dynamic creation of registry objects (e.g. `@task`, `@solver`, etc.).
+- Remove `chdir` option from `@task` (tasks can no longer change their working directory during execution).
+- `INSPECT_EVAL_LOG_FILE_PATTERN` environment variable for setting the eval log file pattern.
+- Bugfix: Correctly resolve approvers in the same source file as tasks. 
+- Bugfix: Ensure agent decorator resolves string annotations from `__future__` as needed.
+
+## v0.3.88 (11 April 2025)
+
+- Tools: Restore formerly required (but now deprecated) `type` field to `ToolCall`.
+- Approval: Raise operator limit exceeded error for tool approval termination action.
+- Anthropic: Don't include side count of `reasoning_tokens` in `total_tokens` (they are already included).
+- Anthropic: Update string matching to correctly handle BadRequestErrors related to prompts being too long.
+
+## v0.3.87 (10 April 2025)
+
+- Eval: Fix an error when attempting to display realtime metrics for an evaluation.
+- Log Viewer: Fix an error when displaying a running log with a null metric value.
+
 ## v0.3.86 (09 April 2025)
 
 - Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.

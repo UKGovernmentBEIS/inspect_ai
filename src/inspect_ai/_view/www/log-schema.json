@@ -1342,6 +1342,43 @@
       "type": "object",
       "additionalProperties": false
     },
+    "EvalModelConfig": {
+      "description": "Model config.",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Url"
+        },
+        "args": {
+          "title": "Args",
+          "type": "object"
+        }
+      },
+      "required": [
+        "model",
+        "config",
+        "base_url",
+        "args"
+      ],
+      "title": "EvalModelConfig",
+      "type": "object",
+      "additionalProperties": false
+    },
     "EvalPlan": {
       "description": "Plan (solvers) used in evaluation.",
       "properties": {
@@ -2250,6 +2287,9 @@
           "title": "Model",
           "type": "string"
         },
+        "model_generate_config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
         "model_base_url": {
           "anyOf": [
             {
@@ -2265,6 +2305,21 @@
         "model_args": {
           "title": "Model Args",
           "type": "object"
+        },
+        "model_roles": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/EvalModelConfig"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Roles"
         },
         "config": {
           "$ref": "#/$defs/EvalConfig"
@@ -2355,8 +2410,10 @@
         "dataset",
         "sandbox",
         "model",
+        "model_generate_config",
         "model_base_url",
         "model_args",
+        "model_roles",
         "config",
         "revision",
         "packages",
@@ -3306,6 +3363,18 @@
           "title": "Model",
           "type": "string"
         },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
         "input": {
           "items": {
             "anyOf": [
@@ -3426,6 +3495,7 @@
         "pending",
         "event",
         "model",
+        "role",
         "input",
         "tools",
         "tool_choice",
@@ -4595,6 +4665,18 @@
             }
           ],
           "default": null
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
         }
       },
       "required": [
@@ -4603,7 +4685,8 @@
         "arguments",
         "internal",
         "parse_error",
-        "view"
+        "view",
+        "type"
       ],
       "title": "ToolCall",
       "type": "object",

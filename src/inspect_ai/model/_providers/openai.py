@@ -1,14 +1,8 @@
 import os
-import socket
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal
 
-import httpx
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
-    APIStatusError,
-    APITimeoutError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
@@ -20,7 +14,6 @@ from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -31,20 +24,23 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import ModelOutput
 from .._openai import (
-    OpenAIResponseError,
+    OpenAIAsyncHttpxClient,
     is_computer_use_preview,
     is_gpt,
     is_o1_mini,
     is_o1_preview,
     is_o1_pro,
     is_o_series,
+    model_output_from_openai,
     openai_chat_messages,
     openai_chat_tool_choice,
     openai_chat_tools,
+    openai_completion_params,
     openai_handle_bad_request,
     openai_media_filter,
+    openai_should_retry,
 )
 from .openai_o1 import generate_o1
 from .util import environment_prerequisite_error, model_base_url
@@ -54,6 +50,8 @@ logger = getLogger(__name__)
 OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
+
+# NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
 
 
 class OpenAIAPI(ModelAPI):
@@ -248,9 +246,21 @@ class OpenAIAPI(ModelAPI):
             else:
                 config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
 
+        # determine system role
+        # o1-mini does not support developer or system messages
+        # (see Dec 17, 2024 changelog: https://platform.openai.com/docs/changelog)
+        if self.is_o1_mini():
+            system_role: Literal["user", "system", "developer"] = "user"
+        # other o-series models use 'developer' rather than 'system' messages
+        # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
+        elif self.is_o_series():
+            system_role = "developer"
+        else:
+            system_role = "system"
+
         # prepare request (we do this so we can log the ModelCall)
         request = dict(
-            messages=await openai_chat_messages(input, self.model_name),
+            messages=await openai_chat_messages(input, system_role),
             tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
             tool_choice=openai_chat_tool_choice(tool_choice)
             if len(tools) > 0
@@ -267,49 +277,12 @@ class OpenAIAPI(ModelAPI):
 
             # save response for model_call
             response = completion.model_dump()
-            self.on_response(response)
-
-            # parse out choices
-            choices = self._chat_choices_from_response(completion, tools)
 
             # return output and call
-            return ModelOutput(
-                model=completion.model,
-                choices=choices,
-                usage=(
-                    ModelUsage(
-                        input_tokens=completion.usage.prompt_tokens,
-                        output_tokens=completion.usage.completion_tokens,
-                        input_tokens_cache_read=(
-                            completion.usage.prompt_tokens_details.cached_tokens
-                            if completion.usage.prompt_tokens_details is not None
-                            else None  # openai only have cache read stats/pricing.
-                        ),
-                        reasoning_tokens=(
-                            completion.usage.completion_tokens_details.reasoning_tokens
-                            if completion.usage.completion_tokens_details is not None
-                            else None
-                        ),
-                        total_tokens=completion.usage.total_tokens,
-                    )
-                    if completion.usage
-                    else None
-                ),
-            ), model_call()
+            choices = chat_choices_from_openai(completion, tools)
+            return model_output_from_openai(completion, choices), model_call()
         except (BadRequestError, UnprocessableEntityError) as e:
-            return self.handle_bad_request(e), model_call()
-
-    def on_response(self, response: dict[str, Any]) -> None:
-        pass
-
-    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
-        return openai_handle_bad_request(self.model_name, ex)
-
-    def _chat_choices_from_response(
-        self, response: ChatCompletion, tools: list[ToolInfo]
-    ) -> list[ChatCompletionChoice]:
-        # adding this as a method so we can override from other classes (e.g together)
-        return chat_choices_from_openai(response, tools)
+            return openai_handle_bad_request(self.model_name, e), model_call()
 
     @override
     def should_retry(self, ex: Exception) -> bool:
@@ -321,14 +294,8 @@ class OpenAIAPI(ModelAPI):
                 return False
             else:
                 return True
-        elif isinstance(ex, APIStatusError):
-            return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, OpenAIResponseError):
-            return ex.code in ["rate_limit_exceeded", "server_error"]
-        elif isinstance(ex, APITimeoutError):
-            return True
         else:
-            return False
+            return openai_should_retry(ex)
 
     @override
     def connection_key(self) -> str:
@@ -336,105 +303,31 @@ class OpenAIAPI(ModelAPI):
         return str(self.api_key)
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        params: dict[str, Any] = dict(
-            model=self.model_name,
-        )
+        # first call the default processing
+        params = openai_completion_params(self.model_name, config, tools)
+
+        # now tailor to current model
         if config.max_tokens is not None:
             if self.is_o_series():
                 params["max_completion_tokens"] = config.max_tokens
-            else:
-                params["max_tokens"] = config.max_tokens
-        if config.frequency_penalty is not None:
-            params["frequency_penalty"] = config.frequency_penalty
-        if config.stop_seqs is not None:
-            params["stop"] = config.stop_seqs
-        if config.presence_penalty is not None:
-            params["presence_penalty"] = config.presence_penalty
-        if config.logit_bias is not None:
-            params["logit_bias"] = config.logit_bias
-        if config.seed is not None:
-            params["seed"] = config.seed
+                del params["max_tokens"]
+
         if config.temperature is not None:
             if self.is_o_series():
                 warn_once(
                     logger,
                     "o series models do not support the 'temperature' parameter (temperature is always 1).",
                 )
-            else:
-                params["temperature"] = config.temperature
-        # TogetherAPI requires temperature w/ num_choices
-        elif config.num_choices is not None:
-            params["temperature"] = 1
-        if config.top_p is not None:
-            params["top_p"] = config.top_p
-        if config.num_choices is not None:
-            params["n"] = config.num_choices
-        params = self.set_logprobs_params(params, config)
-        if tools and config.parallel_tool_calls is not None and not self.is_o_series():
-            params["parallel_tool_calls"] = config.parallel_tool_calls
-        if (
-            config.reasoning_effort is not None
-            and not self.is_gpt()
-            and not self.is_o1_mini()
-            and not self.is_o1_preview()
+                del params["temperature"]
+
+        # remove parallel_tool_calls if not supported
+        if "parallel_tool_calls" in params.keys() and self.is_o_series():
+            del params["parallel_tool_calls"]
+
+        # remove reasoning_effort if not supported
+        if "reasoning_effort" in params.keys() and (
+            self.is_gpt() or self.is_o1_mini() or self.is_o1_preview()
         ):
-            params["reasoning_effort"] = config.reasoning_effort
-        if config.response_schema is not None:
-            params["response_format"] = dict(
-                type="json_schema",
-                json_schema=dict(
-                    name=config.response_schema.name,
-                    schema=config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    description=config.response_schema.description,
-                    strict=config.response_schema.strict,
-                ),
-            )
+            del params["reasoning_effort"]
 
         return params
-
-    def set_logprobs_params(
-        self, params: dict[str, Any], config: GenerateConfig
-    ) -> dict[str, Any]:
-        if config.logprobs is not None:
-            params["logprobs"] = config.logprobs
-        if config.top_logprobs is not None:
-            params["top_logprobs"] = config.top_logprobs
-        return params
-
-
-class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that deals better with long running Async requests.
-
-    Based on Anthropic DefaultAsyncHttpClient implementation that they
-    released along with Claude 3.7 as well as the OpenAI DefaultAsyncHttpxClient
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        # This is based on the openai DefaultAsyncHttpxClient:
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        # This is based on the anthrpopic changes for claude 3.7:
-        # https://github.com/anthropics/anthropic-sdk-python/commit/c5387e69e799f14e44006ea4e54fdf32f2f74393#diff-3acba71f89118b06b03f2ba9f782c49ceed5bb9f68d62727d929f1841b61d12bR1387-R1403
-
-        # set socket options to deal with long running reasoning requests
-        socket_options = [
-            (socket.SOL_SOCKET, socket.SO_KEEPALIVE, True),
-            (socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 60),
-            (socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5),
-        ]
-        TCP_KEEPIDLE = getattr(socket, "TCP_KEEPIDLE", None)
-        if TCP_KEEPIDLE is not None:
-            socket_options.append((socket.IPPROTO_TCP, TCP_KEEPIDLE, 60))
-
-        kwargs["transport"] = httpx.AsyncHTTPTransport(
-            limits=DEFAULT_CONNECTION_LIMITS,
-            socket_options=socket_options,
-        )
-
-        super().__init__(**kwargs)
