@@ -80,14 +80,12 @@ async def exec_sandbox_rpc(
       ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
     """
     req = _create_json_rpc_request(method, params, is_notification)
-    print(f"XXXX sending {req=}")
     exec_result = await sandbox.exec(
         [SANDBOX_CLI, "exec"],
         input=req,
         timeout=timeout,
         user=user,
     )
-    print(f"XXXX received {exec_result=}")
 
     if not exec_result.success:
         raise RuntimeError(
@@ -158,13 +156,14 @@ def _create_json_rpc_request(
     params: dict[str, object] | tuple[object, ...],
     is_notification: bool,
 ) -> str:
-    eric = {
-        "jsonrpc": "2.0",
-        "method": method,
-        "params": list(params) if isinstance(params, tuple) else params,
-        **({"id": next(id_generator)} if not is_notification else {}),
-    }
-    return json.dumps(eric)
+    return json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": list(params) if isinstance(params, tuple) else params,
+            **({"id": next(id_generator)} if not is_notification else {}),
+        }
+    )
 
 
 def _rpc_call_description(
