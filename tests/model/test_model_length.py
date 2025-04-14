@@ -10,6 +10,7 @@ from test_helpers.utils import (
     skip_if_no_groq,
     skip_if_no_mistral,
     skip_if_no_openai,
+    skip_if_no_openai_azure,
     skip_if_no_together,
 )
 
@@ -80,16 +81,16 @@ async def test_model_length_openai_responses():
     await check_model_length(GPT_4O, responses_api=True)
 
 
-# @pytest.mark.asyncio
-# @skip_if_no_openai_azure
-# async def test_model_length_openai_azure():
-#     await check_model_length(GPT_4O_AZURE)
+@pytest.mark.asyncio
+@skip_if_no_openai_azure
+async def test_model_length_openai_azure():
+    await check_model_length(GPT_4O_AZURE)
 
 
-# @pytest.mark.asyncio
-# @skip_if_no_openai_azure
-# async def test_model_length_openai_responses_azure():
-#     await check_model_length(GPT_4O_AZURE, responses_api=True)
+@pytest.mark.asyncio
+@skip_if_no_openai_azure
+async def test_model_length_openai_responses_azure():
+    await check_model_length(GPT_4O_AZURE, responses_api=True)
 
 
 @pytest.mark.asyncio
