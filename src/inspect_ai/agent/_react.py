@@ -14,6 +14,7 @@ from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._limit import LimitExceededError
+from inspect_ai.util._limit import message_limit as create_message_limit
 
 from ._agent import Agent, AgentState, agent, agent_with
 from ._handoff import has_handoff
@@ -38,6 +39,9 @@ def react(
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit = AgentSubmit(),
     on_continue: str | AgentContinue | None = None,
+    # TODO: Do we accept an int, a MessageLimit or a list of Limit?
+    # Message limit is special as we need to explicitly call check() on it with a count.
+    message_limit: int | None = None,
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -72,6 +76,8 @@ def react(
           Optionally, can also be an async function to call to determine whether
           the loop should continue (executed on every turn) and what message
           to play back.
+       message_limit: Limit on messages in sample before terminating agent.
+          If not specified, ...
 
     Returns:
         ReAct agent.
@@ -136,6 +142,8 @@ def react(
     tools = tools or []
     tools.append(tool_with(submit_tool(), submit.name, submit.description))
 
+    message_limiter = create_message_limit(message_limit)
+
     async def execute(state: AgentState) -> AgentState:
         # prepend system message if we have one
         if system_message:
@@ -148,6 +156,9 @@ def react(
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
+                # don't generate if we're already at the message limit
+                message_limiter.check(len(state.messages), raise_for_equal=True)
+
                 # generate output and append assistant message
                 state = await _agent_generate(model, state, tools)
 

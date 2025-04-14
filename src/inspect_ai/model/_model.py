@@ -49,7 +49,6 @@ from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
-    check_message_limit,
     check_token_limit,
     record_model_usage,
 )
@@ -343,11 +342,12 @@ class Model:
         Returns:
            ModelOutput
         """
-        # if we are the default model then enforce message limit if it
-        # exists (raise an exception if it is exceeded)
+        # TODO: Check we haven't broken any usages of generate() by removing message
+        # limit check.
+        # if we are the default model then update the displayed message count
         is_active_model = self == active_model()
         if is_active_model:
-            handle_sample_message_limit(input)
+            set_total_messages(input)
 
         # base config for this model
         base_config = self.config
@@ -1362,11 +1362,10 @@ def active_model() -> Model | None:
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
 
-def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
+def set_total_messages(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import set_active_sample_total_messages
 
     existing_message_count = 1 if isinstance(input, str) else len(input)
-    check_message_limit(existing_message_count, raise_for_equal=True)
 
     # set total messages
     set_active_sample_total_messages(existing_message_count)

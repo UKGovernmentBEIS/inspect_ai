@@ -641,7 +641,7 @@ async def task_run_sample(
                     init_sample_working_limit(start_time, working_limit)
 
                     # run sample w/ optional timeout
-                    with timeout_cm, state._token_limit, state._message_limit:
+                    with timeout_cm, state._token_limit:
                         # mark started
                         active.started = datetime.now().timestamp()
 
@@ -744,6 +744,7 @@ async def task_run_sample(
                 if time_limit is not None:
                     timeout_cm = anyio.fail_after(time_limit / 2)
 
+                # TODO: Do we need to "turn off" message limit?
                 set_sample_state(state)
 
                 # scoring

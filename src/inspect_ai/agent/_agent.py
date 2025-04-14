@@ -40,6 +40,7 @@ class AgentState:
         """Conversation history."""
         return self._messages
 
+    # TODO: This should be a ChatMessageList and enforce limits.
     @messages.setter
     def messages(self, messages: list[ChatMessage]) -> None:
         """Set the conversation history."""

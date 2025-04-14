@@ -83,9 +83,6 @@ def overwriting_solver():
 def message_appending_scorer(model: Model) -> Scorer:
     async def score(state: TaskState, target: Target) -> Score:
         await model.generate("Hello")
-        state.messages.append(
-            ChatMessageUser(content="A scorer inserted this message.")
-        )
         state.completed
 
         return Score(value=1)
