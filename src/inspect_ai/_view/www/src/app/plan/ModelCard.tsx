@@ -1,11 +1,11 @@
 import { FC } from "react";
 
 import clsx from "clsx";
-import styles from "./ModelCard.module.css";
-import { Card, CardHeader, CardBody } from "../../components/Card";
-import { EvalSpec, EvalModelConfig } from "../../@types/log";
+import { EvalModelConfig, EvalSpec } from "../../@types/log";
+import { Card, CardBody, CardHeader } from "../../components/Card";
 import { ApplicationIcons } from "../appearance/icons";
 import { MetaDataGrid } from "../content/MetaDataGrid";
+import styles from "./ModelCard.module.css";
 
 interface ModelCardProps {
   evalSpec?: EvalSpec;
