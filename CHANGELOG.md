@@ -6,6 +6,7 @@
 - Approval: Approvers now take `history` argument (rather than `TaskState`) to better handle agent conversation state.
 - Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
 - CloudFlare: Use OpenAI compatible REST endpoint for interface to models.
+- Model API: Improved detection of context window overflow for Grok, Groq, and CloudFlare.
 - React Agent: Improve default `on_continue()` message, including using a dynamic name for the submit tool.
 - Registry: Exported `registry_create()` function for dynamic creation of registry objects (e.g. `@task`, `@solver`, etc.).
 - Remove `chdir` option from `@task` (tasks can no longer change their working directory during execution).
