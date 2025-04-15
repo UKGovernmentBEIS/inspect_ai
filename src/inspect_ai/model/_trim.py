@@ -41,7 +41,7 @@ def trim_messages(
     # one last step: many model apis require tool messages to have a parent assistant
     # message with a corresponding tool_call_id. to ensure this, we build the
     # final list of conversation messages by filtering out tool messages for which
-    # we haven't seen a corresponding assistatn message with their id
+    # we haven't seen a corresponding assistant message with their id
     conversation_messages: list[ChatMessage] = []
     active_tool_ids = set()
     for message in preserved_messages:
