@@ -123,7 +123,7 @@ async def exec_model_request(
         timeout=timeout,
         user=user,
     )
-        return result_type.model_validate(rpc_result, strict=True)
+    return result_type.model_validate(rpc_result, strict=True)
 
 
 async def exec_notification(

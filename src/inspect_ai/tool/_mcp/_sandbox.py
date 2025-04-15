@@ -5,7 +5,7 @@ from typing import TextIO
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp import JSONRPCRequest, StdioServerParameters
-from mcp.types import JSONRPCError, JSONRPCMessage, JSONRPCNotification, JSONRPCResponse
+from mcp.types import JSONRPCMessage, JSONRPCNotification
 
 from inspect_ai.tool._tool_support_helpers import (
     exec_model_request,
