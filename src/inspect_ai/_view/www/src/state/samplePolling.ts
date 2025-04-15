@@ -251,8 +251,8 @@ export function createSamplePolling(
 }
 
 const resetPollingState = (state: PollingState) => {
-  state.eventId = -1;
-  state.attachmentId = -1;
+  state.eventId = kNoId;
+  state.attachmentId = kNoId;
   state.eventMapping = {};
   state.attachments = {};
   state.events = [];
