@@ -23,7 +23,7 @@ GATSBY_TOKENS = 69062
 # model context window sizes
 # from: https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json
 GPT_4O = "openai/gpt-4o"
-GPT_4O_AZURE = "openai/azure/gpt-4o"
+GPT_4O_MINI_AZURE = "openai/azure/gpt-4o-mini"
 CLAUDE_3_5_HAIKU = "anthropic/claude-3-5-haiku-latest"
 GEMINI_1_5_FLASH = "google/gemini-1.5-flash"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
@@ -35,7 +35,7 @@ BEDROCK_NOVA_LITE_1_0 = "bedrock/amazon.nova-lite-v1:0"
 
 MODELS = {
     GPT_4O: 128000,
-    GPT_4O_AZURE: 128000,
+    GPT_4O_MINI_AZURE: 128000,
     CLAUDE_3_5_HAIKU: 200000,
     GEMINI_1_5_FLASH: 1000000,
     MISTRAL_LARGE_2411: 131000,
@@ -87,13 +87,13 @@ async def test_model_length_openai_responses():
 @pytest.mark.asyncio
 @skip_if_no_openai_azure
 async def test_model_length_openai_azure():
-    await check_model_length(GPT_4O_AZURE)
+    await check_model_length(GPT_4O_MINI_AZURE)
 
 
 @pytest.mark.asyncio
 @skip_if_no_openai_azure
 async def test_model_length_openai_responses_azure():
-    await check_model_length(GPT_4O_AZURE, responses_api=True)
+    await check_model_length(GPT_4O_MINI_AZURE, responses_api=True)
 
 
 @pytest.mark.asyncio
