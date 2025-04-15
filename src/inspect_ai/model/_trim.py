@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from dataclasses import dataclass, field
 
 from ._chat_message import ChatMessage
 
@@ -32,19 +32,17 @@ def trim_messages(
         Trimmed messages.
     """
     # partition messages
-    system_messages, input_messages, conversation_messages = _partition_messages(
-        messages
-    )
+    partitioned = _partition_messages(messages)
 
     # slice messages from the beginning of the conversation as-per preserve
-    start_idx = max(1, int(len(conversation_messages) * (1 - preserve)))
-    preserved_messages = conversation_messages[start_idx:]
+    start_idx = int(len(partitioned.conversation) * (1 - min(preserve, 1)))
+    preserved_messages = partitioned.conversation[start_idx:]
 
     # one last step: many model apis require tool messages to have a parent assistant
     # message with a corresponding tool_call_id. to ensure this, we build the
     # final list of conversation messages by filtering out tool messages for which
     # we haven't seen a corresponding assistatn message with their id
-    conversation_messages = []
+    conversation_messages: list[ChatMessage] = []
     active_tool_ids = set()
     for message in preserved_messages:
         if message.role == "assistant":
@@ -57,13 +55,14 @@ def trim_messages(
             conversation_messages.append(message)
 
     # return trimmed messages
-    return system_messages + input_messages + conversation_messages
+    return partitioned.system + partitioned.input + conversation_messages
 
 
-class PartitionedMessages(NamedTuple):
-    system: list[ChatMessage] = []
-    input: list[ChatMessage] = []
-    conversation: list[ChatMessage] = []
+@dataclass
+class PartitionedMessages:
+    system: list[ChatMessage] = field(default_factory=list)
+    input: list[ChatMessage] = field(default_factory=list)
+    conversation: list[ChatMessage] = field(default_factory=list)
 
 
 def _partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
