@@ -26,7 +26,7 @@ def trim_messages(
     Args:
         messages: List of messages to trim.
         preserve: Ratio of converation messages to preserve
-           (defaults to 0.7)
+            (defaults to 0.7)
 
     Returns:
         Trimmed messages.
