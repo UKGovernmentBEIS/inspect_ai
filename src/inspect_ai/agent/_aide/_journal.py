@@ -3,6 +3,7 @@ import uuid
 from typing import Literal
 
 from pydantic import BaseModel, Field, computed_field
+from inspect_ai.model import ChatMessage
 
 
 def trim_long_string(string, threshold=5100, k=2500):
@@ -53,7 +54,7 @@ class MetricValue(BaseModel):
 
 class Node(BaseModel):
     code: str
-    plan: str
+    message: ChatMessage
     step: int
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     ctime: float = Field(default_factory=lambda: time.time())
@@ -143,7 +144,7 @@ class Journal(BaseModel):
     def generate_summary(self, include_code: bool = False) -> str:
         summary = []
         for node in self.good_nodes:
-            summary_part = f"Design: {node.plan}\n"
+            summary_part = f"Design: {node.message}\n"
             if include_code:
                 summary_part += f"Code: {node.code}\n"
             summary_part += f"Results: {node.analysis}\n"

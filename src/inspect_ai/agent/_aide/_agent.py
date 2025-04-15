@@ -24,9 +24,10 @@ from inspect_ai.util import store_as
 
 
 async def aide_step(state: AideState) -> AideState:
-    state.data_preview = await get_data_preview_in_container(
-        str(state.config.workspace_dir),
-    )
+    # state.data_preview = await get_data_preview_in_container(
+    #     str(state.config.workspace_dir),
+    # )
+    state.data_preview = ""
 
     # run the search policy to determine the next node to execute
     parent = await search_policy(state)
@@ -119,12 +120,12 @@ def aide_agent(instance: str | None = uuid(), **aide_config_kwargs) -> Agent:
             **aide_config_kwargs,
         )
 
-        # setup workspace
-        await setup_sandbox_workspace(
-            data_dir=aide_state.config.data_dir,
-            workspace_dir=aide_state.config.workspace_dir,
-            preproc_data=aide_state.config.preproc_data,
-        )
+        # # setup workspace
+        # await setup_sandbox_workspace(
+        #     data_dir=aide_state.config.data_dir,
+        #     workspace_dir=aide_state.config.workspace_dir,
+        #     preproc_data=aide_state.config.preproc_data,
+        # )
 
         # run the agent loop
         print(

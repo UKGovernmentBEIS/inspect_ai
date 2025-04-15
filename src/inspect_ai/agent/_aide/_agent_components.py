@@ -1,8 +1,4 @@
 import random
-import time
-from typing import cast
-
-from shortuuid import uuid
 
 from inspect_ai.agent._aide._data_models import (
     AideState,
@@ -14,14 +10,11 @@ from inspect_ai.agent._aide._journal import (
 )
 from inspect_ai.agent._aide._utils import (
     compile_prompt_to_md,
-    extract_code,
-    extract_text_up_to_code,
     wrap_code,
 )
 from inspect_ai.log import transcript
-from inspect_ai.model import get_model
-from inspect_ai.tool import Tool, ToolFunction, tool, tool_with
-from inspect_ai.util import sandbox
+from inspect_ai.model import ChatMessage, call_tools, get_model
+from inspect_ai.tool import Tool, ToolCall, ToolFunction, tool, tool_with
 
 
 def get_draft_prompt(state: AideState) -> str:
@@ -134,43 +127,38 @@ async def search_policy(state: AideState) -> Node | None:
 
 async def plan_and_code_query(
     state: AideState, prompt: str, retries: int = 3
-) -> tuple[str, str]:
-    completion_text = None
+) -> tuple[ChatMessage, list[ToolCall]]:
     for _ in range(retries):
-        completion = await get_model().generate(
-            input=prompt,
-        )
+        completion = await get_model().generate(input=prompt, tools=state.tools)
+        if not completion.message.tool_calls:
+            raise ValueError("Expected tool calls in message")
         if state.inspect_agent_state is not None:
             state.inspect_agent_state.messages.append(completion.message)
-        completion_text = completion.completion
-        code = extract_code(completion_text)
-        nl_text = extract_text_up_to_code(completion_text)
-
-        if code and nl_text:
-            return nl_text, code
+        code = completion.message.tool_calls
+        if code and completion:
+            return completion, code
 
         transcript().info("Retrying due to missing code or text")
-    transcript().info("Failed to generate code and text, giving up")
-    return "", cast(str, completion_text)
+    raise ValueError("Failed to generate code and text after multiple retries")
 
 
 async def draft(state: AideState) -> Node:
     prompt = get_draft_prompt(state)
     plan, code = await plan_and_code_query(state, prompt)
-    return Node(plan=plan, code=code, step=len(state.journal))
+    return Node(message=plan, code=code, step=len(state.journal))
 
 
 async def improve(state: AideState, parent: Node) -> Node:
     prompt = get_improve_prompt(state, parent)
     plan, code = await plan_and_code_query(state, prompt)
-    return Node(plan=plan, code=code, parent=parent, step=len(state.journal))
+    return Node(message=plan, code=code, parent=parent, step=len(state.journal))
 
 
 async def debug(state: AideState, parent: Node) -> Node:
     prompt = get_debug_prompt(state, parent)
     plan, code = await plan_and_code_query(state, prompt)
     return Node(
-        plan=plan,
+        message=plan,
         code=code,
         parent=parent,
         is_buggy=True,
@@ -192,34 +180,14 @@ async def generate_new_node(parent: Node, state: AideState) -> Node:
 
 
 async def execute_node(node: Node, state: AideState) -> ExecutionInfo:
-    sbox = sandbox()
-
-    # make workspace dir if it doesn't exist
-    await sbox.exec(["mkdir", "-p", str(state.config.workspace_dir)])
-
-    # write tmp file to workspace
-    tmp_file_name = f"{uuid()}.py"
-    tmp_file_path = f"{state.config.workspace_dir}/{tmp_file_name}"
-    await sbox.write_file(file=tmp_file_path, contents=node.code)
-
-    # execute the code
-    start = time.time()
-    exec_result = await sbox.exec(
-        ["python3", tmp_file_name],
-        timeout=state.config.exec_timeout,
-        cwd=str(state.config.workspace_dir),
-    )
-    exec_time = time.time() - start
-
-    # cleanup
-    await sbox.exec(["rm", tmp_file_path])
-
-    # return execution info
+    tool_calls = await call_tools(node.message, tools=state.tools)
+    assert len(tool_calls) == 1, ">1 tool calls not supported yet"
+    tool_call = tool_calls[0]
     return ExecutionInfo(
-        return_code=exec_result.returncode,
-        stdout=exec_result.stdout,
-        stderr=exec_result.stderr,
-        exec_time=exec_time,
+        stdout=tool_call.content,
+        stderr=tool_call.error.message,
+        return_code=0,
+        exec_time=10.0,
     )
 
 

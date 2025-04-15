@@ -13,6 +13,7 @@ from inspect_ai.agent._aide._journal import (
 from inspect_ai.agent._aide._utils import (
     compile_prompt_to_md,
 )
+from inspect_ai.tool import Tool
 from inspect_ai.util import StoreModel
 
 
@@ -163,6 +164,7 @@ class AideState(StoreModel):
     inspect_agent_state: AgentState | None = Field(default=None)
     instance: str | None = Field(default=None)
     best_node: Node | None = Field(default=None)
+    tools: list[Tool] = Field(default_factory=list)
 
     class Config:
         arbitrary_types_allowed = True
