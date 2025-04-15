@@ -31,11 +31,15 @@ def trim_messages(
     Returns:
         Trimmed messages.
     """
+    # validate preserve
+    if not 0 <= preserve <= 1:
+        raise ValueError(f"preserve must be in range [0,1], got {preserve}")
+
     # partition messages
     partitioned = _partition_messages(messages)
 
     # slice messages from the beginning of the conversation as-per preserve
-    start_idx = int(len(partitioned.conversation) * (1 - min(preserve, 1)))
+    start_idx = int(len(partitioned.conversation) * (1 - preserve))
     preserved_messages = partitioned.conversation[start_idx:]
 
     # one last step: many model apis require tool messages to have a parent assistant

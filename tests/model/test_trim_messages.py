@@ -250,14 +250,13 @@ def test_preserve_edge_cases() -> None:
     # All messages should be preserved
     assert trimmed == messages
 
-    # Test with preserve > 1 (should be treated as 1)
-    trimmed = trim_messages(messages, preserve=1.5)
-    assert trimmed == messages
+    # Test with preserve > 1
+    with pytest.raises(ValueError):
+        trim_messages(messages, preserve=1.5)
 
-    # Test with preserve < 0 (should be treated as 0)
-    trimmed = trim_messages(messages, preserve=-0.5)
-    assert len(trimmed) == 2
-    assert trimmed[0] == system_message
+    # Test with preserve < 0
+    with pytest.raises(ValueError):
+        trim_messages(messages, preserve=-0.5)
 
 
 def test_consecutive_assistant_tool_chains() -> None:
