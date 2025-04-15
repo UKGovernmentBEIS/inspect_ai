@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC } from "react";
+import { FC, Fragment } from "react";
 import { EvalSample } from "../../../@types/log";
 import { SampleSummary } from "../../../client/api/types";
 import { EmptyPanel } from "../../../components/EmptyPanel";
@@ -73,7 +73,7 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
         let metadata = scoreData.metadata || {};
 
         return (
-          <>
+          <Fragment key={`${scorer}-row`}>
             <div className={clsx("text-size-base", styles.cell)}>{scorer}</div>
             <div className={clsx(styles.cell, "text-size-base")}>{answer}</div>
             <div className={clsx(styles.cell, "text-size-base")}>
@@ -87,7 +87,7 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
             </div>
 
             {Object.keys(metadata).length > 0 ? (
-              <>
+              <Fragment key={`${scorer}-metadata`}>
                 <div
                   className={clsx(
                     "text-size-smaller",
@@ -108,9 +108,9 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
                     styles.fullWidth,
                   )}
                 ></div>
-              </>
+              </Fragment>
             ) : undefined}
-          </>
+          </Fragment>
         );
       })}
     </div>

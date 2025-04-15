@@ -147,7 +147,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       label: "Answer",
       value: sample ? (
         <MarkdownDiv
-          markdown={fields.answer}
+          markdown={fields.answer || ""}
           className={clsx("no-last-para-padding", styles.answer)}
         />
       ) : (
