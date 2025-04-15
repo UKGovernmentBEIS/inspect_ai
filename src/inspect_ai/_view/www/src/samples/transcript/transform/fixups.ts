@@ -94,15 +94,11 @@ const groupSandboxEvents = (events: Events): Events => {
   const pendingSandboxEvents: Events = [];
 
   const pushPendingSandboxEvents = () => {
-    if (pendingSandboxEvents.length === 1) {
-      result.push(pendingSandboxEvents[0]);
-    } else {
-      const timestamp =
-        pendingSandboxEvents[pendingSandboxEvents.length - 1].timestamp;
-      result.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
-      result.push(...pendingSandboxEvents);
-      result.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
-    }
+    const timestamp =
+      pendingSandboxEvents[pendingSandboxEvents.length - 1].timestamp;
+    result.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
+    result.push(...pendingSandboxEvents);
+    result.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
     pendingSandboxEvents.length = 0;
   };
 
