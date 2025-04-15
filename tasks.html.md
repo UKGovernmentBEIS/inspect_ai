@@ -243,6 +243,8 @@ def ctf_prompt():
         # TODO: dynamic prompt engineering
         return state
 
+    return solve
+
 @task
 def ctf(solver: Solver | None = None):
     # use default tool loop solver if no solver specified

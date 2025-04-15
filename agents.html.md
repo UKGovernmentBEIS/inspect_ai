@@ -267,13 +267,51 @@ This behavior is controlled by the `on_continue` parameter, which by
 default yields the following user message to the model:
 
 ``` default
-If you believe you have completed the task, please call the 
-`submit()` tool with your answer.
+Please proceed to the next step using your best judgement. If you believe you
+have completed the task, please call the `submit()` tool."
 ```
 
 You can pass a different continuation message, or alternative pass an
 `AgentContinue` function that can dynamically determine both whether to
 continue and what the message is.
+
+### Truncation
+
+> [!NOTE]
+>
+> The `truncation` option described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+If your agent runs for long enough, it may end up filling the entire
+model context window. By default, this will cause the agent to terminate
+(with a log message indicating the reason). Alternatively, you can
+specify that the conversation should be truncated and the agent loop
+continue.
+
+This behavior is controlled by the `truncation` parameter (which is
+`"disabled"` by default, doing no truncation). To perform truncation,
+specify either `"auto"` (which reduces conversation size by roughly 30%)
+or pass a custom `MessageFilter` function. For example:
+
+``` python
+react(... truncation="auto")
+react(..., truncation=custom_truncation)
+```
+
+The default `"auto"` truncation scheme calls the `trim_messages()`
+function with a `preserve` ratio of 0.7.
+
+Note that if you enable truncation then a [message
+limit](errors-and-limits.qmd#message-limit) may not work as expected
+because truncation will remove old messages, potentially keeping the
+conversation length below your message limit. In this case you can also
+consider applying a [time limit](errors-and-limits.qmd#time-limit)
+and/or [token limit](errors-and-limits.qmd#token-limit).
 
 ### Model
 
