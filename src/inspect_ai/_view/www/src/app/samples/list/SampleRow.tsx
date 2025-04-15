@@ -76,10 +76,12 @@ export const SampleRow: FC<SampleRowProps> = ({
         <MarkdownDiv markdown={inputString(sample.input).join(" ")} />
       </div>
       <div className={clsx("sample-target", "three-line-clamp", styles.cell)}>
-        <MarkdownDiv
-          markdown={arrayToString(sample?.target)}
-          className={clsx("no-last-para-padding", styles.noLeft)}
-        />
+        {sample?.target ? (
+          <MarkdownDiv
+            markdown={arrayToString(sample.target)}
+            className={clsx("no-last-para-padding", styles.noLeft)}
+          />
+        ) : undefined}
       </div>
       <div className={clsx("sample-answer", "three-line-clamp", styles.cell)}>
         {sample ? (

@@ -98,7 +98,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
       return (
         <MarkdownDiv
           key={key}
-          markdown={c.text}
+          markdown={c.text || ""}
           className={isLast ? "no-last-para-padding" : ""}
         />
       );

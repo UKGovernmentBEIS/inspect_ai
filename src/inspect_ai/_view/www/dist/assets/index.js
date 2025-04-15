@@ -36060,7 +36060,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     };
     const restoreBackslashesForLatex = (content2) => {
-      if (!content2) return content2;
+      if (!content2) {
+        return content2;
+      }
       try {
         let result2 = content2.replace(/___LATEX_BACKSLASH___/g, "\\");
         result2 = fixDotsNotation(result2);
@@ -36241,7 +36243,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             MarkdownDiv,
             {
-              markdown: c2.text,
+              markdown: c2.text || "",
               className: isLast ? "no-last-para-padding" : ""
             },
             key2
@@ -50434,7 +50436,7 @@ self.onmessage = function (e) {
           value: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             MarkdownDiv,
             {
-              markdown: fields.answer,
+              markdown: fields.answer || "",
               className: clsx("no-last-para-padding", styles$x.answer)
             }
           ) : "",
@@ -50611,7 +50613,7 @@ self.onmessage = function (e) {
           const explanation2 = scoreData.explanation || "(No Explanation)";
           const answer2 = scoreData.answer;
           let metadata2 = scoreData.metadata || {};
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$w.cell), children: scorer2 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$w.cell, "text-size-base"), children: answer2 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$w.cell, "text-size-base"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -50622,7 +50624,7 @@ self.onmessage = function (e) {
               }
             ) }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$w.cell), children: explanation2 }),
-            Object.keys(metadata2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+            Object.keys(metadata2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
@@ -50646,8 +50648,8 @@ self.onmessage = function (e) {
                   )
                 }
               )
-            ] }) : void 0
-          ] });
+            ] }, `${scorer2}-metadata`) : void 0
+          ] }, `${scorer2}-row`);
         })
       ] });
     };
@@ -80868,13 +80870,13 @@ Supported expressions:
                 children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: inputString(sample2.input).join(" ") })
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-target", "three-line-clamp", styles$5.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-target", "three-line-clamp", styles$5.cell), children: (sample2 == null ? void 0 : sample2.target) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
-                markdown: arrayToString(sample2 == null ? void 0 : sample2.target),
+                markdown: arrayToString(sample2.target),
                 className: clsx("no-last-para-padding", styles$5.noLeft)
               }
-            ) }),
+            ) : void 0 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("sample-answer", "three-line-clamp", styles$5.cell), children: sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               MarkdownDiv,
               {
