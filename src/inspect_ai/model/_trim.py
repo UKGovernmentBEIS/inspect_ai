@@ -36,10 +36,25 @@ def trim_messages(
         messages
     )
 
-    # determine how many of the conversation messages we want to keep
-    keep_messages = preserve * len(conversation_messages)
+    # slice messages from the beginning of the conversation as-per preserve
+    start_idx = max(1, int(len(conversation_messages) * (1 - preserve)))
+    preserved_messages = conversation_messages[start_idx:]
 
-    # peel tool messages off of the end (as we have to )
+    # one last step: many model apis require tool messages to have a parent assistant
+    # message with a corresponding tool_call_id. to ensure this, we build the
+    # final list of conversation messages by filtering out tool messages for which
+    # we haven't seen a corresponding assistatn message with their id
+    conversation_messages = []
+    active_tool_ids = set()
+    for message in preserved_messages:
+        if message.role == "assistant":
+            active_tool_ids = {tc.id for tc in (message.tool_calls or [])}
+            conversation_messages.append(message)
+        elif message.role == "tool" and message.tool_call_id in active_tool_ids:
+            conversation_messages.append(message)
+        elif message.role == "user":
+            active_tool_ids = set()
+            conversation_messages.append(message)
 
     # return trimmed messages
     return system_messages + input_messages + conversation_messages
