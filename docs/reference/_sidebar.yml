@@ -252,6 +252,8 @@ website:
           href: reference/inspect_ai.model.qmd#chatmessageassistant
         - text: ChatMessageTool
           href: reference/inspect_ai.model.qmd#chatmessagetool
+        - text: trim_messages
+          href: reference/inspect_ai.model.qmd#trim_messages
         - text: Content
           href: reference/inspect_ai.model.qmd#content
         - text: ContentText
