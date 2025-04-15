@@ -1,4 +1,3 @@
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import api from "./client/api/index";
@@ -55,11 +54,7 @@ if (!container) {
 
 // Render into the root
 const root = createRoot(container as HTMLElement);
-root.render(
-  <StrictMode>
-    <App api={applicationApi} />
-  </StrictMode>,
-);
+root.render(<App api={applicationApi} />);
 
 function restoreHash() {
   // Check if we need to restore a route
