@@ -22309,7 +22309,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const kSampleScoringTabId = `scoring`;
     const kSampleMetdataTabId = `metadata`;
     const kSampleErrorTabId = `error`;
-    const kSampleJsonTabId = `sample-json`;
+    const kSampleJsonTabId = `json`;
     const kScoreTypePassFail = "passfail";
     const kScoreTypeCategorical = "categorical";
     const kScoreTypeNumeric = "numeric";
