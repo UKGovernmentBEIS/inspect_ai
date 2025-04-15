@@ -725,7 +725,7 @@ class Model:
         )
         model_name = ModelName(self)
         async with concurrency(
-            name=f"{model_name.api}",
+            name=str(model_name),
             concurrency=max_connections,
             key=f"Model{self.api.connection_key()}",
         ):
