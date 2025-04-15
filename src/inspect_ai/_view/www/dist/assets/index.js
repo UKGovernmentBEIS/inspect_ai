@@ -23238,8 +23238,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
     }
     const resetPollingState = (state) => {
-      state.eventId = -1;
-      state.attachmentId = -1;
+      state.eventId = kNoId;
+      state.attachmentId = kNoId;
       state.eventMapping = {};
       state.attachments = {};
       state.events = [];
@@ -59867,15 +59867,7 @@ ${events}
             title: "Unable to load sample",
             error: sampleData.error
           }
-        ) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SampleDisplay,
-          {
-            id: "inline-sample-display",
-            sample: sampleData.sample,
-            runningEvents: sampleData.running,
-            scrollRef
-          }
-        ) }) })
+        ) : /* @__PURE__ */ jsxRuntimeExports.jsx(SampleDisplay, { id: "inline-sample-display", scrollRef }) }) })
       ] });
     };
     const title = "_title_yj2nt_1";

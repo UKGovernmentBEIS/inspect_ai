@@ -73,12 +73,7 @@ export const InlineSampleDisplay: FC = () => {
               error={sampleData.error}
             />
           ) : (
-            <SampleDisplay
-              id={"inline-sample-display"}
-              sample={sampleData.sample}
-              runningEvents={sampleData.running}
-              scrollRef={scrollRef}
-            />
+            <SampleDisplay id={"inline-sample-display"} scrollRef={scrollRef} />
           )}
         </div>
       </div>
