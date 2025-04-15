@@ -7,10 +7,11 @@
 - Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
 - CloudFlare: Use OpenAI compatible REST endpoint for interface to models.
 - Model API: Improved detection of context window overflow for Grok, Groq, and CloudFlare.
-- React Agent: Improve default `on_continue()` message, including using a dynamic name for the submit tool.
+- ReAct Agent: Improve default `on_continue()` message, including using a dynamic name for the submit tool.
 - Registry: Exported `registry_create()` function for dynamic creation of registry objects (e.g. `@task`, `@solver`, etc.).
 - Remove `chdir` option from `@task` (tasks can no longer change their working directory during execution).
 - `INSPECT_EVAL_LOG_FILE_PATTERN` environment variable for setting the eval log file pattern.
+- Bugfix: Eval retry now works correctly for models with a service prefix (e.g. `openai/azure/model-name`).
 - Bugfix: Correctly resolve approvers in the same source file as tasks. 
 - Bugfix: Ensure agent decorator resolves string annotations from `__future__` as needed.
 - Bugfix: Correctly handle string `dict` keys that are numeric in store diffs.

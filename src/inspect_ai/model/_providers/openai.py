@@ -70,7 +70,6 @@ class OpenAIAPI(ModelAPI):
         parts = model_name.split("/")
         if parts[0] == "azure" and len(parts) > 1:
             self.service: str | None = parts[0]
-            model_name = "/".join(parts[1:])
         else:
             self.service = None
 
@@ -158,22 +157,22 @@ class OpenAIAPI(ModelAPI):
         return self.service == "azure"
 
     def is_o_series(self) -> bool:
-        return is_o_series(self.model_name)
+        return is_o_series(self.service_model_name())
 
     def is_o1_pro(self) -> bool:
-        return is_o1_pro(self.model_name)
+        return is_o1_pro(self.service_model_name())
 
     def is_o1_mini(self) -> bool:
-        return is_o1_mini(self.model_name)
+        return is_o1_mini(self.service_model_name())
 
     def is_o1_preview(self) -> bool:
-        return is_o1_preview(self.model_name)
+        return is_o1_preview(self.service_model_name())
 
     def is_computer_use_preview(self) -> bool:
-        return is_computer_use_preview(self.model_name)
+        return is_computer_use_preview(self.service_model_name())
 
     def is_gpt(self) -> bool:
-        return is_gpt(self.model_name)
+        return is_gpt(self.service_model_name())
 
     @override
     async def aclose(self) -> None:
@@ -215,7 +214,7 @@ class OpenAIAPI(ModelAPI):
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
-                model_name=self.model_name,
+                model_name=self.service_model_name(),
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
@@ -240,7 +239,7 @@ class OpenAIAPI(ModelAPI):
         # unlike text models, vision models require a max_tokens (and set it to a very low
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
-        if "vision" in self.model_name:
+        if "vision" in self.service_model_name():
             if isinstance(config.max_tokens, int):
                 config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
             else:
@@ -282,7 +281,11 @@ class OpenAIAPI(ModelAPI):
             choices = chat_choices_from_openai(completion, tools)
             return model_output_from_openai(completion, choices), model_call()
         except (BadRequestError, UnprocessableEntityError) as e:
-            return openai_handle_bad_request(self.model_name, e), model_call()
+            return openai_handle_bad_request(self.service_model_name(), e), model_call()
+
+    def service_model_name(self) -> str:
+        """Model name without any service prefix."""
+        return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
     def should_retry(self, ex: Exception) -> bool:
@@ -304,7 +307,7 @@ class OpenAIAPI(ModelAPI):
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         # first call the default processing
-        params = openai_completion_params(self.model_name, config, tools)
+        params = openai_completion_params(self.service_model_name(), config, tools)
 
         # now tailor to current model
         if config.max_tokens is not None:
