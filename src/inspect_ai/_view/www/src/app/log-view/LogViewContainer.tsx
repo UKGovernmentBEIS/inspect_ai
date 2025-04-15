@@ -9,11 +9,12 @@ import { LogViewLayout } from "./LogViewLayout";
  * LogContainer component that handles routing to specific logs, tabs, and samples
  */
 export const LogViewContainer: FC = () => {
-  const { logPath, tabId, sampleId, epoch } = useParams<{
+  const { logPath, tabId, sampleId, epoch, sampleTabId } = useParams<{
     logPath?: string;
     tabId?: string;
     sampleId?: string;
     epoch?: string;
+    sampleTabId?: string;
   }>();
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
@@ -22,6 +23,7 @@ export const LogViewContainer: FC = () => {
     (state) => state.appActions.setShowingSampleDialog,
   );
   const selectSample = useStore((state) => state.logActions.selectSample);
+  const setSampleTab = useStore((state) => state.appActions.setSampleTab);
   const filteredSamples = useFilteredSamples();
   const setStatus = useStore((state) => state.appActions.setStatus);
   const setSelectedLogIndex = useStore(
@@ -93,6 +95,11 @@ export const LogViewContainer: FC = () => {
       if (sampleIndex >= 0) {
         selectSample(sampleIndex);
         setShowingSampleDialog(true);
+
+        // Set the sample tab if specified in the URL
+        if (sampleTabId) {
+          setSampleTab(sampleTabId);
+        }
       }
     } else {
       // If we don't have sample params in the URL but the dialog is showing, close it
@@ -103,8 +110,10 @@ export const LogViewContainer: FC = () => {
   }, [
     sampleId,
     epoch,
+    sampleTabId,
     filteredSamples,
     selectSample,
+    setSampleTab,
     setShowingSampleDialog,
     clearSample,
   ]);

@@ -41,7 +41,11 @@ export const useSampleNavigation = () => {
   const logDirectory = useStore((state) => state.logs.logs.log_dir);
 
   // The log
-  const { logPath, tabId } = useParams<{ logPath?: string; tabId?: string }>();
+  const { logPath, tabId, sampleTabId } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleTabId?: string;
+  }>();
 
   // Get the store access values directly in the hook
   const getSelectedLogFile = useStore(
@@ -79,7 +83,7 @@ export const useSampleNavigation = () => {
 
   // Navigate to a specific sample with index
   const showSample = useCallback(
-    (index: number) => {
+    (index: number, specifiedSampleTabId?: string) => {
       if (sampleSummaries && index >= 0 && index < sampleSummaries.length) {
         const sample = sampleSummaries[index];
         const resolvedPath = resolveLogPath();
@@ -89,9 +93,14 @@ export const useSampleNavigation = () => {
           selectSample(index);
           setShowingSampleDialog(true);
 
+          // Use specified sampleTabId if provided, otherwise use current sampleTabId from URL params
+          const currentSampleTabId = specifiedSampleTabId || sampleTabId;
+
           // Navigate to the sample URL
           navigate(
-            `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample.id}/${sample.epoch}`,
+            currentSampleTabId
+              ? `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample.id}/${sample.epoch}/${currentSampleTabId}`
+              : `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample.id}/${sample.epoch}`,
           );
         }
       }
@@ -103,6 +112,7 @@ export const useSampleNavigation = () => {
       setShowingSampleDialog,
       navigate,
       tabId,
+      sampleTabId,
     ],
   );
 
@@ -111,28 +121,35 @@ export const useSampleNavigation = () => {
     const itemsCount = sampleSummaries.length;
     const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
     if (next > -1) {
-      selectSample(next);
+      showSample(next, sampleTabId);
     }
-  }, [selectedSampleIndex, showSample]);
+  }, [selectedSampleIndex, showSample, sampleTabId]);
 
   // Navigate to the previous sample
   const previousSample = useCallback(() => {
     const prev = selectedSampleIndex - 1;
     if (prev > -1) {
-      selectSample(prev);
+      showSample(prev, sampleTabId);
     }
-  }, [selectedSampleIndex, showSample]);
+  }, [selectedSampleIndex, showSample, sampleTabId]);
 
   // Get a sample URL for a specific sample
   const getSampleUrl = useCallback(
-    (sampleId: string | number, epoch: string | number) => {
+    (
+      sampleId: string | number,
+      epoch: string | number,
+      specificSampleTabId?: string,
+    ) => {
       const resolvedPath = resolveLogPath();
       if (resolvedPath) {
-        return `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
+        const currentSampleTabId = specificSampleTabId || sampleTabId;
+        return currentSampleTabId
+          ? `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}/${currentSampleTabId}`
+          : `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
       }
       return undefined;
     },
-    [resolveLogPath, tabId],
+    [resolveLogPath, tabId, sampleTabId],
   );
 
   // Navigate back from sample dialog
