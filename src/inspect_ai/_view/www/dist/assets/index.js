@@ -81746,9 +81746,10 @@ Supported expressions:
               loading: true,
               error: void 0
             });
+            setSelectedLogIndex(-1);
+            setWorkspaceTab(kLogViewSamplesTabId);
             await refreshLogs();
             setSelectedLogIndex(0);
-            setWorkspaceTab(kLogViewSamplesTabId);
             setStatus({
               loading: false,
               error: void 0
