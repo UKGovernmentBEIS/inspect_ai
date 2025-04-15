@@ -17,6 +17,7 @@ import {
   useCallback,
   useMemo,
 } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { EvalSample, Events } from "../../@types/log";
 import { SampleSummary } from "../../client/api/types";
 import { Card, CardBody, CardHeader } from "../../components/Card";
@@ -66,6 +67,15 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   const selectedTab = useStore((state) => state.app.tabs.sample);
   const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
 
+  // Get sample tab from URL if available
+  const { sampleTabId } = useParams<{ sampleTabId?: string }>();
+
+  // Use sampleTabId from URL if available, otherwise use the one from state
+  const effectiveSelectedTab = sampleTabId || selectedTab;
+
+  // Navigation hook for URL updates
+  const navigate = useNavigate();
+
   const sampleSummary = sampleSummaries[selectedSampleIndex];
 
   // Consolidate the events and messages into the proper list
@@ -81,13 +91,50 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
     }
   }, [sample?.messages, runningSampleData]);
 
+  // Get all URL parameters at component level
+  const {
+    logPath: urlLogPath,
+    tabId: urlTabId,
+    sampleId: urlSampleId,
+    epoch: urlEpoch,
+  } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleId?: string;
+    epoch?: string;
+  }>();
+
   // Tab selection
-  const onSelectedTab = (e: MouseEvent<HTMLElement>) => {
-    const el = e.currentTarget as HTMLElement;
-    const id = el.id;
-    setSelectedTab(id);
-    return false;
-  };
+  const onSelectedTab = useCallback(
+    (e: MouseEvent<HTMLElement>) => {
+      const el = e.currentTarget as HTMLElement;
+      const id = el.id;
+      setSelectedTab(id);
+
+      // Use navigation hook to update URL with tab
+      if (id !== sampleTabId) {
+        if (urlLogPath && urlSampleId && urlEpoch) {
+          // Update URL with new tab
+          navigate(
+            `/logs/${urlLogPath}/${urlTabId || "samples"}/sample/${urlSampleId}/${urlEpoch}/${id}`,
+          );
+        } else {
+          navigate(`/logs/${urlLogPath}/${urlTabId || "samples"}/${id}`);
+        }
+      }
+
+      return false;
+    },
+    [
+      sampleTabId,
+      urlLogPath,
+      urlTabId,
+      urlSampleId,
+      urlEpoch,
+      navigate,
+      setSelectedTab,
+    ],
+  );
 
   const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
 
@@ -131,7 +178,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           title="Transcript"
           onSelected={onSelectedTab}
           selected={
-            selectedTab === kSampleTranscriptTabId || selectedTab === undefined
+            effectiveSelectedTab === kSampleTranscriptTabId ||
+            effectiveSelectedTab === undefined
           }
           scrollable={false}
         >
@@ -149,7 +197,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           className={clsx("sample-tab", styles.fullWidth, styles.chat)}
           title="Messages"
           onSelected={onSelectedTab}
-          selected={selectedTab === kSampleMessagesTabId}
+          selected={effectiveSelectedTab === kSampleMessagesTabId}
           scrollable={false}
         >
           <ChatViewVirtualList
@@ -168,7 +216,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           className="sample-tab"
           title="Scoring"
           onSelected={onSelectedTab}
-          selected={selectedTab === kSampleScoringTabId}
+          selected={effectiveSelectedTab === kSampleScoringTabId}
         >
           <SampleScoresView sample={sample} />
         </TabPanel>
@@ -177,7 +225,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           className={clsx("sample-tab")}
           title="Metadata"
           onSelected={onSelectedTab}
-          selected={selectedTab === kSampleMetdataTabId}
+          selected={effectiveSelectedTab === kSampleMetdataTabId}
         >
           {sampleMetadatas.length > 0 ? (
             <div className={clsx(styles.metadataPanel)}>{sampleMetadatas}</div>
@@ -191,7 +239,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             className="sample-tab"
             title="Error"
             onSelected={onSelectedTab}
-            selected={selectedTab === kSampleErrorTabId}
+            selected={effectiveSelectedTab === kSampleErrorTabId}
           >
             <div className={clsx(styles.padded)}>
               <ANSIDisplay
@@ -206,7 +254,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           className={"sample-tab"}
           title="JSON"
           onSelected={onSelectedTab}
-          selected={selectedTab === kSampleJsonTabId}
+          selected={effectiveSelectedTab === kSampleJsonTabId}
         >
           {!sample ? (
             <NoContentsPanel text="JSON not available" />

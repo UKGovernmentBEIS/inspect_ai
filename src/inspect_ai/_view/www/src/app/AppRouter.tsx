@@ -27,30 +27,18 @@ export const AppRouter = createHashRouter(
   [
     {
       path: "/",
-      element: <AppLayout />, // Use the layout component
-      loader: () => {
-        // See if there is a hash that has been stored
-        // and reload it (this is because VSCode will restore
-        // the base URL when re-opening a tab that has been backgrounded)
-        if (!storeImplementation) {
-          // Handle the case where store isn't initialized yet
-          return { initialRoute: null };
-        }
-
-        const storedHash = storeImplementation.getState().app.urlHash;
-        return { initialRoute: storedHash };
-      },
+      element: <AppLayout />,
       children: [
         {
           index: true, // This will match exactly the "/" path
           element: <LogViewContainer />,
         },
         {
-          path: "logs/:logPath/:tabId?",
+          path: "/logs/:logPath/:tabId?/:sampleTabId?",
           element: <LogViewContainer />,
         },
         {
-          path: "logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
+          path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?/:sampleTabId?",
           element: <LogViewContainer />,
         },
       ],

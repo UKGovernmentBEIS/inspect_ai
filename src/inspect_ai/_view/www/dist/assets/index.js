@@ -22304,12 +22304,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const kLogViewSamplesTabId = "samples";
     const kLogViewJsonTabId = "json";
     const kLogViewInfoTabId = "info";
-    const kSampleMessagesTabId = `sample-display-messages`;
-    const kSampleTranscriptTabId = `sample-display-transcript`;
-    const kSampleScoringTabId = `sample-display-scoring`;
-    const kSampleMetdataTabId = `sample-display-metadata`;
-    const kSampleErrorTabId = `sample-display-error`;
-    const kSampleJsonTabId = `sample-display-json`;
+    const kSampleMessagesTabId = `messages`;
+    const kSampleTranscriptTabId = `transcript`;
+    const kSampleScoringTabId = `scoring`;
+    const kSampleMetdataTabId = `metadata`;
+    const kSampleErrorTabId = `error`;
+    const kSampleJsonTabId = `sample-json`;
     const kScoreTypePassFail = "passfail";
     const kScoreTypeCategorical = "categorical";
     const kScoreTypeNumeric = "numeric";
@@ -43937,7 +43937,7 @@ categories: ${categories.join(" ")}`;
     const useSampleNavigation = () => {
       const navigate = useNavigate();
       const logDirectory = useStore((state) => state.logs.logs.log_dir);
-      const { logPath, tabId } = useParams();
+      const { logPath, tabId, sampleTabId } = useParams();
       const getSelectedLogFile = useStore(
         (state) => state.logsActions.getSelectedLogFile
       );
@@ -43960,15 +43960,16 @@ categories: ${categories.join(" ")}`;
         (state) => state.appActions.setShowingSampleDialog
       );
       const showSample = reactExports.useCallback(
-        (index2) => {
+        (index2, specifiedSampleTabId) => {
           if (sampleSummaries && index2 >= 0 && index2 < sampleSummaries.length) {
             const sample2 = sampleSummaries[index2];
             const resolvedPath = resolveLogPath();
             if (resolvedPath) {
               selectSample(index2);
               setShowingSampleDialog(true);
+              const currentSampleTabId = specifiedSampleTabId || sampleTabId;
               navigate(
-                `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample2.id}/${sample2.epoch}`
+                currentSampleTabId ? `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample2.id}/${sample2.epoch}/${currentSampleTabId}` : `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample2.id}/${sample2.epoch}`
               );
             }
           }
@@ -43979,31 +43980,33 @@ categories: ${categories.join(" ")}`;
           selectSample,
           setShowingSampleDialog,
           navigate,
-          tabId
+          tabId,
+          sampleTabId
         ]
       );
       const nextSample = reactExports.useCallback(() => {
         const itemsCount = sampleSummaries.length;
         const next = Math.min(selectedSampleIndex + 1, itemsCount - 1);
         if (next > -1) {
-          selectSample(next);
+          showSample(next, sampleTabId);
         }
-      }, [selectedSampleIndex, showSample]);
+      }, [selectedSampleIndex, showSample, sampleTabId]);
       const previousSample = reactExports.useCallback(() => {
         const prev = selectedSampleIndex - 1;
         if (prev > -1) {
-          selectSample(prev);
+          showSample(prev, sampleTabId);
         }
-      }, [selectedSampleIndex, showSample]);
+      }, [selectedSampleIndex, showSample, sampleTabId]);
       const getSampleUrl = reactExports.useCallback(
-        (sampleId, epoch) => {
+        (sampleId, epoch, specificSampleTabId) => {
           const resolvedPath = resolveLogPath();
           if (resolvedPath) {
-            return `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
+            const currentSampleTabId = specificSampleTabId || sampleTabId;
+            return currentSampleTabId ? `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}/${currentSampleTabId}` : `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
           }
           return void 0;
         },
-        [resolveLogPath, tabId]
+        [resolveLogPath, tabId, sampleTabId]
       );
       const clearSampleUrl = reactExports.useCallback(() => {
         const resolvedPath = resolveLogPath();
@@ -59533,6 +59536,9 @@ ${events}
       const runningSampleData = sampleData.running;
       const selectedTab = useStore((state) => state.app.tabs.sample);
       const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
+      const { sampleTabId } = useParams();
+      const effectiveSelectedTab = sampleTabId || selectedTab;
+      const navigate = useNavigate();
       const sampleSummary = sampleSummaries[selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || runningSampleData;
       const sampleMessages = reactExports.useMemo(() => {
@@ -59544,12 +59550,38 @@ ${events}
           return [];
         }
       }, [sample2 == null ? void 0 : sample2.messages, runningSampleData]);
-      const onSelectedTab = (e) => {
-        const el = e.currentTarget;
-        const id2 = el.id;
-        setSelectedTab(id2);
-        return false;
-      };
+      const {
+        logPath: urlLogPath,
+        tabId: urlTabId,
+        sampleId: urlSampleId,
+        epoch: urlEpoch
+      } = useParams();
+      const onSelectedTab = reactExports.useCallback(
+        (e) => {
+          const el = e.currentTarget;
+          const id2 = el.id;
+          setSelectedTab(id2);
+          if (id2 !== sampleTabId) {
+            if (urlLogPath && urlSampleId && urlEpoch) {
+              navigate(
+                `/logs/${urlLogPath}/${urlTabId || "samples"}/sample/${urlSampleId}/${urlEpoch}/${id2}`
+              );
+            } else {
+              navigate(`/logs/${urlLogPath}/${urlTabId || "samples"}/${id2}`);
+            }
+          }
+          return false;
+        },
+        [
+          sampleTabId,
+          urlLogPath,
+          urlTabId,
+          urlSampleId,
+          urlEpoch,
+          navigate,
+          setSelectedTab
+        ]
+      );
       const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
       const tabsetId = `task-sample-details-tab-${id}`;
       const targetId = `${tabsetId}-content`;
@@ -59588,7 +59620,7 @@ ${events}
                   className: "sample-tab",
                   title: "Transcript",
                   onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleTranscriptTabId || selectedTab === void 0,
+                  selected: effectiveSelectedTab === kSampleTranscriptTabId || effectiveSelectedTab === void 0,
                   scrollable: false,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     TranscriptVirtualList,
@@ -59610,7 +59642,7 @@ ${events}
                   className: clsx("sample-tab", styles$z.fullWidth, styles$z.chat),
                   title: "Messages",
                   onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleMessagesTabId,
+                  selected: effectiveSelectedTab === kSampleMessagesTabId,
                   scrollable: false,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     ChatViewVirtualList,
@@ -59634,7 +59666,7 @@ ${events}
                   className: "sample-tab",
                   title: "Scoring",
                   onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleScoringTabId,
+                  selected: effectiveSelectedTab === kSampleScoringTabId,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx(SampleScoresView, { sample: sample2 })
                 },
                 kSampleScoringTabId
@@ -59646,7 +59678,7 @@ ${events}
                   className: clsx("sample-tab"),
                   title: "Metadata",
                   onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleMetdataTabId,
+                  selected: effectiveSelectedTab === kSampleMetdataTabId,
                   children: sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.metadataPanel), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
@@ -59657,7 +59689,7 @@ ${events}
                   className: "sample-tab",
                   title: "Error",
                   onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleErrorTabId,
+                  selected: effectiveSelectedTab === kSampleErrorTabId,
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     ANSIDisplay,
                     {
@@ -59674,7 +59706,7 @@ ${events}
                   className: "sample-tab",
                   title: "JSON",
                   onSelected: onSelectedTab,
-                  selected: selectedTab === kSampleJsonTabId,
+                  selected: effectiveSelectedTab === kSampleJsonTabId,
                   children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : sample2.messages.length > 100 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large too display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.padded, styles$z.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     JSONPanel,
                     {
@@ -81717,7 +81749,7 @@ Supported expressions:
       ] });
     };
     const LogViewContainer = () => {
-      const { logPath, tabId, sampleId, epoch } = useParams();
+      const { logPath, tabId, sampleId, epoch, sampleTabId } = useParams();
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
@@ -81725,6 +81757,7 @@ Supported expressions:
         (state) => state.appActions.setShowingSampleDialog
       );
       const selectSample = useStore((state) => state.logActions.selectSample);
+      const setSampleTab = useStore((state) => state.appActions.setSampleTab);
       const filteredSamples = useFilteredSamples();
       const setStatus = useStore((state) => state.appActions.setStatus);
       const setSelectedLogIndex = useStore(
@@ -81777,6 +81810,9 @@ Supported expressions:
           if (sampleIndex >= 0) {
             selectSample(sampleIndex);
             setShowingSampleDialog(true);
+            if (sampleTabId) {
+              setSampleTab(sampleTabId);
+            }
           }
         } else {
           clearSample();
@@ -81785,8 +81821,10 @@ Supported expressions:
       }, [
         sampleId,
         epoch,
+        sampleTabId,
         filteredSamples,
         selectSample,
+        setSampleTab,
         setShowingSampleDialog,
         clearSample
       ]);
@@ -81806,14 +81844,6 @@ Supported expressions:
         {
           path: "/",
           element: /* @__PURE__ */ jsxRuntimeExports.jsx(AppLayout, {}),
-          // Use the layout component
-          loader: () => {
-            if (!storeImplementation) {
-              return { initialRoute: null };
-            }
-            const storedHash = storeImplementation.getState().app.urlHash;
-            return { initialRoute: storedHash };
-          },
           children: [
             {
               index: true,
@@ -81821,11 +81851,11 @@ Supported expressions:
               element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
             },
             {
-              path: "logs/:logPath/:tabId?",
+              path: "/logs/:logPath/:tabId?/:sampleTabId?",
               element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
             },
             {
-              path: "logs/:logPath/:tabId?/sample/:sampleId/:epoch?",
+              path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?/:sampleTabId?",
               element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
             }
           ]
