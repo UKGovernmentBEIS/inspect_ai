@@ -1,5 +1,4 @@
 import contextlib
-from copy import deepcopy
 from types import TracebackType
 from typing import AsyncIterator, Sequence
 
@@ -46,7 +45,7 @@ async def mcp_connection(
 
 class MCPServerConnection:
     def __init__(self, server: MCPServer) -> None:
-        self._server = deepcopy(server)
+        self._server = server
 
     async def __aenter__(self) -> "MCPServerConnection":
         await self._server._connect()
