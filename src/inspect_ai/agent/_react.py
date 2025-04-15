@@ -173,7 +173,10 @@ def react(
                 from inspect_ai.log._transcript import transcript
 
                 if overflow is not None:
-                    state.messages = await overflow(state.messages)
+                    state.messages = await overflow(state.messages[:-1])
+                    transcript().info(
+                        "Agent exceeded model context window, truncating messages and continuing."
+                    )
                     continue
                 else:
                     transcript().info("Agent terminated: model context window exceeded")
