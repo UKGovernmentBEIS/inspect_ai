@@ -11,7 +11,6 @@
 - Azure AI: Use `2025-03-01-preview` as default API version if none explicitly specified.
 - Model API: `trim_messages()` function for pruning messages to fit within model context windows.
 - Model API: Improved detection of context window overflow for Grok, Groq, and CloudFlare.
-- ReAct Agent: Improve default `on_continue()` message, including using a dynamic name for the submit tool.
 - Task Display: Show both provider and model name when concurrency context is not shared across all models for a given provider.
 - Registry: Exported `registry_create()` function for dynamic creation of registry objects (e.g. `@task`, `@solver`, etc.).
 - Remove `chdir` option from `@task` (tasks can no longer change their working directory during execution).
