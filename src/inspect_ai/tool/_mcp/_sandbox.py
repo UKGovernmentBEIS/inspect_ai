@@ -5,7 +5,7 @@ from typing import TextIO
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp import JSONRPCRequest, StdioServerParameters
-from mcp.types import JSONRPCMessage, JSONRPCNotification, JSONRPCResponse
+from mcp.types import JSONRPCError, JSONRPCMessage, JSONRPCNotification, JSONRPCResponse
 
 from inspect_ai.tool._tool_support_helpers import (
     exec_model_request,
@@ -60,16 +60,14 @@ async def sandbox_client(
                     root = message.root
                     if isinstance(root, JSONRPCRequest):
                         await read_stream_writer.send(
-                            JSONRPCMessage(
-                                await exec_model_request(
-                                    sandbox=sandbox_environment,
-                                    method="mcp_send_request",
-                                    params={
-                                        "session_id": session_id,
-                                        "request": root.model_dump(),
-                                    },
-                                    result_type=JSONRPCResponse,
-                                )
+                            await exec_model_request(
+                                sandbox=sandbox_environment,
+                                method="mcp_send_request",
+                                params={
+                                    "session_id": session_id,
+                                    "request": root.model_dump(),
+                                },
+                                result_type=JSONRPCMessage,
                             )
                         )
                     elif isinstance(root, JSONRPCNotification):

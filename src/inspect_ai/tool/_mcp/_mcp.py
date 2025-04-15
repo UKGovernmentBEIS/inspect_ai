@@ -7,6 +7,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Literal
 
+from mcp import McpError
 from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -102,9 +103,15 @@ class MCPServerImpl(MCPServer):
                 with trace_action(
                     logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
                 ):
-                    result = await tool_session.call_tool(mcp_tool.name, kwargs)
-                if result.isError:
-                    raise ToolError(tool_result_as_text(result.content))
+                    try:
+                        result = await tool_session.call_tool(mcp_tool.name, kwargs)
+                        if result.isError:
+                            raise ToolError(tool_result_as_text(result.content))
+                    except McpError as e:
+                        # TODO: Handle all JSON RPC errors
+                        if e.error.code == -32603:
+                            raise ToolError(e.error.message) from e
+                        raise
 
                 return [as_inspect_content(c) for c in result.content]
 

@@ -123,7 +123,7 @@ async def exec_model_request(
         timeout=timeout,
         user=user,
     )
-    return result_type.model_validate(rpc_result, strict=True)
+        return result_type.model_validate(rpc_result, strict=True)
 
 
 async def exec_notification(
@@ -297,6 +297,7 @@ def _parse_json_rpc_response(
             return rpc_result
         case JSONRPCError(code=-32601 | -32602, message=message):
             raise ToolParsingError(message)
+        # TODO: Fix this to use the whole range -32000 to -32099
         case JSONRPCError(code=-32000, message=message):
             raise ToolError(message)
         case JSONRPCError(code=code, message=message):

@@ -193,7 +193,9 @@ def validated_json_rpc_method(cls: Type[BaseModelT]):
             return session_id
     """
 
-    def decorator(func: Callable[[BaseModelT], Awaitable[R]]) -> Callable[..., object]:
+    def decorator(
+        func: Callable[[BaseModelT], Awaitable[R]],
+    ) -> Callable[..., Awaitable[object]]:
         async def wrapper(**params: object) -> object:
             return await with_validated_rpc_method_params(cls, func, **params)
 

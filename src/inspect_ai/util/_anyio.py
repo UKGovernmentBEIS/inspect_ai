@@ -11,17 +11,32 @@ def inner_exception(exc: Exception) -> Exception:
 
 def flatten_exception_group(exc: Exception) -> list[Exception]:
     """Recursively flatten an ExceptionGroup to get all contained exceptions."""
-    if (
-        hasattr(exc, "__context__")
-        and exc.__context__ is not None
-        and isinstance(exc.__context__, Exception)
-    ):
-        return flatten_exception_group(exc.__context__) + [exc]
+    context = exc.__context__ if isinstance(exc.__context__, Exception) else None
+    cause = exc.__cause__ if isinstance(exc.__cause__, Exception) else None
 
+    # TODO: This works, but I need to tighten it up quite a bit. Plus, I need
+    # to commit the tests.
+
+    # conceptually, if cause is present, it means that this exception wraps
+    # the cause - rather than cause being a separate error.
+
+    exceptions_to_flatten = set[Exception]()
+    unflattened_to_add: Exception | None = None
     if isinstance(exc, ExceptionGroup):
-        flattened = []
-        for nested_exc in exc.exceptions:
-            flattened.extend(flatten_exception_group(nested_exc))
-        return flattened
+        exceptions_to_flatten.update(exc.exceptions)
+    else:
+        if context and cause is None:
+            exceptions_to_flatten.add(exc)
+        else:
+            unflattened_to_add = exc
 
-    return [exc]
+    if context and cause is None:
+        exceptions_to_flatten.add(context)
+
+    flattened = [
+        flattened_e
+        for e in exceptions_to_flatten
+        for flattened_e in flatten_exception_group(e)
+    ]
+
+    return flattened + [unflattened_to_add] if unflattened_to_add else flattened
