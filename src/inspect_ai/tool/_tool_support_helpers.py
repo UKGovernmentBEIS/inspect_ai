@@ -7,7 +7,7 @@ It includes definitions for JSON-RPC request and response models, as well as fun
 import json
 from itertools import count
 from textwrap import dedent
-from typing import Literal, Type, TypeVar, cast
+from typing import Literal, Type, TypeVar
 
 from pydantic import BaseModel, RootModel
 
@@ -43,82 +43,158 @@ class JSONRPCResponse(RootModel[JSONRPCSuccessResponse | JSONRPCErrorResponse]):
 
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
-StrOrIntOrModelTOrNone = TypeVar(
-    "StrOrIntOrModelTOrNone", bound=str | int | BaseModel | None
-)
+ScalarT = TypeVar("ScalarT", str, int, float, bool, None)
 
 id_generator = count(666)
 
 
-async def exec_sandbox_request(
+async def exec_scalar_request(
     sandbox: SandboxEnvironment,
     method: str,
     params: dict[str, object] | tuple[object, ...],
-    result_cls: Type[StrOrIntOrModelTOrNone],
+    result_type: Type[ScalarT],
     timeout: int | None = None,
     user: str | None = None,
-) -> StrOrIntOrModelTOrNone:
+) -> ScalarT:
     """
-    Execute a JSON-RPC command to a sandbox environment.
-
-    Note that the JSON RPC request is sent to the exec'ed program via stdin.
+    Execute a JSON-RPC command to a sandbox environment expecting a scalar result.
 
     Args:
       sandbox (SandboxEnvironment): The sandbox environment to execute the command in.
       method (str): The JSON-RPC method to call.
       params (dict[str, object] | tuple[object, ...]): The parameters for the JSON-RPC method.
-      result_cls (Type[BaseModelT]): The class to use for parsing the result.
+      result_type (Type[ScalarT]): The scalar type (str, int, float, bool, None) to validate the result against.
       timeout (int | None, optional): The timeout for the execution. Defaults to None.
-      user: Optional username or UID to run the command as.
+      user (str | None, optional): Optional username or UID to run the command as.
 
     Returns:
-      BaseModelT: The parsed result of the JSON-RPC call.
+      ScalarT: The scalar result of the JSON-RPC call.
 
     Raises:
       RuntimeError: If the sandbox execution fails or if there is an error in the JSON-RPC response.
       ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
+      ValueError: If the result is not of the expected scalar type.
     """
-    stdout = await _exec_sandbox_rpc(sandbox, method, params, timeout, user, False)
-    match _parse_json_rpc_response(stdout, result_cls):
-        case JSONRPCError(code=-32601 | -32602, message=message):
-            raise ToolParsingError(message)
-        case JSONRPCError(code=-32000, message=message):
-            raise ToolError(message)
-        case JSONRPCError(code=code, message=message):
-            raise RuntimeError(
-                f"Error executing tool command {_rpc_call_description(method, params)}: {code=} {message}"
-            )
-        # case result_cls() as model: yields a mypy error since it has narrowed model down
-        # to BaseModel and not BaseModelT. ???
-        case model if isinstance(model, result_cls):
-            return model
-        case not_possible:
-            raise RuntimeError(
-                f"Error executing tool command {_rpc_call_description(method, params)}: {not_possible}"
-            )
+    rpc_result = await _exec_request(
+        sandbox=sandbox,
+        method=method,
+        params=params,
+        timeout=timeout,
+        user=user,
+    )
+    if (result_type is type(None) and rpc_result is not None) or not isinstance(
+        rpc_result, result_type
+    ):
+        raise ValueError(f"Expected {result_type} result, got {type(rpc_result)}")
+    return rpc_result
 
 
-async def exec_sandbox_notification(
+async def exec_model_request(
+    sandbox: SandboxEnvironment,
+    method: str,
+    params: dict[str, object] | tuple[object, ...],
+    result_type: Type[BaseModelT],
+    timeout: int | None = None,
+    user: str | None = None,
+) -> BaseModelT:
+    """
+    Execute a JSON-RPC command to a sandbox environment expecting a model result.
+
+    Args:
+      sandbox (SandboxEnvironment): The sandbox environment to execute the command in.
+      method (str): The JSON-RPC method to call.
+      params (dict[str, object] | tuple[object, ...]): The parameters for the JSON-RPC method.
+      result_type (Type[BaseModelT]): The Pydantic model class to validate and parse the result.
+      timeout (int | None, optional): The timeout for the execution. Defaults to None.
+      user (str | None, optional): Optional username or UID to run the command as.
+
+    Returns:
+      BaseModelT: The parsed and validated result of the JSON-RPC call.
+
+    Raises:
+      RuntimeError: If the sandbox execution fails or if there is an error in the JSON-RPC response.
+      ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
+      ValueError: If the result cannot be validated against the provided model class.
+    """
+    rpc_result = await _exec_request(
+        sandbox=sandbox,
+        method=method,
+        params=params,
+        timeout=timeout,
+        user=user,
+    )
+    return result_type.model_validate(rpc_result, strict=True)
+
+
+async def exec_notification(
     sandbox: SandboxEnvironment,
     method: str,
     params: dict[str, object] | tuple[object, ...],
     timeout: int | None = None,
     user: str | None = None,
 ) -> None:
-    stdout = await _exec_sandbox_rpc(sandbox, method, params, timeout, user, True)
+    """
+    Execute a JSON-RPC notification to a sandbox environment.
+
+    A notification is a JSON-RPC request that doesn't expect any response.
+
+    Args:
+      sandbox (SandboxEnvironment): The sandbox environment to execute the notification in.
+      method (str): The JSON-RPC method to call.
+      params (dict[str, object] | tuple[object, ...]): The parameters for the JSON-RPC method.
+      timeout (int | None, optional): The timeout for the execution. Defaults to None.
+      user (str | None, optional): Optional username or UID to run the command as.
+
+    Returns:
+      None: The function always returns None if successful.
+
+    Raises:
+      RuntimeError: If the sandbox execution fails or if there is an unexpected response to the notification.
+    """
+    stdout = await _exec_rpc(
+        sandbox=sandbox,
+        method=method,
+        params=params,
+        is_notification=True,
+        timeout=timeout,
+        user=user,
+    )
     if stdout.strip():
         raise RuntimeError(
-            f"Notification sent a response {_rpc_call_description(method, params)}: {stdout}"
+            f"Unexpected response to a Notification: {_rpc_call_description(method, params)}: {stdout}"
         )
 
 
-async def _exec_sandbox_rpc(
+async def _exec_request(
+    *,
     sandbox: SandboxEnvironment,
     method: str,
     params: dict[str, object] | tuple[object, ...],
     timeout: int | None = None,
     user: str | None = None,
-    is_notification: bool = False,
+) -> object:
+    return _parse_json_rpc_response(
+        await _exec_rpc(
+            sandbox=sandbox,
+            method=method,
+            params=params,
+            is_notification=False,
+            timeout=timeout,
+            user=user,
+        ),
+        method,
+        params,
+    )
+
+
+async def _exec_rpc(
+    *,
+    sandbox: SandboxEnvironment,
+    method: str,
+    params: dict[str, object] | tuple[object, ...],
+    is_notification: bool,
+    timeout: int | None = None,
+    user: str | None = None,
 ) -> str:
     exec_result = await sandbox.exec(
         [SANDBOX_CLI, "exec"],
@@ -212,30 +288,22 @@ def _rpc_call_description(
 
 def _parse_json_rpc_response(
     response_str: str,
-    result_cls: Type[StrOrIntOrModelTOrNone],
-) -> StrOrIntOrModelTOrNone | JSONRPCError:
+    method: str,
+    params: dict[str, object] | tuple[object, ...],
+) -> object:
+    """Validates the JSON RPC response and returns the result or raises a proper Inspect error."""
     match JSONRPCResponse.model_validate_json(response_str).root:
-        case JSONRPCErrorResponse(error=error):
-            return error
         case JSONRPCSuccessResponse(result=rpc_result):
-            # TODO: Wow. Is there really no way to convince Python to narrow these types
-            # and avoid the cast's
-            if result_cls is str:
-                if not isinstance(rpc_result, str):
-                    raise ValueError(f"Expected string result, got {type(rpc_result)}")
-                return cast(StrOrIntOrModelTOrNone, rpc_result)
-            elif result_cls is int:
-                if not isinstance(rpc_result, int):
-                    raise ValueError(f"Expected int result, got {type(rpc_result)}")
-                return cast(StrOrIntOrModelTOrNone, rpc_result)
-            elif result_cls is type(None):
-                if rpc_result is not None:
-                    raise ValueError(f"Expected None result, got {type(rpc_result)}")
-                return cast(StrOrIntOrModelTOrNone, rpc_result)
-            else:
-                return cast(
-                    StrOrIntOrModelTOrNone,
-                    cast(BaseModel, result_cls).model_validate(rpc_result, strict=True),
-                )
+            return rpc_result
+        case JSONRPCError(code=-32601 | -32602, message=message):
+            raise ToolParsingError(message)
+        case JSONRPCError(code=-32000, message=message):
+            raise ToolError(message)
+        case JSONRPCError(code=code, message=message):
+            raise RuntimeError(
+                f"Error executing tool command {_rpc_call_description(method, params)}: {code=} {message}"
+            )
         case _:
-            raise ValueError(f"Unexpected JSON RPC response: {response_str}")
+            raise ValueError(
+                f"Unexpected JSON RPC response to request {_rpc_call_description(method, params)}: {response_str}"
+            )

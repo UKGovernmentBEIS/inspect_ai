@@ -8,8 +8,9 @@ from mcp import JSONRPCRequest, StdioServerParameters
 from mcp.types import JSONRPCMessage, JSONRPCNotification, JSONRPCResponse
 
 from inspect_ai.tool._tool_support_helpers import (
-    exec_sandbox_notification,
-    exec_sandbox_request,
+    exec_model_request,
+    exec_notification,
+    exec_scalar_request,
     tool_container_sandbox,
 )
 
@@ -39,11 +40,11 @@ async def sandbox_client(
     read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
 
-    session_id = await exec_sandbox_request(
+    session_id = await exec_scalar_request(
         sandbox=sandbox_environment,
         method="mcp_launch_server",
         params={"server_params": server.model_dump()},
-        result_cls=int,
+        result_type=int,
     )
 
     async def stdout_reader() -> None:
@@ -60,19 +61,19 @@ async def sandbox_client(
                     if isinstance(root, JSONRPCRequest):
                         await read_stream_writer.send(
                             JSONRPCMessage(
-                                await exec_sandbox_request(
+                                await exec_model_request(
                                     sandbox=sandbox_environment,
                                     method="mcp_send_request",
                                     params={
                                         "session_id": session_id,
                                         "request": root.model_dump(),
                                     },
-                                    result_cls=JSONRPCResponse,
+                                    result_type=JSONRPCResponse,
                                 )
                             )
                         )
                     elif isinstance(root, JSONRPCNotification):
-                        await exec_sandbox_notification(
+                        await exec_notification(
                             sandbox=sandbox_environment,
                             method="mcp_send_notification",
                             params={
@@ -93,9 +94,9 @@ async def sandbox_client(
         try:
             yield read_stream, write_stream
         finally:
-            await exec_sandbox_request(
+            await exec_scalar_request(
                 sandbox=sandbox_environment,
                 method="mcp_kill_server",
                 params={"session_id": session_id},
-                result_cls=type(None),
+                result_type=type(None),
             )
