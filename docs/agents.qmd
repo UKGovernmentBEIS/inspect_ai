@@ -234,6 +234,8 @@ react(..., truncation=custom_truncation)
 
 The default `"auto"` truncation scheme calls the `trim_messages()` function with a `preserve` ratio of 0.7.
 
+Note that if you enable truncation then a [message limit](errors-and-limits.qmd#message-limit) may not work as expected because truncation will remove old messages, potentially keeping the conversation length below your message limit. In this case you can also consider applying a [time limit](errors-and-limits.qmd#time-limit) and/or [token limit](errors-and-limits.qmd#token-limit).
+
 ### Model
 
 The `model` parameter to `react()` agent lets you specify an alternate model to use for the agent loop (if not specified then the default model for the evaluation is used). In some cases you might want to do something fancier than just call a model (e.g. do a "best of n" sampling an pick the best response). Pass a `Agent` as the `model` parameter to implement this type of custom scheme. For example:
