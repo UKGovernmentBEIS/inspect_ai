@@ -14,11 +14,13 @@ import { StateEventView } from "./state/StateEventView";
 import { StepEventView } from "./StepEventView";
 import { SubtaskEventView } from "./SubtaskEventView";
 import { ToolEventView } from "./ToolEventView";
-import { EventNode, EventType } from "./types";
+import { EventNode } from "./types";
 
 import clsx from "clsx";
 import styles from "./TranscriptView.module.css";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
+import { fixupEventStream } from "./transform/fixups";
+import { treeifyEvents } from "./transform/treeify";
 
 interface TranscriptViewProps {
   id: string;
@@ -241,108 +243,3 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
     }
   },
 );
-
-/**
- * Normalizes event content
- */
-const fixupEventStream = (events: Events, filterPending: boolean = true) => {
-  const initEventIndex = events.findIndex((e) => {
-    return e.event === "sample_init";
-  });
-  const initEvent = events[initEventIndex];
-
-  // If filtering pending, just remove all pending events
-  // otherise, collapse sequential pending events of the same
-  // type
-  const collapsed = filterPending
-    ? events.filter((e) => !e.pending)
-    : events.reduce<Events>((acc, event) => {
-        // Collapse sequential pending events of the same type
-        if (!event.pending) {
-          // Not a pending event
-          acc.push(event);
-        } else {
-          // For pending events, replace previous pending or add new
-          const lastIndex = acc.length - 1;
-          if (
-            lastIndex >= 0 &&
-            acc[lastIndex].pending &&
-            acc[lastIndex].event === event.event
-          ) {
-            // Replace previous pending with current one (if they're of the same type)
-            acc[lastIndex] = event;
-          } else {
-            // First event or follows non-pending
-            acc.push(event);
-          }
-        }
-        return acc;
-      }, []);
-  // See if the events have an init step
-  const hasInitStep =
-    collapsed.findIndex((e) => {
-      return e.event === "step" && e.name === "init";
-    }) !== -1;
-
-  const fixedUp = [...collapsed];
-  if (!hasInitStep && initEvent) {
-    fixedUp.splice(initEventIndex, 0, {
-      timestamp: initEvent.timestamp,
-      event: "step",
-      action: "begin",
-      type: null,
-      name: "sample_init",
-      pending: false,
-      working_start: 0,
-    });
-
-    fixedUp.splice(initEventIndex + 2, 0, {
-      timestamp: initEvent.timestamp,
-      event: "step",
-      action: "end",
-      type: null,
-      name: "sample_init",
-      pending: false,
-      working_start: 0,
-    });
-  }
-
-  return fixedUp;
-};
-
-/**
- * Gathers events into a hierarchy of EventNodes.
- */
-function treeifyEvents(events: Events, depth: number): EventNode[] {
-  const rootNodes: EventNode[] = [];
-  const stack: EventNode[] = [];
-
-  const pushNode = (event: EventType): EventNode => {
-    const node = new EventNode(event, stack.length + depth);
-    if (stack.length > 0) {
-      const parentNode = stack[stack.length - 1];
-      parentNode.children.push(node);
-    } else {
-      rootNodes.push(node);
-    }
-    return node;
-  };
-
-  events.forEach((event) => {
-    if (event.event === "step" && event.action === "begin") {
-      // Starting a new step
-      const node = pushNode(event);
-      stack.push(node);
-    } else if (event.event === "step" && event.action === "end") {
-      // An ending step
-      if (stack.length > 0) {
-        stack.pop();
-      }
-    } else {
-      // An event
-      pushNode(event);
-    }
-  });
-
-  return rootNodes;
-}

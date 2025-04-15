@@ -4,6 +4,7 @@ import { StepEvent } from "../../types/log";
 import { formatDateTime } from "../../utils/format";
 import { EventPanel } from "./event/EventPanel";
 import { TranscriptComponent } from "./TranscriptView";
+import { kSandboxSignalName } from "./transform/fixups";
 import { EventNode } from "./types";
 
 interface StepEventViewProps {
@@ -132,6 +133,18 @@ const stepDescriptor = (
     return {
       ...rootStepDescriptor,
     };
+  } else if (event.event === "step") {
+    if (event.name === kSandboxSignalName) {
+      return {
+        ...rootStepDescriptor,
+        name: "Sandbox Events",
+        collapse: true,
+      };
+    } else {
+      return {
+        ...rootStepDescriptor,
+      };
+    }
   } else {
     switch (event.name) {
       case "sample_init":
