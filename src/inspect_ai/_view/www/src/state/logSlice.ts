@@ -175,6 +175,7 @@ export const createLogSlice = (
             logPolling.startPolling(logFileName);
         } catch (error) {
           log.error("Error loading log:", error);
+          throw error;
         }
       },
 
@@ -200,6 +201,7 @@ export const createLogSlice = (
           state.logActions.setSelectedLogSummary(logContents);
         } catch (error) {
           log.error("Error refreshing log:", error);
+          throw error;
         }
       },
     },

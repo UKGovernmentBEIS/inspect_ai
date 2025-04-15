@@ -244,7 +244,7 @@ async function api(
     };
   } else if (response.status !== 200) {
     const message = (await response.text()) || response.statusText;
-    const error = new Error(`Error: ${response.status}: ${message})`);
+    const error = new Error(`${message}`);
     throw error;
   } else {
     throw new Error(`${response.status} - ${response.statusText} `);

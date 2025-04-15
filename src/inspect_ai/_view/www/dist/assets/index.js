@@ -22794,6 +22794,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               logPolling.startPolling(logFileName);
             } catch (error2) {
               log$7.error("Error loading log:", error2);
+              throw error2;
             }
           },
           pollLog: async () => {
@@ -22815,6 +22816,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.logActions.setSelectedLogSummary(logContents);
             } catch (error2) {
               log$7.error("Error refreshing log:", error2);
+              throw error2;
             }
           }
         }
@@ -45238,7 +45240,7 @@ self.onmessage = function (e) {
         };
       } else if (response.status !== 200) {
         const message2 = await response.text() || response.statusText;
-        const error2 = new Error(`Error: ${response.status}: ${message2})`);
+        const error2 = new Error(`${message2}`);
         throw error2;
       } else {
         throw new Error(`${response.status} - ${response.statusText} `);
