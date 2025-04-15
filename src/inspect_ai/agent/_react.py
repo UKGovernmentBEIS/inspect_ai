@@ -1,4 +1,5 @@
 from logging import getLogger
+from typing import Literal, cast
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.model._call_tools import execute_tools
@@ -8,6 +9,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._trim import trim_messages
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall
@@ -15,6 +17,7 @@ from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
 from ._agent import Agent, AgentState, agent, agent_with
+from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
     DEFAULT_CONTINUE_PROMPT,
@@ -38,6 +41,7 @@ def react(
     attempts: int | AgentAttempts = 1,
     submit: AgentSubmit = AgentSubmit(),
     on_continue: str | AgentContinue | None = None,
+    truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
 ) -> Agent:
     """Extensible ReAct agent based on the paper [ReAct: Synergizing Reasoning and Acting in Language Models](https://arxiv.org/abs/2210.03629).
 
@@ -75,6 +79,10 @@ def react(
           is called on _every_ iteration of the loop so if you only want to send
           a message back when the model fails to call tools you need to code
           that behavior explicitly.
+       truncation: Truncate the conversation history in the event of a context
+          window overflow. Defaults to "disabled" which does no truncation. Pass
+          "auto" to use `trim_messages()` to reduce the context size. Pass a
+          `MessageFilter` function to do custom truncation.
 
     Returns:
         ReAct agent.
@@ -143,6 +151,14 @@ def react(
         if system_message:
             state.messages.insert(0, system_message)
 
+        # resolve overflow handling
+        if truncation == "auto":
+            overflow = cast(MessageFilter | None, trim_messages)
+        elif truncation == "disabled":
+            overflow = None
+        else:
+            overflow = truncation
+
         # track attempts
         attempt_count = 0
 
@@ -156,6 +172,16 @@ def react(
             if state.output.stop_reason == "model_length":
                 from inspect_ai.log._transcript import transcript
 
+                if overflow is not None:
+                    previous_messages = state.messages[:-1]
+                    state.messages = await overflow(previous_messages)
+                    if len(state.messages) < len(previous_messages):
+                        transcript().info(
+                            "Agent exceeded model context window, truncating messages and continuing."
+                        )
+                        continue
+
+                # no overflow policy or overflow didn't reduce conversation length
                 transcript().info("Agent terminated: model context window exceeded")
                 break
 
