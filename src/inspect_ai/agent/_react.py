@@ -159,6 +159,9 @@ def react(
         else:
             overflow = truncation
 
+        # track truncated message count (exit if it repeats)
+        last_truncated_messages: int | None = None
+
         # track attempts
         attempt_count = 0
 
@@ -173,14 +176,22 @@ def react(
                 from inspect_ai.log._transcript import transcript
 
                 if overflow is not None:
+                    # do the truncation
                     state.messages = await overflow(state.messages[:-1])
-                    transcript().info(
-                        "Agent exceeded model context window, truncating messages and continuing."
-                    )
-                    continue
-                else:
-                    transcript().info("Agent terminated: model context window exceeded")
-                    break
+                    # verify that we reduced the size of the messages
+                    # (if we didn't there is no point in continuing)
+                    if last_truncated_messages is None or (
+                        len(state.messages) < last_truncated_messages
+                    ):
+                        last_truncated_messages = len(state.messages)
+                        transcript().info(
+                            "Agent exceeded model context window, truncating messages and continuing."
+                        )
+                        continue
+
+                # did not continue so break
+                transcript().info("Agent terminated: model context window exceeded")
+                break
 
             # check for a submission
             answer = submitted_answer(state.output.message.tool_calls)
