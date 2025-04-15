@@ -9,7 +9,7 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_support_helpers import (
-    exec_sandbox_rpc,
+    exec_sandbox_request,
     tool_container_sandbox,
 )
 from inspect_ai.tool._tool_with import tool_with
@@ -414,7 +414,7 @@ async def _web_browser_cmd(
 
     if not store.session_id:
         store.session_id = (
-            await exec_sandbox_rpc(
+            await exec_sandbox_request(
                 sandbox_env,
                 "web_new_session",
                 {"headful": False},
@@ -424,7 +424,7 @@ async def _web_browser_cmd(
 
     params["session_name"] = store.session_id
 
-    crawler_result = await exec_sandbox_rpc(
+    crawler_result = await exec_sandbox_request(
         sandbox_env, tool_name, params, CrawlerResult
     )
     if crawler_result.error and crawler_result.error.strip() != "":

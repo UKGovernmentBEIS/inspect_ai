@@ -3,7 +3,7 @@ from shortuuid import uuid
 
 from inspect_ai.tool import ToolResult
 from inspect_ai.tool._tool_support_helpers import (
-    exec_sandbox_rpc,
+    exec_sandbox_request,
     tool_container_sandbox,
 )
 from inspect_ai.util import StoreModel, store_as
@@ -98,7 +98,7 @@ def bash_session(*, timeout: int | None = None, instance: str | None = uuid()) -
 
         if not store.session_id:
             store.session_id = (
-                await exec_sandbox_rpc(
+                await exec_sandbox_request(
                     sandbox,
                     "bash_session_new_session",
                     {},
@@ -110,7 +110,7 @@ def bash_session(*, timeout: int | None = None, instance: str | None = uuid()) -
         params["session_name"] = store.session_id
 
         result = (
-            await exec_sandbox_rpc(
+            await exec_sandbox_request(
                 sandbox,
                 "bash_session",
                 params,

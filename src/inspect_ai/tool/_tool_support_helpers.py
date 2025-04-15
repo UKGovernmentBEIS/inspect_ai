@@ -50,14 +50,13 @@ StrOrIntOrModelTOrNone = TypeVar(
 id_generator = count(666)
 
 
-async def exec_sandbox_rpc(
+async def exec_sandbox_request(
     sandbox: SandboxEnvironment,
     method: str,
     params: dict[str, object] | tuple[object, ...],
     result_cls: Type[StrOrIntOrModelTOrNone],
     timeout: int | None = None,
     user: str | None = None,
-    is_notification: bool = False,
 ) -> StrOrIntOrModelTOrNone:
     """
     Execute a JSON-RPC command to a sandbox environment.
@@ -79,10 +78,51 @@ async def exec_sandbox_rpc(
       RuntimeError: If the sandbox execution fails or if there is an error in the JSON-RPC response.
       ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
     """
-    req = _create_json_rpc_request(method, params, is_notification)
+    stdout = await _exec_sandbox_rpc(sandbox, method, params, timeout, user, False)
+    match _parse_json_rpc_response(stdout, result_cls):
+        case JSONRPCError(code=-32601 | -32602, message=message):
+            raise ToolParsingError(message)
+        case JSONRPCError(code=-32000, message=message):
+            raise ToolError(message)
+        case JSONRPCError(code=code, message=message):
+            raise RuntimeError(
+                f"Error executing tool command {_rpc_call_description(method, params)}: {code=} {message}"
+            )
+        # case result_cls() as model: yields a mypy error since it has narrowed model down
+        # to BaseModel and not BaseModelT. ???
+        case model if isinstance(model, result_cls):
+            return model
+        case not_possible:
+            raise RuntimeError(
+                f"Error executing tool command {_rpc_call_description(method, params)}: {not_possible}"
+            )
+
+
+async def exec_sandbox_notification(
+    sandbox: SandboxEnvironment,
+    method: str,
+    params: dict[str, object] | tuple[object, ...],
+    timeout: int | None = None,
+    user: str | None = None,
+) -> None:
+    stdout = await _exec_sandbox_rpc(sandbox, method, params, timeout, user, True)
+    if stdout.strip():
+        raise RuntimeError(
+            f"Notification sent a response {_rpc_call_description(method, params)}: {stdout}"
+        )
+
+
+async def _exec_sandbox_rpc(
+    sandbox: SandboxEnvironment,
+    method: str,
+    params: dict[str, object] | tuple[object, ...],
+    timeout: int | None = None,
+    user: str | None = None,
+    is_notification: bool = False,
+) -> str:
     exec_result = await sandbox.exec(
         [SANDBOX_CLI, "exec"],
-        input=req,
+        input=_create_json_rpc_request(method, params, is_notification),
         timeout=timeout,
         user=user,
     )
@@ -91,31 +131,7 @@ async def exec_sandbox_rpc(
         raise RuntimeError(
             f"Sandbox.exec failure executing {_rpc_call_description(method, params)}: {exec_result.stderr}"
         )
-
-    if is_notification:
-        if exec_result.stdout.strip():
-            raise RuntimeError(
-                f"Notification sent a response {_rpc_call_description(method, params)}: {exec_result.stdout}"
-            )
-        return cast(StrOrIntOrModelTOrNone, None)
-    else:
-        match _parse_json_rpc_response(exec_result.stdout, result_cls):
-            case JSONRPCError(code=-32601 | -32602, message=message):
-                raise ToolParsingError(message)
-            case JSONRPCError(code=-32000, message=message):
-                raise ToolError(message)
-            case JSONRPCError(code=code, message=message):
-                raise RuntimeError(
-                    f"Error executing tool command {_rpc_call_description(method, params)}: {code=} {message}"
-                )
-            # case result_cls() as model: yields a mypy error since it has narrowed model down
-            # to BaseModel and not BaseModelT. ???
-            case model if isinstance(model, result_cls):
-                return model
-            case not_possible:
-                raise RuntimeError(
-                    f"Error executing tool command {_rpc_call_description(method, params)}: {not_possible}"
-                )
+    return exec_result.stdout
 
 
 SANDBOX_CLI = "inspect-tool-support"
