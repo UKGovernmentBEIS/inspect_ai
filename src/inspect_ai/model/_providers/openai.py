@@ -133,7 +133,7 @@ class OpenAIAPI(ModelAPI):
             else:
                 api_version = os.environ.get(
                     "AZUREAI_OPENAI_API_VERSION",
-                    os.environ.get("OPENAI_API_VERSION", "2025-02-01-preview"),
+                    os.environ.get("OPENAI_API_VERSION", "2025-03-01-preview"),
                 )
 
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
