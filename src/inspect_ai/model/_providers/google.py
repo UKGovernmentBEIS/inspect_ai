@@ -127,7 +127,6 @@ class GoogleGenAIAPI(ModelAPI):
         parts = model_name.split("/")
         if len(parts) > 1:
             self.service: str | None = parts[0]
-            model_name = "/".join(parts[1:])
         else:
             self.service = None
 
@@ -245,14 +244,14 @@ class GoogleGenAIAPI(ModelAPI):
 
         try:
             response = await client.aio.models.generate_content(
-                model=self.model_name,
+                model=self.service_model_name(),
                 contents=gemini_contents,
                 config=parameters,
             )
         except ClientError as ex:
             return self.handle_client_error(ex), model_call()
 
-        model_name = response.model_version or self.model_name
+        model_name = response.model_version or self.service_model_name()
         output = ModelOutput(
             model=model_name,
             choices=completion_choices_from_candidates(model_name, response),
@@ -260,6 +259,10 @@ class GoogleGenAIAPI(ModelAPI):
         )
 
         return output, model_call()
+
+    def service_model_name(self) -> str:
+        """Model name without any service prefix."""
+        return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
     def should_retry(self, ex: Exception) -> bool:
@@ -270,8 +273,8 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope for enforcing max_connections (could also use endpoint)."""
-        return self.model_name
+        """Scope for enforcing max_connections."""
+        return str(self.api_key)
 
     def handle_client_error(self, ex: ClientError) -> ModelOutput | Exception:
         if (
@@ -283,7 +286,9 @@ class GoogleGenAIAPI(ModelAPI):
             )
         ):
             return ModelOutput.from_content(
-                self.model_name, content=ex.message, stop_reason="model_length"
+                self.service_model_name(),
+                content=ex.message,
+                stop_reason="model_length",
             )
         else:
             raise ex
