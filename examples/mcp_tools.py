@@ -1,6 +1,7 @@
 from inspect_ai import Task, task
 from inspect_ai.agent._react import react
 from inspect_ai.dataset import Sample
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.tool import mcp_server_stdio, mcp_tools
 
 
@@ -13,12 +14,13 @@ def mcp_git_tools():
     return Task(
         dataset=[
             Sample(
-                "What is the status of the git working tree for the current directory?"
+                "What is the status of the git working tree for the current directory?. Additionally, could you summarise recent commits that have been made to the reposiotry?"
             )
         ],
         solver=react(
             name="git_worker",
-            prompt="Please use the git tools to solve the problem.",
-            tools=[mcp_tools(git_server, tools=["git_status"])],
+            prompt="Please use the git tools to solve the problems.",
+            tools=[mcp_tools(git_server, tools=["git_log", "git_status"])],
         ),
+        config=GenerateConfig(parallel_tool_calls=False),
     )
