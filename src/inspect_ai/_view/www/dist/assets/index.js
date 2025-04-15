@@ -23128,6 +23128,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (abortController.signal.aborted) {
             return false;
           }
+          state.sampleActions.setSampleStatus("streaming");
           const eventId = pollingState.eventId;
           const attachmentId = pollingState.attachmentId;
           const sampleDataResponse = await api2.get_log_sample_data(
@@ -23142,7 +23143,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           if ((sampleDataResponse == null ? void 0 : sampleDataResponse.status) === "NotFound") {
             stopPolling();
-            if (state.sample.runningEvents.length > 0 || state.sample.sampleStatus === "streaming") {
+            if (state.sample.runningEvents.length > 0) {
               try {
                 log$4.debug(
                   `LOADING COMPLETED SAMPLE AFTER FLUSH: ${summary2.id}-${summary2.epoch}`
@@ -23156,12 +23157,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   const migratedSample = resolveSample$1(sample2);
                   set2((state2) => {
                     state2.sample.selectedSample = migratedSample;
-                    state2.sample.sampleStatus = "ok";
+                    state2.sampleActions.setSampleStatus("ok");
                     state2.sample.runningEvents = [];
                   });
                 } else {
                   set2((state2) => {
-                    state2.sample.sampleStatus = "error";
+                    state2.sampleActions.setSampleStatus("error");
                     state2.sample.sampleError = new Error(
                       "Unable to load sample - an unknown error occurred"
                     );
@@ -23171,10 +23172,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               } catch (e) {
                 set2((state2) => {
                   state2.sample.sampleError = e;
-                  state2.sample.sampleStatus = "error";
+                  state2.sampleActions.setSampleStatus("error");
                   state2.sample.runningEvents = [];
                 });
               }
+            } else {
+              state.sampleActions.setSampleStatus("ok");
+              state.sample.runningEvents = [];
             }
             return false;
           }
@@ -23315,7 +23319,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             const state = get2();
             if (state.log.loadedLog && state.sample.selectedSample) {
               samplePolling.startPolling(logFile, sampleSummary);
-              state.sampleActions.setSampleStatus("streaming");
             }
           },
           loadSample: async (logFile, sampleSummary) => {
@@ -23348,7 +23351,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
                 );
                 samplePolling.startPolling(logFile, sampleSummary);
-                sampleActions.setSampleStatus("streaming");
               }
             } catch (e) {
               sampleActions.setSampleError(e);
