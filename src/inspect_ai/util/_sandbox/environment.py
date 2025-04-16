@@ -187,7 +187,7 @@ class SandboxEnvironment(abc.ABC):
         """
         ...
 
-    async def connection(self, user: str | None = None) -> SandboxConnection:
+    async def connection(self, *, user: str | None = None) -> SandboxConnection:
         """Information required to connect to sandbox environment.
 
         Args:

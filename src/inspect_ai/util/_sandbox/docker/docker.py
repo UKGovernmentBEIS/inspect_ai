@@ -408,7 +408,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     return f.read()
 
     @override
-    async def connection(self, user: str | None = None) -> SandboxConnection:
+    async def connection(self, *, user: str | None = None) -> SandboxConnection:
         # find container for service
         services = await compose_ps(project=self._project)
         container = next(
