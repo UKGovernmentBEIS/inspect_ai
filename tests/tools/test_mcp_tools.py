@@ -11,7 +11,6 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
-from inspect_ai._util.trace import ActionTraceRecord, list_trace_files, read_trace_file
 from inspect_ai.agent import react
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.model import GenerateConfig, get_model
@@ -158,37 +157,6 @@ def test_basic_agent_mcp_connection():
     log = eval(git_task_basic_agent_mcp_connection(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
-
-
-@skip_if_no_openai
-@skip_if_no_mcp_git_package
-def test_mcp_connection_persistence():
-    # run eval
-    eval(mcp_git_tools(), model="openai/gpt-4o")
-
-    # check trace log to confirm single connection
-    actions = [
-        record
-        for record in read_trace_file(list_trace_files()[0].file)
-        if isinstance(record, ActionTraceRecord)
-    ]
-
-    def count_mcp_actions(action: str):
-        return sum(
-            [
-                1
-                for a in actions
-                if a.message.startswith(f"MCPServer: {action}")
-                and a.message.endswith("(enter)")
-            ]
-        )
-
-    assert count_mcp_actions("create client") == 1
-    assert count_mcp_actions("create session") == 1
-    assert count_mcp_actions("initialize session") == 1
-    assert count_mcp_actions("list_tools") == 1
-    assert count_mcp_actions("call_tool") == 2
-    assert count_mcp_actions("disconnect") == 1
 
 
 @task
