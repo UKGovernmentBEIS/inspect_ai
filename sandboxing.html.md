@@ -197,10 +197,10 @@ The sandbox is also available to custom scorers.
 
 There are two sandbox environments built in to Inspect:
 
-| Environment Type | Description |
-|----|----|
-| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+| Environment Type | Description                                                                                                                                                      |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or
 `eval()` level. Binding precedence goes from `eval()`, to `Task` to
@@ -272,11 +272,20 @@ URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs)
 
 ## Docker Configuration
 
+### Installation
+
 Before using Docker sandbox environments, please be sure to install
 [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7
 or greater).
 
-You can use the Docker sandbox enviornment without any special
+If you plan on running evaluations with large numbers of concurrent
+containers (\> 30) you should also configure Docker’s [default address
+pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate
+this.
+
+### Task Configuration
+
+You can use the Docker sandbox environment without any special
 configuration, however most commonly you’ll provide explicit
 configuration via either a `Dockerfile` or a [Docker
 Compose](https://docs.docker.com/compose/compose-file/) configuration
@@ -285,11 +294,11 @@ file (`compose.yaml`).
 Here is how Docker sandbox environments are created based on the
 presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-| Config Files | Behavior |
-|----|----|
-| None | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
-| `Dockerfile` | Creates a sandbox environment by building the image. |
-| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+| Config Files   | Behavior                                                                                                                                |
+|----------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| None           | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
+| `Dockerfile`   | Creates a sandbox environment by building the image.                                                                                    |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`.                                                                                 |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will
 automatically generate one as needed. Note that the automatically

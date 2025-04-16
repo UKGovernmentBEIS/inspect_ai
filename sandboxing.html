@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Sandboxing – Inspect</title>
+<title>Inspect – Sandboxing</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -466,6 +466,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#sec-docker-configuration" id="toc-sec-docker-configuration" class="nav-link" data-scroll-target="#sec-docker-configuration">Docker Configuration</a>
   <ul class="collapse">
+  <li><a href="#installation" id="toc-installation" class="nav-link" data-scroll-target="#installation">Installation</a></li>
+  <li><a href="#task-configuration" id="toc-task-configuration" class="nav-link" data-scroll-target="#task-configuration">Task Configuration</a></li>
   <li><a href="#multiple-environments" id="toc-multiple-environments" class="nav-link" data-scroll-target="#multiple-environments">Multiple Environments</a></li>
   <li><a href="#infrastructure" id="toc-infrastructure" class="nav-link" data-scroll-target="#infrastructure">Infrastructure</a></li>
   <li><a href="#sample-metadata" id="toc-sample-metadata" class="nav-link" data-scroll-target="#sample-metadata">Sample Metadata</a></li>
@@ -639,7 +641,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="environment-binding" class="level2">
 <h2 class="anchored" data-anchor-id="environment-binding">Environment Binding</h2>
 <p>There are two sandbox environments built in to Inspect:</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Environment Type</th>
@@ -691,10 +693,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="sec-docker-configuration" class="level2">
 <h2 class="anchored" data-anchor-id="sec-docker-configuration">Docker Configuration</h2>
+<section id="installation" class="level3">
+<h3 class="anchored" data-anchor-id="installation">Installation</h3>
 <p>Before using Docker sandbox environments, please be sure to install <a href="https://docs.docker.com/engine/install/">Docker Engine</a> (version 24.0.7 or greater).</p>
-<p>You can use the Docker sandbox enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a <code>Dockerfile</code> or a <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> configuration file (<code>compose.yaml</code>).</p>
+<p>If you plan on running evaluations with large numbers of concurrent containers (&gt; 30) you should also configure Docker’s <a href="https://straz.to/2021-09-08-docker-address-pools/">default address pools</a> to accommodate this.</p>
+</section>
+<section id="task-configuration" class="level3">
+<h3 class="anchored" data-anchor-id="task-configuration">Task Configuration</h3>
+<p>You can use the Docker sandbox environment without any special configuration, however most commonly you’ll provide explicit configuration via either a <code>Dockerfile</code> or a <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> configuration file (<code>compose.yaml</code>).</p>
 <p>Here is how Docker sandbox environments are created based on the presence of <code>Dockerfile</code> and/or <code>compose.yml</code> in the task directory:</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Config Files</th>
@@ -704,7 +712,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td>None</td>
-<td>Creates a sandbox environment based on the official <a href="https://hub.docker.com/_/python">python:3.12-bookworm</a> image.</td>
+<td>Creates a sandbox environment based on the standard <a href="https://hub.docker.com/r/aisiuk/inspect-tool-support">inspect-tool-support</a> image.</td>
 </tr>
 <tr class="even">
 <td><code>Dockerfile</code></td>
@@ -767,6 +775,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">command</span><span class="kw">:</span><span class="at"> tail -f /dev/null</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>See the <a href="https://docs.docker.com/compose/compose-file/">Docker Compose</a> documentation for information on all available container options.</p>
+</section>
 <section id="multiple-environments" class="level3">
 <h3 class="anchored" data-anchor-id="multiple-environments">Multiple Environments</h3>
 <p>In some cases you may want to create multiple sandbox environments (e.g.&nbsp;if one environment has complex dependencies that conflict with the dependencies of other environments). To do this specify multiple named services:</p>

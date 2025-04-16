@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.57">
+<meta name="generator" content="quarto-1.5.32">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Model Providers – Inspect</title>
+<title>Inspect – Model Providers</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -534,7 +534,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>Inspect has support for a wide variety of language model APIs and can be extended to support arbitrary additional ones. Support for the following providers is built in to Inspect:</p>
-<table class="caption-top table">
+<table class="table">
 <tbody>
 <tr class="odd">
 <td>Lab APIs</td>
@@ -570,7 +570,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o-mini</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>openai</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
 <p>The following environment variables are supported by the OpenAI provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -631,7 +631,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-3-5-sonnet-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>anthropic</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncAnthropic</code> class.</p>
 <p>The following environment variables are supported by the Anthropic provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -679,7 +679,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-1.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>google</code> provider, custom model args (<code>-M</code>) are forwarded to the <code>genai.Client</code> function.</p>
 <p>The following environment variables are supported by the Google provider</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Variable</th>
@@ -713,7 +713,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="safety-settings" class="level3">
 <h3 class="anchored" data-anchor-id="safety-settings">Safety Settings</h3>
 <p>Google models make available <a href="https://ai.google.dev/gemini-api/docs/safety-settings">safety settings</a> that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 35%">
 <col style="width: 65%">
@@ -748,7 +748,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>For each category, the following block thresholds are available:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 35%">
 <col style="width: 65%">
@@ -799,7 +799,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> mistral/mistral-large-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>mistral</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>Mistral</code> class.</p>
 <p>The following environment variables are supported by the Mistral provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -864,7 +864,7 @@ Note
 <span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> grok/grok-beta</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>grok</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
 <p>The following environment variables are supported by the Grok provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -909,7 +909,7 @@ Note
 <span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval math.py <span class="at">--model</span> azureai/Llama-3.3-70B-Instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>azureai</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>ChatCompletionsClient</code> class.</p>
 <p>The following environment variables are supported by the Azure AI provider</p>
-<table class="caption-top table">
+<table class="table">
 <thead>
 <tr class="header">
 <th>Variable</th>
@@ -965,7 +965,7 @@ Note
 <span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>together</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncOpenAI</code> class.</p>
 <p>The following environment variables are supported by the Together AI provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -996,7 +996,7 @@ Note
 <span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> groq/llama-3.1-70b-versatile</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>groq</code> provider, custom model args (<code>-M</code>) are forwarded to the constructor of the <code>AsyncGroq</code> class.</p>
 <p>The following environment variables are supported by the Groq provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -1027,7 +1027,7 @@ Note
 <span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> cf/meta/llama-3.1-70b-instruct</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>cloudflare</code> provider, custom model args (<code>-M</code>) are included as fields in the post body of the chat request.</p>
 <p>The following environment variables are supported by the Cloudflare provider:</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -1131,7 +1131,7 @@ Note
 <span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> ollama/llama3.1</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that you should be sure that Ollama is running on your system berore using it with Inspect.</p>
 <p>The following environment variables are supported by the Ollma provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -1157,7 +1157,7 @@ Note
 <span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> llama-cpp-python/llama3</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that you should be sure that the <a href="https://llama-cpp-python.readthedocs.io/en/latest/server/">llama-cpp-python server</a> is running on your system before using it with Inspect.</p>
 <p>The following environment variables are supported by the llama-cpp-python provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">
@@ -1212,7 +1212,7 @@ Note
 <span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENROUTER_API_KEY</span><span class="op">=</span>your-openrouter-api-key</span>
 <span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openrouter/gryphe/mythomax-l2-13b</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>For the <code>openrouter</code> provider, the following custom model args (<code>-M</code>) are supported (click the argument name to see its docs on the OpenRouter site):</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 19%">
 <col style="width: 81%">
@@ -1239,7 +1239,7 @@ Note
 </tbody>
 </table>
 <p>The following environment variables are supported by the OpenRouter AI provider</p>
-<table class="caption-top table">
+<table class="table">
 <colgroup>
 <col style="width: 38%">
 <col style="width: 61%">

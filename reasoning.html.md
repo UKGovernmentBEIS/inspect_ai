@@ -41,11 +41,11 @@ object returned along with output.
 The following reasoning options are available from the CLI and within
 `GenerateConfig`:
 
-| Option | Description | Default | Models |
-|----|----|----|----|
-| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`) | `medium` | OpenAI o1/o3 |
-| `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7 |
-| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
+| Option              | Description                                                                           | Default  | Models       |
+|---------------------|---------------------------------------------------------------------------------------|----------|--------------|
+| `reasoning_effort`  | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`)      | `medium` | OpenAI o1/o3 |
+| `reasoning_tokens`  | Maximum number of tokens to use for reasoning.                                        | (none)   | Claude 3.7   |
+| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto`   | All models   |
 
 As you can see from above, models have different means of specifying the
 tokens to allocate for reasoning (`reasoning_effort` and
@@ -163,11 +163,11 @@ interface](https://api-docs.deepseek.com/). Further, a number of model
 hosting providers supported by Inspect make DeepSeek available, for
 example:
 
-| Provider | Model |
-|----|----|
+| Provider                                 | Model                                                                                   |
+|------------------------------------------|-----------------------------------------------------------------------------------------|
 | [Together AI](providers.qmd#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
-| [Groq](providers.qmd#groq) | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning)) |
-| [Ollama](providers.qmd#ollama) | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1)) |
+| [Groq](providers.qmd#groq)               | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning))  |
+| [Ollama](providers.qmd#ollama)           | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1))             |
 
 There isn’t currently a way to customise the `reasoning_effort` of
 DeepSeek models, although they have indicated that this will be

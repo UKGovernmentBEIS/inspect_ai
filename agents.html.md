@@ -17,9 +17,9 @@ supports a variety of approaches to agent evaluations, including:
     Agent](multi-agent.qmd) architectures.
 
 Below, we’ll cover the basic role and function of agents in Inspect.
-Then, we’ll describe how to use the built-in `react()` agent. Subsequent
-articles describe more advanced topics like multi-agent systems and
-creating custom agents from scratch.
+Then, we’ll describe how to use the built-in [ReAct
+agent](#react-agent). Subsequent articles describe more advanced topics
+like multi-agent systems and creating custom agents from scratch.
 
 ## Agent Basics
 
@@ -40,8 +40,50 @@ agent](#react-agent), which can be used standalone or to orchestrate a
 ### Example
 
 The following is a simple `web_surfer()` agent that uses the
-`web_browser()` tool to do open-ended web research. We build this agent
-on top of the standard `react()` agent (described in more depth below):
+`web_browser()` tool to do open-ended web research.
+
+``` python
+from inspect_ai.agent import Agent, AgentState, agent
+from inspect_ai.model import ChatMessageSystem, get_model
+from inspect_ai.tool import web_browser
+
+@agent
+def web_surfer() -> Agent:
+    async def execute(state: AgentState) -> AgentState:
+        """Web research assistant."""
+      
+        # some general guidance for the agent
+        state.messages.append(
+            ChatMessageSystem(
+                content="You are an expert at using a " + 
+                "web browser to answer questions."
+            )
+        )
+
+        # run a tool loop w/ the web_browser 
+        messages, output = await get_model().generate_loop(
+            state.messages, tools=web_browser()
+        )
+
+        # update and return state
+        state.output = output
+        state.messages.extend(messages)
+        return state
+
+    return execute
+```
+
+The agent calls the `generate_loop()` function which runs the model in a
+loop until it stops calling tools. In this case the model may make
+several calls to the
+[web_browser()](https://inspect.aisi.org.uk/reference/inspect_ai.tool.html#web_browser)
+tool to fulfil the request.
+
+While this example illustrates the basic mechanic of agents, you
+generally wouldn’t write a custom agent that does only this (a system
+prompt with a tool use loop) as the `react()` agent provides a more
+sophisticated and flexible version of this pattern. Here is the
+equivalent `react()` agent:
 
 ``` python
 from inspect_ai.agent import react
@@ -50,16 +92,18 @@ from inspect_ai.tool import web_browser
 web_surfer = react(
     name="web_surfer",
     description="Web research assistant",
-    prompt="You are a tenacious web researcher that is expert "
-           + "at using a web browser to answer questions.",
+    prompt="You are an expert at using a " + 
+           "web browser to answer questions.",
     tools=web_browser()   
 )
 ```
 
-This agent can be used in the following ways:
+### Using Agents
 
-1.  It can be passed as a `Solver` to any Inspect interface that takes a
-    solver:
+Agents can be used in the following ways:
+
+1.  Agents can be passed as a `Solver` to any Inspect interface that
+    takes a solver:
 
     ``` python
     from inspect_ai import eval
@@ -70,8 +114,8 @@ This agent can be used in the following ways:
     For other interfaces that aren’t aware of agents, you can use the
     `as_solver()` function to convert an agent to a solver.
 
-2.  It can be executed directly using the `run()` function (you might do
-    this in a multi-step agent workflow):
+2.  Agents can be executed directly using the `run()` function (you
+    might do this in a multi-step agent workflow):
 
     ``` python
     from inspect_ai.agent import run
@@ -82,7 +126,7 @@ This agent can be used in the following ways:
     print(f"The most popular movies were: {state.output.completion}")
     ```
 
-3.  It can participate in a multi-agent system where the conversation
+3.  Agents can participate in multi-agent systems where the conversation
     history is shared across agents. Use the `handoff()` function to
     create a tool that enables handing off the conversation from one
     agent to another:
@@ -101,7 +145,8 @@ This agent can be used in the following ways:
     )
     ```
 
-4.  It can be used as a standard tool using the `as_tool()` function:
+4.  Agents can be used as a standard tool using the `as_tool()`
+    function:
 
     ``` python
     from inspect_ai.agent import as_tool

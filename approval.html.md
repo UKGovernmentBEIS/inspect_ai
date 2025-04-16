@@ -174,13 +174,13 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
 
 There are five possible approval decisions:
 
-| Decision | Description |
-|----|----|
-| approve | The tool call is approved |
-| modify | The tool call is approved with modification (included in `modified` field of `Approver`) |
-| reject | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
-| escalate | The tool call should be escalated to the next approver in the chain. |
-| terminate | The current sample should be terminated as a result of the tool call. |
+| Decision  | Description                                                                                          |
+|-----------|------------------------------------------------------------------------------------------------------|
+| approve   | The tool call is approved                                                                            |
+| modify    | The tool call is approved with modification (included in `modified` field of `Approver`)             |
+| reject    | The tool call is rejected (report to the model that the call was rejected along with an explanation) |
+| escalate  | The tool call should be escalated to the next approver in the chain.                                 |
+| terminate | The current sample should be terminated as a result of the tool call.                                |
 
 Here’s a more complicated custom approver that implements an allow list
 for bash commands. Imagine that we’ve implemented this approver within a
