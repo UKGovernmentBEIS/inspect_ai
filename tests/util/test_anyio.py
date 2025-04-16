@@ -25,7 +25,6 @@ def _construct_mcp_exception(use_from: bool) -> Exception:
     Constructs an exception "stack" that is observed when an MCP server raises a ToolError
 
           ┌───────────────────────┐
-          │ Outer                 │
           │ ExceptionGroup        │
           └───────────────────────┘
                │            │
@@ -33,13 +32,12 @@ def _construct_mcp_exception(use_from: bool) -> Exception:
                │            │
                ▼            ▼
           ┌───────────────────────┐
-          │ Inner                 │
           │ ExceptionGroup        │
           └───────────────────────┘
-                      │
-                  exceptions
-                      │
-                      ▼
+                     │
+                 exceptions
+                     │
+                     ▼
           ┌───────────────────────┐
           │ ToolError             │
           └───────────────────────┘

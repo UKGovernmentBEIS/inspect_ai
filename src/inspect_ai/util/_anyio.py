@@ -12,12 +12,11 @@ def inner_exception(exc: Exception) -> Exception:
 
 def _flatten_exception(exc: Exception) -> list[Exception]:
     """Recursively flatten an to get all related (__context__) and contained (ExceptionGroup) exceptions."""
-    # TODO: I need to commit the tests.
-
     context_to_follow = (
         [exc.__context__]
-        # conceptually, if cause is present, it means that this exception wraps
-        # the cause - rather than cause being a separate error.
+        # conceptually, if __cause__ is present, it means that this exception
+        # wraps the cause - rather than cause being a separate error. We'll
+        # follow __context__ only if __cause__ is None
         if exc.__cause__ is None and isinstance(exc.__context__, Exception)
         else []
     )
