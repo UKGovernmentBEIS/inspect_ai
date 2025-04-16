@@ -1,12 +1,12 @@
 import contextlib
 import sys
 from contextlib import AsyncExitStack
-from copy import deepcopy
 from fnmatch import fnmatch
 from logging import getLogger
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Literal
 
+import anyio
 from mcp import McpError
 from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
@@ -41,35 +41,79 @@ class MCPServerImpl(MCPServer):
         self._client = client
         self._name = name
         self._events = events
+
+    @override
+    async def _connect(self) -> None:
+        await self._task_session()._connect()
+
+    @override
+    async def _close(self) -> None:
+        await self._task_session()._close()
+
+    async def _list_tools(
+        self, tools: Literal["all"] | list[str] = "all"
+    ) -> list[Tool]:
+        return await self._task_session()._list_tools()
+
+    # create a separate MCPServer session per async task
+    _task_sessions: dict[int, "MCPServerSession"] = {}
+
+    def _task_session(self) -> "MCPServerSession":
+        task_id = anyio.get_current_task().id
+        if task_id not in self._task_sessions:
+            MCPServerImpl._task_sessions[task_id] = MCPServerSession(
+                self._client, name=self._name, events=self._events
+            )
+        return MCPServerImpl._task_sessions[task_id]
+
+
+class MCPServerSession(MCPServer):
+    def __init__(
+        self, client: Callable[[], MCPServerContext], *, name: str, events: bool
+    ) -> None:
+        super().__init__()
+        self._refcount = 0
+        self._client = client
+        self._name = name
+        self._events = events
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack | None = None
         self._cached_tool_list: list[MCPTool] | None = None
 
     @override
     async def _connect(self) -> None:
-        assert self._session is None
-        assert self._exit_stack is None
-        self._exit_stack = AsyncExitStack()
-        await self._exit_stack.__aenter__()
-        with trace_action(logger, "MCPServer", f"create client ({self._name})"):
-            read, write = await self._exit_stack.enter_async_context(self._client())
-        with trace_action(logger, "MCPServer", f"create session ({self._name})"):
-            self._session = await self._exit_stack.enter_async_context(
-                ClientSession(read, write, sampling_callback=self._sampling_fn())
-            )
-        with trace_action(logger, "MCPServer", f"initialize session ({self._name})"):
-            await self._session.initialize()
+        if self._session is not None:
+            assert self._refcount > 0
+            self._refcount = self._refcount + 1
+        else:
+            assert self._refcount == 0
+            self._exit_stack = AsyncExitStack()
+            await self._exit_stack.__aenter__()
+            with trace_action(logger, "MCPServer", f"create client ({self._name})"):
+                read, write = await self._exit_stack.enter_async_context(self._client())
+            with trace_action(logger, "MCPServer", f"create session ({self._name})"):
+                self._session = await self._exit_stack.enter_async_context(
+                    ClientSession(read, write, sampling_callback=self._sampling_fn())
+                )
+            with trace_action(
+                logger, "MCPServer", f"initialize session ({self._name})"
+            ):
+                await self._session.initialize()
+            self._refcount = 1
 
     @override
     async def _close(self) -> None:
-        with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
-            assert self._session is not None
-            assert self._exit_stack is not None
-            try:
-                await self._exit_stack.aclose()
-            finally:
-                self._session = None
-                self._exit_stack = None
+        assert self._refcount > 0
+        self._refcount = self._refcount - 1
+        if self._refcount == 0:
+            with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
+                assert self._session is not None
+                assert self._exit_stack is not None
+                try:
+                    await self._exit_stack.aclose()
+                finally:
+                    self._session = None
+                    self._exit_stack = None
 
     async def _list_tools(
         self, tools: Literal["all"] | list[str] = "all"
@@ -134,8 +178,13 @@ class MCPServerImpl(MCPServer):
     # otherwise, create a brand new session from the client
     @contextlib.asynccontextmanager
     async def _client_session(self) -> AsyncIterator[ClientSession]:
+        # if _connect has been previously called and we still have the connection
+        # to the session, we can just return nit
         if self._session is not None:
             yield self._session
+
+        # otherwise, create a new session and yield it (it will be cleaned up
+        # when the context manager exits)
         else:
             async with AsyncExitStack() as exit_stack:
                 with trace_action(logger, "MCPServer", f"create client ({self._name})"):
@@ -161,15 +210,6 @@ class MCPServerImpl(MCPServer):
             return sampling_fn
         else:
             return None
-
-    def __deepcopy__(self, memo: dict[int, Any]) -> "MCPServerImpl":
-        if self._session is not None:
-            raise RuntimeError(
-                "You cannot deepcopy an MCPServer with an active session."
-            )
-        return MCPServerImpl(
-            deepcopy(self._client), name=self._name, events=self._events
-        )
 
 
 def create_server_sse(
