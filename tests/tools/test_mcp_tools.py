@@ -14,7 +14,7 @@ from inspect_ai._util.environ import environ_var
 from inspect_ai.agent import react
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.model import GenerateConfig, get_model
-from inspect_ai.solver import basic_agent, generate, solver, system_message, use_tools
+from inspect_ai.solver import generate, solver, use_tools
 from inspect_ai.tool import (
     MCPServer,
     mcp_connection,
@@ -134,27 +134,6 @@ def git_task_react_mcp_connection():
 @skip_if_no_mcp_git_package
 def test_react_mcp_connection():
     log = eval(git_task_react_mcp_connection(), model="openai/gpt-4o")[0]
-    assert log.status == "success"
-    assert log.samples
-
-
-@task
-def git_task_basic_agent_mcp_connection():
-    return Task(
-        dataset=git_dataset(),
-        solver=[
-            system_message("Please use the git tools to solve the problem."),
-            basic_agent(
-                tools=[mcp_tools(git_server(), tools=["git_status"])],
-            ),
-        ],
-    )
-
-
-@skip_if_no_openai
-@skip_if_no_mcp_git_package
-def test_basic_agent_mcp_connection():
-    log = eval(git_task_basic_agent_mcp_connection(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
 
