@@ -62,7 +62,8 @@ export const ModelCard: FC<ModelCardProps> = ({ evalSpec }) => {
                 </div>
                 <div className={clsx("text-style-label")}>Configuration</div>
                 <div className="text-size-small">
-                  {Object.keys(modelInfo.config).length > 0 ? (
+                  {modelInfo.config &&
+                  Object.keys(modelInfo.config).length > 0 ? (
                     <MetaDataGrid
                       entries={
                         modelInfo.config as any as Record<string, unknown>
