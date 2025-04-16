@@ -87,6 +87,7 @@ class MCPServerSession(MCPServer):
             assert self._refcount > 0
             self._refcount = self._refcount + 1
         else:
+            print("CONNECTING")
             assert self._refcount == 0
             self._exit_stack = AsyncExitStack()
             await self._exit_stack.__aenter__()
@@ -107,6 +108,7 @@ class MCPServerSession(MCPServer):
         assert self._refcount > 0
         self._refcount = self._refcount - 1
         if self._refcount == 0:
+            print("DISCONNECTING")
             with trace_action(logger, "MCPServer", f"disconnect ({self._name})"):
                 assert self._session is not None
                 assert self._exit_stack is not None
