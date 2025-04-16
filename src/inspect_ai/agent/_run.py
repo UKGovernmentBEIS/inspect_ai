@@ -27,10 +27,21 @@ async def run(
 
     # resolve str
     if isinstance(input, str):
-        input = [ChatMessageUser(content=input)]
+        input_messages: list[ChatMessage] = [
+            ChatMessageUser(content=input, source="input")
+        ]
+    elif isinstance(input, list):
+        input_messages = [
+            message.model_copy(update=dict(source="input")) for message in input
+        ]
+    else:
+        input_messages = [
+            message.model_copy(update=dict(source="input"))
+            for message in input.messages
+        ]
 
     # create state
-    state = AgentState(messages=input) if isinstance(input, list) else input
+    state = AgentState(messages=input_messages)
 
     # run the agent
     return await agent(state, **agent_kwargs)

@@ -47,6 +47,7 @@ from ._model_output import (
 )
 from ._providers.providers import *
 from ._registry import modelapi
+from ._trim import trim_messages
 
 __all__ = [
     "GenerateConfig",
@@ -80,6 +81,7 @@ __all__ = [
     "call_tools",
     "execute_tools",
     "ExecuteToolsResult",
+    "trim_messages",
     "cache_clear",
     "cache_list_expired",
     "cache_path",

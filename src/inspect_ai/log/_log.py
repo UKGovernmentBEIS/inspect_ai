@@ -64,7 +64,9 @@ class EvalConfig(BaseModel):
     limit: int | tuple[int, int] | None = Field(default=None)
     """Sample limit (number of samples or range of samples)."""
 
-    sample_id: str | int | list[str | int] | None = Field(default=None)
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = Field(
+        default=None
+    )
     """Evaluate specific sample(s)."""
 
     epochs: int | None = Field(default=None)
@@ -507,7 +509,7 @@ class EvalDataset(BaseModel):
     samples: int | None = Field(default=None)
     """Number of samples in the dataset."""
 
-    sample_ids: list[int | str] | None = Field(default=None)
+    sample_ids: list[str] | list[int] | list[str | int] | None = Field(default=None)
     """IDs of samples in the dataset."""
 
     shuffled: bool | None = Field(default=None)

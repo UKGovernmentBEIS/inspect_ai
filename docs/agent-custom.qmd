@@ -94,16 +94,22 @@ def my_agent(tools: list[Tool]):
 You might then further tailor the behaviour of this loop. For example, you might want to:
 
 1.  Add another termination condition for the output satisfying some criteria.
-
 2.  Add a critique / reflection step between tool calling and generate.
-
 3.  Urge the model to keep going after it decides to stop calling tools.
-
-4.  Handle context window overflow (`stop_reason=="model_length"`) by truncating or summarizing the `messages`.
-
+4.  Handle context window overflow (`stop_reason=="model_length"`) by truncating or summarising the `messages`.
 5.  Examine and possibly filter the tool calls before invoking `execute_tools()`
 
+For example, you might implement automatic context window truncation in response to context window overflow:
 
+``` python
+# check for context window overflow
+if state.output.stop_reason == "model_length":
+    if overflow is not None:
+        state.messages = trim_messages(state.messages)
+        continue
+```
+
+Note that the standard `react()` agent provides some of these agent loop enhancements (urging the model to continue and handling context window overflow).
 
 ## Sample Store {#agent-store}
 
