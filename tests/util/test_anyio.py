@@ -24,10 +24,34 @@ def _construct_mcp_exception(use_from: bool) -> Exception:
     """
     Constructs an exception "stack" that is observed when an MCP server raises a ToolError
 
-    ExceptionGroup (points to inner EG w/both .__context__ and .exceptions)
-      ExceptionGroup (points to ToolError with .exceptions)
-        ToolError (points to McpError with .__context__ and .__cause__ depending on use_from)
-          McpError
+          ┌───────────────────────┐
+          │ Outer                 │
+          │ ExceptionGroup        │
+          └───────────────────────┘
+               │            │
+           exceptions  __context__
+               │            │
+               ▼            ▼
+          ┌───────────────────────┐
+          │ Inner                 │
+          │ ExceptionGroup        │
+          └───────────────────────┘
+                      │
+                  exceptions
+                      │
+                      ▼
+          ┌───────────────────────┐
+          │ ToolError             │
+          └───────────────────────┘
+               │            │
+           __cause__   __context__
+         (depending on      │
+           use_from)        │
+               │            │
+               ▼            ▼
+          ┌───────────────────────┐
+          │ McpError              │
+          └───────────────────────┘
     """
     inner_group: ExceptionGroup
     try:
