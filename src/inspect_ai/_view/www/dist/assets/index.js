@@ -81781,6 +81781,9 @@ Supported expressions:
             setWorkspaceTab(kLogViewSamplesTabId);
             await refreshLogs();
             setSelectedLogIndex(0);
+            if (!sampleId) {
+              selectSample(0);
+            }
             setStatus({
               loading: false,
               error: void 0
@@ -81809,10 +81812,10 @@ Supported expressions:
           });
           if (sampleIndex >= 0) {
             selectSample(sampleIndex);
-            setShowingSampleDialog(true);
             if (sampleTabId) {
               setSampleTab(sampleTabId);
             }
+            setShowingSampleDialog(true);
           }
         } else {
           clearSample();
@@ -81887,7 +81890,6 @@ Supported expressions:
             try {
               setAppStatus({ loading: true, error: void 0 });
               await loadLog(selectedLogFile);
-              selectSample(0);
               setAppStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);
