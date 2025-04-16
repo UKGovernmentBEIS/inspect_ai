@@ -17,6 +17,7 @@ from typing_extensions import override
 
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.trace import trace_action
+from inspect_ai.tool._json_rpc_helpers import exception_for_rpc_response_error
 from inspect_ai.tool._mcp._sandbox import sandbox_client
 from inspect_ai.tool._mcp.sampling import as_inspect_content
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult
@@ -111,10 +112,12 @@ class MCPServerImpl(MCPServer):
                         if result.isError:
                             raise ToolError(tool_result_as_text(result.content))
                     except McpError as e:
-                        # TODO: Handle all JSON RPC errors
-                        if e.error.code == -32603:
-                            raise ToolError(e.error.message) from e
-                        raise
+                        # Some errors that are raised via McpError (e.g. -32603)
+                        # need to be converted to ToolError so that they make it
+                        # back to the model.
+                        raise exception_for_rpc_response_error(
+                            e.error.code, e.error.message
+                        ) from e
 
                 return [as_inspect_content(c) for c in result.content]
 
@@ -242,4 +245,9 @@ def tool_result_as_text(
         elif isinstance(c.resource, TextResourceContents):
             content_list.append(c.resource.text)
 
+    return "\n\n".join(content_list)
+    return "\n\n".join(content_list)
+    return "\n\n".join(content_list)
+    return "\n\n".join(content_list)
+    return "\n\n".join(content_list)
     return "\n\n".join(content_list)
