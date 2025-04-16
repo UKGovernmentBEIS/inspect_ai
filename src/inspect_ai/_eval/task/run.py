@@ -307,6 +307,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                         functools.partial(
                             task_run_sample,
                             task_name=task.name,
+                            log_location=profile.log_location,
                             sample=sample,
                             state=state,
                             sandbox=sandbox,
@@ -485,6 +486,7 @@ def update_metrics_display_fn(
 
 async def task_run_sample(
     task_name: str,
+    log_location: str,
     sample: Sample,
     state: TaskState,
     sandbox: SandboxEnvironmentSpec | None,
@@ -575,6 +577,7 @@ async def task_run_sample(
         semaphore_cm,
         active_sample(
             task=task_name,
+            log_location=log_location,
             model=str(state.model),
             sample=sample,
             epoch=state.epoch,
