@@ -227,9 +227,7 @@ async def checked_exec(
 
 
 async def checked_write_file(
-    file: str,
-    contents: str,
-    executable: bool = False,
+    file: str, contents: str, executable: bool = False
 ) -> None:
     await checked_exec(["tee", "--", file], input=contents)
     if executable:
