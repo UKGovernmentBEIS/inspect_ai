@@ -117,7 +117,7 @@ def test_approve_no_reject():
 
 
 def test_approve_modify():
-    # also tests loading an approver from a package
+    # also tests loading an approver from a package what?
     ensure_test_package_installed()
 
     event = check_approval(
