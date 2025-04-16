@@ -43,6 +43,7 @@ class MCPServerImpl(MCPServer):
         self._events = events
         self._session: ClientSession | None = None
         self._exit_stack: AsyncExitStack | None = None
+        self._cached_tool_list: list[MCPTool] | None = None
 
     @override
     async def _connect(self) -> None:
@@ -73,25 +74,27 @@ class MCPServerImpl(MCPServer):
     async def _list_tools(
         self, tools: Literal["all"] | list[str] = "all"
     ) -> list[Tool]:
+        if self._cached_tool_list:
+            mcp_tools = self._cached_tool_list
+        else:
         async with self._client_session() as session:
-            # function for filtering tools
+                # get the underlying tools on the server
+                with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
+                    mcp_tools = (await session.list_tools()).tools
+                self._cached_tool_list = mcp_tools
+
+        # filter them
             def include_tool(tool: MCPTool) -> bool:
                 if tools == "all":
                     return True
                 else:
                     return any([fnmatch(tool.name, t) for t in tools])
 
-            # get the underlying tools on the server
-            with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
-                mcp_tools = (await session.list_tools()).tools
-
-            # filter them
             mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
 
             # dynamically create tools
             return [
-                self._tool_def_from_mcp_tool(mcp_tool).as_tool()
-                for mcp_tool in mcp_tools
+            self._tool_def_from_mcp_tool(mcp_tool).as_tool() for mcp_tool in mcp_tools
             ]
 
     def _tool_def_from_mcp_tool(self, mcp_tool: MCPTool) -> ToolDef:
