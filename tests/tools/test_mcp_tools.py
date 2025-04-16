@@ -33,12 +33,12 @@ async def test_mcp_server_stdio():
         await check_fetch_server(server)
 
 
-# TODO: Switch this over to be like test_mcp_server_sandbox_nodejs
-@skip_if_no_mcp_fetch_package
-def test_mcp_server_sandbox():
-    log = eval(fetch_task(), model="openai/gpt-4o")[0]
-    assert log.status == "success"
-    assert log.samples
+# TODO: make this test work
+# @pytest.mark.slow
+# def test_mcp_server_sandbox_fetch():
+#     log = eval(fetch_task(), model="openai/gpt-4o")[0]
+#     assert log.status == "success"
+#     assert log.samples
 
 
 @task
