@@ -217,11 +217,10 @@ def human_agent_install_sh(user: str | None) -> str:
 
 async def checked_exec(
     cmd: list[str],
-    user: str | None = None,
     input: str | bytes | None = None,
     cwd: str | None = None,
 ) -> str:
-    result = await sandbox().exec(cmd, user=user, input=input, cwd=cwd)
+    result = await sandbox().exec(cmd, input=input, cwd=cwd)
     if not result.success:
         raise RuntimeError(f"Error executing command {' '.join(cmd)}: {result.stderr}")
     return result.stdout
@@ -230,9 +229,8 @@ async def checked_exec(
 async def checked_write_file(
     file: str,
     contents: str,
-    user: str | None = None,
     executable: bool = False,
 ) -> None:
-    await checked_exec(["tee", "--", file], user=user, input=contents)
+    await checked_exec(["tee", "--", file], input=contents)
     if executable:
-        await checked_exec(["chmod", "+x", file], user=user)
+        await checked_exec(["chmod", "+x", file])
