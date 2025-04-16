@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from inspect_ai.util._limit import Limit, LimitExceededError, using_limits
+
 if TYPE_CHECKING:
     from inspect_ai.solver._solver import Solver
 
@@ -14,7 +16,7 @@ from inspect_ai.tool._tool_info import parse_tool_info
 from ._agent import Agent, AgentState
 
 
-def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
+def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> Solver:
     """Convert an agent to a solver.
 
     Note that agents used as solvers will only receive their first parameter
@@ -23,6 +25,7 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
 
     Args:
        agent: Agent to convert.
+       limits: List of limits to apply to the agent.
        **agent_kwargs: Arguments to curry to Agent function (required
           if the agent has parameters without default values).
 
@@ -52,10 +55,13 @@ def as_solver(agent: Agent, **agent_kwargs: Any) -> Solver:
     @solver(name=agent_name)
     def agent_to_solver() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # run agent
-            agent_state = await agent(
-                AgentState(messages=state.messages), **agent_kwargs
-            )
+            # run the agent with limits
+            agent_state = AgentState(messages=state.messages)
+            try:
+                with using_limits(limits):
+                    agent_state = await agent(agent_state, **agent_kwargs)
+            except LimitExceededError as ex:
+                raise ex.with_conversation(agent_state)
 
             # update messages
             state.messages = agent_state.messages

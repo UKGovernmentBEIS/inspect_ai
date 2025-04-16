@@ -296,19 +296,6 @@ def test_parallel_nested_forks(model: Model):
     assert result.stats.model_usage["mockllm/model"].total_tokens == 26
 
 
-def test_can_use_deprecated_sample_limit_exceeded_error() -> None:
-    # SampleLimitExceededError is deprecated in favour of LimitExceededError.
-    from inspect_ai.solver import SampleLimitExceededError  # type: ignore
-
-    try:
-        with token_limit(1):
-            _consume_tokens(2)
-        pytest.fail("Expected SampleLimitExceededError")
-    except SampleLimitExceededError as exc_info:
-        assert exc_info.__class__ == LimitExceededError
-        assert exc_info.type == "token"
-
-
 def _consume_tokens(total_tokens: int) -> None:
     record_model_usage(ModelUsage(total_tokens=total_tokens))
     check_token_limit()

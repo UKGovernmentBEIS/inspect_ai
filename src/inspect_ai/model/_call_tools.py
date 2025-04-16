@@ -52,6 +52,7 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._limit import LimitExceededError, using_limits
 
 from ._chat_message import (
     ChatMessage,
@@ -134,6 +135,7 @@ async def execute_tools(
                         )
                     # unwrap exception group
                     except Exception as ex:
+                        # TODO: This appears to "lose" the LimitExceededError.conversation
                         inner_ex = inner_exception(ex)
                         raise inner_ex.with_traceback(inner_ex.__traceback__)
 
@@ -447,9 +449,13 @@ async def agent_handoff(
     arguments = tool_params(arguments, agent_tool.agent)
     del arguments["state"]
 
-    # make the call
+    # run the agent with limits
     agent_state = AgentState(messages=copy(agent_conversation))
-    agent_state = await agent_tool.agent(agent_state, **arguments)
+    try:
+        with using_limits(agent_tool.limits):
+            agent_state = await agent_tool.agent(agent_state, **arguments)
+    except LimitExceededError as ex:
+        raise ex.with_conversation(agent_state)
 
     # determine which messages are new and return only those (but exclude new
     # system messages as they an internal matter for the handed off to agent.
