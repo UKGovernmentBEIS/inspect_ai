@@ -42,7 +42,7 @@ class AgentPrompt(NamedTuple):
 
 DEFAULT_CONTINUE_PROMPT = """
 Please proceed to the next step using your best judgement. If you believe you
-have completed the task, please call the `{submit}()` tool."
+have completed the task, please call the `{submit}()` tool.
 """
 
 
