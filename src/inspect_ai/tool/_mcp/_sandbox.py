@@ -14,16 +14,21 @@ from inspect_ai.tool._tool_support_helpers import (
     tool_container_sandbox,
 )
 
-from ._types import MCPServerContextEric
+from ._types import MCPServerContext
 
 
-@asynccontextmanager
-async def sandbox_client(
+# Pardon the type: ignore's here. This code is a modified clone of Anthropic code
+# for stdio_client. In their case, they don't provide a type hint for the return
+# value. We suspect that if they did, they'd encounter the same issues we're
+# suppressing. Nevertheless, we're confident that the runtime behavior of the
+# code is what we want, and that the errors are purely in the type domain.
+@asynccontextmanager  # type: ignore
+async def sandbox_client(  # type: ignore
     server: StdioServerParameters,
     *,
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
-) -> MCPServerContextEric:
+) -> MCPServerContext:  # type: ignore
     sandbox_environment = await tool_container_sandbox(
         "mcp support", sandbox_name=sandbox_name
     )
