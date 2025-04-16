@@ -3,6 +3,7 @@ import { FC, Fragment } from "react";
 import { EvalSample } from "../../../@types/log";
 import { SampleSummary } from "../../../client/api/types";
 import { EmptyPanel } from "../../../components/EmptyPanel";
+import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { useEvalDescriptor } from "../../../state/hooks";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { SampleScores } from "./SampleScores";
@@ -83,7 +84,7 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
               />
             </div>
             <div className={clsx("text-size-base", styles.cell)}>
-              {explanation}
+              <MarkdownDiv markdown={explanation} />
             </div>
 
             {Object.keys(metadata).length > 0 ? (
