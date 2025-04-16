@@ -11,3 +11,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # filesystem mcp server
 RUN npm install -g @modelcontextprotocol/server-filesystem
+
+# fetch mcp server
+RUN pip install mcp_server_fetch
