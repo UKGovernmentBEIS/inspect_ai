@@ -54,15 +54,15 @@ def exception_for_rpc_response_error(
     params: dict[str, object] | tuple[object, ...] | None = None,
 ) -> Exception:
     """Maps JSON-RPC error codes to Inspect tool related exceptions."""
-    # code	    message	          meaning
+    # code    message           meaning
     # -32000
-    #    |      Server error	    Reserved for implementation-defined server-errors.
+    #    |    Server error      Reserved for implementation-defined server-errors.
     # -32099
-    # -32600	  Invalid Request	  The JSON sent is not a valid Request object.
-    # -32601	  Method not found  The method does not exist / is not available.
-    # -32602	  Invalid params	  Invalid method parameter(s).
-    # -32603	  Internal error	  Internal JSON-RPC error.
-    # -32700	  Parse error	      Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
+    # -32600  Invalid Request   The JSON sent is not a valid Request object.
+    # -32601  Method not found  The method does not exist / is not available.
+    # -32602  Invalid params    Invalid method parameter(s).
+    # -32603  Internal error    Internal JSON-RPC error.
+    # -32700  Parse error       Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
 
     if -32000 <= code >= -32099 or code == -32603:
         return ToolError(message)
