@@ -77,25 +77,25 @@ class MCPServerImpl(MCPServer):
         if self._cached_tool_list:
             mcp_tools = self._cached_tool_list
         else:
-        async with self._client_session() as session:
+            async with self._client_session() as session:
                 # get the underlying tools on the server
                 with trace_action(logger, "MCPServer", f"list_tools {self._name}"):
                     mcp_tools = (await session.list_tools()).tools
                 self._cached_tool_list = mcp_tools
 
         # filter them
-            def include_tool(tool: MCPTool) -> bool:
-                if tools == "all":
-                    return True
-                else:
-                    return any([fnmatch(tool.name, t) for t in tools])
+        def include_tool(tool: MCPTool) -> bool:
+            if tools == "all":
+                return True
+            else:
+                return any([fnmatch(tool.name, t) for t in tools])
 
-            mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
+        mcp_tools = [mcp_tool for mcp_tool in mcp_tools if include_tool(mcp_tool)]
 
-            # dynamically create tools
-            return [
+        # dynamically create tools
+        return [
             self._tool_def_from_mcp_tool(mcp_tool).as_tool() for mcp_tool in mcp_tools
-            ]
+        ]
 
     def _tool_def_from_mcp_tool(self, mcp_tool: MCPTool) -> ToolDef:
         async def execute(**kwargs: Any) -> ToolResult:
@@ -223,7 +223,6 @@ def create_server_sandbox(
                 cwd=cwd,
                 env=env,
             ),
-            server_name=name,
             sandbox_name=sandbox,
         ),
         name=name,

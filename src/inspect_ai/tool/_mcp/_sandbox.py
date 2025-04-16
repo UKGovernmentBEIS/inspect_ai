@@ -21,7 +21,6 @@ from ._types import MCPServerContextEric
 async def sandbox_client(
     server: StdioServerParameters,
     *,
-    server_name: str,
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
 ) -> MCPServerContextEric:
