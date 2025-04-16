@@ -7,6 +7,7 @@
 - Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
 - Approval: Approvers now take `history` argument (rather than `TaskState`) to better handle agent conversation state.
 - Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
+- Google: Return "(no content)" when a generate call results in no completion choices.
 - CloudFlare: Use OpenAI compatible REST endpoint for interface to models.
 - Azure AI: Use `2025-03-01-preview` as default API version if none explicitly specified.
 - Model API: `trim_messages()` function for pruning messages to fit within model context windows.

@@ -649,10 +649,16 @@ def completion_choices_from_candidates(
             )
         ]
     else:
-        raise RuntimeError(
-            "Google response includes no completion candidates and no block reason: "
-            + f"{response.model_dump_json(indent=2)}"
-        )
+        return [
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(
+                    content=NO_CONTENT,
+                    model=model,
+                    source="generate",
+                ),
+                stop_reason="stop",
+            )
+        ]
 
 
 def split_reasoning(content: str) -> tuple[str | None, str]:
