@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.62
+
+- Add support for viewing live samples in the Inspect viewer (requires Inspect 0.3.84 or later)
+
 ## 0.3.61
 
 - Fix an issue affecting live log viewing (requires Inspect 0.3.83 or later)
