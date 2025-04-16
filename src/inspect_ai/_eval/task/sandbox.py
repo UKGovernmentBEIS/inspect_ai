@@ -1,5 +1,6 @@
 import base64
 import contextlib
+from logging import getLogger
 from random import random
 from typing import AsyncGenerator, Callable, NamedTuple, cast
 
@@ -31,6 +32,8 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+
+logger = getLogger(__name__)
 
 
 @contextlib.asynccontextmanager
@@ -89,15 +92,24 @@ async def sandboxenv_context(
         interrupted = False
         environments: dict[str, SandboxEnvironment] | None = None
         try:
-            # initialize sandbox environment,
-            environments = await init_sandbox_environments_sample(
-                sandboxenv_type=sandboxenv_type,
-                task_name=registry_unqualified_name(task_name),
-                config=sandbox.config,
-                files=files,
-                setup=setup,
-                metadata=sample.metadata if sample.metadata else {},
+
+            @retry(
+                wait=wait_exponential_jitter(3),
+                stop=(stop_after_attempt(3)),
+                retry=retry_if_exception(should_retry_init_sandbox(task_name, sample)),
             )
+            async def init_sandbox() -> dict[str, SandboxEnvironment]:
+                return await init_sandbox_environments_sample(
+                    sandboxenv_type=sandboxenv_type,
+                    task_name=registry_unqualified_name(task_name),
+                    config=sandbox.config,
+                    files=files,
+                    setup=setup,
+                    metadata=sample.metadata if sample.metadata else {},
+                )
+
+            # initialize sandbox environments
+            environments = await init_sandbox()
 
             # run sample
             yield
@@ -116,6 +128,30 @@ async def sandboxenv_context(
                     environments=environments,
                     interrupted=interrupted,
                 )
+
+
+def should_retry_init_sandbox(
+    task_name: str, sample: Sample
+) -> Callable[[BaseException], bool]:
+    def should_retry(ex: BaseException) -> bool:
+        # retry all normal exceptions outside of ValueError
+        # (which is presumed to be an irrecoverable input
+        # or configuration error)
+        if isinstance(ex, Exception):
+            if not isinstance(ex, ValueError):
+                message = (
+                    f"Error during sandbox initialization: {ex} "
+                    + "(will retry up to 3 times). "
+                    + f"task={task_name},sample_id={sample.id}"
+                )
+                logger.warning(message)
+                return True
+            else:
+                return False
+        else:
+            return False
+
+    return should_retry
 
 
 async def read_sandboxenv_file(contents: str) -> bytes:
