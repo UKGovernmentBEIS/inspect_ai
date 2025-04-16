@@ -177,9 +177,9 @@ MCP Servers can be either stateless or stateful. Stateful servers may retain con
 
 In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it's state is maintained across calls. You can do this using the `mcp_connection()` context manager.
 
-#### Standard Agents
+#### ReAct Agent
 
-The `mcp_connection()` context manager is used **automatically** by both  `react()` and `basic_agent()`, with the server connection being maintained for the duration of the agent loop. 
+The `mcp_connection()` context manager is used **automatically** by the `react()` agent, with the server connection being maintained for the duration of the agent loop. 
 
 For example, the following will establish a single connection to the memory server and preserve its state across calls:
 
