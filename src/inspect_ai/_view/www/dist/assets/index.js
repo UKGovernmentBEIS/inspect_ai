@@ -50630,7 +50630,7 @@ self.onmessage = function (e) {
                 scorer: scorer2
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$w.cell), children: explanation2 }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$w.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: explanation2 }) }),
             Object.keys(metadata2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
