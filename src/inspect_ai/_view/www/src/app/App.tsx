@@ -51,7 +51,6 @@ export const App: FC<AppProps> = ({ api }) => {
 
           // Then load the log
           await loadLog(selectedLogFile);
-          selectSample(0);
 
           // Finally set loading to false
           setAppStatus({ loading: false, error: undefined });

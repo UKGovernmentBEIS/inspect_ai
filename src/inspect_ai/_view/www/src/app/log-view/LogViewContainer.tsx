@@ -59,6 +59,10 @@ export const LogViewContainer: FC = () => {
         // Select the first log in the list
         setSelectedLogIndex(0);
 
+        if (!sampleId) {
+          selectSample(0);
+        }
+
         setStatus({
           loading: false,
           error: undefined,
@@ -92,14 +96,15 @@ export const LogViewContainer: FC = () => {
           (targetEpoch === undefined || sample.epoch === targetEpoch);
         return matches;
       });
+
       if (sampleIndex >= 0) {
         selectSample(sampleIndex);
-        setShowingSampleDialog(true);
-
         // Set the sample tab if specified in the URL
         if (sampleTabId) {
           setSampleTab(sampleTabId);
         }
+
+        setShowingSampleDialog(true);
       }
     } else {
       // If we don't have sample params in the URL but the dialog is showing, close it
