@@ -12,7 +12,11 @@ from .appdirs import inspect_data_dir
 
 logger = getLogger(__name__)
 
+EXTENSION_COMMAND_OPEN_SAMPLE = "open_sample"
 EXTENSION_COMMAND_VERSIONS = {"inspect.openLogViewer": Version(0, 3, 61)}
+EXTENSION_COMMAND_VERSIONS = {
+    f"inspect.openLogViewer:{EXTENSION_COMMAND_OPEN_SAMPLE}": Version(0, 3, 62)
+}
 
 
 class VSCodeCommand(BaseModel):
@@ -40,11 +44,12 @@ def can_execute_vscode_commands() -> bool:
     return vs_code_commands_dir() is not None
 
 
-def can_execute_vscode_command(command: str) -> bool:
+def can_execute_vscode_command(command: str, context: str | None = None) -> bool:
     if not can_execute_vscode_commands():
         return False
 
-    required_version = EXTENSION_COMMAND_VERSIONS.get(command)
+    key = command if context is None else f"{command}:{context}"
+    required_version = EXTENSION_COMMAND_VERSIONS.get(key)
     if required_version is None:
         return True
     else:

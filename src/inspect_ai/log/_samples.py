@@ -18,6 +18,7 @@ class ActiveSample:
         self,
         *,
         task: str,
+        log_location: str,
         model: str,
         sample: Sample,
         epoch: int,
@@ -33,6 +34,7 @@ class ActiveSample:
         self.started: float | None = None
         self.completed: float | None = None
         self.task = task
+        self.log_location = log_location
         self.model = model
         self.sample = sample
         self.epoch = epoch
@@ -76,6 +78,7 @@ def init_active_samples() -> None:
 async def active_sample(
     *,
     task: str,
+    log_location: str,
     model: str,
     sample: Sample,
     epoch: int,
@@ -89,6 +92,7 @@ async def active_sample(
     # create the sample
     active = ActiveSample(
         task=task,
+        log_location=log_location,
         model=model,
         sample=sample,
         epoch=epoch,
