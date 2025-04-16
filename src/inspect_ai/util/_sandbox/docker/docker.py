@@ -420,6 +420,17 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             None,
         )
 
+        # vscode doesn't support attaching to a container as a specific user,
+        # so don't include the vscode command if a user is specified
+        vscode_command = (
+            [
+                "remote-containers.attachToRunningContainer",
+                container,
+            ]
+            if user is None
+            else None
+        )
+
         # return container connection
         if container:
             return SandboxConnection(
@@ -435,11 +446,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                         "-l",
                     ]
                 ),
-                vscode_command=[
-                    "remote-containers.attachToRunningContainer",
-                    container,
-                    # TODO: Is there a way to pass the user here?
-                ],
+                vscode_command=vscode_command,
                 ports=await get_ports_info(container),
                 container=container,
             )
