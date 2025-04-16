@@ -1,3 +1,4 @@
+import itertools
 import sys
 
 if sys.version_info < (3, 11):
@@ -5,38 +6,35 @@ if sys.version_info < (3, 11):
 
 
 def inner_exception(exc: Exception) -> Exception:
-    flattended = flatten_exception_group(exc)
+    flattended = _flatten_exception(exc)
     return flattended[0]
 
 
-def flatten_exception_group(exc: Exception) -> list[Exception]:
-    """Recursively flatten an ExceptionGroup to get all contained exceptions."""
-    context = exc.__context__ if isinstance(exc.__context__, Exception) else None
-    cause = exc.__cause__ if isinstance(exc.__cause__, Exception) else None
+def _flatten_exception(exc: Exception) -> list[Exception]:
+    """Recursively flatten an to get all related (__context__) and contained (ExceptionGroup) exceptions."""
+    # TODO: I need to commit the tests.
 
-    # TODO: This works, but I need to tighten it up quite a bit. Plus, I need
-    # to commit the tests.
+    context_to_follow = (
+        [exc.__context__]
+        # conceptually, if cause is present, it means that this exception wraps
+        # the cause - rather than cause being a separate error.
+        if exc.__cause__ is None and isinstance(exc.__context__, Exception)
+        else []
+    )
 
-    # conceptually, if cause is present, it means that this exception wraps
-    # the cause - rather than cause being a separate error.
+    (maybe_this_exception, children_to_follow) = (
+        ([], exc.exceptions)
+        # if it's a group, follow the children discarding the group
+        if isinstance(exc, ExceptionGroup)
+        else ([exc], [])
+    )
 
-    exceptions_to_flatten = set[Exception]()
-    unflattened_to_add: Exception | None = None
-    if isinstance(exc, ExceptionGroup):
-        exceptions_to_flatten.update(exc.exceptions)
-    else:
-        if context and cause is None:
-            exceptions_to_flatten.add(exc)
-        else:
-            unflattened_to_add = exc
-
-    if context and cause is None:
-        exceptions_to_flatten.add(context)
-
-    flattened = [
+    # We have to use a set since the same exception is likely to be included in
+    # both __context__ and .exceptions
+    other_exceptions = [
         flattened_e
-        for e in exceptions_to_flatten
-        for flattened_e in flatten_exception_group(e)
+        for e in set(itertools.chain(context_to_follow, children_to_follow))
+        for flattened_e in _flatten_exception(e)
     ]
 
-    return flattened + [unflattened_to_add] if unflattened_to_add else flattened
+    return maybe_this_exception + other_exceptions
