@@ -15,14 +15,14 @@ import {
 export interface SamplesDescriptor {
   evalDescriptor: EvalDescriptor;
   messageShape: MessageShape;
-  selectedScoreDescriptor?: ScoreDescriptor;
   selectedScore: (sample: BasicSampleData) => SelectedScore | undefined;
-  selectedScorerDescriptor: (sample: BasicSampleData) => ScorerDescriptor;
+  selectedScorerDescriptor: (
+    sample: BasicSampleData,
+  ) => ScorerDescriptor | undefined;
 }
 
 export const createEvalDescriptor = (
   scores: ScoreLabel[],
-  epochs: number,
   samples?: SampleSummary[],
 ): EvalDescriptor | undefined => {
   if (!samples) {
@@ -47,7 +47,13 @@ export const createEvalDescriptor = (
       sample.scores[scoreLabel.scorer] &&
       sample.scores[scoreLabel.scorer].value
     ) {
-      return sample.scores[scoreLabel.scorer].value;
+      if (typeof sample.scores[scoreLabel.scorer].value === "object") {
+        return (
+          sample.scores[scoreLabel.scorer].value as Record<string, Value2>
+        )[scoreLabel.name];
+      } else {
+        return sample.scores[scoreLabel.scorer].value;
+      }
     } else if (sample.scores[scoreLabel.name]) {
       return sample.scores[scoreLabel.name].value;
     } else {
@@ -57,10 +63,10 @@ export const createEvalDescriptor = (
 
   const scoreAnswer = (
     sample: BasicSampleData,
-    scorer: string,
+    scorer: ScoreLabel,
   ): string | undefined => {
     if (sample && sample.scores) {
-      const sampleScore = sample.scores[scorer];
+      const sampleScore = sample.scores[scorer.name];
       if (sampleScore && sampleScore.answer) {
         return sampleScore.answer;
       }
@@ -162,7 +168,7 @@ export const createEvalDescriptor = (
       return "null";
     } else if (score === undefined) {
       return "";
-    } else if (score && descriptor && descriptor.render) {
+    } else if (descriptor && descriptor.render) {
       return descriptor.render(score);
     } else {
       return <span>{String(score)}</span>;
@@ -181,7 +187,7 @@ export const createEvalDescriptor = (
         return scoreExplanation(sample, scoreLabel.scorer) || "";
       },
       answer: () => {
-        return scoreAnswer(sample, scoreLabel.scorer) || "";
+        return scoreAnswer(sample, scoreLabel) || "";
       },
       scores: () => {
         if (!sample || !sample.scores) {
@@ -252,8 +258,11 @@ export const createEvalDescriptor = (
 
   const score = (
     sample: BasicSampleData,
-    scoreLabel: ScoreLabel,
-  ): SelectedScore => {
+    scoreLabel?: ScoreLabel,
+  ): SelectedScore | undefined => {
+    if (!scoreLabel) {
+      return undefined;
+    }
     return {
       value: scoreValue(sample, scoreLabel),
       render: () => {
@@ -263,8 +272,6 @@ export const createEvalDescriptor = (
   };
 
   return {
-    epochs,
-    samples,
     scores,
     scorerDescriptor,
     scoreDescriptor,
@@ -274,14 +281,17 @@ export const createEvalDescriptor = (
 };
 
 export const createSamplesDescriptor = (
+  samples: SampleSummary[],
   evalDescriptor: EvalDescriptor,
-  selectedScore: ScoreLabel,
+  selectedScore?: ScoreLabel,
 ): SamplesDescriptor | undefined => {
   // Find the total length of the value so we can compute an average
-  const sizes = evalDescriptor.samples.reduce(
+  const sizes = samples.reduce(
     (previous, current) => {
       const text = inputString(current.input).join(" ");
-      const score = evalDescriptor.score(current, selectedScore);
+      const score = selectedScore
+        ? evalDescriptor.score(current, selectedScore)
+        : undefined;
       const scoreValue = score?.value;
       const scoreText = scoreValue
         ? String(scoreValue)
@@ -296,7 +306,9 @@ export const createSamplesDescriptor = (
       previous[2] = Math.min(
         Math.max(
           previous[2],
-          evalDescriptor.scoreAnswer(current, selectedScore?.name)?.length || 0,
+          selectedScore
+            ? evalDescriptor.scoreAnswer(current, selectedScore)?.length || 0
+            : 0,
         ),
         300,
       );
@@ -322,7 +334,7 @@ export const createSamplesDescriptor = (
     answer: Math.min(sizes[2], 300),
     limit: Math.min(sizes[3], 50),
     id: Math.min(sizes[4], 10),
-    score: Math.min(sizes[4], 30),
+    score: Math.min(sizes[5], 30),
   };
   const base =
     maxSizes.input +
@@ -353,10 +365,12 @@ export const createSamplesDescriptor = (
   return {
     evalDescriptor,
     messageShape,
-    selectedScoreDescriptor: evalDescriptor.scoreDescriptor(selectedScore),
-    selectedScore: (sample) => evalDescriptor.score(sample, selectedScore),
+    selectedScore: (sample) =>
+      selectedScore ? evalDescriptor.score(sample, selectedScore) : undefined,
     selectedScorerDescriptor: (sample) =>
-      evalDescriptor.scorerDescriptor(sample, selectedScore),
+      selectedScore
+        ? evalDescriptor.scorerDescriptor(sample, selectedScore)
+        : undefined,
   };
 };
 

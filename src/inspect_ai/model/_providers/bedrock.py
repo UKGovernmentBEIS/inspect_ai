@@ -270,11 +270,6 @@ class BedrockAPI(ModelAPI):
             raise pip_dependency_error("Bedrock API", ["aioboto3"])
 
     @override
-    async def close(self) -> None:
-        # client is created/destroyed each time in generate()
-        pass
-
-    @override
     def connection_key(self) -> str:
         return self.model_name
 
@@ -373,7 +368,7 @@ class BedrockAPI(ModelAPI):
                 toolConfig=tool_config,
             )
 
-            def model_call(response: dict[str, Any] | None = None) -> ModelCall:
+            def model_call(response: dict[str, Any] = {}) -> ModelCall:
                 return ModelCall.create(
                     request=replace_bytes_with_placeholder(
                         request.model_dump(exclude_none=True)
@@ -393,14 +388,14 @@ class BedrockAPI(ModelAPI):
                 # Look for an explicit validation exception
                 if ex.response["Error"]["Code"] == "ValidationException":
                     response = ex.response["Error"]["Message"]
-                    if "Too many input tokens" in response:
+                    if "too many input tokens" in response.lower():
                         return ModelOutput.from_content(
                             model=self.model_name,
                             content=response,
                             stop_reason="model_length",
                         )
                     else:
-                        return ex, model_call(None)
+                        return ex, model_call()
                 else:
                     raise ex
 
@@ -454,7 +449,6 @@ def model_output_from_response(
             tool_calls.append(
                 ToolCall(
                     id=c.toolUse.toolUseId,
-                    type="function",
                     function=c.toolUse.name,
                     arguments=cast(dict[str, Any], c.toolUse.input or {}),
                 )
@@ -465,7 +459,7 @@ def model_output_from_response(
     # resolve choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=content, tool_calls=tool_calls, source="generate"
+            content=content, tool_calls=tool_calls, model=model, source="generate"
         ),
         stop_reason=message_stop_reason(response.stopReason),
     )

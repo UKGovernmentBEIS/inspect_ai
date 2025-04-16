@@ -16,6 +16,8 @@ import clsx from "clsx";
 import { EditorView, minimalSetup } from "codemirror";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 
+import { SampleSummary } from "../../../api/types";
+import { useEvalDescriptor } from "../../../state/hooks";
 import { ScoreFilter } from "../../../types";
 import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
@@ -30,7 +32,7 @@ interface FilteringResult {
 }
 
 interface SampleFilterProps {
-  evalDescriptor: EvalDescriptor;
+  samples: SampleSummary[];
   scoreFilter: ScoreFilter;
   setScoreFilter: (filter: ScoreFilter) => void;
 }
@@ -105,11 +107,12 @@ const editorTheme = EditorView.theme({
 // Helper functions
 const getFilteringResult = (
   evalDescriptor: EvalDescriptor,
+  sampleSummaries: SampleSummary[],
   filterValue: string,
 ): FilteringResult => {
   const { result, error } = filterSamples(
     evalDescriptor,
-    evalDescriptor.samples,
+    sampleSummaries,
     filterValue,
   );
   return { numSamples: result.length, error };
@@ -138,8 +141,11 @@ const getLints = (
   if (!filterError) return [];
   return [
     {
-      from: filterError.from || 0,
-      to: filterError.to || view.state.doc.length,
+      from: Math.min(filterError.from || 0, view.state.doc.length),
+      to: Math.min(
+        filterError.to || view.state.doc.length,
+        view.state.doc.length,
+      ),
       severity: filterError.severity,
       message: filterError.message,
     },
@@ -148,7 +154,7 @@ const getLints = (
 
 // Main component
 export const SampleFilter: FC<SampleFilterProps> = ({
-  evalDescriptor,
+  samples,
   scoreFilter,
   setScoreFilter,
 }) => {
@@ -157,9 +163,10 @@ export const SampleFilter: FC<SampleFilterProps> = ({
   const linterCompartment = useRef<Compartment>(new Compartment());
   const autocompletionCompartment = useRef<Compartment>(new Compartment());
   const updateListenerCompartment = useRef<Compartment>(new Compartment());
+  const evalDescriptor = useEvalDescriptor();
 
   const filterItems = useMemo(
-    () => scoreFilterItems(evalDescriptor),
+    () => (evalDescriptor ? scoreFilterItems(evalDescriptor) : []),
     [evalDescriptor],
   );
 
@@ -183,9 +190,13 @@ export const SampleFilter: FC<SampleFilterProps> = ({
 
   const makeUpdateListener = () =>
     EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
+      if (update.docChanged && evalDescriptor) {
         const newValue = update.state.doc.toString();
-        const filteringResult = getFilteringResult(evalDescriptor, newValue);
+        const filteringResult = getFilteringResult(
+          evalDescriptor,
+          samples,
+          newValue,
+        );
         if (!filteringResult.error) {
           setScoreFilter({ value: newValue });
         }
@@ -226,9 +237,11 @@ export const SampleFilter: FC<SampleFilterProps> = ({
     const currentValue = editorViewRef.current.state.doc.toString();
     if (scoreFilter.value === currentValue) return;
 
-    setFilteringResultInstant(
-      getFilteringResult(evalDescriptor, scoreFilter.value || ""),
-    );
+    if (evalDescriptor) {
+      setFilteringResultInstant(
+        getFilteringResult(evalDescriptor, samples, scoreFilter.value || ""),
+      );
+    }
     editorViewRef.current.dispatch({
       changes: {
         from: 0,

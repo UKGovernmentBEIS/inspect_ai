@@ -17,9 +17,8 @@ export async function activateLogview(
   envMgr: WorkspaceEnvManager,
   logsWatcher: InspectLogsWatcher,
   context: ExtensionContext,
-  host: ExtensionHost
+  host: ExtensionHost,
 ): Promise<[Command[], InspectViewManager]> {
-
   // activate the log viewer editor
   activateLogviewEditor(context, server);
 
@@ -28,13 +27,13 @@ export async function activateLogview(
     inspectManager,
     server,
     context,
-    host
+    host,
   );
   const logviewManager = new InspectViewManager(
     context,
     logviewWebManager,
     envMgr,
-    logsWatcher
+    logsWatcher,
   );
 
   // logview commands

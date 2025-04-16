@@ -1,0 +1,62 @@
+.container {
+  margin-top: 0.5em;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.label {
+  padding-right: 2em !important;
+  padding-left: 0 !important;
+  padding-bottom: 0 !important;
+  font-weight: 400;
+  padding-bottom: 0 !important;
+}
+
+.wordBreak {
+  word-break: break-word;
+}
+
+.scoreTable {
+  width: 100%;
+  margin-bottom: 1em;
+}
+
+.bottomBorder {
+  border-bottom-color: #00000000;
+}
+
+.headerScore {
+  padding-left: 2em;
+}
+
+.targetValue {
+  padding-right: 2em !important;
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+}
+
+.answerValue {
+  padding-left: 0 !important;
+  padding-top: 0 !important;
+}
+
+.scoreValue {
+  padding-left: 2em !important;
+  padding-top: 0 !important;
+}
+
+.noLeft {
+  padding-left: 0 !important;
+}
+
+.noTop {
+  margin-top: 0 !important;
+}
+
+.scoreCard {
+  padding-top: 0.5em;
+}
+
+.scores {
+  padding-top: 1em;
+}

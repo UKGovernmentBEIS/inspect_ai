@@ -40,9 +40,15 @@ title: "inspect_ai.util"
 
 ### sandbox
 ### sandbox_with
+### sandbox_default
 ### SandboxEnvironment
 ### SandboxConnection
 ### sandboxenv
+
+## Registry
+
+### registry_create
+### RegistryType
 
 ## JSON
 

@@ -1,0 +1,554 @@
+---
+title: Standard Tools
+---
+
+## Overview
+
+{{< include _tools-standard.md >}}
+
+## Bash and Python {#sec-bash-and-python}
+
+The `bash()` and `python()` tools enable execution of arbitrary shell commands and Python code, respectively. These tools require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code. For example, here is how you might use them in an evaluation where the model is asked to write code in order to solve capture the flag (CTF) challenges:
+
+``` python
+from inspect_ai.tool import bash, python
+
+CMD_TIMEOUT = 180
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([
+                bash(CMD_TIMEOUT), 
+                python(CMD_TIMEOUT)
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        message_limit=30,
+        sandbox="docker",
+    )
+```
+
+We specify a 3-minute timeout for execution of the bash and python tools to ensure that they don't perform extremely long running operations.
+
+See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
+
+## Bash Session {#sec-bash-session}
+
+The `bash_session()` tool provides a bash shell that retains its state across calls from the model (as distinct from the `bash()` tool which executes each command in a fresh session). The prompt, working directory, and environment variables are all retained across calls. The tool also supports a `restart` action that enables the model to reset its state and work in a fresh session.
+
+Note that a separate bash process is created within the sandbox for each instance of the bash session tool. See the `bash_session()` reference docs for details on customizing this behavior.
+
+### Configuration
+
+Bash sessions require the use of a [Sandbox Environment](sandboxing.qmd) for the execution of untrusted code. In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
+
+{{< include _tools-configuration.md >}}
+
+### Task Setup
+
+A task configured to use the bash session tool might look like this:
+
+```python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([bash_session(timeout=180)]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that we provide a `timeout` for bash session commands (this is a best practice to guard against extremely long running commands).
+
+### Tool Binding
+
+The schema for the `bash_session()` tool is based on the standard Anthropic [bash tool type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#bash-tool). The `bash_session()` works with all models that support tool calling, but when using Claude, the bash session tool will automatically bind to the native Claude tool definition.
+
+## Text Editor {#sec-text-editor}
+
+The `text_editor()` tool enables viewing, creating and editing text files. The tool supports editing files within a protected [Sandbox Environment](sandboxing.qmd) so tasks that use the text editor should have a sandbox defined and configured as described below.
+
+### Configuration
+
+The text editor tools requires the use of a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
+
+{{< include _tools-configuration.md >}}
+
+### Task Setup
+
+A task configured to use the text editor tool might look like this (note that this task is also configured to use the `bash_session()` tool):
+
+```python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([
+                bash_session(timeout=180),
+                text_editor(timeout=180)
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that we provide a `timeout` for the bash session and text editor tools (this is a best practice to guard against extremely long running commands).
+
+### Tool Binding
+
+The schema for the `text_editor()` tool is based on the standard Anthropic [text editor tool type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#text-editor-tool). The `text_editor()` works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
+
+
+## Web Browser {#sec-web-browser}
+
+The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
+
+
+### Configuration
+
+Under the hood, the web browser is an instance of [Chromium](https://www.chromium.org/chromium-projects/) orchestrated by [Playwright](https://playwright.dev/), and runs in a [Sandbox Environment](sandboxing.qmd). In addition, you'll need some dependencies installed in the sandbox container. Please see **Sandbox Dependencies** below for additional instructions.
+
+Note that Playwright (used for the `web_browser()` tool) does not support some versions of Linux (e.g. Kali Linux). 
+
+
+::: {.callout-note appearance="simple" collapse="true"}
+### Sandbox Dependencies
+
+
+{{< include _sandbox-dockerfile.md >}}
+
+
+{{< include _sandbox-image.md >}}
+
+:::
+
+
+### Task Setup
+
+A task configured to use the web browser tools might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import bash, python, web_browser
+
+@task
+def browser_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([bash(), python()] + web_browser()),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+Unlike some other tool functions like `bash()`, the `web_browser()` function returns a list of tools. Therefore, we concatenate it with a list of the other tools we are using in the call to `use_tools()`.
+
+Note that a separate web browser process is created within the sandbox for each instance of the web browser tool. See the `web_browser()` reference docs for details on customizing this behavior.
+
+### Browsing
+
+If you review the transcripts of a sample with access to the web browser tool, you'll notice that there are several distinct tools made available for control of the web browser. These tools include:
+
+| Tool | Description |
+|------------------------------------|------------------------------------|
+| `web_browser_go(url)` | Navigate the web browser to a URL. |
+| `web_browser_click(element_id)` | Click an element on the page currently displayed by the web browser. |
+| `web_browser_type(element_id)` | Type text into an input on a web browser page. |
+| `web_browser_type_submit(element_id, text)` | Type text into a form input on a web browser page and press ENTER to submit the form. |
+| `web_browser_scroll(direction)` | Scroll the web browser up or down by one page. |
+| `web_browser_forward()` | Navigate the web browser forward in the browser history. |
+| `web_browser_back()` | Navigate the web browser back in the browser history. |
+| `web_browser_refresh()` | Refresh the current page of the web browser. |
+
+: {tbl-colwidths=\[35,65\]}
+
+The return value of each of these tools is a [web accessibility tree](https://web.dev/articles/the-accessibility-tree) for the page, which provides a clean view of the content, links, and form fields available on the page (you can look at the accessibility tree for any web page using [Chrome Developer Tools](https://developer.chrome.com/blog/full-accessibility-tree)).
+
+### Disabling Interactions
+
+You can use the web browser tools with page interactions disabled by specifying `interactive=False`, for example:
+
+``` python
+use_tools(web_browser(interactive=False))
+```
+
+In this mode, the interactive tools (`web_browser_click()`, `web_browser_type()`, and `web_browser_type_submit()`) are not made available to the model.
+
+## Computer {#sec-computer}
+
+The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. 
+
+The computer tool works with any model that supports image input. It also binds directly to the internal computer tool definitions for Anthropic and OpenAI models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`).
+
+### Configuration
+
+The `computer()` tool runs within a Docker container. To use it with a task you need to reference the `aisiuk/inspect-computer-tool` image in your Docker compose file. For example:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: aisiuk/inspect-computer-tool
+```
+
+You can configure the container to not have Internet access as follows:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: aisiuk/inspect-computer-tool
+    network_mode: none
+```
+
+Note that if you'd like to be able to view the model's interactions with the computer desktop in realtime, you will need to also do some port mapping to enable a VNC connection with the container. See the [VNC Client](#vnc-client) section below for details on how to do this.
+
+The `aisiuk/inspect-computer-tool` image is based on the [ubuntu:22.04](https://hub.docker.com/layers/library/ubuntu/22.04/images/sha256-965fbcae990b0467ed5657caceaec165018ef44a4d2d46c7cdea80a9dff0d1ea?context=explore) image and includes the following additional applications pre-installed:
+
+-   Firefox
+-   VS Code
+-   Xpdf
+-   Xpaint
+-   galculator
+
+### Task Setup
+
+A task configured to use the computer tool might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool import computer
+
+@task
+def computer_task():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            use_tools([computer()]),
+            generate(),
+        ],
+        scorer=match(),
+        sandbox=("docker", "compose.yaml"),
+    )
+```
+
+To evaluate the task with models tuned for computer use:
+
+```bash
+inspect eval computer.py --model anthropic/claude-3-7-sonnet-latest
+inspect eval computer.py --model openai/computer-use-preview
+```
+
+#### Options
+
+The computer tool supports the following options:
+
+| Option | Description |
+|-------------------|-----------------------------------------------------|
+| `max_screenshots` | The maximum number of screenshots to play back to the model as input. Defaults to 1 (set to `None` to have no limit). |
+| `timeout` | Timeout in seconds for computer tool actions. Defaults to 180 (set to `None` for no timeout). |
+
+For example:
+
+``` python
+solver=[
+    use_tools([computer(max_screenshots=2, timeout=300)]),
+    generate()
+]
+```
+
+#### Examples
+
+Two of the Inspect examples demonstrate basic computer use:
+
+-   [computer](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/computer/computer.py) — Three simple computing tasks as a minimal demonstration of computer use.
+
+    ``` bash
+    inspect eval examples/computer
+    ```
+
+-   [intervention](https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention/intervention.py) — Computer task driven interactively by a human operator.
+
+    ``` bash
+    inspect eval examples/intervention -T mode=computer --display conversation
+    ```
+
+### VNC Client {#vnc-client}
+
+You can use a [VNC](https://en.wikipedia.org/wiki/VNC) connection to the container to watch computer use in real-time. This requires some additional port-mapping in the Docker compose file. You can define dynamic port ranges for VNC (5900) and a browser based noVNC client (6080) with the following `ports` entries:
+
+``` {.yaml filename="compose.yaml"}
+services:
+  default:
+    image: aisiuk/inspect-computer-tool
+    ports:
+      - "5900"
+      - "6080"
+```
+
+To connect to the container for a given sample, locate the sample in the **Running Samples** UI and expand the sample info panel at the top:
+
+![](images/vnc-port-info.png){.lightbox width="958"}
+
+Click on the link for the noVNC browser client, or use a native VNC client to connect to the VNC port. Note that the VNC server will take a few seconds to start up so you should give it some time and attempt to reconnect as required if the first connection fails.
+
+The browser based client provides a view-only interface. If you use a native VNC client you should also set it to "view only" so as to not interfere with the model's use of the computer. For example, for Real VNC Viewer:
+
+![](images/vnc-view-only.png){width="549"}
+
+### Approval
+
+If the container you are using is connected to the Internet, you may want to configure human approval for a subset of computer tool actions. Here are the possible actions (specified using the `action` parameter to the `computer` tool):
+
+-   `key`: Press a key or key-combination on the keyboard.
+-   `type`: Type a string of text on the keyboard.
+-   `cursor_position`: Get the current (x, y) pixel coordinate of the cursor on the screen.
+-   `mouse_move`: Move the cursor to a specified (x, y) pixel coordinate on the screen.
+-   Example: execute(action="mouse_move", coordinate=(100, 200))
+-   `left_click`: Click the left mouse button.
+-   `left_click_drag`: Click and drag the cursor to a specified (x, y) pixel coordinate on the screen.
+-   `right_click`: Click the right mouse button.
+-   `middle_click`: Click the middle mouse button.
+-   `double_click`: Double-click the left mouse button.
+-   `screenshot`: Take a screenshot.
+
+Here is an approval policy that requires approval for key combos (e.g. `Enter` or a shortcut) and mouse clicks:
+
+``` {.yaml filename="approval.yaml"}
+approvers:
+  - name: human
+    tools:
+      - computer(action='key'
+      - computer(action='left_click'
+      - computer(action='middle_click'
+      - computer(action='double_click'
+
+  - name: auto
+    tools: "*"
+```
+
+Note that since this is a prefix match and there could be other arguments, we don't end the tool match pattern with a parentheses.
+
+You can apply this policy using the `--approval` commmand line option:
+
+``` bash
+inspect eval computer.py --approval approval.yaml
+```
+
+### Tool Binding
+
+The computer tool's schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool) and [Open AI](https://platform.openai.com/docs/guides/tools-computer-use) computer tool schemas. When using models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`) the computer tool will automatically bind to the native computer tool definitions (as this presumably provides improved performance).
+
+If you want to experiement with bypassing the native computer tool types and just register the computer tool as a normal function based tool then specify the `--no-internal-tools` generation option as follows:
+
+``` bash
+inspect eval computer.py --no-internal-tools
+```
+
+## Web Search {#sec-web-search}
+
+The `web_search()` tool provides models the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
+
+``` python
+def web_search(
+    provider: Literal["google"] = "google",
+    num_results: int = 3,
+    max_provider_calls: int = 3,
+    max_connections: int = 10,
+    model: str | Model | None = None,
+) -> Tool:
+    ...
+```
+
+You can use the `web_search()` tool like this:
+
+``` python
+from inspect_ai.tool import web_search
+
+solver=[
+    use_tools(web_search()), 
+    generate()
+],
+```
+
+Web search options include:
+
+-   `provider`---Web search provider (currently only Google is supported, see below for instructions on setup and configuration for Google).
+
+-   `num_results`---How many search results to return to the main model (defaults to 5).
+
+-   `max_provider_calls`---Number of times to retrieve more links from the search provider in case previous ones were irrelevant (defaults to 3).
+
+-   `max_connections`---Maximum number of concurrent connections to the search API provider (defaults to 10).
+
+-   `model`---Model to use to determine if search results are relevant (defaults to the model currently being evaluated).
+
+#### Google Provider
+
+The `web_search()` tool uses [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
+
+-   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
+
+-   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+
+## Think {#sec-think}
+
+The `think()` tool provides models with the ability to include an additional thinking step as part of getting to its final answer. 
+ 
+Note that the `think()` tool is not a substitute for reasoning and extended thinking, but rather an an alternate way of letting models express thinking that is better suited to some tool use scenarios. 
+
+### Usage
+
+You should read the original [think tool article](https://www.anthropic.com/engineering/claude-think-tool) in its entirely to understand where and where not to use the think tool. In summary, good contexts for the think tool include:
+
+1. Tool output analysis. When models need to carefully process the output of previous tool calls before acting and might need to backtrack in its approach;
+2. Policy-heavy environments. When models need to follow detailed guidelines and verify compliance; and
+3. Sequential decision making. When each action builds on previous ones and mistakes are costly (often found in multi-step domains).
+
+Use the `think()` tool alongside other tools like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor, think
+
+@task
+def intercode_ctf():
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools([
+                bash_session(timeout=180),
+                text_editor(timeout=180),
+                think()
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+### Tool Description
+
+In the original [think tool article]((https://www.anthropic.com/engineering/claude-think-tool)) (which was based on experimenting with Claude) they found that providing clear instructions on when and how to use the `think()` tool for the particular problem domain it is being used within could sometimes be helpful. For example, here's the prompt they used with SWE-Bench:
+
+```python
+from textwrap import dedent
+
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor, think
+
+@task
+def swe_bench():
+
+    tools = [
+        bash_session(timeout=180),
+        text_editor(timeout=180),  
+        think(dedent("""
+            Use the think tool to think about something. It will not obtain
+            new information or make any changes to the repository, but just 
+            log the thought. Use it when complex reasoning or brainstorming
+            is needed. For example, if you explore the repo and discover
+            the source of a bug, call this tool to brainstorm several unique
+            ways of fixing the bug, and assess which change(s) are likely to 
+            be simplest and most effective. Alternatively, if you receive
+            some test results, call this tool to brainstorm ways to fix the
+            failing tests.
+        """))
+    ])
+
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            use_tools(tools),
+            generate(),
+        ),
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+### System Prompt
+
+In the article they also found that when tool instructions are long and/or complex, including instructions about the `think()` tool in the system prompt can be more effective than placing them in the tool description itself. 
+
+Here's an example of moving the custom `think()` prompt into the system prompt (note that this was *not* done in the article's SWE-Bench experiment, this is merely an example):
+
+```python
+from textwrap import dedent
+
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.solver import generate, system_message, use_tools
+from inspect_ai.tool import bash_session, text_editor, think
+
+@task
+def swe_bench():
+
+    think_system_message = system_message(dedent("""
+        Use the think tool to think about something. It will not obtain
+        new information or make any changes to the repository, but just 
+        log the thought. Use it when complex reasoning or brainstorming
+        is needed. For example, if you explore the repo and discover
+        the source of a bug, call this tool to brainstorm several unique
+        ways of fixing the bug, and assess which change(s) are likely to 
+        be simplest and most effective. Alternatively, if you receive
+        some test results, call this tool to brainstorm ways to fix the
+        failing tests.
+    """))
+
+    return Task(
+        dataset=read_dataset(),
+        solver=[
+            system_message("system.txt"),
+            think_system_message,
+            use_tools([
+                bash_session(timeout=180),
+                text_editor(timeout=180),  
+                think(),
+            ]),
+            generate(),
+        ],
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
+Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.
+

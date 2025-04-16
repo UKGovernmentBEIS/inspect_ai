@@ -32,9 +32,7 @@ import {
   WorkspaceTaskManager,
 } from "../workspace/workspace-task-provider";
 import { basename, relative, sep } from "path";
-import {
-  ActiveTaskManager,
-} from "../active-task/active-task-provider";
+import { ActiveTaskManager } from "../active-task/active-task-provider";
 import { throttle } from "lodash";
 import { inspectVersion } from "../../inspect";
 import { InspectManager } from "../inspect/inspect-manager";
@@ -48,7 +46,7 @@ export async function activateTaskOutline(
   workspaceTaskMgr: WorkspaceTaskManager,
   activeTaskManager: ActiveTaskManager,
   inspectManager: InspectManager,
-  inspectLogviewManager: InspectViewManager
+  inspectLogviewManager: InspectViewManager,
 ): Promise<[Command[], Disposable]> {
   // Command when item is clicked
   const treeDataProvider = new TaskOutLineTreeDataProvider(workspaceTaskMgr, {
@@ -56,13 +54,12 @@ export async function activateTaskOutline(
     command: EditSelectedTaskCommand.id,
   });
 
-
   const checkInspect = async () => {
     const inspectAvailable = inspectVersion() !== null;
     await commands.executeCommand(
       "setContext",
       "inspect_ai.task-outline-view.noInspect",
-      !inspectAvailable
+      !inspectAvailable,
     );
     if (inspectAvailable) {
       await treeDataProvider.refresh();
@@ -75,7 +72,7 @@ export async function activateTaskOutline(
   context.subscriptions.push(
     inspectManager.onInspectChanged(async () => {
       await checkInspect();
-    })
+    }),
   );
   await checkInspect();
 
@@ -95,7 +92,10 @@ export async function activateTaskOutline(
         } else {
           const first = await findFirstTask(treeDataProvider);
           if (first) {
-            await activeTaskManager.updateActiveTask(Uri.file(first.taskPath.path), first.taskPath.name);
+            await activeTaskManager.updateActiveTask(
+              Uri.file(first.taskPath.path),
+              first.taskPath.name,
+            );
           }
         }
       } else if (e.visible) {
@@ -103,15 +103,15 @@ export async function activateTaskOutline(
         await showTreeItem(
           treeDataProvider,
           tree,
-          activeTaskManager.getActiveTaskInfo()
+          activeTaskManager.getActiveTaskInfo(),
         );
       }
-    })
+    }),
   );
 
   // Activate task tracking
   context.subscriptions.push(
-    ...(await activateTaskTracking(treeDataProvider, tree, activeTaskManager))
+    ...(await activateTaskTracking(treeDataProvider, tree, activeTaskManager)),
   );
 
   return [
@@ -120,7 +120,11 @@ export async function activateTaskOutline(
       new ShowTaskTree(treeDataProvider),
       new RunSelectedEvalCommand(inspectEvalMgr),
       new DebugSelectedEvalCommand(inspectEvalMgr),
-      new EditSelectedTaskCommand(tree, inspectLogviewManager, activeTaskManager),
+      new EditSelectedTaskCommand(
+        tree,
+        inspectLogviewManager,
+        activeTaskManager,
+      ),
       new CreateTaskCommand(context),
     ],
     treeDataProvider,
@@ -130,7 +134,7 @@ export async function activateTaskOutline(
 const activateTaskTracking = async (
   treeDataProvider: TaskOutLineTreeDataProvider,
   tree: TreeView<TaskTreeItem>,
-  activeTaskManager: ActiveTaskManager
+  activeTaskManager: ActiveTaskManager,
 ) => {
   // Listen for changes to the active task and drive the tree to the item
   const activeTaskChanged = activeTaskManager.onActiveTaskChanged(async (e) => {
@@ -145,7 +149,7 @@ const activateTaskTracking = async (
 const showTreeItem = async (
   treeDataProvider: TaskOutLineTreeDataProvider,
   tree: TreeView<TaskTreeItem>,
-  activeTask?: DocumentTaskInfo
+  activeTask?: DocumentTaskInfo,
 ) => {
   if (!activeTask) {
     return;
@@ -163,7 +167,7 @@ const showTreeItem = async (
 
 const findFirstTask = async (
   treeDataProvider: TaskOutLineTreeDataProvider,
-  element?: TaskTreeItem
+  element?: TaskTreeItem,
 ): Promise<TaskTreeItem | undefined> => {
   const children = await treeDataProvider.getChildren(element);
   for (const child of children) {
@@ -175,13 +179,12 @@ const findFirstTask = async (
   }
 };
 
-
 // A tree item for a task, file, or folder
 export class TaskTreeItem extends TreeItem {
   constructor(
     public readonly taskPath: TaskPath,
     command?: VsCodeCommand,
-    public readonly parent?: TaskTreeItem
+    public readonly parent?: TaskTreeItem,
   ) {
     super(
       taskPath.name,
@@ -191,7 +194,7 @@ export class TaskTreeItem extends TreeItem {
           ? TreeItemCollapsibleState.Expanded
           : taskPath.children && taskPath.children.length < 2
             ? TreeItemCollapsibleState.Collapsed
-            : TreeItemCollapsibleState.Expanded
+            : TreeItemCollapsibleState.Expanded,
     );
 
     if (taskPath.type === "file") {
@@ -214,7 +217,7 @@ export class TaskListItem extends TaskTreeItem {
     taskPath: TaskPath,
     description: string,
     command?: VsCodeCommand,
-    parent?: TaskTreeItem
+    parent?: TaskTreeItem,
   ) {
     super(taskPath, command, parent);
     const label =
@@ -229,11 +232,12 @@ export class TaskListItem extends TaskTreeItem {
 
 // Data provider for the task outline
 export class TaskOutLineTreeDataProvider
-  implements TreeDataProvider<TaskTreeItem>, Disposable {
+  implements TreeDataProvider<TaskTreeItem>, Disposable
+{
   public static readonly viewType = "inspect_ai.task-outline-view";
   constructor(
     private readonly workspaceMgr: WorkspaceTaskManager,
-    private readonly command_?: VsCodeCommand
+    private readonly command_?: VsCodeCommand,
   ) {
     this.disposables_.push(
       this.workspaceMgr.onTasksChanged(
@@ -243,18 +247,18 @@ export class TaskOutLineTreeDataProvider
             await commands.executeCommand(
               "setContext",
               "inspect_ai.task-outline-view.tasksLoaded",
-              true
+              true,
             );
             await commands.executeCommand(
               "setContext",
               "inspect_ai.task-outline-view.noTasks",
-              e.tasks?.length === 0
+              e.tasks?.length === 0,
             );
           },
           500,
-          { leading: true, trailing: true }
-        )
-      )
+          { leading: true, trailing: true },
+        ),
+      ),
     );
   }
 
@@ -336,7 +340,7 @@ export class TaskOutLineTreeDataProvider
             taskPath,
             describeRelativePath(taskPath.path, workspacePath),
             this.command_,
-            parent
+            parent,
           );
         });
     }
@@ -357,7 +361,7 @@ function describeRelativePath(path: string, workspacePath?: AbsolutePath) {
 // path (e.g. document path and task name)
 async function findTreeItem(
   activeTask: DocumentTaskInfo,
-  treeDataProvider: TaskOutLineTreeDataProvider
+  treeDataProvider: TaskOutLineTreeDataProvider,
 ) {
   const filePath = activeTask.document.fsPath;
   const taskName = activeTask.activeTask?.name;
@@ -373,7 +377,7 @@ async function findTask(
   filePath: string,
   treeDataProvider: TaskOutLineTreeDataProvider,
   taskName?: string,
-  parentEl?: TaskTreeItem
+  parentEl?: TaskTreeItem,
 ): Promise<TaskTreeItem | undefined> {
   const els = await treeDataProvider.getChildren(parentEl);
   let taskEl: TaskTreeItem | undefined = undefined;

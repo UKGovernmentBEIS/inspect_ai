@@ -29,17 +29,36 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
 
-### OpenAI on Azure {#openai-on-azure}
+### Responses API
 
-To use OpenAI models on Azure AI, specify an `AZUREAI_OPENAI_API_KEY` along with an `AZUREAI_OPENAI_BASE_URL`. You can then use the normal `openai` provider with the `azure` qualifier, specifying a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployed model name was `gpt4-1106-preview-ythre:`
+By default, Inspect uses the standard OpenAI Chat Completions API. However, if you use features that require the new [Responses API](https://platform.openai.com/docs/api-reference/responses) Inspect will use that instead. 
 
-``` bash
-export AZUREAI_OPENAI_API_KEY=key
-export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
-inspect eval --model openai/azure/gpt4-1106-preview-ythre
+Currently, the only feature that requires the Responses API is [o1-pro](https://platform.openai.com/docs/models/o1-pro). In the near future, Inspect will add support for OpenAI's built-in computer and web search tools, which will also require the Responses API.
+
+If you want to manually switch to the Responses API you can use the `responses_api` model argument. For example:
+
+```bash
+inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
 
-In addition to these variables, you can also set the `OPENAI_API_VERSION` environment variable to specify a specific version of the OpenAI interface on Azure.
+### OpenAI on Azure {#openai-on-azure}
+
+The `openai` provider supports OpenAI models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
+
+- `AZUREAI_OPENAI_API_KEY`
+- `AZUREAI_OPENAI_BASE_URL` 
+- `AZUREAI_OPENAI_API_VERSION`. 
+
+You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
+
+``` bash
+export AZUREAI_OPENAI_API_KEY=your-api-key
+export AZUREAI_OPENAI_BASE_URL=https://your-url-at.azure.com
+export AZUREAI_OPENAI_API_VERSION=2025-03-01-preview
+inspect eval math.py --model openai/azure/gpt-4o-mini
+```
+
+Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`.
 
 ## Anthropic {#anthropic}
 
@@ -194,23 +213,38 @@ The following environment variables are supported by the Mistral provider
 
 ### Mistral on Azure AI {#mistral-on-azure-ai}
 
-To use Mistral models on Azure AI, specify an `AZURE_MISTRAL_API_KEY` along with an `AZUREAI_MISTRAL_BASE_URL`. You can then use the normal `mistral` provider, but you'll need to specify a model name that corresponds to the [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) of your model. For example, if your deployment model name was `mistral-large-ctwi:`
+The `mistral` provider supports Mistral models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
+
+- `AZURE_MISTRAL_API_KEY`
+- `AZUREAI_MISTRAL_BASE_URL`
+
+You can then use the normal `mistral` provider with the `azure` qualifier and the name of your model deployment (e.g. `Mistral-Large-2411`). For example:
 
 ``` bash
 export AZUREAI_MISTRAL_API_KEY=key
-export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com
-inspect eval --model mistral/mistral-large-ctwi
+export AZUREAI_MISTRAL_BASE_URL=https://your-url-at.azure.com/models
+inspect eval math.py --model mistral/azure/Mistral-Large-2411
 ```
 
 ## DeepSeek {#deepseek}
 
-To use [DeepSeek](https://www.deepseek.com/) models, install the `openai` package (which DeepSeek provides a compatible backend for) and set your credentials using the `OPENAI_API_KEY` environment variable. Then, when running inspect, use the  `--model-base-url` option to point to DeepSeek's base URL, and the `--model` option to specify a model:
+::: callout-note
+The `openai-api` provider used to interface with DeepSeek is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+[DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
 
 ```bash
 pip install openai
-export OPENAI_API_KEY=your-deepseek-api-key
-inspect eval arc.py --model-base-url https://api.deepseek.com --model openai/deepseek-reasoner 
+export DEEPSEEK_API_KEY=your-deepseek-api-key
+export DEEPSEEK_BASE_URL=https://api.deepseek.com
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
 ```
+
 
 ## Grok {#grok}
 
@@ -252,13 +286,15 @@ If you are using Anthropic models on Bedrock, you can alternatively use the [Ant
 
 ## Azure AI {#azure-ai}
 
-To use the [Azure AI](https://azure.microsoft.com/en-us/solutions/ai) provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify an [Azure Deployment Name](https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/create-resource?pivots=web-portal#deploy-a-model) as the model name:
+The `azureai` provider supports models deployed on the [Azure AI Foundary](https://ai.azure.com/).
+
+To use the `azureai` provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify the name of the model you have deployed (e.g. `Llama-3.3-70B-Instruct`). For example:
 
 ``` bash
 pip install azure-ai-inference
 export AZUREAI_API_KEY=api-key
-export AZUREAI_BASE_URL=https://your-url-at.azure.com
-$ inspect eval --model azureai/llama-2-70b-chat-wnsnw
+export AZUREAI_BASE_URL=https://your-url-at.azure.com/models
+$ inspect eval math.py --model azureai/Llama-3.3-70B-Instruct
 ```
 
 For the `azureai` provider, custom model args (`-M`) are forwarded to the constructor of the `ChatCompletionsClient` class.
@@ -362,25 +398,6 @@ The following environment variables are supported by the Cloudflare provider:
 | `CLOUDFLARE_API_TOKEN` | API key credentials (required). |
 | `CLOUDFLARE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.cloudflare.com/client/v4/accounts`) |
 
-## Goodfire {#goodfire}
-
-To use the [Goodfire](https://platform.goodfire.ai/) provider, install the `goodfire` package, set your credentials, and specify a model using the `--model` option:
-
-``` bash
-pip install goodfire
-export GOODFIRE_API_KEY=your-goodfire-api-key
-inspect eval arc.py --model goodfire/meta-llama/Meta-Llama-3.1-8B-Instruct
-```
-
-For the `goodfire` provider, custom model args (`-M`) are forwarded to `chat.completions.create` method of the `AsyncClient` class.
-
-The following environment variables are supported by the Goodfire provider
-
-| Variable | Description |
-|----------------------------|--------------------------------------------|
-| `GOODFIRE_API_KEY` | API key credentials (required). |
-| `GOODFIRE_BASE_URL` | Base URL for requests (optional, defaults to `https://api.goodfire.ai`) |
-
 ## Hugging Face {#hugging-face}
 
 The [Hugging Face](https://huggingface.co/models) provider implements support for local models using the [transformers](https://pypi.org/project/transformers/) package. To use the Hugging Face provider, install the `torch`, `transformers`, and `accelerate` packages and specify a model using the `--model` option:
@@ -475,12 +492,13 @@ $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 
 ### vLLM Server
 
-vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the `openai` provider rather than the `vllm` provider, setting the model base URL to point to the vLLM server rather than OpenAI. For example:
+vLLM provides an HTTP server that implements OpenAI’s Chat API. To use this with Inspect, use the `openai-api` provider rather than the `vllm` provider, setting the model base URL to point to the vLLM server. For example:
 
 ``` bash
-$ export OPENAI_BASE_URL=http://localhost:8080/v1
-$ export OPENAI_API_KEY=<your-server-api-key>
-$ inspect eval arc.py --model openai/meta-llama/Meta-Llama-3-8B-Instruct
+$ export VLLM_BASE_URL=http://localhost:8080/v1
+$ export VLLM_API_KEY=<your-server-api-key>
+$ inspect eval arc.py \
+    --model openai-api/vllm/meta-llama/Meta-Llama-3-8B-Instruct
 ```
 
 See the vLLM documentation on [Server Mode](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html) for additional details.
@@ -518,6 +536,39 @@ The following environment variables are supported by the llama-cpp-python provid
 | Variable | Description |
 |----------------------------|--------------------------------------------|
 | `LLAMA_CPP_PYTHON_BASE_URL` | Base URL for requests (optional, defaults to `http://localhost:8000/v1`) |
+
+## OpenAI Compatible {#openai-api}
+
+::: callout-note
+The `openai-api` provider described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+If your model provider makes an OpenAI API compatible endpoint available, you can use it with Inspect via the `openai-api` provider, which uses the following model naming convention:
+
+```
+openai-api/<provider-name>/<model-name>
+```
+
+Inspect will read environment variables corresponding to the api key and base url of your provider using the following convention (note that the provider name is capitalized):
+
+```
+<PROVIDER-NAME>_API_KEY
+<PROVIDER-NAME>_BASE_URL
+```
+
+### Example
+
+Here is how you would access DeepSeek using the `openai-api` provider:
+
+```bash
+export DEEPSEEK_API_KEY=your-deepseek-api-key
+export DEEPSEEK_BASE_URL=https://api.deepseek.com
+inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
+```
 
 ## OpenRouter
 

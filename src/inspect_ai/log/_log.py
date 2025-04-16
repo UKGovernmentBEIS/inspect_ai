@@ -123,6 +123,9 @@ class EvalConfig(BaseModel):
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
 
+    log_shared: int | None = Field(default=None)
+    """Interval (in seconds) for syncing sample events to log directory."""
+
     score_display: bool | None = Field(default=None)
     """Display scoring metrics realtime."""
 
@@ -182,16 +185,16 @@ class EvalSample(BaseModel):
     setup: str | None = Field(default=None)
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
-    messages: list[ChatMessage]
+    messages: list[ChatMessage] = Field(default_factory=list)
     """Chat conversation history for sample."""
 
-    output: ModelOutput
+    output: ModelOutput = Field(default_factory=ModelOutput)
     """Model output from sample."""
 
     scores: dict[str, Score] | None = Field(default=None)
     """Scores for sample."""
 
-    metadata: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
     """Additional sample metadata."""
 
     def metadata_as(self, metadata_cls: Type[MT]) -> MT:
@@ -208,16 +211,31 @@ class EvalSample(BaseModel):
     store: dict[str, Any] = Field(default_factory=dict)
     """State at end of sample execution."""
 
-    def store_as(self, model_cls: Type[SMT]) -> SMT:
+    def store_as(self, model_cls: Type[SMT], instance: str | None = None) -> SMT:
         """Pydantic model interface to the store.
 
         Args:
           model_cls: Pydantic model type (must derive from StoreModel)
+          instance: Optional instances name for store (enables multiple instances
+            of a given StoreModel type within a single sample)
 
         Returns:
-          StoreModel: Instance of model_cls bound to sample store data.
+          StoreModel: model_cls bound to sample store data.
         """
-        return model_cls(store=Store(self.store))
+        # un-namespace names for creation
+        data = {
+            k.replace(f"{model_cls.__name__}:", "", 1): v for k, v in self.store.items()
+        }
+
+        # since we are reading from the log provide a fully detached store
+        data["store"] = Store()
+
+        # provide instance if specified
+        if instance is not None:
+            data["instance"] = instance
+
+        # create the model
+        return model_cls.model_validate(data)
 
     events: list[Event] = Field(default_factory=list)
     """Events that occurred during sample execution."""
@@ -535,6 +553,22 @@ class EvalRevision(BaseModel):
     """Revision commit."""
 
 
+class EvalModelConfig(BaseModel):
+    """Model config."""
+
+    model: str
+    """Model name."""
+
+    config: GenerateConfig = Field(default_factory=GenerateConfig)
+    """Generate config"""
+
+    base_url: str | None = Field(default=None)
+    """Model base url."""
+
+    args: dict[str, Any] = Field(default_factory=dict)
+    """Model specific arguments."""
+
+
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
@@ -555,6 +589,9 @@ class EvalSpec(BaseModel):
 
     task_file: str | None = Field(default=None)
     """Task source file."""
+
+    task_registry_name: str | None = Field(default=None)
+    """Task registry name."""
 
     task_attribs: dict[str, Any] = Field(default_factory=dict)
     """Attributes of the @task decorator."""
@@ -580,11 +617,17 @@ class EvalSpec(BaseModel):
     model: str
     """Model used for eval."""
 
+    model_generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
+    """Generate config specified for model instance."""
+
     model_base_url: str | None = Field(default=None)
     """Optional override of model base url"""
 
     model_args: dict[str, Any] = Field(default_factory=dict)
     """Model specific arguments."""
+
+    model_roles: dict[str, EvalModelConfig] | None = Field(default=None)
+    """Model roles."""
 
     config: EvalConfig
     """Configuration values for eval."""

@@ -200,8 +200,16 @@
       "description": "Assistant chat message.",
       "properties": {
         "id": {
-          "title": "Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
         },
         "content": {
           "anyOf": [
@@ -248,6 +256,17 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "role": {
           "const": "assistant",
@@ -269,14 +288,28 @@
           ],
           "default": null,
           "title": "Tool Calls"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
         }
       },
       "required": [
         "id",
         "content",
         "source",
+        "internal",
         "role",
-        "tool_calls"
+        "tool_calls",
+        "model"
       ],
       "title": "ChatMessageAssistant",
       "type": "object",
@@ -286,8 +319,16 @@
       "description": "System chat message.",
       "properties": {
         "id": {
-          "title": "Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
         },
         "content": {
           "anyOf": [
@@ -334,6 +375,17 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "role": {
           "const": "system",
@@ -346,6 +398,7 @@
         "id",
         "content",
         "source",
+        "internal",
         "role"
       ],
       "title": "ChatMessageSystem",
@@ -356,8 +409,16 @@
       "description": "Tool chat message.",
       "properties": {
         "id": {
-          "title": "Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
         },
         "content": {
           "anyOf": [
@@ -404,6 +465,17 @@
           ],
           "default": null,
           "title": "Source"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "role": {
           "const": "tool",
@@ -451,6 +523,7 @@
         "id",
         "content",
         "source",
+        "internal",
         "role",
         "tool_call_id",
         "function",
@@ -464,8 +537,16 @@
       "description": "User chat message.",
       "properties": {
         "id": {
-          "title": "Id",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Id"
         },
         "content": {
           "anyOf": [
@@ -513,6 +594,17 @@
           "default": null,
           "title": "Source"
         },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "role": {
           "const": "user",
           "default": "user",
@@ -539,6 +631,7 @@
         "id",
         "content",
         "source",
+        "internal",
         "role",
         "tool_call_id"
       ],
@@ -663,11 +756,24 @@
         "text": {
           "title": "Text",
           "type": "string"
+        },
+        "refusal": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Refusal"
         }
       },
       "required": [
         "type",
-        "text"
+        "text",
+        "refusal"
       ],
       "title": "ContentText",
       "type": "object",
@@ -1003,6 +1109,18 @@
           "default": null,
           "title": "Log Buffer"
         },
+        "log_shared": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Shared"
+        },
         "score_display": {
           "anyOf": [
             {
@@ -1037,6 +1155,7 @@
         "log_samples",
         "log_images",
         "log_buffer",
+        "log_shared",
         "score_display"
       ],
       "additionalProperties": false
@@ -1220,6 +1339,43 @@
         "options"
       ],
       "title": "EvalMetricDefinition",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "EvalModelConfig": {
+      "description": "Model config.",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
+        "base_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Url"
+        },
+        "args": {
+          "title": "Args",
+          "type": "object"
+        }
+      },
+      "required": [
+        "model",
+        "config",
+        "base_url",
+        "args"
+      ],
+      "title": "EvalModelConfig",
       "type": "object",
       "additionalProperties": false
     },
@@ -2054,6 +2210,18 @@
           "default": null,
           "title": "Task File"
         },
+        "task_registry_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Registry Name"
+        },
         "task_attribs": {
           "title": "Task Attribs",
           "type": "object"
@@ -2119,6 +2287,9 @@
           "title": "Model",
           "type": "string"
         },
+        "model_generate_config": {
+          "$ref": "#/$defs/GenerateConfig"
+        },
         "model_base_url": {
           "anyOf": [
             {
@@ -2134,6 +2305,21 @@
         "model_args": {
           "title": "Model Args",
           "type": "object"
+        },
+        "model_roles": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/EvalModelConfig"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Roles"
         },
         "config": {
           "$ref": "#/$defs/EvalConfig"
@@ -2215,6 +2401,7 @@
         "task_id",
         "task_version",
         "task_file",
+        "task_registry_name",
         "task_attribs",
         "task_args",
         "solver",
@@ -2223,8 +2410,10 @@
         "dataset",
         "sandbox",
         "model",
+        "model_generate_config",
         "model_base_url",
         "model_args",
+        "model_roles",
         "config",
         "revision",
         "packages",
@@ -3174,6 +3363,18 @@
           "title": "Model",
           "type": "string"
         },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
         "input": {
           "items": {
             "anyOf": [
@@ -3294,6 +3495,7 @@
         "pending",
         "event",
         "model",
+        "role",
         "input",
         "tools",
         "tool_choice",
@@ -4430,10 +4632,16 @@
           "title": "Arguments",
           "type": "object"
         },
-        "type": {
-          "const": "function",
-          "title": "Type",
-          "type": "string"
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "parse_error": {
           "anyOf": [
@@ -4457,15 +4665,28 @@
             }
           ],
           "default": null
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
         }
       },
       "required": [
         "id",
         "function",
         "arguments",
-        "type",
+        "internal",
         "parse_error",
-        "view"
+        "view",
+        "type"
       ],
       "title": "ToolCall",
       "type": "object",
@@ -4622,6 +4843,17 @@
           },
           "title": "Arguments",
           "type": "object"
+        },
+        "internal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/JsonValue"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "view": {
           "anyOf": [
@@ -4798,6 +5030,30 @@
           ],
           "default": null,
           "title": "Working Time"
+        },
+        "agent": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Agent"
+        },
+        "failed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failed"
         }
       },
       "required": [
@@ -4809,13 +5065,16 @@
         "id",
         "function",
         "arguments",
+        "internal",
         "view",
         "result",
         "truncated",
         "error",
         "events",
         "completed",
-        "working_time"
+        "working_time",
+        "agent",
+        "failed"
       ],
       "title": "ToolEvent",
       "type": "object",

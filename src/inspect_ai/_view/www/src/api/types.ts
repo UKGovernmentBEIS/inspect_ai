@@ -1,4 +1,5 @@
 import {
+  ApprovalEvent,
   EvalError,
   EvalLog,
   EvalPlan,
@@ -6,11 +7,22 @@ import {
   EvalSample,
   EvalSpec,
   EvalStats,
+  InfoEvent,
   Input,
+  LoggerEvent,
+  ModelEvent,
+  SampleInitEvent,
+  SampleLimitEvent,
+  SandboxEvent,
+  ScoreEvent,
   Scores1,
+  StateEvent,
   Status,
+  StepEvent,
+  StoreEvent,
+  SubtaskEvent,
   Target,
-  Type11,
+  ToolEvent,
   Version,
 } from "../types/log";
 
@@ -23,6 +35,66 @@ export interface EvalSummary {
   stats?: EvalStats;
   error?: EvalError | null;
   sampleSummaries: SampleSummary[];
+}
+
+export interface PendingSampleResponse {
+  pendingSamples?: PendingSamples;
+  status: "NotModified" | "NotFound" | "OK";
+}
+
+export interface SampleDataResponse {
+  sampleData?: SampleData;
+  status: "NotModified" | "NotFound" | "OK";
+}
+
+export interface RunningMetric {
+  scorer: string;
+  name: string;
+  value?: number | null;
+  reducer?: string;
+}
+
+export interface PendingSamples {
+  metrics?: RunningMetric[];
+  samples: SampleSummary[];
+  refresh: number;
+  etag?: string;
+}
+
+export interface SampleData {
+  events: EventData[];
+  attachments: AttachmentData[];
+}
+
+export interface EventData {
+  id: number;
+  event_id: string;
+  sample_id: string;
+  epoch: number;
+  event:
+    | SampleInitEvent
+    | SampleLimitEvent
+    | SandboxEvent
+    | StateEvent
+    | StoreEvent
+    | ModelEvent
+    | ToolEvent
+    | ApprovalEvent
+    | InputEvent
+    | ScoreEvent
+    | ErrorEvent
+    | LoggerEvent
+    | InfoEvent
+    | StepEvent
+    | SubtaskEvent;
+}
+
+export interface AttachmentData {
+  id: number;
+  sample_id: string;
+  epoch: number;
+  hash: string;
+  content: string;
 }
 
 export interface EvalLogHeader {
@@ -42,7 +114,8 @@ export interface SampleSummary {
   target: Target;
   scores: Scores1;
   error?: string;
-  limit?: Type11;
+  limit?: string;
+  completed?: boolean;
 }
 
 export interface BasicSampleData {
@@ -55,6 +128,9 @@ export interface BasicSampleData {
 export interface Capabilities {
   downloadFiles: boolean;
   webWorkers: boolean;
+  streamSamples: boolean;
+  streamSampleData: boolean;
+  nativeFind: boolean;
 }
 
 export interface LogViewAPI {
@@ -77,6 +153,17 @@ export interface LogViewAPI {
     filecontents: string | Blob | ArrayBuffer | ArrayBufferView,
   ) => Promise<void>;
   open_log_file: (logFile: string, log_dir: string) => Promise<void>;
+  eval_pending_samples?: (
+    log_file: string,
+    etag?: string,
+  ) => Promise<PendingSampleResponse>;
+  eval_log_sample_data?: (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+    last_event?: number,
+    last_attachment?: number,
+  ) => Promise<SampleDataResponse | undefined>;
 }
 
 export interface ClientAPI {
@@ -94,6 +181,24 @@ export interface ClientAPI {
     file_contents: string | Blob | ArrayBuffer | ArrayBufferView,
   ) => Promise<void>;
   open_log_file: (log_file: string, log_dir: string) => Promise<void>;
+
+  get_log_pending_samples?: (
+    log_file: string,
+    etag?: string,
+  ) => Promise<PendingSampleResponse>;
+  get_log_sample_data?: (
+    log_file: string,
+    id: string | number,
+    epoch: number,
+    last_event?: number,
+    last_attachment?: number,
+  ) => Promise<SampleDataResponse | undefined>;
+}
+
+export interface ClientStorage {
+  getItem: (name: string) => unknown;
+  setItem: (name: string, value: unknown) => void;
+  removeItem: (name: string) => void;
 }
 
 export interface FetchResponse {

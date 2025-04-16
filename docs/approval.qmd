@@ -1,5 +1,5 @@
 ---
-title: Approval 
+title: Tool Approval 
 ---
 
 ## Overview
@@ -22,7 +22,7 @@ The simplest approval policy is interactive human approval of all tool calls. Yo
 inspect eval browser.py --approval human
 ```
 
-This example provides the model with the built-in [web browser](tools.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
+This example provides the model with the built-in [web browser](tools-standard.qmd#sec-web-browser) tool and asks it to navigate to a web and perform a search.
 
 ## Auto Approver
 
@@ -48,7 +48,7 @@ To use this policy, pass the path to the policy YAML file as the approver. For e
 inspect eval browser.py --approval approval.yaml
 ```
 
-You can also match on tool arguments (for tools that dispatch many action types). For example, here is an approval policy for the [Computer Tool](tools.qmd#sec-computer) which allows typing and mouse movement but requires approval for key combos (e.g. Enter or a shortcut) and typing:
+You can also match on tool arguments (for tools that dispatch many action types). For example, here is an approval policy for the [Computer Tool](tools-standard.qmd#sec-computer) which allows typing and mouse movement but requires approval for key combos (e.g. Enter or a shortcut) and typing:
 
 
 ```{.yaml filename="approval.yaml"}
@@ -123,7 +123,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         return Approval(decision=decision, explanation="Automatic decision.")
 
@@ -156,7 +156,7 @@ def bash_allowlist(
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
 
         # Make approval decision

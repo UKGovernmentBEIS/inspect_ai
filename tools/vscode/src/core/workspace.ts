@@ -5,7 +5,6 @@ export function activeWorkspaceFolder(): WorkspaceFolder {
   return workspaceFolder;
 }
 
-
 export function checkActiveWorkspaceFolder(): WorkspaceFolder | undefined {
   const workspaceFolder = workspace.workspaceFolders?.[0];
   return workspaceFolder;

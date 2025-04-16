@@ -13,6 +13,7 @@ export type Task = string;
 export type TaskId = string;
 export type TaskVersion = number;
 export type TaskFile = string | null;
+export type TaskRegistryName = string | null;
 export type Solver = string | null;
 export type SolverArgs = {} | null;
 export type Tags = string[] | null;
@@ -23,58 +24,6 @@ export type SampleIds = (number | string)[] | null;
 export type Shuffled = boolean | null;
 export type Type = string;
 export type Model = string;
-export type ModelBaseUrl = string | null;
-export type Limit = number | [unknown, unknown] | null;
-export type SampleId = string | number | (string | number)[] | null;
-export type Epochs = number | null;
-export type EpochsReducer = string[] | null;
-export type Name1 = string;
-export type Tools = string | string[];
-export type Approvers = ApproverPolicyConfig[];
-export type FailOnError = boolean | number | null;
-export type MessageLimit = number | null;
-export type TokenLimit = number | null;
-export type TimeLimit = number | null;
-export type WorkingLimit = number | null;
-export type MaxSamples = number | null;
-export type MaxTasks = number | null;
-export type MaxSubprocesses = number | null;
-export type MaxSandboxes = number | null;
-export type SandboxCleanup = boolean | null;
-export type LogSamples = boolean | null;
-export type LogImages = boolean | null;
-export type LogBuffer = number | null;
-export type ScoreDisplay = boolean | null;
-export type Type1 = "git";
-export type Origin = string;
-export type Commit = string;
-export type Metadata = {} | null;
-export type Scorers = EvalScorer[] | null;
-export type Name2 = string;
-export type Options = {} | null;
-export type Metrics =
-  | (
-      | EvalMetricDefinition
-      | {
-          [k: string]: EvalMetricDefinition[];
-        }
-    )[]
-  | {
-      [k: string]: EvalMetricDefinition[];
-    }
-  | null;
-export type Name3 = string;
-export type Options1 = {} | null;
-export type Metadata1 = {} | null;
-export type Metrics1 =
-  | EvalMetricDefinition[]
-  | {
-      [k: string]: EvalMetricDefinition[];
-    }
-  | null;
-export type Name4 = string;
-export type Solver1 = string;
-export type Steps = EvalPlanStep[];
 export type MaxRetries = number | null;
 export type Timeout = number | null;
 export type MaxConnections = number | null;
@@ -101,8 +50,8 @@ export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("low" | "medium" | "high") | null;
 export type ReasoningTokens = number | null;
 export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
-export type Name5 = string;
-export type Type2 =
+export type Name1 = string;
+export type Type1 =
   | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
   | null;
 export type Description = string | null;
@@ -115,6 +64,64 @@ export type Anyof = JSONSchema[] | null;
 export type Required = string[] | null;
 export type Description1 = string | null;
 export type Strict = boolean | null;
+export type ModelBaseUrl = string | null;
+export type ModelRoles = {
+  [k: string]: EvalModelConfig;
+} | null;
+export type Model1 = string;
+export type BaseUrl = string | null;
+export type Limit = number | [unknown, unknown] | null;
+export type SampleId = string | number | (string | number)[] | null;
+export type Epochs = number | null;
+export type EpochsReducer = string[] | null;
+export type Name2 = string;
+export type Tools = string | string[];
+export type Approvers = ApproverPolicyConfig[];
+export type FailOnError = boolean | number | null;
+export type MessageLimit = number | null;
+export type TokenLimit = number | null;
+export type TimeLimit = number | null;
+export type WorkingLimit = number | null;
+export type MaxSamples = number | null;
+export type MaxTasks = number | null;
+export type MaxSubprocesses = number | null;
+export type MaxSandboxes = number | null;
+export type SandboxCleanup = boolean | null;
+export type LogSamples = boolean | null;
+export type LogImages = boolean | null;
+export type LogBuffer = number | null;
+export type LogShared = number | null;
+export type ScoreDisplay = boolean | null;
+export type Type2 = "git";
+export type Origin = string;
+export type Commit = string;
+export type Metadata = {} | null;
+export type Scorers = EvalScorer[] | null;
+export type Name3 = string;
+export type Options = {} | null;
+export type Metrics =
+  | (
+      | EvalMetricDefinition
+      | {
+          [k: string]: EvalMetricDefinition[];
+        }
+    )[]
+  | {
+      [k: string]: EvalMetricDefinition[];
+    }
+  | null;
+export type Name4 = string;
+export type Options1 = {} | null;
+export type Metadata1 = {} | null;
+export type Metrics1 =
+  | EvalMetricDefinition[]
+  | {
+      [k: string]: EvalMetricDefinition[];
+    }
+  | null;
+export type Name5 = string;
+export type Solver1 = string;
+export type Steps = EvalPlanStep[];
 export type TotalSamples = number;
 export type CompletedSamples = number;
 export type Name6 = string;
@@ -148,7 +155,7 @@ export type Input =
       | ChatMessageAssistant
       | ChatMessageTool
     )[];
-export type Id1 = string;
+export type Id1 = string | null;
 export type Content =
   | string
   | (
@@ -160,6 +167,7 @@ export type Content =
     )[];
 export type Type3 = "text";
 export type Text = string;
+export type Refusal = boolean | null;
 export type Type4 = "reasoning";
 export type Reasoning = string;
 export type Signature = string | null;
@@ -175,7 +183,7 @@ export type Video = string;
 export type Format1 = "mp4" | "mpeg" | "mov";
 export type Source = ("input" | "generate") | null;
 export type Role = "system";
-export type Id2 = string;
+export type Id2 = string | null;
 export type Content1 =
   | string
   | (
@@ -188,7 +196,7 @@ export type Content1 =
 export type Source1 = ("input" | "generate") | null;
 export type Role1 = "user";
 export type ToolCallId = string[] | null;
-export type Id3 = string;
+export type Id3 = string | null;
 export type Content2 =
   | string
   | (
@@ -203,12 +211,13 @@ export type Role2 = "assistant";
 export type ToolCalls = ToolCall[] | null;
 export type Id4 = string;
 export type Function = string;
-export type Type8 = "function";
 export type ParseError = string | null;
 export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
-export type Id5 = string;
+export type Type8 = string | null;
+export type Model2 = string | null;
+export type Id5 = string | null;
 export type Content4 =
   | string
   | (
@@ -243,7 +252,7 @@ export type Messages = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Model1 = string;
+export type Model3 = string;
 export type StopReason =
   | "stop"
   | "max_tokens"
@@ -342,7 +351,8 @@ export type Timestamp5 = string;
 export type WorkingStart5 = number;
 export type Pending5 = boolean | null;
 export type Event5 = "model";
-export type Model2 = string;
+export type Model4 = string;
+export type Role4 = string | null;
 export type Input3 = (
   | ChatMessageSystem
   | ChatMessageUser
@@ -490,6 +500,8 @@ export type Events1 = (
 )[];
 export type Completed3 = string | null;
 export type WorkingTime2 = number | null;
+export type Agent = string | null;
+export type Failed = boolean | null;
 export type Events = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -562,6 +574,7 @@ export interface EvalSpec {
   task_id: TaskId;
   task_version: TaskVersion;
   task_file: TaskFile;
+  task_registry_name: TaskRegistryName;
   task_attribs: TaskAttribs;
   task_args: TaskArgs;
   solver: Solver;
@@ -570,8 +583,10 @@ export interface EvalSpec {
   dataset: EvalDataset;
   sandbox: SandboxEnvironmentSpec | null;
   model: Model;
+  model_generate_config: GenerateConfig;
   model_base_url: ModelBaseUrl;
   model_args: ModelArgs;
+  model_roles: ModelRoles;
   config: EvalConfig;
   revision: EvalRevision | null;
   packages: Packages;
@@ -601,94 +616,6 @@ export interface SandboxEnvironmentSpec {
 export interface Config {
   [k: string]: unknown;
 }
-export interface ModelArgs {}
-/**
- * Configuration used for evaluation.
- */
-export interface EvalConfig {
-  limit: Limit;
-  sample_id: SampleId;
-  epochs: Epochs;
-  epochs_reducer: EpochsReducer;
-  approval: ApprovalPolicyConfig | null;
-  fail_on_error: FailOnError;
-  message_limit: MessageLimit;
-  token_limit: TokenLimit;
-  time_limit: TimeLimit;
-  working_limit: WorkingLimit;
-  max_samples: MaxSamples;
-  max_tasks: MaxTasks;
-  max_subprocesses: MaxSubprocesses;
-  max_sandboxes: MaxSandboxes;
-  sandbox_cleanup: SandboxCleanup;
-  log_samples: LogSamples;
-  log_images: LogImages;
-  log_buffer: LogBuffer;
-  score_display: ScoreDisplay;
-}
-export interface ApprovalPolicyConfig {
-  approvers: Approvers;
-}
-/**
- * Configuration format for approver policies.
- *
- * For example, here is a configuration in YAML:
- *
- * ```yaml
- * approvers:
- *   - name: human
- *     tools: web_browser*, bash, pyhton
- *     choices: [approve, reject]
- *
- *   - name: auto
- *     tools: *
- *     decision: approve
- * ```
- */
-export interface ApproverPolicyConfig {
-  name: Name1;
-  tools: Tools;
-  params: Params;
-}
-export interface Params {}
-/**
- * Git revision for evaluation.
- */
-export interface EvalRevision {
-  type: Type1;
-  origin: Origin;
-  commit: Commit;
-}
-export interface Packages {
-  [k: string]: string;
-}
-export interface EvalScorer {
-  name: Name2;
-  options: Options;
-  metrics: Metrics;
-  metadata: Metadata1;
-}
-export interface EvalMetricDefinition {
-  name: Name3;
-  options: Options1;
-}
-/**
- * Plan (solvers) used in evaluation.
- */
-export interface EvalPlan {
-  name: Name4;
-  steps: Steps;
-  finish: EvalPlanStep | null;
-  config: GenerateConfig;
-}
-/**
- * Solver step.
- */
-export interface EvalPlanStep {
-  solver: Solver1;
-  params: Params1;
-}
-export interface Params1 {}
 /**
  * Model generation options.
  */
@@ -723,7 +650,7 @@ export interface GenerateConfig {
  * Schema for model response when using Structured Output.
  */
 export interface ResponseSchema {
-  name: Name5;
+  name: Name1;
   json_schema: JSONSchema;
   description: Description1;
   strict: Strict;
@@ -732,7 +659,7 @@ export interface ResponseSchema {
  * JSON Schema for type.
  */
 export interface JSONSchema {
-  type: Type2;
+  type: Type1;
   description: Description;
   default: Default;
   enum: Enum;
@@ -744,6 +671,135 @@ export interface JSONSchema {
 }
 export interface Default {
   [k: string]: unknown;
+}
+export interface ModelArgs {}
+/**
+ * Model config.
+ */
+export interface EvalModelConfig {
+  model: Model1;
+  config: GenerateConfig;
+  base_url: BaseUrl;
+  args: Args;
+}
+export interface Args {}
+/**
+ * Configuration used for evaluation.
+ */
+export interface EvalConfig {
+  limit: Limit;
+  sample_id: SampleId;
+  epochs: Epochs;
+  epochs_reducer: EpochsReducer;
+  approval: ApprovalPolicyConfig | null;
+  fail_on_error: FailOnError;
+  message_limit: MessageLimit;
+  token_limit: TokenLimit;
+  time_limit: TimeLimit;
+  working_limit: WorkingLimit;
+  max_samples: MaxSamples;
+  max_tasks: MaxTasks;
+  max_subprocesses: MaxSubprocesses;
+  max_sandboxes: MaxSandboxes;
+  sandbox_cleanup: SandboxCleanup;
+  log_samples: LogSamples;
+  log_images: LogImages;
+  log_buffer: LogBuffer;
+  log_shared: LogShared;
+  score_display: ScoreDisplay;
+}
+export interface ApprovalPolicyConfig {
+  approvers: Approvers;
+}
+/**
+ * Configuration format for approver policies.
+ *
+ * For example, here is a configuration in YAML:
+ *
+ * ```yaml
+ * approvers:
+ *   - name: human
+ *     tools: web_browser*, bash, pyhton
+ *     choices: [approve, reject]
+ *
+ *   - name: auto
+ *     tools: *
+ *     decision: approve
+ * ```
+ */
+export interface ApproverPolicyConfig {
+  name: Name2;
+  tools: Tools;
+  params: Params;
+}
+export interface Params {}
+/**
+ * Git revision for evaluation.
+ */
+export interface EvalRevision {
+  type: Type2;
+  origin: Origin;
+  commit: Commit;
+}
+export interface Packages {
+  [k: string]: string;
+}
+export interface EvalScorer {
+  name: Name3;
+  options: Options;
+  metrics: Metrics;
+  metadata: Metadata1;
+}
+export interface EvalMetricDefinition {
+  name: Name4;
+  options: Options1;
+}
+/**
+ * Plan (solvers) used in evaluation.
+ */
+export interface EvalPlan {
+  name: Name5;
+  steps: Steps;
+  finish: EvalPlanStep | null;
+  config: GenerateConfig1;
+}
+/**
+ * Solver step.
+ */
+export interface EvalPlanStep {
+  solver: Solver1;
+  params: Params1;
+}
+export interface Params1 {}
+/**
+ * Model generation options.
+ */
+export interface GenerateConfig1 {
+  max_retries: MaxRetries;
+  timeout: Timeout;
+  max_connections: MaxConnections;
+  system_message: SystemMessage;
+  max_tokens: MaxTokens;
+  top_p: TopP;
+  temperature: Temperature;
+  stop_seqs: StopSeqs;
+  best_of: BestOf;
+  frequency_penalty: FrequencyPenalty;
+  presence_penalty: PresencePenalty;
+  logit_bias: LogitBias;
+  seed: Seed;
+  top_k: TopK;
+  num_choices: NumChoices;
+  logprobs: Logprobs;
+  top_logprobs: TopLogprobs;
+  parallel_tool_calls: ParallelToolCalls;
+  internal_tools: InternalTools;
+  max_tool_output: MaxToolOutput;
+  cache_prompt: CachePrompt;
+  reasoning_effort: ReasoningEffort;
+  reasoning_tokens: ReasoningTokens;
+  reasoning_history: ReasoningHistory;
+  response_schema: ResponseSchema | null;
 }
 /**
  * Scoring results from evaluation.
@@ -842,6 +898,7 @@ export interface ChatMessageSystem {
   id: Id1;
   content: Content;
   source: Source;
+  internal: unknown;
   role: Role;
 }
 /**
@@ -850,6 +907,7 @@ export interface ChatMessageSystem {
 export interface ContentText {
   type: Type3;
   text: Text;
+  refusal: Refusal;
 }
 /**
  * Reasoning content.
@@ -893,6 +951,7 @@ export interface ChatMessageUser {
   id: Id2;
   content: Content1;
   source: Source1;
+  internal: unknown;
   role: Role1;
   tool_call_id: ToolCallId;
 }
@@ -903,16 +962,19 @@ export interface ChatMessageAssistant {
   id: Id3;
   content: Content2;
   source: Source2;
+  internal: unknown;
   role: Role2;
   tool_calls: ToolCalls;
+  model: Model2;
 }
 export interface ToolCall {
   id: Id4;
   function: Function;
   arguments: Arguments;
-  type: Type8;
+  internal: unknown;
   parse_error: ParseError;
   view: ToolCallContent | null;
+  type: Type8;
 }
 export interface Arguments {}
 /**
@@ -930,6 +992,7 @@ export interface ChatMessageTool {
   id: Id5;
   content: Content4;
   source: Source3;
+  internal: unknown;
   role: Role3;
   tool_call_id: ToolCallId1;
   function: Function1;
@@ -943,7 +1006,7 @@ export interface ToolCallError {
  * Output from model generation.
  */
 export interface ModelOutput {
-  model: Model1;
+  model: Model3;
   choices: Choices1;
   usage: ModelUsage1 | null;
   time: Time;
@@ -1087,11 +1150,12 @@ export interface ModelEvent {
   working_start: WorkingStart5;
   pending: Pending5;
   event: Event5;
-  model: Model2;
+  model: Model4;
+  role: Role4;
   input: Input3;
   tools: Tools1;
   tool_choice: ToolChoice;
-  config: GenerateConfig1;
+  config: GenerateConfig;
   output: ModelOutput;
   error: Error1;
   cache: Cache;
@@ -1146,36 +1210,6 @@ export interface ToolFunction {
   name: Name9;
 }
 /**
- * Model generation options.
- */
-export interface GenerateConfig1 {
-  max_retries: MaxRetries;
-  timeout: Timeout;
-  max_connections: MaxConnections;
-  system_message: SystemMessage;
-  max_tokens: MaxTokens;
-  top_p: TopP;
-  temperature: Temperature;
-  stop_seqs: StopSeqs;
-  best_of: BestOf;
-  frequency_penalty: FrequencyPenalty;
-  presence_penalty: PresencePenalty;
-  logit_bias: LogitBias;
-  seed: Seed;
-  top_k: TopK;
-  num_choices: NumChoices;
-  logprobs: Logprobs;
-  top_logprobs: TopLogprobs;
-  parallel_tool_calls: ParallelToolCalls;
-  internal_tools: InternalTools;
-  max_tool_output: MaxToolOutput;
-  cache_prompt: CachePrompt;
-  reasoning_effort: ReasoningEffort;
-  reasoning_tokens: ReasoningTokens;
-  reasoning_history: ReasoningHistory;
-  response_schema: ResponseSchema | null;
-}
-/**
  * Model call (raw request/response data).
  */
 export interface ModelCall {
@@ -1201,6 +1235,7 @@ export interface ToolEvent {
   id: Id7;
   function: Function2;
   arguments: Arguments1;
+  internal: unknown;
   view: ToolCallContent | null;
   result: Result1;
   truncated: Truncated;
@@ -1208,6 +1243,8 @@ export interface ToolEvent {
   events: Events1;
   completed: Completed3;
   working_time: WorkingTime2;
+  agent: Agent;
+  failed: Failed;
 }
 export interface Arguments1 {
   [k: string]: JsonValue;

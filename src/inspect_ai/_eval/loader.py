@@ -13,7 +13,6 @@ from typing_extensions import overload
 
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import task_file, task_run_dir
-from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -26,6 +25,8 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_params,
 )
+from inspect_ai.agent._agent import Agent
+from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model import Model
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
 from inspect_ai.solver._bridge import bridge
@@ -50,6 +51,7 @@ def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
     model: Model,
+    model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
@@ -59,6 +61,7 @@ def resolve_tasks(
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
                 model=task.model or model,
+                model_roles=task.model_roles or model_roles,
                 sandbox=resolve_task_sandbox(task, sandbox),
                 sequence=sequence,
             )
@@ -107,6 +110,9 @@ def resolve_tasks(
                 task_args=loaded_task_args,
                 task_file=previous_task.log.eval.task_file,
                 model=previous_task.model or loaded_task.model or model,
+                model_roles=(
+                    previous_task.model_roles or loaded_task.model_roles or model_roles
+                ),
                 sandbox=previous_task.log.eval.sandbox,
                 sequence=sequence,
                 id=previous_task.id,
@@ -280,16 +286,11 @@ def create_file_tasks(
             setattr(task, TASK_RUN_DIR_ATTR, run_dir)
             tasks.append(task)
 
-            # warn that chdir is deprecated
+            # warn that chdir has been removed
             if "chdir" in task.attribs:
-                if configured_async_backend() == "trio":
-                    raise RuntimeError(
-                        "The task 'chdir' attribute is not compatible with the trio async backend."
-                    )
-
                 warn_once(
                     logger,
-                    "The 'chdir' task attribute is deprecated and will be removed in a future release "
+                    "The 'chdir' task attribute is no longer supported "
                     + "(you should write your tasks to not depend on their runtime working directory)",
                 )
 
@@ -421,20 +422,32 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
         if solver_file is None:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
-            return cast(Solver, registry_create("solver", solver_name, **spec.args))
+            elif registry_lookup("solver", solver_name) is not None:
+                return cast(Solver, registry_create("solver", solver_name, **spec.args))
+            elif registry_lookup("agent", solver_name) is not None:
+                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                return as_solver(agent)
+            else:
+                raise ValueError(
+                    f"Unkonwn solver {solver_name} (not registered as a @solver or @agent)"
+                )
 
         # we do have a solver file
         else:
             # load the module and parse decorators
             solver_module = load_module(solver_file)
-            decorators = parse_decorators(solver_file, "solver")
+            solver_decorators = parse_decorators(solver_file, "solver")
+            agent_decorators = parse_decorators(solver_file, "agent")
 
             # if there is no solver_name see if we can discover it
             if solver_name is None:
-                if len(decorators) == 1:
+                if len(solver_decorators) == 1:
                     # decorator based solver
-                    solver_name = decorators[0][0]
-                elif len(decorators) == 0:
+                    solver_name = solver_decorators[0][0]
+                elif len(agent_decorators) == 1:
+                    # decorator based agent
+                    solver_name = agent_decorators[0][0]
+                elif len(solver_decorators) == 0 and len(agent_decorators) == 0:
                     # see if we can find an agent based solver
                     functions = [
                         function
@@ -454,26 +467,35 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
 
                     elif len(agent_functions) == 0:
                         raise PrerequisiteError(
-                            f"The source file {pretty_solver_file} does not contain any @solver functions or agent functions."
+                            f"The source file {pretty_solver_file} does not contain any @solver, @agent or bridged agent functions."
                         )
                     else:
                         raise PrerequisiteError(
-                            f"The source file {pretty_solver_file} has more than one agent function (qualify which agent using e.g. '{solver_file.name}@agent_fn')"
+                            f"The source file {pretty_solver_file} has more than one bridged agent function (qualify which agent using e.g. '{solver_file.name}@agent_fn')"
                         )
-                else:
+                elif len(solver_decorators) > 1:
                     raise PrerequisiteError(
                         f"The source file {pretty_solver_file} has more than one @solver function (qualify which solver using e.g. '{solver_file.name}y@solver_fn')"
                     )
+                else:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_solver_file} has more than one @agent function (qualify which agent using e.g. '{solver_file.name}y@agent_fn')"
+                    )
 
             # create decorator based solvers using the registry
-            if any(solver[0] == solver_name for solver in decorators):
+            if any(solver[0] == solver_name for solver in solver_decorators):
                 return cast(Solver, registry_create("solver", solver_name, **spec.args))
 
-            # create agent based solvers by calling the function and wrapping it in bridge()
+            # create decorator based agents using the registry
+            elif any(agent[0] == solver_name for agent in agent_decorators):
+                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                return as_solver(agent)
+
+            # create bridge based solvers by calling the function and wrapping it in bridge()
             else:
                 agent_fn = getattr(solver_module, solver_name, None)
                 if inspect.isfunction(agent_fn):
-                    return bridge.bridge(agent_fn(**spec.args))
+                    return bridge(agent_fn(**spec.args))
                 elif agent_fn is not None:
                     raise PrerequisiteError(
                         f"The object {solver_name} in file {pretty_solver_file} is not a Python function."

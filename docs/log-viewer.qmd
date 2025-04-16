@@ -12,9 +12,17 @@ Below we'll describe how to get the most out of using Inspect View.
 
 Note that this section covers *interactively* exploring log files. You can also use the `EvalLog` API to compute on log files (e.g. to compare across runs or to more systematically traverse results). See the section on [Eval Logs](#sec-eval-logs) to learn more about how to process log files with code.
 
-## View Basics
+## VS Code Extension
 
-To run Inspect View, use the `inspect view` command:
+If you are using Inspect within VS Code, the Inspect VS Code Extension has several features for integrated log viewing. To install the extension, search for **"Inspect AI"** in the extensions marketplace panel within VS Code.
+
+![](images/inspect-vscode-install.png){.border width="100%" fig-alt="The VS Code Extension Marketplace panel is active with the search string 'Inspect AI'. The Inspect extension is selected and an overview of it appears at right." width="90%"}
+
+{{< include _vscode-viewing-logs.md >}}
+
+## View Command
+
+If you are not using VS Code, you can also run Inspect View directly from the command line via the `inspect view` command:
 
 ``` bash
 $ inspect view
@@ -39,6 +47,30 @@ You only need to run `inspect view` once at the beginning of a session (as it wi
 You can view and navigate between a history of all evals in the log directory using the menu at the top right:
 
 ![](images/inspect-view-history.png){.border .lightbox fig-alt="The Inspect log viewer, with the history panel displayed on the left overlaying the main interface. Several log files are displayed in the log history, each of which includes a summary of the results."}
+
+## Live View
+
+Inspect View provides a live view into the status of your evaluation task. The main shows shows what samples have completed (along with incremental metric calculations) and the sample view (described below) let's you follow sample transcripts and message history as events occur.
+
+If you are running VS Code, you can click the **View Log** link within the task progress screen to access a live view of your task:
+
+![](images/inspect-view-log-link.png)
+
+If you are running with the `inspect view` command-line then you can access logs for in-progress tasks using the [Log History](#log-history) as described above.
+
+### S3 Logs
+
+Multiple users can view live logs located on Amazon S3 (or any shared filesystem) by specifying an additional `--log-shared` option indicating that live log information should be written to the shared filesystem:
+
+``` bash
+inspect eval ctf.py --log-shared
+```
+
+This is required because the live log viewing feature relies on a local database of log events which is only visible on the machine where the evaluation is running. The `--log-shared` option specifies that the live log information should also be written to the shared filesystem. By default, this information is synced every 10 seconds. You can override this by passing a value to `--log-shared`:
+
+``` bash
+ inspect eval ctf.py --log-shared 30
+```
 
 ## Sample Details
 
@@ -123,27 +155,25 @@ logger.info(f"web query: {query}")
 
 All of these log entries will be included in the sample transcript.
 
-
 ### Log Levels
 
 The log levels and their applicability are described below (in increasing order of severity):
 
-| Level | Description |
+| Level      | Description                                                                                                          |
 |------------------------------------|------------------------------------|
-| `debug` | Detailed information, typically of interest only when diagnosing problems. |
-| `trace` | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.). |
-| `http` | HTTP diagnostics including requests and response statuses |
-| `info` | Confirmation that things are working as expected. |
-| `warning` | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
-| `error` | Due to a more serious problem, the software has not been able to perform some function |
-| `critical` | A serious error, indicating that the program itself may be unable to continue running. |
+| `debug`    | Detailed information, typically of interest only when diagnosing problems.                                           |
+| `trace`    | Show trace messages for runtime actions (e.g. model calls, subprocess exec, etc.).                                   |
+| `http`     | HTTP diagnostics including requests and response statuses                                                            |
+| `info`     | Confirmation that things are working as expected.                                                                    |
+| `warning`  | or indicative of some problem in the near future (e.g. ‘disk space low’). The software is still working as expected. |
+| `error`    | Due to a more serious problem, the software has not been able to perform some function                               |
+| `critical` | A serious error, indicating that the program itself may be unable to continue running.                               |
 
 #### Default Levels
 
 By default, messages of log level `warning` and higher are printed to the console, and messages of log level `info` and higher are included in the sample transcript. This enables you to include many calls to `logger.info()` in your code without having them show by default, while also making them available in the log viewer should you need them.
 
 If you'd like to see 'info' messages in the console as well, use the `--log-level info` option:
-
 
 ``` bash
 $ inspect eval biology_qa.py --log-level info
@@ -156,7 +186,6 @@ You can use the `--log-level-transcript` option to control what level is written
 ``` bash
 $ inspect eval biology_qa.py --log-level-transcript http
 ```
-
 
 Note that you can also set the log levels using the `INSPECT_LOG_LEVEL` and `INSPECT_LOG_LEVEL_TRANSCRIPT` environment variables (which are often included in a [.env configuration file](options.qmd).
 
@@ -240,3 +269,5 @@ Deploy this folder to a static webserver to publish the log viewer.
     ```
 
 -   The bundled output directory includes a `robots.txt` file to prevent indexing by web crawlers. If you deploy this folder outside of the root of your website then you would need to update your root `robots.txt` accordingly to exclude the folder from indexing (this is required because web crawlers only read `robots.txt` from the root of the website not subdirectories).
+
+-   The Inspect log viewer uses HTTP range requests to efficiently read the log files being served in the bundle. Please be sure to use a server which supports HTTP range requests to server the statically bundled files. Most HTTP servers do support this, but notably, Python's built in `http.server` does not.

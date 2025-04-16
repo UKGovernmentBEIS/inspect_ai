@@ -31,7 +31,7 @@ export function hooksExtensionHost(): ExtensionHost {
       viewType: string,
       title: string,
       preserveFocus?: boolean,
-      options?: vscode.WebviewPanelOptions & vscode.WebviewOptions
+      options?: vscode.WebviewPanelOptions & vscode.WebviewOptions,
     ): HostWebviewPanel => {
       // create preview panel
       // eslint-disable-next-line @typescript-eslint/no-non-null-asserted-optional-chain
@@ -44,7 +44,7 @@ export function hooksExtensionHost(): ExtensionHost {
           enableForms: options?.enableForms,
           localResourceRoots: options?.localResourceRoots,
           portMapping: options?.portMapping,
-        }
+        },
       )!;
 
       // adapt to host interface
@@ -53,8 +53,8 @@ export function hooksExtensionHost(): ExtensionHost {
   };
 }
 
-// This panel provides the base interface than any host can provide in order for 
-// our log viewer to work properly. It can be provided by vscode using the defaulthost 
+// This panel provides the base interface than any host can provide in order for
+// our log viewer to work properly. It can be provided by vscode using the defaulthost
 // or the hooksExtensionHost if the positron api is detected
 class HookWebviewPanel implements HostWebviewPanel {
   onDidChangeViewState: vscode.Event<PreviewPanelOnDidChangeViewStateEvent>;
@@ -80,7 +80,6 @@ class HookWebviewPanel implements HostWebviewPanel {
   get viewColumn() {
     return vscode.ViewColumn.Two;
   }
-
 
   reveal(_viewColumn?: vscode.ViewColumn, preserveFocus?: boolean) {
     this.panel_.reveal(preserveFocus);

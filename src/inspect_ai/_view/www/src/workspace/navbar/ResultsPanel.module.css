@@ -45,7 +45,6 @@
 
 .multiScorer {
   padding-left: 0;
-  height: 100%;
   display: flex;
   flex-direction: column;
   padding: 0.5em 1em;
@@ -87,4 +86,20 @@
   column-gap: 1em;
   padding: 0 0.2em;
   justify-content: center;
+}
+
+.moreButton {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+  padding-right: 0;
+}
+
+.metricsSummary {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.modalScores {
+  padding-bottom: 4em;
 }

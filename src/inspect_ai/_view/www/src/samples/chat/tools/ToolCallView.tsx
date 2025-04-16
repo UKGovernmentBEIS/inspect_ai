@@ -10,10 +10,12 @@ import {
   ToolCallContent,
 } from "../../../types/log";
 import { MessageContent } from "../MessageContent";
+import styles from "./ToolCallView.module.css";
 import { ToolInput } from "./ToolInput";
 import { ToolTitle } from "./ToolTitle";
 
 interface ToolCallViewProps {
+  id: string;
   functionCall: string;
   input?: string;
   highlightLanguage?: string;
@@ -43,6 +45,7 @@ interface ToolCallViewProps {
  * Renders the ToolCallView component.
  */
 export const ToolCallView: FC<ToolCallViewProps> = ({
+  id,
   functionCall,
   input,
   highlightLanguage,
@@ -83,8 +86,24 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
     : !isContentImage(output);
   const normalizedContent = useMemo(() => normalizeContent(output), [output]);
 
-  const contents = mode !== "compact" ? input : input || functionCall;
+  const hasContent = normalizedContent.find((c) => {
+    if (c.type === "tool") {
+      for (const t of c.content) {
+        if (t.type === "text") {
+          if (t.text) {
+            return true;
+          }
+        } else {
+          return true;
+        }
+      }
+      return false;
+    } else {
+      return true;
+    }
+  });
 
+  const contents = mode !== "compact" ? input : input || functionCall;
   return (
     <div>
       {mode !== "compact" && (!view || view.title) ? (
@@ -99,9 +118,17 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
             contents={contents}
             toolCallView={view}
           />
-          <ExpandablePanel collapse={collapse} border={true} lines={15}>
-            <MessageContent contents={normalizedContent} />
-          </ExpandablePanel>
+          {hasContent ? (
+            <ExpandablePanel
+              id={`${id}-tool-input`}
+              collapse={collapse}
+              border={true}
+              lines={15}
+              className={styles.output}
+            >
+              <MessageContent contents={normalizedContent} />
+            </ExpandablePanel>
+          ) : undefined}
         </div>
       </div>
     </div>
@@ -148,6 +175,7 @@ const normalizeContent = (
           {
             type: "text",
             text: String(output),
+            refusal: null,
           },
         ],
       },

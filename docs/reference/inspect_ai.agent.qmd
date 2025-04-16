@@ -1,0 +1,37 @@
+---
+title: "inspect_ai.agent"
+---
+
+## Agents
+
+### react
+### bridge
+### human_cli
+
+## Execution
+
+### handoff
+### run
+### as_tool
+### as_solver
+
+## Filters
+
+### remove_tools
+### last_message
+### MessageFilter
+
+## Protocol
+
+### Agent
+### AgentState
+### agent
+### agent_with
+
+## Types
+
+### AgentPrompt
+### AgentAttempts
+### AgentContinue
+### AgentSubmit
+

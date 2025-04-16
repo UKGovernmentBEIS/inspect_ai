@@ -1,3 +1,4 @@
+from inspect_ai._util.registry import RegistryType, registry_create
 from inspect_ai._util.trace import trace_action, trace_message
 
 from ._concurrency import concurrency
@@ -16,6 +17,7 @@ from ._sandbox import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     sandbox,
+    sandbox_default,
     sandbox_with,
     sandboxenv,
 )
@@ -53,6 +55,7 @@ __all__ = [
     "sandboxenv",
     "sandbox",
     "sandbox_with",
+    "sandbox_default",
     "Store",
     "store",
     "StoreModel",
@@ -62,4 +65,6 @@ __all__ = [
     "throttle",
     "trace_action",
     "trace_message",
+    "RegistryType",
+    "registry_create",
 ]

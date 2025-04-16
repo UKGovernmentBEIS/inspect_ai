@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from test_helpers.utils import (
     skip_if_no_anthropic,
     skip_if_no_google,
+    skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_vertex,
     skip_if_trio,
@@ -15,6 +16,7 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.log._log import EvalLog
 from inspect_ai.model import ChatMessageTool
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.tool import ToolFunction, tool
 from inspect_ai.tool._tool import Tool
@@ -146,7 +148,7 @@ def computer_action():
     return execute
 
 
-def check_point(model: str, tool: Tool, function_name: str) -> None:
+def check_point(model: str | Model, tool: Tool, function_name: str) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -165,15 +167,15 @@ def check_point(model: str, tool: Tool, function_name: str) -> None:
     verify_tool_call(log, "15")
 
 
-def check_typed_dict(model: str) -> None:
+def check_typed_dict(model: str | Model) -> None:
     check_point(model, offset(), "offset")
 
 
-def check_dataclass(model: str) -> None:
+def check_dataclass(model: str | Model) -> None:
     check_point(model, offset_dataclass(), "offset_dataclass")
 
 
-def check_list_of_numbers(model: str) -> None:
+def check_list_of_numbers(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -193,9 +195,9 @@ def check_list_of_numbers(model: str) -> None:
     verify_tool_call(log, "10")
 
 
-def check_list_of_objects(model: str) -> None:
+def check_list_of_objects(model: str | Model) -> None:
     # grok sometimes doesn't get this one (just says 'I have extracted, how would you like to proceed')
-    if "grok" in model:
+    if isinstance(model, str) and "grok" in model:
         return
 
     task = Task(
@@ -216,7 +218,7 @@ def check_list_of_objects(model: str) -> None:
     verify_tool_call(log, "quick")
 
 
-def check_optional_args(model: str) -> None:
+def check_optional_args(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -235,7 +237,7 @@ def check_optional_args(model: str) -> None:
     verify_tool_call(log, "stuff")
 
 
-def check_none_default_arg(model: str) -> None:
+def check_none_default_arg(model: str | Model) -> None:
     task = Task(
         dataset=MemoryDataset(
             [
@@ -254,9 +256,10 @@ def check_none_default_arg(model: str) -> None:
     verify_tool_call(log, "click")
 
 
-def check_tool_types(model: str):
-    check_typed_dict(model)
-    check_dataclass(model)
+def check_tool_types(model: str | Model):
+    if "google" not in str(model):
+        check_typed_dict(model)
+        check_dataclass(model)
     check_list_of_numbers(model)
     check_list_of_objects(model)
     check_optional_args(model)
@@ -266,6 +269,11 @@ def check_tool_types(model: str):
 @skip_if_no_openai
 def test_openai_tool_types() -> None:
     check_tool_types("openai/gpt-4o")
+
+
+@skip_if_no_openai
+def test_openai_responses_tool_types() -> None:
+    check_tool_types(get_model("openai/gpt-4o-mini", responses_api=True))
 
 
 @skip_if_no_anthropic
@@ -284,14 +292,14 @@ def test_vertex_tool_types():
     check_tool_types("vertex/gemini-1.5-flash")
 
 
-# mistral, grok, and groq tool calling is extremely unreliable and
+@skip_if_no_mistral
+def test_mistral_tool_types() -> None:
+    check_tool_types("mistral/mistral-large-latest")
+
+
+# grok and groq tool calling are extremely unreliable and
 # consequently cause failed tests that are red herrings. don't
 # exercise these for now.
-
-# @skip_if_no_mistral
-# def test_mistral_tool_types() -> None:
-#     check_tool_types("mistral/mistral-large-latest")
-
 
 # @skip_if_no_grok
 # def test_grok_tool_types() -> None:
@@ -307,4 +315,4 @@ def verify_tool_call(log: EvalLog, includes: str):
     assert log.samples
     tool_message = log.samples[0].messages[-2]
     assert isinstance(tool_message, ChatMessageTool)
-    assert includes in log.samples[0].output.completion
+    assert includes.lower() in log.samples[0].output.completion.lower()

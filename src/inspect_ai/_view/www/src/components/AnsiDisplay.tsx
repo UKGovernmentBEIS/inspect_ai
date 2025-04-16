@@ -20,10 +20,10 @@ export const ANSIDisplay: FC<ANSIDisplayProps> = ({
   let firstOutput = false;
   return (
     <div className={clsx("ansi-display", className)} style={{ ...style }}>
-      {ansiOutput.outputLines.map((line) => {
+      {ansiOutput.outputLines.map((line, index) => {
         firstOutput = firstOutput || !!line.outputRuns.length;
         return (
-          <div className={"ansi-display-line"}>
+          <div key={index} className={"ansi-display-line"}>
             {!line.outputRuns.length ? (
               firstOutput ? (
                 <br />

@@ -16,4 +16,5 @@
   font-size: var(--inspect-font-size-base);
   line-height: var(--inspect-font-size-base);
   height: var(--inspect-font-size-base);
+  max-width: 30em;
 }

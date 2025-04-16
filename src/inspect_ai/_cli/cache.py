@@ -44,7 +44,7 @@ def _print_table(title: str, paths: list[tuple[str, int]]) -> None:
 def cache_command() -> None:
     """Manage the inspect model output cache.
 
-    Learn more about model output caching at https://inspect.ai-safety-institute.org.uk/caching.html.
+    Learn more about model output caching at https://inspect.aisi.org.uk/caching.html.
     """
     return None
 

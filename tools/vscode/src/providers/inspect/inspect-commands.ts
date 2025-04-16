@@ -1,5 +1,12 @@
-import { ExtensionContext, Disposable, commands, workspace, RelativePattern, Uri, FileSystemWatcher } from "vscode";
-
+import {
+  ExtensionContext,
+  Disposable,
+  commands,
+  workspace,
+  RelativePattern,
+  Uri,
+  FileSystemWatcher,
+} from "vscode";
 
 import { join } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
@@ -10,17 +17,15 @@ import { log } from "../../core/log";
 import { kPythonPackageName } from "../../inspect/props";
 import { removeFilesSync } from "../../core/file";
 
-
 export function activateInspectCommands(
   stateManager: WorkspaceStateManager,
-  context: ExtensionContext) {
+  context: ExtensionContext,
+) {
   const inspectCommands = new InspectCommandDispatcher(stateManager);
   context.subscriptions.push(inspectCommands);
 }
 
-
 export class InspectCommandDispatcher implements Disposable {
-
   constructor(stateManager: WorkspaceStateManager) {
     // init commands dir and remove any existing commands
     this.commandsDir_ = inspectCommandsDir(stateManager);
@@ -30,7 +35,7 @@ export class InspectCommandDispatcher implements Disposable {
       new RelativePattern(Uri.file(this.commandsDir_), "*"),
       false,
       true,
-      true
+      true,
     );
     this.commandsWatcher_.onDidCreate(async () => {
       const commandsRequest = this.collectCommandsRequest();
@@ -39,6 +44,9 @@ export class InspectCommandDispatcher implements Disposable {
           log.appendLine(`Found command: ${command.command}`);
           log.appendLine(`Executing VS Code command ${command.command}`);
           try {
+            log.info(
+              `Executing command: ${command.command} with args: ${JSON.stringify(command.args)}`,
+            );
             await commands.executeCommand(command.command, ...command.args);
           } catch (error) {
             log.error(error instanceof Error ? error : String(error));
@@ -49,14 +57,22 @@ export class InspectCommandDispatcher implements Disposable {
     log.appendLine(`Watching for commands`);
   }
 
-  collectCommandsRequest(): Array<{ command: string, args: unknown[] }> | null {
+  collectCommandsRequest(): Array<{ command: string; args: unknown[] }> | null {
     const commandFiles = readdirSync(this.commandsDir_);
     if (commandFiles.length > 0) {
       // read at most a single command and remove all of the others
       const commandFile = commandFiles[0];
-      const commandContents = readFileSync(join(this.commandsDir_, commandFile), { encoding: "utf-8" });
-      removeFilesSync(commandFiles.map(file => join(this.commandsDir_, file)));
-      return JSON.parse(commandContents) as Array<{ command: string, args: unknown[] }>;
+      const commandContents = readFileSync(
+        join(this.commandsDir_, commandFile),
+        { encoding: "utf-8" },
+      );
+      removeFilesSync(
+        commandFiles.map((file) => join(this.commandsDir_, file)),
+      );
+      return JSON.parse(commandContents) as Array<{
+        command: string;
+        args: unknown[];
+      }>;
     } else {
       return null;
     }
@@ -73,9 +89,25 @@ export class InspectCommandDispatcher implements Disposable {
   private commandsWatcher_: FileSystemWatcher;
 }
 
-
 function inspectCommandsDir(stateManager: WorkspaceStateManager): string {
-  const commandsDir = userDataDir(join(kPythonPackageName, "vscode", stateManager.getWorkspaceInstance(), "commands"));
+  // The python library we're using includes the author name in the path, meaning there are two
+  // nested inspect_ai commands.
+  const platformPath =
+    process.platform === "win32"
+      ? join(
+          kPythonPackageName,
+          kPythonPackageName,
+          "vscode",
+          stateManager.getWorkspaceInstance(),
+          "commands",
+        )
+      : join(
+          kPythonPackageName,
+          "vscode",
+          stateManager.getWorkspaceInstance(),
+          "commands",
+        );
+  const commandsDir = userDataDir(platformPath);
 
   if (!existsSync(commandsDir)) {
     mkdirSync(commandsDir, { recursive: true });

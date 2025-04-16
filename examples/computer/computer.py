@@ -1,8 +1,7 @@
 from inspect_ai import Task, task
+from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
-from inspect_ai.solver import system_message
-from inspect_ai.solver._basic_agent import basic_agent
 from inspect_ai.tool import computer
 
 SYSTEM_MESSAGE = """
@@ -35,11 +34,11 @@ def computer_task():
                 target="56088",
             ),
         ],
-        solver=basic_agent(
-            init=system_message(SYSTEM_MESSAGE),
+        solver=react(
+            prompt=SYSTEM_MESSAGE,
             tools=[computer()],
-            max_messages=100,
         ),
+        messsage_limit=100,
         scorer=includes(),
         sandbox="docker",
     )

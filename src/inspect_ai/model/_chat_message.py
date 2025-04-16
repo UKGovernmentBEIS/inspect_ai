@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import Any, Literal, Type, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, JsonValue, model_validator
 from shortuuid import uuid
 
 from inspect_ai._util.constants import DESERIALIZING
@@ -25,6 +25,9 @@ class ChatMessageBase(BaseModel):
 
     source: Literal["input", "generate"] | None = Field(default=None)
     """Source of message."""
+
+    internal: JsonValue | None = Field(default=None)
+    """Model provider specific payload - typically used to aid transformation back to model types."""
 
     def model_post_init(self, __context: Any) -> None:
         # check if deserializing
@@ -104,6 +107,9 @@ class ChatMessageAssistant(ChatMessageBase):
 
     tool_calls: list[ToolCall] | None = Field(default=None)
     """Tool calls made by the model."""
+
+    model: str | None = Field(default=None)
+    """Model used to generate assistant message."""
 
     # Some OpenAI compatible REST endpoints include reasoning as a field alongside
     # content, however since this field doesn't exist in the OpenAI interface,

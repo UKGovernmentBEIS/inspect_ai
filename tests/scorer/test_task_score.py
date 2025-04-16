@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from test_helpers.utils import skip_if_no_openai
 
 from inspect_ai._eval.score import task_score
 from inspect_ai.log._file import read_eval_log_async
@@ -21,6 +22,7 @@ LOG_UNSCORED = os.path.join(
 
 
 @pytest.mark.anyio
+@skip_if_no_openai
 async def test_score_unscored():
     unscored_log = await read_eval_log_async(LOG_UNSCORED)
     scored_log = await task_score(log=unscored_log)
@@ -32,6 +34,7 @@ async def test_score_unscored():
 
 
 @pytest.mark.anyio
+@skip_if_no_openai
 async def test_score_unscored_new_scorer():
     unscored_log = await read_eval_log_async(LOG_UNSCORED)
     scored_log = await task_score(
@@ -46,6 +49,7 @@ async def test_score_unscored_new_scorer():
 
 
 @pytest.mark.anyio
+@skip_if_no_openai
 async def test_score_scored_append():
     unscored_log = await read_eval_log_async(LOG_SCORED)
     scored_log = await task_score(
@@ -64,6 +68,7 @@ async def test_score_scored_append():
 
 
 @pytest.mark.anyio
+@skip_if_no_openai
 async def test_score_scored_overwrite():
     unscored_log = await read_eval_log_async(LOG_SCORED)
     scored_log = await task_score(

@@ -1,3 +1,4 @@
+import JSON5 from "json5";
 import { ApplicationIcons } from "../appearance/icons";
 
 import { ANSIDisplay } from "../components/AnsiDisplay";
@@ -6,7 +7,7 @@ import { formatNumber } from "../utils/format";
 import { MetaDataView } from "./MetaDataView";
 
 import clsx from "clsx";
-import React, { Fragment, JSX } from "react";
+import { FC, Fragment, isValidElement, JSX, ReactNode } from "react";
 import JSONPanel from "../components/JsonPanel";
 import { isJson } from "../utils/json";
 import styles from "./RenderedContent.module.css";
@@ -20,7 +21,7 @@ interface RenderedContentProps {
 /**
  * Renders content based on its type using registered content renderers.
  */
-export const RenderedContent: React.FC<RenderedContentProps> = ({
+export const RenderedContent: FC<RenderedContentProps> = ({
   id,
   entry,
 }): JSX.Element => {
@@ -42,8 +43,7 @@ export const RenderedContent: React.FC<RenderedContentProps> = ({
 
   if (renderer) {
     const { rendered } = renderer.render(id, entry);
-    // Check if rendered is already a valid ReactNode (JSX.Element)
-    if (rendered !== undefined && React.isValidElement(rendered)) {
+    if (rendered !== undefined && isValidElement(rendered)) {
       return rendered;
     }
   }
@@ -91,7 +91,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return false;
     },
     render: (_id, entry) => {
-      const obj = JSON.parse(entry.value);
+      const obj = JSON5.parse(entry.value);
       return { rendered: <JSONPanel data={obj as Record<string, unknown>} /> };
     },
   },
@@ -184,7 +184,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return typeof entry.value === "object" && entry.name === "web_search";
     },
     render: (_id, entry) => {
-      const results: React.ReactNode[] = [];
+      const results: ReactNode[] = [];
       results.push(
         <div className={styles.query}>
           <i className={ApplicationIcons.search}></i> {entry.value.query}
@@ -252,7 +252,6 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return typeof entry.value === "object";
     },
     render: (id, entry) => {
-      // Generate a json preview
       return {
         rendered: (
           <MetaDataView

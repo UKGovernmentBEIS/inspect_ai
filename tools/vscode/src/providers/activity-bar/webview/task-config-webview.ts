@@ -11,7 +11,12 @@ import {
   provideFASTDesignSystem,
 } from "@microsoft/fast-components";
 import { DocumentState } from "../../workspace/workspace-state-provider";
-import { showEmptyPanel, restoreInputState, whenChanged, setControlsVisible } from "./webview-utils";
+import {
+  showEmptyPanel,
+  restoreInputState,
+  whenChanged,
+  setControlsVisible,
+} from "./webview-utils";
 
 // Load the vscode design system
 provideVSCodeDesignSystem().register(allComponents);
@@ -20,10 +25,7 @@ provideVSCodeDesignSystem().register(allComponents);
 declare function acquireVsCodeApi(): any;
 
 // Use the function to get the VS Code API handle
-provideFASTDesignSystem().register(
-  fastCombobox(),
-  fastOption()
-);
+provideFASTDesignSystem().register(fastCombobox(), fastOption());
 
 // Get access to the VS Code API from within the webview context
 const vscode = acquireVsCodeApi();
@@ -36,7 +38,10 @@ window.addEventListener("message", (e) => {
       break;
 
     case "noInspect":
-      showEmptyPanel("Inspect Package not installed.", "configuration-controls");
+      showEmptyPanel(
+        "Inspect Package not installed.",
+        "configuration-controls",
+      );
       break;
 
     case "setActiveTask":
@@ -72,7 +77,11 @@ window.addEventListener("message", (e) => {
             count++;
           }
           if (e.data.task.activeTask?.params.length === 0) {
-            showEmptyPanel("No arguments for this task", undefined, "task-args");
+            showEmptyPanel(
+              "No arguments for this task",
+              undefined,
+              "task-args",
+            );
           }
         }
         setControlsVisible("configuration-controls", true);

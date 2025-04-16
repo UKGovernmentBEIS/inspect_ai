@@ -82,6 +82,13 @@ class MistralAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
+        # extract any service prefix from model name
+        parts = model_name.split("/")
+        if len(parts) > 1:
+            self.service: str | None = parts[0]
+        else:
+            self.service = None
+
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -94,35 +101,38 @@ class MistralAPI(ModelAPI):
             config=config,
         )
 
-        # resolve api_key -- look for mistral then azure
+        # resolve api_key
         if not self.api_key:
-            self.api_key = os.environ.get(MISTRAL_API_KEY, None)
-            if self.api_key:
-                base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
-            else:
+            if self.is_azure():
                 self.api_key = os.environ.get(
                     AZUREAI_MISTRAL_API_KEY, os.environ.get(AZURE_MISTRAL_API_KEY, None)
                 )
-                if not self.api_key:
-                    raise environment_prerequisite_error(
-                        "Mistral", [MISTRAL_API_KEY, AZUREAI_MISTRAL_API_KEY]
-                    )
-                base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
-                if not base_url:
+            else:
+                self.api_key = os.environ.get(MISTRAL_API_KEY, None)
+
+            if not self.api_key:
+                raise environment_prerequisite_error(
+                    "Mistral", [MISTRAL_API_KEY, AZUREAI_MISTRAL_API_KEY]
+                )
+
+        if not self.base_url:
+            if self.is_azure():
+                self.base_url = model_base_url(base_url, "AZUREAI_MISTRAL_BASE_URL")
+                if not self.base_url:
                     raise ValueError(
                         "You must provide a base URL when using Mistral on Azure. Use the AZUREAI_MISTRAL_BASE_URL "
                         + " environment variable or the --model-base-url CLI flag to set the base URL."
                     )
+            else:
+                self.base_url = model_base_url(base_url, "MISTRAL_BASE_URL")
 
-        if base_url:
-            model_args["server_url"] = base_url
+        if self.base_url:
+            model_args["server_url"] = self.base_url
 
         self.model_args = model_args
 
-    @override
-    async def close(self) -> None:
-        # client is created and destroyed in generate
-        pass
+    def is_azure(self) -> bool:
+        return self.service == "azure"
 
     async def generate(
         self,
@@ -139,7 +149,7 @@ class MistralAPI(ModelAPI):
             # build request
             request_id = http_hooks.start_request()
             request: dict[str, Any] = dict(
-                model=self.model_name,
+                model=self.service_model_name(),
                 messages=await mistral_chat_messages(input),
                 tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
                 tool_choice=(
@@ -217,6 +227,10 @@ class MistralAPI(ModelAPI):
                 ),
             ), model_call()
 
+    def service_model_name(self) -> str:
+        """Model name without any service prefix."""
+        return self.model_name.replace(f"{self.service}/", "", 1)
+
     @override
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, SDKError):
@@ -235,7 +249,9 @@ class MistralAPI(ModelAPI):
         content = body.get("message", ex.body)
         if "maximum context length" in ex.body:
             return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason="model_length"
+                model=self.service_model_name(),
+                content=content,
+                stop_reason="model_length",
             )
         else:
             return ex
@@ -267,10 +283,9 @@ def mistral_function(tool: ToolInfo) -> MistralFunction:
     return MistralFunction(
         name=tool.name,
         description=tool.description,
-        parameters={
-            k: v.model_dump(exclude={"additionalProperties"}, exclude_none=True)
-            for k, v in tool.parameters.properties.items()
-        },
+        parameters=tool.parameters.model_dump(
+            exclude={"additionalProperties"}, exclude_none=True
+        ),
     )
 
 
@@ -433,13 +448,11 @@ def chat_tool_call(tool_call: MistralToolCall, tools: list[ToolInfo]) -> ToolCal
             id, tool_call.function.name, tool_call.function.arguments, tools
         )
     else:
-        return ToolCall(
-            id, tool_call.function.name, tool_call.function.arguments, type="function"
-        )
+        return ToolCall(id, tool_call.function.name, tool_call.function.arguments)
 
 
 def completion_choice(
-    choice: MistralChatCompletionChoice, tools: list[ToolInfo]
+    model: str, choice: MistralChatCompletionChoice, tools: list[ToolInfo]
 ) -> ChatCompletionChoice:
     message = choice.message
     if message:
@@ -450,6 +463,7 @@ def completion_choice(
                 tool_calls=chat_tool_calls(message.tool_calls, tools)
                 if message.tool_calls
                 else None,
+                model=model,
                 source="generate",
             ),
             stop_reason=(
@@ -496,7 +510,10 @@ def completion_choices_from_response(
     if response.choices is None:
         return []
     else:
-        return [completion_choice(choice, tools) for choice in response.choices]
+        return [
+            completion_choice(response.model, choice, tools)
+            for choice in response.choices
+        ]
 
 
 def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:

@@ -1,3 +1,4 @@
+import { CSSProperties } from "react";
 import { FontSize, TextStyle } from "./fonts";
 
 export const ApplicationStyles = {
@@ -9,15 +10,15 @@ export const ApplicationStyles = {
   },
   threeLineClamp: {
     display: "-webkit-box",
-    "-webkit-line-clamp": "3",
-    "-webkit-box-orient": "vertical",
+    WebkitLineClamp: "3",
+    WebkitBoxOrient: "vertical",
     overflow: "hidden",
   },
-  lineClamp: (len: number) => {
+  lineClamp: (len: number): CSSProperties => {
     return {
       display: "-webkit-box",
-      "-webkit-line-clamp": `${len}`,
-      "-webkit-box-orient": "vertical",
+      WebkitLineClamp: `${len}`,
+      WebkitBoxOrient: "vertical",
       overflow: "hidden",
     };
   },

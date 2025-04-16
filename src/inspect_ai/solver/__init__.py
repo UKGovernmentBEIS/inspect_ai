@@ -1,11 +1,11 @@
 from inspect_ai._util.deprecation import relocated_module_attribute
 
 from ._basic_agent import basic_agent
-from ._bridge.bridge import bridge
+from ._bridge import bridge
 from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
-from ._human_agent.agent import human_agent
+from ._human_agent import human_agent
 from ._limit import SampleLimitExceededError
 from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
 from ._plan import Plan, plan

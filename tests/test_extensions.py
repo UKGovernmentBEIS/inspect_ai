@@ -90,6 +90,14 @@ def test_can_roundtrip_specialised_config():
     assert isinstance(recreated.config, PodmanSandboxEnvironmentConfig)
 
 
+def test_can_load_log_file_for_unavailable_sandbox_environment():
+    json_str = """{"type":"unavailable","config":{"key":"value"}}"""
+
+    recreated = SandboxEnvironmentSpec.model_validate_json(json_str)
+
+    assert isinstance(recreated.config, dict)
+
+
 def test_supports_str_config():
     spec = SandboxEnvironmentSpec(type="podman", config="/path/to/socket")
     json_str = spec.model_dump_json()

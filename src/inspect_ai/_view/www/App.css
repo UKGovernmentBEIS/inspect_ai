@@ -31,6 +31,11 @@
   --inspect-font-size-base: 0.9rem;
   --inspect-font-size-small: 0.8rem;
   --inspect-font-size-smaller: 0.8rem;
+  --inspect-font-size-smallest: 0.7rem;
+
+  /* Inspect Glass */
+  --inspect-glass-color: #000000;
+  --inspect-glass-opacity: 0.3;
 }
 
 body:not([class^="vscode-"]) button {
@@ -109,6 +114,10 @@ body[class^="vscode-"] .app-main-grid {
   font-size: var(--inspect-font-size-smaller);
 }
 
+.text-size-smallest {
+  font-size: var(--inspect-font-size-smallest);
+}
+
 .text-truncate {
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -154,6 +163,8 @@ body[class^="vscode-"] {
   --inspect-input-border: var(--vscode-input-border);
   --inspect-diff-add-color: var(--vscode-diffEditor-insertedTextBackground);
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
+  --inspect-glass-color: var(--vscode-editor-foreground);
+  --inspect-glass-opacity: 0.15;
 }
 
 html.vscode {
@@ -335,7 +346,7 @@ body {
   padding-top: 0;
   padding-bottom: 0;
   background-color: var(--bs-light);
-  top: 2px;
+  top: 0;
 }
 
 .navbar-title-grid {

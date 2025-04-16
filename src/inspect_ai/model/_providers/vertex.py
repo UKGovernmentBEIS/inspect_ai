@@ -34,8 +34,8 @@ from inspect_ai._util.content import (
     Content,
     ContentAudio,
     ContentImage,
+    ContentReasoning,
     ContentText,
-    ContentVideo,
 )
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data
@@ -116,11 +116,6 @@ class VertexAPI(ModelAPI):
 
         self.model = GenerativeModel(model_name)
 
-    @override
-    async def close(self) -> None:
-        # GenerativeModel uses a cached/shared client so there is no 'close'
-        pass
-
     async def generate(
         self,
         input: list[ChatMessage],
@@ -155,7 +150,9 @@ class VertexAPI(ModelAPI):
         # capture output
         output = ModelOutput(
             model=self.model_name,
-            choices=completion_choices_from_candidates(response.candidates),
+            choices=completion_choices_from_candidates(
+                self.model_name, response.candidates
+            ),
             usage=ModelUsage(
                 input_tokens=response.usage_metadata.prompt_token_count,
                 output_tokens=response.usage_metadata.candidates_token_count,
@@ -336,10 +333,13 @@ async def content_part(content: Content | str) -> Part:
     elif isinstance(content, ContentImage):
         image_bytes, mime_type = await file_as_data(content.image)
         return Part.from_image(image=Image.from_bytes(data=image_bytes))
+    elif isinstance(content, ContentReasoning):
+        return Part.from_text(content.reasoning or NO_CONTENT)
     else:
         if isinstance(content, ContentAudio):
             file = content.audio
-        elif isinstance(content, ContentVideo):
+        else:
+            # it's ContentVideo
             file = content.video
         file_bytes, mime_type = await file_as_data(file)
         return Part.from_data(file_bytes, mime_type)
@@ -374,7 +374,9 @@ def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
     return [Tool(function_declarations=declarations)]
 
 
-def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoice:
+def completion_choice_from_candidate(
+    model: str, candidate: Candidate
+) -> ChatCompletionChoice:
     # check for completion text
     content = " ".join(
         [
@@ -391,7 +393,6 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
             function_call = MessageToDict(getattr(part.function_call, "_pb"))
             tool_calls.append(
                 ToolCall(
-                    type="function",
                     id=function_call["name"],
                     function=function_call["name"],
                     arguments=function_call["args"],
@@ -405,6 +406,7 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
         message=ChatMessageAssistant(
             content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
+            model=model,
             source="generate",
         ),
         stop_reason=stop_reason,
@@ -432,11 +434,14 @@ def completion_choice_from_candidate(candidate: Candidate) -> ChatCompletionChoi
 
 
 def completion_choices_from_candidates(
+    model: str,
     candidates: list[Candidate],
 ) -> list[ChatCompletionChoice]:
     candidates = copy(candidates)
     candidates.sort(key=lambda c: c.index)
-    return [completion_choice_from_candidate(candidate) for candidate in candidates]
+    return [
+        completion_choice_from_candidate(model, candidate) for candidate in candidates
+    ]
 
 
 def candidate_stop_reason(finish_reason: FinishReason) -> StopReason:

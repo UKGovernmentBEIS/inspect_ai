@@ -229,9 +229,18 @@ sandbox()          # default sandbox environment
 sandbox("victim")  # named sandbox environment
 ```
 
-::: {.callout-note apperance="simple"}
-If you define multiple sandbox environments you are *required* to name one of them "default" so that Inspect knows which environment to resolve for calls to `sandbox()` without an argument. Alternatively, you can add the `x-default` key to a service not named "default" to designate it as the default sandbox.
-:::
+If you define multiple sandbox environments the default sandbox environment will be determined as follows:
+
+1. First, take any sandbox environment named `default`;
+2. Then, take any environment with the `x-default` key set to `true`;
+3. Finally, use the first sandbox environment as the default.
+
+You can use the `sandbox_default()` context manager to temporarily change the default sandbox (for example, if you have tools that always target the default sandbox that you want to temporarily redirect):
+
+```python
+with sandbox_default("victim"):
+    # call tools, etc.
+```
 
 ### Infrastructure
 

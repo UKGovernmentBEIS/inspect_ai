@@ -1,37 +1,22 @@
-import { FC, Fragment } from "react";
+import { FC } from "react";
 import { SampleSummary } from "../../api/types";
-import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 
-import styles from "./SampleScores.module.css";
+import { getScoreDescriptorForValues } from "../descriptor/score/ScoreDescriptor";
 
 interface SampleScoresProps {
   sample: SampleSummary;
-  sampleDescriptor: SamplesDescriptor;
   scorer: string;
 }
 
-export const SampleScores: FC<SampleScoresProps> = ({
-  sample,
-  sampleDescriptor,
-  scorer,
-}) => {
-  const scores = scorer
-    ? sampleDescriptor.evalDescriptor
-        .scorerDescriptor(sample, { scorer, name: scorer })
-        .scores()
-    : sampleDescriptor.selectedScorerDescriptor(sample).scores();
-
-  if (scores.length === 1) {
-    return scores[0].rendered();
-  } else {
-    const rows = scores.map((score) => {
-      return (
-        <Fragment>
-          <div style={{ opacity: "0.7" }}>{score.name}</div>
-          <div>{score.rendered()}</div>
-        </Fragment>
-      );
-    });
-    return <div className={styles.grid}>{rows}</div>;
+export const SampleScores: FC<SampleScoresProps> = ({ sample, scorer }) => {
+  const scoreData = sample.scores?.[scorer];
+  if (!scoreData) {
+    return undefined;
   }
+
+  const scorerDescriptor = getScoreDescriptorForValues(
+    [scoreData.value],
+    [typeof scoreData.value],
+  );
+  return scorerDescriptor?.render(scoreData.value);
 };

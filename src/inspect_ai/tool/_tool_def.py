@@ -21,7 +21,7 @@ from ._tool_description import (
     tool_description,
 )
 from ._tool_info import parse_tool_info
-from ._tool_params import ToolParams
+from ._tool_params import ToolParam, ToolParams
 
 
 class ToolDef:
@@ -194,17 +194,7 @@ def tool_def_fields(tool: Tool) -> ToolDefFields:
         raise ValueError(f"Description not provided for tool function '{name}'")
 
     # validate that we have types/descriptions for paramters
-    for param_name, param in tool_info.parameters.properties.items():
-
-        def raise_not_provided_error(context: str) -> None:
-            raise ValueError(
-                f"{context} not provided for parameter '{param_name}' of tool function '{name}'."
-            )
-
-        if param.type is None and not param.anyOf and not param.enum:
-            raise_not_provided_error("Unsupported type or type annotation")
-        elif not param.description:
-            raise_not_provided_error("Description")
+    validate_tool_parameters(name, tool_info.parameters.properties)
 
     # see if the user has overriden any of the tool's descriptions
     desc = tool_description(tool)
@@ -238,3 +228,24 @@ def tool_registry_info(
     viewer = info.metadata.get(TOOL_VIEWER, None)
     model_input = info.metadata.get(TOOL_MODEL_INPUT, None)
     return name, prompt, parallel, viewer, model_input
+
+
+def validate_tool_parameters(tool_name: str, parameters: dict[str, ToolParam]) -> None:
+    # validate that we have types/descriptions for paramters
+    for param_name, param in parameters.items():
+
+        def raise_not_provided_error(
+            context: str,
+            # Use the default value trick to avoid Python's late binding of
+            # closures issue.
+            # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
+            bound_name: str = param_name,
+        ) -> None:
+            raise ValueError(
+                f"{context} provided for parameter '{bound_name}' of function '{tool_name}'."
+            )
+
+        if param.type is None and not param.anyOf and not param.enum:
+            raise_not_provided_error("Unsupported type or type annotation")
+        elif not param.description:
+            raise_not_provided_error("Description not")

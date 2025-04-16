@@ -16,5 +16,7 @@ updates:
         versions: [">=0.9.5"]
       - dependency-name: "textual"
         versions: [">=2.0.0"]
+      - dependency-name: "rich"
+        versions: [">=14.0.0"]
       - dependency-name: "fsspec"
         versions: [">=2024.12.0"]
