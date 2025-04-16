@@ -7,40 +7,15 @@ It includes definitions for JSON-RPC request and response models, as well as fun
 import json
 from itertools import count
 from textwrap import dedent
-from typing import Literal, Type, TypeVar
+from typing import Type, TypeVar
 
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.tool._tool import ToolError, ToolParsingError
 from inspect_ai.util import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-
-class JSONRPCResponseBase(BaseModel):
-    jsonrpc: Literal["2.0"]
-    id: int | float | str
-
-
-class JSONRPCSuccessResponse(JSONRPCResponseBase):
-    result: object
-
-
-class JSONRPCError(BaseModel):
-    """See: https://www.jsonrpc.org/specification#error_object"""
-
-    code: int
-    message: str
-    data: object | None = None
-
-
-class JSONRPCErrorResponse(JSONRPCResponseBase):
-    error: JSONRPCError
-
-
-class JSONRPCResponse(RootModel[JSONRPCSuccessResponse | JSONRPCErrorResponse]):
-    pass
-
+from ._json_rpc_helpers import _rpc_call_description, parse_json_rpc_response
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 ScalarT = TypeVar("ScalarT", str, int, float, bool, None)
@@ -173,7 +148,7 @@ async def _exec_request(
     timeout: int | None = None,
     user: str | None = None,
 ) -> object:
-    return _parse_json_rpc_response(
+    return parse_json_rpc_response(
         await _exec_rpc(
             sandbox=sandbox,
             method=method,
@@ -256,55 +231,3 @@ def _create_json_rpc_request(
             **({"id": next(id_generator)} if not is_notification else {}),
         }
     )
-
-
-def _rpc_call_description(
-    method: str, params: dict[str, object] | tuple[object, ...]
-) -> str:
-    """
-    Generate a string description of an RPC call.
-
-    Args:
-        method (str): The name of the RPC method.
-        params (dict[str, object] | tuple[object, ...]): The parameters for the RPC method.
-
-    Returns:
-        str: A string description of the RPC call.
-
-    Examples:
-        >>> _rpc_call_description("subtract", {"minuend": 42, "subtrahend": 23})
-        'subtract(minuend: 42, subtrahend: 23)'
-
-        >>> _rpc_call_description("subtract", (42, 23))
-        'subtract(42, 23)'
-    """
-    normalized_params = (
-        list(map(str, params))
-        if isinstance(params, tuple)
-        else [f"{k}: {v}" for k, v in params.items()]
-    )
-    return f"{method}({', '.join(normalized_params)})"
-
-
-def _parse_json_rpc_response(
-    response_str: str,
-    method: str,
-    params: dict[str, object] | tuple[object, ...],
-) -> object:
-    """Validates the JSON RPC response and returns the result or raises a proper Inspect error."""
-    match JSONRPCResponse.model_validate_json(response_str).root:
-        case JSONRPCSuccessResponse(result=rpc_result):
-            return rpc_result
-        case JSONRPCError(code=-32601 | -32602, message=message):
-            raise ToolParsingError(message)
-        # TODO: Fix this to use the whole range -32000 to -32099
-        case JSONRPCError(code=-32000, message=message):
-            raise ToolError(message)
-        case JSONRPCError(code=code, message=message):
-            raise RuntimeError(
-                f"Error executing tool command {_rpc_call_description(method, params)}: {code=} {message}"
-            )
-        case _:
-            raise ValueError(
-                f"Unexpected JSON RPC response to request {_rpc_call_description(method, params)}: {response_str}"
-            )
