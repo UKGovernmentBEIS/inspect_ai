@@ -208,7 +208,7 @@ def basic_agent(
                             # execute tool functions
                             tool_results, _ = await execute_tools(
                                 [state.output.message],
-                                state.tools,
+                                generate_tools,
                                 max_output=max_tool_output,
                             )
                             state.messages.extend(tool_results)
