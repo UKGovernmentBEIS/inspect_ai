@@ -43914,6 +43914,13 @@ categories: ${categories.join(" ")}`;
         )
       ] });
     };
+    const sampleUrl = (logPath, sampleId, sampleEpoch, logTabId, sampleTabId) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+      } else {
+        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/${sampleTabId || ""}`;
+      }
+    };
     const useLogNavigation = () => {
       const navigate = useNavigate();
       const { logPath } = useParams();
@@ -43968,9 +43975,14 @@ categories: ${categories.join(" ")}`;
               selectSample(index2);
               setShowingSampleDialog(true);
               const currentSampleTabId = specifiedSampleTabId || sampleTabId;
-              navigate(
-                currentSampleTabId ? `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample2.id}/${sample2.epoch}/${currentSampleTabId}` : `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample2.id}/${sample2.epoch}`
+              const url = sampleUrl(
+                resolvedPath,
+                sample2.id,
+                sample2.epoch,
+                tabId,
+                currentSampleTabId
               );
+              navigate(url);
             }
           }
         },
@@ -44002,7 +44014,14 @@ categories: ${categories.join(" ")}`;
           const resolvedPath = resolveLogPath();
           if (resolvedPath) {
             const currentSampleTabId = specificSampleTabId || sampleTabId;
-            return currentSampleTabId ? `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}/${currentSampleTabId}` : `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
+            const url = sampleUrl(
+              resolvedPath,
+              sampleId,
+              epoch,
+              tabId,
+              currentSampleTabId
+            );
+            return url;
           }
           return void 0;
         },
@@ -59561,16 +59580,10 @@ ${events}
           const el = e.currentTarget;
           const id2 = el.id;
           setSelectedTab(id2);
-          if (id2 !== sampleTabId) {
-            if (urlLogPath && urlSampleId && urlEpoch) {
-              navigate(
-                `/logs/${urlLogPath}/${urlTabId || "samples"}/sample/${urlSampleId}/${urlEpoch}/${id2}`
-              );
-            } else {
-              navigate(`/logs/${urlLogPath}/${urlTabId || "samples"}/${id2}`);
-            }
+          if (id2 !== sampleTabId && urlLogPath) {
+            const url = sampleUrl(urlLogPath, urlSampleId, urlEpoch, urlTabId, id2);
+            navigate(url);
           }
-          return false;
         },
         [
           sampleTabId,
@@ -80876,7 +80889,7 @@ Supported expressions:
       );
       const isViewable = completed || streamSampleData;
       const sampleNavigation = useSampleNavigation();
-      const sampleUrl = isViewable ? sampleNavigation.getSampleUrl(sample2.id, sample2.epoch) : void 0;
+      const sampleUrl2 = isViewable ? sampleNavigation.getSampleUrl(sample2.id, sample2.epoch) : void 0;
       const rowContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -80885,7 +80898,7 @@ Supported expressions:
             styles$5.grid,
             "text-size-base",
             selectedSampleIndex === index2 ? styles$5.selected : void 0,
-            !isViewable && !sampleUrl ? styles$5.disabled : void 0
+            !isViewable && !sampleUrl2 ? styles$5.disabled : void 0
           ),
           style: {
             height: `${height}px`,

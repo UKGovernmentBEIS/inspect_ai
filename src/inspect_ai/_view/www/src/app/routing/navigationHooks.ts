@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
+import { sampleUrl } from "./url";
 
 export const useLogNavigation = () => {
   const navigate = useNavigate();
@@ -96,12 +97,16 @@ export const useSampleNavigation = () => {
           // Use specified sampleTabId if provided, otherwise use current sampleTabId from URL params
           const currentSampleTabId = specifiedSampleTabId || sampleTabId;
 
-          // Navigate to the sample URL
-          navigate(
-            currentSampleTabId
-              ? `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample.id}/${sample.epoch}/${currentSampleTabId}`
-              : `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sample.id}/${sample.epoch}`,
+          const url = sampleUrl(
+            resolvedPath,
+            sample.id,
+            sample.epoch,
+            tabId,
+            currentSampleTabId,
           );
+
+          // Navigate to the sample URL
+          navigate(url);
         }
       }
     },
@@ -137,15 +142,20 @@ export const useSampleNavigation = () => {
   const getSampleUrl = useCallback(
     (
       sampleId: string | number,
-      epoch: string | number,
+      epoch: number,
       specificSampleTabId?: string,
     ) => {
       const resolvedPath = resolveLogPath();
       if (resolvedPath) {
         const currentSampleTabId = specificSampleTabId || sampleTabId;
-        return currentSampleTabId
-          ? `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}/${currentSampleTabId}`
-          : `/logs/${resolvedPath}/${tabId || "samples"}/sample/${sampleId}/${epoch}`;
+        const url = sampleUrl(
+          resolvedPath,
+          sampleId,
+          epoch,
+          tabId,
+          currentSampleTabId,
+        );
+        return url;
       }
       return undefined;
     },

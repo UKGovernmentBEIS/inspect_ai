@@ -35,6 +35,7 @@ import { useSampleData, useSampleSummaries } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
 import { printHeadingHtml, printHtml } from "../../utils/print";
+import { sampleUrl } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
@@ -112,18 +113,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
       setSelectedTab(id);
 
       // Use navigation hook to update URL with tab
-      if (id !== sampleTabId) {
-        if (urlLogPath && urlSampleId && urlEpoch) {
-          // Update URL with new tab
-          navigate(
-            `/logs/${urlLogPath}/${urlTabId || "samples"}/sample/${urlSampleId}/${urlEpoch}/${id}`,
-          );
-        } else {
-          navigate(`/logs/${urlLogPath}/${urlTabId || "samples"}/${id}`);
-        }
+      if (id !== sampleTabId && urlLogPath) {
+        const url = sampleUrl(urlLogPath, urlSampleId, urlEpoch, urlTabId, id);
+        navigate(url);
       }
-
-      return false;
     },
     [
       sampleTabId,
