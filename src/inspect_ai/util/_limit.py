@@ -173,11 +173,11 @@ class TokenLimit(Limit):
         This will affect the limit for all active token limit nodes derived from this
         context manager.
 
-        It will also trigger a check of the token limit.
+        This does not trigger a check of the token limit (which could now have been
+        exceeded).
         """
         self._validate_token_limit(value)
         self._limit_value_wrapper.value = value
-        check_token_limit()
 
     def _validate_token_limit(self, value: int | None) -> None:
         if value is not None and value < 0:

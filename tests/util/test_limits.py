@@ -202,9 +202,10 @@ def test_can_update_limit_value() -> None:
         limit.limit = 20
         _consume_tokens(15)
 
+        limit.limit = 10
+
         with pytest.raises(LimitExceededError) as exc_info:
-            # Note: the exception is raised as soon as we decrease the limit.
-            limit.limit = 10
+            check_token_limit()
             assert exc_info.value.value == 20
 
         limit.limit = None

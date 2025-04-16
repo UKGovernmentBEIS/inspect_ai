@@ -324,6 +324,7 @@ class TaskState:
     def token_limit(self, tokens: int | None) -> None:
         """Set limit on total tokens allowed per conversation."""
         self._token_limit.limit = tokens
+        check_token_limit()
 
         from inspect_ai.log._samples import set_active_sample_token_limit
 
