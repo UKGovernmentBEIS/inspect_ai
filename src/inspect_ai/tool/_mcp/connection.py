@@ -24,7 +24,7 @@ async def mcp_connection(
     """
     # discover mcp servers in tools
     tools = tools if isinstance(tools, Sequence) else [tools]
-    tool_sources = [tool for tool in tools if isinstance(tool, MCPToolSource)]
+    tool_sources = [tool for tool in tools if isinstance(tool, ToolSource)]
     mcp_servers: list[MCPServer] = []
     for tool_source in tool_sources:
         if isinstance(tool_source, MCPServer):
