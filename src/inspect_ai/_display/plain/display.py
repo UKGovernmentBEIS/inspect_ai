@@ -10,7 +10,7 @@ from inspect_ai._util.platform import running_in_notebook
 from inspect_ai._util.text import truncate
 from inspect_ai._util.throttle import throttle
 
-from ...util._concurrency import concurrency_status
+from ...util._concurrency import concurrency_status_display
 from ..core.config import task_config
 from ..core.display import (
     TR,
@@ -179,7 +179,7 @@ class PlainTaskDisplay(TaskDisplay):
             # Very similar to ``inspect_ai._display.core.footer.task_resources``, but without
             # the rich formatting added in the ``task_dict`` call
             resources_dict: dict[str, str] = {}
-            for model, resource in concurrency_status().items():
+            for model, resource in concurrency_status_display().items():
                 resources_dict[model] = f"{resource[0]:2d}/{resource[1]:2d}"
             resources = ", ".join(
                 [f"{key}: {value}" for key, value in resources_dict.items()]

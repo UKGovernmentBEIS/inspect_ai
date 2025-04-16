@@ -56,7 +56,7 @@ class MCPServerImpl(MCPServer):
             self._session = await self._exit_stack.enter_async_context(
                 ClientSession(read, write, sampling_callback=self._sampling_fn())
             )
-        with trace_action(logger, "MCPServer", f"intialize session ({self._name})"):
+        with trace_action(logger, "MCPServer", f"initialize session ({self._name})"):
             await self._session.initialize()
 
     @override
@@ -146,7 +146,7 @@ class MCPServerImpl(MCPServer):
                         )
                     )
                 with trace_action(
-                    logger, "MCPServer", f"intialize session ({self._name})"
+                    logger, "MCPServer", f"initialize session ({self._name})"
                 ):
                     await session.initialize()
                 yield session

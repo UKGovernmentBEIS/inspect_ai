@@ -901,7 +901,7 @@ async def resolve_dataset(
     dataset: Dataset,
     model_name: ModelName,
     limit: int | tuple[int, int] | None,
-    sample_id: str | int | list[str | int] | None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None,
     epochs: int,
     log_images: bool,
     message_limit: int | None,

@@ -71492,14 +71492,10 @@ ${events}
       const result2 = [];
       const pendingSandboxEvents = [];
       const pushPendingSandboxEvents = () => {
-        if (pendingSandboxEvents.length === 1) {
-          result2.push(pendingSandboxEvents[0]);
-        } else {
-          const timestamp = pendingSandboxEvents[pendingSandboxEvents.length - 1].timestamp;
-          result2.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
-          result2.push(...pendingSandboxEvents);
-          result2.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
-        }
+        const timestamp = pendingSandboxEvents[pendingSandboxEvents.length - 1].timestamp;
+        result2.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
+        result2.push(...pendingSandboxEvents);
+        result2.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
         pendingSandboxEvents.length = 0;
       };
       for (const event of events) {

@@ -11,17 +11,18 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
-from inspect_ai.agent._react import react
-from inspect_ai.dataset import Sample
-from inspect_ai.dataset._dataset import Dataset, MemoryDataset
-from inspect_ai.model import get_model
-from inspect_ai.solver import generate, use_tools
-from inspect_ai.solver._basic_agent import basic_agent
-from inspect_ai.solver._prompt import system_message
-from inspect_ai.solver._solver import solver
-from inspect_ai.tool import MCPServer, mcp_server_stdio, mcp_tools
-from inspect_ai.tool._mcp.connection import mcp_connection
-from inspect_ai.tool._mcp.server import mcp_server_sandbox
+from inspect_ai._util.trace import ActionTraceRecord, list_trace_files, read_trace_file
+from inspect_ai.agent import react
+from inspect_ai.dataset import Dataset, MemoryDataset, Sample
+from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.solver import basic_agent, generate, solver, system_message, use_tools
+from inspect_ai.tool import (
+    MCPServer,
+    mcp_connection,
+    mcp_server_sandbox,
+    mcp_server_stdio,
+    mcp_tools,
+)
 from inspect_ai.util import sandbox
 
 
@@ -157,6 +158,58 @@ def test_basic_agent_mcp_connection():
     log = eval(git_task_basic_agent_mcp_connection(), model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
+
+
+@skip_if_no_openai
+@skip_if_no_mcp_git_package
+def test_mcp_connection_persistence():
+    # run eval
+    eval(mcp_git_tools(), model="openai/gpt-4o")
+
+    # check trace log to confirm single connection
+    actions = [
+        record
+        for record in read_trace_file(list_trace_files()[0].file)
+        if isinstance(record, ActionTraceRecord)
+    ]
+
+    def count_mcp_actions(action: str):
+        return sum(
+            [
+                1
+                for a in actions
+                if a.message.startswith(f"MCPServer: {action}")
+                and a.message.endswith("(enter)")
+            ]
+        )
+
+    assert count_mcp_actions("create client") == 1
+    assert count_mcp_actions("create session") == 1
+    assert count_mcp_actions("initialize session") == 1
+    assert count_mcp_actions("list_tools") == 1
+    assert count_mcp_actions("call_tool") == 2
+    assert count_mcp_actions("disconnect") == 1
+
+
+@task
+def mcp_git_tools():
+    git_server = mcp_server_stdio(
+        command="python3", args=["-m", "mcp_server_git", "--repository", "."]
+    )
+
+    return Task(
+        dataset=[
+            Sample(
+                "What is the status of the git working tree for the current directory?. Additionally, could you summarise recent commits that have been made to the reposiotry?"
+            )
+        ],
+        solver=react(
+            name="git_worker",
+            prompt="Please use the git tools to solve the problems.",
+            tools=[mcp_tools(git_server, tools=["git_log", "git_status"])],
+        ),
+        config=GenerateConfig(parallel_tool_calls=False),
+    )
 
 
 @pytest.mark.asyncio

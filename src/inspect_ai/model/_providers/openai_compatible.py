@@ -6,6 +6,7 @@ from openai import (
     APIStatusError,
     AsyncOpenAI,
     BadRequestError,
+    PermissionDeniedError,
     UnprocessableEntityError,
 )
 from openai._types import NOT_GIVEN
@@ -156,7 +157,7 @@ class OpenAICompatibleAPI(ModelAPI):
             choices = self.chat_choices_from_completion(completion, tools)
             return model_output_from_openai(completion, choices), model_call()
 
-        except (BadRequestError, UnprocessableEntityError) as ex:
+        except (BadRequestError, UnprocessableEntityError, PermissionDeniedError) as ex:
             return self.handle_bad_request(ex), model_call()
 
     def service_model_name(self) -> str:

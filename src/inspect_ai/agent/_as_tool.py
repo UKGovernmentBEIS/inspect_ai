@@ -42,7 +42,7 @@ def as_tool(agent: Agent, description: str | None = None, **agent_kwargs: Any) -
 
     async def execute(input: str, *args: Any, **kwargs: Any) -> ToolResult:
         # prepare state and call agent
-        state = AgentState(messages=[ChatMessageUser(content=input)])
+        state = AgentState(messages=[ChatMessageUser(content=input, source="input")])
         state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # find assistant message to read content from (prefer output)
