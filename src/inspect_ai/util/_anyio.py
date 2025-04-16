@@ -6,12 +6,11 @@ if sys.version_info < (3, 11):
 
 
 def inner_exception(exc: Exception) -> Exception:
-    flattended = _flatten_exception(exc)
-    return flattended[0]
+    return _flatten_exception(exc)[0]
 
 
 def _flatten_exception(exc: Exception) -> list[Exception]:
-    """Recursively flatten an to get all related (__context__) and contained (ExceptionGroup) exceptions."""
+    """Recursively flatten an exception to get all related (__context__) and contained (ExceptionGroup) exceptions."""
     context_to_follow = (
         [exc.__context__]
         # conceptually, if __cause__ is present, it means that this exception
