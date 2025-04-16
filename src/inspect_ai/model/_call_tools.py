@@ -264,6 +264,7 @@ async def execute_tools(
                 tuple[ExecuteToolsResult, ToolEvent, Exception | None]
             ]()
 
+            result_exception = None
             async with anyio.create_task_group() as tg:
                 tg.start_soon(call_tool_task, call, messages, send_stream)
                 event._set_cancel_fn(tg.cancel_scope.cancel)
