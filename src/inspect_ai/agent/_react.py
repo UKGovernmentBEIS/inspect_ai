@@ -5,6 +5,7 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
@@ -13,7 +14,6 @@ from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._trim import trim_messages
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._tool import Tool, ToolResult, tool
-from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
@@ -250,6 +250,10 @@ def react(
                         ChatMessageUser(content=continue_msg.format(submit=submit.name))
                     )
 
+        # once we are complete, remove submit tool calls from the history
+        # (as they will potentially confuse parent agents who also have
+        # their own submit tools that they are 'watching' for)
+        state.messages = _remove_submit_tool(state.messages, submit.name)
         return state
 
     if name is not None or description is not None:
@@ -283,3 +287,27 @@ def _model_generate(model: str | Model | None) -> Agent:
         return state
 
     return generate
+
+
+def _remove_submit_tool(
+    messages: list[ChatMessage], submit_name: str
+) -> list[ChatMessage]:
+    filtered: list[ChatMessage] = []
+    for message in messages:
+        # skip submit tool messages
+        if isinstance(message, ChatMessageTool) and message.function == submit_name:
+            continue
+
+        # remove submit tool from assistant messages
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+            tools_calls = [
+                tool_call
+                for tool_call in message.tool_calls
+                if tool_call.function != submit_name
+            ]
+            message = message.model_copy(update=dict(tool_calls=tools_calls))
+
+        # always append message
+        filtered.append(message)
+
+    return filtered
