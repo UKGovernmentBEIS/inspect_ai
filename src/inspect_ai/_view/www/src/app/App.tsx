@@ -31,6 +31,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const setLogs = useStore((state) => state.logsActions.setLogs);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
   const setIntialState = useStore((state) => state.appActions.setInitialState);
+  const rehydrated = useStore((state) => state.app.rehydrated);
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const loadLog = useStore((state) => state.logActions.loadLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
@@ -129,7 +130,7 @@ export const App: FC<AppProps> = ({ api }) => {
     const loadLogsAndState = async () => {
       // First see if there is embedded state and if so, use that
       const embeddedState = document.getElementById("logview-state");
-      if (embeddedState) {
+      if (embeddedState && !rehydrated) {
         const state = JSON5.parse(embeddedState.textContent || "");
         onMessage({ data: state });
       } else {

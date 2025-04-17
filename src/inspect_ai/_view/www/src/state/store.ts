@@ -139,11 +139,12 @@ export const initializeStore = (
           storage: storageImplementation,
           partialize: (state) => {
             const persisted: PersistedState = filterState({
-              app: state.app,
+              app: { ...state.app, rehydrated: true },
               log: state.log,
               logs: state.logs,
               sample: state.sample,
             });
+            log.debug("PARTIALIZED STATE", persisted);
             return persisted as unknown as StoreState;
           },
           version: 1,
