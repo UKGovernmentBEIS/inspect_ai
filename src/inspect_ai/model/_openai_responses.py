@@ -252,10 +252,10 @@ def _chat_message_assistant_from_openai_response(
                     ]
                 )
             case ResponseReasoningItem(summary=summary, id=id):
-                assert internal["reasoning_id"] is None, "Multiple reasoning items"
-                internal["reasoning_id"] = id
                 message_content.append(
-                    ContentReasoning(reasoning="\n".join([s.text for s in summary]))
+                    ContentReasoning(
+                        reasoning="\n".join([s.text for s in summary]), signature=id
+                    )
                 )
             case _:
                 stop_reason = "tool_calls"
@@ -316,11 +316,12 @@ def _openai_input_items_from_chat_message_assistant(
     ):
         match content:
             case ContentReasoning(reasoning=reasoning):
-                assert reasoning_item is None, "Multiple reasoning items"
-                assert reasoning_id is not None, "Must find reasoning id"
+                assert content.signature is not None, (
+                    "reasoning_id must be saved in signature"
+                )
                 reasoning_item = ResponseReasoningItemParam(
                     type="reasoning",
-                    id=reasoning_id,
+                    id=content.signature,
                     summary=[Summary(type="summary_text", text=reasoning)],
                 )
             case ContentText(text=text, refusal=refusal):

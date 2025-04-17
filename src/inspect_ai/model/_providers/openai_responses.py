@@ -15,9 +15,7 @@ from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     is_computer_use_preview,
-    is_gpt,
-    is_o1_mini,
-    is_o1_preview,
+    is_o1_early,
     is_o_series,
     openai_handle_bad_request,
     openai_media_filter,
@@ -153,13 +151,10 @@ def completion_params_responses(
         unsupported_warning("top_logprobs")
     if tools and config.parallel_tool_calls is not None and not is_o_series(model_name):
         params["parallel_tool_calls"] = config.parallel_tool_calls
-    if (
-        config.reasoning_effort is not None
-        and not is_gpt(model_name)
-        and not is_o1_mini(model_name)
-        and not is_o1_preview(model_name)
-    ):
-        params["reasoning"] = dict(effort=config.reasoning_effort)
+    if is_o_series(model_name) and not is_o1_early(model_name):
+        # TODO: this actually needs to be fully opt-in as "auto" will cause an error for some orgs
+        reasoning_effort = config.reasoning_effort or "medium"
+        params["reasoning"] = dict(effort=reasoning_effort, summary="auto")
     if config.response_schema is not None:
         params["text"] = dict(
             format=ResponseFormatTextJSONSchemaConfigParam(
