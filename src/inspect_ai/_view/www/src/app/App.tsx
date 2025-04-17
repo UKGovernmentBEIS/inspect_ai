@@ -30,6 +30,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const setAppStatus = useStore((state) => state.appActions.setStatus);
   const setLogs = useStore((state) => state.logsActions.setLogs);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+  const setIntialState = useStore((state) => state.appActions.setInitialState);
   const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const loadLog = useStore((state) => state.logActions.loadLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
@@ -92,7 +93,7 @@ export const App: FC<AppProps> = ({ api }) => {
         case "updateState": {
           if (e.data.url) {
             const decodedUrl = decodeURIComponent(e.data.url);
-            selectLogFile(decodedUrl);
+            setIntialState(decodedUrl, e.data.sample_id, e.data.sample_epoch);
           }
           break;
         }

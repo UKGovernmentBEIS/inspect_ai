@@ -22401,6 +22401,20 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.app.tabs.workspace = kDefaultWorkspaceTab;
             });
           },
+          setInitialState: (log2, sample_id, sample_epoch) => {
+            set2((state) => {
+              state.app.initialState = {
+                log: log2,
+                sample_id,
+                sample_epoch
+              };
+            });
+          },
+          clearInitialState: () => {
+            set2((state) => {
+              state.app.initialState = void 0;
+            });
+          },
           setSampleTab: (tab2) => {
             set2((state) => {
               state.app.tabs.sample = tab2;
@@ -42117,6 +42131,48 @@ categories: ${categories.join(" ")}`;
       }, [toolCallContent]);
       return toolViewRef;
     };
+    const directoryRelativeUrl = (file, dir) => {
+      if (!dir) {
+        return encodeURIComponent(file);
+      }
+      const normalizedFile = file.replace(/\\/g, "/");
+      const normalizedLogDir = dir.replace(/\\/g, "/");
+      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
+      if (normalizedFile.startsWith(dirWithSlash)) {
+        const relativePath = normalizedFile.substring(dirWithSlash.length);
+        const segments = relativePath.split("/");
+        const encodedSegments = segments.map(
+          (segment) => encodeURIComponent(segment)
+        );
+        return encodedSegments.join("/");
+      }
+      return encodeURIComponent(file);
+    };
+    const baseUrl = (logPath, sampleId, sampleEpoch) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return sampleUrl(logPath, sampleId, sampleEpoch);
+      } else {
+        return logUrl(logPath);
+      }
+    };
+    const sampleUrl = (logPath, sampleId, sampleEpoch, logTabId, sampleTabId) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+      } else {
+        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/${sampleTabId || ""}`;
+      }
+    };
+    const logUrl = (log_file, log_dir, tabId) => {
+      const pathSegment = directoryRelativeUrl(log_file, log_dir);
+      return logUrlRaw(pathSegment, tabId);
+    };
+    const logUrlRaw = (log_segment, tabId) => {
+      if (tabId) {
+        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+      } else {
+        return `/logs/${encodeURIComponent(log_segment)}`;
+      }
+    };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
       const storeHideFind = useStore((state) => state.appActions.hideFind);
@@ -42431,41 +42487,6 @@ categories: ${categories.join(" ")}`;
       }, []);
       return throttledCallback;
     }
-    const directoryRelativeUrl = (file, dir) => {
-      if (!dir) {
-        return encodeURIComponent(file);
-      }
-      const normalizedFile = file.replace(/\\/g, "/");
-      const normalizedLogDir = dir.replace(/\\/g, "/");
-      const dirWithSlash = normalizedLogDir.endsWith("/") ? normalizedLogDir : normalizedLogDir + "/";
-      if (normalizedFile.startsWith(dirWithSlash)) {
-        const relativePath = normalizedFile.substring(dirWithSlash.length);
-        const segments = relativePath.split("/");
-        const encodedSegments = segments.map(
-          (segment) => encodeURIComponent(segment)
-        );
-        return encodedSegments.join("/");
-      }
-      return encodeURIComponent(file);
-    };
-    const sampleUrl = (logPath, sampleId, sampleEpoch, logTabId, sampleTabId) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
-      } else {
-        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/${sampleTabId || ""}`;
-      }
-    };
-    const logUrl = (log_file, log_dir, tabId) => {
-      const pathSegment = directoryRelativeUrl(log_file, log_dir);
-      return logUrlRaw(pathSegment, tabId);
-    };
-    const logUrlRaw = (log_segment, tabId) => {
-      if (tabId) {
-        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
-      } else {
-        return `/logs/${encodeURIComponent(log_segment)}`;
-      }
-    };
     const dirname$1 = "_dirname_1qban_1";
     const directoryLink = "_directoryLink_1qban_7";
     const styles$13 = {
@@ -44528,8 +44549,8 @@ categories: ${categories.join(" ")}`;
       ] });
     };
     const ghCommitUrl = (origin, commit) => {
-      const baseUrl = origin.replace(/\.git$/, "");
-      return `${baseUrl}/commit/${commit}`;
+      const baseUrl2 = origin.replace(/\.git$/, "");
+      return `${baseUrl2}/commit/${commit}`;
     };
     const item = "_item_1uzhd_1";
     const styles$H = {
@@ -81789,6 +81810,22 @@ Supported expressions:
       const setSelectedLogIndex = useStore(
         (state) => state.logsActions.setSelectedLogIndex
       );
+      const initialState2 = useStore((state) => state.app.initialState);
+      const clearInitialState = useStore(
+        (state) => state.appActions.clearInitialState
+      );
+      const navigate = useNavigate();
+      reactExports.useEffect(() => {
+        if (initialState2) {
+          const url = baseUrl(
+            initialState2.log,
+            initialState2.sample_id,
+            initialState2.sample_epoch
+          );
+          clearInitialState();
+          navigate(url);
+        }
+      }, [initialState2]);
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {
           if (logPath) {
@@ -81900,6 +81937,7 @@ Supported expressions:
       const setAppStatus = useStore((state) => state.appActions.setStatus);
       const setLogs = useStore((state) => state.logsActions.setLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+      const setIntialState = useStore((state) => state.appActions.setInitialState);
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const pollLog = useStore((state) => state.logActions.pollLog);
@@ -81949,7 +81987,7 @@ Supported expressions:
             case "updateState": {
               if (e.data.url) {
                 const decodedUrl = decodeURIComponent(e.data.url);
-                selectLogFile(decodedUrl);
+                setIntialState(decodedUrl, e.data.sample_id, e.data.sample_epoch);
               }
               break;
             }

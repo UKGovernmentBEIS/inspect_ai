@@ -1,8 +1,9 @@
 import { FC, useEffect } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { kLogViewSamplesTabId } from "../../constants";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
+import { baseUrl } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
 
 /**
@@ -29,6 +30,24 @@ export const LogViewContainer: FC = () => {
   const setSelectedLogIndex = useStore(
     (state) => state.logsActions.setSelectedLogIndex,
   );
+
+  const initialState = useStore((state) => state.app.initialState);
+  const clearInitialState = useStore(
+    (state) => state.appActions.clearInitialState,
+  );
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (initialState) {
+      const url = baseUrl(
+        initialState.log,
+        initialState.sample_id,
+        initialState.sample_epoch,
+      );
+      clearInitialState();
+      navigate(url);
+    }
+  }, [initialState]);
 
   useEffect(() => {
     const loadLogFromPath = async () => {
