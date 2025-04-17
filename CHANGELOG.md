@@ -4,6 +4,7 @@
 - New [openai-api](https://inspect.aisi.org.uk/providers.html#openai-api) model provider for interfacing with arbitrary services that have Open AI API compatible endpoints.
 - ReAct Agent: [truncation](https://inspect.aisi.org.uk/agents.html#truncation) option to trim conversation messages when the model context window is exceeded.
 - ReAct Agent: Improve default `on_continue` message, including using a dynamic name for the submit tool.
+- Agent Bridge: Add `metadata` field to bridge input for backward compatibility with solver-based bridge.
 - Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
 - Approval: Approvers now take `history` argument (rather than `TaskState`) to better handle agent conversation state.
 - Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
