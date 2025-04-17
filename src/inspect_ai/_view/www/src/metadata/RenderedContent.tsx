@@ -147,6 +147,9 @@ const contentRenderers: Record<string, ContentRenderer> = {
     canRender: (entry) => {
       const isArray = Array.isArray(entry.value);
       if (isArray) {
+        if (entry.value.length === 0 || entry.value.length === 1) {
+          return true;
+        }
         const types = new Set(
           entry.value
             .filter((e: unknown) => e !== null)
