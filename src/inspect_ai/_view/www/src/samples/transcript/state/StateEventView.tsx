@@ -41,15 +41,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
 
   // Synthesize objects for comparison
   const [before, after] = useMemo(() => {
-    try {
-      return synthesizeComparable(event.changes);
-    } catch (e) {
-      console.error(
-        "Unable to synthesize comparable object to display state diffs.",
-        e,
-      );
-      return [{}, {}];
-    }
+    return synthesizeComparable(event.changes);
   }, [event.changes]);
 
   // This clone is important since the state is used by react as potential values that are rendered
@@ -276,43 +268,20 @@ function setPath(
   value: unknown,
 ): void {
   const keys = parsePath(path);
-  let current: Record<string, unknown> | unknown[] = target;
+  let current: Record<string, unknown> = target;
 
   for (let i = 0; i < keys.length - 1; i++) {
     const key = keys[i];
-
-    if (Array.isArray(current)) {
-      const numericIndex = getIndex(key);
-      current[numericIndex] = isArrayIndex(keys[i + 1]) ? [] : {};
-      current = current[numericIndex] as
-        | Record<string, unknown>
-        | Array<unknown>;
-    } else {
-      if (!(key in current)) {
-        // If the next key is a number, create an array, otherwise an object
-        current[key] = isArrayIndex(keys[i + 1]) ? [] : {};
-      }
-      current = current[key] as Record<string, unknown> | Array<unknown>;
+    if (!(key in current)) {
+      // If the next key is a number, create an array, otherwise an object
+      current[key] = isArrayIndex(keys[i + 1]) ? [] : {};
     }
+    current = current[key] as Record<string, unknown>;
   }
 
   const lastKey = keys[keys.length - 1];
-  if (Array.isArray(current)) {
-    const numericIndex = getIndex(lastKey);
-    current[numericIndex] = value;
-  } else {
-    current[lastKey] = value;
-  }
+  current[lastKey] = value;
 }
-
-const getIndex = (key: string): number => {
-  const numericIndex = isArrayIndex(key) ? parseInt(key) : undefined;
-  if (numericIndex === undefined) {
-    throw new Error(`The key ${key} isn't a valid Array index!`);
-  }
-
-  return numericIndex;
-};
 
 /**
  * Places structure in an object (without placing values)
