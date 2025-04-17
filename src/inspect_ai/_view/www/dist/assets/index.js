@@ -71192,7 +71192,15 @@ ${events}
         return summarizeChanges(event.changes);
       }, [event.changes]);
       const [before, after] = reactExports.useMemo(() => {
-        return synthesizeComparable(event.changes);
+        try {
+          return synthesizeComparable(event.changes);
+        } catch (e) {
+          console.error(
+            "Unable to synthesize comparable object to display state diffs.",
+            e
+          );
+          return [{}, {}];
+        }
       }, [event.changes]);
       const changePreview = reactExports.useMemo(() => {
         return generatePreview(event.changes, structuredClone(after), isStore);

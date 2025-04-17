@@ -41,7 +41,15 @@ export const StateEventView: FC<StateEventViewProps> = ({
 
   // Synthesize objects for comparison
   const [before, after] = useMemo(() => {
-    return synthesizeComparable(event.changes);
+    try {
+      return synthesizeComparable(event.changes);
+    } catch (e) {
+      console.error(
+        "Unable to synthesize comparable object to display state diffs.",
+        e,
+      );
+      return [{}, {}];
+    }
   }, [event.changes]);
 
   // This clone is important since the state is used by react as potential values that are rendered
