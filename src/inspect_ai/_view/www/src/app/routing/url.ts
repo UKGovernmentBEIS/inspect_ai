@@ -1,5 +1,17 @@
 import { directoryRelativeUrl } from "../../utils/uri";
 
+export const baseUrl = (
+  logPath: string,
+  sampleId?: string | number,
+  sampleEpoch?: string | number,
+) => {
+  if (sampleId !== undefined && sampleEpoch !== undefined) {
+    return sampleUrl(logPath, sampleId, sampleEpoch);
+  } else {
+    return logUrl(logPath);
+  }
+};
+
 export const sampleUrl = (
   logPath: string,
   sampleId?: string | number,

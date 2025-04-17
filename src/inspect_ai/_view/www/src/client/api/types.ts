@@ -241,6 +241,8 @@ export interface UpdateStateMessage {
   data: {
     type: "updateState";
     url: string;
+    sample_id?: string;
+    sample_epoch?: string;
   };
 }
 

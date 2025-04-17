@@ -18,6 +18,13 @@ export interface AppSlice {
     setWorkspaceTab: (tab: string) => void;
     clearWorkspaceTab: () => void;
 
+    setInitialState: (
+      log: string,
+      sample_id?: string,
+      sample_epoch?: string,
+    ) => void;
+    clearInitialState: () => void;
+
     setSampleTab: (tab: string) => void;
     clearSampleTab: () => void;
 
@@ -129,6 +136,25 @@ export const createAppSlice = (
           state.app.tabs.workspace = kDefaultWorkspaceTab;
         });
       },
+      setInitialState: (
+        log: string,
+        sample_id?: string,
+        sample_epoch?: string,
+      ) => {
+        set((state) => {
+          state.app.initialState = {
+            log,
+            sample_id,
+            sample_epoch,
+          };
+        });
+      },
+      clearInitialState: () => {
+        set((state) => {
+          state.app.initialState = undefined;
+        });
+      },
+
       setSampleTab: (tab: string) => {
         set((state) => {
           state.app.tabs.sample = tab;
