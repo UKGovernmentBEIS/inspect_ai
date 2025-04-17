@@ -1778,7 +1778,7 @@ react-router-dom@^7.5.0:
   dependencies:
     react-router "7.5.0"
 
-react-router@7.5.0, react-router@^7.5.0:
+react-router@7.5.0:
   version "7.5.0"
   resolved "https://registry.yarnpkg.com/react-router/-/react-router-7.5.0.tgz#649568e7e3b4133dee1dcf333d8a3a37b1967f58"
   integrity sha512-estOHrRlDMKdlQa6Mj32gIks4J+AxNsYoE0DbTTxiMy2mPzZuWSDU+N85/r1IlNR7kGfznF3VCUlvc5IUO+B9g==
