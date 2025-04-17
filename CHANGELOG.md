@@ -1,6 +1,7 @@
 ## Unreleased
 
-- [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-summary) generation option for OpenAI reasoning models.
+- OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-summary) generation option for reasoning models.
+- OpenAI: Responses API is now used by default for all reasoning models.
 
 ## v0.3.89 (17 April 2025)
 
