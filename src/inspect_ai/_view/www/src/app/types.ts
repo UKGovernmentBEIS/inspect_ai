@@ -50,6 +50,7 @@ export interface AppState {
     sample_id?: string;
     sample_epoch?: string;
   };
+  rehydrated?: boolean;
 }
 
 export interface LogsState {

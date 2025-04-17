@@ -23535,11 +23535,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               storage: storageImplementation,
               partialize: (state) => {
                 const persisted = filterState({
-                  app: state.app,
+                  app: { ...state.app, rehydrated: true },
                   log: state.log,
                   logs: state.logs,
                   sample: state.sample
                 });
+                log$2.debug("PARTIALIZED STATE", persisted);
                 return persisted;
               },
               version: 1,
@@ -81938,6 +81939,7 @@ Supported expressions:
       const setLogs = useStore((state) => state.logsActions.setLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const setIntialState = useStore((state) => state.appActions.setInitialState);
+      const rehydrated = useStore((state) => state.app.rehydrated);
       const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const pollLog = useStore((state) => state.logActions.pollLog);
@@ -82019,7 +82021,7 @@ Supported expressions:
       reactExports.useEffect(() => {
         const loadLogsAndState = async () => {
           const embeddedState = document.getElementById("logview-state");
-          if (embeddedState) {
+          if (embeddedState && !rehydrated) {
             const state = lib$1.parse(embeddedState.textContent || "");
             onMessage({ data: state });
           } else {

@@ -154,7 +154,6 @@ export const createAppSlice = (
           state.app.initialState = undefined;
         });
       },
-
       setSampleTab: (tab: string) => {
         set((state) => {
           state.app.tabs.sample = tab;
