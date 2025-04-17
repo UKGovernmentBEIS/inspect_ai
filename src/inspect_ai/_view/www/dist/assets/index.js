@@ -71192,15 +71192,7 @@ ${events}
         return summarizeChanges(event.changes);
       }, [event.changes]);
       const [before, after] = reactExports.useMemo(() => {
-        try {
-          return synthesizeComparable(event.changes);
-        } catch (e) {
-          console.error(
-            "Unable to synthesize comparable object to display state diffs.",
-            e
-          );
-          return [{}, {}];
-        }
+        return synthesizeComparable(event.changes);
       }, [event.changes]);
       const changePreview = reactExports.useMemo(() => {
         return generatePreview(event.changes, structuredClone(after), isStore);
@@ -71375,32 +71367,14 @@ ${events}
       let current2 = target2;
       for (let i2 = 0; i2 < keys.length - 1; i2++) {
         const key2 = keys[i2];
-        if (Array.isArray(current2)) {
-          const numericIndex = getIndex(key2);
-          current2[numericIndex] = isArrayIndex(keys[i2 + 1]) ? [] : {};
-          current2 = current2[numericIndex];
-        } else {
-          if (!(key2 in current2)) {
-            current2[key2] = isArrayIndex(keys[i2 + 1]) ? [] : {};
-          }
-          current2 = current2[key2];
+        if (!(key2 in current2)) {
+          current2[key2] = isArrayIndex(keys[i2 + 1]) ? [] : {};
         }
+        current2 = current2[key2];
       }
       const lastKey = keys[keys.length - 1];
-      if (Array.isArray(current2)) {
-        const numericIndex = getIndex(lastKey);
-        current2[numericIndex] = value2;
-      } else {
-        current2[lastKey] = value2;
-      }
+      current2[lastKey] = value2;
     }
-    const getIndex = (key2) => {
-      const numericIndex = isArrayIndex(key2) ? parseInt(key2) : void 0;
-      if (numericIndex === void 0) {
-        throw new Error(`The key ${key2} isn't a valid Array index!`);
-      }
-      return numericIndex;
-    };
     function initializeArrays(target2, path) {
       const keys = parsePath(path);
       let current2 = target2;
