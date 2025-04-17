@@ -22300,6 +22300,43 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       return logger;
     };
+    function debounce$1(func, wait, options2 = {}) {
+      let timeout = null;
+      let context;
+      let args;
+      let result2;
+      let lastCallTime = null;
+      const later = () => {
+        const last = Date.now() - (lastCallTime || 0);
+        if (last < wait && last >= 0) {
+          timeout = setTimeout(later, wait - last);
+        } else {
+          timeout = null;
+          if (!options2.leading) {
+            result2 = func.apply(context, args);
+            if (!timeout) {
+              context = null;
+              args = null;
+            }
+          }
+        }
+      };
+      return function(...callArgs) {
+        context = this;
+        args = callArgs;
+        lastCallTime = Date.now();
+        const callNow = options2.leading && !timeout;
+        if (!timeout) {
+          timeout = setTimeout(later, wait);
+        }
+        if (callNow) {
+          result2 = func.apply(context, args);
+          context = null;
+          args = null;
+        }
+        return result2;
+      };
+    }
     const kModelNone = "none/none";
     const kLogViewSamplesTabId = "samples";
     const kLogViewJsonTabId = "json";
@@ -23464,11 +23501,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         getItem: (name2) => {
           return storage2 ? storage2.getItem(name2) : null;
         },
-        setItem: (name2, value2) => {
+        setItem: debounce$1((name2, value2) => {
           if (storage2) {
             storage2.setItem(name2, value2);
           }
-        },
+        }, 1e3),
         removeItem: (name2) => {
           if (storage2) {
             storage2.removeItem(name2);
@@ -42319,43 +42356,6 @@ categories: ${categories.join(" ")}`;
         }
       ) });
     };
-    function debounce$1(func, wait, options2 = {}) {
-      let timeout = null;
-      let context;
-      let args;
-      let result2;
-      let lastCallTime = null;
-      const later = () => {
-        const last = Date.now() - (lastCallTime || 0);
-        if (last < wait && last >= 0) {
-          timeout = setTimeout(later, wait - last);
-        } else {
-          timeout = null;
-          if (!options2.leading) {
-            result2 = func.apply(context, args);
-            if (!timeout) {
-              context = null;
-              args = null;
-            }
-          }
-        }
-      };
-      return function(...callArgs) {
-        context = this;
-        args = callArgs;
-        lastCallTime = Date.now();
-        const callNow = options2.leading && !timeout;
-        if (!timeout) {
-          timeout = setTimeout(later, wait);
-        }
-        if (callNow) {
-          result2 = func.apply(context, args);
-          context = null;
-          args = null;
-        }
-        return result2;
-      };
-    }
     const log = createLogger("scrolling");
     function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
       const getScrollPosition = useStore(
