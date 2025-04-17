@@ -283,18 +283,13 @@ class SampleInfo(Vertical):
     }
     SampleInfo #sample-link {
         height: auto;
-        width: 10;
-        background: $surface;
-        &:hover {
-            background: $block-hover-background;
-        }
-        &:focus {
-            background: $block-hover-background;
-        }
+        width: 11;
+        margin-left: 1;
+        background: $background;
     }
     SampleInfo #sample-link Link {
         color: $accent;
-        background: $surface;
+        background: $background;
     }
     """
 
@@ -350,16 +345,15 @@ class SampleInfo(Vertical):
 
             link_container = self.query_one("#sample-link")
             link_container.remove_children()
-            link_container.mount(
-                conditional_vscode_link(
-                    "[View Log]",
-                    VSCodeCommand(
-                        command="inspect.openLogViewer",
-                        args=[view_link] if sample.log_location else [],
-                    ),
-                    EXTENSION_COMMAND_OPEN_SAMPLE,
-                )
+            link = conditional_vscode_link(
+                "[View Log]",
+                VSCodeCommand(
+                    command="inspect.openLogViewer",
+                    args=[view_link] if sample.log_location else [],
+                ),
+                EXTENSION_COMMAND_OPEN_SAMPLE,
             )
+            link_container.mount(link)
 
 
 class SampleLimits(Widget):
