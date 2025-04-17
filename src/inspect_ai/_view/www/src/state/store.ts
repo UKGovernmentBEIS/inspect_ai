@@ -3,6 +3,7 @@ import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
 import { Capabilities, ClientAPI, ClientStorage } from "../client/api/types";
 import { createLogger } from "../utils/logger";
+import { debounce } from "../utils/sync";
 import { AppSlice, createAppSlice, initializeAppSlice } from "./appSlice";
 import { createLogSlice, initalializeLogSlice, LogSlice } from "./logSlice";
 import { createLogsSlice, initializeLogsSlice, LogsSlice } from "./logsSlice";
@@ -56,11 +57,11 @@ export const initializeStore = (
     getItem: <T>(name: string): T | null => {
       return storage ? (storage.getItem(name) as T) : null;
     },
-    setItem: <T>(name: string, value: T): void => {
+    setItem: debounce(<T>(name: string, value: T): void => {
       if (storage) {
         storage.setItem(name, value);
       }
-    },
+    }, 1000),
     removeItem: (name: string): void => {
       if (storage) {
         storage.removeItem(name);
