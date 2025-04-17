@@ -1,7 +1,4 @@
-export const directoryRelativeUrl = (
-  file: string,
-  dir?: string,
-): string | undefined => {
+export const directoryRelativeUrl = (file: string, dir?: string): string => {
   if (!dir) {
     return encodeURIComponent(file);
   }

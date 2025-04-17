@@ -1,3 +1,5 @@
+import { directoryRelativeUrl } from "../../utils/uri";
+
 export const sampleUrl = (
   logPath: string,
   sampleId?: string | number,
@@ -9,5 +11,18 @@ export const sampleUrl = (
     return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
   } else {
     return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/${sampleTabId || ""}`;
+  }
+};
+
+export const logUrl = (log_file: string, log_dir?: string, tabId?: string) => {
+  const pathSegment = directoryRelativeUrl(log_file, log_dir);
+  return logUrlRaw(pathSegment, tabId);
+};
+
+export const logUrlRaw = (log_segment: string, tabId?: string) => {
+  if (tabId) {
+    return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+  } else {
+    return `/logs/${encodeURIComponent(log_segment)}`;
   }
 };

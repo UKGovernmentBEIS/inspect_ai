@@ -22954,10 +22954,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           updateLogHeaders: (headers) => set2((state) => {
             state.logs.logHeaders = { ...get2().logs.logHeaders, ...headers };
           }),
-          setSelectedLogFile: (logUrl) => {
+          setSelectedLogFile: (logUrl2) => {
             const state = get2();
             const index2 = state.logs.logs.files.findIndex(
-              (val) => logUrl.endsWith(val.name)
+              (val) => logUrl2.endsWith(val.name)
             );
             if (index2 > -1) {
               state.logsActions.setSelectedLogIndex(index2);
@@ -22995,17 +22995,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             }
           },
           // Select a specific log file
-          selectLogFile: async (logUrl) => {
+          selectLogFile: async (logUrl2) => {
             const state = get2();
             const index2 = state.logs.logs.files.findIndex(
-              (val) => val.name.endsWith(logUrl)
+              (val) => val.name.endsWith(logUrl2)
             );
             if (index2 > -1) {
               state.logsActions.setSelectedLogIndex(index2);
             } else {
               const result2 = await state.logsActions.loadLogs();
               const idx = result2 == null ? void 0 : result2.files.findIndex(
-                (file) => file.name.endsWith(logUrl)
+                (file) => file.name.endsWith(logUrl2)
               );
               state.logsActions.setLogs(result2 || kEmptyLogs);
               state.logsActions.setSelectedLogIndex(
@@ -42448,6 +42448,24 @@ categories: ${categories.join(" ")}`;
       }
       return encodeURIComponent(file);
     };
+    const sampleUrl = (logPath, sampleId, sampleEpoch, logTabId, sampleTabId) => {
+      if (sampleId !== void 0 && sampleEpoch !== void 0) {
+        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+      } else {
+        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/${sampleTabId || ""}`;
+      }
+    };
+    const logUrl = (log_file, log_dir, tabId) => {
+      const pathSegment = directoryRelativeUrl(log_file, log_dir);
+      return logUrlRaw(pathSegment, tabId);
+    };
+    const logUrlRaw = (log_segment, tabId) => {
+      if (tabId) {
+        return `/logs/${encodeURIComponent(log_segment)}/${tabId}`;
+      } else {
+        return `/logs/${encodeURIComponent(log_segment)}`;
+      }
+    };
     const dirname$1 = "_dirname_1qban_1";
     const directoryLink = "_directoryLink_1qban_7";
     const styles$13 = {
@@ -42837,7 +42855,7 @@ categories: ${categories.join(" ")}`;
                         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                           Link,
                           {
-                            to: `/logs/${directoryRelativeUrl(file.name, logs.log_dir)}`,
+                            to: logUrl(file.name, logs.log_dir),
                             className: styles$12.logLink,
                             onClick: () => {
                               onSelectedIndexChanged(index2);
@@ -43914,13 +43932,6 @@ categories: ${categories.join(" ")}`;
         )
       ] });
     };
-    const sampleUrl = (logPath, sampleId, sampleEpoch, logTabId, sampleTabId) => {
-      if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
-      } else {
-        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/${sampleTabId || ""}`;
-      }
-    };
     const useLogNavigation = () => {
       const navigate = useNavigate();
       const { logPath } = useParams();
@@ -43929,10 +43940,11 @@ categories: ${categories.join(" ")}`;
       const selectTab = reactExports.useCallback(
         (tabId) => {
           if (loadedLog && logPath) {
-            navigate(`/logs/${logPath}/${tabId}`);
+            const url = logUrlRaw(logPath, tabId);
+            navigate(url);
           } else if (loadedLog) {
-            const logPathSegment = directoryRelativeUrl(loadedLog, logs.log_dir);
-            navigate(`/logs/${logPathSegment}/${tabId}`);
+            const url = logUrl(loadedLog, logs.log_dir, tabId);
+            navigate(url);
           }
         },
         [loadedLog, logPath, logs.log_dir, navigate]
@@ -44030,7 +44042,8 @@ categories: ${categories.join(" ")}`;
       const clearSampleUrl = reactExports.useCallback(() => {
         const resolvedPath = resolveLogPath();
         if (resolvedPath) {
-          navigate(`/logs/${resolvedPath}/${tabId || "samples"}`);
+          const url = logUrlRaw(resolvedPath, tabId);
+          navigate(url);
         }
       }, [resolveLogPath, navigate, tabId]);
       return {
