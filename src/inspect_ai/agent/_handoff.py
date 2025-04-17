@@ -8,6 +8,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.tool._tool import Tool, ToolResult
 from inspect_ai.tool._tool_description import ToolDescription, set_tool_description
+from inspect_ai.util._limit import Limit
 
 from ._agent import Agent
 from ._as_tool import agent_tool_info
@@ -20,6 +21,7 @@ def handoff(
     input_filter: MessageFilter | None = None,
     output_filter: MessageFilter | None = None,
     tool_name: str | None = None,
+    limits: list[Limit] = [],
     **agent_kwargs: Any,
 ) -> Tool:
     """Create a tool that enables models to handoff to agents.
@@ -34,6 +36,7 @@ def handoff(
             Use the built-in `last_message` filter to return only the last message
             or alternatively specify a custom `MessageFilter` function.
         tool_name: Alternate tool name (defaults to `transfer_to_{agent_name}`)
+        limits: List of limits to apply to the agent.
         **agent_kwargs: Arguments to curry to `Agent` function (arguments provided here
             will not be presented to the model as part of the tool interface).
 
@@ -51,7 +54,7 @@ def handoff(
     tool_info = agent_tool_info(agent, description, **agent_kwargs)
 
     # AgentTool calls will be intercepted by execute_tools
-    agent_tool = AgentTool(agent, input_filter, output_filter, **agent_kwargs)
+    agent_tool = AgentTool(agent, input_filter, output_filter, limits, **agent_kwargs)
     tool_name = tool_name or f"transfer_to_{tool_info.name}"
     set_registry_info(agent_tool, RegistryInfo(type="tool", name=tool_name))
     set_tool_description(
@@ -71,11 +74,13 @@ class AgentTool(Tool):
         agent: Agent,
         input_filter: MessageFilter | None = None,
         output_filter: MessageFilter | None = None,
+        limits: list[Limit] = [],
         **kwargs: Any,
     ):
         self.agent = agent
         self.input_filter = input_filter
         self.output_filter = output_filter
+        self.limits = limits
         self.kwargs = kwargs
 
     @property

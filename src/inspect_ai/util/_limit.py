@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import abc
 import logging
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from types import TracebackType
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Iterator, Literal
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._conversation import ModelConversation
@@ -23,12 +24,19 @@ logger = logging.getLogger(__name__)
 # child node into the tree. The fact that there can be multiple execution contexts is
 # what makes this a tree rather than a stack.
 token_limit_leaf_node: ContextVar[_TokenLimitNode | None] = ContextVar(
-    "token_leaf_node", default=None
+    "token_limit_leaf_node", default=None
+)
+message_limit_leaf_node: ContextVar[_MessageLimitNode | None] = ContextVar(
+    "message_limit_leaf_node", default=None
 )
 
 
 class LimitExceededError(Exception):
     """Exception raised when a limit is exceeded.
+
+    In some scenarios this error may be raised when `value >= limit` to
+    prevent another operation which is guaranteed to exceed the limit from being
+    wastefully performed.
 
     Args:
        type: Type of limit exceeded.
@@ -88,6 +96,14 @@ class Limit(abc.ABC):
         exc_tb: TracebackType | None,
     ) -> None:
         pass
+
+
+@contextmanager
+def using_limits(limits: list[Limit]) -> Iterator[None]:
+    with ExitStack() as stack:
+        for limit in limits:
+            stack.enter_context(limit)
+        yield
 
 
 def record_model_usage(usage: ModelUsage) -> None:
@@ -184,6 +200,68 @@ class TokenLimit(Limit):
             raise ValueError("Token limit value must be a non-negative integer.")
 
 
+def check_message_limit(count: int, raise_for_equal: bool) -> None:
+    """Check if the current message count exceeds the active message limit.
+
+    Only the most recent message limit is checked. Ancestors are not checked.
+
+    Args:
+      count: The number of messages in the conversation.
+      raise_for_equal: If True, raise an error if the message count is equal to the
+        limit, otherwise, only raise an error if the message count is greater than the
+        limit.
+    """
+    node = message_limit_leaf_node.get()
+    if node is None:
+        return
+    node.check(count, raise_for_equal)
+
+
+def message_limit(limit: int | None) -> MessageLimit:
+    """Create a MessageLimit."""
+    return MessageLimit(limit)
+
+
+class MessageLimit(Limit):
+    def __init__(self, limit: int | None) -> None:
+        self._validate_message_limit(limit)
+        self._limit_value_wrapper = _LimitValueWrapper(limit)
+
+    def __enter__(self) -> Limit:
+        current_node = message_limit_leaf_node.get()
+        new_node = _MessageLimitNode(self._limit_value_wrapper, current_node)
+        # Note that we don't store new_node as an instance variable, because the context
+        # manager may be used across multiple execution contexts, or opened multiple
+        # times.
+        message_limit_leaf_node.set(new_node)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        current_node = message_limit_leaf_node.get()
+        assert current_node is not None, (
+            "Message limit node should not be None when exiting context manager."
+        )
+        message_limit_leaf_node.set(current_node.parent)
+
+    @property
+    def limit(self) -> int | None:
+        return self._limit_value_wrapper.value
+
+    @limit.setter
+    def limit(self, value: int | None) -> None:
+        self._validate_message_limit(value)
+        self._limit_value_wrapper.value = value
+
+    def _validate_message_limit(self, value: int | None) -> None:
+        if value is not None and value < 0:
+            raise ValueError("Message limit value must be a non-negative integer.")
+
+
 class _LimitValueWrapper:
     """Container/wrapper type for the limit value.
 
@@ -237,3 +315,37 @@ class _TokenLimitNode:
         total = self._usage.total_tokens
         if total > self._limit.value:
             raise LimitExceededError("token", value=total, limit=self._limit.value)
+
+
+class _MessageLimitNode:
+    def __init__(
+        self,
+        limit: _LimitValueWrapper,
+        parent: _MessageLimitNode | None,
+    ) -> None:
+        """
+        Initialize a message limit node.
+
+        Forms part of a tree structure. Each node has a pointer to its parent, or None
+        if it is the root node.
+
+        Checks if the message count for this node has exceeded a (variable) limit.
+
+        Args:
+          limit: The maximum conversation length (number of messages) allowed while this
+            node is the lead node of the current execution context.
+          parent: The parent node in the tree.
+        """
+        self._limit = limit
+        self.parent = parent
+
+    def check(self, count: int, raise_for_equal: bool) -> None:
+        """Check if this message limit has been exceeded.
+
+        Does not check parents.
+        """
+        if self._limit.value is None:
+            return
+        limit = self._limit.value
+        if count > limit or (raise_for_equal and count == limit):
+            raise LimitExceededError("message", value=count, limit=limit)

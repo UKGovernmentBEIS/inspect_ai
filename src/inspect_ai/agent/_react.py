@@ -163,81 +163,78 @@ def react(
         # track attempts
         attempt_count = 0
 
-        try:
-            # main loop = will terminate after submit (subject to max_attempts)
-            # or if a message or token limit is hit
-            while True:
-                # generate output and append assistant message
-                state = await _agent_generate(model, state, tools)
+        # main loop = will terminate after submit (subject to max_attempts)
+        # or if a message or token limit is hit
+        while True:
+            # generate output and append assistant message
+            state = await _agent_generate(model, state, tools)
 
-                # check for context window overflow
-                if state.output.stop_reason == "model_length":
-                    from inspect_ai.log._transcript import transcript
+            # check for context window overflow
+            if state.output.stop_reason == "model_length":
+                from inspect_ai.log._transcript import transcript
 
-                    if overflow is not None:
-                        previous_messages = state.messages[:-1]
-                        state.messages = await overflow(previous_messages)
-                        if len(state.messages) < len(previous_messages):
-                            transcript().info(
-                                "Agent exceeded model context window, truncating messages and continuing."
-                            )
-                            continue
+                if overflow is not None:
+                    previous_messages = state.messages[:-1]
+                    state.messages = await overflow(previous_messages)
+                    if len(state.messages) < len(previous_messages):
+                        transcript().info(
+                            "Agent exceeded model context window, truncating messages and continuing."
+                        )
+                        continue
 
-                    # no overflow policy or overflow didn't reduce conversation length
-                    transcript().info("Agent terminated: model context window exceeded")
+                # no overflow policy or overflow didn't reduce conversation length
+                transcript().info("Agent terminated: model context window exceeded")
+                break
+
+            # check for a submission
+            answer = submitted_answer(state.output.message.tool_calls)
+            if answer is not None:
+                # remove the tool call and set the output to the answer for scoring
+                state.output.message.tool_calls = None
+                state.output.completion = (
+                    f"{state.output.completion}\n\n{answer}".strip()
+                )
+
+                # exit if we are at max_attempts
+                attempt_count += 1
+                if attempt_count >= attempts.attempts:
                     break
 
-                # check for a submission
-                answer = submitted_answer(state.output.message.tool_calls)
-                if answer is not None:
-                    # remove the tool call and set the output to the answer for scoring
-                    state.output.message.tool_calls = None
-                    state.output.completion = (
-                        f"{state.output.completion}\n\n{answer}".strip()
-                    )
+                # exit if the submission is successful
+                answer_scores = await score(state)
+                if attempts.score_value(answer_scores[0].value) == 1.0:
+                    break
 
-                    # exit if we are at max_attempts
-                    attempt_count += 1
-                    if attempt_count >= attempts.attempts:
-                        break
-
-                    # exit if the submission is successful
-                    answer_scores = await score(state)
-                    if attempts.score_value(answer_scores[0].value) == 1.0:
-                        break
-
-                    # otherwise notify the model that it was incorrect and continue
-                    else:
-                        if callable(attempts.incorrect_message):
-                            if not is_callable_coroutine(attempts.incorrect_message):
-                                raise ValueError(
-                                    "The incorrect_message function must be async."
-                                )
-                            response_message: str = await attempts.incorrect_message(
-                                state, answer_scores
-                            )
-                        else:
-                            response_message = attempts.incorrect_message
-
-                        state.messages.append(ChatMessageUser(content=response_message))
-
-                # no submitted answer, call tools and evaluate whether we should continue
+                # otherwise notify the model that it was incorrect and continue
                 else:
-                    if state.output.message.tool_calls:
-                        # call tool functions
-                        messages, output = await execute_tools(state.messages, tools)
-                        state.messages.extend(messages)
-                        if output:
-                            state.output = output
+                    if callable(attempts.incorrect_message):
+                        if not is_callable_coroutine(attempts.incorrect_message):
+                            raise ValueError(
+                                "The incorrect_message function must be async."
+                            )
+                        response_message: str = await attempts.incorrect_message(
+                            state, answer_scores
+                        )
+                    else:
+                        response_message = attempts.incorrect_message
 
-                    # check if we should continue....
-                    do_continue = await on_continue(state)
-                    if isinstance(do_continue, str):
-                        state.messages.append(ChatMessageUser(content=do_continue))
-                    elif do_continue is False:
-                        break
-        except LimitExceededError as ex:
-            raise ex.with_conversation(state)
+                    state.messages.append(ChatMessageUser(content=response_message))
+
+            # no submitted answer, call tools and evaluate whether we should continue
+            else:
+                if state.output.message.tool_calls:
+                    # call tool functions
+                    messages, output = await execute_tools(state.messages, tools)
+                    state.messages.extend(messages)
+                    if output:
+                        state.output = output
+
+                # check if we should continue....
+                do_continue = await on_continue(state)
+                if isinstance(do_continue, str):
+                    state.messages.append(ChatMessageUser(content=do_continue))
+                elif do_continue is False:
+                    break
 
         return state
 

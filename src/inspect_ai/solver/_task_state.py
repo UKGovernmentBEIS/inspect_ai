@@ -2,9 +2,8 @@ from collections.abc import Sequence
 from contextvars import ContextVar
 from copy import deepcopy
 from dataclasses import dataclass
-from itertools import tee
 from random import Random
-from typing import Any, Iterable, SupportsIndex, Type, Union, cast, overload
+from typing import Any, Type, Union, cast, overload
 
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
@@ -18,14 +17,19 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.model._call_tools import tools_info
-from inspect_ai.model._chat_message import ChatMessageBase
 from inspect_ai.model._model import sample_total_tokens
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
-from inspect_ai.util._limit import LimitExceededError, check_token_limit
+from inspect_ai.util._limit import (
+    LimitExceededError,
+    check_message_limit,
+    check_token_limit,
+)
+from inspect_ai.util._limit import message_limit as create_message_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
+from inspect_ai.util._limited_conversation import ChatMessageList
 from inspect_ai.util._store import Store, store_jsonable
 from inspect_ai.util._store_model import SMT
 
@@ -161,10 +165,11 @@ class TaskState:
         self._input = input
         self._target = target
         self._metadata = metadata
-        self._messages: list[ChatMessage] = ChatMessageList(messages, self)
+        # TODO: What was the reason that ChatMessageList had a reference to TaskState?
+        self._messages: list[ChatMessage] = ChatMessageList(messages)
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
-        self._message_limit = message_limit
+        self._message_limit = create_message_limit(message_limit)
         self._token_limit = create_token_limit(token_limit)
         self._completed = completed
         self._store = Store()
@@ -256,7 +261,7 @@ class TaskState:
 
     @messages.setter
     def messages(self, messages: list[ChatMessage]) -> None:
-        self._messages = ChatMessageList(messages, self)
+        self._messages = ChatMessageList(messages)
 
     @property
     def output(self) -> ModelOutput:
@@ -304,12 +309,16 @@ class TaskState:
     @property
     def message_limit(self) -> int | None:
         """Limit on total messages allowed per conversation."""
-        return self._message_limit
+        return self._message_limit.limit
 
     @message_limit.setter
     def message_limit(self, messages: int | None) -> None:
-        """Set limit on total messages allowed per conversation."""
-        self._message_limit = messages
+        """Set limit on total messages allowed per conversation.
+
+        Also checks whether the current message count exceeds the new limit.
+        """
+        self._message_limit.limit = messages
+        check_message_limit(len(self.messages), raise_for_equal=False)
 
         from inspect_ai.log._samples import set_active_sample_message_limit
 
@@ -348,16 +357,10 @@ class TaskState:
 
         if self._completed:
             return True
-        elif self.message_limit and len(self.messages) >= self.message_limit:
-            raise LimitExceededError(
-                "message",
-                value=len(self.messages),
-                limit=self.message_limit,
-                conversation=self,
-            )
         else:
             try:
                 check_token_limit()
+                check_message_limit(len(self.messages), raise_for_equal=True)
             except LimitExceededError as ex:
                 raise ex.with_conversation(self)
             check_sample_interrupt()
@@ -446,63 +449,3 @@ def state_jsonable(state: TaskState | None = None) -> dict[str, Any]:
 def sample_jsonable(sample: Sample) -> dict[str, Any]:
     jsonable = to_jsonable_python(sample, exclude_none=True, fallback=lambda _x: None)
     return cast(dict[str, Any], deepcopy(jsonable))
-
-
-class ChatMessageList(list[ChatMessage]):
-    def __init__(self, iterable: Iterable[ChatMessage], parent_state: TaskState):
-        self.parent_state = parent_state
-        items, length = self._iterable_length(iterable)
-        self._check_size(length)
-        super().__init__(items)
-
-    def _check_size(self, additional_items: int = 1) -> None:
-        from inspect_ai.log._samples import active_sample_message_limit
-
-        messages_limit = active_sample_message_limit()
-        if messages_limit is not None:
-            messages = len(self) + additional_items
-            if messages > messages_limit:
-                raise LimitExceededError(
-                    "message",
-                    value=messages,
-                    limit=messages_limit,
-                    message=None,
-                    conversation=self.parent_state,
-                )
-
-    def append(self, item: ChatMessage) -> None:
-        self._check_size()
-        super().append(item)
-
-    def extend(self, items: Iterable[ChatMessage]) -> None:
-        items, length = self._iterable_length(items)
-        self._check_size(length)
-        super().extend(items)
-
-    def insert(self, index: SupportsIndex, item: ChatMessage) -> None:
-        self._check_size()
-        super().insert(index, item)
-
-    @overload
-    def __setitem__(self, index: SupportsIndex, item: ChatMessage) -> None: ...
-
-    @overload
-    def __setitem__(self, index: slice, item: Iterable[ChatMessage]) -> None: ...
-
-    def __setitem__(
-        self, index: SupportsIndex | slice, item: ChatMessage | Iterable[ChatMessage]
-    ) -> None:
-        if isinstance(index, slice) and not isinstance(item, ChatMessageBase):
-            item, length = self._iterable_length(item)
-            size_change = length - len(self[index])
-            if size_change > 0:
-                self._check_size(size_change)
-
-        super().__setitem__(index, item)  # type: ignore[assignment,index]
-
-    def _iterable_length(
-        self, items: Iterable[ChatMessage]
-    ) -> tuple[Iterable[ChatMessage], int]:
-        items, counter = tee(items)
-        length = sum(1 for _ in counter)
-        return items, length

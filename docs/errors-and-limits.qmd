@@ -119,8 +119,7 @@ Working time is computed based on total clock time minus time spent on (a) unsuc
 In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`vertex`, and `azureai`) and in these cases the `working_time` will include any internal retries that the model client performs. 
 :::
 
-
-### Message Limit
+### Message Limit {#sample-message-limit}
 
 Here we set a `message_limit` of 30 for each sample within a task:
 
@@ -142,22 +141,15 @@ def intercode_ctf():
 
 This sets a limit of 30 total messages in a conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of incorrect).
 
-Note that its also possible for a solver to set the `message_limit` directly on the `TaskState` (this is often done by agent solvers which provide their own generate loop):
+Message limits are checked whenever you call `generate()` on any model. The `message_limit` is compared to the number of messages passed in `input` parameter to `generate()`. A `LimitExceededError` will be raised if the message count is equal to or exceeds the limit. This is to avoid proceeding to another (wasteful) generate call if we're already at the limit.
 
-``` python
-@solver
-def agent_loop(message_limit: int = 50):
-    async def solve(state: TaskState, generate: Generate):
+They are also checked on every evaluation of `TaskState.completed`, which will raise a `LimitExceededError` if the message count is equal to or exceeds the limit.
 
-        # establish message limit so we have a termination condition
-        state.message_limit = message_limit
-
-        ...
-```
-
-Message limits are checked whenever you call `generate()` on the main model being evaluated. The `message_limit` is comparted to the number of messages passed in `input` parameter to `generate()`.
+It is also checked whenever `TaskState.messages` or `AgentState.messages` is mutated, but a `LimitExceededError` is only raised if the count exceeds the limit.
 
 ### Token Limit
+
+Token usage (using `total_tokens` of `ModelUsage`) is automatically recorded for all models. Token limits are checked whenever `generate()` is called and upon evaluating `TaskState.completed`.
 
 Here we set a `token_limit` of 500K for each sample within a task:
 
@@ -177,46 +169,10 @@ def intercode_ctf():
     )
 ```
 
-### Context Manager
-
-::: callout-note
-The `token_limit()` context manager described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
-It's also possible for solvers, scorers or agents to limit their token usage, independently of the sample token limit:
-
-``` python
-@solver
-def agent_loop(tokens: int = (1024 * 500)) -> Solver:
-    async def solve(state: TaskState, generate: Generate):
-
-        # establish token limit so we have a termination condition
-        with token_limit(tokens):
-            while True:
-                # a LimitExceededError will be raised if the limit is breached
-                ...
-```
 
 ::: {.callout-important}
-It's important to note that `Task.token_limit` is for all tokens used within the execution of a sample and `token_limit()` is for all tokens used within the sample _while the context manager is open_. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
+It's important to note that the `token_limit` is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 :::
-
-The context managers returned by `token_limit` can be stacked:
-
-``` python
-@solver
-def agent_loop() -> Solver:
-    async def solve(state: TaskState, generate: Generate):
-
-        with token_limit(1024 * 500):
-            ...
-            with token_limit(1024 * 10):
-                ...
-```
 
 ### Custom Limit
 
@@ -232,3 +188,93 @@ raise LimitExceededError(
     message=f"A custom limit was exceeded: {value}"
 )
 ```
+
+## Scoped Limits
+
+::: callout-note
+The scoped limits described below are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+You can also apply limits at arbitrary scopes, independent of the sample-scoped limits. For example applied to a specific agent or within a specific block of code.
+
+To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like `handoff()` (see [Using Agents](agents.qmd#using-agents)):
+
+``` python
+eval(
+    task="research_bench", 
+    solver=[
+        use_tools(
+            addition(),
+            handoff(web_surfer(), limits=[message_limit(10), token_limit(1024*500)]),
+        ),
+        generate()
+    ]
+)
+```
+
+To use a limit within a specific block of code:
+
+``` python
+with token_limit(1024*500):
+    ...
+```
+
+### Token Limit
+
+Token limits enforce a limit on the total tokens used by all models. See [sample token limit](#sample-token-limit) for when these limits are checked.
+
+To limit the total number of tokens which can be used in a block of code:
+
+``` python
+@solver
+def agent_loop(tokens: int = (1024*500)) -> Solver:
+    async def solve(state: TaskState, generate: Generate):
+
+        with token_limit(tokens):
+            # a LimitExceededError will be raised if the limit is exceeded
+            ...
+```
+
+The limits can be stacked. Tokens used while a context manager is open count towards all open token limits.
+
+``` python
+@solver
+def agent_loop() -> Solver:
+    async def solve(state: TaskState, generate: Generate):
+
+        with token_limit(1024*500):
+            ...
+            with token_limit(1024*200):
+                # Tokens used here count towards both active limits
+                ...
+```
+
+::: {.callout-important}
+It's important to note that `token_limit()` is for all tokens used _while the context manager is open_. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
+:::
+
+### Message Limit
+
+Message limits enforce a limit on the number of messages in any conversation (e.g. a `TaskState`, `AgentState`, or any input to `generate()`). They behave differently to token limits in that only the innermost active `message_limit()` is checked.
+
+See [sample message limit](#sample-message-limit) for when these limits are checked and in what cases a `LimitExceededError` will be raised.
+
+To limit the conversation length within a block of code:
+
+``` python
+@solver
+def agent_loop() -> Solver:
+    async def solve(state: TaskState, generate: Generate):
+
+        with message_limit(50):
+            # A LimitExceededError will be raised when the limit is exceeded
+            ...
+            with message_limit(None):
+                # The limit of 50 is temporarily removed in this block of code
+                ...
+```
+
