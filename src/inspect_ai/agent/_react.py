@@ -5,14 +5,15 @@ from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._trim import trim_messages
 from inspect_ai.scorer._score import score
 from inspect_ai.tool._tool import Tool, ToolResult, tool
-from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
 
@@ -102,23 +103,6 @@ def react(
     else:
         system_message = None
 
-    # resolve on_continue
-    on_continue = on_continue or DEFAULT_CONTINUE_PROMPT
-    if isinstance(on_continue, str):
-        no_tools_continue_message = on_continue
-
-        async def no_tools_continue(state: AgentState) -> bool | str:
-            if state.output is None or not state.output.message.tool_calls:
-                return no_tools_continue_message.format(submit=submit.name)
-            else:
-                return True
-
-        on_continue = no_tools_continue
-
-    # validate that on_continue is async
-    if not is_callable_coroutine(on_continue):
-        raise ValueError("The on_continue function must be async.")
-
     # resolve attempts
     attempts = AgentAttempts(attempts) if isinstance(attempts, int) else attempts
 
@@ -135,12 +119,17 @@ def react(
 
         return execute
 
-    # helper to see if there is a submit tool call
-    def submitted_answer(tool_calls: list[ToolCall] | None) -> str | None:
-        for tool_call in tool_calls or []:
-            if tool_call.function == submit.name and tool_call.parse_error is None:
-                return str(tool_call.arguments["answer"])
-        return None
+    # helper to extract a submitted answer
+    def submission(tool_results: list[ChatMessage]) -> str | None:
+        return next(
+            (
+                result.text
+                for result in tool_results
+                if isinstance(result, ChatMessageTool)
+                and result.function == submit.name
+            ),
+            None,
+        )
 
     # resolve tools
     tools = tools or []
@@ -185,56 +174,82 @@ def react(
                 transcript().info("Agent terminated: model context window exceeded")
                 break
 
-            # check for a submission
-            answer = submitted_answer(state.output.message.tool_calls)
-            if answer is not None:
-                # remove the tool call and set the output to the answer for scoring
-                state.output.message.tool_calls = None
-                state.output.completion = (
-                    f"{state.output.completion}\n\n{answer}".strip()
+            # resolve tool calls (if any)
+            if state.output.message.tool_calls:
+                # call tool functions
+                messages, output = await execute_tools(state.messages, tools)
+                state.messages.extend(messages)
+                if output:
+                    state.output = output
+
+                # check for a submission
+                answer = submission(messages)
+                if answer is not None:
+                    # set the output to the answer for scoring
+                    state.output.completion = (
+                        f"{state.output.completion}\n\n{answer}".strip()
+                    )
+
+                    # exit if we are at max_attempts
+                    attempt_count += 1
+                    if attempt_count >= attempts.attempts:
+                        break
+
+                    # exit if the submission is successful
+                    answer_scores = await score(state)
+                    if attempts.score_value(answer_scores[0].value) == 1.0:
+                        break
+
+                    # otherwise notify the model that it was incorrect and continue
+                    else:
+                        if callable(attempts.incorrect_message):
+                            if not is_callable_coroutine(attempts.incorrect_message):
+                                raise ValueError(
+                                    "The incorrect_message function must be async."
+                                )
+                            response_message: str = await attempts.incorrect_message(
+                                state, answer_scores
+                            )
+                        else:
+                            response_message = attempts.incorrect_message
+
+                        state.messages.append(ChatMessageUser(content=response_message))
+
+            # call the on_continue hook (if any)
+            if callable(on_continue):
+                if not is_callable_coroutine(on_continue):
+                    raise ValueError("The on_continue function must be async.")
+                do_continue = await cast(AgentContinue, on_continue)(state)
+                if do_continue is True:
+                    # if there were no tool calls we need to send back a user message
+                    if not state.output.message.tool_calls:
+                        state.messages.append(
+                            ChatMessageUser(
+                                content=DEFAULT_CONTINUE_PROMPT.format(
+                                    submit=submit.name
+                                )
+                            )
+                        )
+                elif isinstance(do_continue, str):
+                    state.messages.append(
+                        ChatMessageUser(content=do_continue.format(submit=submit.name))
+                    )
+                else:  # do_continue is False
+                    break
+
+            # if there is no on_continue hook then add a user message if there were no tool calls
+            elif not state.output.message.tool_calls:
+                continue_msg = (
+                    DEFAULT_CONTINUE_PROMPT if on_continue is None else str(on_continue)
+                )
+                state.messages.append(
+                    ChatMessageUser(content=continue_msg.format(submit=submit.name))
                 )
 
-                # exit if we are at max_attempts
-                attempt_count += 1
-                if attempt_count >= attempts.attempts:
-                    break
-
-                # exit if the submission is successful
-                answer_scores = await score(state)
-                if attempts.score_value(answer_scores[0].value) == 1.0:
-                    break
-
-                # otherwise notify the model that it was incorrect and continue
-                else:
-                    if callable(attempts.incorrect_message):
-                        if not is_callable_coroutine(attempts.incorrect_message):
-                            raise ValueError(
-                                "The incorrect_message function must be async."
-                            )
-                        response_message: str = await attempts.incorrect_message(
-                            state, answer_scores
-                        )
-                    else:
-                        response_message = attempts.incorrect_message
-
-                    state.messages.append(ChatMessageUser(content=response_message))
-
-            # no submitted answer, call tools and evaluate whether we should continue
-            else:
-                if state.output.message.tool_calls:
-                    # call tool functions
-                    messages, output = await execute_tools(state.messages, tools)
-                    state.messages.extend(messages)
-                    if output:
-                        state.output = output
-
-                # check if we should continue....
-                do_continue = await on_continue(state)
-                if isinstance(do_continue, str):
-                    state.messages.append(ChatMessageUser(content=do_continue))
-                elif do_continue is False:
-                    break
-
+        # once we are complete, remove submit tool calls from the history
+        # (as they will potentially confuse parent agents who also have
+        # their own submit tools that they are 'watching' for)
+        state.messages = _remove_submit_tool(state.messages, submit.name)
         return state
 
     if name is not None or description is not None:
@@ -268,3 +283,27 @@ def _model_generate(model: str | Model | None) -> Agent:
         return state
 
     return generate
+
+
+def _remove_submit_tool(
+    messages: list[ChatMessage], submit_name: str
+) -> list[ChatMessage]:
+    filtered: list[ChatMessage] = []
+    for message in messages:
+        # skip submit tool messages
+        if isinstance(message, ChatMessageTool) and message.function == submit_name:
+            continue
+
+        # remove submit tool from assistant messages
+        if isinstance(message, ChatMessageAssistant) and message.tool_calls:
+            tools_calls = [
+                tool_call
+                for tool_call in message.tool_calls
+                if tool_call.function != submit_name
+            ]
+            message = message.model_copy(update=dict(tool_calls=tools_calls))
+
+        # always append message
+        filtered.append(message)
+
+    return filtered
