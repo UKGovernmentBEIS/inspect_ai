@@ -1,5 +1,10 @@
 import { useEffect } from "react";
-import { createHashRouter, Navigate, Outlet, useLocation } from "react-router";
+import {
+  createHashRouter,
+  Navigate,
+  Outlet,
+  useLocation,
+} from "react-router-dom";
 import { storeImplementation } from "../state/store";
 import { AppErrorBoundary } from "./AppErrorBoundary";
 import { LogViewContainer } from "./log-view/LogViewContainer";

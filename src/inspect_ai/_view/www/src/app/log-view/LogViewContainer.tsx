@@ -1,5 +1,5 @@
 import { FC, useEffect } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
