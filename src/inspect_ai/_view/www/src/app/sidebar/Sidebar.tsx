@@ -6,8 +6,8 @@ import { EvalLogHeader } from "../../client/api/types";
 import { ProgressBar } from "../../components/ProgressBar";
 import { useStatefulScrollPosition } from "../../state/scrolling";
 import { useStore } from "../../state/store";
-import { directoryRelativeUrl } from "../../utils/uri";
 import { ApplicationIcons } from "../appearance/icons";
+import { logUrl } from "../routing/url";
 import { LogDirectoryTitleView } from "./LogDirectoryTitleView";
 import styles from "./Sidebar.module.css";
 import { SidebarLogEntry } from "./SidebarLogEntry";
@@ -97,7 +97,7 @@ export const Sidebar: FC<SidebarProps> = ({
                 data-index={index}
               >
                 <Link
-                  to={`/logs/${directoryRelativeUrl(file.name, logs.log_dir)}`}
+                  to={logUrl(file.name, logs.log_dir)}
                   className={styles.logLink}
                   onClick={() => {
                     // Also update the current index in state

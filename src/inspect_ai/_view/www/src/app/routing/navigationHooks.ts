@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
-import { sampleUrl } from "./url";
+import { logUrl, logUrlRaw, sampleUrl } from "./url";
 
 export const useLogNavigation = () => {
   const navigate = useNavigate();
@@ -16,11 +16,12 @@ export const useLogNavigation = () => {
       // Only update URL if we have a loaded log
       if (loadedLog && logPath) {
         // We already have the logPath from params, just navigate to the tab
-        navigate(`/logs/${logPath}/${tabId}`);
+        const url = logUrlRaw(logPath, tabId);
+        navigate(url);
       } else if (loadedLog) {
         // Fallback to constructing the path if needed
-        const logPathSegment = directoryRelativeUrl(loadedLog, logs.log_dir);
-        navigate(`/logs/${logPathSegment}/${tabId}`);
+        const url = logUrl(loadedLog, logs.log_dir, tabId);
+        navigate(url);
       }
     },
     [loadedLog, logPath, logs.log_dir, navigate],
@@ -166,7 +167,8 @@ export const useSampleNavigation = () => {
   const clearSampleUrl = useCallback(() => {
     const resolvedPath = resolveLogPath();
     if (resolvedPath) {
-      navigate(`/logs/${resolvedPath}/${tabId || "samples"}`);
+      const url = logUrlRaw(resolvedPath, tabId);
+      navigate(url);
     }
   }, [resolveLogPath, navigate, tabId]);
 
