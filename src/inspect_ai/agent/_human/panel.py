@@ -154,9 +154,11 @@ class HumanAgentPanel(InputPanel):
             window_lbl = cast(
                 Label, self.query_one(f"#{self.LOGIN_VSCODE_WINDOW_LABEL_ID}")
             )
-            display = "block" if connection.vscode_command is not None else "none"
-            window_btn.display = display
-            window_lbl.display = display
+            window_btn_and_label_display = (
+                "block" if vscode and connection.vscode_command is not None else "none"
+            )
+            window_btn.display = window_btn_and_label_display
+            window_lbl.display = window_btn_and_label_display
             if connection.vscode_command is not None:
                 window_btn.commands = [
                     VSCodeCommand(
