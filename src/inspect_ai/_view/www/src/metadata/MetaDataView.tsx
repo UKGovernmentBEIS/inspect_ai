@@ -6,7 +6,7 @@ import { RenderedContent } from "./RenderedContent";
 interface MetadataViewProps {
   id?: string;
   style?: CSSProperties;
-  entries: Record<string, unknown>;
+  entries: Record<string, unknown> | Array<{ name: string; value: unknown }>;
   tableOptions?: string;
   compact?: boolean;
   className?: string | string[];
@@ -66,11 +66,6 @@ export const MetaDataView: FC<MetadataViewProps> = ({
       )}
       style={style}
     >
-      <thead>
-        <tr>
-          <th colSpan={2} className={"th"}></th>
-        </tr>
-      </thead>
       <tbody>{entryEls}</tbody>
     </table>
   );
@@ -80,11 +75,21 @@ export const MetaDataView: FC<MetadataViewProps> = ({
 // or an array of record with name/value on way in
 // but coerce to array of records for order
 const toNameValues = (
-  entries?: Array<{ name: string; value: unknown }> | Record<string, unknown>,
+  entries?:
+    | Array<{ name: string; value: unknown }>
+    | Record<string, unknown>
+    | Array<unknown>,
 ): Array<{ name: string; value: unknown }> | undefined => {
   if (entries) {
     if (Array.isArray(entries)) {
-      return entries;
+      // filter arrays that don't contain the expected name value pairs
+      const filtered = entries.filter((entry) => {
+        if (entry && typeof entry === "object") {
+          return "name" in entry && "value" in entry;
+        }
+        return false;
+      });
+      return filtered as Array<{ name: string; value: unknown }>;
     } else {
       return Object.entries(entries || {}).map(([key, value]) => {
         return { name: key, value };

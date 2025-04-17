@@ -34549,11 +34549,11 @@ self.onmessage = function (e) {
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(ChatView, { id, messages: summaryMessages });
     };
-    const table$2 = "_table_1memb_1";
-    const cell$3 = "_cell_1memb_11";
-    const compact = "_compact_1memb_15";
-    const cellKey = "_cellKey_1memb_19";
-    const cellValue = "_cellValue_1memb_31";
+    const table$2 = "_table_9qith_1";
+    const cell$3 = "_cell_9qith_11";
+    const compact = "_compact_9qith_15";
+    const cellKey = "_cellKey_9qith_19";
+    const cellValue = "_cellValue_9qith_31";
     const styles$11 = {
       table: table$2,
       cell: cell$3,
@@ -34593,7 +34593,7 @@ self.onmessage = function (e) {
           /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$11.cell, styles$11.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
         ] }, id2);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "table",
         {
           id,
@@ -34605,17 +34605,20 @@ self.onmessage = function (e) {
             className2
           ),
           style: style2,
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("th", { colSpan: 2, className: "th" }) }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: entryEls })
-          ]
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { children: entryEls })
         }
       );
     };
     const toNameValues = (entries) => {
       if (entries) {
         if (Array.isArray(entries)) {
-          return entries;
+          const filtered = entries.filter((entry2) => {
+            if (entry2 && typeof entry2 === "object") {
+              return "name" in entry2 && "value" in entry2;
+            }
+            return false;
+          });
+          return filtered;
         } else {
           return Object.entries(entries || {}).map(([key2, value2]) => {
             return { name: key2, value: value2 };
@@ -34808,6 +34811,9 @@ self.onmessage = function (e) {
         canRender: (entry2) => {
           const isArray = Array.isArray(entry2.value);
           if (isArray) {
+            if (entry2.value.length === 0 || entry2.value.length === 1) {
+              return true;
+            }
             const types2 = new Set(
               entry2.value.filter((e) => e !== null).map((e) => {
                 return typeof e;
