@@ -1,3 +1,7 @@
+## Future
+
+- [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-summary) generation option for OpenAI reasoning models.
+
 ## Unreleased
 
 - [Model Roles](https://inspect.aisi.org.uk/models.html#model-roles) for creating aliases to models used in a task (e.g. "grader", "red_team", "blue_team", etc.)

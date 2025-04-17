@@ -152,9 +152,13 @@ def completion_params_responses(
     if tools and config.parallel_tool_calls is not None and not is_o_series(model_name):
         params["parallel_tool_calls"] = config.parallel_tool_calls
     if is_o_series(model_name) and not is_o1_early(model_name):
-        # TODO: this actually needs to be fully opt-in as "auto" will cause an error for some orgs
-        reasoning_effort = config.reasoning_effort or "medium"
-        params["reasoning"] = dict(effort=reasoning_effort, summary="auto")
+        reasoning: dict[str, str] = {}
+        if config.reasoning_effort is not None:
+            reasoning["effort"] = config.reasoning_effort
+        if config.reasoning_summary is not None:
+            reasoning["summary"] = config.reasoning_summary
+        if len(reasoning) > 0:
+            params["reasoning"] = reasoning
     if config.response_schema is not None:
         params["text"] = dict(
             format=ResponseFormatTextJSONSchemaConfigParam(
