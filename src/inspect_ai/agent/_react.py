@@ -215,40 +215,36 @@ def react(
 
                         state.messages.append(ChatMessageUser(content=response_message))
 
-                # call the on_continue hook (if any)
-                if callable(on_continue):
-                    if not is_callable_coroutine(on_continue):
-                        raise ValueError("The on_continue function must be async.")
-                    do_continue = await cast(AgentContinue, on_continue)(state)
-                    if do_continue is True:
-                        # if there were no tool calls we need to send back a user message
-                        if not state.output.message.tool_calls:
-                            state.messages.append(
-                                ChatMessageUser(
-                                    content=DEFAULT_CONTINUE_PROMPT.format(
-                                        submit=submit.name
-                                    )
-                                )
-                            )
-                    elif isinstance(do_continue, str):
+            # call the on_continue hook (if any)
+            if callable(on_continue):
+                if not is_callable_coroutine(on_continue):
+                    raise ValueError("The on_continue function must be async.")
+                do_continue = await cast(AgentContinue, on_continue)(state)
+                if do_continue is True:
+                    # if there were no tool calls we need to send back a user message
+                    if not state.output.message.tool_calls:
                         state.messages.append(
                             ChatMessageUser(
-                                content=do_continue.format(submit=submit.name)
+                                content=DEFAULT_CONTINUE_PROMPT.format(
+                                    submit=submit.name
+                                )
                             )
                         )
-                    else:  # do_continue is False
-                        break
-
-                # if there is no on_continue hook then add a user message if there were no tool calls
-                elif not state.output.message.tool_calls:
-                    continue_msg = (
-                        DEFAULT_CONTINUE_PROMPT
-                        if on_continue is None
-                        else str(on_continue)
-                    )
+                elif isinstance(do_continue, str):
                     state.messages.append(
-                        ChatMessageUser(content=continue_msg.format(submit=submit.name))
+                        ChatMessageUser(content=do_continue.format(submit=submit.name))
                     )
+                else:  # do_continue is False
+                    break
+
+            # if there is no on_continue hook then add a user message if there were no tool calls
+            elif not state.output.message.tool_calls:
+                continue_msg = (
+                    DEFAULT_CONTINUE_PROMPT if on_continue is None else str(on_continue)
+                )
+                state.messages.append(
+                    ChatMessageUser(content=continue_msg.format(submit=submit.name))
+                )
 
         # once we are complete, remove submit tool calls from the history
         # (as they will potentially confuse parent agents who also have
