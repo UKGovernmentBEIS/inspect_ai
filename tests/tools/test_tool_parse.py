@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, TypedDict, Union
+from datetime import datetime, date, time
+from typing import Any, Dict, List, Optional, TypedDict, Union, Set
 
 from pydantic import BaseModel, Field
 
@@ -16,9 +17,15 @@ def test_json_schema():
     assert json_schema(float) == JSONSchema(type="number")
     assert json_schema(str) == JSONSchema(type="string")
     assert json_schema(bool) == JSONSchema(type="boolean")
+    assert json_schema(datetime) == JSONSchema(type="string", format="date-time")
+    assert json_schema(date) == JSONSchema(type="string", format="date")
+    assert json_schema(time) == JSONSchema(type="string", format="time")
     assert json_schema(Any) == JSONSchema()
     assert json_schema(List[int]) == JSONSchema(
         type="array", items=JSONSchema(type="integer")
+    )
+    assert json_schema(Set[str]) == JSONSchema(
+        type="array", items=JSONSchema(type="string")
     )
     assert json_schema(Dict[str, int]) == JSONSchema(
         type="object", additionalProperties=JSONSchema(type="integer")
