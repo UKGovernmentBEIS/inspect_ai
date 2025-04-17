@@ -228,14 +228,6 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek {#deepseek}
 
-::: callout-note
-The `openai-api` provider used to interface with DeepSeek is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 [DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
 
 ```bash
@@ -539,13 +531,6 @@ The following environment variables are supported by the llama-cpp-python provid
 
 ## OpenAI Compatible {#openai-api}
 
-::: callout-note
-The `openai-api` provider described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 If your model provider makes an OpenAI API compatible endpoint available, you can use it with Inspect via the `openai-api` provider, which uses the following model naming convention:
 

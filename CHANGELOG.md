@@ -1,8 +1,8 @@
-## Future
+## Unreleased
 
 - [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-summary) generation option for OpenAI reasoning models.
 
-## Unreleased
+## v0.3.89 (17 April 2025)
 
 - [Model Roles](https://inspect.aisi.org.uk/models.html#model-roles) for creating aliases to models used in a task (e.g. "grader", "red_team", "blue_team", etc.)
 - New [openai-api](https://inspect.aisi.org.uk/providers.html#openai-api) model provider for interfacing with arbitrary services that have Open AI API compatible endpoints.

@@ -8,15 +8,6 @@ def trim_messages(
 ) -> list[ChatMessage]:
     """Trim message list to fit within model context.
 
-    ::: callout-note
-    The `trim_messages()` function is available only in the development version of Inspect.
-    To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Trim the list of messages by:
     - Retaining all system messages.
     - Retaining the 'input' messages from the sample.

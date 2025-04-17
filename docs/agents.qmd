@@ -252,14 +252,6 @@ You can pass a different continuation message, or alternative pass an `AgentCont
 
 ### Truncation
 
-::: callout-note
-The `truncation` option described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 If your agent runs for long enough, it may end up filling the entire model context window. By default, this will cause the agent to terminate (with a log message indicating the reason). Alternatively, you can specify that the conversation should be truncated and the agent loop continue.
 
 This behavior is controlled by the `truncation` parameter (which is `"disabled"` by default, doing no truncation). To perform truncation, specify either `"auto"` (which reduces conversation size by roughly 30%) or pass a custom `MessageFilter` function. For example:
