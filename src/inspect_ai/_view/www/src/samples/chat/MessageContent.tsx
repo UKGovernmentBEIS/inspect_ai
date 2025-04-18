@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { FC, Fragment, ReactNode } from "react";
+
+import { FC, ReactNode } from "react";
 import ExpandablePanel from "../../components/ExpandablePanel";
 import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { ContentTool } from "../../types";
@@ -110,7 +111,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
         return undefined;
       }
       return (
-        <Fragment key={key}>
+        <div key={key} className={clsx(styles.reasoning, "text-size-small")}>
           <div
             className={clsx(
               "text-style-label",
@@ -129,7 +130,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
               }
             />
           </ExpandablePanel>
-        </Fragment>
+        </div>
       );
     },
   },
