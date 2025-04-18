@@ -1,5 +1,9 @@
 import { directoryRelativeUrl } from "../../utils/uri";
 
+export const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
+export const kSampleRouteUrlPattern =
+  "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?/:sampleTabId?";
+
 export const baseUrl = (
   logPath: string,
   sampleId?: string | number,

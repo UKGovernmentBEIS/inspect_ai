@@ -17,7 +17,7 @@ import { FC, useCallback, useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 import { ClientAPI, HostMessage } from "../client/api/types.ts";
 import { useStore } from "../state/store.ts";
-import { AppRouter } from "./AppRouter.tsx";
+import { AppRouter } from "./routing/AppRouter.tsx";
 
 interface AppProps {
   api: ClientAPI;

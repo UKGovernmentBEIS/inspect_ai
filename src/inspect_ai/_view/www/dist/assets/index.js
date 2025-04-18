@@ -42186,6 +42186,8 @@ categories: ${categories.join(" ")}`;
       }
       return encodeURIComponent(file);
     };
+    const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
+    const kSampleRouteUrlPattern = "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?/:sampleTabId?";
     const baseUrl = (logPath, sampleId, sampleEpoch) => {
       if (sampleId !== void 0 && sampleEpoch !== void 0) {
         return sampleUrl(logPath, sampleId, sampleEpoch);
@@ -81918,11 +81920,11 @@ Supported expressions:
               element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
             },
             {
-              path: "/logs/:logPath/:tabId?/:sampleTabId?",
+              path: kLogRouteUrlPattern,
               element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
             },
             {
-              path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?/:sampleTabId?",
+              path: kSampleRouteUrlPattern,
               element: /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewContainer, {})
             }
           ]
