@@ -110,7 +110,7 @@ def react(
 
     # submission tool
     @tool
-    def submit_tool() -> Tool:
+    def default_submit_tool() -> Tool:
         async def execute(answer: str) -> ToolResult:
             """Submit an answer for evaluation.
 
@@ -135,7 +135,10 @@ def react(
 
     # resolve tools
     tools = list(tools) if tools is not None else []
-    tools.append(tool_with(submit_tool(), submit.name, submit.description))
+    submit_tool: Tool = (
+        submit.implementation if submit.implementation else default_submit_tool()
+    )
+    tools.append(tool_with(submit_tool, submit.name, submit.description))
 
     async def execute(state: AgentState) -> AgentState:
         async with mcp_connection(tools):
