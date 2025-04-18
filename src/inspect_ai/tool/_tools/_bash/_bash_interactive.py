@@ -1,5 +1,3 @@
-from typing import Literal, TypedDict
-
 from pydantic import BaseModel, Field, RootModel
 from shortuuid import uuid
 
@@ -10,8 +8,8 @@ from inspect_ai.tool._tool_support_helpers import (
 )
 from inspect_ai.util import StoreModel, store_as
 
-from .._tool import Tool, ToolParsingError, tool
-from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
+from ..._tool import Tool, ToolParsingError, tool
+from ..._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 
 
 # These models are cloned from the container code. If/when we decide to create
@@ -54,21 +52,12 @@ def code_viewer(language: str, code_param: str) -> ToolCallViewer:
     return viewer
 
 
-class NonInteractiveOptions(TypedDict):
-    interactive: Literal[False]
-
-
-class InteractiveOptions(TypedDict):
-    interactive: Literal[True]
-    debounce_time: int | None
-
-
 @tool(viewer=code_viewer("bash", "command"))
-def bash_session(
+def bash_interactive(
     *,
-    timeout: int | None = None,
+    timeout: int | None = None,  # default timeout is 30 seconds
+    debounce_time: int | None,
     instance: str | None = uuid(),
-    options: NonInteractiveOptions | InteractiveOptions = {"interactive": False},
 ) -> Tool:
     """Bash shell session command execution tool.
 
@@ -89,108 +78,57 @@ def bash_session(
       String with command output (stdout) or command error (stderr).
     """
 
-    async def execute_command(
-        command: str | None = None,
+    async def execute(
+        input: str | None = None,
         restart: bool | None = None,
     ) -> ToolResult:
         """
         Use this function to execute bash commands.
 
         Args:
-          command: The bash command to run. Required unless the tool is being restarted.
+          input: The input to send to the process. Required unless the tool is being restarted.
           restart: Specifying true will restart this tool. Otherwise, leave this unspecified.
 
         Returns:
           The output of the command.
         """
-        if not ((command is None) ^ (restart is None)):
+        if not ((input is None) ^ (restart is None)):
             raise ToolParsingError(
-                "Either 'command' or 'restart' must be specified, but not both."
+                "Either 'input' or 'restart' must be specified, but not both."
             )
-        params: dict[str, object] = {"command": command, "restart": restart}
 
-        sandbox = await tool_container_sandbox("bash session")
+        sandbox = await tool_container_sandbox("bash interactive")
         store = store_as(BashSessionStore, instance=instance)
 
         if not store.session_id:
             store.session_id = (
                 await exec_model_request(
-                    sandbox=sandbox,
-                    method="bash_session_new_session",
-                    params={},
-                    result_type=NewSessionResult,
-                    timeout=timeout,
+                    sandbox,
+                    "bash_interactive_new_session",
+                    {},
+                    NewSessionResult,
+                    timeout,
                 )
             ).session_name
-
-        params["session_name"] = store.session_id
 
         result = (
             await exec_model_request(
-                sandbox=sandbox,
-                method="bash_session",
-                params=params,
-                result_type=BashResult,
-                timeout=timeout,
-            )
-        ).root
-
-        if isinstance(result, BashRestartResult):
-            return "Bash session restarted."
-
-        # return output (including stderr if any)
-        return f"{result.stderr}\n{result.stdout}" if result.stderr else result.stdout
-
-    async def execute_interactive(
-        command: str | None = None,
-        restart: bool | None = None,
-    ) -> ToolResult:
-        """
-        Use this function to execute bash commands.
-
-        Args:
-          command: The bash command to run. Required unless the tool is being restarted.
-          restart: Specifying true will restart this tool. Otherwise, leave this unspecified.
-
-        Returns:
-          The output of the command.
-        """
-        if not ((command is None) ^ (restart is None)):
-            raise ToolParsingError(
-                "Either 'command' or 'restart' must be specified, but not both."
-            )
-        params: dict[str, object] = {"command": command, "restart": restart}
-
-        sandbox = await tool_container_sandbox("bash session")
-        store = store_as(BashSessionStore, instance=instance)
-
-        if not store.session_id:
-            store.session_id = (
-                await exec_sandbox_rpc(
-                    sandbox,
-                    "bash_session_new_session",
-                    {},
-                    NewSessionResult,
-                    timeout=timeout,
-                )
-            ).session_name
-
-        params["session_name"] = store.session_id
-
-        result = (
-            await exec_sandbox_rpc(
                 sandbox,
-                "bash_session",
-                params,
+                "bash_interactive",
+                {
+                    "session_name": store.session_id,
+                    "input": input,
+                    "restart": restart,
+                },
                 BashResult,
-                timeout=timeout,
+                timeout,
             )
         ).root
 
         if isinstance(result, BashRestartResult):
-            return "Bash session restarted."
+            return "Bash interactive restarted."
 
         # return output (including stderr if any)
         return f"{result.stderr}\n{result.stdout}" if result.stderr else result.stdout
 
-    return execute_interactive if options["interactive"] else execute_command
+    return execute
