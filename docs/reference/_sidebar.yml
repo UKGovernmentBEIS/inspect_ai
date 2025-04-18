@@ -38,8 +38,6 @@ website:
           href: reference/inspect_ai.solver.qmd#generate
         - text: use_tools
           href: reference/inspect_ai.solver.qmd#use_tools
-        - text: basic_agent
-          href: reference/inspect_ai.solver.qmd#basic_agent
         - text: prompt_template
           href: reference/inspect_ai.solver.qmd#prompt_template
         - text: system_message

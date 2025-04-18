@@ -6,7 +6,6 @@ title: "inspect_ai.solver"
 
 ### generate
 ### use_tools
-### basic_agent
 
 ## Prompting
 
