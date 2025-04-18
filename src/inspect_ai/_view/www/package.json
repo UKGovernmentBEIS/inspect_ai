@@ -64,7 +64,7 @@
     "immer": "^10.1.1",
     "json": "^11.0.0",
     "json5": "^2.2.3",
-    "jsondiffpatch": "^0.6.0",
+    "jsondiffpatch": "^0.7.2",
     "katex": "^0.16.21",
     "markdown-it": "^14.1.0",
     "markdown-it-katex": "^2.0.3",
