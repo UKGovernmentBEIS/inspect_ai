@@ -31,6 +31,7 @@ export const LogViewContainer: FC = () => {
     (state) => state.logsActions.setSelectedLogIndex,
   );
 
+  const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
   const initialState = useStore((state) => state.app.initialState);
   const clearInitialState = useStore(
     (state) => state.appActions.clearInitialState,
@@ -103,6 +104,12 @@ export const LogViewContainer: FC = () => {
   const clearSample = useStore(
     (state) => state.sampleActions.clearSelectedSample,
   );
+
+  useEffect(() => {
+    if (selectedLogIndex > -1) {
+      selectSample(0);
+    }
+  }, [selectedLogIndex]);
 
   // Handle sample selection from URL params
   useEffect(() => {

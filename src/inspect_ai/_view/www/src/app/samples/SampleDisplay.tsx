@@ -114,7 +114,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
 
       // Use navigation hook to update URL with tab
       if (id !== sampleTabId && urlLogPath) {
-        const url = sampleUrl(urlLogPath, urlSampleId, urlEpoch, urlTabId, id);
+        const url = sampleUrl(urlLogPath, urlSampleId, urlEpoch, id);
         navigate(url);
       }
     },
