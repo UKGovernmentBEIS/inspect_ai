@@ -70,6 +70,48 @@ Note that certain models including `o1-pro` and `computer_use_preview`
 documentation](https://platform.openai.com/docs/models) for details on
 which models are supported by the respective APIs.
 
+### Flex Processing
+
+> [!NOTE]
+>
+> The support for flex processing described below is available only in
+> the development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+[Flex
+processing](https://platform.openai.com/docs/guides/flex-processing)
+provides significantly lower costs for requests in exchange for slower
+response times and occasional resource unavailability (input and output
+tokens are priced using [batch API
+rates](https://platform.openai.com/docs/guides/batch) for flex
+requests).
+
+Note that flex processing is in beta, and currently **only available for
+o3 and o4-mini models**.
+
+To enable flex processing, use the `service_tier` model argument,
+setting it to “flex”. For example:
+
+``` bash
+inspect eval math.py --model openai/o4-mini -M service_tier=flex
+```
+
+OpenAI recommends using a [higher client
+timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts)
+when making flex requests (15 minutes rather than the standard 10).
+Inspect automatically increases the client timeout to 15 minutes (900
+seconds) for flex requests. To specify another value, use the
+`client_timeout` model argument. For example:
+
+``` bash
+inspect eval math.py --model openai/o4-mini \
+    -M service_tier=flex -M client_timeout=1200
+```
+
 ### OpenAI on Azure
 
 The `openai` provider supports OpenAI models deployed on the [Azure AI
