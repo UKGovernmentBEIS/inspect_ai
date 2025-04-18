@@ -180,6 +180,16 @@ async def init_sandbox_environments_sample(
         raise ex
 
 
+async def cleanup_sandbox_failed_init(
+    type: str,
+    task_name: str,
+    config: SandboxEnvironmentConfigType | None,
+) -> None:
+    sandboxenv_type = registry_find_sandboxenv(type)
+    sample_cleanup = cast(SampleCleanup, getattr(sandboxenv_type, "sample_cleanup"))
+    await sample_cleanup(task_name, config, {}, True)
+
+
 async def cleanup_sandbox_environments_sample(
     type: str,
     task_name: str,
