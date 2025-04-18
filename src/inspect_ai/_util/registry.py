@@ -28,23 +28,24 @@ if TYPE_CHECKING:
     from inspect_ai.approval import Approver
     from inspect_ai.model import ModelAPI
     from inspect_ai.scorer import Metric, Scorer, ScoreReducer
-    from inspect_ai.solver import Solver
+    from inspect_ai.solver import Plan, Solver
     from inspect_ai.tool import Tool
     from inspect_ai.util import SandboxEnvironment
 
 obj_type = type
 
 RegistryType = Literal[
-    "task",
-    "solver",
     "agent",
-    "tool",
-    "scorer",
-    "metric",
-    "score_reducer",
-    "modelapi",
-    "sandboxenv",
     "approver",
+    "metric",
+    "modelapi",
+    "plan",
+    "sandboxenv",
+    "score_reducer",
+    "scorer",
+    "solver",
+    "task",
+    "tool",
 ]
 """Enumeration of registry object types.
 
@@ -206,33 +207,17 @@ def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
 
 
 @overload
-def registry_create(type: Literal["task"], name: str, **kwargs: Any) -> Task: ...
-
-
-@overload
-def registry_create(type: Literal["solver"], name: str, **kwargs: Any) -> Solver: ...
-
-
-@overload
 def registry_create(type: Literal["agent"], name: str, **kwargs: Any) -> Agent: ...
 
 
 @overload
-def registry_create(type: Literal["tool"], name: str, **kwargs: Any) -> Tool: ...
-
-
-@overload
-def registry_create(type: Literal["scorer"], name: str, **kwargs: Any) -> Scorer: ...
+def registry_create(
+    type: Literal["approver"], name: str, **kwargs: Any
+) -> Approver: ...
 
 
 @overload
 def registry_create(type: Literal["metric"], name: str, **kwargs: Any) -> Metric: ...
-
-
-@overload
-def registry_create(
-    type: Literal["score_reducer"], name: str, **kwargs: Any
-) -> ScoreReducer: ...
 
 
 @overload
@@ -242,18 +227,38 @@ def registry_create(
 
 
 @overload
+def registry_create(type: Literal["plan"], name: str, **kwargs: Any) -> Plan: ...
+
+
+@overload
 def registry_create(
     type: Literal["sandboxenv"], name: str, **kwargs: Any
 ) -> SandboxEnvironment: ...
 
 
 @overload
+def registry_create(type: Literal["scorer"], name: str, **kwargs: Any) -> Scorer: ...
+
+
+@overload
 def registry_create(
-    type: Literal["approver"], name: str, **kwargs: Any
-) -> Approver: ...
+    type: Literal["score_reducer"], name: str, **kwargs: Any
+) -> ScoreReducer: ...
 
 
-def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
+@overload
+def registry_create(type: Literal["solver"], name: str, **kwargs: Any) -> Solver: ...
+
+
+@overload
+def registry_create(type: Literal["task"], name: str, **kwargs: Any) -> Task: ...
+
+
+@overload
+def registry_create(type: Literal["tool"], name: str, **kwargs: Any) -> Tool: ...
+
+
+def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
     r"""Create a registry object.
 
     Creates objects registered via decorator (e.g. `@task`, `@solver`). Note
