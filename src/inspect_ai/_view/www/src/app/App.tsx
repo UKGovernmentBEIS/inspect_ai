@@ -40,7 +40,6 @@ export const App: FC<AppProps> = ({ api }) => {
     state.logsActions.getSelectedLogFile(),
   );
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-  const selectSample = useStore((state) => state.logActions.selectSample);
   const logs = useStore((state) => state.logs.logs);
 
   // Load a specific log
@@ -64,7 +63,7 @@ export const App: FC<AppProps> = ({ api }) => {
     };
 
     loadSpecificLog();
-  }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus, selectSample]);
+  }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus]);
 
   useEffect(() => {
     // If the component re-mounts and there is a running load loaded
