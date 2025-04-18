@@ -380,7 +380,7 @@ def view_config(format: str) -> None:
 def set_config(key: str, value: str) -> None:
     """Set a configuration value."""
     config_path = Path(CONFIG_FILE)
-    config = {}
+    config: dict[str, Any] = {}
 
     # Create directory if it doesn't exist
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -397,35 +397,36 @@ def set_config(key: str, value: str) -> None:
     # Update the configuration
     # Handle nested keys like "logging.level"
     keys = key.split(".")
-    current = config
+    current: dict[str, Any] = config
     for k in keys[:-1]:
         if k not in current or not isinstance(current[k], dict):
             current[k] = {}
         current = current[k]
 
     # Try to convert value to appropriate type
+    converted_value: Any = value
     try:
         # Try as int
-        value = int(value)
+        converted_value = int(value)
     except ValueError:
         try:
             # Try as float
-            value = float(value)
+            converted_value = float(value)
         except ValueError:
             # Try as boolean
             if value.lower() in ("true", "yes", "y", "1"):
-                value = True
+                converted_value = True
             elif value.lower() in ("false", "no", "n", "0"):
-                value = False
+                converted_value = False
             # Otherwise keep as string
 
-    current[keys[-1]] = value
+    current[keys[-1]] = converted_value
 
     # Save the updated configuration
     try:
         with open(config_path, "w") as f:
             yaml.dump(config, f, default_flow_style=False)
-        click.echo(f"Successfully set {key} to {value}")
+        click.echo(f"Successfully set {key} to {converted_value}")
     except Exception as e:
         click.echo(f"Error saving configuration: {e}")
 
