@@ -1,6 +1,7 @@
-import { Events, StepEvent } from "../../../../types/log";
-
 // This is a special name that signals a group of sandbox events.
+
+import { Events, StepEvent } from "../../../../@types/log";
+
 // It will be caught elsewhere and rendered with a pretty name
 export const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
 
