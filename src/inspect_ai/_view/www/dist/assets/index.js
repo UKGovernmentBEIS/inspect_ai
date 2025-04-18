@@ -23798,7 +23798,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     }
     function toTitleCase(str2) {
-      return str2.split(" ").map((w2) => w2[0].toUpperCase() + w2.substr(1).toLowerCase()).join(" ");
+      if (!str2) {
+        return str2;
+      }
+      return str2.split(" ").map(
+        (w2) => w2.length > 0 ? w2[0].toUpperCase() + w2.substr(1).toLowerCase() : w2
+      ).join(" ");
     }
     function formatNoDecimal(num2) {
       if (typeof num2 !== "number") {
@@ -43083,8 +43088,14 @@ categories: ${categories.join(" ")}`;
       );
     };
     const filename = (path) => {
+      if (!path) {
+        return "";
+      }
       const pathparts = path.split("/");
       const basename = pathparts.slice(-1)[0];
+      if (basename.startsWith(".") && !basename.substring(1).includes(".")) {
+        return basename;
+      }
       const match = basename.match(/(.*)\.\S+$/);
       if (match) {
         return match[1];
@@ -43096,8 +43107,9 @@ categories: ${categories.join(" ")}`;
       const pathparts = path.split("/");
       if (pathparts.length > 1) {
         pathparts.pop();
+        return pathparts.join("/");
       }
-      return pathparts.join("/");
+      return "";
     };
     const container$g = "_container_291sb_1";
     const wrapper$3 = "_wrapper_291sb_8";
