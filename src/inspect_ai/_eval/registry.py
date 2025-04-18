@@ -80,7 +80,7 @@ def task_create(name: str, **kwargs: Any) -> Task:
         else:
             logger.warning(f"param '{param}' not used by task '{name}'")
 
-    return cast(Task, registry_create("task", name, **task_args))
+    return registry_create("task", name, **task_args)
 
 
 @overload
