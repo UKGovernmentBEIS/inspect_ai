@@ -104,7 +104,7 @@ class VLLMAPI(ModelAPI):
 
         # set which GPUs are available to use
         if device is not None:
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(device)
+            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(device)
 
         # tell vllm how many GPUs to use
         if "tensor_parallel_size" not in model_args:
