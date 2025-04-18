@@ -137,9 +137,15 @@ export function formatDecimalNoTrailingZeroes(num: number): string {
  * Converts a string to title case.
  */
 export function toTitleCase(str: string): string {
+  if (!str) {
+    return str;
+  }
+
   return str
     .split(" ")
-    .map((w) => w[0].toUpperCase() + w.substr(1).toLowerCase())
+    .map((w) =>
+      w.length > 0 ? w[0].toUpperCase() + w.substr(1).toLowerCase() : w,
+    )
     .join(" ");
 }
 
