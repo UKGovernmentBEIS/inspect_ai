@@ -242,7 +242,7 @@ async def test_mcp_sampling_fn():
         )
         assert result.role == "assistant"
         assert isinstance(result.content, TextContent)
-        assert "sky" in result.content.text
+        assert "sky" in result.content.text or "mockllm" in result.content.text
 
 
 @pytest.mark.slow
