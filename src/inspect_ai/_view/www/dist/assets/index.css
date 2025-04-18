@@ -15883,9 +15883,17 @@ ul.jsondiffpatch-textdiff {
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }
-._contentImage_121dp_1 {
+._contentImage_c5r8l_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
+}
+
+._reasoning_c5r8l_6 {
+  border: solid var(--bs-light-border-subtle) 1px;
+  padding: 0.5em;
+  margin-bottom: 1em;
+  background-color: var(--bs-light-bg-subtle);
+  border-radius: var(--bs-border-radius);
 }
 ._toolImage_1j5uu_1 {
   max-width: 800px;

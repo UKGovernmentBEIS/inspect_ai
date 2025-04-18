@@ -51,7 +51,7 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
     const baseStyles = {
       overflow: "hidden",
       ...(collapsed && {
-        maxHeight: `${lines}em`,
+        maxHeight: `${lines}rem`,
       }),
     };
 
