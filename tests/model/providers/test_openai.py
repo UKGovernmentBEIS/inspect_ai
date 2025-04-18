@@ -1,6 +1,7 @@
 import pytest
 from test_helpers.utils import skip_if_no_openai
 
+from inspect_ai import Task, eval
 from inspect_ai.model import (
     ChatMessageUser,
     GenerateConfig,
@@ -84,3 +85,24 @@ async def test_openai_o_series_max_tokens() -> None:
     await check_max_tokens("openai/o1")
     await check_max_tokens("openai/o1-mini")
     await check_max_tokens("openai/o3-mini")
+
+
+@skip_if_no_openai
+def test_openai_flex_requests():
+    log = eval(
+        Task(),
+        model="openai/o4-mini",
+        model_args=dict(service_tier="flex", client_timeout=1200),
+    )[0]
+    assert log.status == "success"
+
+
+@skip_if_no_openai
+def test_openai_flex_requests_not_available():
+    log = eval(
+        Task(),
+        model="openai/gpt-4o",
+        model_args=dict(service_tier="flex", client_timeout=1200),
+    )[0]
+    assert log.status == "error"
+    assert "Flex is not available for this model" in str(log.error)

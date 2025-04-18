@@ -63,6 +63,8 @@ class OpenAIAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool | None = None,
         responses_store: Literal["auto"] | bool = "auto",
+        service_tier: str | None = None,
+        client_timeout: float | None = None,
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -94,6 +96,14 @@ class OpenAIAPI(ModelAPI):
         # resolve whether we are using the responses store
         self.responses_store = (
             responses_store if isinstance(responses_store, bool) else responses_model
+        )
+
+        # set service tier if specified
+        self.service_tier = service_tier
+
+        # bump up default client timeout to 15 minutes for service_tier=="flex"
+        self.client_timeout = client_timeout or (
+            900.0 if self.service_tier == "flex" else None
         )
 
         # resolve api_key
@@ -149,6 +159,7 @@ class OpenAIAPI(ModelAPI):
                 api_version=api_version,
                 azure_endpoint=base_url,
                 http_client=http_client,
+                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
                 **model_args,
             )
         else:
@@ -156,6 +167,7 @@ class OpenAIAPI(ModelAPI):
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
                 http_client=http_client,
+                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
                 **model_args,
             )
 
@@ -238,6 +250,7 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
+                service_tier=self.service_tier,
                 store=self.responses_store,
             )
 
@@ -328,6 +341,10 @@ class OpenAIAPI(ModelAPI):
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         # first call the default processing
         params = openai_completion_params(self.service_model_name(), config, tools)
+
+        # add service_tier if specified
+        if self.service_tier is not None:
+            params["service_tier"] = self.service_tier
 
         # now tailor to current model
         if config.max_tokens is not None:
