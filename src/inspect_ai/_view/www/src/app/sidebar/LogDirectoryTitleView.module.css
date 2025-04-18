@@ -1,0 +1,16 @@
+.dirname {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.directoryLink {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.directoryLink:hover {
+  color: var(--bs-primary);
+  text-decoration: none;
+}

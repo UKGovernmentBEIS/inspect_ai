@@ -1,4 +1,3 @@
-import { Timeout } from "../types/log";
 import { createLogger } from "./logger";
 
 export interface PollingOptions {
@@ -20,7 +19,7 @@ export const createPolling = (
   const log = createLogger(`Polling ${name}`);
 
   const { maxRetries, interval } = options;
-  let timeoutId: Timeout = null;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
   let retryCount = 0;
   // Are we currently polling
   let isPolling = false;

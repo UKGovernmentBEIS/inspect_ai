@@ -3,7 +3,7 @@ import {
   ChatMessageSystem,
   ChatMessageTool,
   ChatMessageUser,
-} from "../types/log";
+} from "../@types/log";
 
 /**
  * Converts an array or a single value to a comma-separated string.

@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { ProgressBar } from "./ProgressBar";
 
-import { FC, ReactNode, RefObject, useRef } from "react";
+import { FC, ReactNode, RefObject, useEffect, useRef } from "react";
 import styles from "./LargeModal.module.css";
 
 export interface ModalTool {
@@ -55,6 +55,16 @@ export const LargeModal: FC<LargeModalProps> = ({
   const modalRef = useRef(null);
   scrollRef = scrollRef || modalRef;
 
+  // Focus the modal when it becomes visible
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Use effect to focus the modal when visible changes
+  useEffect(() => {
+    if (visible && dialogRef.current) {
+      dialogRef.current.focus();
+    }
+  }, [visible]);
+
   return (
     <div
       id={id}
@@ -66,6 +76,7 @@ export const LargeModal: FC<LargeModalProps> = ({
       role="dialog"
       onKeyUp={onkeyup}
       tabIndex={visible ? 0 : undefined}
+      ref={dialogRef}
     >
       <div
         className={clsx(

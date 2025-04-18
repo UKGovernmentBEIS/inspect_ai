@@ -1,4 +1,7 @@
+from typing import Sequence
+
 from inspect_ai.tool import Tool, ToolChoice
+from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_def import ToolDef
 
 from ._solver import Generate, Solver, solver
@@ -7,7 +10,7 @@ from ._task_state import TaskState
 
 @solver
 def use_tools(
-    *tools: Tool | list[Tool],
+    *tools: Tool | ToolDef | ToolSource | Sequence[Tool | ToolDef | ToolSource],
     tool_choice: ToolChoice | None = "auto",
     append: bool = False,
 ) -> Solver:
@@ -34,17 +37,20 @@ def use_tools(
         tools_update: list[Tool] = []
 
         # add tool function to take care of tool/tool_def
-        def add_tool(tool: Tool | ToolDef) -> None:
-            if isinstance(tool, ToolDef):
-                tool = tool.as_tool()
-            tools_update.append(tool)
+        async def add_tools(tool: Tool | ToolDef | ToolSource) -> None:
+            if isinstance(tool, ToolSource):
+                tools_update.extend(await tool.tools())
+            else:
+                if isinstance(tool, ToolDef):
+                    tool = tool.as_tool()
+                tools_update.append(tool)
 
         for tool in tools:
-            if isinstance(tool, list):
+            if isinstance(tool, Sequence):
                 for t in tool:
-                    add_tool(t)
+                    await add_tools(t)
             else:
-                add_tool(tool)
+                await add_tools(tool)
         if len(tools_update) > 0:
             if append:
                 existing_tools = state.tools
