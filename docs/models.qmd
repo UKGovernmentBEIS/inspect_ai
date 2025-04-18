@@ -138,14 +138,6 @@ Note though that this *won't work* with model providers that require an async cl
 
 ## Model Roles
 
-::: callout-note
-The model roles feature described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 Model roles enable you to create aliases for the various models used in your tasks, and then dynamically vary those roles when running an evaluation. For example, you might have a "critic" or "monitor" role, or perhaps "red_team" and "blue_team" roles. Roles are included in the log and displayed in model events within the transcript.
 
 Here is a scorer that utilises a "grader" role when binding to a model:

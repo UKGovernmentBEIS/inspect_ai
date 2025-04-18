@@ -82,16 +82,16 @@ def is_o_series(name: str) -> bool:
         return not is_gpt(name) and bool(re.search(r"o\d+", name))
 
 
-def is_o1_pro(name: str) -> bool:
-    return "o1-pro" in name
+def is_o1(name: str) -> bool:
+    return "o1" in name and not is_o1_early(name)
 
 
-def is_o1_mini(name: str) -> bool:
-    return "o1-mini" in name
+def is_o1_early(name: str) -> bool:
+    return "o1-mini" in name or "o1-preview" in name
 
 
-def is_o1_preview(name: str) -> bool:
-    return "o1-preview" in name
+def is_o3_mini(name: str) -> bool:
+    return "o3-mini" in name
 
 
 def is_computer_use_preview(name: str) -> bool:
