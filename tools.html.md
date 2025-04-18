@@ -56,12 +56,19 @@ If you are only interested in using the standard tools, check out their
 respective documentation links above. To learn more about creating your
 own tools read on below.
 
-## Defining Tools
+## MCP Tools
 
-Here we’ll describe the basics of defining and using a custom tool. See
-the [Custom Tools](tools-custom.qmd) article for details on more
-advanced custom tool features including sandboxing, error handling, and
-dynamic tool definitions.
+The [Model Context
+Protocol](https://modelcontextprotocol.io/introduction) is a standard
+way to provide capabilities to LLMs. There are hundreds of [MCP
+Servers](https://github.com/modelcontextprotocol/servers) that provide
+tools for a myriad of purposes including web search and browsing,
+filesystem interaction, database access, git, and more.
+
+Tools exposed by MCP servers can be easily integrated into Inspect.
+Learn more in the article on [MCP Tools](tools-mcp.qmd).
+
+## Custom Tools
 
 Here’s a simple tool that adds two numbers. The `@tool` decorator is
 used to register it with the system:
@@ -151,12 +158,20 @@ should use subprocesses as described in the next section.
 > request which includes function parameters, and then Inspect calls the
 > function and returns the result to the model.
 
-## Learning More
+See the [Custom Tools](tools-custom.qmd) article for details on more
+advanced custom tool features including sandboxing, error handling, and
+dynamic tool definitions.
 
-- [Custom Tools](tools-custom.qmd) provides details on more advanced
-  custom tool features including sandboxing, error handling, and dynamic
-  tool definitions.
+## Learning More
 
 - [Standard Tools](tools-standard.qmd) describes Inspect’s built-in
   tools for code execution, text editing computer use, web search, and
   web browsing.
+
+- [MCP Tools](tools-mcp.qmd) covers how to intgrate tools from the
+  growing list of [Model Context
+  Protocol](https://modelcontextprotocol.io/introduction) providers.
+
+- [Custom Tools](tools-custom.qmd) provides details on more advanced
+  custom tool features including sandboxing, error handling, and dynamic
+  tool definitions.

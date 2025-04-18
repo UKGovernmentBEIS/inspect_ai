@@ -64,7 +64,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./tools-custom.html" rel="next">
+<link href="./tools-standard.html" rel="next">
 <link href="./structured.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
@@ -320,14 +320,20 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tools-custom.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Custom Tools</span></a>
+  <a href="./tools-standard.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Standard Tools</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tools-standard.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Standard Tools</span></a>
+  <a href="./tools-mcp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MCP Tools</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./tools-custom.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom Tools</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -456,7 +462,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#standard-tools" id="toc-standard-tools" class="nav-link" data-scroll-target="#standard-tools">Standard Tools</a></li>
-  <li><a href="#defining-tools" id="toc-defining-tools" class="nav-link" data-scroll-target="#defining-tools">Defining Tools</a>
+  <li><a href="#mcp-tools" id="toc-mcp-tools" class="nav-link" data-scroll-target="#mcp-tools">MCP Tools</a></li>
+  <li><a href="#custom-tools" id="toc-custom-tools" class="nav-link" data-scroll-target="#custom-tools">Custom Tools</a>
   <ul class="collapse">
   <li><a href="#annotations" id="toc-annotations" class="nav-link" data-scroll-target="#annotations">Annotations</a></li>
   </ul></li>
@@ -519,9 +526,13 @@ Tools and Agents
 </ul>
 <p>If you are only interested in using the standard tools, check out their respective documentation links above. To learn more about creating your own tools read on below.</p>
 </section>
-<section id="defining-tools" class="level2">
-<h2 class="anchored" data-anchor-id="defining-tools">Defining Tools</h2>
-<p>Here we’ll describe the basics of defining and using a custom tool. See the <a href="./tools-custom.html">Custom Tools</a> article for details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.</p>
+<section id="mcp-tools" class="level2">
+<h2 class="anchored" data-anchor-id="mcp-tools">MCP Tools</h2>
+<p>The <a href="https://modelcontextprotocol.io/introduction">Model Context Protocol</a> is a standard way to provide capabilities to LLMs. There are hundreds of <a href="https://github.com/modelcontextprotocol/servers">MCP Servers</a> that provide tools for a myriad of purposes including web search and browsing, filesystem interaction, database access, git, and more.</p>
+<p>Tools exposed by MCP servers can be easily integrated into Inspect. Learn more in the article on <a href="./tools-mcp.html">MCP Tools</a>.</p>
+</section>
+<section id="custom-tools" class="level2">
+<h2 class="anchored" data-anchor-id="custom-tools">Custom Tools</h2>
 <p>Here’s a simple tool that adds two numbers. The <code>@tool</code> decorator is used to register it with the system:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> tool</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -582,12 +593,14 @@ Tools and Agents
 </div>
 </div>
 </div>
+<p>See the <a href="./tools-custom.html">Custom Tools</a> article for details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.</p>
 </section>
 <section id="learning-more" class="level2">
 <h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>
 <ul>
-<li><p><a href="./tools-custom.html">Custom Tools</a> provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.</p></li>
 <li><p><a href="./tools-standard.html">Standard Tools</a> describes Inspect’s built-in tools for code execution, text editing computer use, web search, and web browsing.</p></li>
+<li><p><a href="./tools-mcp.html">MCP Tools</a> covers how to intgrate tools from the growing list of <a href="https://modelcontextprotocol.io/introduction">Model Context Protocol</a> providers.</p></li>
+<li><p><a href="./tools-custom.html">Custom Tools</a> provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.</p></li>
 </ul>
 
 
@@ -1062,8 +1075,8 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./tools-custom.html" class="pagination-link" aria-label="Custom Tools">
-        <span class="nav-page-text">Custom Tools</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./tools-standard.html" class="pagination-link" aria-label="Standard Tools">
+        <span class="nav-page-text">Standard Tools</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Eval Sets – Inspect</title>
+<title>Model Context Protocol – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,8 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./errors-and-limits.html" rel="next">
-<link href="./eval-logs.html" rel="prev">
+<link href="./tools-custom.html" rel="next">
+<link href="./tools-standard.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -168,7 +168,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-sets.html">Eval Sets</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tools.html">Tools</a></li><li class="breadcrumb-item"><a href="./tools-mcp.html">MCP Tools</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -326,7 +326,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./tools-mcp.html" class="sidebar-item-text sidebar-link">
+  <a href="./tools-mcp.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">MCP Tools</span></a>
   </div>
 </li>
@@ -408,7 +408,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link active">
+  <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Eval Sets</span></a>
   </div>
 </li>
@@ -460,26 +460,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#running-eval-sets" id="toc-running-eval-sets" class="nav-link" data-scroll-target="#running-eval-sets">Running Eval Sets</a>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a>
   <ul class="collapse">
-  <li><a href="#dynamic-tasks" id="toc-dynamic-tasks" class="nav-link" data-scroll-target="#dynamic-tasks">Dynamic Tasks</a></li>
-  <li><a href="#retry-options" id="toc-retry-options" class="nav-link" data-scroll-target="#retry-options">Retry Options</a></li>
-  <li><a href="#publishing" id="toc-publishing" class="nav-link" data-scroll-target="#publishing">Publishing</a></li>
+  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
   </ul></li>
-  <li><a href="#logging-context" id="toc-logging-context" class="nav-link" data-scroll-target="#logging-context">Logging Context</a>
+  <li><a href="#mcp-servers" id="toc-mcp-servers" class="nav-link" data-scroll-target="#mcp-servers">MCP Servers</a>
   <ul class="collapse">
-  <li><a href="#sec-sample-preservation" id="toc-sec-sample-preservation" class="nav-link" data-scroll-target="#sec-sample-preservation">Sample Preservation</a></li>
+  <li><a href="#server-command" id="toc-server-command" class="nav-link" data-scroll-target="#server-command">Server Command</a></li>
+  <li><a href="#server-tools" id="toc-server-tools" class="nav-link" data-scroll-target="#server-tools">Server Tools</a></li>
   </ul></li>
-  <li><a href="#task-enumeration" id="toc-task-enumeration" class="nav-link" data-scroll-target="#task-enumeration">Task Enumeration</a>
+  <li><a href="#tool-selection" id="toc-tool-selection" class="nav-link" data-scroll-target="#tool-selection">Tool Selection</a></li>
+  <li><a href="#connections" id="toc-connections" class="nav-link" data-scroll-target="#connections">Connections</a></li>
+  <li><a href="#sandboxes" id="toc-sandboxes" class="nav-link" data-scroll-target="#sandboxes">Sandboxes</a>
   <ul class="collapse">
-  <li><a href="#multiple-tasks-in-a-file" id="toc-multiple-tasks-in-a-file" class="nav-link" data-scroll-target="#multiple-tasks-in-a-file">Multiple Tasks in a File</a></li>
-  <li><a href="#multiple-tasks-in-a-directory" id="toc-multiple-tasks-in-a-directory" class="nav-link" data-scroll-target="#multiple-tasks-in-a-directory">Multiple Tasks in a Directory</a></li>
-  </ul></li>
-  <li><a href="#listing-and-filtering" id="toc-listing-and-filtering" class="nav-link" data-scroll-target="#listing-and-filtering">Listing and Filtering</a>
-  <ul class="collapse">
-  <li><a href="#recursive-listings" id="toc-recursive-listings" class="nav-link" data-scroll-target="#recursive-listings">Recursive Listings</a></li>
-  <li><a href="#attributes-and-filters" id="toc-attributes-and-filters" class="nav-link" data-scroll-target="#attributes-and-filters">Attributes and Filters</a></li>
+  <li><a href="#configuration" id="toc-configuration" class="nav-link" data-scroll-target="#configuration">Configuration</a></li>
+  <li><a href="#running-the-server" id="toc-running-the-server" class="nav-link" data-scroll-target="#running-the-server">Running the Server</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -487,9 +482,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Advanced</a></li><li class="breadcrumb-item"><a href="./eval-sets.html">Eval Sets</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./tools.html">Tools</a></li><li class="breadcrumb-item"><a href="./tools-mcp.html">MCP Tools</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Eval Sets</h1>
+<h1 class="title">Model Context Protocol</h1>
 </div>
 
 
@@ -506,277 +501,294 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The support for Model Context Protocol tools described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Most of the examples in the documentation run a single evaluation task by either passing a script name to <code>inspect eval</code> or by calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> function directly. While this is a good workflow for developing single evaluations, you’ll often want to run several evaluations together as a <em>set</em>. This might be for the purpose of exploring hyperparameters, evaluating on multiple models at one time, or running a full benchmark suite.</p>
-<p>The <code>inspect eval-set</code> command and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function and provide several facilities for running sets of evaluations, including:</p>
-<ol type="1">
-<li>Automatically retrying failed evaluations (with a configurable retry strategy)</li>
-<li>Re-using samples from failed tasks so that work is not repeated during retries.</li>
-<li>Cleaning up log files from failed runs after a task is successfully completed.</li>
-<li>The ability to re-run the command multiple times, with work picking up where the last invocation left off.</li>
-</ol>
-<p>Below we’ll cover the various tools and techniques available for creating eval sets.</p>
+<p>The <a href="https://modelcontextprotocol.io/introduction">Model Context Protocol</a> is a standard way to provide capabilities to LLMs. There are hundreds of <a href="https://github.com/modelcontextprotocol/servers">MCP Servers</a> that provide tools for a myriad of purposes including web search, filesystem interaction, database access, git, and more.</p>
+<p>Each MCP server provides a set of LLM tools. You can use all of the tools from a server or select a subset of tools. To use these tools in Inspect, you first define a connection to an MCP Server then pass the server on to Inspect functions that take <code>tools</code> as an argument.</p>
+<section id="example" class="level3">
+<h3 class="anchored" data-anchor-id="example">Example</h3>
+<p>For example, here we create a connection to a <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/git">Git MCP Server</a>, and then pass it to a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent used as a solver for a task:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> task</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> mcp_server_stdio</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> git_task():</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    git_server <span class="op">=</span> mcp_server_stdio(</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        command<span class="op">=</span><span class="st">"python3"</span>, </span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>        args<span class="op">=</span>[<span class="st">"-m"</span>, <span class="st">"mcp_server_git"</span>, <span class="st">"--repository"</span>, <span class="st">"."</span>]</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>[Sample(</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>            <span class="st">"What is the git status of the working directory?"</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>        )],</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>react(tools<span class="op">=</span>[git_server])</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The Git MCP server provides various tools for interacting with Git (e.g.&nbsp;<code>git_status()</code>, <code>git_diff()</code>, <code>git_log()</code>, etc.). By passing the <code>git_server</code> instance to the agent we make these tools available to it. You can also filter the list of tools (which is covered below in <a href="#tool-selection">Tool Selection</a>).</p>
 </section>
-<section id="running-eval-sets" class="level2">
-<h2 class="anchored" data-anchor-id="running-eval-sets">Running Eval Sets</h2>
-<p>Run a set of evaluations using the <code>inspect eval-set</code> command or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function. For example:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set mmlu.py mathematics.py <span class="dt">\</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--model</span> openai/gpt-4o,anthropic/claude-3-5-sonnet-20240620 <span class="dt">\</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>   <span class="at">--log-dir</span> logs-run-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or equivalently:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>   tasks<span class="op">=</span>[<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>],</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that in both cases we specified a custom log directory—this is actually a requirement for eval sets, as it provides a scope where completed work can be tracked.</p>
-<section id="dynamic-tasks" class="level3">
-<h3 class="anchored" data-anchor-id="dynamic-tasks">Dynamic Tasks</h3>
-<p>In the above examples tasks are ready from the filesystem. It is also possible to dynamically create a set of tasks and pass them to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> eval_set</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> create_task(dataset: <span class="bu">str</span>):</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(dataset<span class="op">=</span>csv_dataset(dataset))</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>mmlu <span class="op">=</span> create_task(<span class="st">"mmlu.csv"</span>)</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>maths <span class="op">=</span> create_task(<span class="st">"maths.csv"</span>)</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>   [mmlu, maths],</span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>   model<span class="op">=</span>[<span class="st">"openai/gpt-4o"</span>, <span class="st">"anthropic/claude-3-5-sonnet-20240620"</span>],</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>      </span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Notice that we create our tasks from a function decorated with <code>@task</code>. Doing this is a critical requirement because it enables Inspect to capture the arguments to <code>create_task()</code> and use that to distinguish the two tasks (in turn used to pair tasks to log files for retries).</p>
-<p>There are two fundamental requirements for dynamic tasks used with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span>:</p>
-<ol type="1">
-<li>They are created using an <code>@task</code> function as described above.</li>
-<li>Their parameters use ordinary Python types (like <code>str</code>, <code>int</code>, <code>list</code>, etc.) as opposed to custom objects (which are hard to serialise consistently).</li>
-</ol>
-<p>Note that you can pass a <code>solver</code> to an <code>@task</code> function, so long as it was created by a function decorated with <code>@solver</code>.</p>
 </section>
-<section id="retry-options" class="level3">
-<h3 class="anchored" data-anchor-id="retry-options">Retry Options</h3>
-<p>There are a number of options that control the retry behaviour of eval sets:</p>
+<section id="mcp-servers" class="level2">
+<h2 class="anchored" data-anchor-id="mcp-servers">MCP Servers</h2>
+<p>MCP servers can use a variety of transports. There are two transports built-in to the core implementation:</p>
+<ul>
+<li><p><strong>Standard I/O (stdio).</strong> The stdio transport enables communication to a local process through standard input and output streams.</p></li>
+<li><p><strong>Server-Sent Events (sse).</strong> SSE transport enables server-to-client streaming with HTTP POST requests for client-to-server communication, typically to a remote host.</p></li>
+</ul>
+<p>In addition, the Inspect implementation of MCP adds another transport:</p>
+<ul>
+<li><strong>Sandbox (sandbox)</strong>. The sandbox transport enables communication to a process running in an Inspect sandbox through standard input and output streams.</li>
+</ul>
+<p>You can use the following functions to create interfaces to the various types of servers:</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 40%">
 <col style="width: 60%">
 </colgroup>
-<thead>
-<tr class="header">
-<th><strong>Option</strong></th>
-<th>Description</th>
-</tr>
-</thead>
 <tbody>
 <tr class="odd">
-<td><code>--retry-attempts</code></td>
-<td>Maximum number of retry attempts (defaults to 10)</td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_server_stdio">mcp_server_stdio()</a></span></td>
+<td>Stdio interface to MCP server. Use this for MCP servers that run locally.</td>
 </tr>
 <tr class="even">
-<td><code>--retry-wait</code></td>
-<td>Time to wait between attempts, increased exponentially. (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.)</td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_server_sse">mcp_server_sse()</a></span></td>
+<td>SSE interface to MCP server. Use this for MCP servers available via a URL endpoint.</td>
 </tr>
 <tr class="odd">
-<td><code>--retry-connections</code></td>
-<td>Reduce max connections at this rate with each retry (defaults to 0.5)</td>
-</tr>
-<tr class="even">
-<td><code>--no-retry-cleanup</code></td>
-<td>Do not cleanup failed log files after retries.</td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_server_sandbox">mcp_server_sandbox()</a></span></td>
+<td>Sandbox interface to MCP server. Use this for MCP servers that run in an Inspect sandbox.</td>
 </tr>
 </tbody>
 </table>
-<p>For example, here we specify a base wait time of 120 seconds:</p>
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval-set mmlu.py mathematics.py <span class="dt">\</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">--log-dir</span> logs-run-42</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>   <span class="ex">--retry-wait</span> 120</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>eval_set(</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>   [<span class="st">"mmlu.py"</span>, <span class="st">"mathematics.py"</span>],</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>   log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>,</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>   retry_wait<span class="op">=</span><span class="dv">120</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="publishing" class="level3">
-<h3 class="anchored" data-anchor-id="publishing">Publishing</h3>
-<p>You can bundle a standalone version of the log viewer for an eval set using the bundling options:</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 40%">
-<col style="width: 60%">
-</colgroup>
-<thead>
-<tr class="header">
-<th><strong>Option</strong></th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>--bundle-dir</code></td>
-<td>Directory to write standalone log viewer files to.</td>
-</tr>
-<tr class="even">
-<td><code>--bundle-overwrite</code></td>
-<td>Overwrite existing bundle directory (defaults to not overwriting).</td>
-</tr>
-</tbody>
-</table>
-<p>The bundle directory can then be deployed to any static web server (<a href="https://docs.github.com/en/pages">GitHub Pages</a>, <a href="https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html">S3 buckets</a>, or <a href="https://docs.netlify.com/get-started/">Netlify</a>, for example) to provide a standalone version of the log viewer for the eval set. See the section on <a href="./log-viewer.html#sec-publishing">Log Viewer Publishing</a> for additional details.</p>
-</section>
-</section>
-<section id="logging-context" class="level2">
-<h2 class="anchored" data-anchor-id="logging-context">Logging Context</h2>
-<p>We mentioned above that you need to specify a dedicated log directory for each eval set that you run. This requirement exists for a couple of reasons:</p>
-<ol type="1">
-<li><p>The log directory provides a durable record of which tasks are completed so that you can run the eval set as many times as is required to finish all of the work. For example, you might get halfway through a run and then encounter provider rate limit errors. You’ll want to be able to restart the eval set later (potentially even many hours later) and the dedicated log directory enables you to do this.</p></li>
-<li><p>This enables you to enumerate and analyse all of the eval logs in the suite as a cohesive whole (rather than having them intermixed with the results of other runs).</p></li>
-</ol>
-<p>Once all of the tasks in an eval set are complete, re-running <code>inspect eval-set</code> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> on the same log directory will be a no-op as there is no more work to do. At this point you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#list_eval_logs">list_eval_logs()</a></span> function to collect up logs for analysis:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>results <span class="op">=</span> list_eval_logs(<span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you are calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function it will return a tuple of <code>bool</code> and <code>list[EvalLog]</code>, where the <code>bool</code> indicates whether all tasks were completed:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>success, logs <span class="op">=</span> eval_set(...)</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> success:</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># analyse logs</span></span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    <span class="co"># will need to run eval_set again</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that eval_set() does by default do quite a bit of retrying (up to 10 times by default) so <code>success=False</code> reflects the case where even after all of the retries the tasks were still not completed (this might occur due to a service outage or perhaps bugs in eval code raising runtime errors).</p>
-<section id="sec-sample-preservation" class="level3">
-<h3 class="anchored" data-anchor-id="sec-sample-preservation">Sample Preservation</h3>
-<p>When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.</p>
-<section id="ids-and-shuffling" class="level4">
-<h4 class="anchored" data-anchor-id="ids-and-shuffling">IDs and Shuffling</h4>
-<p>An important constraint on the ability to re-use completed samples is matching them up correctly with samples in the new task. To do this, Inspect requires stable unique identifiers for each sample. This can be achieved in 1 of 2 ways:</p>
-<ol type="1">
-<li><p>Samples can have an explicit <code>id</code> field which contains the unique identifier; or</p></li>
-<li><p>You can rely on Inspect’s assignment of an auto-incrementing <code>id</code> for samples, however this <em>will not work correctly</em> if your dataset is shuffled. Inspect will log a warning and not re-use samples if it detects that the <code>dataset.shuffle()</code> method was called, however if you are shuffling by some other means this automatic safeguard won’t be applied.</p></li>
-</ol>
-<p>If dataset shuffling is important to your evaluation and you want to preserve samples for retried tasks, then you should include an explicit <code>id</code> field in your dataset.</p>
-</section>
-<section id="max-samples" class="level4">
-<h4 class="anchored" data-anchor-id="max-samples">Max Samples</h4>
-<p>Another consideration is <code>max_samples</code>, which is the maximum number of samples to run concurrently within a task. Larger numbers of concurrent samples will result in higher throughput, but will also result in completed samples being written less frequently to the log file, and consequently less total recovable samples in the case of an interrupted task.</p>
-<p>By default, Inspect sets the value of <code>max_samples</code> to <code>max_connections + 1</code> (note that it would rarely make sense to set it <em>lower</em> than <code>max_connections</code>). The default <code>max_connections</code> is 10, which will typically result in samples being written to the log frequently. On the other hand, setting a very large <code>max_connections</code> (e.g.&nbsp;100 <code>max_connections</code> for a dataset with 100 samples) may result in very few recoverable samples in the case of an interruption.</p>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
+<p>We’ll cover using stdio and sse based servers in the section below. Sandbox servers require some additional container configuration, and are covered separately in <a href="#sandboxes">Sandboxes</a>.</p>
+<section id="server-command" class="level3">
+<h3 class="anchored" data-anchor-id="server-command">Server Command</h3>
+<p>For stdio servers, you need to provide the command to start the server along with potentially some command line arguments and environment variables. For sse servers you’ll generally provide a host name and headers with credentials.</p>
+<p>Servers typically provide their documentation in the JSON format required by the <code>claude_desktop_config.json</code> file in Claude Desktop. For example, here is the documentation for configuring the <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#npx">Google Maps</a> server:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"mcpServers"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"google-maps"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"command"</span><span class="fu">:</span> <span class="st">"npx"</span><span class="fu">,</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"args"</span><span class="fu">:</span> <span class="ot">[</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"-y"</span><span class="ot">,</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="st">"@modelcontextprotocol/server-google-maps"</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>      <span class="ot">]</span><span class="fu">,</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"env"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        <span class="dt">"GOOGLE_MAPS_API_KEY"</span><span class="fu">:</span> <span class="st">"&lt;YOUR_API_KEY&gt;"</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>      <span class="fu">}</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>When using MCP servers with Inspect, you only need to provide the inner arguments. For example, to use the Google Maps server with Inspect:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>maps_server <span class="op">=</span> mcp_server_stdio(</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    command<span class="op">=</span><span class="st">"npx"</span>, </span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    args<span class="op">=</span>[<span class="st">"-y"</span>, <span class="st">"@modelcontextprotocol/server-google-maps"</span>],</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    env<span class="op">=</span>{ <span class="st">"GOOGLE_MAPS_API_KEY"</span>: <span class="st">"&lt;YOUR_API_KEY&gt;"</span> }</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
-<div class="callout-body-container">
-<p>If your task involves tool calls and/or sandboxes, then you will likely want to set <code>max_samples</code> to greater than <code>max_connections</code>, as your samples will sometimes be calling the model (using up concurrent connections) and sometimes be executing code in the sandbox (using up concurrent subprocess calls). While running tasks you can see the utilization of connections and subprocesses in realtime and tune your <code>max_samples</code> accordingly.</p>
+<div class="callout-title-container flex-fill">
+Node.js Prerequisite
 </div>
 </div>
+<div class="callout-body-container callout-body">
+<p>The <code>"command": "npx"</code> option indicates that this server was written using Node.js (other servers may be written in Python and use <code>"command": "python3"</code>). Using Node.js based MCP servers requires that you install Node.js (<a href="https://nodejs.org/en/download" class="uri">https://nodejs.org/en/download</a>).</p>
+</div>
 </div>
 </section>
-</section>
-</section>
-<section id="task-enumeration" class="level2">
-<h2 class="anchored" data-anchor-id="task-enumeration">Task Enumeration</h2>
-<p>When running eval sets tasks can be specified either individually (as in the examples above) or can be enumerated from the filesystem. You can organise tasks in many different ways, below we cover some of the more common options.</p>
-<section id="multiple-tasks-in-a-file" class="level3">
-<h3 class="anchored" data-anchor-id="multiple-tasks-in-a-file">Multiple Tasks in a File</h3>
-<p>The simplest possible organisation would be multiple tasks defined in a single source file. Consider this source file (<code>ctf.py</code>) with two tasks in it:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> attack_defense():</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>We can run both of these tasks with the following command (note for this and the remainder of examples we’ll assume that you have let an <code>INSPECT_EVAL_MODEL</code> environment variable so you don’t need to pass the <code>--model</code> argument explicitly):</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set ctf.py <span class="at">--log-dir</span> logs-run-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or equivalently:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>eval_set(<span class="st">"ctf.py"</span>, log_dir<span class="op">=</span><span class="st">"logs-run-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that during development and debugging we can also run the tasks individually:</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval ctf.py@jeopardy</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="multiple-tasks-in-a-directory" class="level3">
-<h3 class="anchored" data-anchor-id="multiple-tasks-in-a-directory">Multiple Tasks in a Directory</h3>
-<p>Next, let’s consider a multiple tasks in a directory. Imagine you have the following directory structure, where <code>jeopardy.py</code> and <code>attack_defense.py</code> each have one or more <code>@task</code> functions defined:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">security/</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="ex">import.py</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="ex">analyze.py</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="ex">jeopardy.py</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="ex">attack_defense.py</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Here is the listing of all the tasks in the suite:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>$ inspect <span class="bu">list</span> tasks security</span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>crypto</span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>decompile</span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>packet</span>
-<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>jeopardy.py<span class="op">@</span>heap_trouble</span>
-<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>saar</span>
-<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>bank</span>
-<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>voting</span>
-<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>attack_defense.py<span class="op">@</span>dns</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can run this eval set as follows:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security <span class="at">--log-dir</span> logs-security-02-09-24</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that some of the files in this directory don’t contain evals (e.g.&nbsp;<code>import.py</code> and <code>analyze.py</code>). These files are not read or executed by <code>inspect eval-set</code> (which only executes files that contain <code>@task</code> definitions).</p>
-<p>If we wanted to run more than one directory we could do so by just passing multiple directory names. For example:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-set security persuasion <span class="at">--log-dir</span> logs-suite-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Or equivalently:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>eval_set([<span class="st">"security"</span>, <span class="st">"persuasion"</span>], log_dir<span class="op">=</span><span class="st">"logs-suite-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-</section>
-<section id="listing-and-filtering" class="level2">
-<h2 class="anchored" data-anchor-id="listing-and-filtering">Listing and Filtering</h2>
-<section id="recursive-listings" class="level3">
-<h3 class="anchored" data-anchor-id="recursive-listings">Recursive Listings</h3>
-<p>Note that directories or expanded globs of directory names passed to <code>eval-set</code> are recursively scanned for tasks. So you could have a very deep hierarchy of directories, with a mix of task and non task scripts, and the <code>eval-set</code> command or function will discover all of the tasks automatically.</p>
-<p>There are some rules for how recursive directory scanning works that you should keep in mind:</p>
-<ol type="1">
-<li>Sources files and directories that start with <code>.</code> or <code>_</code> are not scanned for tasks.</li>
-<li>Directories named <code>env</code>, <code>venv</code>, and <code>tests</code> are not scanned for tasks.</li>
-</ol>
-</section>
-<section id="attributes-and-filters" class="level3">
-<h3 class="anchored" data-anchor-id="attributes-and-filters">Attributes and Filters</h3>
-<p>Eval suites will sometimes be defined purely by directory structure, but there will be cross-cutting concerns that are also used to filter what is run. For example, you might want to define some tasks as part of a “light” suite that is less expensive and time consuming to run. This is supported by adding attributes to task decorators. For example:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> Task(</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    ...</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Given this, you could list all of the light tasks in <code>security</code> and pass them to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> as follows:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>light_suite <span class="op">=</span> list_tasks(</span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"security"</span>, </span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="bu">filter</span> <span class="op">=</span> <span class="kw">lambda</span> task: task.attribs.get(<span class="st">"light"</span>) <span class="kw">is</span> <span class="va">True</span></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(light_suite, log_dir<span class="op">=</span><span class="st">"logs-light-42"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Note that the <code>inspect list tasks</code> command can also be used to enumerate tasks in plain text or JSON (use one or more <code>-F</code> options if you want to filter tasks):</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security</span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span></span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="at">--json</span> <span class="at">-F</span> light=true</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can feed the results of <code>inspect list tasks</code> into <code>inspect eval-set</code> using <code>xargs</code> as follows:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect list tasks security <span class="kw">|</span> <span class="fu">xargs</span> <span class="dt">\</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>   inspect eval-set <span class="at">--log-dir</span> logs-security-42</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<div class="callout callout-style-simple callout-important">
-<div class="callout-body d-flex">
+<section id="server-tools" class="level3">
+<h3 class="anchored" data-anchor-id="server-tools">Server Tools</h3>
+<p>Each MCP server makes available a set of tools. For example, the Google Maps server includes <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/google-maps#tools">7 tools</a> (e.g.&nbsp;<code>maps_search_places()</code> , <code>maps_place_details()</code>, etc.). You can make these tools available to Inspect by passing the server interface alongside other standard <code>tools</code>. For example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> map_task():</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    maps_server <span class="op">=</span> mcp_server_stdio(</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>        command<span class="op">=</span><span class="st">"npx"</span>, </span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        args<span class="op">=</span>[<span class="st">"-y"</span>, <span class="st">"@modelcontextprotocol/server-google-maps"</span>]</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>[Sample(</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>            <span class="st">"Where can I find a good comic book store in London?"</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        )],</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>react(tools<span class="op">=</span>[maps_server])</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>In this example we use all of the tool made available by the server. You can also select a subset of tools (this is covered below in <a href="#tool-selection">Tool Selection</a>).</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
 <i class="callout-icon"></i>
 </div>
-<div class="callout-body-container">
-<p>One important thing to keep in mind when using attributes to filter tasks is that both <code>inspect list tasks</code> (and the underlying <code>list_tasks()</code> function) do not execute code when scanning for tasks (rather they parse it). This means that if you want to use a task attribute in a filtering expression it needs to be a constant (rather than the result of function call). For example:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="co"># this is valid for filtering expressions</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span><span class="va">True</span>)</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  ...</span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a><span class="co"># this is NOT valid for filtering expressions</span></span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span>(light<span class="op">=</span>light_enabled(<span class="st">"ctf"</span>))</span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> jeopardy():</span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout-title-container flex-fill">
+ToolSource
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcpserver">MCPServer</a></span> interface is a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolsource">ToolSource</a></span>, which is a new interface for dynamically providing a set of tools. Inspect generation methods that take <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tool">Tool</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#tooldef">ToolDef</a></span> now also take <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolsource">ToolSource</a></span>.</p>
+<p>If you are creating your own agents or functions that take <code>tools</code> arguments, we recommend you do this same if you are going to be using MCP servers. For example:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent(tools: Sequence[Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolSource]):</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</section>
+</section>
+<section id="tool-selection" class="level2">
+<h2 class="anchored" data-anchor-id="tool-selection">Tool Selection</h2>
+<p>To narrow the list of tools made available from an MCP Server you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_tools">mcp_tools()</a></span> function. For example, to make only the geocode oriented functions available from the Google Maps server:</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> Task(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>react(tools<span class="op">=</span>[</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        mcp_tools(</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>            maps_server, </span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>[<span class="st">"maps_geocode"</span>, <span class="st">"maps_reverse_geocode"</span>]</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>You can also use glob wildcards in the <code>tools</code> list:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> Task(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>react(tools<span class="op">=</span>[</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        mcp_tools(</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>            maps_server, </span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>            tools<span class="op">=</span>[<span class="st">"*_geocode"</span>]</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    ])</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="connections" class="level2">
+<h2 class="anchored" data-anchor-id="connections">Connections</h2>
+<p>MCP Servers can be either stateless or stateful. Stateful servers may retain context in memory whereas stateless servers either have no state or operate on external state. For example the <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search">Brave Search</a> server is stateless (it just processes one search at a time) whereas the <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/memory">Knowledge Graph Memory</a> server is stateful (it maintains a knowledge graph in memory).</p>
+<p>In the case that you using stateful servers, you will want to establish a longer running connection to the server so that it’s state is maintained across calls. You can do this using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_connection">mcp_connection()</a></span> context manager.</p>
+<section id="react-agent" class="level4">
+<h4 class="anchored" data-anchor-id="react-agent">ReAct Agent</h4>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_connection">mcp_connection()</a></span> context manager is used <strong>automatically</strong> by the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent, with the server connection being maintained for the duration of the agent loop.</p>
+<p>For example, the following will establish a single connection to the memory server and preserve its state across calls:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>memory_server <span class="op">=</span> mcp_server_stdio(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    command<span class="op">=</span><span class="st">"npx"</span>, </span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    args<span class="op">=</span>[<span class="st">"-y"</span>, <span class="st">"@modelcontextprotocol/server-memory"</span>]</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> Task(</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    ...,</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>react(tools<span class="op">=</span>[memory_server])</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="custom-agents" class="level4">
+<h4 class="anchored" data-anchor-id="custom-agents">Custom Agents</h4>
+<p>For general purpose custom agents, you will also likely want to use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_connection">mcp_connection()</a></span> connect manager to preserve connection state throughout your tool use loop. For example, here is a web surfer agent that uses a web browser along with a memory server:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_surfer() <span class="op">-&gt;</span> Agent:</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""Web research assistant."""</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>      </span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>        <span class="co"># some general guidance for the agent</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>        state.messages.append(</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>            ChatMessageSystem(</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>                content<span class="op">=</span><span class="st">"You are a tenacious web researcher that is "</span></span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> <span class="st">"expert at using a web browser to answer questions. "</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>                <span class="op">+</span> <span class="st">"Use the memory tools to track your research."</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>        <span class="co"># interface to memory server</span></span>
+<span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>        memory_server <span class="op">=</span> mcp_server_stdio(</span>
+<span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>            command<span class="op">=</span><span class="st">"npx"</span>, </span>
+<span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>            args<span class="op">=</span>[<span class="st">"-y"</span>, <span class="st">"@modelcontextprotocol/server-memory"</span>]</span>
+<span id="cb10-19"><a href="#cb10-19" aria-hidden="true" tabindex="-1"></a>        )</span>
+<span id="cb10-20"><a href="#cb10-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-21"><a href="#cb10-21" aria-hidden="true" tabindex="-1"></a>        <span class="co"># run tool loop w/ then update &amp; return state</span></span>
+<span id="cb10-22"><a href="#cb10-22" aria-hidden="true" tabindex="-1"></a>        <span class="cf">async</span> <span class="cf">with</span> mcp_connection(memory_server):</span>
+<span id="cb10-23"><a href="#cb10-23" aria-hidden="true" tabindex="-1"></a>            messages, state.output <span class="op">=</span> <span class="cf">await</span> get_model().generate_loop(</span>
+<span id="cb10-24"><a href="#cb10-24" aria-hidden="true" tabindex="-1"></a>                state.messages, tools<span class="op">=</span>web_browser() <span class="op">+</span> [memory_server]</span>
+<span id="cb10-25"><a href="#cb10-25" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="cb10-26"><a href="#cb10-26" aria-hidden="true" tabindex="-1"></a>            state.messages.extend(messages)</span>
+<span id="cb10-27"><a href="#cb10-27" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> state</span>
+<span id="cb10-28"><a href="#cb10-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-29"><a href="#cb10-29" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> execute</span>
+<span id="cb10-30"><a href="#cb10-30" aria-hidden="true" tabindex="-1"></a>```</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_connection">mcp_connection()</a></span> function can take an arbitrary list of <code>tools</code> and will discover and connect to any MCP-based <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolsource">ToolSource</a></span> in the list. So if you agent takes a <code>tools</code> parameter you can just forward it on. For example:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> my_agent(tools: Sequence[Tool <span class="op">|</span> ToolDef <span class="op">|</span> ToolSource]):</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState):</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>       <span class="cf">async</span> <span class="cf">with</span> mcp_connection(tools):</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>           <span class="co"># tool use loop</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>           ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="sandboxes" class="level2">
+<h2 class="anchored" data-anchor-id="sandboxes">Sandboxes</h2>
+<p>Sandbox servers are stdio servers than run inside a <a href="./sandboxing.html">sandbox</a> rather than alongside the Inspect evaluation scaffold. You will generally choose to use sandbox servers when the tools provided by the server need to interact with the host system in a secure fashion (e.g.&nbsp;git, filesystem, or code execution tools).</p>
+<section id="configuration" class="level3">
+<h3 class="anchored" data-anchor-id="configuration">Configuration</h3>
+<p>To run an MCP server inside a sandbox, you should create a <code>Dockerfile</code> that includes both the <code>inspect-tool-support</code> pip package as well as any MCP servers you want to run. The easiest way to do this is to derive from the standard <code>aisiuk/inspect-tool-support</code> Docker image.</p>
+<p>For example, here we create a <code>Dockerfile</code> that enables us to use the <a href="https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem">Filesystem MCP Server</a>:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>Dockerfile</strong></pre>
+</div>
+<div class="sourceCode" id="cb12" data-filename="Dockerfile"><pre class="sourceCode Dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># base image</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">FROM</span> aisiuk/inspect-tool-support</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># nodejs (required by mcp server)</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">apt-get</span> update <span class="kw">&amp;&amp;</span> <span class="ex">apt-get</span> install <span class="at">-y</span> <span class="at">--no-install-recommends</span> <span class="dt">\</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    curl <span class="dt">\</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&amp;&amp;</span> <span class="ex">curl</span> <span class="at">-fsSL</span> https://deb.nodesource.com/setup_22.x <span class="kw">|</span> <span class="fu">bash</span> <span class="at">-</span> <span class="dt">\</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&amp;&amp;</span> <span class="ex">apt-get</span> install <span class="at">-y</span> <span class="at">--no-install-recommends</span> nodejs <span class="dt">\</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&amp;&amp;</span> <span class="ex">apt-get</span> clean <span class="dt">\</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">&amp;&amp;</span> <span class="fu">rm</span> <span class="at">-rf</span> /var/lib/apt/lists/<span class="pp">*</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="co"># filesystem mcp server</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">npm</span> install <span class="at">-g</span> @modelcontextprotocol/server-filesystem</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Note that we install the <code>@modelcontextprotocol/server-filesystem</code> package globally so it is availale to sandbox users and can be run even when the container is disconnected from the Internet.</p>
+<p>You are not required to inherit from the <code>aisiuk/inspect-tool-support</code> base image. If you want to use another base image please see <strong>Custom Base Image</strong> below for details on how to do this.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-4-contents" aria-controls="callout-4" aria-expanded="false" aria-label="Toggle callout">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Custom Base Image
+</div>
+<div class="callout-btn-toggle d-inline-block border-0 py-1 ps-1 pe-0 float-end"><i class="callout-toggle"></i></div>
+</div>
+<div id="callout-4" class="callout-4-contents callout-collapse collapse">
+<div class="callout-body-container callout-body">
+<p>If you are inheriting from a different base image then you can equivalently satisfiy the <code>inspect-tool-support</code> dependency by adding this to your Dockerfile:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">"$PATH:/opt/inspect_tool_support/bin"</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">python</span> <span class="at">-m</span> venv /opt/inspect_tool_support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/pip</span> install inspect-tool-support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/inspect-tool-support</span> post-install</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </div>
 </div>
+</section>
+<section id="running-the-server" class="level3">
+<h3 class="anchored" data-anchor-id="running-the-server">Running the Server</h3>
+<p>Installing the package globally means we’ll want to invoke it using its global executable name (rather than via <code>npx</code>). You can typically find this in the <code>"bin"</code> section of a server’s <code>package.json</code> file. For example, here is where the Filesystem MCP Server <a href="https://github.com/modelcontextprotocol/servers/blob/368e3b23ca08c629a500c63e9bbe1233012a1f9a/src/filesystem/package.json#L10-L12">defines its global binary</a>.</p>
+<p>We can now use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#mcp_server_sandbox">mcp_server_sandbox()</a></span> function to run the server as follows:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>maps_server <span class="op">=</span> mcp_server_sandbox(</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    command<span class="op">=</span><span class="st">"mcp-server-filesystem"</span>, </span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    args<span class="op">=</span>[<span class="st">"/"</span>]</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This will look for the MCP server in the default sandbox (you can also specify an explicit <code>sandbox</code> option if it is located in another sandbox).</p>
 
 
 </section>
@@ -1246,13 +1258,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./eval-logs.html" class="pagination-link" aria-label="Eval Logs">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Eval Logs</span>
+      <a href="./tools-standard.html" class="pagination-link" aria-label="Standard Tools">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Standard Tools</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./errors-and-limits.html" class="pagination-link" aria-label="Errors &amp; Limits">
-        <span class="nav-page-text">Errors &amp; Limits</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./tools-custom.html" class="pagination-link" aria-label="Custom Tools">
+        <span class="nav-page-text">Custom Tools</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

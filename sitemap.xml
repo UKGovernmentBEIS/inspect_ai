@@ -10,7 +10,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.solver.html</loc>
-    <lastmod>2025-04-18T07:46:53.378Z</lastmod>
+    <lastmod>2025-04-18T14:25:33.535Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_sandbox.html</loc>
@@ -42,7 +42,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.tool.html</loc>
-    <lastmod>2025-04-18T07:46:53.379Z</lastmod>
+    <lastmod>2025-04-18T15:39:20.334Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reference/inspect_ai.html</loc>
@@ -54,7 +54,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/eval-logs.html</loc>
-    <lastmod>2025-04-18T07:46:53.376Z</lastmod>
+    <lastmod>2025-04-18T13:45:53.836Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/multi-agent.html</loc>
@@ -66,7 +66,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/providers.html</loc>
-    <lastmod>2025-04-18T11:23:08.522Z</lastmod>
+    <lastmod>2025-04-18T14:26:33.853Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/caching.html</loc>
@@ -78,7 +78,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/reasoning.html</loc>
-    <lastmod>2025-04-18T10:05:38.033Z</lastmod>
+    <lastmod>2025-04-18T13:45:53.837Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/human-agent.html</loc>
@@ -89,56 +89,60 @@
     <lastmod>2025-04-10T07:08:47.820Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/multimodal.html</loc>
-    <lastmod>2025-02-18T22:18:00.959Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/agent-custom.html</loc>
-    <lastmod>2025-04-18T07:46:53.375Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/approval.html</loc>
-    <lastmod>2025-04-13T07:38:56.507Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/agents.html</loc>
-    <lastmod>2025-04-18T07:46:53.375Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/vscode.html</loc>
-    <lastmod>2025-04-10T07:08:47.832Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/solvers.html</loc>
-    <lastmod>2025-03-14T15:39:06.132Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/tasks.html</loc>
-    <lastmod>2025-04-16T17:24:51.028Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/evals/index.html</loc>
-    <lastmod>2025-02-18T22:18:00.951Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/tutorial.html</loc>
-    <lastmod>2025-04-10T07:08:47.832Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/tools.html</loc>
-    <lastmod>2025-04-18T07:46:53.379Z</lastmod>
-  </url>
-  <url>
-    <loc>https://inspect.aisi.org.uk/sandboxing.html</loc>
-    <lastmod>2025-04-16T21:09:57.636Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/models.html</loc>
+    <lastmod>2025-04-18T13:45:53.836Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/log-viewer.html</loc>
     <lastmod>2025-04-10T07:08:47.824Z</lastmod>
   </url>
   <url>
-    <loc>https://inspect.aisi.org.uk/models.html</loc>
-    <lastmod>2025-04-18T07:46:53.377Z</lastmod>
+    <loc>https://inspect.aisi.org.uk/sandboxing.html</loc>
+    <lastmod>2025-04-16T21:09:57.636Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tools.html</loc>
+    <lastmod>2025-04-18T15:39:20.334Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tutorial.html</loc>
+    <lastmod>2025-04-10T07:08:47.832Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/evals/index.html</loc>
+    <lastmod>2025-02-18T22:18:00.951Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tasks.html</loc>
+    <lastmod>2025-04-16T17:24:51.028Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/solvers.html</loc>
+    <lastmod>2025-03-14T15:39:06.132Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/vscode.html</loc>
+    <lastmod>2025-04-10T07:08:47.832Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/agents.html</loc>
+    <lastmod>2025-04-18T13:45:53.836Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/approval.html</loc>
+    <lastmod>2025-04-13T07:38:56.507Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/agent-custom.html</loc>
+    <lastmod>2025-04-18T15:39:20.333Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/multimodal.html</loc>
+    <lastmod>2025-02-18T22:18:00.959Z</lastmod>
+  </url>
+  <url>
+    <loc>https://inspect.aisi.org.uk/tools-mcp.html</loc>
+    <lastmod>2025-04-18T15:39:20.334Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/scorers.html</loc>
@@ -150,7 +154,7 @@
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/index.html</loc>
-    <lastmod>2025-04-18T07:46:53.376Z</lastmod>
+    <lastmod>2025-04-18T15:39:20.333Z</lastmod>
   </url>
   <url>
     <loc>https://inspect.aisi.org.uk/eval-sets.html</loc>
