@@ -24,9 +24,8 @@ async def mcp_launch_server(params: LaunchServerParams) -> int:
 
 @validated_json_rpc_method(KillServerParams)
 async def mcp_kill_server(params: KillServerParams) -> None:
-    # TODO: timeout
-    timeout = 666
-    await sessions.pop(params.session_id).terminate(timeout=timeout)
+    # TODO: A later PR will audit/fix sandbox timeouts wholesale
+    await sessions.pop(params.session_id).terminate(timeout=30)
 
 
 @validated_json_rpc_method(SendRequestParams)
