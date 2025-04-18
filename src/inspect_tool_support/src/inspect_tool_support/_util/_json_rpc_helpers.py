@@ -1,6 +1,6 @@
 import json
 import traceback
-from typing import Awaitable, Callable, Type, TypeVar
+from typing import Awaitable, Callable, ParamSpec, Type, TypeVar
 
 import httpx
 import jsonrpcserver
@@ -12,6 +12,7 @@ from httpx import (
     HTTPStatusError,
     ReadTimeout,
 )
+from jsonrpcserver import method
 from pydantic import BaseModel, ValidationError
 from returns.result import Failure, Success
 from tenacity import (
@@ -29,29 +30,35 @@ from inspect_tool_support._util._validation import (
 )
 
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
+P = ParamSpec("P")
+R = TypeVar("R", str, int, BaseModel, None)
 
 
 async def with_validated_rpc_method_params(
     cls: Type[BaseModelT],
-    handler: Callable[[BaseModelT], Awaitable[str | BaseModel]],
+    handler: Callable[[BaseModelT], Awaitable[str | int | BaseModel | None]],
     **params: object,
 ) -> str | BaseModel:
     """
     Validates RPC method parameters and handles the method execution.
 
-    This function validates the provided parameters against the given Pydantic model class.
-    If the validation is successful, it calls the provided handler with the validated parameters.
-    The handler's result is then processed and returned accordingly.
+    This function validates the provided parameters against the given Pydantic
+    model class. If the validation is successful, it calls the provided handler
+    with the validated parameters. The handler's result is then processed and
+    returned accordingly.
 
     Args:
       cls (Type[BaseModelT]): The Pydantic model class used for validation.
-      handler (Callable[[BaseModelT], Awaitable[str | BaseModel]]): The handler function to be called with the validated parameters. It must return a string or a Pydantic model.
+      handler (Callable[[BaseModelT], Awaitable[str | int | BaseModel | None]]):
+        The handler function to be called with the validated parameters. It can
+        return a string, integer, BaseModel, or None.
       **params (object): The parameters to be validated.
 
     Returns:
-      object: The result of the handler function, or an error message if validation or execution fails.
-      Ideally, we'd type the return as Either[ErrorResult, SuccessResult], but `jsonrpcserver` doesn't
-      export those public API types. D'oh!
+      object: The result of the handler function, or an error message if
+        validation or execution fails.
+        Ideally, we'd type the return as Either[ErrorResult, SuccessResult], but
+        `jsonrpcserver` doesn't export those public API types. D'oh!
 
     Raises:
       TypeError: If the handler returns an unexpected result type.
@@ -68,18 +75,22 @@ async def with_validated_rpc_method_params(
                         return jsonrpcserver.Success(text)
                     case BaseModel() as model:
                         return jsonrpcserver.Success(model.model_dump())
+                    case int(value):
+                        return jsonrpcserver.Success(value)
+                    case None:
+                        return jsonrpcserver.Success(None)
                     case cant_happen:
                         raise TypeError(
                             f"Unexpected handler result type: {type(cant_happen)}"
                         )
             except ToolException as e:
-                return jsonrpcserver.Error(code=-32000, message=e.message)
+                return jsonrpcserver.Error(code=-32099, message=e.message)
             except Exception as e:
                 # Customize the jsonrpc error with the exception message and traceback
                 # so that this info will be included in the eval log. This will still
                 # fail the eval since it represents an inspect coding error.
                 return jsonrpcserver.Error(
-                    code=-32603, message=repr(e), data=traceback.format_exc()
+                    code=-32098, message=repr(e), data=traceback.format_exc()
                 )
         case _:
             return jsonrpcserver.Error(
@@ -157,3 +168,38 @@ def _httpx_should_retry(ex: BaseException) -> bool:
 
 def _is_httpx_connection_error(ex: BaseException) -> bool:
     return isinstance(ex, ConnectTimeout | ConnectError | ConnectionError | ReadTimeout)
+
+
+def validated_json_rpc_method(cls: Type[BaseModelT]):
+    """
+    A decorator that combines @method and with_validated_rpc_method_params.
+
+    This decorator registers a function as a JSON-RPC method and handles
+    parameter validation using the provided Pydantic model class.
+
+    Args:
+        cls (Type[BaseModelT]): The Pydantic model class used for parameter
+          validation.
+
+    Returns:
+        Callable: A decorator that transforms the decorated function into a
+          validated JSON-RPC method.
+
+    Example:
+        @validated_json_rpc_method(LaunchServerParams)
+        async def mcp_launch_server(params: LaunchServerParams) -> int:
+            session_id = next(id_generator)
+            sessions[session_id] = await MCPServerSession.create(params.server_params)
+            return session_id
+    """
+
+    def decorator(
+        func: Callable[[BaseModelT], Awaitable[R]],
+    ) -> Callable[..., Awaitable[object]]:
+        async def wrapper(**params: object) -> object:
+            return await with_validated_rpc_method_params(cls, func, **params)
+
+        wrapper.__name__ = func.__name__
+        return method(wrapper)
+
+    return decorator

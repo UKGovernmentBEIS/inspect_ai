@@ -1,9 +1,9 @@
-import { EvalSummary, PendingSamples } from "../api/types";
-import { kDefaultSort, kInfoWorkspaceTabId } from "../constants";
-import { ScorerInfo } from "../scoring/utils";
-import { LogState, ScoreFilter, ScoreLabel } from "../types";
+import { LogState, ScoreFilter, ScoreLabel } from "../app/types";
+import { EvalSummary, PendingSamples } from "../client/api/types";
+import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
 import { createLogPolling } from "./logPolling";
+import { ScorerInfo } from "./scoring";
 import { StoreState } from "./store";
 
 const log = createLogger("logSlice");
@@ -96,7 +96,7 @@ export const createLogSlice = (
           selectedLogSummary.sampleSummaries.length === 0
         ) {
           // If there are no samples, use the workspace tab id by default
-          get().appActions.setWorkspaceTab(kInfoWorkspaceTabId);
+          get().appActions.setWorkspaceTab(kLogViewInfoTabId);
         }
       },
 
@@ -175,6 +175,7 @@ export const createLogSlice = (
             logPolling.startPolling(logFileName);
         } catch (error) {
           log.error("Error loading log:", error);
+          throw error;
         }
       },
 
@@ -200,6 +201,7 @@ export const createLogSlice = (
           state.logActions.setSelectedLogSummary(logContents);
         } catch (error) {
           log.error("Error refreshing log:", error);
+          throw error;
         }
       },
     },

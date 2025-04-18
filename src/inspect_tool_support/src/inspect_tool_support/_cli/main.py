@@ -18,11 +18,18 @@ from inspect_tool_support._util._load_tools import load_tools
 _SERVER_URL = f"http://localhost:{SERVER_PORT}/"
 
 
-class JSONRPCRequest(BaseModel):
+class JSONRPCIncoming(BaseModel):
     jsonrpc: Literal["2.0"]
     method: str
-    id: int | float | str
     params: list[object] | dict[str, object] | None = None
+
+
+class JSONRPCRequest(JSONRPCIncoming):
+    id: int | float | str
+
+
+class JSONRPCNotification(JSONRPCIncoming):
+    pass
 
 
 def main() -> None:
@@ -45,7 +52,7 @@ async def _exec() -> None:
     in_process_tools = load_tools("inspect_tool_support._in_process_tools")
 
     request_json_str = sys.stdin.read().strip()
-    tool_name = JSONRPCRequest.model_validate_json(request_json_str).method
+    tool_name = JSONRPCIncoming.model_validate_json(request_json_str).method
     assert isinstance(tool_name, str)
 
     print(
