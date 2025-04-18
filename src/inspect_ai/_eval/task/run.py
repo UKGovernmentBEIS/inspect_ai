@@ -606,7 +606,7 @@ async def task_run_sample(
 
             async with sandboxenv_cm:
                 timeout_cm: (
-                    contextlib._GeneratorContextManager[anyio.CancelScope, None, None]
+                    contextlib._GeneratorContextManager[anyio.CancelScope]
                     | contextlib.nullcontext[None]
                 ) = contextlib.nullcontext()
                 try:

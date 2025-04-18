@@ -71426,6 +71426,92 @@ ${events}
     function initializeObject(current2) {
       return current2 ?? {};
     }
+    const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
+    const fixupEventStream = (events, filterPending = true) => {
+      const collapsed = processPendingEvents(events, filterPending);
+      const fixedUp = collapseSampleInit(collapsed);
+      return groupSandboxEvents(fixedUp);
+    };
+    const processPendingEvents = (events, filter) => {
+      return filter ? events.filter((e) => !e.pending) : events.reduce((acc, event) => {
+        if (!event.pending) {
+          acc.push(event);
+        } else {
+          const lastIndex = acc.length - 1;
+          if (lastIndex >= 0 && acc[lastIndex].pending && acc[lastIndex].event === event.event) {
+            acc[lastIndex] = event;
+          } else {
+            acc.push(event);
+          }
+        }
+        return acc;
+      }, []);
+    };
+    const collapseSampleInit = (events) => {
+      const hasInitStep = events.findIndex((e) => {
+        return e.event === "step" && e.name === "init";
+      }) !== -1;
+      const initEventIndex = events.findIndex((e) => {
+        return e.event === "sample_init";
+      });
+      const initEvent = events[initEventIndex];
+      const fixedUp = [...events];
+      if (!hasInitStep && initEvent) {
+        fixedUp.splice(initEventIndex, 0, {
+          timestamp: initEvent.timestamp,
+          event: "step",
+          action: "begin",
+          type: null,
+          name: "sample_init",
+          pending: false,
+          working_start: 0
+        });
+        fixedUp.splice(initEventIndex + 2, 0, {
+          timestamp: initEvent.timestamp,
+          event: "step",
+          action: "end",
+          type: null,
+          name: "sample_init",
+          pending: false,
+          working_start: 0
+        });
+      }
+      return fixedUp;
+    };
+    const groupSandboxEvents = (events) => {
+      const result2 = [];
+      const pendingSandboxEvents = [];
+      const pushPendingSandboxEvents = () => {
+        const timestamp = pendingSandboxEvents[pendingSandboxEvents.length - 1].timestamp;
+        result2.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
+        result2.push(...pendingSandboxEvents);
+        result2.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
+        pendingSandboxEvents.length = 0;
+      };
+      for (const event of events) {
+        if (event.event === "sandbox") {
+          pendingSandboxEvents.push(event);
+          continue;
+        }
+        if (pendingSandboxEvents.length > 0) {
+          pushPendingSandboxEvents();
+        }
+        result2.push(event);
+      }
+      if (pendingSandboxEvents.length > 0) {
+        pushPendingSandboxEvents();
+      }
+      return result2;
+    };
+    const createStepEvent = (name2, timestamp, action) => ({
+      timestamp,
+      event: "step",
+      action,
+      type: null,
+      name: name2,
+      pending: false,
+      working_start: 0
+    });
     const StepEventView = ({
       id,
       event,
@@ -71522,6 +71608,18 @@ ${events}
         return {
           ...rootStepDescriptor
         };
+      } else if (event.event === "step") {
+        if (event.name === kSandboxSignalName) {
+          return {
+            ...rootStepDescriptor,
+            name: "Sandbox Events",
+            collapse: true
+          };
+        } else {
+          return {
+            ...rootStepDescriptor
+          };
+        }
       } else {
         switch (event.name) {
           case "sample_init":
@@ -71731,15 +71829,6 @@ ${events}
         }
       );
     };
-    class EventNode {
-      constructor(event, depth) {
-        __publicField(this, "event");
-        __publicField(this, "children", []);
-        __publicField(this, "depth");
-        this.event = event;
-        this.depth = depth;
-      }
-    }
     const transcriptComponent = "_transcriptComponent_c8m1t_23";
     const eventNode = "_eventNode_c8m1t_29";
     const darkenBg = "_darkenBg_c8m1t_35";
@@ -71782,6 +71871,42 @@ ${events}
         }
       );
     };
+    class EventNode {
+      constructor(event, depth) {
+        __publicField(this, "event");
+        __publicField(this, "children", []);
+        __publicField(this, "depth");
+        this.event = event;
+        this.depth = depth;
+      }
+    }
+    function treeifyEvents(events, depth) {
+      const rootNodes = [];
+      const stack2 = [];
+      const pushNode = (event) => {
+        const node2 = new EventNode(event, stack2.length + depth);
+        if (stack2.length > 0) {
+          const parentNode = stack2[stack2.length - 1];
+          parentNode.children.push(node2);
+        } else {
+          rootNodes.push(node2);
+        }
+        return node2;
+      };
+      events.forEach((event) => {
+        if (event.event === "step" && event.action === "begin") {
+          const node2 = pushNode(event);
+          stack2.push(node2);
+        } else if (event.event === "step" && event.action === "end") {
+          if (stack2.length > 0) {
+            stack2.pop();
+          }
+        } else {
+          pushNode(event);
+        }
+      });
+      return rootNodes;
+    }
     const TranscriptView = ({
       id,
       events,
@@ -71938,77 +72063,6 @@ ${events}
         }
       }
     );
-    const fixupEventStream = (events, filterPending = true) => {
-      const initEventIndex = events.findIndex((e) => {
-        return e.event === "sample_init";
-      });
-      const initEvent = events[initEventIndex];
-      const collapsed = filterPending ? events.filter((e) => !e.pending) : events.reduce((acc, event) => {
-        if (!event.pending) {
-          acc.push(event);
-        } else {
-          const lastIndex = acc.length - 1;
-          if (lastIndex >= 0 && acc[lastIndex].pending && acc[lastIndex].event === event.event) {
-            acc[lastIndex] = event;
-          } else {
-            acc.push(event);
-          }
-        }
-        return acc;
-      }, []);
-      const hasInitStep = collapsed.findIndex((e) => {
-        return e.event === "step" && e.name === "init";
-      }) !== -1;
-      const fixedUp = [...collapsed];
-      if (!hasInitStep && initEvent) {
-        fixedUp.splice(initEventIndex, 0, {
-          timestamp: initEvent.timestamp,
-          event: "step",
-          action: "begin",
-          type: null,
-          name: "sample_init",
-          pending: false,
-          working_start: 0
-        });
-        fixedUp.splice(initEventIndex + 2, 0, {
-          timestamp: initEvent.timestamp,
-          event: "step",
-          action: "end",
-          type: null,
-          name: "sample_init",
-          pending: false,
-          working_start: 0
-        });
-      }
-      return fixedUp;
-    };
-    function treeifyEvents(events, depth) {
-      const rootNodes = [];
-      const stack2 = [];
-      const pushNode = (event) => {
-        const node2 = new EventNode(event, stack2.length + depth);
-        if (stack2.length > 0) {
-          const parentNode = stack2[stack2.length - 1];
-          parentNode.children.push(node2);
-        } else {
-          rootNodes.push(node2);
-        }
-        return node2;
-      };
-      events.forEach((event) => {
-        if (event.event === "step" && event.action === "begin") {
-          const node2 = pushNode(event);
-          stack2.push(node2);
-        } else if (event.event === "step" && event.action === "end") {
-          if (stack2.length > 0) {
-            stack2.pop();
-          }
-        } else {
-          pushNode(event);
-        }
-      });
-      return rootNodes;
-    }
     const SampleDisplay = ({
       id,
       sample: sample2,
