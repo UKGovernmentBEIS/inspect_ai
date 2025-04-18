@@ -3,7 +3,7 @@ import json
 import types
 from copy import copy
 from dataclasses import is_dataclass
-from datetime import datetime, date, time
+from datetime import date, datetime, time
 from logging import getLogger
 from textwrap import dedent
 from types import UnionType
@@ -603,7 +603,7 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
         elif type_hint == datetime:
             if input.endswith("Z"):
                 # convert trailing Z to +00:00
-                input = s[:-1] + "+00:00"
+                input = input[:-1] + "+00:00"
             return datetime.fromisoformat(input)
         elif type_hint == date:
             return date.fromisoformat(input)

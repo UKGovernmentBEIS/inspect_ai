@@ -1,22 +1,26 @@
 from dataclasses import dataclass
-from datetime import datetime, date, time
-from typing import List, Tuple, Dict, Optional, Union, TypedDict, Any, Set
+from datetime import date, datetime, time
+from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict, Union
 
 import pytest
+from pydantic import BaseModel
+
 from inspect_ai.model._call_tools import call_tool
 from inspect_ai.tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
-from pydantic import BaseModel
-
 
 # --- Helpers ---------------------------------------------------------------
 
+
 def make_call(function_name, args):
-    return ToolCall(id="test", function=function_name, arguments=args or {}, parse_error=None)
+    return ToolCall(
+        id="test", function=function_name, arguments=args or {}, parse_error=None
+    )
 
 
 # --- Simple tool -------------------------------------------------
+
 
 @tool
 def incr() -> Tool:
@@ -37,6 +41,7 @@ def incr() -> Tool:
 
 # --- Complex tool ----------------------------------------------
 
+
 class MyTypedDict(TypedDict):
     count: int
     label: str
@@ -56,23 +61,23 @@ class MyPydanticModel(BaseModel):
 @tool
 def complex_tool() -> Tool:
     async def complex_tool(
-            text: str,
-            count: int,
-            ratio: float,
-            active: bool,
-            numbers: List[int],
-            strings: Set[str],
-            tags: Tuple[str, ...],
-            mapping: Dict[str, int],
-            optional_text: Optional[str],
-            either: Union[int, str],
-            td: MyTypedDict,
-            dc: MyDataClass,
-            pm: MyPydanticModel,
-            timestamp: datetime,
-            the_date: date,
-            the_time: time,
-            anything: Any
+        text: str,
+        count: int,
+        ratio: float,
+        active: bool,
+        numbers: List[int],
+        strings: Set[str],
+        tags: Tuple[str, ...],
+        mapping: Dict[str, int],
+        optional_text: Optional[str],
+        either: Union[int, str],
+        td: MyTypedDict,
+        dc: MyDataClass,
+        pm: MyPydanticModel,
+        timestamp: datetime,
+        the_date: date,
+        the_time: time,
+        anything: Any,
     ) -> dict:
         """
         Echo back diverse parameters of various types.
@@ -124,14 +129,15 @@ def complex_tool() -> Tool:
 
 # --- Positive tests -------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_incr_simple_positive():
     """Calling incr(0) should return 1."""
     tool_def = ToolDef(incr())
     call = make_call("incr", {"x": 0})
-    result, messages, output, agent = await call_tool([
-        tool_def
-    ], message="", call=call, conversation=[])
+    result, messages, output, agent = await call_tool(
+        [tool_def], message="", call=call, conversation=[]
+    )
     assert result == 1
     assert messages == []
     assert output is None
@@ -162,9 +168,9 @@ async def test_complex_tool_all_params():
     }
     tool_def = ToolDef(complex_tool())
     call = make_call("complex_tool", args)
-    result, messages, output, agent = await call_tool([
-        tool_def
-    ], message="", call=call, conversation=[])
+    result, messages, output, agent = await call_tool(
+        [tool_def], message="", call=call, conversation=[]
+    )
 
     # primitives
     assert result["text"] == "hello"

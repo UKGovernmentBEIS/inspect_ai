@@ -2,7 +2,7 @@ import types
 import typing
 from copy import deepcopy
 from dataclasses import is_dataclass
-from datetime import datetime, date, time
+from datetime import date, datetime, time
 from typing import (
     Any,
     Dict,
@@ -102,7 +102,14 @@ def json_schema(t: Type[Any]) -> JSONSchema:
             return JSONSchema(type="null")
         else:
             return JSONSchema()
-    elif origin is list or origin is List or origin is tuple or origin is Tuple or origin is set or origin is Set:
+    elif (
+        origin is list
+        or origin is List
+        or origin is tuple
+        or origin is Tuple
+        or origin is set
+        or origin is Set
+    ):
         return JSONSchema(
             type="array", items=json_schema(args[0]) if args else JSONSchema()
         )
