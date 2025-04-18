@@ -29,9 +29,9 @@ from .._openai import (
     OpenAIAsyncHttpxClient,
     is_computer_use_preview,
     is_gpt,
-    is_o1_mini,
-    is_o1_preview,
-    is_o1_pro,
+    is_o1,
+    is_o1_early,
+    is_o3_mini,
     is_o_series,
     model_output_from_openai,
     openai_chat_messages,
@@ -62,6 +62,9 @@ class OpenAIAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool | None = None,
+        responses_store: Literal["auto"] | bool = "auto",
+        service_tier: str | None = None,
+        client_timeout: float | None = None,
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -82,9 +85,25 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # note whether we are forcing the responses_api
-        self.responses_api = (
-            responses_api or self.is_o1_pro() or self.is_computer_use_preview()
+        # is this a model we use responses api by default for?
+        responses_model = (
+            self.is_o_series() and not self.is_o1_early()
+        ) or self.is_computer_use_preview()
+
+        # resolve whether we are forcing the responses api
+        self.responses_api = responses_api or responses_model
+
+        # resolve whether we are using the responses store
+        self.responses_store = (
+            responses_store if isinstance(responses_store, bool) else responses_model
+        )
+
+        # set service tier if specified
+        self.service_tier = service_tier
+
+        # bump up default client timeout to 15 minutes for service_tier=="flex"
+        self.client_timeout = client_timeout or (
+            900.0 if self.service_tier == "flex" else None
         )
 
         # resolve api_key
@@ -140,6 +159,7 @@ class OpenAIAPI(ModelAPI):
                 api_version=api_version,
                 azure_endpoint=base_url,
                 http_client=http_client,
+                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
                 **model_args,
             )
         else:
@@ -147,6 +167,7 @@ class OpenAIAPI(ModelAPI):
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
                 http_client=http_client,
+                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
                 **model_args,
             )
 
@@ -159,14 +180,14 @@ class OpenAIAPI(ModelAPI):
     def is_o_series(self) -> bool:
         return is_o_series(self.service_model_name())
 
-    def is_o1_pro(self) -> bool:
-        return is_o1_pro(self.service_model_name())
+    def is_o1(self) -> bool:
+        return is_o1(self.service_model_name())
 
-    def is_o1_mini(self) -> bool:
-        return is_o1_mini(self.service_model_name())
+    def is_o1_early(self) -> bool:
+        return is_o1_early(self.service_model_name())
 
-    def is_o1_preview(self) -> bool:
-        return is_o1_preview(self.service_model_name())
+    def is_o3_mini(self) -> bool:
+        return is_o3_mini(self.service_model_name())
 
     def is_computer_use_preview(self) -> bool:
         return is_computer_use_preview(self.service_model_name())
@@ -184,8 +205,18 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
-        # o1-pro, o1, and computer_use_preview support image inputs (but we're not strictly supporting o1)
-        return self.is_o1_pro() or self.is_computer_use_preview()
+        # o1-pro, o1, and computer_use_preview support image inputs
+        if self.is_computer_use_preview():
+            return True
+        elif self.is_o_series():
+            if self.is_o1_early():
+                return False
+            elif self.is_o3_mini():
+                return False
+            else:
+                return True
+        else:
+            return False
 
     @override
     def disable_computer_screenshot_truncation(self) -> bool:
@@ -203,7 +234,7 @@ class OpenAIAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # short-circuit to call o1- models that are text only
-        if self.is_o1_preview() or self.is_o1_mini():
+        if self.is_o1_early():
             return await generate_o1(
                 client=self.client,
                 input=input,
@@ -219,6 +250,8 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
+                service_tier=self.service_tier,
+                store=self.responses_store,
             )
 
         # allocate request_id (so we can see it from ModelCall)
@@ -248,7 +281,7 @@ class OpenAIAPI(ModelAPI):
         # determine system role
         # o1-mini does not support developer or system messages
         # (see Dec 17, 2024 changelog: https://platform.openai.com/docs/changelog)
-        if self.is_o1_mini():
+        if self.is_o1_early():
             system_role: Literal["user", "system", "developer"] = "user"
         # other o-series models use 'developer' rather than 'system' messages
         # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
@@ -309,6 +342,10 @@ class OpenAIAPI(ModelAPI):
         # first call the default processing
         params = openai_completion_params(self.service_model_name(), config, tools)
 
+        # add service_tier if specified
+        if self.service_tier is not None:
+            params["service_tier"] = self.service_tier
+
         # now tailor to current model
         if config.max_tokens is not None:
             if self.is_o_series():
@@ -329,7 +366,7 @@ class OpenAIAPI(ModelAPI):
 
         # remove reasoning_effort if not supported
         if "reasoning_effort" in params.keys() and (
-            self.is_gpt() or self.is_o1_mini() or self.is_o1_preview()
+            self.is_gpt() or self.is_o1_early()
         ):
             del params["reasoning_effort"]
 
