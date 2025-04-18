@@ -21766,7 +21766,7 @@ self.onmessage = function (e) {
         const baseStyles = {
           overflow: "hidden",
           ...collapsed && {
-            maxHeight: `${lines}em`
+            maxHeight: `${lines}rem`
           }
         };
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
@@ -33853,9 +33853,11 @@ self.onmessage = function (e) {
         }
       );
     }
-    const contentImage = "_contentImage_121dp_1";
+    const contentImage = "_contentImage_c5r8l_1";
+    const reasoning = "_reasoning_c5r8l_6";
     const styles$18 = {
-      contentImage
+      contentImage,
+      reasoning
     };
     const toolImage = "_toolImage_1j5uu_1";
     const output$2 = "_output_1j5uu_6";
@@ -33965,7 +33967,7 @@ self.onmessage = function (e) {
           if (!r2.reasoning && !r2.redacted) {
             return void 0;
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$18.reasoning, "text-size-small"), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
