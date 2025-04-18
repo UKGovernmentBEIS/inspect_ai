@@ -429,6 +429,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_REASONING_TOKENS",
     )
     @click.option(
+        "--reasoning-summary",
+        type=click.Choice(["concise", "detailed", "auto"]),
+        help="Provide summary of reasoning steps (defaults to no summary). Use 'auto' to access the most detailed summarizer available for the current model. OpenAI reasoning models only.",
+        envvar="INSPECT_EVAL_REASONING_SUMMARY",
+    )
+    @click.option(
         "--reasoning-history",
         type=click.Choice(["none", "all", "last", "auto"]),
         help='Include reasoning in chat message history sent to generate (defaults to "auto", which uses the recommended default for each provider)',
@@ -512,6 +518,7 @@ def eval_command(
     cache_prompt: str | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
+    reasoning_summary: Literal["concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
     message_limit: int | None,
@@ -683,6 +690,7 @@ def eval_set_command(
     cache_prompt: str | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
+    reasoning_summary: Literal["concise", "detailed", "auto"] | None,
     reasoning_history: Literal["none", "all", "last", "auto"] | None,
     response_schema: ResponseSchema | None,
     message_limit: int | None,
