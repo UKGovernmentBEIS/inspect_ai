@@ -4,6 +4,7 @@ import { kSampleMessagesTabId, kSampleTranscriptTabId } from "../../constants";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
 
+export const kLogsRoutUrlPattern = "/logs";
 export const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
 export const kSampleRouteUrlPattern =
   "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";

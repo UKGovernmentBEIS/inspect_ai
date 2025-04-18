@@ -48,6 +48,7 @@ export const ApplicationIcons = {
     return `bi bi-${epoch}-circle`;
   },
   error: "bi bi-exclamation-circle",
+  eval: "bi bi-info-circle-fill",
   "expand-all": "bi bi-arrows-expand",
   "expand-down": "bi bi-chevron-down",
   fork: "bi bi-signpost-split",
