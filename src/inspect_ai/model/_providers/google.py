@@ -31,6 +31,7 @@ from google.genai.types import (  # type: ignore
     SafetySetting,
     SafetySettingDict,
     Schema,
+    ThinkingConfig,
     Tool,
     ToolConfig,
     Type,
@@ -83,6 +84,15 @@ from .util import model_base_url
 from .util.hooks import HttpHooks, HttpxHooks
 
 logger = getLogger(__name__)
+
+
+# https://github.com/googleapis/python-genai/blob/473bf4b6b5a69e5324a5d4bac0fe852351338c43/google/genai/tests/models/test_generate_content_thought.py#L31
+# config={
+#             'thinking_config': {'thinking_budget': 10000},
+#         }
+#     config={
+#         'thinking_config': {'include_thoughts': True},
+#         'http_options': {'api_version': 'v1alpha'},
 
 
 GOOGLE_API_KEY = "GOOGLE_API_KEY"
@@ -222,6 +232,7 @@ class GoogleGenAIAPI(ModelAPI):
             tools=gemini_tools,
             tool_config=gemini_tool_config,
             system_instruction=await extract_system_message_as_parts(client, input),
+            thinking_config=self.chat_thinking_config(config),
         )
         if config.response_schema is not None:
             parameters.response_mime_type = "application/json"
@@ -264,6 +275,15 @@ class GoogleGenAIAPI(ModelAPI):
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
+    def is_gemini(self) -> bool:
+        return "gemini-" in self.service_model_name()
+
+    def is_gemini_1_5(self) -> bool:
+        return "gemini-1.5" in self.service_model_name()
+
+    def is_gemini_2_0(self) -> bool:
+        return "gemini-2.0" in self.service_model_name()
+
     @override
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, APIError) and ex.code is not None:
@@ -292,6 +312,18 @@ class GoogleGenAIAPI(ModelAPI):
             )
         else:
             raise ex
+
+    def chat_thinking_config(self, config: GenerateConfig) -> ThinkingConfig | None:
+        # thinking_config is only supported for gemini 2.5 above
+        has_thinking_config = (
+            self.is_gemini() and not self.is_gemini_1_5() and not self.is_gemini_2_0()
+        )
+        if has_thinking_config:
+            return ThinkingConfig(
+                include_thoughts=True, thinking_budget=config.reasoning_tokens
+            )
+        else:
+            return None
 
 
 def safety_settings_to_list(safety_settings: SafetySettingDict) -> list[SafetySetting]:
