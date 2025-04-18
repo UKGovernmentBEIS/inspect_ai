@@ -286,8 +286,3 @@ def tool_result_as_text(
             content_list.append(c.resource.text)
 
     return "\n\n".join(content_list)
-    return "\n\n".join(content_list)
-    return "\n\n".join(content_list)
-    return "\n\n".join(content_list)
-    return "\n\n".join(content_list)
-    return "\n\n".join(content_list)
