@@ -7,6 +7,7 @@
 - OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 - OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
 - Inspect View: Improved display of reasoning blocks.
+- Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples. 
 
 ## v0.3.89 (17 April 2025)
 

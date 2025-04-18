@@ -1,5 +1,5 @@
 import { FC } from "react";
-import api from "../api/index";
+import api from "../client/api/index";
 import "./DownloadButton.css";
 
 interface DownloadButtonProps {
