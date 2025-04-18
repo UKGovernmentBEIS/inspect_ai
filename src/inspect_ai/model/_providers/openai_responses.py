@@ -39,6 +39,7 @@ async def generate_responses(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
+    store: bool,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
@@ -66,7 +67,9 @@ async def generate_responses(
         else NOT_GIVEN,
         truncation="auto" if is_computer_use_preview(model_name) else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
-        **completion_params_responses(model_name, config, len(tools) > 0),
+        **completion_params_responses(
+            model_name, config=config, tools=len(tools) > 0, store=store
+        ),
     )
 
     try:
@@ -108,7 +111,7 @@ async def generate_responses(
 
 
 def completion_params_responses(
-    model_name: str, config: GenerateConfig, tools: bool
+    model_name: str, *, config: GenerateConfig, tools: bool, store: bool
 ) -> dict[str, Any]:
     # TODO: we'll need a computer_use_preview bool for the 'include'
     # and 'reasoning' parameters
@@ -118,9 +121,7 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    params: dict[str, Any] = dict(
-        model=model_name, store=is_computer_use_preview(model_name)
-    )
+    params: dict[str, Any] = dict(model=model_name, store=store)
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
     if config.frequency_penalty is not None:

@@ -62,6 +62,7 @@ class OpenAIAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool | None = None,
+        responses_store: Literal["auto"] | bool = "auto",
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -82,11 +83,17 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # note whether we are forcing the responses_api
-        self.responses_api = (
-            responses_api
-            or (self.is_o_series() and not self.is_o1_early())
-            or self.is_computer_use_preview()
+        # is this a model we use responses api by default for?
+        responses_model = (
+            self.is_o_series() and not self.is_o1_early()
+        ) or self.is_computer_use_preview()
+
+        # resolve whether we are forcing the responses api
+        self.responses_api = responses_api or responses_model
+
+        # resolve whether we are using the responses store
+        self.responses_store = (
+            responses_store if isinstance(responses_store, bool) else responses_model
         )
 
         # resolve api_key
@@ -231,6 +238,7 @@ class OpenAIAPI(ModelAPI):
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
+                store=self.responses_store,
             )
 
         # allocate request_id (so we can see it from ModelCall)
