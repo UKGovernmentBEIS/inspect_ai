@@ -55,7 +55,7 @@ ScalarT = TypeVar("ScalarT", str, int, float, bool, None)
 
 class JSONRPCTransport(Protocol):
     async def __call__(
-        self, *, method: str, params: JSONRPCParamsType, is_notification: bool
+        self, method: str, params: JSONRPCParamsType, is_notification: bool
     ) -> str: ...
 
 
@@ -277,7 +277,6 @@ def create_json_rpc_request(
         {
             "jsonrpc": "2.0",
             "method": method,
-            # "params": list(params) if isinstance(params, list) else params,
             **({"params": params} if params else {}),
             **({"id": next(id_generator)} if not is_notification else {}),
         }

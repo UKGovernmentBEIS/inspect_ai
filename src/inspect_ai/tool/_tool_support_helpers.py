@@ -96,11 +96,7 @@ class ToolSupportSandboxTransport(JSONRPCTransport):
         self.user = user
 
     async def __call__(
-        self,
-        *,
-        method: str,
-        params: JSONRPCParamsType,
-        is_notification: bool,
+        self, method: str, params: JSONRPCParamsType, is_notification: bool
     ) -> str:
         """
         Execute an RPC request using the sandbox transport.
@@ -163,11 +159,8 @@ async def tool_container_sandbox(
     )
 
 
-# Replace the create_sandbox_transport function with the SandboxTransportCallable class
 def create_sandbox_transport(
-    sandbox: SandboxEnvironment,
-    timeout: int | None = None,
-    user: str | None = None,
+    sandbox: SandboxEnvironment, timeout: int | None = None, user: str | None = None
 ) -> JSONRPCTransport:
     """
     Create a transport callable that uses a sandbox for RPC communication.

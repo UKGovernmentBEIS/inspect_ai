@@ -28,7 +28,6 @@ async def bash_session_new_session(params: NoParams) -> NewSessionResult:
 
 @validated_json_rpc_method(BashParams)
 async def bash_session(params: BashParams) -> BashCommandResult | BashRestartResult:
-    # Handle bash session operations
     match params.root:
         case CommandParams(session_name=session_name, command=command):
             return await controller.execute_command(session_name, command)

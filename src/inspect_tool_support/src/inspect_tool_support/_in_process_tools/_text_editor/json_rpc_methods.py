@@ -18,7 +18,6 @@ from inspect_tool_support._util._json_rpc_helpers import validated_json_rpc_meth
 
 @validated_json_rpc_method(TextEditorParams)
 async def text_editor(params: TextEditorParams) -> str:
-    # Handle text editor operations
     match params.root:
         case ViewParams(path=path, view_range=view_range):
             return await view(path, view_range)
