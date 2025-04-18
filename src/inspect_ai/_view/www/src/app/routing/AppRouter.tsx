@@ -8,7 +8,12 @@ import {
 import { storeImplementation } from "../../state/store";
 import { AppErrorBoundary } from "../AppErrorBoundary";
 import { LogViewContainer } from "../log-view/LogViewContainer";
-import { kLogRouteUrlPattern, kSampleRouteUrlPattern } from "./url";
+import { LogsView } from "../logs/LogsView";
+import {
+  kLogRouteUrlPattern,
+  kLogsRoutUrlPattern as kLogsRouteUrlPattern,
+  kSampleRouteUrlPattern,
+} from "./url";
 
 // Create a layout component that includes the RouteTracker
 const AppLayout = () => {
@@ -38,6 +43,10 @@ export const AppRouter = createHashRouter(
         {
           index: true, // This will match exactly the "/" path
           element: <LogViewContainer />,
+        },
+        {
+          path: kLogsRouteUrlPattern,
+          element: <LogsView />,
         },
         {
           path: kLogRouteUrlPattern,
