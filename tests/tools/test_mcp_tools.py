@@ -1,4 +1,6 @@
+from copy import copy
 from pathlib import Path
+from typing import Sequence
 
 import pytest
 from test_helpers.utils import (
@@ -11,9 +13,13 @@ from test_helpers.utils import (
 
 from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
-from inspect_ai.agent import react
+from inspect_ai.agent import Agent, AgentState, agent, react
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
 from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageSystem
+from inspect_ai.model._model import Model
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver import generate, solver, use_tools
 from inspect_ai.tool import (
     MCPServer,
@@ -22,6 +28,8 @@ from inspect_ai.tool import (
     mcp_server_stdio,
     mcp_tools,
 )
+from inspect_ai.tool._tool import Tool, ToolSource
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox
 
 
@@ -139,24 +147,74 @@ def test_react_mcp_connection():
 
 
 @task
-def mcp_git_tools():
-    git_server = mcp_server_stdio(
-        command="python3", args=["-m", "mcp_server_git", "--repository", "."]
-    )
+def git_task_mcp_connection_refcount():
+    async def generate_loop(
+        model: Model,
+        input: list[ChatMessage],
+        tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource = [],
+    ) -> tuple[list[ChatMessage], ModelOutput]:
+        async with mcp_connection(tools):
+            messages = copy(input)
+            while True:
+                # call model
+                output = await model.generate(input=messages, tools=tools)
+                messages.append(output.message)
+
+                # make tool calls or terminate if there are none
+                if output.message.tool_calls:
+                    tools_messages, tools_output = await execute_tools(messages, tools)
+                    messages.extend(tools_messages)
+                    if tools_output is not None:
+                        output = tools_output
+                else:
+                    return messages[len(input) :], output
+
+    @agent
+    def git_agent() -> Agent:
+        git_server = mcp_server_stdio(
+            command="python3", args=["-m", "mcp_server_git", "--repository", "."]
+        )
+
+        async def execute(state: AgentState) -> AgentState:
+            # some general guidance for the agent
+            state.messages.append(
+                ChatMessageSystem(
+                    content="Please use the git tools to solve the problems."
+                )
+            )
+
+            # run a tool loop then update & return state
+            async with mcp_connection(git_server):
+                messages, state.output = await generate_loop(
+                    get_model(), state.messages, tools=git_server
+                )
+            state.messages.extend(messages)
+            return state
+
+        return execute
 
     return Task(
         dataset=[
             Sample(
-                "What is the status of the git working tree for the current directory?. Additionally, could you summarise recent commits that have been made to the reposiotry?"
-            )
+                "What is the status of the git working tree for the current directory?. Additionally, "
+                + "could you summarise recent commits that have been made to the reposiotry?"
+            ),
+            Sample(
+                "Could you summarise recent commits that have been made to the repository?. Also, What "
+                + "is the status of the git working tree for the current directory?"
+            ),
         ],
-        solver=react(
-            name="git_worker",
-            prompt="Please use the git tools to solve the problems.",
-            tools=[mcp_tools(git_server, tools=["git_log", "git_status"])],
-        ),
+        solver=git_agent(),
         config=GenerateConfig(parallel_tool_calls=False),
     )
+
+
+@skip_if_no_openai
+@skip_if_no_mcp_git_package
+def test_mcp_connection_refcount():
+    log = eval(git_task_mcp_connection_refcount(), model="openai/gpt-4o")[0]
+    assert log.status == "success"
+    assert log.samples
 
 
 @pytest.mark.asyncio
