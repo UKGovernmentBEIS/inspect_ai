@@ -472,7 +472,7 @@ def list_config() -> None:
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
-        def print_keys(data: dict, prefix: str = "") -> None:
+        def print_keys(data: dict[str, Any], prefix: str = "") -> None:
             if isinstance(data, dict):
                 for key, value in data.items():
                     if isinstance(value, dict):
