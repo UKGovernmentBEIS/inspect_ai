@@ -5,9 +5,10 @@ import {
   Outlet,
   useLocation,
 } from "react-router-dom";
-import { storeImplementation } from "../state/store";
-import { AppErrorBoundary } from "./AppErrorBoundary";
-import { LogViewContainer } from "./log-view/LogViewContainer";
+import { storeImplementation } from "../../state/store";
+import { AppErrorBoundary } from "../AppErrorBoundary";
+import { LogViewContainer } from "../log-view/LogViewContainer";
+import { kLogRouteUrlPattern, kSampleRouteUrlPattern } from "./url";
 
 // Create a layout component that includes the RouteTracker
 const AppLayout = () => {
@@ -39,11 +40,11 @@ export const AppRouter = createHashRouter(
           element: <LogViewContainer />,
         },
         {
-          path: "/logs/:logPath/:tabId?/:sampleTabId?",
+          path: kLogRouteUrlPattern,
           element: <LogViewContainer />,
         },
         {
-          path: "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?/:sampleTabId?",
+          path: kSampleRouteUrlPattern,
           element: <LogViewContainer />,
         },
       ],
