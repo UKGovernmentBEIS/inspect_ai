@@ -1,22 +1,10 @@
 import abc
-from contextlib import _AsyncGeneratorContextManager
 from logging import getLogger
-from typing import Literal, TypeAlias
-
-from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from mcp.types import JSONRPCMessage
+from typing import Literal
 
 from .._tool import Tool, ToolSource
 
 logger = getLogger(__name__)
-
-
-MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
-    tuple[
-        MemoryObjectReceiveStream[JSONRPCMessage | Exception],
-        MemoryObjectSendStream[JSONRPCMessage],
-    ],
-]
 
 
 class MCPServer(ToolSource):
