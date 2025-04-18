@@ -300,5 +300,3 @@ maps_server = mcp_server_sandbox(
 ```
 
 This will look for the MCP server in the default sandbox (you can also specify an explicit `sandbox` option if it is located in another sandbox).
-
-\`
