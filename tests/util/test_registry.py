@@ -1,4 +1,3 @@
-
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
     registry_create_from_dict,
