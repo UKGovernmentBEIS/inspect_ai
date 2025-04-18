@@ -32,6 +32,9 @@ class JSONSchema(BaseModel):
     type: JSONType | None = Field(default=None)
     """JSON type of tool parameter."""
 
+    format: str | None = Field(default=None)
+    """Format of the parameter (e.g. date-time)."""
+
     description: str | None = Field(default=None)
     """Parameter description."""
 

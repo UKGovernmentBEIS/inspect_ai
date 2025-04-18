@@ -23,7 +23,7 @@ def make_call(function_name, args):
 
 
 @tool
-def incr() -> Tool:
+def incr():
     async def incr(x: int) -> int:
         """
         Increment an integer by 1.
@@ -59,7 +59,7 @@ class MyPydanticModel(BaseModel):
 
 
 @tool
-def complex_tool() -> Tool:
+def complex_tool():
     async def complex_tool(
         text: str,
         count: int,
