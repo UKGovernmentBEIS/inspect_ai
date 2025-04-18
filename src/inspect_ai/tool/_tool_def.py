@@ -264,7 +264,5 @@ def validate_tool_parameters(tool_name: str, parameters: dict[str, ToolParam]) -
                 f"{context} provided for parameter '{bound_name}' of function '{tool_name}'."
             )
 
-        if param.type is None and not param.anyOf and not param.enum:
-            raise_not_provided_error("Unsupported type or type annotation")
-        elif not param.description:
+        if not param.description:
             raise_not_provided_error("Description not")

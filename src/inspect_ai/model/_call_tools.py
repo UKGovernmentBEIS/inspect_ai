@@ -3,6 +3,7 @@ import json
 import types
 from copy import copy
 from dataclasses import is_dataclass
+from datetime import date, datetime, time
 from logging import getLogger
 from textwrap import dedent
 from types import UnionType
@@ -14,6 +15,7 @@ from typing import (
     NamedTuple,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Type,
     Union,
@@ -391,7 +393,6 @@ async def call_tool(
 
         # normal tool call
         else:
-            arguments = tool_params(call.arguments, tool_def.tool)
             result: ToolResult = await tool_def.tool(**arguments)
             return result, [], None, None
 
@@ -599,6 +600,15 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
                 raise ToolParsingError(
                     f"Unable to convert '{input}' to {type_hint.__name__}"
                 )
+        elif type_hint == datetime:
+            if input.endswith("Z"):
+                # convert trailing Z to +00:00
+                input = input[:-1] + "+00:00"
+            return datetime.fromisoformat(input)
+        elif type_hint == date:
+            return date.fromisoformat(input)
+        elif type_hint == time:
+            return time.fromisoformat(input)
         elif is_typeddict(type_hint):
             typeddict_data: dict[str, Any] = {}
             annotations = get_type_hints(type_hint)
@@ -620,6 +630,11 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return [tool_param(args[0], x) for x in input]
         else:
             return input
+    elif origin is set or origin is Set:
+        if args:
+            return {tool_param(args[0], x) for x in input}
+        else:
+            return set(input)
     elif origin is tuple or origin is Tuple:
         if args:
             return tuple([tool_param(args[0], x) for x in input])
