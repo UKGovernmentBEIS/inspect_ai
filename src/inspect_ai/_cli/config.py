@@ -1,13 +1,13 @@
-import os
 import json
+import os
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List
+
 import click
 import yaml
-from pathlib import Path
-from typing import Any, Dict, List, Union
-from dataclasses import dataclass
 from typing_extensions import TypedDict
 
-from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._cli.common import common_options
 
 # Get the directory where this file is located
@@ -221,7 +221,7 @@ def validate_config(config: Dict[str, Any]) -> List[ValidationError]:
                     errors.append(
                         ValidationError(
                             path=path,
-                            message=f"Invalid type",
+                            message="Invalid type",
                             expected=expected_type,
                             actual=type(value),
                         )
@@ -232,7 +232,7 @@ def validate_config(config: Dict[str, Any]) -> List[ValidationError]:
                     errors.append(
                         ValidationError(
                             path=path,
-                            message=f"Invalid type",
+                            message="Invalid type",
                             expected=expected_type,
                             actual=type(value),
                         )
@@ -252,7 +252,7 @@ def validate_config(config: Dict[str, Any]) -> List[ValidationError]:
             )
 
         # Check numeric ranges
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             min_val = rules.get("min")
             if min_val is not None and value < min_val:
                 errors.append(
