@@ -25,7 +25,6 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_params,
 )
-from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model import Model
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
@@ -423,9 +422,9 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
             elif registry_lookup("solver", solver_name) is not None:
-                return cast(Solver, registry_create("solver", solver_name, **spec.args))
+                return registry_create("solver", solver_name, **spec.args)
             elif registry_lookup("agent", solver_name) is not None:
-                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                agent = registry_create("agent", solver_name, **spec.args)
                 return as_solver(agent)
             else:
                 raise ValueError(
@@ -484,11 +483,11 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
 
             # create decorator based solvers using the registry
             if any(solver[0] == solver_name for solver in solver_decorators):
-                return cast(Solver, registry_create("solver", solver_name, **spec.args))
+                return registry_create("solver", solver_name, **spec.args)
 
             # create decorator based agents using the registry
             elif any(agent[0] == solver_name for agent in agent_decorators):
-                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                agent = registry_create("agent", solver_name, **spec.args)
                 return as_solver(agent)
 
             # create bridge based solvers by calling the function and wrapping it in bridge()
