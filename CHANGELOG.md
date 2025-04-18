@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Support for [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) tools.
+- Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
+- Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - OpenAI: Responses API is now used by default for all reasoning models.
 - OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
 - OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
@@ -44,7 +45,6 @@
 
 ## v0.3.86 (09 April 2025)
 
-- Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
 - Open AI: Treat `UnprocessableEntityError` as bad request so we can include the request payload in the error message.
 - Eval Retry: Correctly restore model-specific generation config on retry.
 - Inspect View: Resolve sample attachments before including in realtime event stream.
@@ -67,10 +67,8 @@
 - Basic Agent: New `submit_append` option to append the submit tool output to the completion rather than replacing the completion (note that the new `react()` agent appends by default).
 - Model API: New [execute_tools()](https://inspect.aisi.org.uk/reference/inspect_ai.model.html#execute_tools) function (replaces deprecated `call_tools()` function) which handles agent handoffs that occur during tool calling.
 - Model API: `generate_loop()` method for calling generate with a tool use loop.
-- Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - Model API: Provide optional sync context manager for `Model` (works only with providers that don't require an async close).
 - Anthropic: Add support for `tool_choice="none"` (added in v0.49.0, which is now required).
-- Store: `instance` option for `store_as()` for using multiple instances of a `StoreModel` within a sample.
 - Together AI: Updated `logprobs` to pass `1` rather than `True` (protocol change).
 - Tools: `bash_session()` and `web_browser()` now create a distinct sandbox process each time they are instantiated.
 - Computer Tool: Support for use of the native Open AI computer tool (available in the model `openai/computer-use-preview`)
