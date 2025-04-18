@@ -4,185 +4,130 @@ This module provides helper code for handling JSON-RPC communication between the
 It includes definitions for JSON-RPC request and response models, as well as functions to create and parse JSON-RPC requests and responses.
 """
 
-import json
-from itertools import count
 from textwrap import dedent
-from typing import Type, TypeVar
-
-from pydantic import BaseModel
+from typing import Type
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
-from ._json_rpc_helpers import _rpc_call_description, parse_json_rpc_response
-
-BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
-ScalarT = TypeVar("ScalarT", str, int, float, bool, None)
-
-id_generator = count(666)
+from ._json_rpc_helpers import (
+    BaseModelT,
+    JSONRPCParamsType,
+    JSONRPCTransport,
+    ScalarT,
+    _rpc_call_description,
+    create_json_rpc_request,
+)
+from ._json_rpc_helpers import exec_model_request as model_request
+from ._json_rpc_helpers import exec_notification as notification_helper
+from ._json_rpc_helpers import exec_scalar_request as scalar_request
 
 
 async def exec_scalar_request(
     sandbox: SandboxEnvironment,
     method: str,
-    params: dict[str, object] | tuple[object, ...],
+    params: JSONRPCParamsType,
     result_type: Type[ScalarT],
     timeout: int | None = None,
     user: str | None = None,
 ) -> ScalarT:
-    """
-    Execute a JSON-RPC command to a sandbox environment expecting a scalar result.
-
-    Args:
-      sandbox (SandboxEnvironment): The sandbox environment to execute the command in.
-      method (str): The JSON-RPC method to call.
-      params (dict[str, object] | tuple[object, ...]): The parameters for the JSON-RPC method.
-      result_type (Type[ScalarT]): The scalar type (str, int, float, bool, None) to validate the result against.
-      timeout (int | None, optional): The timeout for the execution. Defaults to None.
-      user (str | None, optional): Optional username or UID to run the command as.
-
-    Returns:
-      ScalarT: The scalar result of the JSON-RPC call.
-
-    Raises:
-      RuntimeError: If the sandbox execution fails or if there is an error in the JSON-RPC response.
-      ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
-      ValueError: If the result is not of the expected scalar type.
-    """
-    rpc_result = await _exec_request(
-        sandbox=sandbox,
-        method=method,
-        params=params,
-        timeout=timeout,
-        user=user,
+    return await scalar_request(
+        method,
+        params,
+        result_type,
+        transport=ToolSupportSandboxTransport(sandbox, timeout, user),
     )
-    if (result_type is type(None) and rpc_result is not None) or not isinstance(
-        rpc_result, result_type
-    ):
-        raise ValueError(f"Expected {result_type} result, got {type(rpc_result)}")
-    return rpc_result
 
 
 async def exec_model_request(
     sandbox: SandboxEnvironment,
     method: str,
-    params: dict[str, object] | tuple[object, ...],
+    params: JSONRPCParamsType,
     result_type: Type[BaseModelT],
     timeout: int | None = None,
     user: str | None = None,
 ) -> BaseModelT:
-    """
-    Execute a JSON-RPC command to a sandbox environment expecting a model result.
-
-    Args:
-      sandbox (SandboxEnvironment): The sandbox environment to execute the command in.
-      method (str): The JSON-RPC method to call.
-      params (dict[str, object] | tuple[object, ...]): The parameters for the JSON-RPC method.
-      result_type (Type[BaseModelT]): The Pydantic model class to validate and parse the result.
-      timeout (int | None, optional): The timeout for the execution. Defaults to None.
-      user (str | None, optional): Optional username or UID to run the command as.
-
-    Returns:
-      BaseModelT: The parsed and validated result of the JSON-RPC call.
-
-    Raises:
-      RuntimeError: If the sandbox execution fails or if there is an error in the JSON-RPC response.
-      ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
-      ValueError: If the result cannot be validated against the provided model class.
-    """
-    rpc_result = await _exec_request(
-        sandbox=sandbox,
-        method=method,
-        params=params,
-        timeout=timeout,
-        user=user,
+    return await model_request(
+        method,
+        params,
+        result_type,
+        transport=ToolSupportSandboxTransport(sandbox, timeout, user),
     )
-    return result_type.model_validate(rpc_result, strict=True)
 
 
 async def exec_notification(
     sandbox: SandboxEnvironment,
     method: str,
-    params: dict[str, object] | tuple[object, ...],
+    params: JSONRPCParamsType,
     timeout: int | None = None,
     user: str | None = None,
 ) -> None:
-    """
-    Execute a JSON-RPC notification to a sandbox environment.
-
-    A notification is a JSON-RPC request that doesn't expect any response.
-
-    Args:
-      sandbox (SandboxEnvironment): The sandbox environment to execute the notification in.
-      method (str): The JSON-RPC method to call.
-      params (dict[str, object] | tuple[object, ...]): The parameters for the JSON-RPC method.
-      timeout (int | None, optional): The timeout for the execution. Defaults to None.
-      user (str | None, optional): Optional username or UID to run the command as.
-
-    Returns:
-      None: The function always returns None if successful.
-
-    Raises:
-      RuntimeError: If the sandbox execution fails or if there is an unexpected response to the notification.
-    """
-    stdout = await _exec_rpc(
-        sandbox=sandbox,
-        method=method,
-        params=params,
-        is_notification=True,
-        timeout=timeout,
-        user=user,
+    return await notification_helper(
+        method, params, transport=ToolSupportSandboxTransport(sandbox, timeout, user)
     )
-    if stdout.strip():
-        raise RuntimeError(
-            f"Unexpected response to a Notification: {_rpc_call_description(method, params)}: {stdout}"
+
+
+class ToolSupportSandboxTransport(JSONRPCTransport):
+    """
+    A transport callable that uses a sandbox for RPC communication.
+
+    This class implements the TransportCallable protocol and encapsulates
+    the sandbox, timeout, and user parameters needed for sandbox-based
+    RPC communication.
+    """
+
+    def __init__(
+        self,
+        sandbox: SandboxEnvironment,
+        timeout: int | None = None,
+        user: str | None = None,
+    ):
+        """
+        Initialize a new SandboxTransportCallable.
+
+        Args:
+            sandbox (SandboxEnvironment): The sandbox environment to use.
+            timeout (int | None, optional): The timeout for executions. Defaults to None.
+            user (str | None, optional): Username or UID to run commands as. Defaults to None.
+        """
+        self.sandbox = sandbox
+        self.timeout = timeout
+        self.user = user
+
+    async def __call__(
+        self,
+        *,
+        method: str,
+        params: JSONRPCParamsType,
+        is_notification: bool,
+    ) -> str:
+        """
+        Execute an RPC request using the sandbox transport.
+
+        Args:
+            method (str): The JSON-RPC method to call.
+            params (dict[str, object] | tuple[object, ...]): The parameters for the JSON-RPC method.
+            is_notification (bool): Whether this is a notification (no response expected).
+
+        Returns:
+            str: The response from the RPC call.
+
+        Raises:
+            RuntimeError: If the sandbox execution fails.
+        """
+        exec_result = await self.sandbox.exec(
+            [SANDBOX_CLI, "exec"],
+            input=create_json_rpc_request(method, params, is_notification),
+            timeout=self.timeout,
+            user=self.user,
         )
 
-
-async def _exec_request(
-    *,
-    sandbox: SandboxEnvironment,
-    method: str,
-    params: dict[str, object] | tuple[object, ...],
-    timeout: int | None = None,
-    user: str | None = None,
-) -> object:
-    return parse_json_rpc_response(
-        await _exec_rpc(
-            sandbox=sandbox,
-            method=method,
-            params=params,
-            is_notification=False,
-            timeout=timeout,
-            user=user,
-        ),
-        method,
-        params,
-    )
-
-
-async def _exec_rpc(
-    *,
-    sandbox: SandboxEnvironment,
-    method: str,
-    params: dict[str, object] | tuple[object, ...],
-    is_notification: bool,
-    timeout: int | None = None,
-    user: str | None = None,
-) -> str:
-    exec_result = await sandbox.exec(
-        [SANDBOX_CLI, "exec"],
-        input=_create_json_rpc_request(method, params, is_notification),
-        timeout=timeout,
-        user=user,
-    )
-
-    if not exec_result.success:
-        raise RuntimeError(
-            f"Sandbox.exec failure executing {_rpc_call_description(method, params)}: {exec_result.stderr}"
-        )
-    return exec_result.stdout
+        if not exec_result.success:
+            raise RuntimeError(
+                f"Sandbox.exec failure executing {_rpc_call_description(method, params)}: {exec_result.stderr}"
+            )
+        return exec_result.stdout
 
 
 SANDBOX_CLI = "inspect-tool-support"
@@ -218,16 +163,21 @@ async def tool_container_sandbox(
     )
 
 
-def _create_json_rpc_request(
-    method: str,
-    params: dict[str, object] | tuple[object, ...],
-    is_notification: bool,
-) -> str:
-    return json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": list(params) if isinstance(params, tuple) else params,
-            **({"id": next(id_generator)} if not is_notification else {}),
-        }
-    )
+# Replace the create_sandbox_transport function with the SandboxTransportCallable class
+def create_sandbox_transport(
+    sandbox: SandboxEnvironment,
+    timeout: int | None = None,
+    user: str | None = None,
+) -> JSONRPCTransport:
+    """
+    Create a transport callable that uses a sandbox for RPC communication.
+
+    Args:
+        sandbox (SandboxEnvironment): The sandbox environment to use.
+        timeout (int | None, optional): The timeout for executions. Defaults to None.
+        user (str | None, optional): Username or UID to run commands as. Defaults to None.
+
+    Returns:
+        TransportCallable: A transport callable that conforms to the TransportCallable protocol.
+    """
+    return ToolSupportSandboxTransport(sandbox=sandbox, timeout=timeout, user=user)

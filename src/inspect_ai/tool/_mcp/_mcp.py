@@ -160,7 +160,7 @@ class MCPServerSession(MCPServer):
                         # need to be converted to ToolError so that they make it
                         # back to the model.
                         raise exception_for_rpc_response_error(
-                            e.error.code, e.error.message
+                            e.error.code, e.error.message, mcp_tool.name, kwargs
                         ) from e
 
                 return [as_inspect_content(c) for c in result.content]

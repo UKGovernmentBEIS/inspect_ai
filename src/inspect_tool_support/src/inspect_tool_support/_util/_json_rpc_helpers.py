@@ -84,13 +84,13 @@ async def with_validated_rpc_method_params(
                             f"Unexpected handler result type: {type(cant_happen)}"
                         )
             except ToolException as e:
-                return jsonrpcserver.Error(code=-32000, message=e.message)
+                return jsonrpcserver.Error(code=-32099, message=e.message)
             except Exception as e:
                 # Customize the jsonrpc error with the exception message and traceback
                 # so that this info will be included in the eval log. This will still
                 # fail the eval since it represents an inspect coding error.
                 return jsonrpcserver.Error(
-                    code=-32603, message=repr(e), data=traceback.format_exc()
+                    code=-32098, message=repr(e), data=traceback.format_exc()
                 )
         case _:
             return jsonrpcserver.Error(
