@@ -1,7 +1,8 @@
 ## Unreleased
 
-- OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-summary) generation option for reasoning models.
 - OpenAI: Responses API is now used by default for all reasoning models.
+- OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-summary) generation option for reasoning models.
+- OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 
 ## v0.3.89 (17 April 2025)
 

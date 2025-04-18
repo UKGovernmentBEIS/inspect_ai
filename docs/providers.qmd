@@ -41,14 +41,6 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 
 Note that certain models including `o1-pro` and `computer_use_preview` _require_ the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
-When using o-series models, Inspect also automatically enables the [store](https://platform.openai.com/docs/api-reference/responses/create#responses-create-store) option so that reasoning blocks can be retrieved by the model from the conversation history. To control this behavior explicitly use the `responses_store` model argument. For example:
-
-```bash
-inspect eval math.py --model openai/o4-mini -M responses_store=false
-```
-
-For example, you might need to do this if you have a non-logging interface to OpenAI models (as `store` is incompatible with non-logging interfaces).
-
 ### OpenAI on Azure {#openai-on-azure}
 
 The `openai` provider supports OpenAI models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
