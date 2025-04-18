@@ -1,7 +1,7 @@
 ## Unreleased
 
 - OpenAI: Responses API is now used by default for all reasoning models.
-- OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-summary) generation option for reasoning models.
+- OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
 - OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 - OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
 
