@@ -313,7 +313,7 @@ default yields the following user message to the model:
 
 ``` default
 Please proceed to the next step using your best judgement. If you believe you
-have completed the task, please call the `submit()` tool."
+have completed the task, please call the `submit()` tool.
 ```
 
 You can pass a different continuation message, or alternative pass an
@@ -321,16 +321,6 @@ You can pass a different continuation message, or alternative pass an
 continue and what the message is.
 
 ### Truncation
-
-> [!NOTE]
->
-> The `truncation` option described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 If your agent runs for long enough, it may end up filling the entire
 model context window. By default, this will cause the agent to terminate

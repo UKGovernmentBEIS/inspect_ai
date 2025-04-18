@@ -2,12 +2,12 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.5.32">
+<meta name="generator" content="quarto-1.5.57">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect – Reasoning</title>
+<title>Reasoning – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -457,7 +457,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#reasoning-content" id="toc-reasoning-content" class="nav-link" data-scroll-target="#reasoning-content">Reasoning Content</a></li>
   <li><a href="#reasoning-options" id="toc-reasoning-options" class="nav-link" data-scroll-target="#reasoning-options">Reasoning Options</a></li>
-  <li><a href="#openai-o1o3" id="toc-openai-o1o3" class="nav-link" data-scroll-target="#openai-o1o3">OpenAI o1/o3</a></li>
+  <li><a href="#openai-o-series" id="toc-openai-o-series" class="nav-link" data-scroll-target="#openai-o-series">OpenAI o-series</a></li>
   <li><a href="#claude-3.7-sonnet" id="toc-claude-3.7-sonnet" class="nav-link" data-scroll-target="#claude-3.7-sonnet">Claude 3.7 Sonnet</a></li>
   <li><a href="#google-flash-thinking" id="toc-google-flash-thinking" class="nav-link" data-scroll-target="#google-flash-thinking">Google Flash Thinking</a></li>
   <li><a href="#deepseek-r1" id="toc-deepseek-r1" class="nav-link" data-scroll-target="#deepseek-r1">DeepSeek-R1</a></li>
@@ -501,12 +501,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="reasoning-options" class="level2">
 <h2 class="anchored" data-anchor-id="reasoning-options">Reasoning Options</h2>
 <p>The following reasoning options are available from the CLI and within <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span>:</p>
-<table class="table">
+<table class="caption-top table">
 <colgroup>
-<col style="width: 24%">
-<col style="width: 27%">
-<col style="width: 24%">
-<col style="width: 24%">
+<col style="width: 25%">
+<col style="width: 40%">
+<col style="width: 15%">
+<col style="width: 20%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -521,7 +521,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>reasoning_effort</code></td>
 <td>Constrains effort on reasoning for reasoning models (<code>low</code>, <code>medium</code>, or <code>high</code>)</td>
 <td><code>medium</code></td>
-<td>OpenAI o1/o3</td>
+<td>OpenAI o-series</td>
 </tr>
 <tr class="even">
 <td><code>reasoning_tokens</code></td>
@@ -530,6 +530,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Claude 3.7</td>
 </tr>
 <tr class="odd">
+<td><code>reasoning_summary</code></td>
+<td>Provide summary of reasoning steps (<code>concise</code>, <code>detailed</code>, <code>auto</code>). Use “auto” to access the most detailed summarizer available for the current model.</td>
+<td>(none)</td>
+<td>OpenAI o-series</td>
+</tr>
+<tr class="even">
 <td><code>reasoning_history</code></td>
 <td>Include reasoning in message history sent to model (<code>none</code>, <code>all</code>, <code>last</code>, or <code>auto</code>)</td>
 <td><code>auto</code></td>
@@ -541,23 +547,59 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a> <span class="bu">eval</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    task,</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"openai/o3-mini"</span>,<span class="st">"anthropic/anthropic/claude-3-7-sonnet-20250219"</span>],</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    reasoning_effort<span class="op">=</span><span class="st">"medium"</span>,</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens<span class="op">=</span><span class="dv">4096</span></span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a> )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    reasoning_effort<span class="op">=</span><span class="st">"medium"</span>,  <span class="co"># openai specific</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    reasoning_summary<span class="op">=</span><span class="st">"auto"</span>,   <span class="co"># openai specific</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    reasoning_tokens<span class="op">=</span><span class="dv">4096</span>       <span class="co"># anthropic specific</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a> )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>reasoning_history</code> option lets you control how much of the model’s previous reasoning is presented in the message history sent to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>. The default is <code>auto</code>, which uses a provider-specific recommended default (normally <code>all</code>). Use <code>last</code> to not let the reasoning overwhelm the context window.</p>
 </section>
-<section id="openai-o1o3" class="level2">
-<h2 class="anchored" data-anchor-id="openai-o1o3">OpenAI o1/o3</h2>
-<p>OpenAI has several reasoning models available including the o1 and o3 series (<code>openai/o1</code>, <code>openai/o1-mini</code>, and <code>openai/o3-mini</code>). Learn more about the specific models available in the <a href="https://platform.openai.com/docs/models">OpenAI Models</a> documentation.</p>
-<p>You can condition the amount of reasoning done via the <a href="https://platform.openai.com/docs/guides/reasoning#reasoning-effort"><code>reasoning_effort</code></a> option, which can be set to <code>low</code>, <code>medium</code>, or <code>high</code> (the default is <code>medium</code> if not specified).</p>
-<p>OpenAI models currently do not have provision for displaying reasoning content or replaying it to the model.</p>
+<section id="openai-o-series" class="level2">
+<h2 class="anchored" data-anchor-id="openai-o-series">OpenAI o-series</h2>
+<p>OpenAI has several reasoning models available including the o1, o3, and o4 famillies of models. Learn more about the specific models available in the <a href="https://platform.openai.com/docs/models">OpenAI Models</a> documentation.</p>
+<section id="reasoning-effort" class="level4">
+<h4 class="anchored" data-anchor-id="reasoning-effort">Reasoning Effort</h4>
+<p>You can condition the amount of reasoning done via the <a href="https://platform.openai.com/docs/guides/reasoning#reasoning-effort"><code>reasoning_effort</code></a> option, which can be set to <code>low</code>, <code>medium</code>, or <code>high</code> (the default is <code>medium</code> if not specified). For example:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o3 <span class="at">--reasoning-effort</span> high</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="reasoning-history" class="level4">
+<h4 class="anchored" data-anchor-id="reasoning-history">Reasoning History</h4>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>The <code>reasoning_summary</code> and <code>responses_store</code> options described below are available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+<p>You can see a summary of the model’s reasoning by specifying the <a href="https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries"><code>reasoning_summary</code></a> option. Availablle options are <code>concise</code>, <code>detailed</code>, and <code>auto</code> (<code>auto</code> is recommended to access the most detailed summarizer available for the current model). For example:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o3 <span class="at">--reasoning-summary</span> auto</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-simple callout-warning no-icon">
+<div class="callout-body d-flex">
+<div class="callout-icon-container">
+<i class="callout-icon no-icon"></i>
+</div>
+<div class="callout-body-container">
+<p>Before using summarizers with the latest OpenAI reasoning models, you may need to complete <a href="https://help.openai.com/en/articles/10910291-api-organization-verification">organization verification</a>.</p>
+</div>
+</div>
+</div>
+<p>When using o-series models, Inspect automatically enables the <a href="https://platform.openai.com/docs/api-reference/responses/create#responses-create-store">store</a> option so that reasoning blocks can be retrieved by the model from the conversation history. To control this behavior explicitly use the <code>responses_store</code> model argument. For example:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="at">--model</span> openai/o4-mini <span class="at">-M</span> responses_store=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>For example, you might need to do this if you have a non-logging interface to OpenAI models (as <code>store</code> is incompatible with non-logging interfaces).</p>
+</section>
 </section>
 <section id="claude-3.7-sonnet" class="level2">
 <h2 class="anchored" data-anchor-id="claude-3.7-sonnet">Claude 3.7 Sonnet</h2>
 <p>Anthropic’s Claude 3.7 Sonnet model includes optional support for <a href="https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking">extended thinking</a>. Unlike other reasoning models 3.7 Sonnet is a hybrid model that supports both normal and reasoning modes. This means that you need to explicitly request reasoning by specifying the <code>reasoning_tokens</code> option, for example:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">--model</span> anthropic/claude-3-7-sonnet-latest <span class="dt">\</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--reasoning-tokens</span> 4096</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="tokens" class="level4">
 <h4 class="anchored" data-anchor-id="tokens">Tokens</h4>
 <p>The <code>max_tokens</code> for any given request is determined as follows:</p>
@@ -586,7 +628,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="deepseek-r1">DeepSeek-R1</h2>
 <p><a href="https://github.com/deepseek-ai/DeepSeek-R1">DeepSeek-R1</a> is an open-weights reasoning model from DeepSeek. It is generally available either in its original form or as a distillation of R1 based on another open weights model (e.g.&nbsp;Qwen or Llama-based models).</p>
 <p>DeepSeek models can be accessed directly using their <a href="https://api-docs.deepseek.com/">OpenAI interface</a>. Further, a number of model hosting providers supported by Inspect make DeepSeek available, for example:</p>
-<table class="table">
+<table class="caption-top table">
 <thead>
 <tr class="header">
 <th>Provider</th>

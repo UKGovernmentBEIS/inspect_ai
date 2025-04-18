@@ -41,11 +41,12 @@ object returned along with output.
 The following reasoning options are available from the CLI and within
 `GenerateConfig`:
 
-| Option              | Description                                                                           | Default  | Models       |
-|---------------------|---------------------------------------------------------------------------------------|----------|--------------|
-| `reasoning_effort`  | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`)      | `medium` | OpenAI o1/o3 |
-| `reasoning_tokens`  | Maximum number of tokens to use for reasoning.                                        | (none)   | Claude 3.7   |
-| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto`   | All models   |
+| Option | Description | Default | Models |
+|----|----|----|----|
+| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`) | `medium` | OpenAI o-series |
+| `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7 |
+| `reasoning_summary` | Provide summary of reasoning steps (`concise`, `detailed`, `auto`). Use “auto” to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
+| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
 
 As you can see from above, models have different means of specifying the
 tokens to allocate for reasoning (`reasoning_effort` and
@@ -57,8 +58,9 @@ you should specify both. For example:
  eval(
     task,
     model=["openai/o3-mini","anthropic/anthropic/claude-3-7-sonnet-20250219"],
-    reasoning_effort="medium",
-    reasoning_tokens=4096
+    reasoning_effort="medium",  # openai specific
+    reasoning_summary="auto",   # openai specific
+    reasoning_tokens=4096       # anthropic specific
  )
 ```
 
@@ -68,20 +70,65 @@ previous reasoning is presented in the message history sent to
 recommended default (normally `all`). Use `last` to not let the
 reasoning overwhelm the context window.
 
-## OpenAI o1/o3
+## OpenAI o-series
 
-OpenAI has several reasoning models available including the o1 and o3
-series (`openai/o1`, `openai/o1-mini`, and `openai/o3-mini`). Learn more
-about the specific models available in the [OpenAI
-Models](https://platform.openai.com/docs/models) documentation.
+OpenAI has several reasoning models available including the o1, o3, and
+o4 famillies of models. Learn more about the specific models available
+in the [OpenAI Models](https://platform.openai.com/docs/models)
+documentation.
+
+#### Reasoning Effort
 
 You can condition the amount of reasoning done via the
 [`reasoning_effort`](https://platform.openai.com/docs/guides/reasoning#reasoning-effort)
 option, which can be set to `low`, `medium`, or `high` (the default is
-`medium` if not specified).
+`medium` if not specified). For example:
 
-OpenAI models currently do not have provision for displaying reasoning
-content or replaying it to the model.
+``` bash
+inspect eval math.py --model openai/o3 --reasoning-effort high
+```
+
+#### Reasoning History
+
+> [!NOTE]
+>
+> The `reasoning_summary` and `responses_store` options described below
+> are available only in the development version of Inspect. To install
+> the development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+You can see a summary of the model’s reasoning by specifying the
+[`reasoning_summary`](https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries)
+option. Availablle options are `concise`, `detailed`, and `auto` (`auto`
+is recommended to access the most detailed summarizer available for the
+current model). For example:
+
+``` bash
+inspect eval math.py --model openai/o3 --reasoning-summary auto
+```
+
+> [!WARNING]
+>
+> Before using summarizers with the latest OpenAI reasoning models, you
+> may need to complete [organization
+> verification](https://help.openai.com/en/articles/10910291-api-organization-verification).
+
+When using o-series models, Inspect automatically enables the
+[store](https://platform.openai.com/docs/api-reference/responses/create#responses-create-store)
+option so that reasoning blocks can be retrieved by the model from the
+conversation history. To control this behavior explicitly use the
+`responses_store` model argument. For example:
+
+``` bash
+inspect eval math.py --model openai/o4-mini -M responses_store=false
+```
+
+For example, you might need to do this if you have a non-logging
+interface to OpenAI models (as `store` is incompatible with non-logging
+interfaces).
 
 ## Claude 3.7 Sonnet
 
@@ -163,11 +210,11 @@ interface](https://api-docs.deepseek.com/). Further, a number of model
 hosting providers supported by Inspect make DeepSeek available, for
 example:
 
-| Provider                                 | Model                                                                                   |
-|------------------------------------------|-----------------------------------------------------------------------------------------|
+| Provider | Model |
+|----|----|
 | [Together AI](providers.qmd#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
-| [Groq](providers.qmd#groq)               | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning))  |
-| [Ollama](providers.qmd#ollama)           | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1))             |
+| [Groq](providers.qmd#groq) | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning)) |
+| [Ollama](providers.qmd#ollama) | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1)) |
 
 There isn’t currently a way to customise the `reasoning_effort` of
 DeepSeek models, although they have indicated that this will be
