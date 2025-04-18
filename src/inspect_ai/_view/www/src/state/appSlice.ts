@@ -1,7 +1,7 @@
 import { StateSnapshot } from "react-virtuoso";
-import { Capabilities } from "../api/types";
-import { kEvalWorkspaceTabId, kSampleTranscriptTabId } from "../constants";
-import { AppState, AppStatus } from "../types";
+import { AppState, AppStatus } from "../app/types";
+import { Capabilities } from "../client/api/types";
+import { kLogViewSamplesTabId, kSampleTranscriptTabId } from "../constants";
 import { clearDocumentSelection } from "../utils/browser";
 import { StoreState } from "./store";
 
@@ -17,6 +17,13 @@ export interface AppSlice {
     setShowingSampleDialog: (showing: boolean) => void;
     setWorkspaceTab: (tab: string) => void;
     clearWorkspaceTab: () => void;
+
+    setInitialState: (
+      log: string,
+      sample_id?: string,
+      sample_epoch?: string,
+    ) => void;
+    clearInitialState: () => void;
 
     setSampleTab: (tab: string) => void;
     clearSampleTab: () => void;
@@ -38,10 +45,12 @@ export interface AppSlice {
     getPropertyValue: <T>(bagName: string, key: string, defaultValue?: T) => T;
     setPropertyValue: <T>(bagName: string, key: string, value: T) => void;
     removePropertyValue: (bagName: string, key: string) => void;
+
+    setUrlHash: (urlHash: string) => void;
   };
 }
 
-const kDefaultWorkspaceTab = kEvalWorkspaceTabId;
+const kDefaultWorkspaceTab = kLogViewSamplesTabId;
 const kDefaultSampleTab = kSampleTranscriptTabId;
 
 const initialState: AppState = {
@@ -125,6 +134,24 @@ export const createAppSlice = (
       clearWorkspaceTab: () => {
         set((state) => {
           state.app.tabs.workspace = kDefaultWorkspaceTab;
+        });
+      },
+      setInitialState: (
+        log: string,
+        sample_id?: string,
+        sample_epoch?: string,
+      ) => {
+        set((state) => {
+          state.app.initialState = {
+            log,
+            sample_id,
+            sample_epoch,
+          };
+        });
+      },
+      clearInitialState: () => {
+        set((state) => {
+          state.app.initialState = undefined;
         });
       },
       setSampleTab: (tab: string) => {
@@ -221,6 +248,12 @@ export const createAppSlice = (
             const { [key]: _, ...rest } = state.app.propertyBags[bagName];
             state.app.propertyBags[bagName] = rest;
           }
+        });
+      },
+
+      setUrlHash: (urlHash: string) => {
+        set((state) => {
+          state.app.urlHash = urlHash;
         });
       },
     },
