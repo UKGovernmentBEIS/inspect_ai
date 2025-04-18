@@ -39,6 +39,7 @@ async def generate_responses(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
+    service_tier: str | None,
     store: bool,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
@@ -68,7 +69,11 @@ async def generate_responses(
         truncation="auto" if is_computer_use_preview(model_name) else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
         **completion_params_responses(
-            model_name, config=config, tools=len(tools) > 0, store=store
+            model_name,
+            config=config,
+            service_tier=service_tier,
+            tools=len(tools) > 0,
+            store=store,
         ),
     )
 
@@ -111,7 +116,12 @@ async def generate_responses(
 
 
 def completion_params_responses(
-    model_name: str, *, config: GenerateConfig, tools: bool, store: bool
+    model_name: str,
+    *,
+    config: GenerateConfig,
+    service_tier: str | None,
+    tools: bool,
+    store: bool,
 ) -> dict[str, Any]:
     # TODO: we'll need a computer_use_preview bool for the 'include'
     # and 'reasoning' parameters
@@ -122,6 +132,8 @@ def completion_params_responses(
         )
 
     params: dict[str, Any] = dict(model=model_name, store=store)
+    if service_tier is not None:
+        params["service_tier"] = service_tier
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
     if config.frequency_penalty is not None:
