@@ -31,15 +31,15 @@ The following environment variables are supported by the OpenAI provider
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API. However, if you use features that require the new [Responses API](https://platform.openai.com/docs/api-reference/responses) Inspect will use that instead. 
+By default, Inspect uses the standard OpenAI Chat Completions API for gpt-series models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for o-series models and the `computer_use_preview` model.
 
-Currently, the only feature that requires the Responses API is [o1-pro](https://platform.openai.com/docs/models/o1-pro). In the near future, Inspect will add support for OpenAI's built-in computer and web search tools, which will also require the Responses API.
-
-If you want to manually switch to the Responses API you can use the `responses_api` model argument. For example:
+If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
 ```bash
 inspect eval math.py --model openai/gpt-4o -M responses_api=true
 ```
+
+Note that certain models including `o1-pro` and `computer_use_preview` _require_ the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
 ### OpenAI on Azure {#openai-on-azure}
 

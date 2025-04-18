@@ -51,3 +51,11 @@ def test_openai_responses_o1_pro():
         model="openai/o1-pro",
     )[0]
     assert log.status == "success"
+
+
+@skip_if_no_openai
+def test_openai_responses_no_store():
+    log = eval(Task(), model="openai/o4-mini", model_args=dict(responses_store=False))[
+        0
+    ]
+    assert log.status == "success"
