@@ -2,7 +2,7 @@ import { directoryRelativeUrl } from "../../utils/uri";
 
 export const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
 export const kSampleRouteUrlPattern =
-  "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?/:sampleTabId?";
+  "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
 
 export const baseUrl = (
   logPath: string,
@@ -20,13 +20,12 @@ export const sampleUrl = (
   logPath: string,
   sampleId?: string | number,
   sampleEpoch?: string | number,
-  logTabId?: string,
   sampleTabId?: string,
 ) => {
   if (sampleId !== undefined && sampleEpoch !== undefined) {
-    return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+    return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
   } else {
-    return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/${sampleTabId || ""}`;
+    return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
   }
 };
 
