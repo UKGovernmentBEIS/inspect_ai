@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel
 
 from inspect_ai.model._call_tools import call_tool
-from inspect_ai.tool import Tool, tool
+from inspect_ai.tool import tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
 

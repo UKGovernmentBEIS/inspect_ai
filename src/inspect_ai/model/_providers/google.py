@@ -532,6 +532,27 @@ def schema_from_param(
             type=Type.BOOLEAN, description=param.description, nullable=nullable
         )
     elif param.type == "string":
+        if param.format == "date-time":
+            return Schema(
+                type=Type.STRING,
+                description=param.description,
+                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                nullable=nullable,
+            )
+        elif param.format == "date":
+            return Schema(
+                type=Type.STRING,
+                description=param.description,
+                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                nullable=nullable,
+            )
+        elif param.format == "time":
+            return Schema(
+                type=Type.STRING,
+                description=param.description,
+                format="^[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+                nullable=nullable,
+            )
         return Schema(
             type=Type.STRING, description=param.description, nullable=nullable
         )
