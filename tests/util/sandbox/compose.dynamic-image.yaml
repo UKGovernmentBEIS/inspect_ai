@@ -1,0 +1,7 @@
+services:
+  default:
+    image: "${SAMPLE_METADATA_DOCKER_IMAGE}"
+    command: "tail -f /dev/null"
+    init: true
+    network_mode: none
+  
