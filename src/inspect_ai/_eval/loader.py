@@ -13,7 +13,6 @@ from typing_extensions import overload
 
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import task_file, task_run_dir
-from inspect_ai._util._async import configured_async_backend
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -26,7 +25,6 @@ from inspect_ai._util.registry import (
     registry_lookup,
     registry_params,
 )
-from inspect_ai.agent._agent import Agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model import Model
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
@@ -287,16 +285,11 @@ def create_file_tasks(
             setattr(task, TASK_RUN_DIR_ATTR, run_dir)
             tasks.append(task)
 
-            # warn that chdir is deprecated
+            # warn that chdir has been removed
             if "chdir" in task.attribs:
-                if configured_async_backend() == "trio":
-                    raise RuntimeError(
-                        "The task 'chdir' attribute is not compatible with the trio async backend."
-                    )
-
                 warn_once(
                     logger,
-                    "The 'chdir' task attribute is deprecated and will be removed in a future release "
+                    "The 'chdir' task attribute is no longer supported "
                     + "(you should write your tasks to not depend on their runtime working directory)",
                 )
 
@@ -429,9 +422,9 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
             if solver_name is None:
                 raise ValueError(f"Unable to resolve solver name from {spec.solver}")
             elif registry_lookup("solver", solver_name) is not None:
-                return cast(Solver, registry_create("solver", solver_name, **spec.args))
+                return registry_create("solver", solver_name, **spec.args)
             elif registry_lookup("agent", solver_name) is not None:
-                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                agent = registry_create("agent", solver_name, **spec.args)
                 return as_solver(agent)
             else:
                 raise ValueError(
@@ -490,11 +483,11 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
 
             # create decorator based solvers using the registry
             if any(solver[0] == solver_name for solver in solver_decorators):
-                return cast(Solver, registry_create("solver", solver_name, **spec.args))
+                return registry_create("solver", solver_name, **spec.args)
 
             # create decorator based agents using the registry
             elif any(agent[0] == solver_name for agent in agent_decorators):
-                agent = cast(Agent, registry_create("agent", solver_name, **spec.args))
+                agent = registry_create("agent", solver_name, **spec.args)
                 return as_solver(agent)
 
             # create bridge based solvers by calling the function and wrapping it in bridge()

@@ -1,0 +1,35 @@
+.table {
+  padding-left: 0;
+  margin-left: 0;
+  margin-bottom: 0.2rem;
+}
+
+.th {
+  padding: 0;
+}
+
+.cell {
+  padding: 0em 0.5em 0.3em 0em !important;
+}
+
+.compact .cell {
+  padding: 0;
+}
+
+.cellKey {
+  font-weight: 400;
+  padding-right: 1em;
+  white-space: nowrap;
+}
+
+.compact .cellKey {
+  font-weight: 400;
+  padding-right: 0.2em;
+  white-space: nowrap;
+}
+
+.cellValue {
+  font-weight: 300;
+  white-space: pre-wrap;
+  word-wrap: anywhere;
+}

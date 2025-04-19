@@ -87,7 +87,7 @@ def eval(
     log_dir: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
-    sample_id: str | int | list[str | int] | None = None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
@@ -263,7 +263,7 @@ async def eval_async(
     log_dir: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
-    sample_id: str | int | list[str | int] | None = None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
@@ -340,12 +340,11 @@ async def eval_async(
     Returns:
         List of EvalLog (one for each task)
     """
-    # only a single call to eval_async can be active at a time, this is
-    # because when running a task a chdir to the task's directory (and
-    # similar mutation of the Python sys.path) occurs. since this is a
-    # change to global process state it cannot occur in parallel. for
-    # task parallelism, pass multiple tasks to eval or eval_async (which
-    # will enforce the appropriate constraints on task parallelism)
+    # only a single call to eval_async can be active at a time, this used
+    # to be due to running tasks switching to the task's directory, however
+    # that feature no longer exists so we may be able to revisit this
+    # restriction (probably just need to examine if there is *global* state
+    # that could have conflicts in the case of multiple eval_async calls)
     global _eval_async_running
     if _eval_async_running:
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")

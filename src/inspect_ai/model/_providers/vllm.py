@@ -127,6 +127,7 @@ class VLLMAPI(OpenAIAPI):
             if isinstance(self.server_args["device"], list):
                 self.server_args["device"] = ",".join(
                     map(str, self.server_args["device"])
+
                 )
             os.environ["CUDA_VISIBLE_DEVICES"] = str(self.server_args["device"])
             if "tensor_parallel_size" not in self.server_args:

@@ -79,7 +79,7 @@ def eval_set(
     log_level_transcript: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
-    sample_id: str | int | list[str | int] | None = None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,

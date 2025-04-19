@@ -93,9 +93,14 @@ def json_changes(
                 replaced = before
                 for path in paths:
                     decoded_path = decode_json_pointer_segment(path)
-                    index: Any = (
-                        int(decoded_path) if decoded_path.isnumeric() else decoded_path
-                    )
+                    if isinstance(replaced, list):
+                        if not decoded_path.isnumeric():
+                            raise ValueError(
+                                f"Invalid JSON Pointer segment for list: {decoded_path}"
+                            )
+                        index = int(decoded_path)
+                    else:
+                        index = decoded_path
                     replaced = replaced[index]
                 json_change.replaced = replaced
             changes.append(json_change)

@@ -56,10 +56,23 @@ async def concurrency(
         yield
 
 
-def concurrency_status() -> dict[str, tuple[int, int]]:
+def concurrency_status_display() -> dict[str, tuple[int, int]]:
     status: dict[str, tuple[int, int]] = {}
+    names = [c.name for c in _concurrency_semaphores.values()]
     for c in _concurrency_semaphores.values():
-        status[c.name] = (c.concurrency - c.semaphore.value, c.concurrency)
+        # compute name for status display. some resources (e.g. models) use
+        # a / prefix. if there are no duplicates of a given prefix then shorten
+        # it to be only the prefix (e.g. 'openai' rather than 'openai/gpt-4o')
+        prefix = c.name.split("/")[0]
+        prefix_count = sum([1 for name in names if name.startswith(prefix + "/")])
+        if prefix_count == 1:
+            name = prefix
+        else:
+            name = c.name
+
+        # status display entry
+        status[name] = (c.concurrency - c.semaphore.value, c.concurrency)
+
     return status
 
 

@@ -1,8 +1,9 @@
 import { create, StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { Capabilities, ClientAPI, ClientStorage } from "../api/types";
+import { Capabilities, ClientAPI, ClientStorage } from "../client/api/types";
 import { createLogger } from "../utils/logger";
+import { debounce } from "../utils/sync";
 import { AppSlice, createAppSlice, initializeAppSlice } from "./appSlice";
 import { createLogSlice, initalializeLogSlice, LogSlice } from "./logSlice";
 import { createLogsSlice, initializeLogsSlice, LogsSlice } from "./logsSlice";
@@ -24,6 +25,9 @@ export interface StoreState extends AppSlice, LogsSlice, LogSlice, SampleSlice {
   cleanup: () => void;
 }
 
+export let storeImplementation: UseBoundStore<StoreApi<StoreState>> | null =
+  null;
+
 // The data that will actually be persisted
 export type PersistedState = {
   app: AppSlice["app"];
@@ -31,9 +35,6 @@ export type PersistedState = {
   logs: LogsSlice["logs"];
   sample: SampleSlice["sample"];
 };
-
-// The store implementation (this will be set when the store is initialized)
-let storeImplementation: UseBoundStore<StoreApi<StoreState>> | null = null;
 
 // Create a proxy store that forwards calls to the real store once initialized
 export const useStore = ((selector?: any) => {
@@ -56,11 +57,11 @@ export const initializeStore = (
     getItem: <T>(name: string): T | null => {
       return storage ? (storage.getItem(name) as T) : null;
     },
-    setItem: <T>(name: string, value: T): void => {
+    setItem: debounce(<T>(name: string, value: T): void => {
       if (storage) {
         storage.setItem(name, value);
       }
-    },
+    }, 1000),
     removeItem: (name: string): void => {
       if (storage) {
         storage.removeItem(name);
@@ -139,11 +140,12 @@ export const initializeStore = (
           storage: storageImplementation,
           partialize: (state) => {
             const persisted: PersistedState = filterState({
-              app: state.app,
+              app: { ...state.app, rehydrated: true },
               log: state.log,
               logs: state.logs,
               sample: state.sample,
             });
+            log.debug("PARTIALIZED STATE", persisted);
             return persisted as unknown as StoreState;
           },
           version: 1,

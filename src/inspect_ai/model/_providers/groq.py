@@ -102,7 +102,7 @@ class GroqAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> tuple[ModelOutput, ModelCall]:
+    ) -> tuple[ModelOutput | Exception, ModelCall]:
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
 
@@ -136,45 +136,48 @@ class GroqAPI(ModelAPI):
             **params,
         )
 
-        completion: ChatCompletion = await self.client.chat.completions.create(
-            **request,
-        )
+        try:
+            completion: ChatCompletion = await self.client.chat.completions.create(
+                **request,
+            )
 
-        response = completion.model_dump()
+            response = completion.model_dump()
 
-        # extract metadata
-        metadata: dict[str, Any] = {
-            "id": completion.id,
-            "system_fingerprint": completion.system_fingerprint,
-            "created": completion.created,
-        }
-        if completion.usage:
-            metadata = metadata | {
-                "queue_time": completion.usage.queue_time,
-                "prompt_time": completion.usage.prompt_time,
-                "completion_time": completion.usage.completion_time,
-                "total_time": completion.usage.total_time,
+            # extract metadata
+            metadata: dict[str, Any] = {
+                "id": completion.id,
+                "system_fingerprint": completion.system_fingerprint,
+                "created": completion.created,
             }
+            if completion.usage:
+                metadata = metadata | {
+                    "queue_time": completion.usage.queue_time,
+                    "prompt_time": completion.usage.prompt_time,
+                    "completion_time": completion.usage.completion_time,
+                    "total_time": completion.usage.total_time,
+                }
 
-        # extract output
-        choices = self._chat_choices_from_response(completion, tools)
-        output = ModelOutput(
-            model=completion.model,
-            choices=choices,
-            usage=(
-                ModelUsage(
-                    input_tokens=completion.usage.prompt_tokens,
-                    output_tokens=completion.usage.completion_tokens,
-                    total_tokens=completion.usage.total_tokens,
-                )
-                if completion.usage
-                else None
-            ),
-            metadata=metadata,
-        )
+            # extract output
+            choices = self._chat_choices_from_response(completion, tools)
+            output = ModelOutput(
+                model=completion.model,
+                choices=choices,
+                usage=(
+                    ModelUsage(
+                        input_tokens=completion.usage.prompt_tokens,
+                        output_tokens=completion.usage.completion_tokens,
+                        total_tokens=completion.usage.total_tokens,
+                    )
+                    if completion.usage
+                    else None
+                ),
+                metadata=metadata,
+            )
 
-        # return
-        return output, model_call()
+            # return
+            return output, model_call()
+        except APIStatusError as ex:
+            return self.handle_bad_request(ex), model_call()
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}
@@ -233,6 +236,27 @@ class GroqAPI(ModelAPI):
     @override
     def max_tokens(self) -> Optional[int]:
         return DEFAULT_MAX_TOKENS
+
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
+        if ex.status_code == 400:
+            # extract code and message
+            content = ex.message
+            code = ""
+            if isinstance(ex.body, dict) and isinstance(
+                ex.body.get("error", None), dict
+            ):
+                error = ex.body.get("error", {})
+                content = str(error.get("message", content))
+                code = error.get("code", code)
+
+            if code == "context_length_exceeded":
+                return ModelOutput.from_content(
+                    model=self.model_name,
+                    content=content,
+                    stop_reason="model_length",
+                )
+
+        return ex
 
 
 async def as_groq_chat_messages(

@@ -45,6 +45,18 @@ def skip_if_no_package(package):
     )
 
 
+def skip_if_no_mcp_package(func):
+    return skip_if_no_package("mcp")(func)
+
+
+def skip_if_no_mcp_fetch_package(func):
+    return skip_if_no_package("mcp_server_fetch")(func)
+
+
+def skip_if_no_mcp_git_package(func):
+    return skip_if_no_package("mcp_server_git")(func)
+
+
 def skip_if_no_vllm(func):
     return skip_if_no_package("vllm")(func)
 
@@ -67,8 +79,23 @@ def skip_if_no_openai(func):
     )
 
 
+def skip_if_no_openai_azure(func):
+    return pytest.mark.skipif(
+        importlib.util.find_spec("openai") is None
+        or os.environ.get("AZUREAI_OPENAI_API_KEY") is None
+        or os.environ.get("AZUREAI_OPENAI_BASE_URL") is None,
+        reason="Test requires both OpenAI package and AZUREAI_OPENAI_API_KEY and AZUREAI_OPENAI_BASE_URL environment variables",
+    )(func)
+
+
 def skip_if_no_openai_package(func):
     return skip_if_no_package("openai")(func)
+
+
+def skip_if_no_openai_reasoning_summaries(func):
+    return pytest.mark.api(
+        skip_if_env_var("ENABLE_OPENAI_REASONING_SUMMARIES", exists=False)(func)
+    )
 
 
 def skip_if_no_anthropic(func):
@@ -92,7 +119,7 @@ def skip_if_no_grok(func):
 
 
 def skip_if_no_cloudflare(func):
-    return pytest.mark.api(skip_if_env_var("CLOUDFLARE_API_TOKEN", exists=False)(func))
+    return pytest.mark.api(skip_if_env_var("CLOUDFLARE_API_KEY", exists=False)(func))
 
 
 def skip_if_no_together(func):
@@ -111,6 +138,10 @@ def skip_if_no_llama_cpp_python(func):
     return pytest.mark.api(
         skip_if_env_var("ENABLE_LLAMA_CPP_PYTHON_TESTS", exists=False)(func)
     )
+
+
+def skip_if_no_bedrock(func):
+    return pytest.mark.api(skip_if_env_var("ENABLE_BEDROCK_TESTS", exists=False)(func))
 
 
 def skip_if_no_vertex(func):

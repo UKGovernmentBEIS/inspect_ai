@@ -11,6 +11,15 @@
       "module": "inspect_ai",
       "args": "${input:argsPrompt}",
       "cwd": "${workspaceFolder}/src"
+    },
+    {
+      "name": "Python Debugger: Pytest",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-k", "test_mcp_server_sandbox"],
+      // "args": ["-k", "test_mcp_server_sandbox", "--runapi"],
+      "cwd": "${workspaceFolder}"
     }
   ],
   "inputs": [

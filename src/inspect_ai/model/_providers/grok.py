@@ -1,3 +1,7 @@
+from openai import APIStatusError
+
+from inspect_ai.model._model_output import ModelOutput
+
 from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
 
@@ -18,3 +22,20 @@ class GrokAPI(OpenAICompatibleAPI):
             service="Grok",
             service_base_url="https://api.x.ai/v1",
         )
+
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
+        if ex.status_code == 400:
+            # extract message
+            if isinstance(ex.body, dict) and "message" in ex.body.keys():
+                content = str(ex.body.get("message"))
+            else:
+                content = ex.message
+
+            if "prompt length" in content:
+                return ModelOutput.from_content(
+                    model=self.model_name, content=content, stop_reason="model_length"
+                )
+            else:
+                return ex
+        else:
+            return ex

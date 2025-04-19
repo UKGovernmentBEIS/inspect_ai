@@ -1,8 +1,10 @@
+import os
 from logging import getLogger
 from typing import Any
 
 from typing_extensions import override
 
+from inspect_ai._util.constants import MODEL_NONE
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.registry import registry_unqualified_name
 
@@ -71,9 +73,18 @@ class FileRecorder(Recorder):
             return s.replace("_", "-").replace("/", "-").replace(":", "-")
 
         # remove package from task name
-        task = registry_unqualified_name(eval.task)
+        task = registry_unqualified_name(eval.task)  # noqa: F841
 
-        return f"{clean(eval.created)}_{clean(task)}_{clean(eval.task_id)}"
+        # derive log file pattern
+        log_file_pattern = os.getenv("INSPECT_EVAL_LOG_FILE_PATTERN", "{task}_{id}")
+
+        # compute and return log file name
+        log_file_name = f"{clean(eval.created)}_" + log_file_pattern
+        log_file_name = log_file_name.replace("{task}", clean(task))
+        log_file_name = log_file_name.replace("{id}", clean(eval.task_id))
+        model = clean(eval.model) if eval.model != MODEL_NONE else ""
+        log_file_name = log_file_name.replace("{model}", model)
+        return log_file_name
 
     def _log_file_path(self, eval: EvalSpec) -> str:
         return f"{self.log_dir}{self.fs.sep}{self._log_file_key(eval)}{self.suffix}"

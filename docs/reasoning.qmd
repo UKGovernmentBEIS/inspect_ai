@@ -22,11 +22,14 @@ In addition, some models (currently OpenAI and Anthropic) make available `reason
 
 The following reasoning options are available from the CLI and within `GenerateConfig`:
 
-| Option              | Description                                                                           | Default  | Models       |
-|------------------|--------------------|------------------|------------------|
-| `reasoning_effort`  | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`)      | `medium` | OpenAI o1/o3 |
-| `reasoning_tokens`  | Maximum number of tokens to use for reasoning.                                        | (none)   | Claude 3.7   |
-| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto`   | All models   |
+| Option              | Description                                                                                                                                            | Default  | Models          |
+|------------------|-------------------|------------------|------------------|
+| `reasoning_effort`  | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`)                                                                       | `medium` | OpenAI o-series |
+| `reasoning_tokens`  | Maximum number of tokens to use for reasoning.                                                                                                         | (none)   | Claude 3.7+ and Gemini 2.5+   |
+| `reasoning_summary` | Provide summary of reasoning steps (`concise`, `detailed`, `auto`). Use "auto" to access the most detailed summarizer available for the current model. | (none)   | OpenAI o-series |
+| `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`)                                                                  | `auto`   | All models      |
+
+: {tbl-colwidths=\[25,40,15,20\]}
 
 As you can see from above, models have different means of specifying the tokens to allocate for reasoning (`reasoning_effort` and `reasoning_tokens`). The two options don't map precisely into each other, so if you are doing an evaluation with multiple reasoning models you should specify both. For example:
 
@@ -34,20 +37,54 @@ As you can see from above, models have different means of specifying the tokens 
  eval(
     task,
     model=["openai/o3-mini","anthropic/anthropic/claude-3-7-sonnet-20250219"],
-    reasoning_effort="medium",
-    reasoning_tokens=4096
+    reasoning_effort="medium",  # openai specific
+    reasoning_summary="auto",   # openai specific
+    reasoning_tokens=4096       # anthropic specific
  )
 ```
 
 The `reasoning_history` option lets you control how much of the model's previous reasoning is presented in the message history sent to `generate()`. The default is `auto`, which uses a provider-specific recommended default (normally `all`). Use `last` to not let the reasoning overwhelm the context window.
 
-## OpenAI o1/o3
+## OpenAI o-series
 
-OpenAI has several reasoning models available including the o1 and o3 series (`openai/o1`, `openai/o1-mini`, and `openai/o3-mini`). Learn more about the specific models available in the [OpenAI Models](https://platform.openai.com/docs/models) documentation.
+OpenAI has several reasoning models available including the o1, o3, and o4 famillies of models. Learn more about the specific models available in the [OpenAI Models](https://platform.openai.com/docs/models) documentation.
 
-You can condition the amount of reasoning done via the [`reasoning_effort`](https://platform.openai.com/docs/guides/reasoning#reasoning-effort) option, which can be set to `low`, `medium`, or `high` (the default is `medium` if not specified).
+#### Reasoning Effort
 
-OpenAI models currently do not have provision for displaying reasoning content or replaying it to the model.
+You can condition the amount of reasoning done via the [`reasoning_effort`](https://platform.openai.com/docs/guides/reasoning#reasoning-effort) option, which can be set to `low`, `medium`, or `high` (the default is `medium` if not specified). For example:
+
+``` bash
+inspect eval math.py --model openai/o3 --reasoning-effort high
+```
+
+#### Reasoning History
+
+::: callout-note
+The `reasoning_summary` and `responses_store` options described below are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+You can see a summary of the model's reasoning by specifying the [`reasoning_summary`](https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries) option. Availablle options are `concise`, `detailed`, and `auto` (`auto` is recommended to access the most detailed summarizer available for the current model). For example:
+
+``` bash
+inspect eval math.py --model openai/o3 --reasoning-summary auto
+```
+
+::: {.callout-warning appearance="minimal"}
+
+Before using summarizers with the latest OpenAI reasoning models, you may need to complete [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification).
+:::
+
+When using o-series models, Inspect automatically enables the [store](https://platform.openai.com/docs/api-reference/responses/create#responses-create-store) option so that reasoning blocks can be retrieved by the model from the conversation history. To control this behavior explicitly use the `responses_store` model argument. For example:
+
+```bash
+inspect eval math.py --model openai/o4-mini -M responses_store=false
+```
+
+For example, you might need to do this if you have a non-logging interface to OpenAI models (as `store` is incompatible with non-logging interfaces).
 
 ## Claude 3.7 Sonnet
 
@@ -63,11 +100,10 @@ inspect eval math.py \
 
 The `max_tokens` for any given request is determined as follows:
 
-1. If you only specify `reasoning_tokens`, then the `max_tokens` will be set to `4096 + reasoning_tokens` (as 4096 is the standard Inspect default for Anthropic max tokens).
-2. If you explicitly specify a `max_tokens`, that value will be used as the max tokens without modification (so should accomodate sufficient space for both your `reasoning_tokens` and normal output).
+1.  If you only specify `reasoning_tokens`, then the `max_tokens` will be set to `4096 + reasoning_tokens` (as 4096 is the standard Inspect default for Anthropic max tokens).
+2.  If you explicitly specify a `max_tokens`, that value will be used as the max tokens without modification (so should accomodate sufficient space for both your `reasoning_tokens` and normal output).
 
 Inspect will automatically use [response streaming](https://docs.anthropic.com/en/api/messages-streaming) whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests.
-
 
 #### History
 
@@ -77,13 +113,23 @@ Note that Anthropic requests that all reasoning blocks and played back to the mo
 
 When using tools, you should read Anthropic's documentation on [extended thinking with tool use](https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#extended-thinking-with-tool-use). In short, thinking occurs on the first assistant turn and then the normal tool loop is run without additional thinking. Thinking is re-triggered when the tool loop is exited (i.e. a user message without a tool result is received).
 
-## Google Flash Thinking
+## Google Gemini
 
-Google currently makes available a single experimental reasoning model ([Gemini Flash Thinking](https://deepmind.google/technologies/gemini/flash-thinking/)) which you can access using the model name `google/gemini-2.0-flash-thinking-exp`.
+Google currently makes available several Gemini reasoning models, the most recent of which are:
 
-There aren't currently options for reasoning effort or reasoning tokens. By default Gemini currently includes all reasoning in the model history and recommends that it all be included in subsequent requests in a conversation.
+- [Gemini 2.5 Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash): `google/gemini-2.5-flash-preview-04-17`
 
-Inspect captures reasoning blocks from Gemini using the "Final Answer: " delimiter currently used by Gemini 2.0 Flash Thinking (the API has a separate field for \`thinking\` but it is not currently used in responses).
+- [Gemini 2.5 Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro):  `google/gemini-2.5-pro-preview-03-25`
+
+You can use the `--reasoning-tokens` option to control the amount of reasoning used by these models. For example:
+
+```bash
+inspect eval math.py \
+  --model google/gemini-2.5-flash-preview-04-17 \
+  --reasoning-tokens 4096
+```
+
+The Gemini API includes support for including reasoning in model output, however this feature is not yet enabled for any of their deployed reasoning models.
 
 ## DeepSeek-R1
 
@@ -92,7 +138,7 @@ Inspect captures reasoning blocks from Gemini using the "Final Answer: " delimit
 DeepSeek models can be accessed directly using their [OpenAI interface](https://api-docs.deepseek.com/). Further, a number of model hosting providers supported by Inspect make DeepSeek available, for example:
 
 | Provider                                 | Model                                                                                   |
-|-------------------------|-----------------------------------------------|
+|-------------------------|----------------------------------------------|
 | [Together AI](providers.qmd#together-ai) | `together/deepseek-ai/DeepSeek-R1` ([docs](https://www.together.ai/models/deepseek-r1)) |
 | [Groq](providers.qmd#groq)               | `groq/deepseek-r1-distill-llama-70b` ([docs](https://console.groq.com/docs/reasoning))  |
 | [Ollama](providers.qmd#ollama)           | `ollama/deepseek-r1:<tag>` ([docs](https://ollama.com/library/deepseek-r1))             |

@@ -2,6 +2,7 @@ import base64
 import errno
 import json
 import os
+import shlex
 import tempfile
 from logging import getLogger
 from pathlib import Path, PurePosixPath
@@ -407,7 +408,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                     return f.read()
 
     @override
-    async def connection(self) -> SandboxConnection:
+    async def connection(self, *, user: str | None = None) -> SandboxConnection:
         # find container for service
         services = await compose_ps(project=self._project)
         container = next(
@@ -419,15 +420,33 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             None,
         )
 
+        # vscode doesn't support attaching to a container as a specific user,
+        # so don't include the vscode command if a user is specified
+        vscode_command = (
+            [
+                "remote-containers.attachToRunningContainer",
+                container,
+            ]
+            if user is None
+            else None
+        )
+
         # return container connection
         if container:
             return SandboxConnection(
                 type="docker",
-                command=f"docker exec -it {container} bash -l",
-                vscode_command=[
-                    "remote-containers.attachToRunningContainer",
-                    container,
-                ],
+                command=shlex.join(
+                    [
+                        "docker",
+                        "exec",
+                        "-it",
+                        *(["--user", user] if user else []),
+                        container,
+                        "bash",
+                        "-l",
+                    ]
+                ),
+                vscode_command=vscode_command,
                 ports=await get_ports_info(container),
                 container=container,
             )

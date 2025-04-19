@@ -28,7 +28,9 @@ export function activateOpenLog(
         };
 
         if (hasMinimumInspectVersion(kInspectEvalLogFormatVersion)) {
-          if (uri.path.endsWith(".eval")) {
+          // Clean query params or fragment
+          const cleanUri = uri.with({ query: "", fragment: "" });
+          if (cleanUri.path.endsWith(".eval")) {
             await openLogViewer();
           } else {
             await withEditorAssociation(

@@ -49,9 +49,8 @@ from .loader import (
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
 from .task.run import TaskRunOptions, task_run
-from .task.rundir import task_run_dir_switching
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
-from .task.util import slice_dataset, task_chdir, task_run_dir
+from .task.util import slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
 
@@ -71,13 +70,10 @@ async def eval_run(
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
-    # see if we need to use run_dir switching
-    run_dir = task_run_dir(tasks[0].task)
-    multiple_run_dirs = any([task_run_dir(task.task) != run_dir for task in tasks])
-    tasks_chdir = any([task_chdir(task.task) is not None for task in tasks])
+    # are sandboxes in play?
     has_sandbox = next((task.has_sandbox for task in tasks), None)
 
-    # get cwd before switching to task dir
+    # get cwd before any switching
     eval_wd = os.getcwd()
 
     # ensure sample ids
@@ -235,25 +231,10 @@ async def eval_run(
         # multiple mode is for running/displaying multiple
         # task definitions, which requires some smart scheduling
         # to ensure that we spread work among models
-        if tasks_chdir:
-            if parallel > 1:
-                if multiple_run_dirs:
-                    with task_run_dir_switching():
-                        return await run_multiple(task_run_options, parallel)
-                else:
-                    with chdir(run_dir):
-                        return await run_multiple(task_run_options, parallel)
-
-            # single mode is for a single task definitions (which
-            # could in turn be executed for multiple models)
-            else:
-                with chdir(run_dir):
-                    return await run_single(task_run_options, debug_errors)
+        if parallel > 1:
+            return await run_multiple(task_run_options, parallel)
         else:
-            if parallel > 1:
-                return await run_multiple(task_run_options, parallel)
-            else:
-                return await run_single(task_run_options, debug_errors)
+            return await run_single(task_run_options, debug_errors)
 
     finally:
         # shutdown sandbox environments

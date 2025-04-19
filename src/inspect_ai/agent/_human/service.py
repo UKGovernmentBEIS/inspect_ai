@@ -10,7 +10,10 @@ from .view import HumanAgentView
 
 
 async def run_human_agent_service(
-    state: AgentState, commands: list[HumanAgentCommand], view: HumanAgentView | None
+    user: str | None,
+    state: AgentState,
+    commands: list[HumanAgentCommand],
+    view: HumanAgentView | None,
 ) -> AgentState:
     # initialise agent state
     instructions = "\n\n".join([message.text for message in state.messages]).strip()
@@ -39,6 +42,7 @@ async def run_human_agent_service(
         methods=methods,
         until=task_is_completed,
         sandbox=sandbox(),
+        user=user,
     )
 
     # set the answer if we have one
