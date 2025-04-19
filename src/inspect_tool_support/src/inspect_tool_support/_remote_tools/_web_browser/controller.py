@@ -16,7 +16,7 @@ from inspect_tool_support._remote_tools._web_browser.scale_factor import (
     get_screen_scale_factor,
 )
 from inspect_tool_support._remote_tools._web_browser.tool_types import CrawlerResult
-from inspect_tool_support._util._session_controller import SessionController
+from inspect_tool_support._util.session_controller import SessionController
 
 
 class WebBrowserSessionController(SessionController[PlaywrightCrawler]):

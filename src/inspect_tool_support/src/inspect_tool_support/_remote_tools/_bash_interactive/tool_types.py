@@ -3,19 +3,25 @@ from typing import Literal
 from pydantic import BaseModel, RootModel
 
 
-class BashBaseParams(BaseModel):
+class BaseParams(BaseModel):
     session_name: str
 
 
-class InputParams(BashBaseParams):
-    command: str | None = None
+class InteractParams(BaseParams):
+    input_text: str | None = None
+    idle_timeout: int
+    """
+    The number of seconds to wait without any new output arriving from the bash
+    session. After this timeout, the currently collected data (if any) will be
+    returned to the caller. Data may be returned before this timeout.
+    """
 
 
-class RestartParams(BashBaseParams):
+class RestartParams(BaseParams):
     restart: Literal[True]
 
 
-class BashParams(RootModel[InputParams | RestartParams]):
+class BashInteractiveParams(RootModel[InteractParams | RestartParams]):
     pass
 
 
@@ -27,6 +33,6 @@ class BashRestartResult(BaseModel):
     pass
 
 
-class BashInputResult(BaseModel):
+class InteractResult(BaseModel):
     stdout: str
     stderr: str

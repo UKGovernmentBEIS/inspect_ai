@@ -10,10 +10,10 @@ from pydantic import BaseModel
 
 from inspect_tool_support._cli._post_install import post_install
 from inspect_tool_support._cli.server import main as server_main
-from inspect_tool_support._util._common_types import JSONRPCResponseJSON
-from inspect_tool_support._util._constants import SERVER_PORT
-from inspect_tool_support._util._json_rpc_helpers import json_rpc_http_call
-from inspect_tool_support._util._load_tools import load_tools
+from inspect_tool_support._util.common_types import JSONRPCResponseJSON
+from inspect_tool_support._util.constants import SERVER_PORT
+from inspect_tool_support._util.json_rpc_helpers import json_rpc_http_call
+from inspect_tool_support._util.load_tools import load_tools
 
 _SERVER_URL = f"http://localhost:{SERVER_PORT}/"
 

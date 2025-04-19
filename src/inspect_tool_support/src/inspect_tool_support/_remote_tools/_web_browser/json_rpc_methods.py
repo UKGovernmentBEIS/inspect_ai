@@ -11,7 +11,7 @@ from inspect_tool_support._remote_tools._web_browser.tool_types import (
     ScrollParams,
     TypeOrSubmitParams,
 )
-from inspect_tool_support._util._json_rpc_helpers import validated_json_rpc_method
+from inspect_tool_support._util.json_rpc_helpers import validated_json_rpc_method
 
 controller = WebBrowserSessionController()
 

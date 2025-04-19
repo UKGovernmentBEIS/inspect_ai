@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from asyncio.subprocess import Process
 
-from ..._util._safe_stream_reader import SafeStreamReader
+from ..._util.safe_stream_reader import SafeStreamReader
 from .tool_types import BashCommandResult
 
 

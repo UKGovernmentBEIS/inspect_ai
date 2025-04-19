@@ -3,7 +3,7 @@ from inspect_tool_support._remote_tools._bash_session.tool_types import (
     BashCommandResult,
     BashRestartResult,
 )
-from inspect_tool_support._util._session_controller import SessionController
+from inspect_tool_support._util.session_controller import SessionController
 
 DEFAULT_SESSION_NAME = "BashSession"
 

@@ -6,12 +6,9 @@ This is because the API supports a `restart` command which is implemented by kil
 import asyncio
 
 from inspect_tool_support._remote_tools._bash_interactive._process import BashProcess
-from inspect_tool_support._remote_tools._bash_interactive._timeout_params import (
-    InteractiveParams,
-)
 from inspect_tool_support._remote_tools._bash_interactive.tool_types import (
-    BashInputResult,
     BashRestartResult,
+    InteractResult,
 )
 
 
@@ -23,11 +20,10 @@ class Session:
     def __init__(self, process: BashProcess) -> None:
         self._process = process
 
-    async def execute_input(self, command: str, timeout: int = 30) -> BashInputResult:
-        # TODO: For now, just force us into interactive mode
-        return await self._process.execute_input(
-            command, timeout=InteractiveParams(first_data_timeout=timeout, debounce=5)
-        )
+    async def interact(
+        self, input_text: str | None, idle_timeout: int
+    ) -> InteractResult:
+        return await self._process.interact(input_text, idle_timeout)
 
     async def restart(self, timeout: int = 30) -> BashRestartResult:
         _, new_process = await asyncio.gather(

@@ -1,8 +1,8 @@
 from aiohttp.web import Application, Request, Response, run_app
 from jsonrpcserver import async_dispatch
 
-from inspect_tool_support._util._constants import SERVER_PORT
-from inspect_tool_support._util._load_tools import load_tools
+from inspect_tool_support._util.constants import SERVER_PORT
+from inspect_tool_support._util.load_tools import load_tools
 
 
 def main() -> None:
