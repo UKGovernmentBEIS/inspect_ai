@@ -12,6 +12,7 @@ from inspect_ai.model._chat_message import ChatMessage, ChatMessageSystem
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.tool import Tool, tool
+from inspect_ai.tool._tool_def import ToolDef
 
 
 @tool
@@ -69,6 +70,9 @@ AGENT_SUBMIT_TOOL_DESCRIPTION = "Submit an answer."
 def run_react_agent(
     *,
     prompt: str | AgentPrompt | None = AgentPrompt(),
+    submit: AgentSubmit = AgentSubmit(
+        name=AGENT_SUBMIT_TOOL_NAME, description=AGENT_SUBMIT_TOOL_DESCRIPTION
+    ),
     tools: list[Tool],
     message_limit: int | None = 30,
 ) -> EvalLog:
@@ -77,9 +81,7 @@ def run_react_agent(
         solver=react(
             prompt=prompt,
             tools=tools,
-            submit=AgentSubmit(
-                name=AGENT_SUBMIT_TOOL_NAME, description=AGENT_SUBMIT_TOOL_DESCRIPTION
-            ),
+            submit=submit,
         ),
         scorer=includes(),
         message_limit=message_limit,
@@ -90,7 +92,9 @@ def run_react_agent(
         custom_outputs=[
             ModelOutput.for_tool_call(
                 model="mockllm/model",
-                tool_name=AGENT_SUBMIT_TOOL_NAME,
+                tool_name=submit.name or ToolDef(submit.tool).name
+                if submit.tool
+                else AGENT_SUBMIT_TOOL_NAME,
                 tool_arguments={"answer": "2"},
             )
         ],
@@ -184,14 +188,50 @@ def test_react_agent_custom_submit() -> None:
     log = run_react_agent(
         prompt=AgentPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE), tools=[addition()]
     )
+    check_custom_submit(log, AGENT_SUBMIT_TOOL_NAME, AGENT_SUBMIT_TOOL_DESCRIPTION)
+
+
+def test_react_agent_custom_submit_tool() -> None:
+    @tool
+    def custom_submit():
+        async def execute(answer: str) -> str:
+            """The tool used to submit.
+
+            Args:
+                answer: The submitted answer.
+            """
+            return answer
+
+        return execute
+
+    # custom tool only
+    log = run_react_agent(
+        prompt=AgentPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE),
+        submit=AgentSubmit(tool=custom_submit()),
+        tools=[addition()],
+    )
+    check_custom_submit(log, "custom_submit", "The tool used to submit.")
+
+    # custom tool with overridden name and description
+    log = run_react_agent(
+        prompt=AgentPrompt(assistant_prompt=AGENT_SYSTEM_MESSAGE),
+        submit=AgentSubmit(
+            tool=custom_submit(), name="submit_it", description="tool to submit it"
+        ),
+        tools=[addition()],
+    )
+    check_custom_submit(log, "submit_it", "tool to submit it")
+
+
+def check_custom_submit(log: EvalLog, name: str, description: str) -> None:
     assert log.status == "success"
     assert log.samples
     model_event = next(
         (event for event in log.samples[0].events if event.event == "model")
     )
     assert model_event
-    assert model_event.tools[1].name == AGENT_SUBMIT_TOOL_NAME
-    assert model_event.tools[1].description == AGENT_SUBMIT_TOOL_DESCRIPTION
+    assert model_event.tools[1].name == name
+    assert model_event.tools[1].description == description
 
 
 def test_react_agent_retries() -> None:
