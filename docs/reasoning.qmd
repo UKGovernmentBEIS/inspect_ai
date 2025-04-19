@@ -4,7 +4,7 @@ title: Reasoning
 
 ## Overview
 
-Reasoning models like OpenAI o1 and o3, Anthropic's Claude Sonnet 3.7, Google's Gemini 2.0 Flash Thinking, and DeepSeek's r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok 3, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
 
 In this article we'll first cover the basics of [Reasoning Content](#reasoning-content) and [Reasoning Options](#reasoning-options), then cover the usage and options supported by various reasoning models.
 
@@ -16,7 +16,7 @@ Reasoning blocks are presented in their own region in both Inspect View and in t
 
 While reasoning content isn't made available in a standard fashion across models, Inspect does attempt to capture it using several heuristics, including responses that include a `reasoning` or `reasoning_content` field in the assistant message, assistant content that includes `<think></think>` tags, as well as using explicit APIs for models that support them (e.g. Claude 3.7).
 
-In addition, some models (currently OpenAI and Anthropic) make available `reasoning_tokens` which will be added to the standard `ModelUsage` object returned along with output.
+In addition, some models make available `reasoning_tokens` which will be added to the standard `ModelUsage` object returned along with output.
 
 ## Reasoning Options {#reasoning-options}
 
@@ -24,7 +24,7 @@ The following reasoning options are available from the CLI and within `GenerateC
 
 | Option              | Description                                                                                                                                            | Default  | Models          |
 |------------------|-------------------|------------------|------------------|
-| `reasoning_effort`  | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`)                                                                       | `medium` | OpenAI o-series |
+| `reasoning_effort`  | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`)                                                                       | `medium` | OpenAI o-series, Grok 3 |
 | `reasoning_tokens`  | Maximum number of tokens to use for reasoning.                                                                                                         | (none)   | Claude 3.7+ and Gemini 2.5+   |
 | `reasoning_summary` | Provide summary of reasoning steps (`concise`, `detailed`, `auto`). Use "auto" to access the most detailed summarizer available for the current model. | (none)   | OpenAI o-series |
 | `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`)                                                                  | `auto`   | All models      |
@@ -37,9 +37,9 @@ As you can see from above, models have different means of specifying the tokens 
  eval(
     task,
     model=["openai/o3-mini","anthropic/anthropic/claude-3-7-sonnet-20250219"],
-    reasoning_effort="medium",  # openai specific
+    reasoning_effort="medium",  # openai and grok specific
+    reasoning_tokens=4096       # anthropic and gemini specific
     reasoning_summary="auto",   # openai specific
-    reasoning_tokens=4096       # anthropic specific
  )
 ```
 
@@ -130,6 +130,22 @@ inspect eval math.py \
 ```
 
 The Gemini API includes support for including reasoning in model output, however this feature is not yet enabled for any of their deployed reasoning models.
+
+## Grok
+
+Grok currenntly makes available two reasoning models:
+
+- `grok/grok-3-mini-beta`
+
+- `grok/grok-3-fast-beta`
+
+You can condition the amount of reasoning done by Grok using the [`reasoning_effort`]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `low` or `high`.
+
+``` bash
+inspect eval math.py --model openai/o3 --reasoning-effort high
+```
+
+
 
 ## DeepSeek-R1
 
