@@ -806,6 +806,12 @@ async def task_run_sample(
         except Exception as ex:
             error, raise_error = handle_error(ex)
 
+        # for the retry case we need to:
+        #   - consider how to break out of the parent semaphore
+        #   - remove the sample from the buffer db
+        #   - call ourselves recursively (don't log)
+        #   - don't tick progress
+
         # complete the sample
         progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
