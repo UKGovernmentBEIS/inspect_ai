@@ -28,7 +28,12 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._conversation import ModelConversation
-from ._generate_config import GenerateConfig, GenerateConfigArgs, ResponseSchema
+from ._generate_config import (
+    GenerateConfig,
+    GenerateConfigArgs,
+    GuidedDecodingConfig,
+    ResponseSchema,
+)
 from ._model import (
     Model,
     ModelAPI,
@@ -52,6 +57,7 @@ from ._trim import trim_messages
 __all__ = [
     "GenerateConfig",
     "GenerateConfigArgs",
+    "GuidedDecodingConfig",
     "ResponseSchema",
     "CachePolicy",
     "ContentAudio",
