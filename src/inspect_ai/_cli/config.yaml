@@ -1,0 +1,56 @@
+api:
+  base_url: https://api.inspect.ai
+  retry_attempts: 3
+  timeout: 30
+  verify_ssl: true
+cache:
+  directory: ~/.inspect_ai/cache
+  enabled: true
+  max_size: 1000
+  ttl: 86400
+debug:
+  enabled: false
+  port: 5678
+  raise_errors: false
+display:
+  color_scheme: default
+  max_width: 120
+  no_ansi: false
+  show_timestamps: true
+  type: full
+evaluation:
+  batch_size: 32
+  default_metrics:
+  - accuracy
+  - precision
+  - recall
+  fail_on_error: true
+  log_buffer: 10
+  log_images: false
+  log_samples: true
+  log_shared: false
+  max_samples: 10
+  max_sandboxes: null
+  max_subprocesses: null
+  max_tasks: 1
+  parallel: true
+  score: true
+  score_display: true
+logging:
+  file: ~/.inspect_ai/logs/inspect.log
+  format: '%(asctime)s - %(levelname)s - %(message)s'
+  level: info
+  transcript_level: info
+model:
+  default: gpt-4
+  max_connections: 10
+  max_tokens: 2000
+  temperature: 0.8
+  timeout: 30
+tools:
+  internal_tools: false
+  max_concurrent: 5
+  max_tool_output: null
+  parallel_tool_calls: true
+  retry_attempts: 3
+  timeout: 60
