@@ -187,11 +187,14 @@ class SandboxEnvironment(abc.ABC):
         """
         ...
 
-    async def connection(self) -> SandboxConnection:
+    async def connection(self, *, user: str | None = None) -> SandboxConnection:
         """Information required to connect to sandbox environment.
 
+        Args:
+          user: User to login as.
+
         Returns:
-           SandboxConnection: connection information
+           SandboxConnection: connection information.
 
         Raises:
            NotImplementedError: For sandboxes that don't provide connections

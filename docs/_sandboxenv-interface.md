@@ -53,7 +53,7 @@ class SandboxEnvironment:
         """
         ...
 
-    async def connection(self) -> SandboxConnection:
+    async def connection(self, *, user: str | None = None) -> SandboxConnection:
         """
         Raises:
            NotImplementedError: For sandboxes that don't provide connections

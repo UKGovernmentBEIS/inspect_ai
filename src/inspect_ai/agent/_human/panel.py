@@ -35,6 +35,7 @@ class HumanAgentPanel(InputPanel):
     VSCODE_LINKS_ID = "vscode-links"
     LOGIN_VSCODE_TERMINAL_ID = "login-vscode-terminal"
     LOGIN_VSCODE_WINDOW_ID = "login-vscode-window"
+    LOGIN_VSCODE_WINDOW_LABEL_ID = "login-vscode-window-label"
     COMMAND_INSTRUCTIONS_ID = "command-instructions"
     SANDBOX_COMMAND_ID = "sandbox-command"
 
@@ -88,7 +89,11 @@ class HumanAgentPanel(InputPanel):
                     markup=False,
                 )
                 with Horizontal(id=self.VSCODE_LINKS_ID):
-                    yield Label("Login:", classes=self.LINK_LABEL_CLASS)
+                    yield Label(
+                        "Login:",
+                        classes=self.LINK_LABEL_CLASS,
+                        id=self.LOGIN_VSCODE_WINDOW_LABEL_ID,
+                    )
                     yield VSCodeLink(
                         "VS Code Window",
                         id=self.LOGIN_VSCODE_WINDOW_ID,
@@ -146,6 +151,14 @@ class HumanAgentPanel(InputPanel):
             window_btn = cast(
                 VSCodeLink, self.query_one(f"#{self.LOGIN_VSCODE_WINDOW_ID}")
             )
+            window_lbl = cast(
+                Label, self.query_one(f"#{self.LOGIN_VSCODE_WINDOW_LABEL_ID}")
+            )
+            window_btn_and_lbl_display = (
+                vscode and connection.vscode_command is not None
+            )
+            window_btn.display = window_btn_and_lbl_display
+            window_lbl.display = window_btn_and_lbl_display
             if connection.vscode_command is not None:
                 window_btn.commands = [
                     VSCodeCommand(
