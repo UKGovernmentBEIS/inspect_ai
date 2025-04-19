@@ -9,6 +9,7 @@
 - Google: Support for `reasoning_tokens` option for Gemini 2.5 models.
 - Human Agent: Added `user` parameter for running the human agent cli as a given user.
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
+- Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
