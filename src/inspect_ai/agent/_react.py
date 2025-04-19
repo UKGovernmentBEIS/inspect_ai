@@ -17,7 +17,6 @@ from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
-from inspect_ai.tool._tool_with import tool_with
 
 from ._agent import Agent, AgentState, agent, agent_with
 from ._filter import MessageFilter
@@ -90,26 +89,9 @@ def react(
     Returns:
         ReAct agent.
     """
-    # resolve prompt / system message
-    prompt = AgentPrompt(prompt) if isinstance(prompt, str) else prompt
-    if prompt:
-        prompt_lines: list[str] = []
-        if prompt.instructions:
-            prompt_lines.append(prompt.instructions)
-        if prompt.handoff_prompt and has_handoff(tools):
-            prompt_lines.append(prompt.handoff_prompt)
-        if prompt.assistant_prompt:
-            prompt_lines.append(prompt.assistant_prompt)
-        prompt_content = "\n\n".join(prompt_lines).format(submit=submit.name)
-        system_message: ChatMessage | None = ChatMessageSystem(content=prompt_content)
-    else:
-        system_message = None
 
-    # resolve attempts
-    attempts = AgentAttempts(attempts) if isinstance(attempts, int) else attempts
-
-    # submission tool
-    @tool
+    # default submit tool
+    @tool(name="submit")
     def default_submit_tool() -> Tool:
         async def execute(answer: str) -> ToolResult:
             """Submit an answer for evaluation.
@@ -121,24 +103,45 @@ def react(
 
         return execute
 
-    # helper to extract a submitted answer
+    # resolve tools
+    tools = list(tools) if tools is not None else []
+
+    # resolve submit tool
+    submit_tool = ToolDef(
+        submit.tool or default_submit_tool(),
+        name=submit.name,
+        description=submit.description,
+    )
+    tools.append(submit_tool)
+
+    # resolve prompt / system message
+    prompt = AgentPrompt(prompt) if isinstance(prompt, str) else prompt
+    if prompt:
+        prompt_lines: list[str] = []
+        if prompt.instructions:
+            prompt_lines.append(prompt.instructions)
+        if prompt.handoff_prompt and has_handoff(tools):
+            prompt_lines.append(prompt.handoff_prompt)
+        if prompt.assistant_prompt:
+            prompt_lines.append(prompt.assistant_prompt)
+        prompt_content = "\n\n".join(prompt_lines).format(submit=submit_tool.name)
+        system_message: ChatMessage | None = ChatMessageSystem(content=prompt_content)
+    else:
+        system_message = None
+
+    # resolve attempts
+    attempts = AgentAttempts(attempts) if isinstance(attempts, int) else attempts
+
     def submission(tool_results: list[ChatMessage]) -> str | None:
         return next(
             (
                 result.text
                 for result in tool_results
                 if isinstance(result, ChatMessageTool)
-                and result.function == submit.name
+                and result.function == submit_tool.name
             ),
             None,
         )
-
-    # resolve tools
-    tools = list(tools) if tools is not None else []
-    submit_tool: Tool = (
-        submit.implementation if submit.implementation else default_submit_tool()
-    )
-    tools.append(tool_with(submit_tool, submit.name, submit.description))
 
     async def execute(state: AgentState) -> AgentState:
         async with mcp_connection(tools):
@@ -238,14 +241,14 @@ def react(
                             state.messages.append(
                                 ChatMessageUser(
                                     content=DEFAULT_CONTINUE_PROMPT.format(
-                                        submit=submit.name
+                                        submit=submit_tool.name
                                     )
                                 )
                             )
                     elif isinstance(do_continue, str):
                         state.messages.append(
                             ChatMessageUser(
-                                content=do_continue.format(submit=submit.name)
+                                content=do_continue.format(submit=submit_tool.name)
                             )
                         )
                     else:  # do_continue is False
@@ -259,13 +262,15 @@ def react(
                         else str(on_continue)
                     )
                     state.messages.append(
-                        ChatMessageUser(content=continue_msg.format(submit=submit.name))
+                        ChatMessageUser(
+                            content=continue_msg.format(submit=submit_tool.name)
+                        )
                     )
 
             # once we are complete, remove submit tool calls from the history
             # (as they will potentially confuse parent agents who also have
             # their own submit tools that they are 'watching' for)
-            state.messages = _remove_submit_tool(state.messages, submit.name)
+            state.messages = _remove_submit_tool(state.messages, submit_tool.name)
             return state
 
     if name is not None or description is not None:
