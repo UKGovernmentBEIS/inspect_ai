@@ -10,6 +10,7 @@
 - Human Agent: Added `user` parameter for running the human agent cli as a given user.
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
+- Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples. 
 

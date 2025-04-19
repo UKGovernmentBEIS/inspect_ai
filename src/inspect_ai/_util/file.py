@@ -271,8 +271,15 @@ class FileSystem:
         if "mtime" not in file.keys() and file["type"] == "file":
             file["mtime"] = self.fs.created(file).timestamp()
 
+        # adjust mtime to be milliseconds
         if "mtime" in file.keys():
-            file["mtime"] = file["mtime"] * 1000
+            mtime = file["mtime"]
+            if isinstance(mtime, datetime.datetime):
+                file["mtime"] = mtime.timestamp() * 1000
+            elif isinstance(mtime, int | float):
+                file["mtime"] = mtime * 1000
+            else:
+                raise ValueError(f"Unexpected type for mtime ({type(mtime)}): {mtime}")
         else:
             file["mtime"] = None
 
