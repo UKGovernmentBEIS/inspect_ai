@@ -142,7 +142,7 @@ Grok currenntly makes available two reasoning models:
 You can condition the amount of reasoning done by Grok using the [`reasoning_effort`]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `low` or `high`.
 
 ``` bash
-inspect eval math.py --model openai/o3 --reasoning-effort high
+inspect eval math.py --model grok/grok-3-mini-beta --reasoning-effort high
 ```
 
 
