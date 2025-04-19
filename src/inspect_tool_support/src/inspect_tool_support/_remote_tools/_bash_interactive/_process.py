@@ -46,9 +46,6 @@ class BashProcess:
     ) -> InteractResult:
         self._assert_not_terminated()
 
-        # Clear previous output
-        self._stdout_data.clear()
-        self._stderr_data.clear()
 
         # Reset the timeout handler (this now implicitly starts the timer)
         self._send_data_event.clear(idle_timeout)
@@ -57,9 +54,10 @@ class BashProcess:
             self._pty.writer.write(input_text.encode("utf-8"))
             await self._pty.writer.drain()
 
-        # Wait for data collection to complete
-        self._send_data_event.start_timer()
-        await self._send_data_event.wait()
+        # Wait for some data to send
+        if len(self._stdout_data) == 0 and len(self._stderr_data) == 0:
+            self._send_data_event.start_timer()
+            await self._send_data_event.wait()
 
         stdout = self._stdout_data.decode("utf-8")
         stderr = self._stderr_data.decode("utf-8")
@@ -105,12 +103,7 @@ class BashProcess:
     def _receive_data(self, data: bytearray, new_data: bytes) -> None:
         data.extend(new_data)
 
-        # Check if we've reached the buffer size threshold
-        if len(data) >= 4096:
-            self._send_data_event.set()
-        else:
-            # Otherwise, reset the idle timer since we just got new data
-            self._send_data_event.start_timer()
+        self._send_data_event.set()
 
     def _assert_not_terminated(self) -> None:
         assert not self._terminated, "process must not be terminated"

@@ -56,7 +56,7 @@ def code_viewer(language: str, code_param: str) -> ToolCallViewer:
 def bash_interactive(
     *,
     timeout: int | None = None,  # default timeout is 30 seconds
-    debounce_time: int | None,
+    idle_timeout: int | None = None,
     instance: str | None = uuid(),
 ) -> Tool:
     """Bash shell session command execution tool.
@@ -79,20 +79,48 @@ def bash_interactive(
     """
 
     async def execute(
-        input: str | None = None,
+        input_text: str | None = None,
         restart: bool | None = None,
     ) -> ToolResult:
-        """
-        Use this function to execute bash commands.
+        r"""
+        Interact with a bash shell.
+
+        Supports interacting with the shell by sending input to it and retrieving
+        output from it. The function waits until no additional output is sent to
+        stdout or stderr for some idle period before returning any output.
+
+        Example use case:
+        - For a short-running shell command with a nominal amount of output, a
+          single call to the function may suffice. e.g.
+          ```
+          bash_interactive(input_text="echo foo\n") -> "foo\n"
+          ```
+        - For a long-running command with output over time, multiple calls to the
+          function are needed. e.g.
+          ```
+          bash_interactive(input_text="tail -f /tmp/foo.log\n") -> <some output>
+          bash_interactive() -> <more output>
+          # Send Ctrl+C (ETX character)
+          bash_interactive(input_text="\u0003") -> "<final output>^C"
+          ```
+        - Interactive commands that may await more input from the user are also
+          supported. e.g.
+          ```
+          bash_interactive(input_text="ssh fred@foo.com\n") -> "foo.com's password: "
+          bash_interactive(input_text"secret\n") -> "fred@foo.com:~$ "
+          ```
 
         Args:
-          input: The input to send to the process. Required unless the tool is being restarted.
-          restart: Specifying true will restart this tool. Otherwise, leave this unspecified.
+          input_text: The input to send to the shell. If omitted, the function
+                will return any additional content sent to the shell's stdout
+                and stderr without sending new input.
+          restart: Specifying true will restart this tool. Otherwise, leave this
+                unspecified.
 
         Returns:
-          The output of the command.
+          The any output of the shell.
         """
-        if not ((input is None) ^ (restart is None)):
+        if not ((input_text is None) ^ (restart is None)):
             raise ToolParsingError(
                 "Either 'input' or 'restart' must be specified, but not both."
             )
@@ -117,7 +145,7 @@ def bash_interactive(
                 "bash_interactive",
                 {
                     "session_name": store.session_id,
-                    "input": input,
+                    "input": input_text,
                     "restart": restart,
                 },
                 BashResult,
