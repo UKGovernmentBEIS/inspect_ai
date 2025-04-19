@@ -12,7 +12,8 @@
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
-- Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples. 
+- Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.
+- Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
 
 ## v0.3.89 (17 April 2025)
 
