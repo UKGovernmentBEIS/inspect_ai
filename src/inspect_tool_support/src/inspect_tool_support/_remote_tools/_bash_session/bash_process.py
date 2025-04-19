@@ -2,9 +2,8 @@ import asyncio
 import uuid
 from asyncio.subprocess import Process
 
-from inspect_tool_support._remote_tools._bash_session.tool_types import (
-    BashCommandResult,
-)
+from ..._util.safe_stream_reader import SafeStreamReader
+from .tool_types import BashCommandResult
 
 
 class BashProcess:
@@ -20,14 +19,17 @@ class BashProcess:
         )
 
     def __init__(self, process: Process) -> None:
+        assert (
+            process.stdout and process.stderr
+        ), "process must have 'stdout' and 'stderr'"
         self._process = process
         self._terminated = False
-        self._stdout_data: list[str] = []
-        self._stdout_task = asyncio.create_task(self._read_stream(True))
-        self._stderr_data: list[str] = []
-        self._stderr_task = asyncio.create_task(self._read_stream(False))
-        self._current_marker: str | None = None
-        self._command_completed: asyncio.Event | None = None
+        self._stdout_data = bytearray()
+        self._stderr_data = bytearray()
+        self._stdout_reader = SafeStreamReader(process.stdout, self._on_stdout_data)
+        self._stderr_reader = SafeStreamReader(process.stderr, self._on_stderr_data)
+        self._current_marker_bytes: bytes | None = None
+        self._command_completed = asyncio.Event()
 
     async def execute_command(
         self, command: str, timeout: int = 30
@@ -40,17 +42,17 @@ class BashProcess:
         self._stderr_data.clear()
 
         # Set up to detect command completion
-        self._current_marker = f"CMD_COMPLETE_{uuid.uuid4().hex}"
-        self._command_completed = asyncio.Event()
+        marker = f"CMD_COMPLETE_{uuid.uuid4().hex}"
+        self._current_marker_bytes = marker.encode("utf-8")
+        self._command_completed.clear()
 
-        # For each command, we have bash to 3 things
+        # For each command, we have bash to 2 things
         # - execute the caller's command
-        # - do an `echo` that captures the command's exit status
-        # - echo a marker that will allow us to robustly detect when the command is done
+        # - do an `echo` of a marker that will allow us to robustly detect when
+        #   the command is done followed by the command's exit status
         wrapped_command = f"""
         {command}
-        echo $? > /tmp/exit_status
-        echo "{self._current_marker}"
+        echo "{marker}$?"
         """
 
         self._process.stdin.write(wrapped_command.encode("utf-8") + b"\n")
@@ -59,37 +61,20 @@ class BashProcess:
         # TODO: How do we want to handle timeouts raised from this?
         await asyncio.wait_for(self._command_completed.wait(), timeout)
 
-        # Get exit status
-        self._process.stdin.write(b"cat /tmp/exit_status\n")
-        await self._process.stdin.drain()
+        # stdout_data now looks like:
+        # <command output>CMD_COMPLETE_eecf22460a39491c9dc7de05db31c53a<exit status>\n
 
-        # Wait a short time for exit status to be available
-        await asyncio.sleep(0.1)
+        parts = self._stdout_data.decode("utf-8").split(marker)
 
-        # stdout_data now looks like
-        # [
-        #   <command output line 1>,
-        #   <command output line ...>,
-        #   <command output line n>,
-        #   CMD_COMPLETE_eecf22460a39491c9dc7de05db31c53a,
-        #   <command exit value e.g. 0>
-        # ]
-
-        # Pop the last value in stdout_data into status_line
-        status_line = self._stdout_data.pop().strip()
-        assert status_line.isnumeric()
-        status = int(status_line)
-
-        # Pop the second to last value in stdout_data into marker_line
-        marker_line = self._stdout_data.pop().strip()
-        # double check it's what we think it is
-        assert marker_line == self._current_marker
-
-        stdout_result = "".join(self._stdout_data)
-        stderr_result = "".join(self._stderr_data)
+        assert len(parts) == 2, "marker not found in command output"
+        command_output = parts[0]
+        exit_status = parts[1].strip()
+        assert exit_status.isnumeric(), "exit status not found in command output"
 
         return BashCommandResult(
-            status=status, stdout=stdout_result, stderr=stderr_result
+            status=int(exit_status),
+            stdout=command_output,
+            stderr=self._stderr_data.decode("utf-8"),
         )
 
     async def terminate(self, timeout: int = 30) -> None:
@@ -108,10 +93,8 @@ class BashProcess:
             pass
 
         # Cancel the reading tasks
-        assert self._stdout_task
-        assert self._stderr_task
-        self._stdout_task.cancel()
-        self._stderr_task.cancel()
+        await self._stdout_reader.stop()
+        await self._stderr_reader.stop()
 
         # Ensure the process is terminated
         try:
@@ -121,40 +104,17 @@ class BashProcess:
             self._process.kill()
             await self._process.wait()
 
-    async def _read_stream(self, stdout: bool) -> None:
-        assert self._process, "must have process"
-        stream, data = (
-            (self._process.stdout, self._stdout_data)
-            if stdout
-            else (self._process.stderr, self._stderr_data)
-        )
-        assert stream, "must find stream"
-        while True:
-            line = await stream.readline()
-            if not line:  # EOF
-                break
+    def _on_stdout_data(self, data: bytes) -> None:
+        self._stdout_data.extend(data)
+        if (
+            self._current_marker_bytes
+            and self._current_marker_bytes in self._stdout_data
+        ):
+            self._current_marker_bytes = None
+            self._command_completed.set()
 
-            line_str = line.decode("utf-8")
-
-            # TODO: Temporary bug fix hack. Another PR is changing this to no longer
-            # be line oriented
-            if stdout and self._current_marker and self._current_marker in line_str:
-                # if the process did not include a trailing \n in their output, the
-                # line with the marker will be prefixed by whatever the last process
-                # output was. This code will essentially break the line before the marker
-                parts = line_str.split(self._current_marker)
-                if len(parts) == 2:
-                    data.append(parts[0])
-                    line_str = self._current_marker
-
-            data.append(line_str)
-
-            # Check if line contains our marker indicating command completion
-            if stdout and self._current_marker and self._current_marker in line_str:
-                assert self._command_completed, (
-                    "must have an event to set if we find a marker"
-                )
-                self._command_completed.set()
+    def _on_stderr_data(self, data: bytes) -> None:
+        self._stderr_data.extend(data)
 
     def _assert_not_terminated(self) -> None:
         assert not self._terminated, "process must not be terminated"

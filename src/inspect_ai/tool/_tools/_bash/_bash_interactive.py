@@ -8,8 +8,8 @@ from inspect_ai.tool._tool_support_helpers import (
 )
 from inspect_ai.util import StoreModel, store_as
 
-from .._tool import Tool, ToolParsingError, tool
-from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
+from ..._tool import Tool, ToolParsingError, tool
+from ..._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 
 
 # These models are cloned from the container code. If/when we decide to create
@@ -53,7 +53,12 @@ def code_viewer(language: str, code_param: str) -> ToolCallViewer:
 
 
 @tool(viewer=code_viewer("bash", "command"))
-def bash_session(*, timeout: int | None = None, instance: str | None = uuid()) -> Tool:
+def bash_interactive(
+    *,
+    timeout: int | None = None,  # default timeout is 30 seconds
+    idle_timeout: int | None = None,
+    instance: str | None = uuid(),
+) -> Tool:
     """Bash shell session command execution tool.
 
     Execute bash shell commands in a long running session using a sandbox environment (e.g. "docker").
@@ -74,53 +79,82 @@ def bash_session(*, timeout: int | None = None, instance: str | None = uuid()) -
     """
 
     async def execute(
-        command: str | None = None,
+        input_text: str | None = None,
         restart: bool | None = None,
     ) -> ToolResult:
-        """
-        Use this function to execute bash commands.
+        r"""
+        Interact with a bash shell.
+
+        Supports interacting with the shell by sending input to it and retrieving
+        output from it. The function waits until no additional output is sent to
+        stdout or stderr for some idle period before returning any output.
+
+        Example use case:
+        - For a short-running shell command with a nominal amount of output, a
+          single call to the function may suffice. e.g.
+          ```
+          bash_interactive(input_text="echo foo\n") -> "foo\n"
+          ```
+        - For a long-running command with output over time, multiple calls to the
+          function are needed. e.g.
+          ```
+          bash_interactive(input_text="tail -f /tmp/foo.log\n") -> <some output>
+          bash_interactive() -> <more output>
+          # Send Ctrl+C (ETX character)
+          bash_interactive(input_text="\u0003") -> "<final output>^C"
+          ```
+        - Interactive commands that may await more input from the user are also
+          supported. e.g.
+          ```
+          bash_interactive(input_text="ssh fred@foo.com\n") -> "foo.com's password: "
+          bash_interactive(input_text"secret\n") -> "fred@foo.com:~$ "
+          ```
 
         Args:
-          command: The bash command to run. Required unless the tool is being restarted.
-          restart: Specifying true will restart this tool. Otherwise, leave this unspecified.
+          input_text: The input to send to the shell. If omitted, the function
+                will return any additional content sent to the shell's stdout
+                and stderr without sending new input.
+          restart: Specifying true will restart this tool. Otherwise, leave this
+                unspecified.
 
         Returns:
-          The output of the command.
+          The any output of the shell.
         """
-        if not ((command is None) ^ (restart is None)):
+        if not ((input_text is None) ^ (restart is None)):
             raise ToolParsingError(
-                "Either 'command' or 'restart' must be specified, but not both."
+                "Either 'input' or 'restart' must be specified, but not both."
             )
-        params: dict[str, object] = {"command": command, "restart": restart}
 
-        sandbox = await tool_container_sandbox("bash session")
+        sandbox = await tool_container_sandbox("bash interactive")
         store = store_as(BashSessionStore, instance=instance)
 
         if not store.session_id:
             store.session_id = (
                 await exec_model_request(
-                    sandbox=sandbox,
-                    method="bash_session_new_session",
-                    params={},
-                    result_type=NewSessionResult,
-                    timeout=timeout,
+                    sandbox,
+                    "bash_interactive_new_session",
+                    {},
+                    NewSessionResult,
+                    timeout,
                 )
             ).session_name
 
-        params["session_name"] = store.session_id
-
         result = (
             await exec_model_request(
-                sandbox=sandbox,
-                method="bash_session",
-                params=params,
-                result_type=BashResult,
-                timeout=timeout,
+                sandbox,
+                "bash_interactive",
+                {
+                    "session_name": store.session_id,
+                    "input": input_text,
+                    "restart": restart,
+                },
+                BashResult,
+                timeout,
             )
         ).root
 
         if isinstance(result, BashRestartResult):
-            return "Bash session restarted."
+            return "Bash interactive restarted."
 
         # return output (including stderr if any)
         return f"{result.stderr}\n{result.stdout}" if result.stderr else result.stdout

@@ -13,7 +13,7 @@ from inspect_tool_support._in_process_tools._text_editor.tool_types import (
     UndoEditParams,
     ViewParams,
 )
-from inspect_tool_support._util._json_rpc_helpers import validated_json_rpc_method
+from inspect_tool_support._util.json_rpc_helpers import validated_json_rpc_method
 
 
 @validated_json_rpc_method(TextEditorParams)

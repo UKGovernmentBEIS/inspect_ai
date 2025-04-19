@@ -1,5 +1,3 @@
-from pydantic import BaseModel
-
 from inspect_tool_support._remote_tools._bash_session.controller import (
     BashSessionController,
 )
@@ -12,6 +10,7 @@ from inspect_tool_support._remote_tools._bash_session.tool_types import (
     RestartParams,
 )
 from inspect_tool_support._util.json_rpc_helpers import validated_json_rpc_method
+from pydantic import BaseModel
 
 controller = BashSessionController()
 

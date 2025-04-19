@@ -23,8 +23,8 @@ from tenacity import (
     wait_exponential_jitter,
 )
 
-from inspect_tool_support._util._common_types import JSONRPCResponseJSON, ToolException
-from inspect_tool_support._util._validation import (
+from inspect_tool_support._util.common_types import JSONRPCResponseJSON, ToolException
+from inspect_tool_support._util.validation import (
     pretty_validation_error,
     validate_params,
 )

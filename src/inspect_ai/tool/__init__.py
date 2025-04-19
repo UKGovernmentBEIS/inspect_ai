@@ -30,7 +30,7 @@ from ._tool_def import ToolDef
 from ._tool_info import ToolInfo
 from ._tool_params import ToolParam, ToolParams
 from ._tool_with import tool_with
-from ._tools._bash_session import bash_session
+from ._tools._bash._bash_session import bash_session
 from ._tools._computer import computer
 from ._tools._execute import bash, python
 from ._tools._text_editor import text_editor
