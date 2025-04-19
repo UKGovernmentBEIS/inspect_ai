@@ -40,6 +40,7 @@ async def sandbox_service(
     methods: list[SandboxServiceMethod] | dict[str, SandboxServiceMethod],
     until: Callable[[], bool],
     sandbox: SandboxEnvironment,
+    user: str | None = None,
 ) -> None:
     """Run a service that is callable from within a sandbox.
 
@@ -49,9 +50,11 @@ async def sandbox_service(
         until (Callable[[], bool]): Function used to check whether
           the service should stop.
         sandbox (SandboxEnvironment): Sandbox to publish service to.
+        user (str | None): User to login as. Defaults to the sandbox environment's
+          default user.
     """
     # setup and start service
-    service = SandboxService(name, sandbox)
+    service = SandboxService(name, sandbox, user)
     if isinstance(methods, list):
         methods = {v.__name__: v for v in methods}
     for name, method in methods.items():
@@ -91,15 +94,20 @@ class SandboxService:
     ```
     """
 
-    def __init__(self, name: str, sandbox: SandboxEnvironment) -> None:
+    def __init__(
+        self, name: str, sandbox: SandboxEnvironment, user: str | None = None
+    ) -> None:
         """Create a SandboxService.
 
         Args:
             name (str): Service name
             sandbox (SandboxEnvironment): Sandbox to publish service to.
+            user (str | None): User to login as. Defaults to the sandbox environment's
+              default user.
         """
         self._name = name
         self._sandbox = sandbox
+        self._user = user
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
         self._methods: dict[str, SandboxServiceMethod] = {}
         self._requests_dir: str = ""
@@ -250,7 +258,9 @@ class SandboxService:
 
     async def _exec(self, cmd: list[str], input: str | None = None) -> ExecResult[str]:
         try:
-            return await self._sandbox.exec(cmd, input=input, timeout=30)
+            return await self._sandbox.exec(
+                cmd, user=self._user, input=input, timeout=30
+            )
         except TimeoutError:
             raise RuntimeError(
                 f"Timed out executing command {' '.join(cmd)} in sandbox"

@@ -1,17 +1,24 @@
 import contextlib
 import sys
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, _AsyncGeneratorContextManager
 from fnmatch import fnmatch
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable, Literal
+from typing import Any, AsyncIterator, Callable, Literal, TypeAlias
 
 import anyio
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp import McpError
 from mcp.client.session import ClientSession, SamplingFnT
 from mcp.client.sse import sse_client
 from mcp.client.stdio import StdioServerParameters, stdio_client
-from mcp.types import EmbeddedResource, ImageContent, TextContent, TextResourceContents
+from mcp.types import (
+    EmbeddedResource,
+    ImageContent,
+    JSONRPCMessage,
+    TextContent,
+    TextResourceContents,
+)
 from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
@@ -24,7 +31,7 @@ from inspect_ai.tool._tool import Tool, ToolError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
 
-from ._types import MCPServer, MCPServerContext
+from ._types import MCPServer
 from .sampling import sampling_fn
 
 # https://github.com/modelcontextprotocol/python-sdk/pull/401
@@ -32,6 +39,13 @@ from .sampling import sampling_fn
 # https://github.com/modelcontextprotocol/python-sdk/pull/289
 
 logger = getLogger(__name__)
+
+MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
+    tuple[
+        MemoryObjectReceiveStream[JSONRPCMessage | Exception],
+        MemoryObjectSendStream[JSONRPCMessage],
+    ],
+]
 
 
 class MCPServerImpl(MCPServer):

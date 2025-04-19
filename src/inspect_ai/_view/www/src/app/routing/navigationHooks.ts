@@ -102,7 +102,6 @@ export const useSampleNavigation = () => {
             resolvedPath,
             sample.id,
             sample.epoch,
-            tabId,
             currentSampleTabId,
           );
 
@@ -153,7 +152,6 @@ export const useSampleNavigation = () => {
           resolvedPath,
           sampleId,
           epoch,
-          tabId,
           currentSampleTabId,
         );
         return url;

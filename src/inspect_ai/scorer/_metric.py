@@ -265,7 +265,7 @@ def metric_create(name: str, **kwargs: Any) -> Metric:
     Returns:
         Metric with registry info attribute
     """
-    return cast(Metric, registry_create("metric", name, **kwargs))
+    return registry_create("metric", name, **kwargs)
 
 
 def to_metric_specs(

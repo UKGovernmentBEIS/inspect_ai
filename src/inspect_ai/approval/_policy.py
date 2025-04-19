@@ -2,7 +2,7 @@ import fnmatch
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generator, cast
+from typing import Any, Generator
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -140,7 +140,7 @@ def approval_policies_from_config(
     def create_approval_policy(
         name: str, tools: str | list[str], params: dict[str, Any] = {}
     ) -> ApprovalPolicy:
-        approver = cast(Approver, registry_create("approver", name, **params))
+        approver = registry_create("approver", name, **params)
         return ApprovalPolicy(approver, tools)
 
     # map config -> policy

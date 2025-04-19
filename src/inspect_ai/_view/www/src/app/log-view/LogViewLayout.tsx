@@ -49,7 +49,6 @@ export const LogViewLayout: FC = () => {
     resetFiltering();
     clearSampleTab();
     clearWorkspaceTab();
-    selectSample(0);
   }, [
     setOffCanvas,
     resetFiltering,
