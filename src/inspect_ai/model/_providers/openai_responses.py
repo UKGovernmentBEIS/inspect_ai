@@ -15,9 +15,7 @@ from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
     is_computer_use_preview,
-    is_gpt,
-    is_o1_mini,
-    is_o1_preview,
+    is_o1_early,
     is_o_series,
     openai_handle_bad_request,
     openai_media_filter,
@@ -41,6 +39,8 @@ async def generate_responses(
     tools: list[ToolInfo],
     tool_choice: ToolChoice,
     config: GenerateConfig,
+    service_tier: str | None,
+    store: bool,
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
@@ -68,7 +68,13 @@ async def generate_responses(
         else NOT_GIVEN,
         truncation="auto" if is_computer_use_preview(model_name) else NOT_GIVEN,
         extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
-        **completion_params_responses(model_name, config, len(tools) > 0),
+        **completion_params_responses(
+            model_name,
+            config=config,
+            service_tier=service_tier,
+            tools=len(tools) > 0,
+            store=store,
+        ),
     )
 
     try:
@@ -110,7 +116,12 @@ async def generate_responses(
 
 
 def completion_params_responses(
-    model_name: str, config: GenerateConfig, tools: bool
+    model_name: str,
+    *,
+    config: GenerateConfig,
+    service_tier: str | None,
+    tools: bool,
+    store: bool,
 ) -> dict[str, Any]:
     # TODO: we'll need a computer_use_preview bool for the 'include'
     # and 'reasoning' parameters
@@ -120,9 +131,9 @@ def completion_params_responses(
             f"OpenAI Responses API does not support the '{param}' parameter.",
         )
 
-    params: dict[str, Any] = dict(
-        model=model_name, store=is_computer_use_preview(model_name)
-    )
+    params: dict[str, Any] = dict(model=model_name, store=store)
+    if service_tier is not None:
+        params["service_tier"] = service_tier
     if config.max_tokens is not None:
         params["max_output_tokens"] = config.max_tokens
     if config.frequency_penalty is not None:
@@ -153,13 +164,14 @@ def completion_params_responses(
         unsupported_warning("top_logprobs")
     if tools and config.parallel_tool_calls is not None and not is_o_series(model_name):
         params["parallel_tool_calls"] = config.parallel_tool_calls
-    if (
-        config.reasoning_effort is not None
-        and not is_gpt(model_name)
-        and not is_o1_mini(model_name)
-        and not is_o1_preview(model_name)
-    ):
-        params["reasoning"] = dict(effort=config.reasoning_effort)
+    if is_o_series(model_name) and not is_o1_early(model_name):
+        reasoning: dict[str, str] = {}
+        if config.reasoning_effort is not None:
+            reasoning["effort"] = config.reasoning_effort
+        if config.reasoning_summary is not None:
+            reasoning["summary"] = config.reasoning_summary
+        if len(reasoning) > 0:
+            params["reasoning"] = reasoning
     if config.response_schema is not None:
         params["text"] = dict(
             format=ResponseFormatTextJSONSchemaConfigParam(

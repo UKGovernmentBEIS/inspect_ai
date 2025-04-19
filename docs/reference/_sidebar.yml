@@ -85,6 +85,18 @@ website:
           href: reference/inspect_ai.tool.qmd#web_search
         - text: think
           href: reference/inspect_ai.tool.qmd#think
+        - text: mcp_connection
+          href: reference/inspect_ai.tool.qmd#mcp_connection
+        - text: mcp_server_stdio
+          href: reference/inspect_ai.tool.qmd#mcp_server_stdio
+        - text: mcp_server_sse
+          href: reference/inspect_ai.tool.qmd#mcp_server_sse
+        - text: mcp_server_sandbox
+          href: reference/inspect_ai.tool.qmd#mcp_server_sandbox
+        - text: mcp_tools
+          href: reference/inspect_ai.tool.qmd#mcp_tools
+        - text: MCPServer
+          href: reference/inspect_ai.tool.qmd#mcpserver
         - text: tool_with
           href: reference/inspect_ai.tool.qmd#tool_with
         - text: ToolDef
@@ -107,6 +119,8 @@ website:
           href: reference/inspect_ai.tool.qmd#toolparams
         - text: ToolParam
           href: reference/inspect_ai.tool.qmd#toolparam
+        - text: ToolSource
+          href: reference/inspect_ai.tool.qmd#toolsource
         - text: tool
           href: reference/inspect_ai.tool.qmd#tool
       - section: inspect_ai.agent
@@ -252,6 +266,8 @@ website:
           href: reference/inspect_ai.model.qmd#chatmessageassistant
         - text: ChatMessageTool
           href: reference/inspect_ai.model.qmd#chatmessagetool
+        - text: trim_messages
+          href: reference/inspect_ai.model.qmd#trim_messages
         - text: Content
           href: reference/inspect_ai.model.qmd#content
         - text: ContentText
@@ -361,6 +377,8 @@ website:
           href: reference/inspect_ai.log.qmd#evaldataset
         - text: EvalConfig
           href: reference/inspect_ai.log.qmd#evalconfig
+        - text: EvalModelConfig
+          href: reference/inspect_ai.log.qmd#evalmodelconfig
         - text: EvalRevision
           href: reference/inspect_ai.log.qmd#evalrevision
         - text: EvalPlan
@@ -476,6 +494,10 @@ website:
           href: reference/inspect_ai.util.qmd#sandboxconnection
         - text: sandboxenv
           href: reference/inspect_ai.util.qmd#sandboxenv
+        - text: registry_create
+          href: reference/inspect_ai.util.qmd#registry_create
+        - text: RegistryType
+          href: reference/inspect_ai.util.qmd#registrytype
         - text: JSONType
           href: reference/inspect_ai.util.qmd#jsontype
         - text: JSONSchema

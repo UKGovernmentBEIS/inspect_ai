@@ -1,6 +1,17 @@
+from __future__ import annotations
+
 import inspect
 from inspect import get_annotations, isclass
-from typing import Any, Callable, Literal, TypedDict, TypeGuard, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Literal,
+    TypedDict,
+    TypeGuard,
+    cast,
+    overload,
+)
 
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
@@ -11,21 +22,38 @@ from inspect_ai._util.package import get_installed_package_name
 from .constants import PKG_NAME
 from .entrypoints import ensure_entry_points
 
+if TYPE_CHECKING:
+    from inspect_ai import Task
+    from inspect_ai.agent import Agent
+    from inspect_ai.approval import Approver
+    from inspect_ai.model import ModelAPI
+    from inspect_ai.scorer import Metric, Scorer, ScoreReducer
+    from inspect_ai.solver import Plan, Solver
+    from inspect_ai.tool import Tool
+    from inspect_ai.util import SandboxEnvironment
+
 obj_type = type
 
 RegistryType = Literal[
-    "modelapi",
-    "task",
-    "solver",
-    "plan",
-    "scorer",
-    "metric",
-    "tool",
     "agent",
+    "approver",
+    "metric",
+    "modelapi",
+    "plan",
     "sandboxenv",
     "score_reducer",
-    "approver",
+    "scorer",
+    "solver",
+    "task",
+    "tool",
 ]
+"""Enumeration of registry object types.
+
+These are the types of objects in this system that can be
+registered using a decorator (e.g. `@task`, `@solver`).
+Registered objects can in turn be created dynamically using
+the `registry_create()` function.
+"""
 
 
 class RegistryInfo(BaseModel):
@@ -178,20 +206,83 @@ def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
         return o
 
 
-def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
+@overload
+def registry_create(type: Literal["agent"], name: str, **kwargs: Any) -> Agent: ...
+
+
+@overload
+def registry_create(
+    type: Literal["approver"], name: str, **kwargs: Any
+) -> Approver: ...
+
+
+@overload
+def registry_create(type: Literal["metric"], name: str, **kwargs: Any) -> Metric: ...
+
+
+@overload
+def registry_create(
+    type: Literal["modelapi"], name: str, **kwargs: Any
+) -> ModelAPI: ...
+
+
+@overload
+def registry_create(type: Literal["plan"], name: str, **kwargs: Any) -> Plan: ...
+
+
+@overload
+def registry_create(
+    type: Literal["sandboxenv"], name: str, **kwargs: Any
+) -> SandboxEnvironment: ...
+
+
+@overload
+def registry_create(type: Literal["scorer"], name: str, **kwargs: Any) -> Scorer: ...
+
+
+@overload
+def registry_create(
+    type: Literal["score_reducer"], name: str, **kwargs: Any
+) -> ScoreReducer: ...
+
+
+@overload
+def registry_create(type: Literal["solver"], name: str, **kwargs: Any) -> Solver: ...
+
+
+@overload
+def registry_create(type: Literal["task"], name: str, **kwargs: Any) -> Task: ...
+
+
+@overload
+def registry_create(type: Literal["tool"], name: str, **kwargs: Any) -> Tool: ...
+
+
+def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:  # type: ignore[return]
     r"""Create a registry object.
 
-    Registry objects can be ordinary functions that implement a protocol,
-    factory functions that return a function based on **kwargs, or classes
-    deriving that can be created using **kwargs
+    Creates objects registered via decorator (e.g. `@task`, `@solver`). Note
+    that this can also create registered objects within Python packages, in
+    which case the name of the package should be used a prefix, e.g.
+
+    ```python
+    registry_create("scorer", "mypackage/myscorer", ...)
+    ```
+
+    Object within the Inspect package do not require a prefix, nor do
+    objects from imported modules that aren't in a package.
 
     Args:
-        type (RegistryType): Type of registry object to create
-        name (str): Name of registry options to create
-        **kwargs (Any): Optional creation arguments
+        type: Type of registry object to create
+        name: Name of registry object to create
+        **kwargs: Optional creation arguments
 
     Returns:
-        Registry object with registry info attribute
+        Instance of specified name and type.
+
+    Raises:
+        LookupError: If the named object was not found in the registry.
+        TypeError: If the specified parameters are not valid for the object.
     """
     # lookup the object
     obj = registry_lookup(type, name)
@@ -225,7 +316,7 @@ def registry_create(type: RegistryType, name: str, **kwargs: Any) -> object:
         else:
             return obj
     else:
-        raise ValueError(f"{name} was not found in the registry")
+        raise LookupError(f"{name} was not found in the registry")
 
 
 def registry_info(o: object) -> RegistryInfo:

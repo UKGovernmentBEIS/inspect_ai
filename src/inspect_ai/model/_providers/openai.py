@@ -1,14 +1,8 @@
 import os
-import socket
 from logging import getLogger
-from typing import Any
+from typing import Any, Literal
 
-import httpx
 from openai import (
-    DEFAULT_CONNECTION_LIMITS,
-    DEFAULT_TIMEOUT,
-    APIStatusError,
-    APITimeoutError,
     AsyncAzureOpenAI,
     AsyncOpenAI,
     BadRequestError,
@@ -20,7 +14,6 @@ from openai.types.chat import ChatCompletion
 from typing_extensions import override
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.logger import warn_once
 from inspect_ai.model._openai import chat_choices_from_openai
 from inspect_ai.model._providers.openai_responses import generate_responses
@@ -31,20 +24,23 @@ from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
 from .._model_call import ModelCall
-from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
+from .._model_output import ModelOutput
 from .._openai import (
-    OpenAIResponseError,
+    OpenAIAsyncHttpxClient,
     is_computer_use_preview,
     is_gpt,
-    is_o1_mini,
-    is_o1_preview,
-    is_o1_pro,
+    is_o1,
+    is_o1_early,
+    is_o3_mini,
     is_o_series,
+    model_output_from_openai,
     openai_chat_messages,
     openai_chat_tool_choice,
     openai_chat_tools,
+    openai_completion_params,
     openai_handle_bad_request,
     openai_media_filter,
+    openai_should_retry,
 )
 from .openai_o1 import generate_o1
 from .util import environment_prerequisite_error, model_base_url
@@ -55,6 +51,8 @@ OPENAI_API_KEY = "OPENAI_API_KEY"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
 
+# NOTE: If you are creating a new provider that is OpenAI compatible you should inherit from OpenAICompatibleAPI rather than OpenAPAPI.
+
 
 class OpenAIAPI(ModelAPI):
     def __init__(
@@ -64,6 +62,9 @@ class OpenAIAPI(ModelAPI):
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
         responses_api: bool | None = None,
+        responses_store: Literal["auto"] | bool = "auto",
+        service_tier: str | None = None,
+        client_timeout: float | None = None,
         **model_args: Any,
     ) -> None:
         # extract azure service prefix from model name (other providers
@@ -72,7 +73,6 @@ class OpenAIAPI(ModelAPI):
         parts = model_name.split("/")
         if parts[0] == "azure" and len(parts) > 1:
             self.service: str | None = parts[0]
-            model_name = "/".join(parts[1:])
         else:
             self.service = None
 
@@ -85,9 +85,25 @@ class OpenAIAPI(ModelAPI):
             config=config,
         )
 
-        # note whether we are forcing the responses_api
-        self.responses_api = (
-            responses_api or self.is_o1_pro() or self.is_computer_use_preview()
+        # is this a model we use responses api by default for?
+        responses_model = (
+            self.is_o_series() and not self.is_o1_early()
+        ) or self.is_computer_use_preview()
+
+        # resolve whether we are forcing the responses api
+        self.responses_api = responses_api or responses_model
+
+        # resolve whether we are using the responses store
+        self.responses_store = (
+            responses_store if isinstance(responses_store, bool) else responses_model
+        )
+
+        # set service tier if specified
+        self.service_tier = service_tier
+
+        # bump up default client timeout to 15 minutes for service_tier=="flex"
+        self.client_timeout = client_timeout or (
+            900.0 if self.service_tier == "flex" else None
         )
 
         # resolve api_key
@@ -135,7 +151,7 @@ class OpenAIAPI(ModelAPI):
             else:
                 api_version = os.environ.get(
                     "AZUREAI_OPENAI_API_VERSION",
-                    os.environ.get("OPENAI_API_VERSION", "2025-02-01-preview"),
+                    os.environ.get("OPENAI_API_VERSION", "2025-03-01-preview"),
                 )
 
             self.client: AsyncAzureOpenAI | AsyncOpenAI = AsyncAzureOpenAI(
@@ -143,6 +159,7 @@ class OpenAIAPI(ModelAPI):
                 api_version=api_version,
                 azure_endpoint=base_url,
                 http_client=http_client,
+                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
                 **model_args,
             )
         else:
@@ -150,6 +167,7 @@ class OpenAIAPI(ModelAPI):
                 api_key=self.api_key,
                 base_url=model_base_url(base_url, "OPENAI_BASE_URL"),
                 http_client=http_client,
+                timeout=client_timeout if client_timeout is not None else NOT_GIVEN,
                 **model_args,
             )
 
@@ -160,22 +178,22 @@ class OpenAIAPI(ModelAPI):
         return self.service == "azure"
 
     def is_o_series(self) -> bool:
-        return is_o_series(self.model_name)
+        return is_o_series(self.service_model_name())
 
-    def is_o1_pro(self) -> bool:
-        return is_o1_pro(self.model_name)
+    def is_o1(self) -> bool:
+        return is_o1(self.service_model_name())
 
-    def is_o1_mini(self) -> bool:
-        return is_o1_mini(self.model_name)
+    def is_o1_early(self) -> bool:
+        return is_o1_early(self.service_model_name())
 
-    def is_o1_preview(self) -> bool:
-        return is_o1_preview(self.model_name)
+    def is_o3_mini(self) -> bool:
+        return is_o3_mini(self.service_model_name())
 
     def is_computer_use_preview(self) -> bool:
-        return is_computer_use_preview(self.model_name)
+        return is_computer_use_preview(self.service_model_name())
 
     def is_gpt(self) -> bool:
-        return is_gpt(self.model_name)
+        return is_gpt(self.service_model_name())
 
     @override
     async def aclose(self) -> None:
@@ -187,8 +205,18 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def tool_result_images(self) -> bool:
-        # o1-pro, o1, and computer_use_preview support image inputs (but we're not strictly supporting o1)
-        return self.is_o1_pro() or self.is_computer_use_preview()
+        # o1-pro, o1, and computer_use_preview support image inputs
+        if self.is_computer_use_preview():
+            return True
+        elif self.is_o_series():
+            if self.is_o1_early():
+                return False
+            elif self.is_o3_mini():
+                return False
+            else:
+                return True
+        else:
+            return False
 
     @override
     def disable_computer_screenshot_truncation(self) -> bool:
@@ -206,7 +234,7 @@ class OpenAIAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # short-circuit to call o1- models that are text only
-        if self.is_o1_preview() or self.is_o1_mini():
+        if self.is_o1_early():
             return await generate_o1(
                 client=self.client,
                 input=input,
@@ -217,11 +245,13 @@ class OpenAIAPI(ModelAPI):
             return await generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
-                model_name=self.model_name,
+                model_name=self.service_model_name(),
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
                 config=config,
+                service_tier=self.service_tier,
+                store=self.responses_store,
             )
 
         # allocate request_id (so we can see it from ModelCall)
@@ -242,15 +272,27 @@ class OpenAIAPI(ModelAPI):
         # unlike text models, vision models require a max_tokens (and set it to a very low
         # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
         OPENAI_IMAGE_DEFAULT_TOKENS = 4096
-        if "vision" in self.model_name:
+        if "vision" in self.service_model_name():
             if isinstance(config.max_tokens, int):
                 config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
             else:
                 config.max_tokens = OPENAI_IMAGE_DEFAULT_TOKENS
 
+        # determine system role
+        # o1-mini does not support developer or system messages
+        # (see Dec 17, 2024 changelog: https://platform.openai.com/docs/changelog)
+        if self.is_o1_early():
+            system_role: Literal["user", "system", "developer"] = "user"
+        # other o-series models use 'developer' rather than 'system' messages
+        # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
+        elif self.is_o_series():
+            system_role = "developer"
+        else:
+            system_role = "system"
+
         # prepare request (we do this so we can log the ModelCall)
         request = dict(
-            messages=await openai_chat_messages(input, self.model_name),
+            messages=await openai_chat_messages(input, system_role),
             tools=openai_chat_tools(tools) if len(tools) > 0 else NOT_GIVEN,
             tool_choice=openai_chat_tool_choice(tool_choice)
             if len(tools) > 0
@@ -267,49 +309,16 @@ class OpenAIAPI(ModelAPI):
 
             # save response for model_call
             response = completion.model_dump()
-            self.on_response(response)
-
-            # parse out choices
-            choices = self._chat_choices_from_response(completion, tools)
 
             # return output and call
-            return ModelOutput(
-                model=completion.model,
-                choices=choices,
-                usage=(
-                    ModelUsage(
-                        input_tokens=completion.usage.prompt_tokens,
-                        output_tokens=completion.usage.completion_tokens,
-                        input_tokens_cache_read=(
-                            completion.usage.prompt_tokens_details.cached_tokens
-                            if completion.usage.prompt_tokens_details is not None
-                            else None  # openai only have cache read stats/pricing.
-                        ),
-                        reasoning_tokens=(
-                            completion.usage.completion_tokens_details.reasoning_tokens
-                            if completion.usage.completion_tokens_details is not None
-                            else None
-                        ),
-                        total_tokens=completion.usage.total_tokens,
-                    )
-                    if completion.usage
-                    else None
-                ),
-            ), model_call()
+            choices = chat_choices_from_openai(completion, tools)
+            return model_output_from_openai(completion, choices), model_call()
         except (BadRequestError, UnprocessableEntityError) as e:
-            return self.handle_bad_request(e), model_call()
+            return openai_handle_bad_request(self.service_model_name(), e), model_call()
 
-    def on_response(self, response: dict[str, Any]) -> None:
-        pass
-
-    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
-        return openai_handle_bad_request(self.model_name, ex)
-
-    def _chat_choices_from_response(
-        self, response: ChatCompletion, tools: list[ToolInfo]
-    ) -> list[ChatCompletionChoice]:
-        # adding this as a method so we can override from other classes (e.g together)
-        return chat_choices_from_openai(response, tools)
+    def service_model_name(self) -> str:
+        """Model name without any service prefix."""
+        return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
     def should_retry(self, ex: Exception) -> bool:
@@ -321,14 +330,8 @@ class OpenAIAPI(ModelAPI):
                 return False
             else:
                 return True
-        elif isinstance(ex, APIStatusError):
-            return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, OpenAIResponseError):
-            return ex.code in ["rate_limit_exceeded", "server_error"]
-        elif isinstance(ex, APITimeoutError):
-            return True
         else:
-            return False
+            return openai_should_retry(ex)
 
     @override
     def connection_key(self) -> str:
@@ -336,105 +339,35 @@ class OpenAIAPI(ModelAPI):
         return str(self.api_key)
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        params: dict[str, Any] = dict(
-            model=self.model_name,
-        )
+        # first call the default processing
+        params = openai_completion_params(self.service_model_name(), config, tools)
+
+        # add service_tier if specified
+        if self.service_tier is not None:
+            params["service_tier"] = self.service_tier
+
+        # now tailor to current model
         if config.max_tokens is not None:
             if self.is_o_series():
                 params["max_completion_tokens"] = config.max_tokens
-            else:
-                params["max_tokens"] = config.max_tokens
-        if config.frequency_penalty is not None:
-            params["frequency_penalty"] = config.frequency_penalty
-        if config.stop_seqs is not None:
-            params["stop"] = config.stop_seqs
-        if config.presence_penalty is not None:
-            params["presence_penalty"] = config.presence_penalty
-        if config.logit_bias is not None:
-            params["logit_bias"] = config.logit_bias
-        if config.seed is not None:
-            params["seed"] = config.seed
+                del params["max_tokens"]
+
         if config.temperature is not None:
             if self.is_o_series():
                 warn_once(
                     logger,
                     "o series models do not support the 'temperature' parameter (temperature is always 1).",
                 )
-            else:
-                params["temperature"] = config.temperature
-        # TogetherAPI requires temperature w/ num_choices
-        elif config.num_choices is not None:
-            params["temperature"] = 1
-        if config.top_p is not None:
-            params["top_p"] = config.top_p
-        if config.num_choices is not None:
-            params["n"] = config.num_choices
-        params = self.set_logprobs_params(params, config)
-        if tools and config.parallel_tool_calls is not None and not self.is_o_series():
-            params["parallel_tool_calls"] = config.parallel_tool_calls
-        if (
-            config.reasoning_effort is not None
-            and not self.is_gpt()
-            and not self.is_o1_mini()
-            and not self.is_o1_preview()
+                del params["temperature"]
+
+        # remove parallel_tool_calls if not supported
+        if "parallel_tool_calls" in params.keys() and self.is_o_series():
+            del params["parallel_tool_calls"]
+
+        # remove reasoning_effort if not supported
+        if "reasoning_effort" in params.keys() and (
+            self.is_gpt() or self.is_o1_early()
         ):
-            params["reasoning_effort"] = config.reasoning_effort
-        if config.response_schema is not None:
-            params["response_format"] = dict(
-                type="json_schema",
-                json_schema=dict(
-                    name=config.response_schema.name,
-                    schema=config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    description=config.response_schema.description,
-                    strict=config.response_schema.strict,
-                ),
-            )
+            del params["reasoning_effort"]
 
         return params
-
-    def set_logprobs_params(
-        self, params: dict[str, Any], config: GenerateConfig
-    ) -> dict[str, Any]:
-        if config.logprobs is not None:
-            params["logprobs"] = config.logprobs
-        if config.top_logprobs is not None:
-            params["top_logprobs"] = config.top_logprobs
-        return params
-
-
-class OpenAIAsyncHttpxClient(httpx.AsyncClient):
-    """Custom async client that deals better with long running Async requests.
-
-    Based on Anthropic DefaultAsyncHttpClient implementation that they
-    released along with Claude 3.7 as well as the OpenAI DefaultAsyncHttpxClient
-
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        # This is based on the openai DefaultAsyncHttpxClient:
-        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
-        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
-        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
-        kwargs.setdefault("follow_redirects", True)
-
-        # This is based on the anthrpopic changes for claude 3.7:
-        # https://github.com/anthropics/anthropic-sdk-python/commit/c5387e69e799f14e44006ea4e54fdf32f2f74393#diff-3acba71f89118b06b03f2ba9f782c49ceed5bb9f68d62727d929f1841b61d12bR1387-R1403
-
-        # set socket options to deal with long running reasoning requests
-        socket_options = [
-            (socket.SOL_SOCKET, socket.SO_KEEPALIVE, True),
-            (socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 60),
-            (socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5),
-        ]
-        TCP_KEEPIDLE = getattr(socket, "TCP_KEEPIDLE", None)
-        if TCP_KEEPIDLE is not None:
-            socket_options.append((socket.IPPROTO_TCP, TCP_KEEPIDLE, 60))
-
-        kwargs["transport"] = httpx.AsyncHTTPTransport(
-            limits=DEFAULT_CONNECTION_LIMITS,
-            socket_options=socket_options,
-        )
-
-        super().__init__(**kwargs)

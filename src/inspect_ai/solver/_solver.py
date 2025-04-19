@@ -136,7 +136,7 @@ def solver_create(name: str, **kwargs: Any) -> Solver:
     Returns:
         Solver with registry info attribute
     """
-    return cast(Solver, registry_create("solver", name, **kwargs))
+    return registry_create("solver", name, **kwargs)
 
 
 SolverType: TypeAlias = Solver | Agent

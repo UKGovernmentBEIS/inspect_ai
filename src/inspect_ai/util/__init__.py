@@ -1,3 +1,4 @@
+from inspect_ai._util.registry import RegistryType, registry_create
 from inspect_ai._util.trace import trace_action, trace_message
 
 from ._concurrency import concurrency
@@ -64,4 +65,6 @@ __all__ = [
     "throttle",
     "trace_action",
     "trace_message",
+    "RegistryType",
+    "registry_create",
 ]

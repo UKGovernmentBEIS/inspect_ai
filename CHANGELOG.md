@@ -1,4 +1,41 @@
-## Unreleased
+## Unreleased
+
+- Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
+- Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
+- OpenAI: Responses API is now used by default for all reasoning models.
+- OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
+- OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
+- OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
+- Google: Support for `reasoning_tokens` option for Gemini 2.5 models.
+- Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
+- Inspect View: Improved display of reasoning blocks.
+- Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples. 
+
+## v0.3.89 (17 April 2025)
+
+- [Model Roles](https://inspect.aisi.org.uk/models.html#model-roles) for creating aliases to models used in a task (e.g. "grader", "red_team", "blue_team", etc.)
+- New [openai-api](https://inspect.aisi.org.uk/providers.html#openai-api) model provider for interfacing with arbitrary services that have Open AI API compatible endpoints.
+- ReAct Agent: [truncation](https://inspect.aisi.org.uk/agents.html#truncation) option to trim conversation messages when the model context window is exceeded.
+- ReAct Agent: Improve default `on_continue` message, including using a dynamic name for the submit tool.
+- Agent Bridge: Add `metadata` field to bridge input for backward compatibility with solver-based bridge.
+- Added `default` argument to `get_model()` to explicitly specify a fallback model if the specified model isn't found.
+- Approval: Approvers now take `history` argument (rather than `TaskState`) to better handle agent conversation state.
+- Anthropic: Update string matching to correctly handle BadRequestErrors related to prompt + max_tokens being too long.
+- Google: Return "(no content)" when a generate call results in no completion choices.
+- CloudFlare: Use OpenAI compatible REST endpoint for interface to models.
+- Azure AI: Use `2025-03-01-preview` as default API version if none explicitly specified.
+- Model API: `trim_messages()` function for pruning messages to fit within model context windows.
+- Model API: Improved detection of context window overflow for Grok, Groq, and CloudFlare.
+- Task Display: Show both provider and model name when concurrency context is not shared across all models for a given provider.
+- Registry: Exported `registry_create()` function for dynamic creation of registry objects (e.g. `@task`, `@solver`, etc.).
+- Remove `chdir` option from `@task` (tasks can no longer change their working directory during execution).
+- `INSPECT_EVAL_LOG_FILE_PATTERN` environment variable for setting the eval log file pattern.
+- Bugfix: Eval retry now works correctly for models with a service prefix (e.g. `openai/azure/model-name`).
+- Bugfix: Correctly resolve approvers in the same source file as tasks. 
+- Bugfix: Ensure agent decorator resolves string annotations from `__future__` as needed.
+- Bugfix: Correctly handle string `dict` keys that are numeric in store diffs.
+
+## v0.3.88 (11 April 2025)
 
 - Tools: Restore formerly required (but now deprecated) `type` field to `ToolCall`.
 - Approval: Raise operator limit exceeded error for tool approval termination action.

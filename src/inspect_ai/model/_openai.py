@@ -1,9 +1,18 @@
 import json
 import re
+import socket
 from copy import copy
-from typing import Literal
+from typing import Any, Literal
 
-from openai import APIStatusError, OpenAIError
+import httpx
+from openai import (
+    DEFAULT_CONNECTION_LIMITS,
+    DEFAULT_TIMEOUT,
+    APIStatusError,
+    APITimeoutError,
+    OpenAIError,
+    RateLimitError,
+)
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionAssistantMessageParam,
@@ -38,9 +47,11 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
+from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, Logprobs
 from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
@@ -71,16 +82,16 @@ def is_o_series(name: str) -> bool:
         return not is_gpt(name) and bool(re.search(r"o\d+", name))
 
 
-def is_o1_pro(name: str) -> bool:
-    return "o1-pro" in name
+def is_o1(name: str) -> bool:
+    return "o1" in name and not is_o1_early(name)
 
 
-def is_o1_mini(name: str) -> bool:
-    return "o1-mini" in name
+def is_o1_early(name: str) -> bool:
+    return "o1-mini" in name or "o1-preview" in name
 
 
-def is_o1_preview(name: str) -> bool:
-    return "o1-preview" in name
+def is_o3_mini(name: str) -> bool:
+    return "o3-mini" in name
 
 
 def is_computer_use_preview(name: str) -> bool:
@@ -146,24 +157,20 @@ async def openai_chat_completion_part(
 
 
 async def openai_chat_message(
-    message: ChatMessage, model: str
+    message: ChatMessage, system_role: Literal["user", "system", "developer"] = "system"
 ) -> ChatCompletionMessageParam:
     if message.role == "system":
-        # o1-mini does not support developer or system messages
-        # (see Dec 17, 2024 changelog: https://platform.openai.com/docs/changelog)
-        if is_o1_mini(model):
-            return ChatCompletionUserMessageParam(role="user", content=message.text)
-        # other o-series models use 'developer' rather than 'system' messages
-        # https://platform.openai.com/docs/guides/reasoning#advice-on-prompting
-        elif is_o_series(model):
-            return ChatCompletionDeveloperMessageParam(
-                role="developer", content=message.text
-            )
-        # gpt models use standard 'system' messages
-        else:
-            return ChatCompletionSystemMessageParam(
-                role=message.role, content=message.text
-            )
+        match system_role:
+            case "user":
+                return ChatCompletionUserMessageParam(role="user", content=message.text)
+            case "system":
+                return ChatCompletionSystemMessageParam(
+                    role=message.role, content=message.text
+                )
+            case "developer":
+                return ChatCompletionDeveloperMessageParam(
+                    role="developer", content=message.text
+                )
     elif message.role == "user":
         return ChatCompletionUserMessageParam(
             role=message.role,
@@ -202,9 +209,54 @@ async def openai_chat_message(
 
 
 async def openai_chat_messages(
-    messages: list[ChatMessage], model: str
+    messages: list[ChatMessage],
+    system_role: Literal["user", "system", "developer"] = "system",
 ) -> list[ChatCompletionMessageParam]:
-    return [await openai_chat_message(message, model) for message in messages]
+    return [await openai_chat_message(message, system_role) for message in messages]
+
+
+def openai_completion_params(
+    model: str, config: GenerateConfig, tools: bool
+) -> dict[str, Any]:
+    params: dict[str, Any] = dict(model=model)
+    if config.max_tokens is not None:
+        params["max_tokens"] = config.max_tokens
+    if config.frequency_penalty is not None:
+        params["frequency_penalty"] = config.frequency_penalty
+    if config.stop_seqs is not None:
+        params["stop"] = config.stop_seqs
+    if config.presence_penalty is not None:
+        params["presence_penalty"] = config.presence_penalty
+    if config.logit_bias is not None:
+        params["logit_bias"] = config.logit_bias
+    if config.seed is not None:
+        params["seed"] = config.seed
+    if config.temperature is not None:
+        params["temperature"] = config.temperature
+    if config.top_p is not None:
+        params["top_p"] = config.top_p
+    if config.num_choices is not None:
+        params["n"] = config.num_choices
+    if config.logprobs is not None:
+        params["logprobs"] = config.logprobs
+    if config.top_logprobs is not None:
+        params["top_logprobs"] = config.top_logprobs
+    if tools and config.parallel_tool_calls is not None:
+        params["parallel_tool_calls"] = config.parallel_tool_calls
+    if config.reasoning_effort is not None:
+        params["reasoning_effort"] = config.reasoning_effort
+    if config.response_schema is not None:
+        params["response_format"] = dict(
+            type="json_schema",
+            json_schema=dict(
+                name=config.response_schema.name,
+                schema=config.response_schema.json_schema.model_dump(exclude_none=True),
+                description=config.response_schema.description,
+                strict=config.response_schema.strict,
+            ),
+        )
+
+    return params
 
 
 def openai_assistant_content(message: ChatMessageAssistant) -> str:
@@ -496,6 +548,35 @@ def chat_message_assistant_from_openai(
     )
 
 
+def model_output_from_openai(
+    completion: ChatCompletion,
+    choices: list[ChatCompletionChoice],
+) -> ModelOutput:
+    return ModelOutput(
+        model=completion.model,
+        choices=choices,
+        usage=(
+            ModelUsage(
+                input_tokens=completion.usage.prompt_tokens,
+                output_tokens=completion.usage.completion_tokens,
+                input_tokens_cache_read=(
+                    completion.usage.prompt_tokens_details.cached_tokens
+                    if completion.usage.prompt_tokens_details is not None
+                    else None  # openai only have cache read stats/pricing.
+                ),
+                reasoning_tokens=(
+                    completion.usage.completion_tokens_details.reasoning_tokens
+                    if completion.usage.completion_tokens_details is not None
+                    else None
+                ),
+                total_tokens=completion.usage.total_tokens,
+            )
+            if completion.usage
+            else None
+        ),
+    )
+
+
 def chat_choices_from_openai(
     response: ChatCompletion, tools: list[ToolInfo]
 ) -> list[ChatCompletionChoice]:
@@ -515,6 +596,19 @@ def chat_choices_from_openai(
         )
         for choice in choices
     ]
+
+
+def openai_should_retry(ex: Exception) -> bool:
+    if isinstance(ex, RateLimitError):
+        return True
+    elif isinstance(ex, APIStatusError):
+        return is_retryable_http_status(ex.status_code)
+    elif isinstance(ex, OpenAIResponseError):
+        return ex.code in ["rate_limit_exceeded", "server_error"]
+    elif isinstance(ex, APITimeoutError):
+        return True
+    else:
+        return False
 
 
 def openai_handle_bad_request(
@@ -559,3 +653,39 @@ def openai_media_filter(key: JsonValue | None, value: JsonValue) -> JsonValue:
         value = copy(value)
         value.update(data=BASE_64_DATA_REMOVED)
     return value
+
+
+class OpenAIAsyncHttpxClient(httpx.AsyncClient):
+    """Custom async client that deals better with long running Async requests.
+
+    Based on Anthropic DefaultAsyncHttpClient implementation that they
+    released along with Claude 3.7 as well as the OpenAI DefaultAsyncHttpxClient
+
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        # This is based on the openai DefaultAsyncHttpxClient:
+        # https://github.com/openai/openai-python/commit/347363ed67a6a1611346427bb9ebe4becce53f7e
+        kwargs.setdefault("timeout", DEFAULT_TIMEOUT)
+        kwargs.setdefault("limits", DEFAULT_CONNECTION_LIMITS)
+        kwargs.setdefault("follow_redirects", True)
+
+        # This is based on the anthrpopic changes for claude 3.7:
+        # https://github.com/anthropics/anthropic-sdk-python/commit/c5387e69e799f14e44006ea4e54fdf32f2f74393#diff-3acba71f89118b06b03f2ba9f782c49ceed5bb9f68d62727d929f1841b61d12bR1387-R1403
+
+        # set socket options to deal with long running reasoning requests
+        socket_options = [
+            (socket.SOL_SOCKET, socket.SO_KEEPALIVE, True),
+            (socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 60),
+            (socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 5),
+        ]
+        TCP_KEEPIDLE = getattr(socket, "TCP_KEEPIDLE", None)
+        if TCP_KEEPIDLE is not None:
+            socket_options.append((socket.IPPROTO_TCP, TCP_KEEPIDLE, 60))
+
+        kwargs["transport"] = httpx.AsyncHTTPTransport(
+            limits=DEFAULT_CONNECTION_LIMITS,
+            socket_options=socket_options,
+        )
+
+        super().__init__(**kwargs)

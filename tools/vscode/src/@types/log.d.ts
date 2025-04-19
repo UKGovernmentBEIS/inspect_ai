@@ -65,6 +65,11 @@ export type Required = string[] | null;
 export type Description1 = string | null;
 export type Strict = boolean | null;
 export type ModelBaseUrl = string | null;
+export type ModelRoles = {
+  [k: string]: EvalModelConfig;
+} | null;
+export type Model1 = string;
+export type BaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
 export type SampleId = string | number | (string | number)[] | null;
 export type Epochs = number | null;
@@ -211,7 +216,7 @@ export type Title = string | null;
 export type Format2 = "text" | "markdown";
 export type Content3 = string;
 export type Type8 = string | null;
-export type Model1 = string | null;
+export type Model2 = string | null;
 export type Id5 = string | null;
 export type Content4 =
   | string
@@ -247,7 +252,7 @@ export type Messages = (
   | ChatMessageAssistant
   | ChatMessageTool
 )[];
-export type Model2 = string;
+export type Model3 = string;
 export type StopReason =
   | "stop"
   | "max_tokens"
@@ -346,7 +351,8 @@ export type Timestamp5 = string;
 export type WorkingStart5 = number;
 export type Pending5 = boolean | null;
 export type Event5 = "model";
-export type Model3 = string;
+export type Model4 = string;
+export type Role4 = string | null;
 export type Input3 = (
   | ChatMessageSystem
   | ChatMessageUser
@@ -580,6 +586,7 @@ export interface EvalSpec {
   model_generate_config: GenerateConfig;
   model_base_url: ModelBaseUrl;
   model_args: ModelArgs;
+  model_roles: ModelRoles;
   config: EvalConfig;
   revision: EvalRevision | null;
   packages: Packages;
@@ -666,6 +673,16 @@ export interface Default {
   [k: string]: unknown;
 }
 export interface ModelArgs {}
+/**
+ * Model config.
+ */
+export interface EvalModelConfig {
+  model: Model1;
+  config: GenerateConfig;
+  base_url: BaseUrl;
+  args: Args;
+}
+export interface Args {}
 /**
  * Configuration used for evaluation.
  */
@@ -948,7 +965,7 @@ export interface ChatMessageAssistant {
   internal: unknown;
   role: Role2;
   tool_calls: ToolCalls;
-  model: Model1;
+  model: Model2;
 }
 export interface ToolCall {
   id: Id4;
@@ -989,7 +1006,7 @@ export interface ToolCallError {
  * Output from model generation.
  */
 export interface ModelOutput {
-  model: Model2;
+  model: Model3;
   choices: Choices1;
   usage: ModelUsage1 | null;
   time: Time;
@@ -1133,7 +1150,8 @@ export interface ModelEvent {
   working_start: WorkingStart5;
   pending: Pending5;
   event: Event5;
-  model: Model3;
+  model: Model4;
+  role: Role4;
   input: Input3;
   tools: Tools1;
   tool_choice: ToolChoice;

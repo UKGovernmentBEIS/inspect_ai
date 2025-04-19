@@ -97,7 +97,9 @@ const protectBackslashesInLatex = (content: string): string => {
 };
 
 const restoreBackslashesForLatex = (content: string): string => {
-  if (!content) return content;
+  if (!content) {
+    return content;
+  }
 
   try {
     // First restore backslashes

@@ -54,13 +54,13 @@ If your samples include `choices`, then the `target` should be a capital letter 
 
 ### Files
 
-The `files` field maps container target file paths to file contents (where contents can be either a filesystem path, a URL, or a string with inline content). For example, to copy a local file named `flag.txt` into the container path `/shared/flag.txt` you would use this:
+The `files` field maps sandbox target file paths to file contents (where contents can be either a filesystem path, a URL, or a string with inline content). For example, to copy a local file named `flag.txt` into the sandbox path `/shared/flag.txt` you would use this:
 
 ```python
 "/shared/flag.txt": "flag.txt"
 ```
 
-Files are copied into the default sandbox environment unless their name contains a prefix mapping them into another environment. For example, to copy into the `victim` container:
+Files are copied into the default sandbox environment unless their name contains a prefix mapping them into another environment. For example, to copy into the `victim` sandbox:
 
 ```python
 "victim:/shared/flag.txt": "flag.txt"

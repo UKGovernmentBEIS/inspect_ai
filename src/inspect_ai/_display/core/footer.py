@@ -2,7 +2,7 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from inspect_ai._util.retry import http_retries_count
-from inspect_ai.util._concurrency import concurrency_status
+from inspect_ai.util._concurrency import concurrency_status_display
 from inspect_ai.util._throttle import throttle
 
 from .config import task_dict
@@ -20,7 +20,7 @@ def task_footer(
 
 def task_resources() -> str:
     resources: dict[str, str] = {}
-    for model, resource in concurrency_status().items():
+    for model, resource in concurrency_status_display().items():
         resources[model] = f"{resource[0]}/{resource[1]}"
     return task_dict(resources)
 

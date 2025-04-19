@@ -49,9 +49,8 @@ from .loader import (
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
 from .task.run import TaskRunOptions, task_run
-from .task.rundir import task_run_dir_switching
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
-from .task.util import slice_dataset, task_chdir, task_run_dir
+from .task.util import slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
 
@@ -71,13 +70,10 @@ async def eval_run(
     score: bool = True,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
-    # see if we need to use run_dir switching
-    run_dir = task_run_dir(tasks[0].task)
-    multiple_run_dirs = any([task_run_dir(task.task) != run_dir for task in tasks])
-    tasks_chdir = any([task_chdir(task.task) is not None for task in tasks])
+    # are sandboxes in play?
     has_sandbox = next((task.has_sandbox for task in tasks), None)
 
-    # get cwd before switching to task dir
+    # get cwd before any switching
     eval_wd = os.getcwd()
 
     # ensure sample ids
@@ -199,6 +195,7 @@ async def eval_run(
                     solver=eval_solver_spec,
                     tags=tags,
                     model=resolved_task.model,
+                    model_roles=resolved_task.model_roles,
                     dataset=task.dataset,
                     scorer=eval_scorer_specs,
                     metrics=eval_metrics,
@@ -217,6 +214,7 @@ async def eval_run(
                     TaskRunOptions(
                         task=task,
                         model=resolved_task.model,
+                        model_roles=resolved_task.model_roles,
                         sandbox=resolved_task.sandbox,
                         logger=logger,
                         eval_wd=eval_wd,
@@ -233,25 +231,10 @@ async def eval_run(
         # multiple mode is for running/displaying multiple
         # task definitions, which requires some smart scheduling
         # to ensure that we spread work among models
-        if tasks_chdir:
-            if parallel > 1:
-                if multiple_run_dirs:
-                    with task_run_dir_switching():
-                        return await run_multiple(task_run_options, parallel)
-                else:
-                    with chdir(run_dir):
-                        return await run_multiple(task_run_options, parallel)
-
-            # single mode is for a single task definitions (which
-            # could in turn be executed for multiple models)
-            else:
-                with chdir(run_dir):
-                    return await run_single(task_run_options, debug_errors)
+        if parallel > 1:
+            return await run_multiple(task_run_options, parallel)
         else:
-            if parallel > 1:
-                return await run_multiple(task_run_options, parallel)
-            else:
-                return await run_single(task_run_options, debug_errors)
+            return await run_single(task_run_options, debug_errors)
 
     finally:
         # shutdown sandbox environments
@@ -359,12 +342,21 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                         f"task: {task_options.task.name} ({task_options.model})",
                     ):
                         async with anyio.create_task_group() as tg:
+                            # Create a factory function that captures the current
+                            # task_options. Otherwise, we suffer from Python's
+                            # late/by reference binding behavior.
+                            # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
+                            def create_task_runner(
+                                options: TaskRunOptions = task_options,
+                            ) -> Callable[[], Awaitable[None]]:
+                                async def run_task() -> None:
+                                    nonlocal result
+                                    result = await task_run(options)
+                                    results.append(result)
 
-                            async def run_task() -> None:
-                                result = await task_run(task_options)
-                                results.append(result)
+                                return run_task
 
-                            tg.start_soon(run_task)
+                            tg.start_soon(create_task_runner())
 
                 except Exception as ex:
                     # errors generally don't escape from tasks (the exception being if an error

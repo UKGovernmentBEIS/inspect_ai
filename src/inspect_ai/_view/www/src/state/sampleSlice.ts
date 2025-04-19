@@ -1,7 +1,7 @@
-import { SampleSummary } from "../api/types";
+import { EvalSample } from "../@types/log";
+import { SampleState, SampleStatus } from "../app/types";
+import { SampleSummary } from "../client/api/types";
 import { kSampleMessagesTabId } from "../constants";
-import { SampleState, SampleStatus } from "../types";
-import { EvalSample } from "../types/log";
 import { createLogger } from "../utils/logger";
 import { createSamplePolling } from "./samplePolling";
 import { resolveSample } from "./sampleUtils"; // Import the shared utility
@@ -78,7 +78,6 @@ export const createSampleSlice = (
         const state = get();
         if (state.log.loadedLog && state.sample.selectedSample) {
           samplePolling.startPolling(logFile, sampleSummary);
-          state.sampleActions.setSampleStatus("streaming");
         }
       },
       loadSample: async (logFile: string, sampleSummary: SampleSummary) => {
@@ -113,7 +112,6 @@ export const createSampleSlice = (
 
             // Poll running sample
             samplePolling.startPolling(logFile, sampleSummary);
-            sampleActions.setSampleStatus("streaming");
           }
         } catch (e) {
           sampleActions.setSampleError(e as Error);

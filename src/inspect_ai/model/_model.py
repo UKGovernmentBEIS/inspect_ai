@@ -9,7 +9,15 @@ from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime
 from types import TracebackType
-from typing import Any, AsyncIterator, Callable, Literal, Type, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Literal,
+    Sequence,
+    Type,
+    cast,
+)
 
 from pydantic_core import to_jsonable_python
 from tenacity import (
@@ -45,6 +53,7 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
@@ -54,7 +63,9 @@ from ._call_tools import (
     disable_parallel_tools,
     execute_tools,
     tool_call_view,
-    tools_info,
+)
+from ._call_tools import (
+    tools_info as get_tools_info,
 )
 from ._chat_message import (
     ChatMessage,
@@ -270,6 +281,7 @@ class Model:
         self.api = api
         self.config = config
         self.model_args = model_args
+        self._role: str | None = None
 
         # state indicating whether our lifetime is bound by a context manager
         self._context_bound = False
@@ -311,16 +323,21 @@ class Model:
         """Model name."""
         return self.api.model_name
 
+    @property
+    def role(self) -> str | None:
+        """Model role."""
+        return self._role
+
+    def _set_role(self, role: str) -> None:
+        self._role = role
+
     def __str__(self) -> str:
         return f"{ModelName(self)}"
 
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: list[Tool]
-        | list[ToolDef]
-        | list[ToolInfo]
-        | list[Tool | ToolDef | ToolInfo] = [],
+        tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
@@ -413,7 +430,7 @@ class Model:
     async def generate_loop(
         self,
         input: str | list[ChatMessage],
-        tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef] = [],
+        tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource = [],
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
     ) -> tuple[list[ChatMessage], ModelOutput]:
@@ -462,10 +479,7 @@ class Model:
     async def _generate(
         self,
         input: list[ChatMessage],
-        tools: list[Tool]
-        | list[ToolDef]
-        | list[ToolInfo]
-        | list[Tool | ToolDef | ToolInfo],
+        tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
@@ -473,15 +487,30 @@ class Model:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice else "auto"
 
+        # resolve top level tool source
+        if isinstance(tools, ToolSource):
+            tools = await tools.tools()
+
+        # resolve tool sources
+        resolved_tools: list[Tool | ToolDef | ToolInfo] = []
+        for tool in tools:
+            if isinstance(tool, ToolSource):
+                source_tools = await tool.tools()
+                resolved_tools.extend(source_tools)
+            else:
+                resolved_tools.append(tool)
+
         # extract tool defs if we can
-        tdefs = tool_defs([tool for tool in tools if not isinstance(tool, ToolInfo)])
+        tdefs = await tool_defs(
+            [tool for tool in resolved_tools if not isinstance(tool, ToolInfo)]
+        )
 
         # resolve all tools into tool_info
-        tools = tools_info(tools)
+        tools_info = get_tools_info(resolved_tools)
 
         # if we have a specific tool selected then filter out the others
         if isinstance(tool_choice, ToolFunction):
-            tools = [tool for tool in tools if tool.name == tool_choice.name]
+            tools_info = [tool for tool in tools_info if tool.name == tool_choice.name]
 
         # if tool_choice is "none" or if there are no tools then fully purge
         # the tools (as some models (e.g. openai and mistral) get confused
@@ -489,11 +518,11 @@ class Model:
         # (they both 'semi' use the tool by placing the arguments in JSON
         # in their output!). on the other hand, anthropic actually errors if
         # there are tools anywhere in the message stream and no tools defined.
-        if tool_choice == "none" or len(tools) == 0:
+        if tool_choice == "none" or len(tools_info) == 0:
             # allow model providers to implement a tools_required() method to
             # force tools to be passed (we need this for anthropic)
             if not self.api.tools_required():
-                tools = []
+                tools_info = []
             tool_choice = "none"
 
         # handle reasoning history
@@ -560,13 +589,13 @@ class Model:
                     model=str(self),
                     policy=policy,
                     tool_choice=tool_choice,
-                    tools=tools,
+                    tools=tools_info,
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
                     self._record_model_interaction(
                         input=input,
-                        tools=tools,
+                        tools=tools_info,
                         tool_choice=tool_choice,
                         config=config,
                         cache="read",
@@ -584,7 +613,7 @@ class Model:
             # (we'll update it with the results once we have them)
             complete = self._record_model_interaction(
                 input=input,
-                tools=tools,
+                tools=tools_info,
                 tool_choice=tool_choice,
                 config=config,
                 cache="write" if cache else None,
@@ -595,7 +624,7 @@ class Model:
                 try:
                     result = await self.api.generate(
                         input=input,
-                        tools=tools,
+                        tools=tools_info,
                         tool_choice=tool_choice,
                         config=config,
                     )
@@ -716,7 +745,7 @@ class Model:
         )
         model_name = ModelName(self)
         async with concurrency(
-            name=f"{model_name.api}",
+            name=str(model_name),
             concurrency=max_connections,
             key=f"Model{self.api.connection_key()}",
         ):
@@ -738,6 +767,7 @@ class Model:
         model = str(self)
         event = ModelEvent(
             model=model,
+            role=self.role,
             input=input,
             tools=tools,
             tool_choice=tool_choice,
@@ -828,6 +858,9 @@ class ModelName:
 
 def get_model(
     model: str | Model | None = None,
+    *,
+    role: str | None = None,
+    default: str | Model | None = None,
     config: GenerateConfig = GenerateConfig(),
     base_url: str | None = None,
     api_key: str | None = None,
@@ -858,6 +891,11 @@ def get_model(
           if `None` is passed then the model currently being
           evaluated is returned (or if there is no evaluation
           then the model referred to by `INSPECT_EVAL_MODEL`).
+       role: Optional named role for model (e.g. for roles specified
+          at the task or eval level). Provide a `default` as a fallback
+          in the case where the `role` hasn't been externally specified.
+       default: Optional. Fallback model in case the specified
+          `model` or `role` is not found.
        config: Configuration for model.
        base_url: Optional. Alternate base URL for model.
        api_key: Optional. API key for model.
@@ -877,6 +915,22 @@ def get_model(
     # next see if this is the special "none" model
     if model == "none":
         model = "none/none"
+
+    # resolve model role
+    if role is not None:
+        model_for_role = model_roles().get(role, None)
+        if model_for_role is not None:
+            return model_for_role
+
+    # if a default was specified then use it as the model if
+    # no model was passed
+    if model is None:
+        if isinstance(default, Model):
+            if role is not None:
+                default._set_role(role)
+            return default
+        else:
+            model = default
 
     # now try finding an 'ambient' model (active or env var)
     if model is None:
@@ -901,6 +955,7 @@ def get_model(
     if memoize:
         model_cache_key = (
             model
+            + str(role)
             + config.model_dump_json(exclude_none=True)
             + str(base_url)
             + str(api_key)
@@ -941,10 +996,11 @@ def get_model(
             **model_args,
         )
         m = Model(modelapi_instance, config, model_args)
+        if role is not None:
+            m._set_role(role)
         if memoize:
             _models[model_cache_key] = m
         return m
-
     else:
         from_api = f" from {api_name}" if api_name else ""
         raise ValueError(f"Model name {model}{from_api} not recognized.")
@@ -1353,10 +1409,20 @@ def active_model() -> Model | None:
     return active_model_context_var.get(None)
 
 
-# shared contexts for asyncio tasks
+def init_model_roles(roles: dict[str, Model]) -> None:
+    _model_roles.set(roles)
+
+
+def model_roles() -> dict[str, Model]:
+    return _model_roles.get()
+
+
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
+_model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={})
 
+
+# shared contexts for asyncio tasks
 def handle_sample_message_limit(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import (
         active_sample_message_limit,

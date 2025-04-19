@@ -21,6 +21,7 @@ select = [
     "F",      # flake8
     "D",      # pydocstyle
     "I",      # isort
+    "B",      # flake8-bugbear
     "SIM101", # duplicate isinstance
     "UP038",  # non-pep604-isinstance
     # "RET", # flake8-return
@@ -65,7 +66,7 @@ ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_tool_support"
-version = "0.1.7"
+version = "0.1.8"
 description = "Sandbox container tool code for inspect_ai"
 authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
@@ -88,6 +89,7 @@ dependencies = [
     "aiohttp",
     "httpx",
     "jsonrpcserver",
+    "mcp",
     "pydantic",
     "returns",
     "tenacity",
@@ -103,6 +105,7 @@ inspect-tool-support = "inspect_tool_support._cli.main:main"
 
 [project.optional-dependencies]
 dev = [
+    "ruff==0.9.6", # match version specified in .pre-commit-config.yaml
     "types-psutil"
 ]
 

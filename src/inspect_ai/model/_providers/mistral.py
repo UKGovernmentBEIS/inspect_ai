@@ -86,7 +86,6 @@ class MistralAPI(ModelAPI):
         parts = model_name.split("/")
         if len(parts) > 1:
             self.service: str | None = parts[0]
-            model_name = "/".join(parts[1:])
         else:
             self.service = None
 
@@ -150,7 +149,7 @@ class MistralAPI(ModelAPI):
             # build request
             request_id = http_hooks.start_request()
             request: dict[str, Any] = dict(
-                model=self.model_name,
+                model=self.service_model_name(),
                 messages=await mistral_chat_messages(input),
                 tools=mistral_chat_tools(tools) if len(tools) > 0 else None,
                 tool_choice=(
@@ -228,6 +227,10 @@ class MistralAPI(ModelAPI):
                 ),
             ), model_call()
 
+    def service_model_name(self) -> str:
+        """Model name without any service prefix."""
+        return self.model_name.replace(f"{self.service}/", "", 1)
+
     @override
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, SDKError):
@@ -246,7 +249,9 @@ class MistralAPI(ModelAPI):
         content = body.get("message", ex.body)
         if "maximum context length" in ex.body:
             return ModelOutput.from_content(
-                model=self.model_name, content=content, stop_reason="model_length"
+                model=self.service_model_name(),
+                content=content,
+                stop_reason="model_length",
             )
         else:
             return ex

@@ -40,6 +40,12 @@ class AgentPrompt(NamedTuple):
     """Prompt for assistant (covers tool use, submit tool, CoT, etc.)."""
 
 
+DEFAULT_CONTINUE_PROMPT = """
+Please proceed to the next step using your best judgement. If you believe you
+have completed the task, please call the `{submit}()` tool.
+"""
+
+
 AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
 """Function called to determine whether the agent should continue.
 

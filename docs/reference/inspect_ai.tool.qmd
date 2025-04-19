@@ -13,6 +13,15 @@ title: "inspect_ai.tool"
 ### web_search
 ### think
 
+## MCP
+
+### mcp_connection
+### mcp_server_stdio
+### mcp_server_sse
+### mcp_server_sandbox
+### mcp_tools
+### MCPServer
+
 ## Dynamic 
 
 ### tool_with
@@ -29,6 +38,7 @@ title: "inspect_ai.tool"
 ### ToolInfo
 ### ToolParams
 ### ToolParam
+### ToolSource
 
 ## Decorator
 

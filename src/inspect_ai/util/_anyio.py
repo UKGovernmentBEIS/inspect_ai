@@ -1,3 +1,4 @@
+import itertools
 import sys
 
 if sys.version_info < (3, 11):
@@ -5,23 +6,33 @@ if sys.version_info < (3, 11):
 
 
 def inner_exception(exc: Exception) -> Exception:
-    flattended = flatten_exception_group(exc)
-    return flattended[0]
+    return _flatten_exception(exc)[0]
 
 
-def flatten_exception_group(exc: Exception) -> list[Exception]:
-    """Recursively flatten an ExceptionGroup to get all contained exceptions."""
-    if (
-        hasattr(exc, "__context__")
-        and exc.__context__ is not None
-        and isinstance(exc.__context__, Exception)
-    ):
-        return flatten_exception_group(exc.__context__) + [exc]
+def _flatten_exception(exc: Exception) -> list[Exception]:
+    """Recursively flatten an exception to get all related (__context__) and contained (ExceptionGroup) exceptions."""
+    context_to_follow = (
+        [exc.__context__]
+        # conceptually, if __cause__ is present, it means that this exception
+        # wraps the cause - rather than cause being a separate error. We'll
+        # follow __context__ only if __cause__ is None
+        if exc.__cause__ is None and isinstance(exc.__context__, Exception)
+        else []
+    )
 
-    if isinstance(exc, ExceptionGroup):
-        flattened = []
-        for nested_exc in exc.exceptions:
-            flattened.extend(flatten_exception_group(nested_exc))
-        return flattened
+    (maybe_this_exception, children_to_follow) = (
+        ([], exc.exceptions)
+        # if it's a group, follow the children discarding the group
+        if isinstance(exc, ExceptionGroup)
+        else ([exc], [])
+    )
 
-    return [exc]
+    # We have to use a set since the same exception is likely to be included in
+    # both __context__ and .exceptions
+    other_exceptions = [
+        flattened_e
+        for e in set(itertools.chain(context_to_follow, children_to_follow))
+        for flattened_e in _flatten_exception(e)
+    ]
+
+    return maybe_this_exception + other_exceptions

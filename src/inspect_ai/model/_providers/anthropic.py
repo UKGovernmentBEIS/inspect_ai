@@ -82,7 +82,6 @@ class AnthropicAPI(ModelAPI):
         parts = model_name.split("/")
         if len(parts) > 1:
             self.service: str | None = parts[0]
-            model_name = "/".join(parts[1:])
         else:
             self.service = None
 
@@ -237,7 +236,7 @@ class AnthropicAPI(ModelAPI):
 
             # extract output
             output = await model_output_from_message(
-                self.client, self.model_name, message, tools
+                self.client, self.service_model_name(), message, tools
             )
 
             # return output and call
@@ -249,7 +248,7 @@ class AnthropicAPI(ModelAPI):
         except APIStatusError as ex:
             if ex.status_code == 413:
                 return ModelOutput.from_content(
-                    model=self.model_name,
+                    model=self.service_model_name(),
                     content=ex.message,
                     stop_reason="model_length",
                     error=ex.message,
@@ -261,7 +260,7 @@ class AnthropicAPI(ModelAPI):
         self, config: GenerateConfig
     ) -> tuple[dict[str, Any], dict[str, str], list[str]]:
         max_tokens = cast(int, config.max_tokens)
-        params = dict(model=self.model_name, max_tokens=max_tokens)
+        params = dict(model=self.service_model_name(), max_tokens=max_tokens)
         headers: dict[str, str] = {}
         betas: list[str] = []
         # some params not compatible with thinking models
@@ -311,17 +310,21 @@ class AnthropicAPI(ModelAPI):
         return not self.is_claude_3() and not self.is_claude_3_5()
 
     def is_claude_3(self) -> bool:
-        return re.search(r"claude-3-[a-zA-Z]", self.model_name) is not None
+        return re.search(r"claude-3-[a-zA-Z]", self.service_model_name()) is not None
 
     def is_claude_3_5(self) -> bool:
-        return "claude-3-5-" in self.model_name
+        return "claude-3-5-" in self.service_model_name()
 
     def is_claude_3_7(self) -> bool:
-        return "claude-3-7-" in self.model_name
+        return "claude-3-7-" in self.service_model_name()
 
     @override
     def connection_key(self) -> str:
         return str(self.api_key)
+
+    def service_model_name(self) -> str:
+        """Model name without any service prefix."""
+        return self.model_name.replace(f"{self.service}/", "", 1)
 
     @override
     def should_retry(self, ex: Exception) -> bool:
@@ -371,7 +374,11 @@ class AnthropicAPI(ModelAPI):
         # NOTE: Using case insensitive matching because the Anthropic Bedrock API seems to capitalize the work 'input' in its error message, other times it doesn't.
         if any(
             message in error.lower()
-            for message in ["prompt is too long", "input is too long"]
+            for message in [
+                "prompt is too long",
+                "input is too long",
+                "input length and `max_tokens` exceed context limit",
+            ]
         ):
             if (
                 isinstance(ex.body, dict)
@@ -392,7 +399,7 @@ class AnthropicAPI(ModelAPI):
 
         if content and stop_reason:
             return ModelOutput.from_content(
-                model=self.model_name,
+                model=self.service_model_name(),
                 content=content,
                 stop_reason=stop_reason,
                 error=error,
@@ -440,10 +447,11 @@ class AnthropicAPI(ModelAPI):
 
         # only certain claude models qualify
         if cache_prompt:
+            model_name = self.service_model_name()
             if (
-                "claude-3-sonnet" in self.model_name
-                or "claude-2" in self.model_name
-                or "claude-instant" in self.model_name
+                "claude-3-sonnet" in model_name
+                or "claude-2" in model_name
+                or "claude-instant" in model_name
             ):
                 cache_prompt = False
 

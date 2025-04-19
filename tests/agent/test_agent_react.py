@@ -251,7 +251,7 @@ def test_react_agent_retries_with_custom_incorrect_message():
 
 
 def test_react_agent_on_continue_str():
-    on_continue = "Please keep going!"
+    on_continue = "Please keep going and call the {submit}() tool!"
     addition_task = Task(
         dataset=[Sample(input="What is 1 + 1?", target="2")],
         solver=react(tools=[addition()], on_continue=on_continue),
@@ -266,13 +266,14 @@ def test_react_agent_on_continue_str():
                     "mockllm/model", "addition", {"x": 1, "y": 1}
                 ),
                 ModelOutput.from_content("mockllm/model", "I give up!"),
-                ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": 2}),
+                ModelOutput.for_tool_call("mockllm/model", "submit", {"answer": "2"}),
             ],
         ),
     )[0]
+    assert log.status == "success"
     assert log.samples
     messages = log.samples[0].messages
-    assert messages[-2].text == on_continue
+    assert messages[-2].text == on_continue.format(submit="submit")
 
 
 def test_react_agent_on_continue_func():
@@ -291,6 +292,7 @@ def test_react_agent_on_continue_func():
         message_limit=30,
     )
     log = eval(addition_task, mockllm_model_with_outputs(["5", "1", "2"]))[0]
+    assert log.status == "success"
     assert log.samples
     messages = log.samples[0].messages
     assert (

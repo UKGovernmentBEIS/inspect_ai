@@ -10,8 +10,9 @@
 
 If the provider you are using is not listed above, you may still be able to use it if:
 
-1. It is available via OpenRouter (see the docs on using [OpenRouter](providers.qmd#openrouter) with Inspect).
+1. It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI Compatible API](providers.qmd#openai-api) interface.
 
-2. It provides an OpenAI compatible API endpoint. In this scenario, use the Inspect [OpenAI](providers.qmd#openai) interface and set the `OPENAI_BASE_URL` environment variable to the apprpriate value for your provider.
+2. It is available via OpenRouter (see the docs on using [OpenRouter](providers.qmd#openrouter) with Inspect).
+
 
 You can also create [Model API Extensions](extensions.qmd#model-apis) to add model providers using their native interface.

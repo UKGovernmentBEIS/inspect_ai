@@ -1,4 +1,4 @@
-from inspect_ai.solver._task_state import TaskState
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 
 from ._approval import Approval, ApprovalDecision
@@ -21,7 +21,7 @@ def auto_approver(decision: ApprovalDecision = "approve") -> Approver:
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         return Approval(decision=decision, explanation="Automatic decision.")
 

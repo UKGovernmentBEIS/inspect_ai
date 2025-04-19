@@ -24,12 +24,13 @@ select = [
     "F",      # flake8
     "D",      # pydocstyle
     "I",      # isort
+    "B",      # flake8-bugbear
     "SIM101", # duplicate isinstance
     "UP038",  # non-pep604-isinstance
     # "RET", # flake8-return
     # "RUF", # ruff rules
 ]
-ignore = ["E203", "E501", "D10", "D212", "D415"]
+ignore = ["E203", "E501", "D10", "D212", "D415","B006", "B007", "B008","B009","B010", "B011", "B017", "B027", "B028", "B039", "B904", "B905"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -121,6 +122,7 @@ dev = [
     "groq", 
     "ipython",
     "markdown",
+    "mcp",
     "mistralai",
     "moto[server]",
     "mypy",
@@ -150,5 +152,6 @@ dev = [
     "types-psutil",
     "types-python-dateutil"
 ]
+dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
 dist = ["twine", "build"]

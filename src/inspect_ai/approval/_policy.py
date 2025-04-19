@@ -2,14 +2,14 @@ import fnmatch
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generator, cast
+from typing import Any, Generator
 
 from pydantic import BaseModel, Field, model_validator
 
 from inspect_ai._util.config import read_config_object
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.registry import registry_create, registry_lookup
-from inspect_ai.solver._task_state import TaskState
+from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
 from inspect_ai.util._resource import resource
 
@@ -59,13 +59,13 @@ def policy_approver(policies: str | list[ApprovalPolicy]) -> Approver:
         message: str,
         call: ToolCall,
         view: ToolCallView,
-        state: TaskState | None = None,
+        history: list[ChatMessage],
     ) -> Approval:
         # process approvers for this tool call (continue loop on "escalate")
         has_approver = False
         for approver in tool_approvers(call):
             has_approver = True
-            approval = await call_approver(approver, message, call, view, state)
+            approval = await call_approver(approver, message, call, view, history)
             if approval.decision != "escalate":
                 return approval
 
@@ -140,7 +140,7 @@ def approval_policies_from_config(
     def create_approval_policy(
         name: str, tools: str | list[str], params: dict[str, Any] = {}
     ) -> ApprovalPolicy:
-        approver = cast(Approver, registry_create("approver", name, **params))
+        approver = registry_create("approver", name, **params)
         return ApprovalPolicy(approver, tools)
 
     # map config -> policy

@@ -24,6 +24,7 @@ title: "inspect_ai.model"
 ### ChatMessageUser
 ### ChatMessageAssistant
 ### ChatMessageTool
+### trim_messages
 
 ## Content
 

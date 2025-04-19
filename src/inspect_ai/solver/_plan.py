@@ -164,7 +164,7 @@ def plan(*plan: PlanType | None, name: str | None = None, **attribs: Any) -> Any
                 plan_type,
                 plan,
                 RegistryInfo(
-                    type="plan",
+                    type="plan",  # type: ignore[arg-type]
                     name=plan_name,
                     metadata=dict(attribs=attribs, params=params),
                 ),
@@ -212,7 +212,9 @@ def plan_register(
     registry_add(
         plan,
         RegistryInfo(
-            type="plan", name=name, metadata=dict(attribs=attribs, params=params)
+            type="plan",  # type: ignore[arg-type]
+            name=name,
+            metadata=dict(attribs=attribs, params=params),
         ),
     )
     return plan
@@ -228,4 +230,4 @@ def plan_create(name: str, **kwargs: Any) -> Plan:
     Returns:
         Plan with registry info attribute
     """
-    return cast(Plan, registry_create("plan", name, **kwargs))
+    return registry_create("plan", name, **kwargs)

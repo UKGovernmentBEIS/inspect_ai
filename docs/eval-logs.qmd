@@ -100,6 +100,7 @@ inspect eval images.py --log-format=json --no-log-images
 
 You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a global default in your `.env` configuration file.
 
+
 ## Log File API {#sec-log-file-api}
 
 ### EvalLog
@@ -261,6 +262,26 @@ AWS_DEFAULT_REGION=eu-west-2
 ```
 
 One thing to keep in mind if you are storing logs on S3 is that they will no longer be easily viewable using a local text editor. You will likely want to configure a [FUSE filesystem](https://github.com/s3fs-fuse/s3fs-fuse) so you can easily browse the S3 logs locally.
+
+
+## Log File Name
+
+By default, log files are named using the following convention:
+
+```
+{timestamp}_{task}_{id}
+```
+
+Where `timestamp` is the time the log was created; `task` is the name of the task the log corresponds to; and `id` is a unique task id. 
+
+The `{timestamp}` part of the log file name is required to ensure that log files appear in sequential order in the filesystem. However, the rest of the filename can be customized using the `INSPECT_EVAL_LOG_FILE_PATTERN` environment variable, which can include any combination of `task`, `model`, and `id` fields. For example, to include the `model` in log file names:
+
+```bash
+export INSPECT_EVAL_LOG_FILE_PATTERN={task}_{model}_{id}
+inspect eval ctf.py 
+```
+
+As with other log file oriented environment variables, you may find it convenient to define this in a `.env` file from the location where you run your evals.
 
 ## Log Commands {#sec-log-commands}
 

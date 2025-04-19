@@ -82,8 +82,10 @@ website:
          - section: "Tools"
            contents:
                - tools.qmd
-               - tools-custom.qmd
                - tools-standard.qmd
+               - text: "MCP Tools"
+                 href: tools-mcp.qmd
+               - tools-custom.qmd
                - sandboxing.qmd
                - approval.qmd
 

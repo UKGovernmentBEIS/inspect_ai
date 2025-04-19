@@ -28,6 +28,7 @@ from inspect_ai.log._file import (
     read_eval_log_headers,
     write_log_dir_manifest,
 )
+from inspect_ai.log._model import model_roles_to_model_roles_config
 from inspect_ai.model import (
     GenerateConfigArgs,
     Model,
@@ -63,6 +64,7 @@ def eval_set(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
     model_args: dict[str, Any] | str = dict(),
+    model_roles: dict[str, str | Model] | None = None,
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
@@ -77,7 +79,7 @@ def eval_set(
     log_level_transcript: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
     limit: int | tuple[int, int] | None = None,
-    sample_id: str | int | list[str | int] | None = None,
+    sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
     debug_errors: bool | None = None,
@@ -120,6 +122,7 @@ def eval_set(
             with the model API.
         model_args: Model creation args
             (as a dictionary or as a path to a JSON or YAML config file)
+        model_roles: Named roles for use in `get_model()`.
         task_args: Task creation arguments
             (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type
@@ -194,6 +197,7 @@ def eval_set(
             model=None,  # ResolvedTask/PreviousTask already carries its model
             model_base_url=model_base_url,
             model_args=model_args,
+            model_roles=model_roles,
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
@@ -248,7 +252,7 @@ def eval_set(
         raise RuntimeError("eval_set cannot be used with conversation display.")
 
     # initialize eval
-    models, _ = eval_init(
+    models = eval_init(
         model=model,
         model_base_url=model_base_url,
         model_args=model_args,
@@ -303,8 +307,14 @@ def eval_set(
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
         # resolve tasks
-        resolved_tasks = eval_resolve_tasks(
-            tasks, task_args, models, GenerateConfig(**kwargs), sandbox
+        resolved_tasks, _ = eval_resolve_tasks(
+            tasks,
+            task_args,
+            models,
+            model_roles,
+            GenerateConfig(**kwargs),
+            approval,
+            sandbox,
         )
 
         # list all logs currently in the log directory (update manifest if there are some)
@@ -415,18 +425,13 @@ def as_previous_tasks(
 
     previous_tasks: list[PreviousTask] = []
     for task, log in zip(tasks, map(task_to_failed_log, tasks)):
-        # NOTE: we used to try to recreate registry objects by
-        # by just passing the task name, but that didn't work
-        # when evals were run from another directory. we may
-        # want to bring this back but we'd need to resolve the
-        # directory issues.
-
         previous_tasks.append(
             PreviousTask(
                 id=log.header.eval.task_id,
                 task=task.task,
                 task_args=resolve_task_args(task.task),
                 model=task.model,
+                model_roles=task.model_roles,
                 log=read_eval_log(log.info),
             )
         )
@@ -561,16 +566,28 @@ def task_identifier(task: ResolvedTask | EvalLog) -> str:
         task_name = task.task.name
         task_args = task.task_args
         model = str(task.model)
+        model_roles = model_roles_to_model_roles_config(task.model_roles) or {}
     else:
         task_file = task.eval.task_file or ""
         task_name = task.eval.task
         task_args = task.eval.task_args
         model = str(task.eval.model)
+        model_roles = task.eval.model_roles or {}
 
     # hash for task args
     task_args_hash = hashlib.sha256(
         to_json(task_args, exclude_none=True, fallback=lambda _x: None)
     ).hexdigest()
+
+    # hash for model roles
+    if len(model_roles):
+        model = (
+            model
+            + "/"
+            + hashlib.sha256(
+                to_json(model_roles, exclude_none=True, fallback=lambda _x: None)
+            ).hexdigest()
+        )
 
     if task_file:
         return f"{task_file}@{task_name}#{task_args_hash}/{model}"

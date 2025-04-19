@@ -34,17 +34,17 @@ INSPECT_EVAL_MODEL=google/gemini-1.5-pro
 
 #### No Model
 
-Some evaluations will either not make use of models or call the lower-level `get_model()` function to explicitly access models for different roles (see the [Model API](#model-api) section below for details on this). 
+Some evaluations will either not make use of models or call the lower-level `get_model()` function to explicitly access models for different roles (see the [Model API](#model-api) section below for details on this).
 
 In these cases, you are not required to specify a `--model`. If you happen to have an `INSPECT_EVAL_MODEL` defined and you want to prevent your evaluation from using it, you can explcitly specify no model as follows:
 
-```bash
+``` bash
 inspect eval arc.py --model none
 ```
 
 Or from Python:
 
-```python
+``` python
 eval("arc.py", model=None)
 ```
 
@@ -84,11 +84,11 @@ Inspect uses an asynchronous architecture to run task samples in parallel. If yo
 
 By default, Inspect uses a `max_connections` value of 10. You can increase this consistent with your account limits. If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this).
 
-## Model API
+## Model API {#model-api}
 
 The `--model` which is set for an evaluation is automatically used by the `generate()` solver, as well as for other solvers and scorers built to use the currently evaluated model. If you are implementing a `Solver` or `Scorer` and want to use the currently evaluated model, call `get_model()` with no arguments:
 
-```python
+``` python
 from inspect_ai.model import get_model
 
 model = get_model()
@@ -97,7 +97,7 @@ response = await model.generate("Say hello")
 
 If you want to use other models in your solvers and scorers, call `get_model()` with an alternate model name, along with optional generation config. For example:
 
-```python
+``` python
 model = get_model("openai/gpt-4o")
 
 model = get_model(
@@ -108,7 +108,7 @@ model = get_model(
 
 You can also pass provider specific parameters as additional arguments to `get_model()`. For example:
 
-```python
+``` python
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
@@ -116,36 +116,104 @@ model = get_model("hf/openai-community/gpt2", device="cuda:0")
 
 By default, calls to `get_model()` are memoized, meaning that calls with identical parameters resolve to a cached version of the model. You can disable this by passing `memoize=False`:
 
-```python
+``` python
 model = get_model("openai/gpt-4o", memoize=False)
 ```
 
 Finally, if you prefer to create and fully close model clients at their place of use, you can use the async context manager built in to the `Model` class. For example:
 
-```python
+``` python
 async with get_model("openai/gpt-4o") as model:
     eval(mytask(), model=model)
 ```
 
 If you are not in an async context there is also a sync context manager available:
 
-```python
+``` python
 with get_model("hf/Qwen/Qwen2.5-72B") as model:
     eval(mytask(), model=model)
 ```
 
 Note though that this *won't work* with model providers that require an async close operation (OpenAI, Anthropic, Grok, Together, Groq, Ollama, llama-cpp-python, and CloudFlare).
 
+## Model Roles
+
+Model roles enable you to create aliases for the various models used in your tasks, and then dynamically vary those roles when running an evaluation. For example, you might have a "critic" or "monitor" role, or perhaps "red_team" and "blue_team" roles. Roles are included in the log and displayed in model events within the transcript.
+
+Here is a scorer that utilises a "grader" role when binding to a model:
+
+``` python
+@scorer(metrics=[accuracy(), stderr()])
+def model_grader() -> Scorer:
+    async def score(state: TaskState, target: Target):
+        model = get_model(role="grader")
+        ...
+```
+
+By default if there is no "grader" role specified, the default model for the evaluation will be returned. Model roles can be specified when using `inspect eval` or calling the `eval()` function:
+
+``` bash
+inspect eval math.py --model-role grader=google/gemini-2.0-flash
+```
+
+Or with `eval()`:
+
+``` python
+eval("math.py", model_roles = { "grader": "google/gemini-2.0-flash" })
+```
+
+### Role Defaults
+
+By default if there is a no role explicitly defined then `get_model(role="...")` will return the default model for the evaluation. You can specify an alternate default model as follows:
+
+``` python
+model = get_model(role="grader", default="openai/gpt-4o")
+```
+
+This means that you can use model roles as a means of external configurability even if you aren't yet explicitly taking advantage of them.
+
+### Roles for Tasks
+
+In some cases it may not be convenient to specify `model_roles` in the top level call to `eval()`. For example, you might be running an [Eval Set](eval-sets.qmd) to explore the behaviour of different models for a given role. In this case, do not specify `model_roles` at the eval level, rather, specify them at the task level.
+
+For example, imagine we have a task named `blues_clues` that we want to vary the red and blue teams for in an eval set:
+
+``` python
+from inspect_ai import eval_set, task_with
+from ctf_tasks import blues_clues 
+
+tasks = [
+    task_with(blues_clues(), model_roles = {
+        "red_team": "openai/gpt-4o",
+        "blue_team": "google/gemini-2.0-flash"
+    }),()
+    task_with(blues_clues, model_roles = {
+        "red_team": "google/gemini-2.0-flash",
+        "blue_team": "openai/gpt-4o"
+    })
+]
+
+eval_set(tasks, log_dir="...")
+```
+
+Note that we also don't specify a `model` for this eval (it doesn't have a main model but rather just the red and blue team roles).
+
+As illustrated above, you can define as many named roles as you need. When using `eval()` or `Task` roles are specified using a dictionary. When using `inspect eval` you can include multiple `--model-role` options on the command line:
+
+``` bash
+inspect eval math.py \
+   --model-role red_team=google/gemini-2.0-flash \
+   --model-role blue_team=openai/gpt-4o-mini
+```
 
 ## Learning More
 
-- [Providers](providers.qmd) covers usage details and available options for the various supported providers.
+-   [Providers](providers.qmd) covers usage details and available options for the various supported providers.
 
-- [Caching](caching.qmd) explains how to cache model output to reduce the number of API calls made.
+-   [Caching](caching.qmd) explains how to cache model output to reduce the number of API calls made.
 
-- [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
+-   [Multimodal](multimodal.qmd) describes the APIs available for creating multimodal evaluations (including images, audio, and video).
 
-- [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
- 
-- [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
+-   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
 
+-   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.

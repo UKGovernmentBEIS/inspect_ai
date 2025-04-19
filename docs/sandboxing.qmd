@@ -12,7 +12,7 @@ By default, model tool calls are executed within the main process running the ev
 
 -   You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accomodate these scenarios, Inspect provides support for _sandboxing_, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accomodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 
@@ -90,10 +90,10 @@ The sandbox is also available to custom scorers.
 
 There are two sandbox environments built in to Inspect:
 
-| Environment Type | Description |
-|--------------------------|---------------------------------------------|
-| `local` | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
-| `docker` | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details). |
+| Environment Type | Description                                                                                                                                                      |
+|---------------------------|---------------------------------------------|
+| `local`          | Run `sandbox()` methods in the same file system as the running evaluation (should *only be used* if you are already running your evaluation in another sandbox). |
+| `docker`         | Run `sandbox()` methods within a Docker container (see the [Docker Configuration](#sec-docker-configuration) section below for additional details).              |
 
 Sandbox environment definitions can be bound at the `Sample`, `Task`, or `eval()` level. Binding precedence goes from `eval()`, to `Task` to `Sample`, however sandbox config files defined on the `Sample` always take precedence when the sandbox type for the `Sample` is the same as the enclosing `Task` or `eval()`.
 
@@ -137,20 +137,25 @@ The value of the `dict` can be either the file contents, a file path, or a base6
 
 If there is a Sample `setup` bash script it will be executed within the default sandbox environment after any Sample `files` are copied into the environment. The `setup` field can be either the script contents, a file path containing the script, or a base64 encoded [Data URL](https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/Data_URLs).
 
-
 ## Docker Configuration {#sec-docker-configuration}
+
+### Installation
 
 Before using Docker sandbox environments, please be sure to install [Docker Engine](https://docs.docker.com/engine/install/) (version 24.0.7 or greater).
 
-You can use the Docker sandbox enviornment without any special configuration, however most commonly you’ll provide explicit configuration via either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
+If you plan on running evaluations with large numbers of concurrent containers (\> 30) you should also configure Docker's [default address pools](https://straz.to/2021-09-08-docker-address-pools/) to accommodate this.
+
+### Task Configuration
+
+You can use the Docker sandbox environment without any special configuration, however most commonly you’ll provide explicit configuration via either a `Dockerfile` or a [Docker Compose](https://docs.docker.com/compose/compose-file/) configuration file (`compose.yaml`).
 
 Here is how Docker sandbox environments are created based on the presence of `Dockerfile` and/or `compose.yml` in the task directory:
 
-| Config Files | Behavior |
+| Config Files   | Behavior                                                                                                                                |
 |---------------------------|---------------------------------------------|
-| None | Creates a sandbox environment based on the official [python:3.12-bookworm](https://hub.docker.com/_/python) image. |
-| `Dockerfile` | Creates a sandbox environment by building the image. |
-| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`. |
+| None           | Creates a sandbox environment based on the standard [inspect-tool-support](https://hub.docker.com/r/aisiuk/inspect-tool-support) image. |
+| `Dockerfile`   | Creates a sandbox environment by building the image.                                                                                    |
+| `compose.yaml` | Creates sandbox environment(s) based on `compose.yaml`.                                                                                 |
 
 Providing a `compose.yaml` is not strictly required, as Inspect will automatically generate one as needed. Note that the automatically generated compose file will restrict internet access by default, so if your evaluations require this you'll need to provide your own `compose.yaml` file.
 
@@ -231,13 +236,13 @@ sandbox("victim")  # named sandbox environment
 
 If you define multiple sandbox environments the default sandbox environment will be determined as follows:
 
-1. First, take any sandbox environment named `default`;
-2. Then, take any environment with the `x-default` key set to `true`;
-3. Finally, use the first sandbox environment as the default.
+1.  First, take any sandbox environment named `default`;
+2.  Then, take any environment with the `x-default` key set to `true`;
+3.  Finally, use the first sandbox environment as the default.
 
 You can use the `sandbox_default()` context manager to temporarily change the default sandbox (for example, if you have tools that always target the default sandbox that you want to temporarily redirect):
 
-```python
+``` python
 with sandbox_default("victim"):
     # call tools, etc.
 ```
@@ -341,6 +346,6 @@ services:
 
 ## Troubleshooting
 
-To diagnose sandbox execution issues (e.g. commands that don't terminate properly, contianer lifecylce issues, etc.) you should use Inspect's [Tracing](tracing.qmd) facility. 
+To diagnose sandbox execution issues (e.g. commands that don't terminate properly, contianer lifecylce issues, etc.) you should use Inspect's [Tracing](tracing.qmd) facility.
 
 Trace logs record the beginning and end of calls to `subprocess()` (e.g. tool calls that run commands in sandboxes) as well as control commands sent to Docker Compose. The `inspect trace anomalies` subcommand then enables you to query for commands that don't terminate, timeout, or have errors. See the article on [Tracing](tracing.qmd) for additional details.

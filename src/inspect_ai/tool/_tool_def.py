@@ -3,6 +3,7 @@ from typing import (
     Any,
     Callable,
     NamedTuple,
+    Sequence,
 )
 
 from inspect_ai._util.registry import (
@@ -13,7 +14,14 @@ from inspect_ai._util.registry import (
     set_registry_params,
 )
 
-from ._tool import TOOL_MODEL_INPUT, TOOL_PARALLEL, TOOL_PROMPT, TOOL_VIEWER, Tool
+from ._tool import (
+    TOOL_MODEL_INPUT,
+    TOOL_PARALLEL,
+    TOOL_PROMPT,
+    TOOL_VIEWER,
+    Tool,
+    ToolSource,
+)
 from ._tool_call import ToolCallModelInput, ToolCallViewer
 from ._tool_description import (
     ToolDescription,
@@ -157,10 +165,21 @@ def apply_description_overrides(target: ToolParams, overrides: dict[str, str]) -
         target.properties[param].description = value
 
 
-def tool_defs(
-    tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
+async def tool_defs(
+    tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
 ) -> list[ToolDef]:
-    return [ToolDef(tool) if isinstance(tool, Tool) else tool for tool in tools]
+    if isinstance(tools, ToolSource):
+        tools = await tools.tools()
+
+    tool_defs: list[ToolDef] = []
+    for tool in tools:
+        if isinstance(tool, ToolSource):
+            tool_defs.extend([ToolDef(t) for t in await tool.tools()])
+        elif not isinstance(tool, ToolDef):
+            tool_defs.append(ToolDef(tool))
+        else:
+            tool_defs.append(tool)
+    return tool_defs
 
 
 class ToolDefFields(NamedTuple):
@@ -234,12 +253,16 @@ def validate_tool_parameters(tool_name: str, parameters: dict[str, ToolParam]) -
     # validate that we have types/descriptions for paramters
     for param_name, param in parameters.items():
 
-        def raise_not_provided_error(context: str) -> None:
+        def raise_not_provided_error(
+            context: str,
+            # Use the default value trick to avoid Python's late binding of
+            # closures issue.
+            # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
+            bound_name: str = param_name,
+        ) -> None:
             raise ValueError(
-                f"{context} provided for parameter '{param_name}' of function '{tool_name}'."
+                f"{context} provided for parameter '{bound_name}' of function '{tool_name}'."
             )
 
-        if param.type is None and not param.anyOf and not param.enum:
-            raise_not_provided_error("Unsupported type or type annotation")
-        elif not param.description:
+        if not param.description:
             raise_not_provided_error("Description not")

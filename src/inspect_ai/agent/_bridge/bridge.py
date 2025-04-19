@@ -6,6 +6,7 @@ from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
+from inspect_ai.log._samples import sample_active
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.model._providers.providers import validate_openai_client
@@ -37,6 +38,10 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Agen
     class BridgeInput(BaseModel):
         messages: list[ChatCompletionMessageParam]
 
+        # here for backward compatibilty w/ previous bridge
+        # (we may choose to add this to AgentState at some point)
+        metadata: dict[str, Any]
+
         # temporarily here for backward compatibility w/ previous bridge
         input: list[ChatCompletionMessageParam]
 
@@ -53,8 +58,10 @@ def bridge(agent: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]) -> Agen
 
     async def execute(state: AgentState) -> AgentState:
         # create input (use standard gpt-4 message encoding -- i.e. no 'developer' messages)
-        messages = await openai_chat_messages(state.messages, model="gpt-4")
-        input = BridgeInput(messages=messages, input=messages)
+        sample = sample_active()
+        metadata = (sample.sample.metadata if sample is not None else None) or {}
+        messages = await openai_chat_messages(state.messages)
+        input = BridgeInput(messages=messages, metadata=metadata, input=messages)
 
         # run target function
         async with openai_request_to_inspect_model():
