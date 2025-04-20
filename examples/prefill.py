@@ -4,7 +4,7 @@ from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.scorer import Score, Target, accuracy, scorer
-from inspect_ai.solver import Generate, Solver, TaskState, solver
+from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 
 @task
@@ -28,13 +28,13 @@ def arithmetic_prefill():
                 metadata={"prefill": "3*4="},
             ),
         ],
-        solver=prefill_solver(),
+        solver=[prefill(), generate()],
         scorer=score_arithmetic(),
     )
 
 
 @solver
-def prefill_solver() -> Solver:
+def prefill() -> Solver:
     """Solver that prefills assistant messages to guide the model's response."""
 
     async def solve(state: TaskState, generate: Generate):
@@ -49,8 +49,6 @@ def prefill_solver() -> Solver:
             ),  # prefilled message
         ]
 
-        # Generate the completion from the prefilled message
-        state = await generate(state)
         return state
 
     return solve
