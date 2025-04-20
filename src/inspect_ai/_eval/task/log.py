@@ -187,6 +187,9 @@ class TaskLogger:
         # log the sample event
         self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
 
+    def remove_sample(self, id: str | int, epoch: int) -> None:
+        self._buffer_db.remove_samples([(id, epoch)])
+
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
         await self.recorder.log_sample(self.eval, sample)

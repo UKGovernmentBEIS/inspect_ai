@@ -87,6 +87,9 @@ class EvalConfig(BaseModel):
     of samples fails.
     """
 
+    retry_on_error: int | None = Field(default=None)
+    """Number of times to retry samples if they encounter errors."""
+
     message_limit: int | None = Field(default=None)
     """Maximum messages to allow per sample."""
 
@@ -254,6 +257,9 @@ class EvalSample(BaseModel):
 
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
+
+    error_retries: list[EvalError] | None = Field(default=None)
+    """Errors that were retried for this sample."""
 
     attachments: dict[str, str] = Field(default_factory=dict)
     """Attachments referenced from messages and events.

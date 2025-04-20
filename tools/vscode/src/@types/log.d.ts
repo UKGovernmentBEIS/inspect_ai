@@ -86,6 +86,7 @@ export type Name2 = string;
 export type Tools = string | string[];
 export type Approvers = ApproverPolicyConfig[];
 export type FailOnError = boolean | number | null;
+export type RetryOnError = number | null;
 export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
@@ -530,6 +531,7 @@ export type Events = (
 export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid = string | null;
+export type ErrorRetries = EvalError[] | null;
 export type Type15 =
   | "context"
   | "time"
@@ -703,6 +705,7 @@ export interface EvalConfig {
   epochs_reducer: EpochsReducer;
   approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
+  retry_on_error: RetryOnError;
   message_limit: MessageLimit;
   token_limit: TokenLimit;
   time_limit: TimeLimit;
@@ -899,6 +902,7 @@ export interface EvalSample {
   working_time: WorkingTime3;
   uuid: Uuid;
   error: EvalError | null;
+  error_retries: ErrorRetries;
   attachments: Attachments;
   limit: EvalSampleLimit | null;
 }
