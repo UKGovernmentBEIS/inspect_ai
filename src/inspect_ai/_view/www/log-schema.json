@@ -894,6 +894,18 @@
             },
             {
               "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
                 "anyOf": [
                   {
                     "type": "string"
@@ -1203,12 +1215,24 @@
           "anyOf": [
             {
               "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
                 "anyOf": [
                   {
-                    "type": "integer"
+                    "type": "string"
                   },
                   {
-                    "type": "string"
+                    "type": "integer"
                   }
                 ]
               },
@@ -1432,6 +1456,7 @@
             "cache_prompt": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
+            "reasoning_summary": null,
             "reasoning_history": null,
             "response_schema": null
           }
@@ -2747,6 +2772,23 @@
           "default": null,
           "title": "Reasoning Tokens"
         },
+        "reasoning_summary": {
+          "anyOf": [
+            {
+              "enum": [
+                "concise",
+                "detailed",
+                "auto"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Summary"
+        },
         "reasoning_history": {
           "anyOf": [
             {
@@ -2803,6 +2845,7 @@
         "cache_prompt",
         "reasoning_effort",
         "reasoning_tokens",
+        "reasoning_summary",
         "reasoning_history",
         "response_schema"
       ],
@@ -2941,6 +2984,18 @@
           "default": null,
           "title": "Type"
         },
+        "format": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Format"
+        },
         "description": {
           "anyOf": [
             {
@@ -3046,6 +3101,7 @@
       "type": "object",
       "required": [
         "type",
+        "format",
         "description",
         "default",
         "enum",
