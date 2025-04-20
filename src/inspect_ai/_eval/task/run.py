@@ -538,6 +538,9 @@ async def task_run_sample(
             sample_complete(sample_scores)
             return sample_scores
 
+    # copy variables that we may pass back to ourselves on a retry
+    initial_state = deepcopy(state)
+
     # use semaphore if provided
     semaphore_cm: anyio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
         semaphore if semaphore else contextlib.nullcontext()
@@ -861,7 +864,8 @@ async def task_run_sample(
             task_name=task_name,
             log_location=log_location,
             sample=sample,
-            state=state,
+            # state was deep copied at the outset
+            state=initial_state,
             sandbox=sandbox,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,

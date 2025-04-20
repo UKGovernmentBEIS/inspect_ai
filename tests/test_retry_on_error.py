@@ -4,6 +4,7 @@ from test_helpers.utils import failing_solver_deterministic, skip_if_github_acti
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import example_dataset
+from inspect_ai.solver._prompt import system_message
 
 
 def test_retry_on_error():
@@ -12,6 +13,19 @@ def test_retry_on_error():
     assert log.status == "success"
     assert log.samples is not None
     assert len(log.samples[0].error_retries) == 1
+
+
+def test_retry_on_error_state():
+    task = Task(
+        solver=[
+            system_message("do your best!"),
+            failing_solver_deterministic([True, False]),
+        ]
+    )
+    log = eval(task, retry_on_error=1)[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    assert len(log.samples[0].messages) == 2
 
 
 def test_retry_on_error_then_fail():
