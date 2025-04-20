@@ -310,7 +310,7 @@ $ inspect log list --json --status success
 $ inspect log list --json --status error
 ```
 
-You can use the `--retryable` option to list only logs that are [retryable](#sec-errors-and-retries)
+You can use the `--retryable` option to list only logs that are [retryable](#eval-retries)
 
 ``` bash
 $ inspect log list --json --retryable

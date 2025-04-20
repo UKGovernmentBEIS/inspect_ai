@@ -423,10 +423,12 @@ def chat_messages_from_openai(
                 "reasoning", None
             )
             if reasoning is not None:
+                # normalize content to an array
                 if isinstance(content, str):
                     content = [ContentText(text=content, refusal=refusal)]
-                else:
-                    content.insert(0, ContentReasoning(reasoning=str(reasoning)))
+
+                # insert reasoning
+                content.insert(0, ContentReasoning(reasoning=str(reasoning)))
 
             # return message
             if "tool_calls" in message:
