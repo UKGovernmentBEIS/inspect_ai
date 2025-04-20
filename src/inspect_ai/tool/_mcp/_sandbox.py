@@ -14,7 +14,7 @@ from inspect_ai.tool._tool_support_helpers import (
     tool_container_sandbox,
 )
 
-from ._mcp import MCPServerContext
+from ._context import MCPServerContext
 
 
 # Pardon the type: ignore's here. This code is a modified clone of Anthropic code

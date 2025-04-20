@@ -6,7 +6,7 @@ import shlex
 import tempfile
 from logging import getLogger
 from pathlib import Path, PurePosixPath
-from typing import Literal, Union, overload
+from typing import Literal, NamedTuple, Union, overload
 
 from typing_extensions import override
 
@@ -124,6 +124,37 @@ class DockerSandboxEnvironment(SandboxEnvironment):
 
     @override
     @classmethod
+    async def task_init_environment(
+        cls, config: SandboxEnvironmentConfigType | None, metadata: dict[str, str]
+    ) -> dict[str, str]:
+        # get interpolated environment variables and underlying config path and text
+        resolved = resolve_config_environment(config, metadata)
+
+        # don't even consider sample-specific environment if there are no sample metadata refs
+        if resolved and len(resolved.env) > 0:
+            # resolve images using our env vars
+            result = await subprocess(
+                ["docker", "compose", "-f", resolved.config_file, "config", "--images"],
+                env=resolved.env,
+            )
+            if result.success:
+                # look through the images, if one of them doesn't apper in the the
+                # config text then this compose file requires its own sample specific
+                # environment for resolution
+                images = result.stdout.strip().splitlines()
+                for image in images:
+                    if image not in resolved.config_text:
+                        return resolved.env
+            else:
+                logger.warning(
+                    f"Unexpected error reading compose file '{resolved.config_file}': {result.stderr}"
+                )
+
+        # no per-sample environment required
+        return {}
+
+    @override
+    @classmethod
     async def sample_init(
         cls,
         task_name: str,
@@ -131,17 +162,8 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         metadata: dict[str, str],
     ) -> dict[str, SandboxEnvironment]:
         # create environment variables for sample metadata
-        env: dict[str, str] = {}
-        if isinstance(config, str) and Path(config).exists():
-            # read the config file
-            with open(config, "r") as f:
-                config_text = f.read()
-
-            # only add metadata files if the key is in the file
-            for key, value in metadata.items():
-                key = f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"
-                if key in config_text:
-                    env[key] = str(value)
+        resolved = resolve_config_environment(config, metadata)
+        env = resolved.env if resolved is not None else {}
 
         # create project
         from inspect_ai.log._samples import sample_active
@@ -536,3 +558,33 @@ def parse_docker_inspect_ports(json_str: str) -> list[PortMapping] | None:
         )
         port_mappings.append(port_mapping)
     return port_mappings if port_mappings else None
+
+
+class ConfigEnvironment(NamedTuple):
+    config_file: str
+    config_text: str
+    env: dict[str, str]
+
+
+def resolve_config_environment(
+    config: SandboxEnvironmentConfigType | None,
+    metadata: dict[str, str],
+) -> ConfigEnvironment | None:
+    # create environment variables for sample metadata
+    if isinstance(config, str) and Path(config).exists():
+        # read the config file
+        config_file = config
+        with open(config, "r") as f:
+            config_text = f.read()
+
+        # only add metadata files if the key is in the file
+        env: dict[str, str] = {}
+        for key, value in metadata.items():
+            key = f"SAMPLE_METADATA_{key.replace(' ', '_').upper()}"
+            if key in config_text:
+                env[key] = str(value)
+
+        # return resolved
+        return ConfigEnvironment(config_file, config_text, env)
+    else:
+        return None
