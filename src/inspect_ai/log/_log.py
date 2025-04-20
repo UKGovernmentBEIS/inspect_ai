@@ -258,6 +258,9 @@ class EvalSample(BaseModel):
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
 
+    retried: list[EvalError] | None = Field(default=None)
+    """Errors that were retried for this sample."""
+
     attachments: dict[str, str] = Field(default_factory=dict)
     """Attachments referenced from messages and events.
 

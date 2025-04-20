@@ -1840,6 +1840,21 @@
           ],
           "default": null
         },
+        "retried": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EvalError"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retried"
+        },
         "attachments": {
           "additionalProperties": {
             "type": "string"
@@ -1879,6 +1894,7 @@
         "working_time",
         "uuid",
         "error",
+        "retried",
         "attachments",
         "limit"
       ],
