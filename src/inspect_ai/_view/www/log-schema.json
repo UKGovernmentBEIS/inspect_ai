@@ -977,6 +977,18 @@
           "default": null,
           "title": "Fail On Error"
         },
+        "retry_on_error": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry On Error"
+        },
         "message_limit": {
           "anyOf": [
             {
@@ -1155,6 +1167,7 @@
         "epochs_reducer",
         "approval",
         "fail_on_error",
+        "retry_on_error",
         "message_limit",
         "token_limit",
         "time_limit",

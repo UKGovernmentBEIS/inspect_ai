@@ -86,6 +86,7 @@ export type Name2 = string;
 export type Tools = string | string[];
 export type Approvers = ApproverPolicyConfig[];
 export type FailOnError = boolean | number | null;
+export type RetryOnError = number | null;
 export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
@@ -703,6 +704,7 @@ export interface EvalConfig {
   epochs_reducer: EpochsReducer;
   approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
+  retry_on_error: RetryOnError;
   message_limit: MessageLimit;
   token_limit: TokenLimit;
   time_limit: TimeLimit;
