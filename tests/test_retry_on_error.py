@@ -15,6 +15,15 @@ def test_retry_on_error():
     assert len(log.samples[0].error_retries) == 1
 
 
+def test_no_retry_on_error():
+    task = Task(solver=failing_solver_deterministic([True, False]))
+    log = eval(task, fail_on_error=False)[0]
+    assert log.status == "success"
+    assert log.samples is not None
+    assert log.samples[0].error is not None
+    assert len(log.samples[0].error_retries) == 0
+
+
 def test_retry_on_error_state():
     task = Task(
         solver=[
