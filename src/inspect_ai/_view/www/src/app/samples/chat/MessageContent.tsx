@@ -28,16 +28,16 @@ type ContentType =
 
 interface MessageContentProps {
   contents:
-  | string
-  | string[]
-  | (
-    | ContentText
-    | ContentReasoning
-    | ContentImage
-    | ContentAudio
-    | ContentVideo
-    | ContentTool
-  )[];
+    | string
+    | string[]
+    | (
+        | ContentText
+        | ContentReasoning
+        | ContentImage
+        | ContentAudio
+        | ContentVideo
+        | ContentTool
+      )[];
 }
 
 /**
