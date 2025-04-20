@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
+- New [retry_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#sample-retries) option to enable sample level retry of errors (retries occur immediately rather than waiting until the next full eval retry).
 - Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - OpenAI: Responses API is now used by default for all reasoning models.
 - OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
