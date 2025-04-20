@@ -87,6 +87,9 @@ class EvalConfig(BaseModel):
     of samples fails.
     """
 
+    retry_on_error: int | None = Field(default=None)
+    """Number of times to retry samples if they encounter errors."""
+
     message_limit: int | None = Field(default=None)
     """Maximum messages to allow per sample."""
 

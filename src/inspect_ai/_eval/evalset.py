@@ -82,6 +82,7 @@ def eval_set(
     sample_id: str | int | list[str] | list[int] | list[str | int] | None = None,
     epochs: int | Epochs | None = None,
     fail_on_error: bool | float | None = None,
+    retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
@@ -153,6 +154,8 @@ def eval_set(
             (default); `False` to never fail on sample errors; Value between 0 and 1
             to fail if a proportion of total samples fails. Value greater than 1 to fail
             eval if a count of samples fails.
+        retry_on_error: Number of times to retry samples if they encounter errors
+            (by default, no retries occur).
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
