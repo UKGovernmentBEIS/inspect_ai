@@ -42504,7 +42504,7 @@ categories: ${categories.join(" ")}`;
       return encodeURIComponent(file);
     };
     const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
-    const kSampleRouteUrlPattern = "/logs/:logPath/:tabId?/sample/:sampleId/:epoch?/:sampleTabId?";
+    const kSampleRouteUrlPattern = "/logs/:logPath/samples/sample/:sampleId/:epoch?/:sampleTabId?";
     const baseUrl = (logPath, sampleId, sampleEpoch) => {
       if (sampleId !== void 0 && sampleEpoch !== void 0) {
         return sampleUrl(logPath, sampleId, sampleEpoch);
@@ -42512,11 +42512,11 @@ categories: ${categories.join(" ")}`;
         return logUrl(logPath);
       }
     };
-    const sampleUrl = (logPath, sampleId, sampleEpoch, logTabId, sampleTabId) => {
+    const sampleUrl = (logPath, sampleId, sampleEpoch, sampleTabId) => {
       if (sampleId !== void 0 && sampleEpoch !== void 0) {
-        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
+        return `/logs/${encodeURIComponent(logPath)}/samples/sample/${encodeURIComponent(sampleId)}/${sampleEpoch}/${sampleTabId || ""}`;
       } else {
-        return `/logs/${encodeURIComponent(logPath)}/${logTabId || "samples"}/${sampleTabId || ""}`;
+        return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
       }
     };
     const logUrl = (log_file, log_dir, tabId) => {
@@ -44339,7 +44339,6 @@ categories: ${categories.join(" ")}`;
                 resolvedPath,
                 sample2.id,
                 sample2.epoch,
-                tabId,
                 currentSampleTabId
               );
               navigate(url);
@@ -44378,7 +44377,6 @@ categories: ${categories.join(" ")}`;
               resolvedPath,
               sampleId,
               epoch,
-              tabId,
               currentSampleTabId
             );
             return url;
@@ -60149,7 +60147,7 @@ ${events}
           const id2 = el.id;
           setSelectedTab(id2);
           if (id2 !== sampleTabId && urlLogPath) {
-            const url = sampleUrl(urlLogPath, urlSampleId, urlEpoch, urlTabId, id2);
+            const url = sampleUrl(urlLogPath, urlSampleId, urlEpoch, id2);
             navigate(url);
           }
         },
@@ -82273,7 +82271,6 @@ Supported expressions:
         resetFiltering();
         clearSampleTab();
         clearWorkspaceTab();
-        selectSample(0);
       }, [
         setOffCanvas,
         resetFiltering,
@@ -82345,6 +82342,7 @@ Supported expressions:
       const setSelectedLogIndex = useStore(
         (state) => state.logsActions.setSelectedLogIndex
       );
+      const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
       const initialState2 = useStore((state) => state.app.initialState);
       const clearInitialState = useStore(
         (state) => state.appActions.clearInitialState
@@ -82401,6 +82399,11 @@ Supported expressions:
       const clearSample = useStore(
         (state) => state.sampleActions.clearSelectedSample
       );
+      reactExports.useEffect(() => {
+        if (selectedLogIndex > -1) {
+          selectSample(0);
+        }
+      }, [selectedLogIndex]);
       reactExports.useEffect(() => {
         if (sampleId && filteredSamples) {
           const targetEpoch = epoch ? parseInt(epoch, 10) : void 0;
@@ -82482,7 +82485,6 @@ Supported expressions:
         (state) => state.logsActions.getSelectedLogFile()
       );
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const selectSample = useStore((state) => state.logActions.selectSample);
       const logs = useStore((state) => state.logs.logs);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
@@ -82498,7 +82500,7 @@ Supported expressions:
           }
         };
         loadSpecificLog();
-      }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus, selectSample]);
+      }, [selectedLogFile, loadedLogFile, loadLog, setAppStatus]);
       reactExports.useEffect(() => {
         const doPoll = async () => {
           await pollLog();

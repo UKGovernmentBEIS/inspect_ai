@@ -7,8 +7,8 @@ import {
   ContentReasoning,
   ContentText,
   ContentVideo,
-  Format,
   Format1,
+  Format2,
 } from "../../../@types/log";
 import { ContentTool } from "../../../app/types";
 import ExpandablePanel from "../../../components/ExpandablePanel";
@@ -28,16 +28,16 @@ type ContentType =
 
 interface MessageContentProps {
   contents:
-    | string
-    | string[]
-    | (
-        | ContentText
-        | ContentReasoning
-        | ContentImage
-        | ContentAudio
-        | ContentVideo
-        | ContentTool
-      )[];
+  | string
+  | string[]
+  | (
+    | ContentText
+    | ContentReasoning
+    | ContentImage
+    | ContentAudio
+    | ContentVideo
+    | ContentTool
+  )[];
 }
 
 /**
@@ -176,7 +176,7 @@ const messageRenderers: Record<string, MessageRenderer> = {
  * Renders message content based on its type.
  * Supports rendering strings, images, and tools using specific renderers.
  */
-const mimeTypeForFormat = (format: Format | Format1): string => {
+const mimeTypeForFormat = (format: Format1 | Format2): string => {
   switch (format) {
     case "mov":
       return "video/quicktime";
