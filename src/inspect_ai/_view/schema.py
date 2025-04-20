@@ -18,7 +18,7 @@ def sync_view_schema() -> None:
     """
     # export schema file
     schema_path = Path(WWW_DIR, "log-schema.json")
-    types_path = Path(WWW_DIR, "src", "types", "log.d.ts")
+    types_path = Path(WWW_DIR, "src", "@types", "log.d.ts")
     vs_code_types_path = Path(
         WWW_DIR, "..", "..", "..", "..", "tools", "vscode", "src", "@types", "log.d.ts"
     )
