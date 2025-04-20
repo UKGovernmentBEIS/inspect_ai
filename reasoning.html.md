@@ -3,11 +3,11 @@
 
 ## Overview
 
-Reasoning models like OpenAI o1 and o3, Anthropic’s Claude Sonnet 3.7,
-Google’s Gemini 2.0 Flash Thinking, and DeepSeek’s r1 have some
-additional options that can be used to tailor their behaviour. They also
-in some cases make available full or partial reasoning traces for the
-chains of thought that led to their response.
+Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5
+Flash, Grok 3, and DeepSeek r1 have some additional options that can be
+used to tailor their behaviour. They also in some cases make available
+full or partial reasoning traces for the chains of thought that led to
+their response.
 
 In this article we’ll first cover the basics of [Reasoning
 Content](#reasoning-content) and [Reasoning
@@ -32,9 +32,8 @@ heuristics, including responses that include a `reasoning` or
 that includes `<think></think>` tags, as well as using explicit APIs for
 models that support them (e.g. Claude 3.7).
 
-In addition, some models (currently OpenAI and Anthropic) make available
-`reasoning_tokens` which will be added to the standard `ModelUsage`
-object returned along with output.
+In addition, some models make available `reasoning_tokens` which will be
+added to the standard `ModelUsage` object returned along with output.
 
 ## Reasoning Options
 
@@ -43,8 +42,8 @@ The following reasoning options are available from the CLI and within
 
 | Option | Description | Default | Models |
 |----|----|----|----|
-| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`) | `medium` | OpenAI o-series |
-| `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7 |
+| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`low`, `medium`, or `high`) | `medium` | OpenAI o-series, Grok 3 |
+| `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7+ and Gemini 2.5+ |
 | `reasoning_summary` | Provide summary of reasoning steps (`concise`, `detailed`, `auto`). Use “auto” to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
 | `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
 
@@ -58,9 +57,9 @@ you should specify both. For example:
  eval(
     task,
     model=["openai/o3-mini","anthropic/anthropic/claude-3-7-sonnet-20250219"],
-    reasoning_effort="medium",  # openai specific
+    reasoning_effort="medium",  # openai and grok specific
+    reasoning_tokens=4096       # anthropic and gemini specific
     reasoning_summary="auto",   # openai specific
-    reasoning_tokens=4096       # anthropic specific
  )
 ```
 
@@ -180,23 +179,47 @@ normal tool loop is run without additional thinking. Thinking is
 re-triggered when the tool loop is exited (i.e. a user message without a
 tool result is received).
 
-## Google Flash Thinking
+## Google Gemini
 
-Google currently makes available a single experimental reasoning model
-([Gemini Flash
-Thinking](https://deepmind.google/technologies/gemini/flash-thinking/))
-which you can access using the model name
-`google/gemini-2.0-flash-thinking-exp`.
+Google currently makes available several Gemini reasoning models, the
+most recent of which are:
 
-There aren’t currently options for reasoning effort or reasoning tokens.
-By default Gemini currently includes all reasoning in the model history
-and recommends that it all be included in subsequent requests in a
-conversation.
+- [Gemini 2.5
+  Flash](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash):
+  `google/gemini-2.5-flash-preview-04-17`
 
-Inspect captures reasoning blocks from Gemini using the “Final Answer:”
-delimiter currently used by Gemini 2.0 Flash Thinking (the API has a
-separate field for \`thinking\` but it is not currently used in
-responses).
+- [Gemini 2.5
+  Pro](https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-pro):
+  `google/gemini-2.5-pro-preview-03-25`
+
+You can use the `--reasoning-tokens` option to control the amount of
+reasoning used by these models. For example:
+
+``` bash
+inspect eval math.py \
+  --model google/gemini-2.5-flash-preview-04-17 \
+  --reasoning-tokens 4096
+```
+
+The Gemini API includes support for including reasoning in model output,
+however this feature is not yet enabled for any of their deployed
+reasoning models.
+
+## Grok
+
+Grok currenntly makes available two reasoning models:
+
+- `grok/grok-3-mini-beta`
+
+- `grok/grok-3-fast-beta`
+
+You can condition the amount of reasoning done by Grok using the
+\[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option,
+which can be set to `low` or `high`.
+
+``` bash
+inspect eval math.py --model grok/grok-3-mini-beta --reasoning-effort high
+```
 
 ## DeepSeek-R1
 

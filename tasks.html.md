@@ -9,16 +9,14 @@ scorers. The following topics are explored:
 
 - [Task Basics](#task-basics) describes the core components and options
   of tasks.
-
 - [Parameters](#parameters) covers adding parameters to tasks to make
   them flexible and adaptable.
-
 - [Solvers](#solvers) describes how to create tasks that can be used
   with many different solvers.
-
 - [Task Reuse](#task-reuse) documents how to flexibly derive new tasks
   from existing task definitions.
-
+- [Packaging](#packaging) illustreates how you can distribute tasks
+  within Python packages.
 - [Exploratory](#exploratory) provides guidance on doing exploratory
   task and solver development.
 
@@ -360,6 +358,69 @@ to `task_with()`). For example:
 ``` python
 adapted1 = task_with(hard_coded(), ...)
 adapted2 = task_with(hard_coded(), ...)
+```
+
+## Packaging
+
+A convenient way to distribute tasks is to include them in a Python
+package. This makes it very easy for others to run your task and ensure
+they have all of the required dependencies.
+
+Tasks in packages can be *registered* such that users can easily refer
+to them by name from the CLI. For example, the [Inspect
+Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes
+a suite of tasks that can be run as follows:
+
+``` bash
+insepct eval inspect_evals/gaia 
+inspect eval inspect_evals/swe_bench
+```
+
+### Example
+
+Here’s an example that walks through all of the requirements for
+registering tasks in packages. Let’s say your package is named `evals`
+and has a task named `mytask` the `tasks.py` file:
+
+    evals/       
+      evals/
+        tasks.py
+        _registry.py
+      pyproject.toml
+
+The `_registry.py` file serves a place to import things that you wan’t
+registered with Inspect. For example:
+
+**\_registry.py**
+
+``` python
+from .tasks import mytask
+```
+
+You can then register `mytask` (and anything else imported into
+`_registry.py`) as a [setuptools entry
+point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html).
+This will ensure that inspect can resolve references to your package
+from the CLI. Here is how this looks in `pyproject.toml`:
+
+## Setuptools
+
+``` toml
+[project.entry-points.inspect_ai]
+evals = "evals._registry"
+```
+
+## Poetry
+
+``` toml
+[tool.poetry.plugins.inspect_ai]
+evals = "evals._registry"
+```
+
+Now, anyone that has installed your package can run the task as follows:
+
+``` bash
+inspect eval evals/mytask
 ```
 
 ## Exploratory

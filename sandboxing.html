@@ -632,7 +632,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-51"><a href="#cb3-51" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span>
 <span id="cb3-52"><a href="#cb3-52" aria-hidden="true" tabindex="-1"></a>        ...</span>
 <span id="cb3-53"><a href="#cb3-53" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> connection(<span class="va">self</span>) <span class="op">-&gt;</span> SandboxConnection:</span>
+<span id="cb3-54"><a href="#cb3-54" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> connection(<span class="va">self</span>, <span class="op">*</span>, user: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SandboxConnection:</span>
 <span id="cb3-55"><a href="#cb3-55" aria-hidden="true" tabindex="-1"></a>        <span class="co">"""</span></span>
 <span id="cb3-56"><a href="#cb3-56" aria-hidden="true" tabindex="-1"></a><span class="co">        Raises:</span></span>
 <span id="cb3-57"><a href="#cb3-57" aria-hidden="true" tabindex="-1"></a><span class="co">           NotImplementedError: For sandboxes that don't provide connections</span></span>
@@ -846,7 +846,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">x-local</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
 <span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">init</span><span class="kw">:</span><span class="at"> </span><span class="ch">true</span></span>
 <span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">cpus</span><span class="kw">:</span><span class="at"> </span><span class="fl">1.0</span></span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">mem_limit</span><span class="kw">:</span><span class="at"> ${SAMPLE_METDATA_MEMORY_LIMIT-0.5gb}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">mem_limit</span><span class="kw">:</span><span class="at"> ${SAMPLE_METADATA_MEMORY_LIMIT-0.5gb}</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that <code>-</code> suffix that provides the default value of 0.5gb. This is important to include so that when the compose file is read <em>without</em> the context of a Sample (for example, when pulling/building images at startup) that a default value is available.</p>
 </section>
 </section>

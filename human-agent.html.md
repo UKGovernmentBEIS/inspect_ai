@@ -191,6 +191,22 @@ example:
 task score picoCTF{73bfc85c1ba7}
 ```
 
+### Container User
+
+By default, the human agent will login to the container using its
+default user. You can specify an alternate user via the `user` option.
+For example:
+
+``` python
+solver=human_cli(user="myuser")
+```
+
+Or from the CLI, use the `-S` option:
+
+``` bash
+--solver human_cli -S user=myuser
+```
+
 ## Recording
 
 By default, human agent terminal sessions are recorded using the LInux

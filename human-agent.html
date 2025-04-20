@@ -472,6 +472,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#answer-submission" id="toc-answer-submission" class="nav-link" data-scroll-target="#answer-submission">Answer Submission</a></li>
   <li><a href="#quitting" id="toc-quitting" class="nav-link" data-scroll-target="#quitting">Quitting</a></li>
   <li><a href="#intermediate-scoring" id="toc-intermediate-scoring" class="nav-link" data-scroll-target="#intermediate-scoring">Intermediate Scoring</a></li>
+  <li><a href="#container-user" id="toc-container-user" class="nav-link" data-scroll-target="#container-user">Container User</a></li>
   </ul></li>
   <li><a href="#recording" id="toc-recording" class="nav-link" data-scroll-target="#recording">Recording</a></li>
   <li><a href="#headless" id="toc-headless" class="nav-link" data-scroll-target="#headless">Headless</a></li>
@@ -617,25 +618,32 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>With this option enabled, the human agent can check their potential score on the task for a given answer using the <code>task score</code> command. For example:</p>
 <div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">task</span> score picoCTF{73bfc85c1ba7}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
+<section id="container-user" class="level3">
+<h3 class="anchored" data-anchor-id="container-user">Container User</h3>
+<p>By default, the human agent will login to the container using its default user. You can specify an alternate user via the <code>user</code> option. For example:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>human_cli(user<span class="op">=</span><span class="st">"myuser"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Or from the CLI, use the <code>-S</code> option:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> user=myuser</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
 </section>
 <section id="recording" class="level2">
 <h2 class="anchored" data-anchor-id="recording">Recording</h2>
 <p>By default, human agent terminal sessions are recorded using the LInux <a href="https://www.redhat.com/en/blog/linux-script-command">script command</a>. Recorded sessions are saved in the sample store and available for playback within the Inspect View:</p>
 <p><a href="images/inspect-terminal-transcript.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-terminal-transcript.png" class="img-fluid"></a></p>
 <p>You can disable session recording with the <code>record_session</code> option:</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> record_session=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">--solver</span> human_cli <span class="at">-S</span> record_session=false</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="headless" class="level2">
 <h2 class="anchored" data-anchor-id="headless">Headless</h2>
 <p>The examples above demonstrate human baselining being initiated from the CLI and standard task display. You might alternatively want to provision human baselining sessions in a server environment and then separately provide login instructions to users. To suppress the standard task display in favour of just printing out the container login information, pass the <code>--display=plain</code> CLI option:</p>
-<div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli <span class="at">--display</span> plain</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gdm_intercode_ctf <span class="dt">\</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--sample-id</span> 44 <span class="at">--solver</span> human_cli <span class="at">--display</span> plain</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Which will print the following to the terminal:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> task gdm_intercode_ctf <span class="er">(</span><span class="ex">1</span> sample<span class="kw">)</span><span class="bu">:</span> anthropic/claude-3-5-sonnet-20240620 <span class="er">(</span><span class="ex">config:</span> sample_id: 44<span class="kw">)</span><span class="ex">...</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="ex">You</span> are completing a task on a Linux system <span class="er">(</span><span class="ex">task</span> instructions will be presented when you login<span class="kw">)</span><span class="bu">.</span> Login to the system with the following command:</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-iebwzkg-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode bash code-overflow-wrap code-with-copy"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">Running</span> task gdm_intercode_ctf <span class="er">(</span><span class="ex">1</span> sample<span class="kw">)</span><span class="bu">:</span> anthropic/claude-3-5-sonnet-20240620 <span class="er">(</span><span class="ex">config:</span> sample_id: 44<span class="kw">)</span><span class="ex">...</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="ex">You</span> are completing a task on a Linux system <span class="er">(</span><span class="ex">task</span> instructions will be presented when you login<span class="kw">)</span><span class="bu">.</span> Login to the system with the following command:</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a><span class="ex">docker</span> exec <span class="at">-it</span> inspect-gdm_intercod-iebwzkg-default-1 bash <span class="at">-l</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
@@ -1168,7 +1176,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","descPosition":"bottom","loop":false,"openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","selector":".lightbox","openEffect":"zoom","descPosition":"bottom","loop":false});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

@@ -157,7 +157,7 @@ class SandboxEnvironment:
         """
         ...
 
-    async def connection(self) -> SandboxConnection:
+    async def connection(self, *, user: str | None = None) -> SandboxConnection:
         """
         Raises:
            NotImplementedError: For sandboxes that don't provide connections
@@ -468,7 +468,7 @@ services:
     x-local: true
     init: true
     cpus: 1.0
-    mem_limit: ${SAMPLE_METDATA_MEMORY_LIMIT-0.5gb}
+    mem_limit: ${SAMPLE_METADATA_MEMORY_LIMIT-0.5gb}
 ```
 
 Note that `-` suffix that provides the default value of 0.5gb. This is

@@ -1855,7 +1855,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Generate output from the model and append it to task message history.</p>
 <p>generate() is the default solver if none is specified for a given task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_solver.py#L264">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_solver.py#L264">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate(</span>
@@ -1882,7 +1882,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="use_tools">use_tools</h3>
 <p>Inject tools into the task state to be used in generate().</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_use_tools.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_use_tools.py#L11">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> use_tools(</span>
@@ -1913,7 +1913,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Parameterized prompt template.</p>
 <p>Prompt template containing a <code>{prompt}</code> placeholder and any number of additional <code>params</code>. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_prompt.py#L17">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_prompt.py#L17">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> prompt_template(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1934,7 +1934,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>System message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <p>The new message will go after other system messages (if there are none it will be inserted at the beginning of the conversation).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_prompt.py#L45">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_prompt.py#L45">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> system_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1954,7 +1954,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Solver which inserts a user message into the conversation.</p>
 <p>User message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_prompt.py#L77">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_prompt.py#L77">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> user_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1974,7 +1974,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Solver which inserts an assistant message into the conversation.</p>
 <p>Assistant message template containing any number of optional <code>params</code>. for substitution using the <code>str.format()</code> method. All values contained in sample <code>metadata</code> and <code>store</code> are also automatically included in the <code>params</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_prompt.py#L104">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_prompt.py#L104">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> assistant_message(template: <span class="bu">str</span>, <span class="op">**</span>params: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1993,7 +1993,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="chain_of_thought">chain_of_thought</h3>
 <p>Solver which modifies the user prompt to encourage chain of thought.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_prompt.py#L142">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_prompt.py#L142">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain_of_thought(template: <span class="bu">str</span> <span class="op">=</span> DEFAULT_COT_TEMPLATE) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2009,7 +2009,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Solver which uses a model to critique the original answer.</p>
 <p>The <code>critique_template</code> is used to generate a critique and the <code>completion_template</code> is used to play that critique back to the model for an improved response. Note that you can specify an alternate <code>model</code> for critique (you don’t need to use the model being evaluated).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_critique.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_critique.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> self_critique(</span>
@@ -2042,7 +2042,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>It calls <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span> internally, so you don’t need to call it again</li>
 </ol>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_multiple_choice.py#L214">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_multiple_choice.py#L214">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> multiple_choice(</span>
@@ -2084,7 +2084,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Compose a solver from multiple other solvers and/or agents.</p>
 <p>Solvers are executed in turn, and a solver step event is added to the transcript for each. If a solver returns a state with <code>completed=True</code>, the chain is terminated early.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_chain.py#L12">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_chain.py#L12">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@solver</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> chain(</span>
@@ -2102,7 +2102,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Fork the TaskState and evaluate it against multiple solvers in parallel.</p>
 <p>Run several solvers against independent copies of a TaskState. Each Solver gets its own copy of the TaskState and is run (in parallel) in an independent Subtask (meaning that is also has its own independent Store that doesn’t affect the Store of other subtasks or the parent).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_fork.py#L25">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_fork.py#L25">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> fork(</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    state: TaskState, solvers: Solver <span class="op">|</span> <span class="bu">list</span>[Solver]</span>
@@ -2126,7 +2126,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Contribute to solving an evaluation task.</p>
 <p>Transform a <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span>, returning the new state. Solvers may optionally call the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#generate">generate()</a></span> function to create a new state resulting from model generation. Solvers may also do prompt engineering or other types of elicitation.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_solver.py#L77">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_solver.py#L77">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Solver(Protocol):</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -2159,7 +2159,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="solverspec">SolverSpec</h3>
 <p>Solver specification used to (re-)create solvers.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_solver.py#L64">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_solver.py#L64">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span>(frozen<span class="op">=</span><span class="va">True</span>)</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SolverSpec</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -2182,7 +2182,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> represents the internal state of the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.html#task">Task</a></span> being run for a single <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span>.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.solver.html#taskstate">TaskState</a></span> is passed to and returned from each solver during a sample’s evaluation. It allows us to manipulated the message history, the tools available to the model, the final output of the model, and whether the task is completed or has hit a limit.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_task_state.py#L131">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_task_state.py#L131">Source</a>
 </div>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> TaskState</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2278,7 +2278,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Pydantic model interface to metadata.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_task_state.py#L383">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_task_state.py#L383">Source</a>
 </div>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2292,7 +2292,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Pydantic model interface to the store.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_task_state.py#L397">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_task_state.py#L397">Source</a>
 </div>
 <div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> store_as(<span class="va">self</span>, model_cls: Type[SMT], instance: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> SMT</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2313,7 +2313,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="generate-1">Generate</h3>
 <p>Generate using the model and add the assistant message to the task state.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_solver.py#L36">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_solver.py#L36">Source</a>
 </div>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Generate(Protocol):</span>
 <span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -2353,7 +2353,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="solver-1">solver</h3>
 <p>Decorator for registering solvers.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/3b55d5cde9625859c1e441033919775690828a87/src/inspect_ai/solver/_solver.py#L154">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/2be347995228de15b1177c4a25099a8c9efc6885/src/inspect_ai/solver/_solver.py#L154">Source</a>
 </div>
 <div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> solver(</span>
 <span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    name: <span class="bu">str</span> <span class="op">|</span> Callable[P, SolverType],</span>

@@ -473,6 +473,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#task-cleanup" id="toc-task-cleanup" class="nav-link" data-scroll-target="#task-cleanup">Task Cleanup</a></li>
   <li><a href="#task-reuse" id="toc-task-reuse" class="nav-link" data-scroll-target="#task-reuse">Task Reuse</a></li>
+  <li><a href="#packaging" id="toc-packaging" class="nav-link" data-scroll-target="#packaging">Packaging</a>
+  <ul class="collapse">
+  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
+  </ul></li>
   <li><a href="#exploratory" id="toc-exploratory" class="nav-link" data-scroll-target="#exploratory">Exploratory</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -503,11 +507,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>This article documents both basic and advanced use of Inspect tasks, which are the fundamental unit of integration for datasets, solvers, and scorers. The following topics are explored:</p>
 <ul>
-<li><p><a href="#task-basics">Task Basics</a> describes the core components and options of tasks.</p></li>
-<li><p><a href="#parameters">Parameters</a> covers adding parameters to tasks to make them flexible and adaptable.</p></li>
-<li><p><a href="#solvers">Solvers</a> describes how to create tasks that can be used with many different solvers.</p></li>
-<li><p><a href="#task-reuse">Task Reuse</a> documents how to flexibly derive new tasks from existing task definitions.</p></li>
-<li><p><a href="#exploratory">Exploratory</a> provides guidance on doing exploratory task and solver development.</p></li>
+<li><a href="#task-basics">Task Basics</a> describes the core components and options of tasks.</li>
+<li><a href="#parameters">Parameters</a> covers adding parameters to tasks to make them flexible and adaptable.</li>
+<li><a href="#solvers">Solvers</a> describes how to create tasks that can be used with many different solvers.</li>
+<li><a href="#task-reuse">Task Reuse</a> documents how to flexibly derive new tasks from existing task definitions.</li>
+<li><a href="#packaging">Packaging</a> illustreates how you can distribute tasks within Python packages.</li>
+<li><a href="#exploratory">Exploratory</a> provides guidance on doing exploratory task and solver development.</li>
 </ul>
 </section>
 <section id="task-basics" class="level2">
@@ -811,32 +816,71 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>adapted1 <span class="op">=</span> task_with(hard_coded(), ...)</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>adapted2 <span class="op">=</span> task_with(hard_coded(), ...)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
+<section id="packaging" class="level2">
+<h2 class="anchored" data-anchor-id="packaging">Packaging</h2>
+<p>A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.</p>
+<p>Tasks in packages can be <em>registered</em> such that users can easily refer to them by name from the CLI. For example, the <a href="https://github.com/UKGovernmentBEIS/inspect_ai">Inspect Evals</a> package includes a suite of tasks that can be run as follows:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">insepct</span> eval inspect_evals/gaia </span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/swe_bench</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="example" class="level3">
+<h3 class="anchored" data-anchor-id="example">Example</h3>
+<p>Here’s an example that walks through all of the requirements for registering tasks in packages. Let’s say your package is named <code>evals</code> and has a task named <code>mytask</code> the <code>tasks.py</code> file:</p>
+<pre><code>evals/       
+  evals/
+    tasks.py
+    _registry.py
+  pyproject.toml</code></pre>
+<p>The <code>_registry.py</code> file serves a place to import things that you wan’t registered with Inspect. For example:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>_registry.py</strong></pre>
+</div>
+<div class="sourceCode" id="cb17" data-filename="_registry.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> .tasks <span class="im">import</span> mytask</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>You can then register <code>mytask</code> (and anything else imported into <code>_registry.py</code>) as a <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect can resolve references to your package from the CLI. Here is how this looks in <code>pyproject.toml</code>:</p>
+<div class="tabset-margin-container"></div><div class="panel-tabset" data-group="entry-points">
+<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true">Setuptools</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false">Poetry</a></li></ul>
+<div class="tab-content" data-group="entry-points">
+<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
+<div class="sourceCode" id="cb18"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evals</span> <span class="op">=</span> <span class="st">"evals._registry"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
+<div class="sourceCode" id="cb19"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins.inspect_ai]</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evals</span> <span class="op">=</span> <span class="st">"evals._registry"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</div>
+</div>
+<p>Now, anyone that has installed your package can run the task as follows:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval evals/mytask</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
 <section id="exploratory" class="level2">
 <h2 class="anchored" data-anchor-id="exploratory">Exploratory</h2>
 <p>When developing tasks and solvers, you often want to explore how changing prompts, generation options, solvers, and models affect performance on a task. You can do this by creating multiple tasks with varying parameters and passing them all to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function.</p>
 <p>Returning to the example from above, the <code>system</code> and <code>grader</code> parameters point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters, along with different models. We can use the <code>itertools.product</code> function to do this:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> itertools <span class="im">import</span> product</span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 'grid' will be a permutation of all parameters</span></span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> {</span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>: [<span class="st">"devops.txt"</span>, <span class="st">"researcher.txt"</span>],</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader"</span>: [<span class="st">"hacker.txt"</span>, <span class="st">"expert.txt"</span>],</span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader_model"</span>: [<span class="st">"openai/gpt-4o"</span>, <span class="st">"google/gemini-1.5-pro"</span>],</span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>grid <span class="op">=</span> <span class="bu">list</span>(product(<span class="op">*</span>(params[name] <span class="cf">for</span> name <span class="kw">in</span> params)))</span>
-<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a><span class="co"># run the evals and capture the logs</span></span>
-<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(</span>
-<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>    [</span>
-<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>        security_guide(system, grader, grader_model)</span>
-<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> system, grader, grader_model <span class="kw">in</span> grid</span>
-<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"google/gemini-1.5-flash"</span>, <span class="st">"mistral/mistral-large-latest"</span>],</span>
-<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>    log_dir<span class="op">=</span><span class="st">"security-tasks"</span></span>
-<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the logs...</span></span>
-<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>plot_results(logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> itertools <span class="im">import</span> product</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 'grid' will be a permutation of all parameters</span></span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> {</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>: [<span class="st">"devops.txt"</span>, <span class="st">"researcher.txt"</span>],</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader"</span>: [<span class="st">"hacker.txt"</span>, <span class="st">"expert.txt"</span>],</span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader_model"</span>: [<span class="st">"openai/gpt-4o"</span>, <span class="st">"google/gemini-1.5-pro"</span>],</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>grid <span class="op">=</span> <span class="bu">list</span>(product(<span class="op">*</span>(params[name] <span class="cf">for</span> name <span class="kw">in</span> params)))</span>
+<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-11"><a href="#cb21-11" aria-hidden="true" tabindex="-1"></a><span class="co"># run the evals and capture the logs</span></span>
+<span id="cb21-12"><a href="#cb21-12" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(</span>
+<span id="cb21-13"><a href="#cb21-13" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb21-14"><a href="#cb21-14" aria-hidden="true" tabindex="-1"></a>        security_guide(system, grader, grader_model)</span>
+<span id="cb21-15"><a href="#cb21-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> system, grader, grader_model <span class="kw">in</span> grid</span>
+<span id="cb21-16"><a href="#cb21-16" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb21-17"><a href="#cb21-17" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"google/gemini-1.5-flash"</span>, <span class="st">"mistral/mistral-large-latest"</span>],</span>
+<span id="cb21-18"><a href="#cb21-18" aria-hidden="true" tabindex="-1"></a>    log_dir<span class="op">=</span><span class="st">"security-tasks"</span></span>
+<span id="cb21-19"><a href="#cb21-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-20"><a href="#cb21-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-21"><a href="#cb21-21" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the logs...</span></span>
+<span id="cb21-22"><a href="#cb21-22" aria-hidden="true" tabindex="-1"></a>plot_results(logs)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that we also pass a list of <code>model</code> to try out the task on multiple models. This eval set will produce in total 16 tasks accounting for the parameter and model variation.</p>
 <p>See the article on <a href="./eval-sets.html">Eval Sets</a> to learn more about using eval sets. See the article on <a href="./eval-logs.html">Eval Logs</a> for additional details on working with evaluation logs.</p>
 
