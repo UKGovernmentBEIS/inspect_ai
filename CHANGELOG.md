@@ -14,6 +14,7 @@
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
+- Log API: Functions for reading/writing eval logs can now take a `Path`.
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.

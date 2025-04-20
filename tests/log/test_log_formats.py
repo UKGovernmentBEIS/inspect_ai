@@ -32,7 +32,7 @@ def test_log_format_round_trip_single(original_log, temp_dir):
 
     for format in formats:
         # Write it to a new file in the current format
-        new_log_path = (temp_dir / f"new_log.{format}").as_posix()
+        new_log_path = temp_dir / f"new_log.{format}"
         write_eval_log(original_log, new_log_path, format=format)
 
         # Read the new log file
@@ -68,7 +68,7 @@ def test_eval_format_round_trip_overwrite(original_log, temp_dir):
 def test_log_format_round_trip_cross(original_log, temp_dir):
     """Test round-trip consistency across formats."""
     # Write it to EVAL format
-    eval_log_path = (temp_dir / "cross_format.eval").as_posix()
+    eval_log_path = temp_dir / "cross_format.eval"
     write_eval_log(original_log, eval_log_path, format="eval")
 
     # Read the EVAL log
@@ -113,8 +113,8 @@ def test_log_format_equality(original_log, temp_dir):
 def test_log_format_detection(original_log, temp_dir):
     """Test that auto format detection works correctly."""
     # Write it to both formats
-    json_log_path = (temp_dir / "auto_test.json").as_posix()
-    eval_log_path = (temp_dir / "auto_test.eval").as_posix()
+    json_log_path = temp_dir / "auto_test.json"
+    eval_log_path = temp_dir / "auto_test.eval"
 
     write_eval_log(original_log, json_log_path, format="auto")
     write_eval_log(original_log, eval_log_path, format="auto")
