@@ -882,6 +882,10 @@ def eval_exec(
     elif fail_on_error == 0.0:
         fail_on_error = True
 
+    # resolve retry_on_error
+    if retry_on_error == 0:
+        retry_on_error = None
+
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
