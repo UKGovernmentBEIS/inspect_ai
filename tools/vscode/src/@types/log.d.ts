@@ -531,7 +531,7 @@ export type Events = (
 export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid = string | null;
-export type Retried = EvalError[] | null;
+export type ErrorRetries = EvalError[] | null;
 export type Type15 =
   | "context"
   | "time"
@@ -902,7 +902,7 @@ export interface EvalSample {
   working_time: WorkingTime3;
   uuid: Uuid;
   error: EvalError | null;
-  retried: Retried;
+  error_retries: ErrorRetries;
   attachments: Attachments;
   limit: EvalSampleLimit | null;
 }

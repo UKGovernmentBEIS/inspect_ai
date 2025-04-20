@@ -1840,7 +1840,7 @@
           ],
           "default": null
         },
-        "retried": {
+        "error_retries": {
           "anyOf": [
             {
               "items": {
@@ -1853,7 +1853,7 @@
             }
           ],
           "default": null,
-          "title": "Retried"
+          "title": "Error Retries"
         },
         "attachments": {
           "additionalProperties": {
@@ -1894,7 +1894,7 @@
         "working_time",
         "uuid",
         "error",
-        "retried",
+        "error_retries",
         "attachments",
         "limit"
       ],

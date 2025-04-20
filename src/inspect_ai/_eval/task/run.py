@@ -327,7 +327,7 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                                 or config.fail_on_error is True
                             ),
                             retry_on_error=config.retry_on_error or 0,
-                            previous_errors=[],
+                            error_retries=[],
                             time_limit=config.time_limit,
                             working_limit=config.working_limit,
                             semaphore=sample_semaphore,
@@ -506,7 +506,7 @@ async def task_run_sample(
     sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
     retry_on_error: int,
-    previous_errors: list[EvalError],
+    error_retries: list[EvalError],
     time_limit: int | None,
     working_limit: int | None,
     semaphore: anyio.Semaphore | None,
@@ -844,7 +844,7 @@ async def task_run_sample(
                     state=state,
                     scores=results,
                     error=error,
-                    retried=previous_errors,
+                    error_retries=error_retries,
                     log_images=log_images,
                 )
 
@@ -856,7 +856,7 @@ async def task_run_sample(
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)
 
-        # recurse w/ tick down of retry_on_error and append of error to previous_errors
+        # recurse w/ tick down of retry_on_error and append of error to error_retries
         return await task_run_sample(
             task_name=task_name,
             log_location=log_location,
@@ -878,7 +878,7 @@ async def task_run_sample(
             # tick retry count down
             retry_on_error=retry_on_error - 1,
             # forward on error that caused retry
-            previous_errors=copy(previous_errors) + [error],
+            error_retries=copy(error_retries) + [error],
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
@@ -907,7 +907,7 @@ async def log_sample(
     state: TaskState,
     scores: dict[str, SampleScore],
     error: EvalError | None,
-    retried: list[EvalError],
+    error_retries: list[EvalError],
     log_images: bool,
 ) -> None:
     # sample must have id to be logged
@@ -953,7 +953,7 @@ async def log_sample(
         if total_time is not None
         else None,
         error=error,
-        retried=retried,
+        error_retries=error_retries,
         limit=limit,
     )
 
