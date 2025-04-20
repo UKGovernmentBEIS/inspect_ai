@@ -9,7 +9,7 @@ solver or scorer, an unreliable or overloaded API, or a failure to
 communicate with a sandbox environment. It’s also possible to end up
 evals that don’t terminate properly because models continue running in a
 tool calling loop even though they are “stuck” and very unlikely to make
-additioanal progress.
+additional progress.
 
 This article covers various techniques for dealing with unexpected
 errors and setting limits on evaluation tasks and samples. Topics
@@ -24,7 +24,7 @@ covered include:
 4.  Setting a maximum number of messages or tokens in a sample before
     forcing the model to give up.
 
-## Errors and Retries
+## Eval Retries
 
 When an evaluation task fails due to an error or is otherwise
 interrupted (e.g. by a Ctrl+C), an evaluation log is still written. In
@@ -121,6 +121,52 @@ eval("intercode_ctf.py", fail_on_error=False)
 You might choose to do this if you want to tolerate a certain proportion
 of errors during development but want to ensure there are never errors
 when running in production.
+
+## Sample Retries
+
+> [!NOTE]
+>
+> The `retry_on_error` option described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `retry_on_error` option enables retrying samples with errors some
+number of times before they are considered failed (and subject to
+`fail_on_error` processing as described above). For example:
+
+``` bash
+inspect eval ctf.py --retry-on-error    # retry 1 time
+inspect eval ctf.py --retry-on-error=3  # retry up to 3 times
+```
+
+Or from Python:
+
+``` python
+eval("ctf.py", retry_on_error=1)
+```
+
+If a sample is retried, the original error(s) that induced the retries
+will be recorded in its `error_retries` field.
+
+> [!WARNING]
+>
+> ### Retries and Distribution Shift
+>
+> While sample retries enable improved recovery from transient
+> infrastructure errors, they also carry with them some risk of
+> distribution shift. For example, imagine that the error being retried
+> is a bug in one of your agents that is triggered by only certain
+> classes of input. These classes of input could then potentially have a
+> higher chance of success because they will be “re-rolled” more
+> frequently.
+>
+> Consequently, when enabling `retry_on_error` you should do some
+> post-hoc analysis to ensure that retried samples don’t have
+> significantly different results than samples which are not retried.
 
 ## Sample Limits
 

@@ -329,7 +329,7 @@ cases that require attachment resolution for an `EvalSample` are:
     de-duplicated in `events`, so anytime you are reading it you will
     likely want to resolve attachments).
 
-## Errors and Retries
+## Eval Retries
 
 When an evaluation task fails due to an error or is otherwise
 interrupted (e.g. by a Ctrl+C), an evaluation log is still written. In
@@ -518,7 +518,7 @@ $ inspect log list --json --status error
 ```
 
 You can use the `--retryable` option to list only logs that are
-[retryable](#sec-errors-and-retries)
+[retryable](#eval-retries)
 
 ``` bash
 $ inspect log list --json --retryable

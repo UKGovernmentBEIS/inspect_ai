@@ -478,7 +478,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#streaming" id="toc-streaming" class="nav-link" data-scroll-target="#streaming">Streaming</a></li>
   <li><a href="#attachments" id="toc-attachments" class="nav-link" data-scroll-target="#attachments">Attachments</a></li>
   </ul></li>
-  <li><a href="#sec-errors-and-retries" id="toc-sec-errors-and-retries" class="nav-link" data-scroll-target="#sec-errors-and-retries">Errors and Retries</a>
+  <li><a href="#eval-retries" id="toc-eval-retries" class="nav-link" data-scroll-target="#eval-retries">Eval Retries</a>
   <ul class="collapse">
   <li><a href="#sec-sample-preservation" id="toc-sec-sample-preservation" class="nav-link" data-scroll-target="#sec-sample-preservation">Sample Preservation</a></li>
   </ul></li>
@@ -775,8 +775,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </ol>
 </section>
 </section>
-<section id="sec-errors-and-retries" class="level2">
-<h2 class="anchored" data-anchor-id="sec-errors-and-retries">Errors and Retries</h2>
+<section id="eval-retries" class="level2">
+<h2 class="anchored" data-anchor-id="eval-retries">Eval Retries</h2>
 <p>When an evaluation task fails due to an error or is otherwise interrupted (e.g.&nbsp;by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g.&nbsp;due to network connectivity or a rate limit) and can be subsequently <em>retried</em>.</p>
 <p>For these cases, Inspect includes an <code>eval-retry</code> command and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span> function that you can use to resume tasks interrupted by errors (including <a href="./eval-logs.html#sec-sample-preservation">preserving samples</a> already completed within the original task). For example, if you had a failing task with log file <code>logs/2024-05-29T12-38-43_math_Gprr29Mv.json</code>, you could retry it from the shell with:</p>
 <div class="sourceCode" id="cb18"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -874,7 +874,7 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
 <div class="sourceCode" id="cb25"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>You can use the <code>--retryable</code> option to list only logs that are <a href="#sec-errors-and-retries">retryable</a></p>
+<p>You can use the <code>--retryable</code> option to list only logs that are <a href="#eval-retries">retryable</a></p>
 <div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="reading-logs" class="level3">
@@ -1448,7 +1448,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"selector":".lightbox","closeEffect":"zoom","descPosition":"bottom","openEffect":"zoom"});
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","openEffect":"zoom","loop":false,"selector":".lightbox","closeEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

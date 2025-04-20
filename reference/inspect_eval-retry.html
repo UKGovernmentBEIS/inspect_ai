@@ -1846,108 +1846,114 @@ ul.task-list li input[type="checkbox"] {
 <td><code>False</code></td>
 </tr>
 <tr class="even">
+<td><code>--retry-on-error</code></td>
+<td>text</td>
+<td>Retry samples if they encounter errors (by default, no retries occur). Specify –retry-on-error to retry a single time, or specify e.g.&nbsp;<code>--retry-on-error=3</code> to retry multiple times.</td>
+<td>None</td>
+</tr>
+<tr class="odd">
 <td><code>--no-log-samples</code></td>
 <td>boolean</td>
 <td>Do not include samples in the log file.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-images</code> / <code>--no-log-images</code></td>
 <td>boolean</td>
 <td>Include base64 encoded versions of filename or URL based images in the log file.</td>
 <td><code>True</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-buffer</code></td>
 <td>integer</td>
 <td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-shared</code></td>
 <td>text</td>
 <td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every <code>n</code> seconds).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-score</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-score-display</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-connections</code></td>
 <td>integer</td>
 <td>Maximum number of concurrent connections to Model API (defaults to 10)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--max-retries</code></td>
 <td>integer</td>
 <td>Maximum number of times to retry model API requests (defaults to unlimited)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--timeout</code></td>
 <td>integer</td>
 <td>Model API request timeout in seconds (defaults to no timeout)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level-transcript</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code>)</td>
 <td>Set the log level of the transcript (defaults to ‘info’)</td>
 <td><code>info</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>
