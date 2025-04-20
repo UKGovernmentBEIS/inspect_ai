@@ -894,6 +894,18 @@
             },
             {
               "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
                 "anyOf": [
                   {
                     "type": "string"
@@ -964,6 +976,18 @@
           ],
           "default": null,
           "title": "Fail On Error"
+        },
+        "retry_on_error": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry On Error"
         },
         "message_limit": {
           "anyOf": [
@@ -1143,6 +1167,7 @@
         "epochs_reducer",
         "approval",
         "fail_on_error",
+        "retry_on_error",
         "message_limit",
         "token_limit",
         "time_limit",
@@ -1203,12 +1228,24 @@
           "anyOf": [
             {
               "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            {
+              "items": {
                 "anyOf": [
                   {
-                    "type": "integer"
+                    "type": "string"
                   },
                   {
-                    "type": "string"
+                    "type": "integer"
                   }
                 ]
               },
@@ -1432,6 +1469,7 @@
             "cache_prompt": null,
             "reasoning_effort": null,
             "reasoning_tokens": null,
+            "reasoning_summary": null,
             "reasoning_history": null,
             "response_schema": null
           }
@@ -1802,6 +1840,21 @@
           ],
           "default": null
         },
+        "error_retries": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/EvalError"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Retries"
+        },
         "attachments": {
           "additionalProperties": {
             "type": "string"
@@ -1841,6 +1894,7 @@
         "working_time",
         "uuid",
         "error",
+        "error_retries",
         "attachments",
         "limit"
       ],
@@ -2747,6 +2801,23 @@
           "default": null,
           "title": "Reasoning Tokens"
         },
+        "reasoning_summary": {
+          "anyOf": [
+            {
+              "enum": [
+                "concise",
+                "detailed",
+                "auto"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Summary"
+        },
         "reasoning_history": {
           "anyOf": [
             {
@@ -2803,6 +2874,7 @@
         "cache_prompt",
         "reasoning_effort",
         "reasoning_tokens",
+        "reasoning_summary",
         "reasoning_history",
         "response_schema"
       ],
@@ -2941,6 +3013,18 @@
           "default": null,
           "title": "Type"
         },
+        "format": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Format"
+        },
         "description": {
           "anyOf": [
             {
@@ -3046,6 +3130,7 @@
       "type": "object",
       "required": [
         "type",
+        "format",
         "description",
         "default",
         "enum",

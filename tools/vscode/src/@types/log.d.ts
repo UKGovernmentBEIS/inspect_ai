@@ -20,7 +20,7 @@ export type Tags = string[] | null;
 export type Name = string | null;
 export type Location = string | null;
 export type Samples = number | null;
-export type SampleIds = (number | string)[] | null;
+export type SampleIds = string[] | number[] | (string | number)[] | null;
 export type Shuffled = boolean | null;
 export type Type = string;
 export type Model = string;
@@ -49,11 +49,13 @@ export type MaxToolOutput = number | null;
 export type CachePrompt = "auto" | boolean | null;
 export type ReasoningEffort = ("low" | "medium" | "high") | null;
 export type ReasoningTokens = number | null;
+export type ReasoningSummary = ("concise" | "detailed" | "auto") | null;
 export type ReasoningHistory = ("none" | "all" | "last" | "auto") | null;
 export type Name1 = string;
 export type Type1 =
   | ("string" | "integer" | "number" | "boolean" | "array" | "object" | "null")
   | null;
+export type Format = string | null;
 export type Description = string | null;
 export type Enum = unknown[] | null;
 export type Properties = {
@@ -71,13 +73,20 @@ export type ModelRoles = {
 export type Model1 = string;
 export type BaseUrl = string | null;
 export type Limit = number | [unknown, unknown] | null;
-export type SampleId = string | number | (string | number)[] | null;
+export type SampleId =
+  | string
+  | number
+  | string[]
+  | number[]
+  | (string | number)[]
+  | null;
 export type Epochs = number | null;
 export type EpochsReducer = string[] | null;
 export type Name2 = string;
 export type Tools = string | string[];
 export type Approvers = ApproverPolicyConfig[];
 export type FailOnError = boolean | number | null;
+export type RetryOnError = number | null;
 export type MessageLimit = number | null;
 export type TokenLimit = number | null;
 export type TimeLimit = number | null;
@@ -177,10 +186,10 @@ export type Image = string;
 export type Detail = "auto" | "low" | "high";
 export type Type6 = "audio";
 export type Audio = string;
-export type Format = "wav" | "mp3";
+export type Format1 = "wav" | "mp3";
 export type Type7 = "video";
 export type Video = string;
-export type Format1 = "mp4" | "mpeg" | "mov";
+export type Format2 = "mp4" | "mpeg" | "mov";
 export type Source = ("input" | "generate") | null;
 export type Role = "system";
 export type Id2 = string | null;
@@ -213,7 +222,7 @@ export type Id4 = string;
 export type Function = string;
 export type ParseError = string | null;
 export type Title = string | null;
-export type Format2 = "text" | "markdown";
+export type Format3 = "text" | "markdown";
 export type Content3 = string;
 export type Type8 = string | null;
 export type Model2 = string | null;
@@ -522,6 +531,7 @@ export type Events = (
 export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid = string | null;
+export type ErrorRetries = EvalError[] | null;
 export type Type15 =
   | "context"
   | "time"
@@ -643,6 +653,7 @@ export interface GenerateConfig {
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
+  reasoning_summary: ReasoningSummary;
   reasoning_history: ReasoningHistory;
   response_schema: ResponseSchema | null;
 }
@@ -660,6 +671,7 @@ export interface ResponseSchema {
  */
 export interface JSONSchema {
   type: Type1;
+  format: Format;
   description: Description;
   default: Default;
   enum: Enum;
@@ -693,6 +705,7 @@ export interface EvalConfig {
   epochs_reducer: EpochsReducer;
   approval: ApprovalPolicyConfig | null;
   fail_on_error: FailOnError;
+  retry_on_error: RetryOnError;
   message_limit: MessageLimit;
   token_limit: TokenLimit;
   time_limit: TimeLimit;
@@ -798,6 +811,7 @@ export interface GenerateConfig1 {
   cache_prompt: CachePrompt;
   reasoning_effort: ReasoningEffort;
   reasoning_tokens: ReasoningTokens;
+  reasoning_summary: ReasoningSummary;
   reasoning_history: ReasoningHistory;
   response_schema: ResponseSchema | null;
 }
@@ -888,6 +902,7 @@ export interface EvalSample {
   working_time: WorkingTime3;
   uuid: Uuid;
   error: EvalError | null;
+  error_retries: ErrorRetries;
   attachments: Attachments;
   limit: EvalSampleLimit | null;
 }
@@ -934,7 +949,7 @@ export interface ContentImage {
 export interface ContentAudio {
   type: Type6;
   audio: Audio;
-  format: Format;
+  format: Format1;
 }
 /**
  * Video content.
@@ -942,7 +957,7 @@ export interface ContentAudio {
 export interface ContentVideo {
   type: Type7;
   video: Video;
-  format: Format1;
+  format: Format2;
 }
 /**
  * User chat message.
@@ -982,7 +997,7 @@ export interface Arguments {}
  */
 export interface ToolCallContent {
   title: Title;
-  format: Format2;
+  format: Format3;
   content: Content3;
 }
 /**

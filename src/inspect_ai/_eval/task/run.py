@@ -2,7 +2,7 @@ import contextlib
 import functools
 import sys
 import time
-from copy import deepcopy
+from copy import copy, deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from logging import getLogger
@@ -326,6 +326,8 @@ async def task_run(options: TaskRunOptions) -> EvalLog:
                                 config.fail_on_error is None
                                 or config.fail_on_error is True
                             ),
+                            retry_on_error=config.retry_on_error or 0,
+                            error_retries=[],
                             time_limit=config.time_limit,
                             working_limit=config.working_limit,
                             semaphore=sample_semaphore,
@@ -485,6 +487,7 @@ def update_metrics_display_fn(
 
 
 async def task_run_sample(
+    *,
     task_name: str,
     log_location: str,
     sample: Sample,
@@ -502,6 +505,8 @@ async def task_run_sample(
     sample_error: SampleErrorHandler,
     sample_complete: Callable[[dict[str, SampleScore]], None],
     fails_on_error: bool,
+    retry_on_error: int,
+    error_retries: list[EvalError],
     time_limit: int | None,
     working_limit: int | None,
     semaphore: anyio.Semaphore | None,
@@ -533,6 +538,9 @@ async def task_run_sample(
             sample_complete(sample_scores)
             return sample_scores
 
+    # copy variables that we may pass back to ourselves on a retry
+    initial_state = deepcopy(state)
+
     # use semaphore if provided
     semaphore_cm: anyio.Semaphore | contextlib.AbstractAsyncContextManager[None] = (
         semaphore if semaphore else contextlib.nullcontext()
@@ -563,14 +571,24 @@ async def task_run_sample(
 
     # helper to handle exceptions (will throw if we've exceeded the limit)
     def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
-        err = sample_error(ex)
-        # if we aren't raising the error then print a warning
-        if err[1] is None:
-            py_logger.warning(
-                f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
-            )
-        transcript()._event(ErrorEvent(error=err[0]))
-        return err
+        # helper to log sample error
+        def log_sample_error() -> None:
+            msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
+            if retry_on_error > 0:
+                msg = f"{msg}. Sample will be retried."
+            py_logger.warning(msg)
+
+        # if we have retries left then return EvalError
+        if retry_on_error > 0:
+            log_sample_error()
+            return eval_error(ex, type(ex), ex, ex.__traceback__), None
+        else:
+            err = sample_error(ex)
+            # if we aren't raising the error then print a warning
+            if err[1] is None:
+                log_sample_error()
+            transcript()._event(ErrorEvent(error=err[0]))
+            return err
 
     # solver loop
     async with (
@@ -585,7 +603,7 @@ async def task_run_sample(
             token_limit=state.token_limit,
             time_limit=time_limit,
             working_limit=working_limit,
-            fails_on_error=fails_on_error,
+            fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
         ) as active,
     ):
@@ -806,40 +824,84 @@ async def task_run_sample(
         except Exception as ex:
             error, raise_error = handle_error(ex)
 
-        # complete the sample
-        progress(SAMPLE_TOTAL_PROGRESS_UNITS)
+        # complete the sample if there is no error or if there is no retry_on_error in play
+        if not error or (retry_on_error == 0):
+            progress(SAMPLE_TOTAL_PROGRESS_UNITS)
 
-        # log it
+            # log it
+            if logger is not None:
+                # if we are logging images then be sure to base64 images injected by solvers
+                if log_images:
+                    state = (await states_with_base64_content([state]))[0]
+
+                # otherwise ensure there are no base64 images in sample or messages
+                else:
+                    sample = sample_without_base64_content(sample)
+                    state = state_without_base64_content(state)
+
+                # log the sample
+                await log_sample(
+                    start_time=start_time,
+                    logger=logger,
+                    sample=sample,
+                    state=state,
+                    scores=results,
+                    error=error,
+                    error_retries=error_retries,
+                    log_images=log_images,
+                )
+
+    # error that should be retried (we do this outside of the above scope so that we can
+    # retry outside of the original semaphore -- our retry will therefore go to the back
+    # of the sample queue)
+    if error and retry_on_error > 0:
+        # remove any buffered sample events
         if logger is not None:
-            # if we are logging images then be sure to base64 images injected by solvers
-            if log_images:
-                state = (await states_with_base64_content([state]))[0]
+            logger.remove_sample(state.sample_id, state.epoch)
 
-            # otherwise ensure there are no base64 images in sample or messages
-            else:
-                sample = sample_without_base64_content(sample)
-                state = state_without_base64_content(state)
+        # recurse w/ tick down of retry_on_error and append of error to error_retries
+        return await task_run_sample(
+            task_name=task_name,
+            log_location=log_location,
+            sample=sample,
+            # state was deep copied at the outset
+            state=initial_state,
+            sandbox=sandbox,
+            max_sandboxes=max_sandboxes,
+            sandbox_cleanup=sandbox_cleanup,
+            plan=plan,
+            scorers=scorers,
+            generate=generate,
+            progress=progress,
+            logger=logger,
+            log_images=log_images,
+            sample_source=sample_source,
+            sample_error=sample_error,
+            sample_complete=sample_complete,
+            fails_on_error=fails_on_error,
+            # tick retry count down
+            retry_on_error=retry_on_error - 1,
+            # forward on error that caused retry
+            error_retries=copy(error_retries) + [error],
+            time_limit=time_limit,
+            working_limit=working_limit,
+            semaphore=semaphore,
+        )
 
-            # log the sample
-            await log_sample(
-                start_time=start_time,
-                logger=logger,
-                sample=sample,
-                state=state,
-                scores=results,
-                error=error,
-                log_images=log_images,
-            )
+    # no error
+    elif error is None:
+        # call sample_complete callback if we have score results
+        if results is not None:
+            sample_complete(results)
+        return results
 
-        # return
-        if error is None:
-            if results is not None:
-                sample_complete(results)
-            return results
-        elif raise_error:
-            raise raise_error
-        else:
-            return None
+    # we have an error and should raise it
+    elif raise_error is not None:
+        raise raise_error
+
+    # we have an error and should not raise it
+    else:
+        return None
 
 
 async def log_sample(
@@ -849,6 +911,7 @@ async def log_sample(
     state: TaskState,
     scores: dict[str, SampleScore],
     error: EvalError | None,
+    error_retries: list[EvalError],
     log_images: bool,
 ) -> None:
     # sample must have id to be logged
@@ -894,6 +957,7 @@ async def log_sample(
         if total_time is not None
         else None,
         error=error,
+        error_retries=error_retries,
         limit=limit,
     )
 

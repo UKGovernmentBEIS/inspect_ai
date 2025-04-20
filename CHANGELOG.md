@@ -1,18 +1,25 @@
 ## Unreleased
 
 - Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
+- New [retry_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#sample-retries) option to enable sample level retry of errors (retries occur immediately rather than waiting until the next full eval retry).
 - Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - OpenAI: Responses API is now used by default for all reasoning models.
 - OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
 - OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 - OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
 - Google: Support for `reasoning_tokens` option for Gemini 2.5 models.
+- Grok: Support for `reasoning_effort` option and capturing reasoning content.
+- ReAct Agent: Ability to fully repleace the default `submit()` tool.
 - Human Agent: Added `user` parameter for running the human agent cli as a given user.
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
+- Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
+- Log API: Functions for reading/writing eval logs can now take a `Path`.
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.
+- Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
+- Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
 
 ## v0.3.89 (17 April 2025)
