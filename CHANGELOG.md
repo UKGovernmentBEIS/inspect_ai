@@ -24,10 +24,12 @@
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.
+- Inspect View: Collapse sample init view by default.
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
 - Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
 - Bugfix: Prevent duplicate `SampleInitEvent` from entering transcript.
+
 
 ## v0.3.89 (17 April 2025)
 
