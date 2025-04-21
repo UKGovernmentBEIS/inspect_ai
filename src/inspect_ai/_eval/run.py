@@ -4,6 +4,7 @@ import sys
 from typing import Any, Awaitable, Callable, Set, cast
 
 from inspect_ai._eval.task.task import Task
+from inspect_ai._util.environ import environ_vars
 from inspect_ai._util.trace import trace_action
 
 if sys.version_info < (3, 11):
@@ -49,7 +50,7 @@ from .loader import (
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
 from .task.run import TaskRunOptions, task_run
-from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task
+from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task_and_sample
 from .task.util import slice_dataset, task_run_dir
 
 log = logging.getLogger(__name__)
@@ -435,7 +436,9 @@ async def startup_sandbox_environments(
         # resolve each sample and add to sandboxenvs
         dataset = slice_dataset(task.task.dataset, config.limit, config.sample_id)
         for sample in dataset:
-            sandbox = resolve_sandbox_for_task(eval_sandbox, task.task, sample)
+            sandbox = await resolve_sandbox_for_task_and_sample(
+                eval_sandbox, task.task, sample
+            )
             if sandbox is not None and sandbox not in sandboxenvs:
                 sandboxenvs.add(sandbox)
 
@@ -448,7 +451,7 @@ async def startup_sandbox_environments(
 
             # run startup
             task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
-            with chdir(sandboxenv.run_dir):
+            with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
                 await task_init("startup", sandboxenv.sandbox.config)
 
             # append cleanup method

@@ -69,7 +69,7 @@ async def tg_collect(
         if exception_group:
             raise
         else:
-            raise ex.exceptions[0]
+            raise ex.exceptions[0] from None
 
 
 async def coro_print_exceptions(

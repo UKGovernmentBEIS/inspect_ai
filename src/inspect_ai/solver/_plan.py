@@ -230,4 +230,4 @@ def plan_create(name: str, **kwargs: Any) -> Plan:
     Returns:
         Plan with registry info attribute
     """
-    return cast(Plan, registry_create("plan", name, **kwargs))  # type: ignore[arg-type]
+    return registry_create("plan", name, **kwargs)

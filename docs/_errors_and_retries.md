@@ -1,4 +1,4 @@
-## Errors and Retries {#sec-errors-and-retries}
+## Eval Retries {#eval-retries}
 
 When an evaluation task fails due to an error or is otherwise interrupted (e.g. by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g. due to network connectivity or a rate limit) and can be subsequently *retried*.
 

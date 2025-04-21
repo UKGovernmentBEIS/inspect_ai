@@ -31,6 +31,7 @@ from google.genai.types import (  # type: ignore
     SafetySetting,
     SafetySettingDict,
     Schema,
+    ThinkingConfig,
     Tool,
     ToolConfig,
     Type,
@@ -105,6 +106,7 @@ class GoogleGenAIAPI(ModelAPI):
         base_url: str | None,
         api_key: str | None,
         config: GenerateConfig = GenerateConfig(),
+        api_version: str | None = None,
         **model_args: Any,
     ) -> None:
         super().__init__(
@@ -114,6 +116,9 @@ class GoogleGenAIAPI(ModelAPI):
             api_key_vars=[GOOGLE_API_KEY, VERTEX_API_KEY],
             config=config,
         )
+
+        # record api version
+        self.api_version = api_version
 
         # pick out user-provided safety settings and merge against default
         self.safety_settings = DEFAULT_SAFETY_SETTINGS.copy()
@@ -196,7 +201,10 @@ class GoogleGenAIAPI(ModelAPI):
         client = Client(
             vertexai=self.is_vertex(),
             api_key=self.api_key,
-            http_options={"base_url": self.base_url},
+            http_options={
+                "base_url": self.base_url,
+                "api_version": self.api_version,
+            },
             **self.model_args,
         )
 
@@ -222,6 +230,7 @@ class GoogleGenAIAPI(ModelAPI):
             tools=gemini_tools,
             tool_config=gemini_tool_config,
             system_instruction=await extract_system_message_as_parts(client, input),
+            thinking_config=self.chat_thinking_config(config),
         )
         if config.response_schema is not None:
             parameters.response_mime_type = "application/json"
@@ -264,6 +273,15 @@ class GoogleGenAIAPI(ModelAPI):
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
 
+    def is_gemini(self) -> bool:
+        return "gemini-" in self.service_model_name()
+
+    def is_gemini_1_5(self) -> bool:
+        return "gemini-1.5" in self.service_model_name()
+
+    def is_gemini_2_0(self) -> bool:
+        return "gemini-2.0" in self.service_model_name()
+
     @override
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, APIError) and ex.code is not None:
@@ -292,6 +310,18 @@ class GoogleGenAIAPI(ModelAPI):
             )
         else:
             raise ex
+
+    def chat_thinking_config(self, config: GenerateConfig) -> ThinkingConfig | None:
+        # thinking_config is only supported for gemini 2.5 above
+        has_thinking_config = (
+            self.is_gemini() and not self.is_gemini_1_5() and not self.is_gemini_2_0()
+        )
+        if has_thinking_config:
+            return ThinkingConfig(
+                include_thoughts=True, thinking_budget=config.reasoning_tokens
+            )
+        else:
+            return None
 
 
 def safety_settings_to_list(safety_settings: SafetySettingDict) -> list[SafetySetting]:
@@ -502,6 +532,27 @@ def schema_from_param(
             type=Type.BOOLEAN, description=param.description, nullable=nullable
         )
     elif param.type == "string":
+        if param.format == "date-time":
+            return Schema(
+                type=Type.STRING,
+                description=param.description,
+                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+                nullable=nullable,
+            )
+        elif param.format == "date":
+            return Schema(
+                type=Type.STRING,
+                description=param.description,
+                format="^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+                nullable=nullable,
+            )
+        elif param.format == "time":
+            return Schema(
+                type=Type.STRING,
+                description=param.description,
+                format="^[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+                nullable=nullable,
+            )
         return Schema(
             type=Type.STRING, description=param.description, nullable=nullable
         )
@@ -552,21 +603,18 @@ def completion_choice_from_candidate(
 ) -> ChatCompletionChoice:
     # content can be None when the finish_reason is SAFETY
     if candidate.content is None:
-        content = ""
+        content: str | list[Content] = ""
     # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
     elif candidate.content.parts is None:
         content = ""
     else:
-        content = " ".join(
-            [
-                part.text
-                for part in candidate.content.parts
-                if part.text is not None and candidate.content is not None
-            ]
-        )
-
-    # split reasoning
-    reasoning, content = split_reasoning(content)
+        content = []
+        for part in candidate.content.parts:
+            if part.text is not None:
+                if part.thought is True:
+                    content.append(ContentReasoning(reasoning=part.text))
+                else:
+                    content.append(ContentText(text=part.text))
 
     # now tool calls
     tool_calls: list[ToolCall] = []
@@ -584,19 +632,10 @@ def completion_choice_from_candidate(
     # stop reason
     stop_reason = finish_reason_to_stop_reason(candidate.finish_reason)
 
-    # choice content may include reasoning
-    if reasoning:
-        choice_content: str | list[Content] = [
-            ContentReasoning(reasoning=reasoning),
-            ContentText(text=content),
-        ]
-    else:
-        choice_content = content
-
     # build choice
     choice = ChatCompletionChoice(
         message=ChatMessageAssistant(
-            content=choice_content,
+            content=content,
             tool_calls=tool_calls if len(tool_calls) > 0 else None,
             model=model,
             source="generate",
@@ -661,15 +700,6 @@ def completion_choices_from_candidates(
         ]
 
 
-def split_reasoning(content: str) -> tuple[str | None, str]:
-    separator = "\nFinal Answer: "
-    if separator in content:
-        parts = content.split(separator, 1)  # dplit only on first occurrence
-        return parts[0].strip(), separator.lstrip() + parts[1].strip()
-    else:
-        return None, content.strip()
-
-
 def prompt_feedback_to_content(
     feedback: GenerateContentResponsePromptFeedback,
 ) -> str:
@@ -695,6 +725,7 @@ def usage_metadata_to_model_usage(
         input_tokens=metadata.prompt_token_count or 0,
         output_tokens=metadata.candidates_token_count or 0,
         total_tokens=metadata.total_token_count or 0,
+        reasoning_tokens=metadata.thoughts_token_count or 0,
     )
 
 

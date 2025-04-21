@@ -18,6 +18,7 @@ def human_cli(
     answer: bool | str = True,
     intermediate_scoring: bool = False,
     record_session: bool = True,
+    user: str | None = None,
 ) -> Agent:
     """Human CLI agent for tasks that run in a sandbox.
 
@@ -37,6 +38,7 @@ def human_cli(
           that the answer matches the expected format.
        intermediate_scoring: Allow the human agent to check their score while working.
        record_session: Record all user commands and outputs in the sandbox bash session.
+       user: User to login as. Defaults to the sandbox environment's default user.
 
     Returns:
        Agent: Human CLI agent.
@@ -48,7 +50,7 @@ def human_cli(
         async with agent_lock:
             # ensure that we have a sandbox to work with
             try:
-                connection = await sandbox().connection()
+                connection = await sandbox().connection(user=user)
             except ProcessLookupError:
                 raise RuntimeError("Human agent must run in a task with a sandbox.")
             except NotImplementedError:
@@ -66,13 +68,13 @@ def human_cli(
                     )
 
                     # install agent tools
-                    await install_human_agent(commands, record_session)
+                    await install_human_agent(user, commands, record_session)
 
                     # hookup the view ui
                     view.connect(connection)
 
                     # run sandbox service
-                    return await run_human_agent_service(state, commands, view)
+                    return await run_human_agent_service(user, state, commands, view)
 
             # support both fullscreen ui and fallback
             if display_type() == "full":

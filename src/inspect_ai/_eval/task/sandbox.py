@@ -17,6 +17,7 @@ from inspect_ai._eval.task.task import Task
 from inspect_ai._eval.task.util import task_run_dir
 from inspect_ai._util.file import file, filesystem
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
+from inspect_ai._util.path import chdir
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.url import data_uri_to_base64, is_data_uri, is_http_url
 from inspect_ai.dataset import Sample
@@ -29,6 +30,7 @@ from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
     SandboxEnvironmentConfigType,
     SandboxEnvironmentSpec,
+    TaskInitEnvironment,
 )
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 
@@ -42,7 +44,7 @@ async def sandboxenv_context(
     sample: Sample,
 ) -> AsyncGenerator[None, None]:
     # resolve sandbox
-    sandbox = resolve_sandbox(sandbox, sample)
+    sandbox = await resolve_sandbox(sandbox, sample)
     if not sandbox:
         raise ValueError("sandboxenv_context called with no sandbox specified")
 
@@ -143,22 +145,34 @@ async def read_sandboxenv_file(contents: str) -> bytes:
 class TaskSandboxEnvironment(NamedTuple):
     sandbox: SandboxEnvironmentSpec
     run_dir: str
+    env: tuple[tuple[str, str], ...]
 
 
-def resolve_sandbox_for_task(
+async def resolve_sandbox_for_task_and_sample(
     eval_sandbox: SandboxEnvironmentSpec | None,
     task: Task,
     sample: Sample,
 ) -> TaskSandboxEnvironment | None:
     # eval_sandbox overrides task or sample sandbox
-    sandbox = eval_sandbox or resolve_sandbox(task.sandbox, sample)
+    sandbox = eval_sandbox or await resolve_sandbox(task.sandbox, sample)
     if sandbox is not None:
-        return TaskSandboxEnvironment(sandbox, task_run_dir(task))
+        # see if there are environment variables required for init of this sample
+        run_dir = task_run_dir(task)
+        with chdir(run_dir):
+            sandboxenv_type = registry_find_sandboxenv(sandbox.type)
+            task_init_environment = cast(
+                TaskInitEnvironment, getattr(sandboxenv_type, "task_init_environment")
+            )
+            env = await task_init_environment(sandbox.config, sample.metadata or {})
+
+        return TaskSandboxEnvironment(
+            sandbox=sandbox, run_dir=run_dir, env=tuple(sorted(env.items()))
+        )
     else:
         return None
 
 
-def resolve_sandbox(
+async def resolve_sandbox(
     sandbox: SandboxEnvironmentSpec | None,
     sample: Sample,
 ) -> SandboxEnvironmentSpec | None:

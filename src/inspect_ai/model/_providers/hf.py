@@ -347,7 +347,7 @@ def chat_completion_assistant_message(
 
 def set_random_seeds(seed: int | None = None) -> None:
     if seed is None:
-        seed = np.random.default_rng().integers(2**32 - 1)
+        seed = np.random.default_rng().integers(2**32 - 1)  # type: ignore
     # python hash seed
     os.environ["PYTHONHASHSEED"] = str(seed)
     # transformers seed

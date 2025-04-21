@@ -111,6 +111,20 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         # default params
         params = super().completion_params(config, tools)
 
+        # remove reasoning_effort it is exists
+        if "reasoning_effort" in params:
+            del params["reasoning_effort"]
+
+        # provide openrouter standard reasoning options
+        # https://openrouter.ai/docs/use-cases/reasoning-tokens
+        if config.reasoning_effort is not None or config.reasoning_tokens is not None:
+            reasoning: dict[str, str | int] = dict()
+            if config.reasoning_effort is not None:
+                reasoning["effort"] = config.reasoning_effort
+            if config.reasoning_tokens is not None:
+                reasoning["max_tokens"] = config.reasoning_tokens
+            params["reasoning"] = reasoning
+
         # pass args if specifed
         EXTRA_BODY = "extra_body"
         if self.models or self.provider or self.transforms:

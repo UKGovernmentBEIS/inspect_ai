@@ -138,12 +138,25 @@ With this option enabled, the human agent can check their potential score on the
 task score picoCTF{73bfc85c1ba7}
 ```
 
+### Container User
+
+By default, the human agent will login to the container using its default user. You can specify an alternate user via the `user` option. For example:
+
+``` python
+solver=human_cli(user="myuser")
+```
+
+Or from the CLI, use the `-S` option:
+
+``` bash
+--solver human_cli -S user=myuser
+```
+
 ## Recording {#recording}
 
 By default, human agent terminal sessions are recorded using the LInux [script command](https://www.redhat.com/en/blog/linux-script-command). Recorded sessions are saved in the sample store and available for playback within the Inspect View:
 
 ![](images/inspect-terminal-transcript.png){.lightbox}
-
 
 You can disable session recording with the `record_session` option:
 

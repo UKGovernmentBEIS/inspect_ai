@@ -27,6 +27,10 @@ logger = logging.getLogger(__name__)
 ST = TypeVar("ST", bound="SandboxEnvironment")
 
 TaskInit = Callable[[str, Union["SandboxEnvironmentConfigType", None]], Awaitable[None]]
+TaskInitEnvironment = Callable[
+    [Union["SandboxEnvironmentConfigType", None], dict[str, str]],
+    Awaitable[dict[str, str]],
+]
 TaskCleanup = Callable[
     [str, Union["SandboxEnvironmentConfigType", None], bool], Awaitable[None]
 ]
@@ -187,11 +191,14 @@ class SandboxEnvironment(abc.ABC):
         """
         ...
 
-    async def connection(self) -> SandboxConnection:
+    async def connection(self, *, user: str | None = None) -> SandboxConnection:
         """Information required to connect to sandbox environment.
 
+        Args:
+          user: User to login as.
+
         Returns:
-           SandboxConnection: connection information
+           SandboxConnection: connection information.
 
         Raises:
            NotImplementedError: For sandboxes that don't provide connections
@@ -234,6 +241,30 @@ class SandboxEnvironment(abc.ABC):
           config: Implementation defined configuration (optional).
         """
         pass
+
+    @classmethod
+    async def task_init_environment(
+        cls, config: SandboxEnvironmentConfigType | None, metadata: dict[str, str]
+    ) -> dict[str, str]:
+        """Called at task startup to identify environment variables required by task_init for a sample.
+
+        Return 1 or more environment variables to request a dedicated call to task_init
+        for samples that have exactly these environment variables (by default there is
+        only one call to task_init for all of the samples in a task if they share a
+        sandbox configuration).
+
+        This is useful for situations where config files are dynamic (e.g. through
+        sample metadata variable interpolation) and end up yielding different images
+        that need their own init (e.g. 'docker pull').
+
+        Args:
+            config: Implementation defined configuration (optional).
+            metadata: metadata: Sample `metadata` field
+
+        Returns:
+            Environment variables to set for call to task_init.
+        """
+        return {}
 
     @classmethod
     async def sample_init(
