@@ -71520,18 +71520,24 @@ ${events}
         return {
           ...rootStepDescriptor
         };
+      } else if (event.event === "step") {
+        if (event.name === "init") {
+          return {
+            ...rootStepDescriptor,
+            name: "Init",
+            collapse: true
+          };
+        } else {
+          return {
+            ...rootStepDescriptor
+          };
+        }
       } else {
         switch (event.name) {
           case "sample_init":
             return {
               ...rootStepDescriptor,
               name: "Sample Init",
-              collapse: true
-            };
-          case "init":
-            return {
-              ...rootStepDescriptor,
-              name: "Init",
               collapse: true
             };
           default:
