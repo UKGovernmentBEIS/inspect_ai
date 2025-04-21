@@ -34410,7 +34410,7 @@ self.onmessage = function (e) {
       indented: indented2,
       toolCallStyle
     }) => {
-      const collapse = message2.role === "system";
+      const collapse = message2.role === "system" || message2.role === "user";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -34432,7 +34432,7 @@ self.onmessage = function (e) {
                   styles$1a.messageContents,
                   indented2 ? styles$1a.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 30, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MessageContents,
                   {
                     id: `${id}-contents`,
