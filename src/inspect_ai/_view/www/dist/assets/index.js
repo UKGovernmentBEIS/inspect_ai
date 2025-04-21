@@ -37074,7 +37074,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       indented: indented2,
       toolCallStyle
     }) => {
-      const collapse = message2.role === "system";
+      const collapse = message2.role === "system" || message2.role === "user";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -37096,7 +37096,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   styles$1h.messageContents,
                   indented2 ? styles$1h.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 30, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MessageContents,
                   {
                     id: `${id}-contents`,
