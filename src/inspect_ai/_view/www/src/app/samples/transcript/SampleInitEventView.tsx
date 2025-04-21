@@ -60,19 +60,18 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
       title="Sample"
       icon={ApplicationIcons.sample}
       subTitle={formatDateTime(new Date(event.timestamp))}
-      collapse={true}
     >
       <div data-name="Sample" className={styles.sample}>
         <ChatView messages={stateObj["messages"] as Messages} />
         <div>
           {event.sample.choices
             ? event.sample.choices.map((choice, index) => {
-                return (
-                  <div key={`$choice-{choice}`}>
-                    {String.fromCharCode(65 + index)}) {choice}
-                  </div>
-                );
-              })
+              return (
+                <div key={`$choice-{choice}`}>
+                  {String.fromCharCode(65 + index)}) {choice}
+                </div>
+              );
+            })
             : ""}
           {sections.length > 0 ? (
             <div className={styles.section}>{sections}</div>
@@ -87,7 +86,7 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
         </div>
       </div>
       {event.sample.metadata &&
-      Object.keys(event.sample.metadata).length > 0 ? (
+        Object.keys(event.sample.metadata).length > 0 ? (
         <MetaDataGrid
           data-name="Metadata"
           className={styles.metadata}
