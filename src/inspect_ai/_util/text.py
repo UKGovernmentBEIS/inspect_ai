@@ -89,23 +89,23 @@ def str_to_float(s: str) -> float:
     # Define common Unicode fractions and their float values
     fraction_map = {
         "½": 0.5,
-        "⅓": 1/3,
-        "⅔": 2/3,
+        "⅓": 1 / 3,
+        "⅔": 2 / 3,
         "¼": 0.25,
         "¾": 0.75,
         "⅕": 0.2,
         "⅖": 0.4,
         "⅗": 0.6,
         "⅘": 0.8,
-        "⅙": 1/6,
-        "⅚": 5/6,
-        "⅐": 1/7,
+        "⅙": 1 / 6,
+        "⅚": 5 / 6,
+        "⅐": 1 / 7,
         "⅛": 0.125,
         "⅜": 0.375,
         "⅝": 0.625,
         "⅞": 0.875,
-        "⅑": 1/9,
-        "⅒": 0.1
+        "⅑": 1 / 9,
+        "⅒": 0.1,
     }
 
     superscript_map = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
@@ -168,7 +168,7 @@ def str_to_float(s: str) -> float:
             # Interpret multiple superscript digits as a multi-digit exponent
             # e.g., "2⁴⁵" is 2^45, "½²³" is 0.5^23
             exponent = int(exponent_str)
-            return base_value ** exponent
+            return base_value**exponent
         except ValueError:
             raise ValueError(f"Invalid exponent in '{s}'")
     else:
