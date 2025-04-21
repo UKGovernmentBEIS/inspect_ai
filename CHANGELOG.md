@@ -13,7 +13,8 @@
 - ReAct Agent: Ability to fully repleace the default `submit()` tool.
 - Human Agent: Added `user` parameter for running the human agent cli as a given user.
 - Scoring: Support for multimodal inputs to `model_graded_qa()` and `model_graded_fact()`.
-- Scorer: Handle parsing unicode fractions when evaluating numeric input for `match()` scorer.
+- Scoring: Handle parsing unicode fractions when evaluating numeric input for `match()` scorer.
+- Scoring: Add `sample_metadata_as()` method to `SampleScore`.
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
@@ -27,6 +28,7 @@
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
 - Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
+- Bugfix: Prevent duplicate `SampleInitEvent` from entering transcript.
 
 
 ## v0.3.89 (17 April 2025)
