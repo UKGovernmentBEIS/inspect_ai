@@ -1,3 +1,11 @@
+## v0.3.90 (21 April 2025)
+
+- Inspect View: Collapse user messages after 15 lines by default.
+- Inspect View: Improved spacing between transcript events.
+- Bugfix: Prevent duplicate sample init events in transcript.
+- Bugfix: Properly collapse initialization events in the transcript.
+- Bugfix: Properly pre-wrap source code in the transcript.
+
 ## v0.3.89 (17 April 2025)
 
 - [Model Roles](https://inspect.aisi.org.uk/models.html#model-roles) for creating aliases to models used in a task (e.g. "grader", "red_team", "blue_team", etc.)
