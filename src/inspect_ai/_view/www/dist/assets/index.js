@@ -36754,9 +36754,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const styles$1d = {
       output: output$1
     };
-    const outputPre = "_outputPre_1h1fn_1";
-    const outputCode = "_outputCode_1h1fn_7";
-    const bottomPadding = "_bottomPadding_1h1fn_12";
+    const outputPre = "_outputPre_1t1y9_1";
+    const outputCode = "_outputCode_1t1y9_7";
+    const bottomPadding = "_bottomPadding_1t1y9_12";
     const styles$1c = {
       outputPre,
       outputCode,
@@ -37074,7 +37074,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       indented: indented2,
       toolCallStyle
     }) => {
-      const collapse = message2.role === "system";
+      const collapse = message2.role === "system" || message2.role === "user";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -37096,7 +37096,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   styles$1h.messageContents,
                   indented2 ? styles$1h.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 30, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MessageContents,
                   {
                     id: `${id}-contents`,
@@ -59662,6 +59662,12 @@ ${events}
             name: "Sandbox Events",
             collapse: true
           };
+        } else if (event.name === "init") {
+          return {
+            ...rootStepDescriptor,
+            name: "Init",
+            collapse: true
+          };
         } else {
           return {
             ...rootStepDescriptor
@@ -59673,12 +59679,6 @@ ${events}
             return {
               ...rootStepDescriptor,
               name: "Sample Init",
-              collapse: true
-            };
-          case "init":
-            return {
-              ...rootStepDescriptor,
-              name: "Init",
               collapse: true
             };
           default:
@@ -59876,12 +59876,12 @@ ${events}
         }
       );
     };
-    const transcriptComponent = "_transcriptComponent_c8m1t_23";
-    const eventNode = "_eventNode_c8m1t_29";
-    const darkenBg = "_darkenBg_c8m1t_35";
-    const lastNode = "_lastNode_c8m1t_39";
-    const eventNodeContainer = "_eventNodeContainer_c8m1t_43";
-    const noBottom = "_noBottom_c8m1t_47";
+    const transcriptComponent = "_transcriptComponent_eq9th_23";
+    const eventNode = "_eventNode_eq9th_29";
+    const darkenBg = "_darkenBg_eq9th_33";
+    const lastNode = "_lastNode_eq9th_37";
+    const eventNodeContainer = "_eventNodeContainer_eq9th_41";
+    const noBottom = "_noBottom_eq9th_45";
     const styles$d = {
       transcriptComponent,
       eventNode,

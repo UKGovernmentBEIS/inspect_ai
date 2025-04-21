@@ -5,8 +5,8 @@
 }
 
 .outputCode {
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
+  overflow-wrap: anywhere !important;
+  white-space: pre-wrap !important;
 }
 
 .bottomPadding {
