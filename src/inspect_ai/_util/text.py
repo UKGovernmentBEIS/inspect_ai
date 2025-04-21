@@ -66,11 +66,12 @@ def truncate_string_to_bytes(input: str, max_bytes: int) -> TruncatedOutput | No
 
 
 def str_to_float(s: str) -> float:
-    """Convert a str to float, including handling exponent characters.
+    """Convert a str to float, handling exponent characters and Unicode fractions.
 
     The Python isnumeric() function returns True for strings that include exponents
-    (e.g. 5²) however the float() function doesn't handle exponents. This function
-    will correctly handle these exponents when converting from str to float.
+    (e.g. 5²) and Unicode fractions (e.g. ½, ¾), however the float() function doesn't
+    handle these characters. This function correctly handles both exponents and
+    Unicode fractions when converting from str to float.
 
     Args:
        s (str): String to convert to float
@@ -85,30 +86,93 @@ def str_to_float(s: str) -> float:
     if not s:
         raise ValueError("Input string is empty.")
 
+    # Define common Unicode fractions and their float values
+    fraction_map = {
+        "½": 0.5,
+        "⅓": 1 / 3,
+        "⅔": 2 / 3,
+        "¼": 0.25,
+        "¾": 0.75,
+        "⅕": 0.2,
+        "⅖": 0.4,
+        "⅗": 0.6,
+        "⅘": 0.8,
+        "⅙": 1 / 6,
+        "⅚": 5 / 6,
+        "⅐": 1 / 7,
+        "⅛": 0.125,
+        "⅜": 0.375,
+        "⅝": 0.625,
+        "⅞": 0.875,
+        "⅑": 1 / 9,
+        "⅒": 0.1,
+    }
+
     superscript_map = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
     superscript_chars = "⁰¹²³⁴⁵⁶⁷⁸⁹"
 
+    # Special case: if string is a single fraction character
+    if len(s) == 1 and s in fraction_map:
+        return fraction_map[s]
+
+    # Process the string character by character to handle mixed cases
     base_part = ""
+    fraction_char = None
     exponent_part = ""
-    for idx, char in enumerate(s):
-        if char in superscript_chars:
-            base_part = s[:idx]
-            exponent_part = s[idx:]
-            break
-    else:
-        base_part = s
 
-    # handle empty base (e.g., '²')
-    base = float(base_part) if base_part else 1.0
+    i = 0
+    while i < len(s):
+        char = s[i]
 
-    # handle exponent part
+        if char in fraction_map:
+            # We found a fraction character - store it
+            if fraction_char is not None:
+                # If we already have a fraction character, that's invalid
+                raise ValueError(f"Multiple fraction characters in '{s}'")
+            fraction_char = char
+        elif char in superscript_chars:
+            # We found the start of an exponent - collect all superscript chars
+            exponent_part = s[i:]
+            break  # Stop processing - we've captured the exponent
+        else:
+            # Regular character - add to base part
+            base_part += char
+
+        i += 1
+
+    # Calculate the base value (whole number + fraction if present)
+    base_value = 0.0
+
+    if base_part:
+        try:
+            base_value = float(base_part)
+        except ValueError:
+            raise ValueError(f"Invalid base part in '{s}'")
+
+    if fraction_char:
+        fraction_value = fraction_map[fraction_char]
+        if base_value < 0:
+            # For negative values, subtract the fraction (e.g., -2½ = -2.5)
+            base_value -= fraction_value
+        else:
+            # For zero or positive values, add the fraction
+            base_value += fraction_value
+    elif not base_part:
+        # If there's no base part and no fraction, default to 1.0
+        base_value = 1.0
+
+    # Handle exponent part if present
     if exponent_part:
         exponent_str = exponent_part.translate(superscript_map)
-        exponent = int(exponent_str)
+        try:
+            # Interpret multiple superscript digits as a multi-digit exponent
+            # e.g., "2⁴⁵" is 2^45, "½²³" is 0.5^23
+            exponent = int(exponent_str)
+            return base_value**exponent
+        except ValueError:
+            raise ValueError(f"Invalid exponent in '{s}'")
     else:
-        exponent = 1  # Default exponent is 1 if no superscript is present
-
-    return base**exponent
+        return base_value
 
 
 def truncate(text: str, length: int, overflow: str = "...", pad: bool = True) -> str:
