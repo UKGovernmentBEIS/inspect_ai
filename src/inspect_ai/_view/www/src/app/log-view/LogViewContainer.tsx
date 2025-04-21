@@ -130,7 +130,9 @@ export const LogViewContainer: FC = () => {
           setSampleTab(sampleTabId);
         }
 
-        setShowingSampleDialog(true);
+        if (filteredSamples.length > 1) {
+          setShowingSampleDialog(true);
+        }
       }
     } else {
       // If we don't have sample params in the URL but the dialog is showing, close it
