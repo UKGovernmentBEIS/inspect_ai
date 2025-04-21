@@ -4,7 +4,7 @@ from pydantic import BaseModel, ValidationError
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig, GuidedDecodingConfig, ResponseSchema
+from inspect_ai.model import GenerateConfig, ResponseSchema, get_model
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -26,7 +26,7 @@ class Color(BaseModel):
     blue: int
 
 
-@task(vllm=False)
+@task
 def rgb_color():
     return Task(
         dataset=[
@@ -70,8 +70,16 @@ def score_color():
     return score
 
 
-@task(vllm=True)
+@task(vllm=True, sglang=True)
 def rgb_color_regex():
+    model = get_model()
+    if model.provider == "vllm":
+        guided_name = "guided_regex"
+    elif model.provider == "sglang":
+        guided_name = "regex"
+    else:
+        raise ValueError(f"Unsupported provider: {model.provider}")
+
     return Task(
         dataset=[
             Sample(
@@ -86,15 +94,19 @@ def rgb_color_regex():
         solver=generate(),
         scorer=score_regex(),
         config=GenerateConfig(
-            guided_decoding=GuidedDecodingConfig(
-                regex=r"RGB: (\d{1,3}),(\d{1,3}),(\d{1,3})"
-            )
+            extra_body={
+                guided_name: r"RGB: (\d{1,3}),(\d{1,3}),(\d{1,3})",
+            },
         ),
     )
 
 
 @task(vllm=True)
 def rgb_color_choice():
+    model = get_model()
+    if model.provider != "vllm":
+        raise ValueError("Choice is only supported for vLLM")
+
     return Task(
         dataset=[
             Sample(
@@ -109,14 +121,14 @@ def rgb_color_choice():
         solver=generate(),
         scorer=score_regex(),
         config=GenerateConfig(
-            guided_decoding=GuidedDecodingConfig(
-                choice=["RGB: 255,255,255", "RGB: 0,0,0"]
-            )
+            extra_body={
+                "guided_choice": ["RGB: 255,255,255", "RGB: 0,0,0"],
+            },
         ),
     )
 
 
-@task(vllm=True)
+@task(vllm=True, sglang=True)
 def rgb_color_grammar():
     grammar = """
 root ::= rgb_color
@@ -126,6 +138,14 @@ number ::= digit | digit digit | digit digit digit
 digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 """
 
+    model = get_model()
+    if model.provider == "vllm":
+        guided_name = "guided_grammar"
+    elif model.provider == "sglang":
+        guided_name = "ebnf"
+    else:
+        raise ValueError(f"Unsupported provider: {model.provider}")
+
     return Task(
         dataset=[
             Sample(
@@ -139,7 +159,11 @@ digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
         ],
         solver=generate(),
         scorer=score_regex(),
-        config=GenerateConfig(guided_decoding=GuidedDecodingConfig(grammar=grammar)),
+        config=GenerateConfig(
+            extra_body={
+                guided_name: grammar,
+            },
+        ),
     )
 
 

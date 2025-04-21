@@ -6,25 +6,25 @@ from typing import Any
 
 from typing_extensions import override
 
-from inspect_ai._util.error import pip_dependency_error
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._providers.util import model_base_url
 from inspect_ai.model._providers.util.local_server_utils import (
-    load_server_args_from_env,
+    configure_devices,
+    merge_env_server_args,
     start_local_server,
     terminate_process,
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
-from .openai import OpenAIAPI
+from .openai_compatible import OpenAICompatibleAPI
 
 # Environment variable names
-VLLM_BASE_URL = "VLLM_BASE_URL"
-VLLM_API_KEY = "VLLM_API_KEY"
+# VLLM_BASE_URL = "VLLM_BASE_URL"
+# VLLM_API_KEY = "VLLM_API_KEY"
 VLLM_DEFAULT_SERVER_ARGS = "VLLM_DEFAULT_SERVER_ARGS"
 VLLM_CONFIGURE_LOGGING = "VLLM_CONFIGURE_LOGGING"
 
@@ -32,7 +32,7 @@ VLLM_CONFIGURE_LOGGING = "VLLM_CONFIGURE_LOGGING"
 logger = logging.getLogger(__name__)
 
 
-class VLLMAPI(OpenAIAPI):
+class VLLMAPI(OpenAICompatibleAPI):
     """
     Provider for using VLLM models.
 
@@ -61,50 +61,55 @@ class VLLMAPI(OpenAIAPI):
         config: GenerateConfig = GenerateConfig(),
         **server_args: Any,
     ) -> None:
-        # Load and merge server args from environment
-        self.server_args = load_server_args_from_env(
+        # Validate inputs
+        if base_url and port:
+            raise ValueError("base_url and port cannot both be provided.")
+        if port:
+            base_url = f"http://localhost:{port}/v1"
+
+        # Initialize server process and port variables
+        self.server_process: Popen[str] | None = None
+        self.port: int | None = port
+        self.server_args = merge_env_server_args(
             VLLM_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
-        # Extract and handle the configure_logging parameter
-        configure_logging = self.server_args.pop("configure_logging", False)
-        os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
-
-        # Get base_url from environment or argument
-        if not base_url and port:  # if port is provided assume there is a local server
-            base_url = f"http://localhost:{port}/v1"
-        else:
-            base_url = model_base_url(base_url, VLLM_BASE_URL)
-
-        self.server_process: Popen[str] | None = None
-        self.port: int | None = port
-
-        # Default API key if not provided
-        if api_key is not None:
-            self.api_key: str = api_key
-        else:
-            self.api_key = str(os.environ.get(VLLM_API_KEY, "local"))
-
-        # If no base_url is provided, start a new server
-        if not base_url:
+        try:
+            # Try to initialize with existing server
+            super().__init__(
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+                config=config,
+                service="vLLM",
+                service_base_url=base_url,
+            )
+            logger.info(f"Using existing VLLM server at {self.base_url}")
+        except PrerequisiteError:
+            # No existing server found, start a new one
             logger.warning(
                 f"Existing vLLM server not found. Starting new server for {model_name}."
             )
+
+            # Extract and handle the configure_logging parameter
+            configure_logging = self.server_args.pop("configure_logging", False)
+            os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
+
+            # Start the server
             host = self.server_args.pop("host", "0.0.0.0")
             base_url = self._start_server(model_name, host, port=None)
             atexit.register(self._cleanup_server)
-
             logger.warning(f"VLLM server started at {base_url}")
-        else:
-            logger.info(f"Using existing VLLM server at {base_url}")
 
-        # Initialize OpenAI API with our VLLM server
-        super().__init__(
-            model_name=model_name,
-            base_url=base_url,
-            api_key=api_key,
-            config=config,
-        )
+            # Initialize with new server
+            super().__init__(
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+                config=config,
+                service="vLLM",
+                service_base_url=base_url,
+            )
 
     def _start_server(self, model_path: str, host: str, port: int | None = None) -> str:
         """Start a new VLLM server and return the base URL.
@@ -123,17 +128,9 @@ class VLLMAPI(OpenAIAPI):
             raise pip_dependency_error("vLLM Server", ["vllm"])
 
         # Handle device configuration
-        if "device" in self.server_args:
-            if isinstance(self.server_args["device"], list):
-                self.server_args["device"] = ",".join(
-                    map(str, self.server_args["device"])
-                )
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(self.server_args["device"])
-            if "tensor_parallel_size" not in self.server_args:
-                devices = os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
-                self.server_args["tensor_parallel_size"] = len(devices)
-
-            self.server_args.pop("device")
+        self.server_args = configure_devices(
+            self.server_args, parallel_size_param="tensor_parallel_size"
+        )
 
         # Build command as a list
         cmd = ["vllm", "serve", model_path, "--host", host, "--api-key", self.api_key]
@@ -251,10 +248,10 @@ class VLLMAPI(OpenAIAPI):
         if config.top_logprobs is not None:
             params["top_logprobs"] = config.top_logprobs
 
-        if config.response_schema is not None and config.guided_decoding is not None:
-            raise ValueError(
-                "response_schema and guided_decoding cannot both be set. Please set only one of them."
-            )
+        # if config.response_schema is not None and config.guided_decoding is not None:
+        #     raise ValueError(
+        #         "response_schema and guided_decoding cannot both be set. Please set only one of them."
+        #     )
 
         if config.response_schema is not None:
             params["response_format"] = dict(
@@ -276,13 +273,13 @@ class VLLMAPI(OpenAIAPI):
             extra_body.update(config.extra_body)
 
         # Add guided decoding configuration to extra_body if present
-        if config.guided_decoding:
-            guided_config = config.guided_decoding.model_dump(
-                exclude_none=True,
-                by_alias=True,
-            )
-            if guided_config:
-                extra_body.update(guided_config)
+        # if config.guided_decoding:
+        #     guided_config = config.guided_decoding.model_dump(
+        #         exclude_none=True,
+        #         by_alias=True,
+        #     )
+        #     if guided_config:
+        #         extra_body.update(guided_config)
 
         # Add extra_body to params if it has content
         if extra_body:

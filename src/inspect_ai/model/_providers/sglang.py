@@ -6,11 +6,11 @@ from typing import Any
 
 from typing_extensions import override
 
-from inspect_ai._util.error import pip_dependency_error
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._providers.util import model_base_url
 from inspect_ai.model._providers.util.local_server_utils import (
-    load_server_args_from_env,
+    merge_env_server_args,
+    configure_devices,
     start_local_server,
     terminate_process,
 )
@@ -18,8 +18,8 @@ from inspect_ai.model._providers.util.local_server_utils import (
 from .openai import OpenAIAPI
 
 # Environment variable names
-SGLANG_BASE_URL = "SGLANG_BASE_URL"
-SGLANG_API_KEY = "SGLANG_API_KEY"
+# SGLANG_BASE_URL = "SGLANG_BASE_URL"
+# SGLANG_API_KEY = "SGLANG_API_KEY"
 SGLANG_DEFAULT_SERVER_ARGS = "SGLANG_DEFAULT_SERVER_ARGS"
 
 logger = getLogger(__name__)
@@ -52,46 +52,91 @@ class SGLangAPI(OpenAIAPI):
         config: GenerateConfig = GenerateConfig(),
         **server_args: Any,
     ) -> None:
-        # Load and merge server args from environment
-        self.server_args = load_server_args_from_env(
+        # Validate inputs
+        if base_url and port:
+            raise ValueError("base_url and port cannot both be provided.")
+        if port:
+            base_url = f"http://localhost:{port}/v1"
+
+        # Initialize server process and port variables
+        self.server_process: Popen[str] | None = None
+        self.port: int | None = port
+        self.server_args = merge_env_server_args(
             SGLANG_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
-        # Get base_url from environment or argument
-        if not base_url and port:  # if port is provided assume there is a local server
-            base_url = f"http://localhost:{port}/v1"
-        else:
-            base_url = model_base_url(base_url, SGLANG_BASE_URL)
-
-        self.server_process: Popen[str] | None = None
-        self.port: int | None = port
-
-        # Default API key if not provided
-        if api_key is not None:
-            self.api_key: str = api_key
-        else:
-            self.api_key = str(os.environ.get(SGLANG_API_KEY, "local"))
-
-        # If no base_url is provided, start a new server
-        if not base_url:
+        try:
+            # Try to initialize with existing server
+            super().__init__(
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+                config=config,
+                service="SGLang",
+                service_base_url=base_url,
+            )
+            logger.info(f"Using existing SGLang server at {self.base_url}")
+        except PrerequisiteError:
+            # No existing server found, start a new one
             logger.warning(
                 f"Existing SGLang server not found. Starting new server for {model_name}."
             )
+
+            # Start the server
             host = self.server_args.pop("host", "0.0.0.0")
             base_url = self._start_server(model_name, host, port=None)
             atexit.register(self._cleanup_server)
-
             logger.warning(f"SGLang server started at {base_url}")
-        else:
-            logger.info(f"Using existing SGLang server at {base_url}")
 
-        # Initialize OpenAI API with our SGLang server
-        super().__init__(
-            model_name=model_name,
-            base_url=base_url,
-            api_key=api_key,
-            config=config,
-        )
+            # Initialize with new server
+            super().__init__(
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+                config=config,
+                service="SGLang",
+                service_base_url=base_url,
+            )
+        # # Load and merge server args from environment
+        # self.server_args = merge_env_server_args(
+        #     SGLANG_DEFAULT_SERVER_ARGS, server_args, logger
+        # )
+
+        # # Get base_url from environment or argument
+        # if not base_url and port:  # if port is provided assume there is a local server
+        #     base_url = f"http://localhost:{port}/v1"
+        # else:
+        #     base_url = model_base_url(base_url, SGLANG_BASE_URL)
+
+        # self.server_process: Popen[str] | None = None
+        # self.port: int | None = port
+
+        # # Default API key if not provided
+        # if api_key is not None:
+        #     self.api_key: str = api_key
+        # else:
+        #     self.api_key = str(os.environ.get(SGLANG_API_KEY, "local"))
+
+        # # If no base_url is provided, start a new server
+        # if not base_url:
+        #     logger.warning(
+        #         f"Existing SGLang server not found. Starting new server for {model_name}."
+        #     )
+        #     host = self.server_args.pop("host", "0.0.0.0")
+        #     base_url = self._start_server(model_name, host, port=None)
+        #     atexit.register(self._cleanup_server)
+
+        #     logger.warning(f"SGLang server started at {base_url}")
+        # else:
+        #     logger.info(f"Using existing SGLang server at {base_url}")
+
+        # # Initialize OpenAI API with our SGLang server
+        # super().__init__(
+        #     model_name=model_name,
+        #     base_url=base_url,
+        #     api_key=api_key,
+        #     config=config,
+        # )
 
     def _start_server(self, model_path: str, host: str, port: int | None = None) -> str:
         """Start a new SGLang server and return the base URL.
@@ -109,17 +154,8 @@ class SGLangAPI(OpenAIAPI):
         except ImportError:
             raise pip_dependency_error("SGLang Server", ["sglang"])
 
-        if "device" in self.server_args:
-            if isinstance(self.server_args["device"], list):
-                self.server_args["device"] = ",".join(
-                    map(str, self.server_args["device"])
-                )
-            os.environ["CUDA_VISIBLE_DEVICES"] = str(self.server_args["device"])
-            if "tp" not in self.server_args:
-                devices = os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
-                self.server_args["tp"] = len(devices)
-
-            self.server_args.pop("device")
+        # Handle device configuration
+        self.server_args = configure_devices(self.server_args, parallel_size_param="tp")
 
         # Create server command as a list instead of a string
         cmd = [
@@ -214,10 +250,10 @@ class SGLangAPI(OpenAIAPI):
         if config.top_logprobs is not None:
             params["top_logprobs"] = config.top_logprobs
 
-        if config.response_schema is not None and config.guided_decoding is not None:
-            raise ValueError(
-                "response_schema and guided_decoding cannot both be set. Please set only one of them."
-            )
+        # if config.response_schema is not None and config.guided_decoding is not None:
+        #     raise ValueError(
+        #         "response_schema and guided_decoding cannot both be set. Please set only one of them."
+        #     )
 
         # Handle extra_body
         extra_body = {}
@@ -236,40 +272,40 @@ class SGLangAPI(OpenAIAPI):
                     strict=config.response_schema.strict,
                 ),
             )
-        elif config.guided_decoding:
-            if config.guided_decoding.json_schema:
-                params["response_format"] = dict(
-                    type="json_schema",
-                    json_schema=dict(
-                        name=config.guided_decoding.json_schema.name,
-                        schema=config.guided_decoding.json_schema.json_schema.model_dump(
-                            exclude_none=True
-                        ),
-                        description=config.guided_decoding.json_schema.description,
-                        strict=config.guided_decoding.json_schema.strict,
-                    ),
-                )
-            elif config.guided_decoding.structural_tags:
-                params["response_format"] = dict(
-                    type="structural_tag",
-                    structures=[
-                        dict(
-                            begin=structure.begin,
-                            schema=structure.json_schema.model_dump(exclude_none=True),
-                            end=structure.end,
-                        )
-                        for structure in config.guided_decoding.structural_tags.structures
-                    ],
-                    triggers=config.guided_decoding.structural_tags.triggers,
-                )
-            elif config.guided_decoding.grammar:
-                extra_body["ebnf"] = config.guided_decoding.grammar
-            elif config.guided_decoding.regex:
-                extra_body["regex"] = config.guided_decoding.regex
-            elif config.guided_decoding.choice:
-                # choice is not natively supported by SGLang, so we need to convert it to a regex format
-                regex = "|".join(config.guided_decoding.choice)
-                extra_body["regex"] = regex
+        # elif config.guided_decoding:
+        #     if config.guided_decoding.json_schema:
+        #         params["response_format"] = dict(
+        #             type="json_schema",
+        #             json_schema=dict(
+        #                 name=config.guided_decoding.json_schema.name,
+        #                 schema=config.guided_decoding.json_schema.json_schema.model_dump(
+        #                     exclude_none=True
+        #                 ),
+        #                 description=config.guided_decoding.json_schema.description,
+        #                 strict=config.guided_decoding.json_schema.strict,
+        #             ),
+        #         )
+        #     elif config.guided_decoding.structural_tags:
+        #         params["response_format"] = dict(
+        #             type="structural_tag",
+        #             structures=[
+        #                 dict(
+        #                     begin=structure.begin,
+        #                     schema=structure.json_schema.model_dump(exclude_none=True),
+        #                     end=structure.end,
+        #                 )
+        #                 for structure in config.guided_decoding.structural_tags.structures
+        #             ],
+        #             triggers=config.guided_decoding.structural_tags.triggers,
+        #         )
+        #     elif config.guided_decoding.grammar:
+        #         extra_body["ebnf"] = config.guided_decoding.grammar
+        #     elif config.guided_decoding.regex:
+        #         extra_body["regex"] = config.guided_decoding.regex
+        #     elif config.guided_decoding.choice:
+        #         # choice is not natively supported by SGLang, so we need to convert it to a regex format
+        #         regex = "|".join(config.guided_decoding.choice)
+        #         extra_body["regex"] = regex
 
         # Add extra_body to params if it has content
         if extra_body:

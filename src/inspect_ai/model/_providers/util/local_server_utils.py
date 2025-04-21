@@ -264,7 +264,7 @@ def start_local_server(
         raise RuntimeError(f"Failed to start {server_type} server: {str(e)}") from e
 
 
-def load_server_args_from_env(
+def merge_env_server_args(
     env_var_name: str,
     provided_args: Dict[str, Any],
     logger: logging.Logger,
@@ -296,3 +296,41 @@ def load_server_args_from_env(
 
     # Merge environment args with provided args (provided args take precedence)
     return {**env_server_args, **provided_args}
+
+
+def configure_devices(
+    server_args: dict[str, Any], parallel_size_param: str = "tensor_parallel_size"
+) -> dict[str, Any]:
+    """Configure device settings and return updated server args.
+
+    Args:
+        server_args: Dictionary of server arguments
+        parallel_size_param: Name of parameter to set with device count if not specified
+
+    Returns:
+        Updated server arguments dict
+    """
+    result = server_args.copy()
+
+    if "device" not in result or not result["device"]:
+        return result
+
+    # Convert device list to comma-separated string if needed
+    if isinstance(result["device"], list):
+        device_str = ",".join(map(str, result["device"]))
+    else:
+        device_str = str(result["device"])
+
+    # Set CUDA_VISIBLE_DEVICES environment variable
+    os.environ["CUDA_VISIBLE_DEVICES"] = device_str
+
+    device_count = len(device_str.split(","))
+
+    # Set parallel size parameter if not explicitly provided
+    if parallel_size_param not in result:
+        result[parallel_size_param] = device_count
+
+    # Remove device from args since it's handled via environment variable
+    result.pop("device")
+
+    return result

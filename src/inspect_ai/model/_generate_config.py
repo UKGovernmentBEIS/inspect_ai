@@ -24,31 +24,28 @@ class ResponseSchema(BaseModel):
     """Whether to enable strict schema adherence when generating the output. If set to true, the model will always follow the exact schema defined in the schema field.
     OpenAI and Mistral only."""
 
+    # class StructureDefinition(BaseModel):
+    #     """Definition of a structural tag format."""
 
-class StructureDefinition(BaseModel):
-    """Definition of a structural tag format."""
+    #     begin: str
+    #     """The opening tag that marks the beginning of the structure."""
 
-    begin: str
-    """The opening tag that marks the beginning of the structure."""
+    #     json_schema: JSONSchema = Field(serialization_alias="schema")
+    #     """The JSON schema that defines the structure's format."""
 
-    json_schema: JSONSchema = Field(serialization_alias="schema")
-    """The JSON schema that defines the structure's format."""
+    #     end: str
+    #     """The closing tag that marks the end of the structure."""
 
-    end: str
-    """The closing tag that marks the end of the structure."""
+    # class StructuralTagConfig(BaseModel):
+    #     """Configuration for structural tags."""
 
+    #     structures: list[StructureDefinition]
+    #     """List of structure definitions."""
 
-class StructuralTagConfig(BaseModel):
-    """Configuration for structural tags."""
+    #     triggers: list[str]
+    #     """List of trigger strings that indicate a structural tag."""
 
-    structures: list[StructureDefinition]
-    """List of structure definitions."""
-
-    triggers: list[str]
-    """List of trigger strings that indicate a structural tag."""
-
-
-class GuidedDecodingConfig(BaseModel):
+    # class GuidedDecodingConfig(BaseModel):
     r"""Configuration for guided decoding in vLLM and SGLang.
 
     Examples:
@@ -215,8 +212,8 @@ class GenerateConfigArgs(TypedDict, total=False):
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
-    guided_decoding: GuidedDecodingConfig | None
-    """Configuration for guided decoding to control model output format. vLLM only."""
+    # guided_decoding: GuidedDecodingConfig | None
+    # """Configuration for guided decoding to control model output format. vLLM only."""
 
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
@@ -307,8 +304,8 @@ class GenerateConfig(BaseModel):
     response_schema: ResponseSchema | None = Field(default=None)
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, and vLLM only."""
 
-    guided_decoding: GuidedDecodingConfig | None = Field(default=None)
-    """Configuration for guided decoding to control model output format. vLLM only."""
+    # guided_decoding: GuidedDecodingConfig | None = Field(default=None)
+    # """Configuration for guided decoding to control model output format. vLLM only."""
 
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
