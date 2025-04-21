@@ -71744,12 +71744,12 @@ ${events}
         this.depth = depth;
       }
     }
-    const transcriptComponent = "_transcriptComponent_c8m1t_23";
-    const eventNode = "_eventNode_c8m1t_29";
-    const darkenBg = "_darkenBg_c8m1t_35";
-    const lastNode = "_lastNode_c8m1t_39";
-    const eventNodeContainer = "_eventNodeContainer_c8m1t_43";
-    const noBottom = "_noBottom_c8m1t_47";
+    const transcriptComponent = "_transcriptComponent_eq9th_23";
+    const eventNode = "_eventNode_eq9th_29";
+    const darkenBg = "_darkenBg_eq9th_33";
+    const lastNode = "_lastNode_eq9th_37";
+    const eventNodeContainer = "_eventNodeContainer_eq9th_41";
+    const noBottom = "_noBottom_eq9th_45";
     const styles$t = {
       transcriptComponent,
       eventNode,
