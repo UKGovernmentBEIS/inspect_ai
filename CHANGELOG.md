@@ -11,6 +11,7 @@
 - Grok: Support for `reasoning_effort` option and capturing reasoning content.
 - ReAct Agent: Ability to fully repleace the default `submit()` tool.
 - Human Agent: Added `user` parameter for running the human agent cli as a given user.
+- Scoring: Support for multimodal inputs to `model_graded_qa()` and `model_graded_fact()`.
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
