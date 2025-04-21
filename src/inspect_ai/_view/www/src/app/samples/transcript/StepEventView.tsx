@@ -144,8 +144,8 @@ const stepDescriptor = (
       return {
         ...rootStepDescriptor,
         name: "Init",
-        collapse: true
-      }
+        collapse: true,
+      };
     } else {
       return {
         ...rootStepDescriptor,
