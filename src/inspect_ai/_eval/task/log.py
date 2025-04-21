@@ -205,6 +205,9 @@ class TaskLogger:
                 scores=sample.scores,
                 error=sample.error.message if sample.error is not None else None,
                 limit=f"{sample.limit.type}" if sample.limit is not None else None,
+                retries=len(sample.error_retries)
+                if sample.error_retries is not None
+                else None,
             )
         )
 

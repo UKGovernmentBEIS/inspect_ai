@@ -116,6 +116,7 @@ export interface SampleSummary {
   error?: string;
   limit?: string;
   completed?: boolean;
+  retries?: number;
 }
 
 export interface BasicSampleData {

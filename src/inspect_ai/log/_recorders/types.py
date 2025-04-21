@@ -20,6 +20,7 @@ class SampleSummary(BaseModel):
     scores: dict[str, Score] | None = Field(default=None)
     error: str | None = Field(default=None)
     limit: str | None = Field(default=None)
+    retries: int | None = Field(default=None)
 
     @model_validator(mode="after")
     def thin_scores(self) -> "SampleSummary":
