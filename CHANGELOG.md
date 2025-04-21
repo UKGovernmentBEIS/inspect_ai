@@ -16,6 +16,7 @@
 - Scoring: Handle parsing unicode fractions when evaluating numeric input for `match()` scorer.
 - Scoring: Add `sample_metadata_as()` method to `SampleScore`.
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
+- Docker: Register samples for cleanup immediately (so they are still cleaned up even if interrupted during startup).
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
 - Log API: Functions for reading/writing eval logs can now take a `Path`.
