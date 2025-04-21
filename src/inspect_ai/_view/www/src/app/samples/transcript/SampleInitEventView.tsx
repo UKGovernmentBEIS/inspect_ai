@@ -60,6 +60,7 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
       title="Sample"
       icon={ApplicationIcons.sample}
       subTitle={formatDateTime(new Date(event.timestamp))}
+      collapse={true}
     >
       <div data-name="Sample" className={styles.sample}>
         <ChatView messages={stateObj["messages"] as Messages} />

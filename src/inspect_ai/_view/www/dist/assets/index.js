@@ -62587,11 +62587,12 @@ self.onmessage = function (e) {
           title: "Sample",
           icon: ApplicationIcons.sample,
           subTitle: formatDateTime(new Date(event.timestamp)),
+          collapse: true,
           children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { "data-name": "Sample", className: styles$l.sample, children: [
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(ChatView, { messages: stateObj["messages"] }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/SampleInitEventView.tsx",
-                lineNumber: 65,
+                lineNumber: 66,
                 columnNumber: 9
               }, void 0),
               /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: [
@@ -62602,34 +62603,34 @@ self.onmessage = function (e) {
                     choice
                   ] }, `$choice-{choice}`, true, {
                     fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/SampleInitEventView.tsx",
-                    lineNumber: 70,
+                    lineNumber: 71,
                     columnNumber: 19
                   }, void 0);
                 }) : "",
                 sections.length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$l.section, children: sections }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/SampleInitEventView.tsx",
-                  lineNumber: 77,
+                  lineNumber: 78,
                   columnNumber: 13
                 }, void 0) : "",
                 /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
                   return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: target2 }, target2, false, {
                     fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/SampleInitEventView.tsx",
-                    lineNumber: 83,
+                    lineNumber: 84,
                     columnNumber: 22
                   }, void 0);
                 }) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/SampleInitEventView.tsx",
-                  lineNumber: 81,
+                  lineNumber: 82,
                   columnNumber: 11
                 }, void 0)
               ] }, void 0, true, {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/SampleInitEventView.tsx",
-                lineNumber: 66,
+                lineNumber: 67,
                 columnNumber: 9
               }, void 0)
             ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/SampleInitEventView.tsx",
-              lineNumber: 64,
+              lineNumber: 65,
               columnNumber: 7
             }, void 0),
             event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -62643,7 +62644,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/SampleInitEventView.tsx",
-                lineNumber: 90,
+                lineNumber: 91,
                 columnNumber: 9
               },
               void 0
