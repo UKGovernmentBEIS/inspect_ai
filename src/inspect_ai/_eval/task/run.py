@@ -642,18 +642,6 @@ async def task_run_sample(
                                 )
                             )
 
-                        # sample init event (remove file bodies as they have content or absolute paths)
-                        event_sample = sample.model_copy(
-                            update=dict(files={k: "" for k in sample.files.keys()})
-                            if sample.files
-                            else None
-                        )
-                        transcript()._event(
-                            SampleInitEvent(
-                                sample=event_sample, state=state_jsonable(state)
-                            )
-                        )
-
                         # set progress for plan then run it
                         state = await plan(state, generate)
 
