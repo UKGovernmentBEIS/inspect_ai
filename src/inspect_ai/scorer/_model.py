@@ -314,15 +314,22 @@ def model_scoring_prompt(
     instructions: str,
     metadata: dict[str, Any],
 ) -> ChatMessageUser:
-    # we need to remove images from output and reference them as attachements in the answer
+    # we need to remove media objects from output and reference them as attachements in the answer
     answer = output.completion
-    images: list[Content] = (
-        [content for content in output.message.content if content.type == "image"]
+    media: list[Content] = (
+        [
+            content
+            for content in output.message.content
+            if content.type in ["image", "audio", "video"]
+        ]
         if len(output.choices) > 0 and isinstance(output.message.content, list)
         else []
     )
-    if len(images) > 0:
-        answer = f"{answer} (see attached image)"
+    if len(media) > 0:
+        if len(answer) > 0:
+            answer = f"{answer} (see also attached media)"
+        else:
+            answer = "See attached media"
 
     # format the prompt
     prompt = template.format(
@@ -333,8 +340,8 @@ def model_scoring_prompt(
         **metadata,
     )
 
-    # return with images if necessary
-    if len(images) > 0:
-        return ChatMessageUser(content=[ContentText(text=prompt)] + images)
+    # return with media if necessary
+    if len(media) > 0:
+        return ChatMessageUser(content=[ContentText(text=prompt)] + media)
     else:
         return ChatMessageUser(content=prompt)
