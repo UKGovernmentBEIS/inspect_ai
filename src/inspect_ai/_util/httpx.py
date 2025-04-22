@@ -129,9 +129,12 @@ def httpx_should_retry_no_status_code(ex: BaseException) -> bool:
 
     # Sometimes exceptions are raised directly by httpcore, the lower-level library that httpx uses
     is_httpcore_network_error = isinstance(ex, httpcore.NetworkError)
+    is_httpcore_timeout_error = isinstance(ex, httpcore.TimeoutException)
+
 
     # extensible in case we notice other cases
     return any([
         is_transport_error,
         is_httpcore_network_error,
+        is_httpcore_timeout_error,
     ])
