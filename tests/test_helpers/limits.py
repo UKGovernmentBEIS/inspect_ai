@@ -2,10 +2,10 @@ from inspect_ai.log._log import EvalLog
 from inspect_ai.log._transcript import SampleLimitEvent
 
 
-def check_limit_event(log: EvalLog, content: str) -> None:
+def check_limit_event(log: EvalLog, type: str) -> None:
     event = find_limit_event(log)
-    assert event
-    assert content == event.type
+    assert event is not None, f"Limit event '{type}' not found in log"
+    assert type == event.type
 
 
 def find_limit_event(log: EvalLog) -> SampleLimitEvent | None:
