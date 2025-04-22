@@ -123,7 +123,7 @@ def bash_session(
           supported. e.g.
           ```
           bash_session(input_text="ssh fred@foo.com\n") -> "foo.com's password: "
-          bash_session(input_text"secret\n") -> "fred@foo.com:~$ "
+          bash_session(input_text="secret\n") -> "fred@foo.com:~$ "
           ```
 
         Args:
