@@ -59,7 +59,7 @@ class MCPServerImpl(MCPServer):
     async def _list_tools(
         self, tools: Literal["all"] | list[str] = "all"
     ) -> list[Tool]:
-        return await self._task_session()._list_tools()
+        return await self._task_session()._list_tools(tools)
 
     # create a separate MCPServer session per async task
     _task_sessions: dict[int, "MCPServerSession"] = {}

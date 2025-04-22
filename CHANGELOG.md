@@ -16,6 +16,7 @@
 - Scoring: Handle parsing unicode fractions when evaluating numeric input for `match()` scorer.
 - Scoring: Add `sample_metadata_as()` method to `SampleScore`.
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
+- Docker: Register samples for cleanup immediately (so they are still cleaned up even if interrupted during startup).
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
 - Log API: Functions for reading/writing eval logs can now take a `Path`.
@@ -28,6 +29,7 @@
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
 - Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
+- Bugfix: Don't require saved response message id for openai assistant messages.
 
 ## v0.3.90 (21 April 2025)
 

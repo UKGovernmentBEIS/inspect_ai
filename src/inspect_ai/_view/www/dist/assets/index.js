@@ -47022,12 +47022,13 @@ self.onmessage = function (e) {
       };
       const remoteEvalFile = async (log_file2, cached = false) => {
         if (!cached || loadedEvalFile.file !== log_file2) {
-          loadedEvalFile.file = log_file2;
-          loadedEvalFile.remoteLog = await openRemoteLogFile(
+          const remoteLog = await openRemoteLogFile(
             api2,
             encodePathParts(log_file2),
             5
           );
+          loadedEvalFile.file = log_file2;
+          loadedEvalFile.remoteLog = remoteLog;
         }
         return loadedEvalFile.remoteLog;
       };
@@ -60507,7 +60508,7 @@ ${events}
         var _a3, _b3, _c2;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = ((_a3 = logSelection.sample) == null ? void 0 : _a3.completed) !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== logSelection.logFile || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || currentSampleCompleted !== prevCompleted) {
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }

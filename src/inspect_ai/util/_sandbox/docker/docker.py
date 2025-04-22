@@ -177,6 +177,9 @@ class DockerSandboxEnvironment(SandboxEnvironment):
             env=env,
         )
 
+        # note that the project is running
+        project_startup(project)
+
         try:
             # enumerate the services that will be created
             services = await compose_services(project)
@@ -193,9 +196,6 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 raise RuntimeError(
                     f"No services started.\nCompose up stderr: {result.stderr}"
                 )
-
-            # note that the project is running
-            project_startup(project)
 
             # create sandbox environments for all running services
             default_service: str | None = None
