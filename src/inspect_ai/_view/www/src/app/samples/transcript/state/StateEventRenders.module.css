@@ -7,4 +7,5 @@
 
 .tool {
   padding: 0;
+  color: inherit !important;
 }

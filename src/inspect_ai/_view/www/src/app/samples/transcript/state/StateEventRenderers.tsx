@@ -204,7 +204,7 @@ const renderTools = (
             >
               {key}
             </div>
-            <div className={clsx("text-size-base")}>{toolsInfo[key]}</div>
+            {toolsInfo[key]}
           </Fragment>
         );
       })}
@@ -304,10 +304,8 @@ export const Tool: FC<ToolProps> = ({ toolName, toolArgs }) => {
       ? `${toolName}(${toolArgs.join(", ")})`
       : toolName;
   return (
-    <div>
-      <code className={clsx("text-size-small", styles.tool)}>
-        {functionCall}
-      </code>
-    </div>
+    <code className={clsx("text-size-smallest", styles.tool)}>
+      {functionCall}
+    </code>
   );
 };
