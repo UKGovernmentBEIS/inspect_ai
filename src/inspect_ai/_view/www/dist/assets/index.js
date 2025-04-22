@@ -41864,7 +41864,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const sampleVariables = (sample2) => {
       return {
-        has_error: !!sample2.error
+        has_error: !!sample2.error,
+        has_retries: sample2.retries !== void 0 && sample2.retries > 0
       };
     };
     const scoreFilterItems = (evalDescriptor) => {
@@ -41952,7 +41953,8 @@ categories: ${categories.join(" ")}`;
         };
         const resolveVariable = (name2, get2) => {
           if (name2 in mySampleVariables) {
-            return get2(name2);
+            const value2 = get2(name2);
+            return value2;
           }
           return sample2.error ? void 0 : get2(name2);
         };
@@ -80659,7 +80661,8 @@ ${events}
       ["log10", "Base 10 logarithm"]
     ];
     const SAMPLE_VARIABLES = [
-      ["has_error", "Checks if the sample has an error"]
+      ["has_error", "Checks if the sample has an error"],
+      ["has_retries", "Checks if the sample has been retried"]
     ];
     const SAMPLE_FUNCTIONS = [
       ["input_contains", "Checks if input contains a regular expression"],
@@ -80963,6 +80966,7 @@ Filter samples by:
   • Scores
   • Samples with errors: has_error
   • Input, target and error regex search: input_contains, target_contains, error_contains
+  • Samples that have been retried: has_retries
 
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^
