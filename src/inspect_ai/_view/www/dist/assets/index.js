@@ -39361,7 +39361,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           previous[6] = Math.min(Math.max(previous[6], scoreText.length), 30);
           return previous;
         },
-        [0, 0, 0, 0, 0, 0]
+        [0, 0, 0, 0, 0, 0, 0]
       );
       const maxSizes = {
         input: Math.min(sizes[0], 300),
