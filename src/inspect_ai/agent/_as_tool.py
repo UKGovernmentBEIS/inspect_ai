@@ -10,7 +10,7 @@ from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
 from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
-from inspect_ai.util._limit import Limit, LimitExceededError, using_limits
+from inspect_ai.util._limit import Limit, using_limits
 
 from ._agent import AGENT_DESCRIPTION, Agent, AgentState
 
@@ -52,11 +52,8 @@ def as_tool(
         state = AgentState(messages=[ChatMessageUser(content=input, source="input")])
 
         # run the agent with limits
-        try:
-            with using_limits(limits):
-                state = await agent(state, *args, **(agent_kwargs | kwargs))
-        except LimitExceededError as ex:
-            raise ex.with_conversation(state)
+        with using_limits(limits):
+            state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # find assistant message to read content from (prefer output)
         if not state.output.empty:

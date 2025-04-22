@@ -13,7 +13,6 @@ from inspect_ai.scorer._score import score
 from inspect_ai.solver._chain import chain
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_with import tool_with
-from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._limit import token_limit as create_token_limit
 
 from ._prompt import system_message
@@ -176,81 +175,74 @@ def basic_agent(
             # track attempts
             attempts = 0
 
-            try:
-                with create_token_limit(token_limit):
-                    # main loop (state.completed checks message_limit and token_limit)
-                    while not state.completed:
-                        # generate output and append assistant message
-                        state.output = await get_model().generate(
-                            input=state.messages, tools=state.tools, cache=cache
+            with create_token_limit(token_limit):
+                # main loop (state.completed checks message_limit and token_limit)
+                while not state.completed:
+                    # generate output and append assistant message
+                    state.output = await get_model().generate(
+                        input=state.messages, tools=state.tools, cache=cache
+                    )
+                    state.messages.append(state.output.message)
+
+                    # check for context window overflow
+                    if state.output.stop_reason == "model_length":
+                        from inspect_ai.log._transcript import transcript
+
+                        transcript().info(
+                            "Agent terminated: model context window exceeded"
                         )
-                        state.messages.append(state.output.message)
+                        break
 
-                        # check for context window overflow
-                        if state.output.stop_reason == "model_length":
-                            from inspect_ai.log._transcript import transcript
+                    # resolve tools calls (if any)
+                    if state.output.message.tool_calls:
+                        # execute tool functions
+                        tool_results, _ = await execute_tools(
+                            [state.output.message],
+                            state.tools,
+                            max_output=max_tool_output,
+                        )
+                        state.messages.extend(tool_results)
 
-                            transcript().info(
-                                "Agent terminated: model context window exceeded"
-                            )
-                            break
+                        # was an answer submitted?
+                        answer = submission(tool_results)
+                        if answer:
+                            if submit_append:
+                                state.output.completion = (
+                                    f"{state.output.completion}\n\n{answer}".strip()
+                                )
+                            else:
+                                state.output.completion = answer
 
-                        # resolve tools calls (if any)
-                        if state.output.message.tool_calls:
-                            # execute tool functions
-                            tool_results, _ = await execute_tools(
-                                [state.output.message],
-                                state.tools,
-                                max_output=max_tool_output,
-                            )
-                            state.messages.extend(tool_results)
+                            # exit if we are at max_attempts
+                            attempts += 1
+                            if attempts >= max_attempts:
+                                break
 
-                            # was an answer submitted?
-                            answer = submission(tool_results)
-                            if answer:
-                                if submit_append:
-                                    state.output.completion = (
-                                        f"{state.output.completion}\n\n{answer}".strip()
+                            # exit if the submission is successful
+                            answer_scores = await score(state)
+                            if score_value_fn(answer_scores[0].value) == 1.0:
+                                break
+
+                            # otherwise notify the model that it was incorrect and continue
+                            else:
+                                if is_callable_coroutine(incorrect_message):
+                                    response_message: str = await incorrect_message(
+                                        state, answer_scores
+                                    )  # type: ignore[misc,operator]
+                                elif callable(incorrect_message):
+                                    response_message = cast(
+                                        str, incorrect_message(state, answer_scores)
                                     )
                                 else:
-                                    state.output.completion = answer
+                                    response_message = incorrect_message
 
-                                # exit if we are at max_attempts
-                                attempts += 1
-                                if attempts >= max_attempts:
-                                    break
+                                state.messages.append(
+                                    ChatMessageUser(content=response_message)
+                                )
 
-                                # exit if the submission is successful
-                                answer_scores = await score(state)
-                                if score_value_fn(answer_scores[0].value) == 1.0:
-                                    break
-
-                                # otherwise notify the model that it was incorrect and continue
-                                else:
-                                    if is_callable_coroutine(incorrect_message):
-                                        response_message: str = await incorrect_message(
-                                            state, answer_scores
-                                        )  # type: ignore[misc,operator]
-                                    elif callable(incorrect_message):
-                                        response_message = cast(
-                                            str, incorrect_message(state, answer_scores)
-                                        )
-                                    else:
-                                        response_message = incorrect_message
-
-                                    state.messages.append(
-                                        ChatMessageUser(content=response_message)
-                                    )
-
-                        # no tool calls, urge the model to continue
-                        else:
-                            state.messages.append(
-                                ChatMessageUser(content=continue_message)
-                            )
-
-            # propagate current state along with sample limit exceeded
-            except LimitExceededError as ex:
-                raise ex.with_conversation(state)
+                    # no tool calls, urge the model to continue
+                    else:
+                        state.messages.append(ChatMessageUser(content=continue_message))
 
             return state
 

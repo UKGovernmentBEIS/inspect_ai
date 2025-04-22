@@ -2,7 +2,7 @@ from copy import copy
 from typing import Any
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
-from inspect_ai.util._limit import Limit, LimitExceededError, using_limits
+from inspect_ai.util._limit import Limit, using_limits
 
 from ._agent import Agent, AgentState
 
@@ -49,8 +49,5 @@ async def run(
     state = AgentState(messages=input_messages)
 
     # run the agent with limits
-    try:
-        with using_limits(limits):
-            return await agent(state, **agent_kwargs)
-    except LimitExceededError as ex:
-        raise ex.with_conversation(state)
+    with using_limits(limits):
+        return await agent(state, **agent_kwargs)

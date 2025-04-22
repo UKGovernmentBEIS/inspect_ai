@@ -719,11 +719,6 @@ async def task_run_sample(
 
                     # capture most recent state for scoring
                     state = sample_state() or state
-                    if isinstance(ex.conversation, TaskState):
-                        state = ex.conversation
-                    elif ex.conversation is not None:
-                        state.messages = ex.conversation.messages
-                        state.output = ex.conversation.output
 
                 except BaseException as ex:
                     error, raise_error = handle_error(ex)

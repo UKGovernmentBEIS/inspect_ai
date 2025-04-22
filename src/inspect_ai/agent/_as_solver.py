@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from inspect_ai.util._limit import Limit, LimitExceededError, using_limits
+from inspect_ai.util._limit import Limit, using_limits
 
 if TYPE_CHECKING:
     from inspect_ai.solver._solver import Solver
@@ -57,11 +57,8 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             # run the agent with limits
             agent_state = AgentState(messages=state.messages)
-            try:
-                with using_limits(limits):
-                    agent_state = await agent(agent_state, **agent_kwargs)
-            except LimitExceededError as ex:
-                raise ex.with_conversation(agent_state)
+            with using_limits(limits):
+                agent_state = await agent(agent_state, **agent_kwargs)
 
             # update messages
             state.messages = agent_state.messages

@@ -110,6 +110,7 @@ async def execute_tools(
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         from inspect_ai.log._transcript import (
+            SampleLimitEvent,
             ToolEvent,
             Transcript,
             init_transcript,
@@ -173,10 +174,22 @@ async def execute_tools(
                 tool_error = ToolCallError("is_a_directory", err)
             except OutputLimitExceededError as ex:
                 tool_error = ToolCallError(
-                    "output_limit",
-                    f"The tool output limit of {ex.limit_str} was exceeded.",
+                    "limit",
+                    f"The tool exceeded its output limit of {ex.limit_str}.",
                 )
                 result = ex.truncated_output or ""
+            except LimitExceededError as ex:
+                # sample limit event
+                error_message = f"The tool exceeded its {ex.type} limit of {ex.limit}."
+                transcript()._event(
+                    SampleLimitEvent(
+                        type=ex.type,
+                        limit=ex.limit,
+                        message=error_message,
+                    )
+                )
+                tool_error = ToolCallError("limit", error_message)
+
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolApprovalError as ex:
@@ -457,12 +470,13 @@ async def agent_handoff(
     del arguments["state"]
 
     # run the agent with limits
+    limit_error: LimitExceededError | None = None
     agent_state = AgentState(messages=copy(agent_conversation))
     try:
         with using_limits(agent_tool.limits):
             agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
-        raise ex.with_conversation(agent_state)
+        limit_error = ex
 
     # determine which messages are new and return only those (but exclude new
     # system messages as they an internal matter for the handed off to agent.
@@ -482,7 +496,22 @@ async def agent_handoff(
 
     # if we end with an assistant message then add a user message
     # so that the calling agent carries on
-    if len(agent_messages) == 0 or isinstance(agent_messages[-1], ChatMessageAssistant):
+    if limit_error is not None:
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
+        # sample limit event
+        message = f"The {agent_name} exceeded its {limit_error.type} limit of {limit_error.limit}."
+        transcript()._event(
+            SampleLimitEvent(
+                type=limit_error.type,
+                limit=limit_error.limit,
+                message=message,
+            )
+        )
+        agent_messages.append(ChatMessageUser(content=message))
+    elif len(agent_messages) == 0 or isinstance(
+        agent_messages[-1], ChatMessageAssistant
+    ):
         agent_messages.append(
             ChatMessageUser(content=f"The {agent_name} agent has completed its work.")
         )

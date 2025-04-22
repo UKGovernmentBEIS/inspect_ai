@@ -8,7 +8,6 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Iterator, Literal
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.model._conversation import ModelConversation
 from inspect_ai.model._model_output import ModelUsage
 
 if TYPE_CHECKING:
@@ -43,8 +42,6 @@ class LimitExceededError(Exception):
        value: Value compared to.
        limit: Limit applied.
        message (str | None): Optional. Human readable message.
-       conversation: ModelConversation | None: Optional. A ModelConversation, TaskState
-         or AgentState if conversation should be overridden for scoring purposes.
     """
 
     def __init__(
@@ -54,31 +51,19 @@ class LimitExceededError(Exception):
         value: int,
         limit: int,
         message: str | None = None,
-        conversation: ModelConversation | None = None,
     ) -> None:
         self.type = type
         self.value = value
         self.limit = limit
         self.message = f"Exceeded {type} limit: {limit:,}"
-        self.conversation = conversation
         super().__init__(message)
 
     def with_state(self, state: TaskState) -> LimitExceededError:
         warn_once(
             logger,
-            "LimitExceededError.with_state() is deprecated. Please use "
-            "LimitExceededError.with_conversation() instead.",
+            "LimitExceededError.with_state() is deprecated (no longer required).",
         )
-        return self.with_conversation(state)
-
-    def with_conversation(self, conversation: ModelConversation) -> LimitExceededError:
-        return LimitExceededError(
-            self.type,
-            value=self.value,
-            limit=self.limit,
-            message=self.message,
-            conversation=conversation,
-        )
+        return self
 
 
 class Limit(abc.ABC):

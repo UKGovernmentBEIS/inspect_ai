@@ -23,7 +23,6 @@ from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import (
-    LimitExceededError,
     check_message_limit,
     check_token_limit,
 )
@@ -358,11 +357,8 @@ class TaskState:
         if self._completed:
             return True
         else:
-            try:
-                check_token_limit()
-                check_message_limit(len(self.messages), raise_for_equal=True)
-            except LimitExceededError as ex:
-                raise ex.with_conversation(self)
+            check_token_limit()
+            check_message_limit(len(self.messages), raise_for_equal=True)
             check_sample_interrupt()
             return self._completed
 

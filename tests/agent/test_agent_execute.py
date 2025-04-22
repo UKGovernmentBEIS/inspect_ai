@@ -88,12 +88,9 @@ def looping_agent() -> Agent:
         Args:
             state: Input state (conversation)
         """
-        try:
-            while True:
-                result = await get_model("mockllm/model").generate(state.messages)
-                state.messages.append(result.message)
-        except LimitExceededError as ex:
-            raise ex.with_conversation(state)
+        while True:
+            result = await get_model("mockllm/model").generate(state.messages)
+            state.messages.append(result.message)
         return state
 
     return execute
