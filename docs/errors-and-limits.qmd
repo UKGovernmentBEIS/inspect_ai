@@ -195,7 +195,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-You can also apply limits at arbitrary scopes, independent of the sample-scoped limits. For example applied to a specific agent or within a specific block of code.
+You can also apply limits at arbitrary scopes, independent of the sample-scoped limits. For instance, applied to a specific agent or within a specific block of code.
 
 To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like `handoff()` (see [Using Agents](agents.qmd#using-agents)):
 
@@ -205,7 +205,7 @@ eval(
     solver=[
         use_tools(
             addition(),
-            handoff(web_surfer(), limits=[message_limit(10), token_limit(1024*500)]),
+            handoff(web_surfer(), limits=[token_limit(1024*500)]),
         ),
         generate()
     ]
@@ -239,6 +239,10 @@ def agent_loop() -> Solver:
                 # The limit of 50 is temporarily removed in this block of code
                 ...
 ```
+
+::: {.callout-important}
+It's important to note that `message_limit()` limits the total number of messages in the conversation, not just "new" messages appended by an agent.
+:::
 
 ### Token Limit
 
