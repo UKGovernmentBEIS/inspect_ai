@@ -331,11 +331,7 @@ class AnthropicAPI(ModelAPI):
             return is_retryable_http_status(ex.status_code)
         elif httpx_should_retry(ex):
             return True
-        elif isinstance(
-            ex,
-            APIConnectionError
-            | APITimeoutError
-        ):
+        elif isinstance(ex, APIConnectionError | APITimeoutError):
             return True
         else:
             return False
