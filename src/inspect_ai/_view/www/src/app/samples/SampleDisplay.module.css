@@ -20,6 +20,10 @@
   margin-top: 0.4em;
 }
 
+.error {
+  padding-top: 0.5em;
+}
+
 .ansi {
   margin: 1em 0;
 }

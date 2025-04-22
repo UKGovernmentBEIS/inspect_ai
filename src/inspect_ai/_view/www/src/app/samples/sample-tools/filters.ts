@@ -110,6 +110,7 @@ const scoreVariables = (
 const sampleVariables = (sample: SampleSummary): Record<string, unknown> => {
   return {
     has_error: !!sample.error,
+    has_retries: sample.retries !== undefined && sample.retries > 0,
   };
 };
 
@@ -220,7 +221,8 @@ export const filterExpression = (
     const resolveVariable = (name: string, get: (name: string) => any) => {
       // Sample variables (like has_error) always exist.
       if (name in mySampleVariables) {
-        return get(name);
+        const value = get(name);
+        return value;
       }
       // Score variables exist only if the sample completed successfully.
       return sample.error ? undefined : get(name);

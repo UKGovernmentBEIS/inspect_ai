@@ -16929,15 +16929,15 @@ ul.jsondiffpatch-textdiff {
 ._progressText_1cjjr_9 {
   margin-left: 0.4em;
 }
-._tabPanel_cjf1d_1 {
+._tabPanel_1p5e1_1 {
   padding-bottom: 1em;
 }
 
-._fullWidth_cjf1d_5 {
+._fullWidth_1p5e1_5 {
   width: 100%;
 }
 
-._metadataPanel_cjf1d_9 {
+._metadataPanel_1p5e1_9 {
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
@@ -16946,20 +16946,24 @@ ul.jsondiffpatch-textdiff {
   margin-top: 0.5em;
 }
 
-._padded_cjf1d_18 {
+._padded_1p5e1_18 {
   padding-left: 0.8em;
   margin-top: 0.4em;
 }
 
-._ansi_cjf1d_23 {
+._error_1p5e1_23 {
+  padding-top: 0.5em;
+}
+
+._ansi_1p5e1_27 {
   margin: 1em 0;
 }
 
-._noTop_cjf1d_27 {
+._noTop_1p5e1_31 {
   margin-top: 0;
 }
 
-._timePanel_cjf1d_31 {
+._timePanel_1p5e1_35 {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-template-rows: auto;
@@ -16967,7 +16971,7 @@ ul.jsondiffpatch-textdiff {
   min-width: 200px;
 }
 
-._chat_cjf1d_39 {
+._chat_1p5e1_43 {
   padding-top: 1em;
 }
 ._flatBody_1uw6w_1 {
@@ -20088,7 +20092,7 @@ span.ap-marker-container:hover span.ap-marker {
 ._message_5y0hl_15 {
   width: 300px;
 }
-._grid_1oibv_1 {
+._grid_185sx_1 {
   display: grid;
   padding-top: 1em;
   padding-bottom: 1em;
@@ -20100,40 +20104,45 @@ span.ap-marker-container:hover span.ap-marker {
   padding-right: 1rem;
 }
 
-._selected_1oibv_13 {
+._selected_185sx_13 {
   box-shadow: inset 0 0 0px 2px var(--bs-focus-ring-color);
 }
 
-._sampleRowLink_1oibv_17 {
+._sampleRowLink_185sx_17 {
   text-decoration: none;
   color: inherit;
   display: block;
 }
 
-._disabled_1oibv_23 {
+._disabled_185sx_23 {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-._cell_1oibv_28 {
+._cell_185sx_28 {
   padding-left: 0;
   padding-right: 0;
 }
 
-._wrapAnywhere_1oibv_33 {
+._wrapAnywhere_185sx_33 {
   word-wrap: anywhere;
 }
 
-._noLeft_1oibv_37 {
+._noLeft_185sx_37 {
   padding-left: 0;
 }
 
-._score_1oibv_41 {
+._score_185sx_41 {
   display: flex;
   justify-self: center;
 }
 
-._spinner_1oibv_46 {
+._centered_185sx_46 {
+  display: flex;
+  justify-content: center;
+}
+
+._spinner_185sx_51 {
   height: 1.4em;
   width: 1.4em;
   color: var(--bs-focus-ring-color);

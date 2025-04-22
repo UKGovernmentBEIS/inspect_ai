@@ -31,7 +31,7 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../../constants";
-import { useSampleData, useSampleSummaries } from "../../state/hooks";
+import { useFilteredSamples, useSampleData } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
 import { printHeadingHtml, printHtml } from "../../utils/print";
@@ -55,7 +55,7 @@ interface SampleDisplayProps {
 export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Tab ids
   const baseId = `sample-dialog`;
-  const sampleSummaries = useSampleSummaries();
+  const filteredSamples = useFilteredSamples();
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
   );
@@ -77,7 +77,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Navigation hook for URL updates
   const navigate = useNavigate();
 
-  const sampleSummary = sampleSummaries[selectedSampleIndex];
+  const sampleSummary = filteredSamples[selectedSampleIndex];
 
   // Consolidate the events and messages into the proper list
   // whether running or not
@@ -226,19 +226,47 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             <NoContentsPanel text="No metadata" />
           )}
         </TabPanel>
-        {sample?.error ? (
+        {sample?.error || sample?.error_retries ? (
           <TabPanel
             id={kSampleErrorTabId}
             className="sample-tab"
-            title="Error"
+            title="Errors"
             onSelected={onSelectedTab}
             selected={effectiveSelectedTab === kSampleErrorTabId}
           >
-            <div className={clsx(styles.padded)}>
-              <ANSIDisplay
-                output={sample.error.traceback_ansi}
-                className={clsx("text-size-small", styles.ansi)}
-              />
+            <div className={clsx(styles.error)}>
+              {sample?.error ? (
+                <Card key={`sample-error}`}>
+                  <CardHeader label={`Sample Error`} />
+                  <CardBody>
+                    <ANSIDisplay
+                      output={sample.error.traceback_ansi}
+                      className={clsx("text-size-small", styles.ansi)}
+                      style={{
+                        fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                        margin: "0.5em 0",
+                      }}
+                    />
+                  </CardBody>
+                </Card>
+              ) : undefined}
+              {sample.error_retries?.map((retry, index) => {
+                return (
+                  <Card key={`sample-retry-error-${index}`}>
+                    <CardHeader label={`Attempt ${index + 1}`} />
+                    <CardBody>
+                      <ANSIDisplay
+                        output={retry.traceback_ansi}
+                        className={clsx("text-size-small", styles.ansi)}
+                        style={{
+                          fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                          margin: "0.5em 0",
+                        }}
+                      />
+                    </CardBody>
+                  </Card>
+                );
+              })}
             </div>
           </TabPanel>
         ) : null}

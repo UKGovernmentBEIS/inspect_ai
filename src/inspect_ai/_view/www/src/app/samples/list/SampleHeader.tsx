@@ -3,6 +3,7 @@ interface SampleHeaderProps {
   target?: boolean;
   answer?: boolean;
   limit?: boolean;
+  retries?: boolean;
   score?: boolean;
   gridColumnsTemplate: string;
 }
@@ -15,6 +16,7 @@ export const SampleHeader: FC<SampleHeaderProps> = ({
   target = true,
   answer = true,
   limit = true,
+  retries = false,
   score = true,
   gridColumnsTemplate,
 }) => (
@@ -32,6 +34,7 @@ export const SampleHeader: FC<SampleHeaderProps> = ({
     <div>{target ? "Target" : ""}</div>
     <div>{answer ? "Answer" : ""}</div>
     <div>{limit ? "Limit" : ""}</div>
+    <div>{retries ? "Retries" : ""}</div>
     <div className={styles.center}>{score ? "Score" : ""}</div>
   </div>
 );
