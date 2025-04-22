@@ -79,7 +79,6 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
         <ChatView
           id={`${id}-model-output`}
           messages={[...userMessages, ...(outputMessages || [])]}
-          className={clsx(styles.output)}
           numbered={false}
           toolCallStyle="compact"
         />

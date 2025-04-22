@@ -24474,11 +24474,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         text2
       ] }) }) });
     };
-    const message$1 = "_message_xh8qq_1";
-    const systemRole = "_systemRole_xh8qq_9";
-    const messageGrid = "_messageGrid_xh8qq_13";
-    const messageContents = "_messageContents_xh8qq_21";
-    const indented = "_indented_xh8qq_26";
+    const message$1 = "_message_7vbcy_1";
+    const systemRole = "_systemRole_7vbcy_9";
+    const messageGrid = "_messageGrid_7vbcy_13";
+    const messageContents = "_messageContents_7vbcy_21";
+    const indented = "_indented_7vbcy_26";
     const styles$1h = {
       message: message$1,
       systemRole,
@@ -36526,12 +36526,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       reasoning
     };
     const toolImage = "_toolImage_1j5uu_1";
-    const output$2 = "_output_1j5uu_6";
+    const output$1 = "_output_1j5uu_6";
     const textOutput = "_textOutput_1j5uu_10";
     const textCode = "_textCode_1j5uu_17";
     const styles$1e = {
       toolImage,
-      output: output$2,
+      output: output$1,
       textOutput,
       textCode
     };
@@ -36754,17 +36754,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         args: []
       };
     };
-    const output$1 = "_output_xshyh_1";
+    const output = "_output_xshyh_1";
     const styles$1d = {
-      output: output$1
+      output
     };
-    const outputPre = "_outputPre_1t1y9_1";
-    const outputCode = "_outputCode_1t1y9_7";
-    const bottomPadding = "_bottomPadding_1t1y9_12";
+    const outputPre = "_outputPre_1cvxm_1";
+    const outputCode = "_outputCode_1cvxm_7";
     const styles$1c = {
       outputPre,
-      outputCode,
-      bottomPadding
+      outputCode
     };
     const ToolInput = (props) => {
       const { highlightLanguage, contents: contents2, toolCallView } = props;
@@ -36776,7 +36774,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           {
             markdown: toolCallView.content,
             ref: prismParentRef,
-            className: clsx(styles$1c.bottomPadding, "text-size-small", "tool-output")
+            className: clsx("text-size-small", "tool-output")
           }
         );
       }
@@ -36934,10 +36932,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             );
           }
         });
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.content, children: message2.content ? /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) : void 0 }),
+        return message2.content ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
           toolCalls
-        ] });
+        ] }) : void 0;
       } else {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content });
       }
@@ -39377,6 +39375,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         score: Math.min(sizes[6], 30)
       };
       const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.retries + maxSizes.id + maxSizes.score || 1;
+      const inputNormalized = maxSizes.input / base2;
+      const targetNormalized = maxSizes.target / base2 > 0 ? Math.max(maxSizes.target / base2, inputNormalized / 10) : 0;
+      const answerNormalized = maxSizes.answer / base2 > 0 ? Math.max(maxSizes.answer / base2, inputNormalized / 10) : 0;
       const messageShape = {
         raw: {
           input: sizes[0],
@@ -39388,9 +39389,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           score: sizes[6]
         },
         normalized: {
-          input: maxSizes.input / base2,
-          target: maxSizes.target / base2,
-          answer: maxSizes.answer / base2,
+          input: inputNormalized,
+          target: targetNormalized,
+          answer: answerNormalized,
           limit: maxSizes.limit / base2,
           retries: maxSizes.retries / base2,
           id: maxSizes.id / base2,
@@ -50766,14 +50767,14 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$y.lineBase, "text-truncate"), children: errorType(message2) })
       ] });
     };
-    const target = "_target_giah9_1";
-    const answer = "_answer_giah9_5";
-    const grid$2 = "_grid_giah9_9";
-    const centerLabel = "_centerLabel_giah9_17";
-    const centerValue = "_centerValue_giah9_22";
-    const wrap = "_wrap_giah9_27";
-    const titled = "_titled_giah9_31";
-    const value = "_value_giah9_35";
+    const target = "_target_1s9n0_1";
+    const answer = "_answer_1s9n0_5";
+    const grid$2 = "_grid_1s9n0_9";
+    const centerLabel = "_centerLabel_1s9n0_17";
+    const centerValue = "_centerValue_1s9n0_22";
+    const wrap = "_wrap_1s9n0_27";
+    const titled = "_titled_1s9n0_31";
+    const value = "_value_1s9n0_35";
     const styles$x = {
       target,
       answer,
@@ -50828,9 +50829,6 @@ self.onmessage = function (e) {
         return void 0;
       }
       const fields = resolveSample(sample2, sampleDescriptor);
-      const input2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
-      const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
-      const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
       const retrySize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.retries) > 0 ? 6 : 0;
       const idSize = Math.max(
@@ -50846,7 +50844,7 @@ self.onmessage = function (e) {
       columns.push({
         label: "Input",
         value: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: fields.input.join(" ") }),
-        size: `${input2}fr`,
+        size: `minmax(auto, 5fr)`,
         clamp: true
       });
       if (fields.target) {
@@ -50859,7 +50857,7 @@ self.onmessage = function (e) {
               className: clsx("no-last-para-padding", styles$x.target)
             }
           ),
-          size: `${target2}fr`,
+          size: `minmax(auto, 3fr)`,
           clamp: true
         });
       }
@@ -50873,7 +50871,7 @@ self.onmessage = function (e) {
               className: clsx("no-last-para-padding", styles$x.answer)
             }
           ) : "",
-          size: `${Math.max(answer2, 20)}fr`,
+          size: `minmax(auto, 5fr)`,
           clamp: true
         });
       }
@@ -50904,7 +50902,7 @@ self.onmessage = function (e) {
         columns.push({
           label: "Retries",
           value: fields.retries,
-          size: `${retrySize}rem`,
+          size: `fit-content(${retrySize}rem)`,
           center: true
         });
       }
@@ -51575,17 +51573,15 @@ self.onmessage = function (e) {
         children2
       ] });
     };
-    const output = "_output_1bdt9_1";
-    const container$4 = "_container_1bdt9_5";
-    const all = "_all_1bdt9_10";
-    const tableSelection = "_tableSelection_1bdt9_16";
-    const tools$1 = "_tools_1bdt9_22";
-    const codePre = "_codePre_1bdt9_26";
-    const code$2 = "_code_1bdt9_26";
-    const toolConfig = "_toolConfig_1bdt9_38";
-    const progress$1 = "_progress_1bdt9_45";
+    const container$4 = "_container_m6aq8_1";
+    const all = "_all_m6aq8_6";
+    const tableSelection = "_tableSelection_m6aq8_12";
+    const tools$1 = "_tools_m6aq8_18";
+    const codePre = "_codePre_m6aq8_22";
+    const code$2 = "_code_m6aq8_22";
+    const toolConfig = "_toolConfig_m6aq8_34";
+    const progress$1 = "_progress_m6aq8_41";
     const styles$n = {
-      output,
       container: container$4,
       all,
       tableSelection,
@@ -51748,7 +51744,6 @@ self.onmessage = function (e) {
                 {
                   id: `${id}-model-output`,
                   messages: [...userMessages, ...outputMessages || []],
-                  className: clsx(styles$n.output),
                   numbered: false,
                   toolCallStyle: "compact"
                 }
@@ -59043,8 +59038,8 @@ ${events}
         return defaultValue;
       }
     };
-    const tools = "_tools_13oio_1";
-    const tool = "_tool_13oio_1";
+    const tools = "_tools_1an6l_1";
+    const tool = "_tool_1an6l_1";
     const styles$h = {
       tools,
       tool
@@ -59198,7 +59193,7 @@ ${events}
               children: key2
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base"), children: toolsInfo[key2] })
+          toolsInfo[key2]
         ] }, key2);
       }) }, "state-diff-tools");
     };
@@ -59254,7 +59249,7 @@ ${events}
     };
     const Tool = ({ toolName, toolArgs }) => {
       const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$h.tool), children: functionCall }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-smallest", styles$h.tool), children: functionCall });
     };
     const diff = "_diff_eobja_1";
     const summary$2 = "_summary_eobja_6";
@@ -81463,9 +81458,9 @@ Supported expressions:
         }
       }
     };
-    const body = "_body_5y0hl_1";
-    const iconSmall = "_iconSmall_5y0hl_9";
-    const message = "_message_5y0hl_15";
+    const body = "_body_12gn4_1";
+    const iconSmall = "_iconSmall_12gn4_9";
+    const message = "_message_12gn4_15";
     const styles$6 = {
       body,
       iconSmall,
