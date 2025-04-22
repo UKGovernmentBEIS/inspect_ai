@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import * as vscode from "vscode";
-import { Uri, commands } from "vscode";
+import { Uri } from "vscode";
 import { inspectViewPath } from "../../inspect/props";
 import { LogviewPanel } from "./logview-panel";
 import { InspectViewServer } from "../inspect/inspect-view-server";
 import { HostWebviewPanel } from "../../hooks";
-import { InspectSettingsManager } from "../settings/inspect-settings";
 import { log } from "../../core/log";
 import { LogviewState } from "./logview-state";
 import { dirname } from "../../core/uri";
@@ -45,7 +44,19 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     _openContext: vscode.CustomDocumentOpenContext,
     _token: vscode.CancellationToken,
   ): Promise<vscode.CustomDocument> {
-    return { uri, dispose: () => {} };
+
+    // Parse any params from the Uri
+    const queryParams = new URLSearchParams(uri.query);
+    const sample_id = queryParams.get("sample_id");
+    const epoch = queryParams.get("epoch");
+  
+    // Return the document with additional info attached to payload
+    return {
+      uri: uri,
+      dispose: () => {},
+      sample_id,
+      epoch,
+    } as vscode.CustomDocument & { sample_id?: string; epoch?: string };
   }
 
   async resolveCustomEditor(
@@ -53,12 +64,19 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
     webviewPanel: vscode.WebviewPanel,
     _token: vscode.CancellationToken,
   ): Promise<void> {
+
+    const doc = document as vscode.CustomDocument & { sample_id?: string; epoch?: string };
+    const sample_id = doc.sample_id;
+    const epoch = doc.epoch;
+
+    const docUriNoParams = document.uri.with({ query: "", fragment: "" });
+    const docUriStr = docUriNoParams.toString();
+
     // check if we should use the log viewer (version check + size threshold)
     let useLogViewer = hasMinimumInspectVersion(kInspectEvalLogFormatVersion);
     if (useLogViewer) {
-      const docUri = document.uri.toString();
-      if (docUri.endsWith(".json")) {
-        const fileSize = await this.server_.evalLogSize(docUri);
+      if (docUriStr.endsWith(".json")) {
+        const fileSize = await this.server_.evalLogSize(docUriStr);
         if (fileSize > 1024 * 1000 * 100) {
           log.info(
             `JSON log file ${document.uri.path} is to large for Inspect View, opening in text editor.`,
@@ -90,13 +108,17 @@ class InspectLogReadonlyEditor implements vscode.CustomReadonlyEditorProvider {
         this.context_,
         this.server_,
         "file",
-        document.uri,
+        docUriNoParams,
       );
 
-      // set html
+    // set html
       const logViewState: LogviewState = {
-        log_file: document.uri,
-        log_dir: dirname(document.uri),
+        log_file: docUriNoParams,
+        log_dir: dirname(docUriNoParams),
+        sample: (sample_id && epoch) ? {
+          id: sample_id,
+          epoch: epoch,
+        } : undefined,
       };
       webviewPanel.webview.html = this.logviewPanel_.getHtml(logViewState);
     } else {

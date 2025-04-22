@@ -9,7 +9,15 @@ from contextvars import ContextVar
 from copy import copy, deepcopy
 from datetime import datetime
 from types import TracebackType
-from typing import Any, AsyncIterator, Callable, Literal, Type, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Literal,
+    Sequence,
+    Type,
+    cast,
+)
 
 from pydantic_core import to_jsonable_python
 from tenacity import (
@@ -45,6 +53,7 @@ from inspect_ai._util.retry import report_http_retry
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import report_sample_waiting_time, sample_working_time
 from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.util import concurrency
@@ -59,7 +68,9 @@ from ._call_tools import (
     disable_parallel_tools,
     execute_tools,
     tool_call_view,
-    tools_info,
+)
+from ._call_tools import (
+    tools_info as get_tools_info,
 )
 from ._chat_message import (
     ChatMessage,
@@ -331,10 +342,7 @@ class Model:
     async def generate(
         self,
         input: str | list[ChatMessage],
-        tools: list[Tool]
-        | list[ToolDef]
-        | list[ToolInfo]
-        | list[Tool | ToolDef | ToolInfo] = [],
+        tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource = [],
         tool_choice: ToolChoice | None = None,
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
@@ -427,7 +435,7 @@ class Model:
     async def generate_loop(
         self,
         input: str | list[ChatMessage],
-        tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef] = [],
+        tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource = [],
         config: GenerateConfig = GenerateConfig(),
         cache: bool | CachePolicy = False,
     ) -> tuple[list[ChatMessage], ModelOutput]:
@@ -476,10 +484,7 @@ class Model:
     async def _generate(
         self,
         input: list[ChatMessage],
-        tools: list[Tool]
-        | list[ToolDef]
-        | list[ToolInfo]
-        | list[Tool | ToolDef | ToolInfo],
+        tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
@@ -487,15 +492,30 @@ class Model:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice else "auto"
 
+        # resolve top level tool source
+        if isinstance(tools, ToolSource):
+            tools = await tools.tools()
+
+        # resolve tool sources
+        resolved_tools: list[Tool | ToolDef | ToolInfo] = []
+        for tool in tools:
+            if isinstance(tool, ToolSource):
+                source_tools = await tool.tools()
+                resolved_tools.extend(source_tools)
+            else:
+                resolved_tools.append(tool)
+
         # extract tool defs if we can
-        tdefs = tool_defs([tool for tool in tools if not isinstance(tool, ToolInfo)])
+        tdefs = await tool_defs(
+            [tool for tool in resolved_tools if not isinstance(tool, ToolInfo)]
+        )
 
         # resolve all tools into tool_info
-        tools = tools_info(tools)
+        tools_info = get_tools_info(resolved_tools)
 
         # if we have a specific tool selected then filter out the others
         if isinstance(tool_choice, ToolFunction):
-            tools = [tool for tool in tools if tool.name == tool_choice.name]
+            tools_info = [tool for tool in tools_info if tool.name == tool_choice.name]
 
         # if tool_choice is "none" or if there are no tools then fully purge
         # the tools (as some models (e.g. openai and mistral) get confused
@@ -503,11 +523,11 @@ class Model:
         # (they both 'semi' use the tool by placing the arguments in JSON
         # in their output!). on the other hand, anthropic actually errors if
         # there are tools anywhere in the message stream and no tools defined.
-        if tool_choice == "none" or len(tools) == 0:
+        if tool_choice == "none" or len(tools_info) == 0:
             # allow model providers to implement a tools_required() method to
             # force tools to be passed (we need this for anthropic)
             if not self.api.tools_required():
-                tools = []
+                tools_info = []
             tool_choice = "none"
 
         # handle reasoning history
@@ -574,13 +594,13 @@ class Model:
                     model=str(self),
                     policy=policy,
                     tool_choice=tool_choice,
-                    tools=tools,
+                    tools=tools_info,
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
                     self._record_model_interaction(
                         input=input,
-                        tools=tools,
+                        tools=tools_info,
                         tool_choice=tool_choice,
                         config=config,
                         cache="read",
@@ -598,7 +618,7 @@ class Model:
             # (we'll update it with the results once we have them)
             complete = self._record_model_interaction(
                 input=input,
-                tools=tools,
+                tools=tools_info,
                 tool_choice=tool_choice,
                 config=config,
                 cache="write" if cache else None,
@@ -609,7 +629,7 @@ class Model:
                 try:
                     result = await self.api.generate(
                         input=input,
-                        tools=tools,
+                        tools=tools_info,
                         tool_choice=tool_choice,
                         config=config,
                     )

@@ -117,7 +117,7 @@ def scorer_create(name: str, **kwargs: Any) -> Scorer:
     Returns:
         Scorer with registry info attribute
     """
-    return cast(Scorer, registry_create("scorer", name, **kwargs))
+    return registry_create("scorer", name, **kwargs)
 
 
 def scorer(

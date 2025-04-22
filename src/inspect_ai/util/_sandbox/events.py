@@ -133,8 +133,8 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         return output
 
     @override
-    async def connection(self) -> SandboxConnection:
-        return await self._sandbox.connection()
+    async def connection(self, *, user: str | None = None) -> SandboxConnection:
+        return await self._sandbox.connection(user=user)
 
     @override
     def as_type(self, sandbox_cls: Type[ST]) -> ST:

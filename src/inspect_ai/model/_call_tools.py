@@ -3,6 +3,7 @@ import json
 import types
 from copy import copy
 from dataclasses import is_dataclass
+from datetime import date, datetime, time
 from logging import getLogger
 from textwrap import dedent
 from types import UnionType
@@ -13,6 +14,8 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    Sequence,
+    Set,
     Tuple,
     Type,
     Union,
@@ -45,7 +48,12 @@ from inspect_ai._util.working import sample_waiting_time
 from inspect_ai.model._display import display_conversation_message
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
-from inspect_ai.tool._tool import ToolApprovalError, ToolParsingError, ToolResult
+from inspect_ai.tool._tool import (
+    ToolApprovalError,
+    ToolParsingError,
+    ToolResult,
+    ToolSource,
+)
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
 from inspect_ai.tool._tool_def import ToolDef, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
@@ -83,7 +91,7 @@ class ExecuteToolsResult(NamedTuple):
 
 async def execute_tools(
     messages: list[ChatMessage],
-    tools: list[Tool] | list[ToolDef] | list[Tool | ToolDef],
+    tools: Sequence[Tool | ToolDef | ToolSource] | ToolSource,
     max_output: int | None = None,
 ) -> ExecuteToolsResult:
     """Perform tool calls in the last assistant message.
@@ -108,7 +116,7 @@ async def execute_tools(
             transcript,
         )
 
-        tdefs = tool_defs(tools)
+        tdefs = await tool_defs(tools)
 
         async def call_tool_task(
             call: ToolCall,
@@ -385,7 +393,6 @@ async def call_tool(
 
         # normal tool call
         else:
-            arguments = tool_params(call.arguments, tool_def.tool)
             result: ToolResult = await tool_def.tool(**arguments)
             return result, [], None, None
 
@@ -498,10 +505,7 @@ def prepend_agent_name(
 
 
 def tools_info(
-    tools: list[Tool]
-    | list[ToolDef]
-    | list[ToolInfo]
-    | list[Tool | ToolDef | ToolInfo],
+    tools: Sequence[Tool | ToolDef | ToolInfo],
 ) -> list[ToolInfo]:
     tools_info: list[ToolInfo] = []
     for tool in tools:
@@ -521,16 +525,14 @@ def tools_info(
 
 
 def disable_parallel_tools(
-    tools: list[Tool]
-    | list[ToolDef]
-    | list[ToolInfo]
-    | list[Tool | ToolDef | ToolInfo],
+    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
 ) -> bool:
-    for tool in tools:
-        if isinstance(tool, Tool):
-            tool = ToolDef(tool)
-        if isinstance(tool, ToolDef) and not tool.parallel:
-            return True
+    if not isinstance(tools, ToolSource):
+        for tool in tools:
+            if isinstance(tool, Tool):
+                tool = ToolDef(tool)
+            if isinstance(tool, ToolDef) and not tool.parallel:
+                return True
     return False
 
 
@@ -598,6 +600,15 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
                 raise ToolParsingError(
                     f"Unable to convert '{input}' to {type_hint.__name__}"
                 )
+        elif type_hint == datetime:
+            if input.endswith("Z"):
+                # convert trailing Z to +00:00
+                input = input[:-1] + "+00:00"
+            return datetime.fromisoformat(input)
+        elif type_hint == date:
+            return date.fromisoformat(input)
+        elif type_hint == time:
+            return time.fromisoformat(input)
         elif is_typeddict(type_hint):
             typeddict_data: dict[str, Any] = {}
             annotations = get_type_hints(type_hint)
@@ -619,6 +630,11 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
             return [tool_param(args[0], x) for x in input]
         else:
             return input
+    elif origin is set or origin is Set:
+        if args:
+            return {tool_param(args[0], x) for x in input}
+        else:
+            return set(input)
     elif origin is tuple or origin is Tuple:
         if args:
             return tuple([tool_param(args[0], x) for x in input])

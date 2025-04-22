@@ -5,7 +5,7 @@ from pydantic import BaseModel, Discriminator, RootModel
 
 from inspect_ai.tool import ToolResult
 from inspect_ai.tool._tool_support_helpers import (
-    exec_sandbox_rpc,
+    exec_scalar_request,
     tool_container_sandbox,
 )
 
@@ -110,11 +110,11 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
             if k in inspect.signature(execute).parameters
         }
 
-        return await exec_sandbox_rpc(
-            sandbox,
-            "text_editor",
-            params,
-            TextEditorResult,
+        return await exec_scalar_request(
+            sandbox=sandbox,
+            method="text_editor",
+            params=params,
+            result_type=TextEditorResult,
             timeout=timeout,
         )
 

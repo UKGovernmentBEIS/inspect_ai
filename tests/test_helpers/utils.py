@@ -45,6 +45,18 @@ def skip_if_no_package(package):
     )
 
 
+def skip_if_no_mcp_package(func):
+    return skip_if_no_package("mcp")(func)
+
+
+def skip_if_no_mcp_fetch_package(func):
+    return skip_if_no_package("mcp_server_fetch")(func)
+
+
+def skip_if_no_mcp_git_package(func):
+    return skip_if_no_package("mcp_server_git")(func)
+
+
 def skip_if_no_vllm(func):
     return skip_if_no_package("vllm")(func)
 
@@ -78,6 +90,12 @@ def skip_if_no_openai_azure(func):
 
 def skip_if_no_openai_package(func):
     return skip_if_no_package("openai")(func)
+
+
+def skip_if_no_openai_reasoning_summaries(func):
+    return pytest.mark.api(
+        skip_if_env_var("ENABLE_OPENAI_REASONING_SUMMARIES", exists=False)(func)
+    )
 
 
 def skip_if_no_anthropic(func):

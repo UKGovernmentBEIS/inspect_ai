@@ -1,0 +1,3 @@
+autogen-agentchat>=0.5.1
+autogen-ext[openai,web-surfer]>=0.5.1
+playwright>=1.51.0

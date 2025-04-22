@@ -1,11 +1,18 @@
 import time
 from typing import cast
+from urllib.parse import urlencode, urlparse, urlunparse
 
 from rich.console import RenderableType
 from rich.table import Table
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.containers import Horizontal, HorizontalGroup, Vertical, VerticalGroup
+from textual.containers import (
+    Horizontal,
+    HorizontalGroup,
+    Right,
+    Vertical,
+    VerticalGroup,
+)
 from textual.css.query import NoMatches
 from textual.reactive import reactive
 from textual.widget import Widget
@@ -20,9 +27,12 @@ from textual.widgets import (
 from textual.widgets.option_list import Option, OptionDoesNotExist
 
 from inspect_ai._display.textual.widgets.port_mappings import get_url
+from inspect_ai._display.textual.widgets.vscode import conditional_vscode_link
+from inspect_ai._util.file import to_uri
 from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.port_names import get_service_by_port
 from inspect_ai._util.registry import registry_unqualified_name
+from inspect_ai._util.vscode import EXTENSION_COMMAND_OPEN_SAMPLE, VSCodeCommand
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import ToolEvent
 
@@ -272,6 +282,16 @@ class SampleInfo(Vertical):
         background: $surface;
         color: $secondary;
     }
+    SampleInfo #sample-link {
+        height: auto;
+        width: 11;
+        margin-left: 1;
+        background: $background;
+    }
+    SampleInfo #sample-link Link {
+        color: $accent;
+        background: $background;
+    }
     """
 
     def __init__(self) -> None:
@@ -280,9 +300,12 @@ class SampleInfo(Vertical):
         self._sandbox_count: int | None = None
 
     def compose(self) -> ComposeResult:
-        with Collapsible(title=""):
-            yield SampleLimits()
-            yield SandboxesView()
+        with Horizontal():
+            with Collapsible(title=""):
+                yield SampleLimits()
+                yield SandboxesView()
+            yield Right(id="sample-link")
+
         yield SampleVNC()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
@@ -310,6 +333,28 @@ class SampleInfo(Vertical):
             sandboxes = self.query_one(SandboxesView)
             await sandboxes.sync_sample(sample)
             await self.query_one(SampleVNC).sync_sample(sample)
+
+            # View Log Link
+            base_uri = sample.log_location
+            query_params = {
+                "sample_id": sample.sample.id,
+                "epoch": sample.epoch,
+            }
+
+            parsed = urlparse(to_uri(base_uri))
+            view_link = urlunparse(parsed._replace(query=urlencode(query_params)))
+
+            link_container = self.query_one("#sample-link")
+            link_container.remove_children()
+            link = conditional_vscode_link(
+                "[View Log]",
+                VSCodeCommand(
+                    command="inspect.openLogViewer",
+                    args=[view_link] if sample.log_location else [],
+                ),
+                EXTENSION_COMMAND_OPEN_SAMPLE,
+            )
+            link_container.mount(link)
 
 
 class SampleLimits(Widget):

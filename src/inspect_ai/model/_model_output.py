@@ -5,6 +5,7 @@ from typing import Any, Literal, Type
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
+from inspect_ai._util.content import Content
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessageAssistant
@@ -192,7 +193,7 @@ class ModelOutput(BaseModel):
     @staticmethod
     def from_content(
         model: str,
-        content: str,
+        content: str | list[Content],
         stop_reason: StopReason = "stop",
         error: str | None = None,
     ) -> "ModelOutput":

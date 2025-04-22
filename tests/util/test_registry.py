@@ -1,5 +1,3 @@
-from typing import cast
-
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
     registry_create_from_dict,
@@ -9,7 +7,7 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.scorer import Metric, metric
 from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.solver import Plan, Solver, solver, use_tools
+from inspect_ai.solver import Solver, solver, use_tools
 from inspect_ai.tool import Tool, bash
 
 
@@ -40,5 +38,5 @@ def test_registry_dict() -> None:
     assert solver_dict["type"] == "solver"
     assert solver_dict["params"]["tool"]["type"] == "tool"
 
-    mysolver2 = cast(Plan, registry_create_from_dict(solver_dict))
+    mysolver2 = registry_create_from_dict(solver_dict)
     assert isinstance(mysolver2, Solver)
