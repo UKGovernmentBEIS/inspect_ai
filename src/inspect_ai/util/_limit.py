@@ -7,11 +7,11 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Literal
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.model._conversation import ModelConversation
-from inspect_ai.model._model_output import ModelUsage
 
 if TYPE_CHECKING:
-    # TaskState is used as a type hint only - prevent circular import.
+    # These imports are used as type hints only - prevent circular imports.
+    from inspect_ai.model._conversation import ModelConversation
+    from inspect_ai.model._model_output import ModelUsage
     from inspect_ai.solver._task_state import TaskState
 
 
@@ -215,6 +215,8 @@ class _TokenLimitNode:
             manager is open.
           parent: The parent node in the tree.
         """
+        from inspect_ai.model._model_output import ModelUsage
+
         self._limit = limit
         self.parent = parent
         self._usage = ModelUsage()
