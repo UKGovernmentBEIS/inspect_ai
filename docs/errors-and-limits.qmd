@@ -121,6 +121,8 @@ In order to distinguish successful generate requests from rate limited and retri
 
 ### Message Limit {#sample-message-limit}
 
+{{< include _message_limits.md >}}
+
 Here we set a `message_limit` of 30 for each sample within a task:
 
 ``` python
@@ -141,15 +143,9 @@ def intercode_ctf():
 
 This sets a limit of 30 total messages in a conversation before the model is forced to give up. At that point, whatever `output` happens to be in the `TaskState` will be scored (presumably leading to a score of incorrect).
 
-Message limits are checked whenever you call `generate()` on any model. The `message_limit` is compared to the number of messages passed in `input` parameter to `generate()`. A `LimitExceededError` will be raised if the message count is equal to or exceeds the limit. This is to avoid proceeding to another (wasteful) generate call if we're already at the limit.
-
-They are also checked on every evaluation of `TaskState.completed`, which will raise a `LimitExceededError` if the message count is equal to or exceeds the limit.
-
-It is also checked whenever `TaskState.messages` or `AgentState.messages` is mutated, but a `LimitExceededError` is only raised if the count exceeds the limit.
-
 ### Token Limit
 
-Token usage (using `total_tokens` of `ModelUsage`) is automatically recorded for all models. Token limits are checked whenever `generate()` is called and upon evaluating `TaskState.completed`.
+{{< include _token_limits.md >}}
 
 Here we set a `token_limit` of 500K for each sample within a task:
 
@@ -223,9 +219,30 @@ with token_limit(1024*500):
     ...
 ```
 
+### Message Limit
+
+{{< include _message_limits.md >}}
+
+Scoped message limits behave differently to scoped token limits in that only the innermost active `message_limit()` is checked.
+
+To limit the conversation length within a block of code:
+
+``` python
+@solver
+def agent_loop() -> Solver:
+    async def solve(state: TaskState, generate: Generate):
+
+        with message_limit(50):
+            # A LimitExceededError will be raised when the limit is exceeded
+            ...
+            with message_limit(None):
+                # The limit of 50 is temporarily removed in this block of code
+                ...
+```
+
 ### Token Limit
 
-Token limits enforce a limit on the total tokens used by all models. See [sample token limit](#sample-token-limit) for when these limits are checked.
+{{< include _token_limits.md >}}
 
 To limit the total number of tokens which can be used in a block of code:
 
@@ -256,25 +273,3 @@ def agent_loop() -> Solver:
 ::: {.callout-important}
 It's important to note that `token_limit()` is for all tokens used _while the context manager is open_. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 :::
-
-### Message Limit
-
-Message limits enforce a limit on the number of messages in any conversation (e.g. a `TaskState`, `AgentState`, or any input to `generate()`). They behave differently to token limits in that only the innermost active `message_limit()` is checked.
-
-See [sample message limit](#sample-message-limit) for when these limits are checked and in what cases a `LimitExceededError` will be raised.
-
-To limit the conversation length within a block of code:
-
-``` python
-@solver
-def agent_loop() -> Solver:
-    async def solve(state: TaskState, generate: Generate):
-
-        with message_limit(50):
-            # A LimitExceededError will be raised when the limit is exceeded
-            ...
-            with message_limit(None):
-                # The limit of 50 is temporarily removed in this block of code
-                ...
-```
-
