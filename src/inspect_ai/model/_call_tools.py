@@ -179,7 +179,6 @@ async def execute_tools(
                 )
                 result = ex.truncated_output or ""
             except LimitExceededError as ex:
-                # sample limit event
                 error_message = f"The tool exceeded its {ex.type} limit of {ex.limit}."
                 transcript()._event(
                     SampleLimitEvent(
