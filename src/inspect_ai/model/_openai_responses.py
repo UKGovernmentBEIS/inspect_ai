@@ -337,11 +337,13 @@ def _openai_input_items_from_chat_message_assistant(
                     )
                 )
                 if output_message is None:
-                    assert output_message_id is not None, "Missing output message id"
                     output_message = ResponseOutputMessageParam(
                         type="message",
                         role="assistant",
-                        id=output_message_id,
+                        # this actually can be `None`, and it will in fact be `None` when the
+                        # assistant message is synthesized by the scaffold as opposed to being
+                        # replayed from the model
+                        id=output_message_id,  # type: ignore[typeddict-item]
                         content=[new_content],
                         status="completed",
                     )
