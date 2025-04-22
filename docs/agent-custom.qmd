@@ -60,38 +60,54 @@ While this example illustrates the basic mechanic of agents, you generally would
 
 ## Tool Loop
 
-Agents often run a tool use loop, and one of the more common reasons for creating a custom agent is to tailor the behaviour of the loop. Here is an agent loop that has essentially the same implementation as the default `generate()` solver:
+Agents often run a tool use loop, and one of the more common reasons for creating a custom agent is to tailor the behaviour of the loop. Here is an agent loop that has a core simillar to the built-in `react()` agent:
 
 ``` python
+from typing import Sequence
+from inspect_ai.agent import AgentState, agent
+from inspect_ai.model import execute_tools, get_model
+from inspect_ai.tool import (
+    Tool, ToolDef, ToolSource, mcp_connection
+)
+
 @agent
-def my_agent(tools: list[Tool]):
+def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):        # <1>
     async def execute(state: AgentState):
 
-        while True:
-            # call model
-            output = await get_model().generate(
-                input=state.messages,
-                tools=tools, 
-            )
+        # establish MCP server connections required by tools
+        async with mcp_connection(tools):                          # <2>
 
-            # append to messages
-            state.messages.append(output.message)
+            while True:
+                # call model and apppend to messages
+                state.output = await get_model().generate(         # <3>
+                    input=state.messages,                          
+                    tools=tools,                                   
+                )                                                  
+                state.messages.append(output.message)              
 
-            # make tool calls or terminate if there are none
-            if output.message.tool_calls:
-                messages, state.output = await execute_tools(
-                    messages, tools
-                )
-                state.messages.extend(messages)
-            else:
-                break
+                # make tool calls or terminate if there are none   
+                if output.message.tool_calls:                      
+                    messages, state.output = await execute_tools(  # <4>
+                        message, tools     
+                    )
+                    state.messages.extend(messages)
+                else:
+                    break
 
-        return state
+            return state
 
     return execute
 ```
 
-You might then further tailor the behaviour of this loop. For example, you might want to:
+1.  Enable passing `tools` to the agent using a variety of types (including `ToolSource` which enables use of tools from [Model Context Protocol](tools-mcp.qmd) (MCP) servers).
+
+2.  Establish any required connections to MCP servers (this isn't required, but will improve performance by re-using connections across tool calls).
+
+3.  Standard LLM inference step yielding an assistant message which we append to our message history.
+
+4.  Execute tool calls---note that this may update output and/or result in multiple additional messages being appended in the case that one of the tools is a `handoff()` to a sub-agent.
+
+This above represents a minimal tool use loop---your custom agents may diverge from it in various ways. For example, you might want to:
 
 1.  Add another termination condition for the output satisfying some criteria.
 2.  Add a critique / reflection step between tool calling and generate.

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Sequence
 
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -6,7 +6,8 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
     set_registry_info,
 )
-from inspect_ai.tool._tool import Tool, ToolResult
+from inspect_ai.tool._tool import Tool, ToolResult, ToolSource
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_description import ToolDescription, set_tool_description
 from inspect_ai.util._limit import Limit
 
@@ -91,7 +92,9 @@ class AgentTool(Tool):
         raise RuntimeError("AgentTool should not be called directly")
 
 
-def has_handoff(tools: list[Tool] | None) -> bool:
+def has_handoff(
+    tools: Sequence[Tool | ToolDef | ToolSource] | None,
+) -> bool:
     if tools:
         return any([isinstance(tool, AgentTool) for tool in tools])
     else:

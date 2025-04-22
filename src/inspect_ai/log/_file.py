@@ -1,6 +1,7 @@
 import os
 import re
 from logging import getLogger
+from pathlib import Path
 from typing import Any, Callable, Generator, Literal
 
 from pydantic import BaseModel
@@ -97,7 +98,7 @@ def list_eval_logs(
 
 def write_eval_log(
     log: EvalLog,
-    location: str | FileInfo | None = None,
+    location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> None:
     """Write an evaluation log.
@@ -121,7 +122,7 @@ def write_eval_log(
 
 async def write_eval_log_async(
     log: EvalLog,
-    location: str | FileInfo | None = None,
+    location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
 ) -> None:
     """Write an evaluation log.
@@ -140,7 +141,13 @@ async def write_eval_log_async(
             raise ValueError(
                 "EvalLog passe to write_eval_log does not have a location, so you must pass an explicit location"
             )
-    location = location if isinstance(location, str) else location.name
+    location = (
+        location
+        if isinstance(location, str)
+        else location.as_posix()
+        if isinstance(location, Path)
+        else location.name
+    )
 
     logger.debug(f"Writing eval log to {location}")
 
@@ -197,7 +204,7 @@ def write_log_dir_manifest(
 
 
 def read_eval_log(
-    log_file: str | EvalLogInfo,
+    log_file: str | Path | EvalLogInfo,
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
@@ -235,7 +242,7 @@ def read_eval_log(
 
 
 async def read_eval_log_async(
-    log_file: str | EvalLogInfo,
+    log_file: str | Path | EvalLogInfo,
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
@@ -255,7 +262,13 @@ async def read_eval_log_async(
        EvalLog object read from file.
     """
     # resolve to file path
-    log_file = log_file if isinstance(log_file, str) else log_file.name
+    log_file = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
     logger.debug(f"Reading eval log from {log_file}")
 
     # get recorder type
@@ -291,7 +304,7 @@ def read_eval_log_headers(
 
 
 async def read_eval_log_headers_async(
-    log_files: list[str] | list[EvalLogInfo],
+    log_files: list[str] | list[Path] | list[EvalLogInfo],
 ) -> list[EvalLog]:
     return [
         await read_eval_log_async(log_file, header_only=True) for log_file in log_files
@@ -299,7 +312,7 @@ async def read_eval_log_headers_async(
 
 
 def read_eval_log_sample(
-    log_file: str | EvalLogInfo,
+    log_file: str | Path | EvalLogInfo,
     id: int | str,
     epoch: int = 1,
     resolve_attachments: bool = False,
@@ -336,7 +349,7 @@ def read_eval_log_sample(
 
 
 async def read_eval_log_sample_async(
-    log_file: str | EvalLogInfo,
+    log_file: str | Path | EvalLogInfo,
     id: int | str,
     epoch: int = 1,
     resolve_attachments: bool = False,
@@ -360,7 +373,13 @@ async def read_eval_log_sample_async(
        IndexError: If the passed id and epoch are not found.
     """
     # resolve to file path
-    log_file = log_file if isinstance(log_file, str) else log_file.name
+    log_file = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
 
     if format == "auto":
         recorder_type = recorder_type_for_location(log_file)
@@ -375,7 +394,7 @@ async def read_eval_log_sample_async(
 
 
 def read_eval_log_samples(
-    log_file: str | EvalLogInfo,
+    log_file: str | Path | EvalLogInfo,
     all_samples_required: bool = True,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",

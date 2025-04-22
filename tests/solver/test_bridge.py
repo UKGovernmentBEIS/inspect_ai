@@ -18,6 +18,8 @@ def agent(tools: bool):
     async def run(sample: dict[str, Any]) -> dict[str, Any]:
         from openai import AsyncOpenAI
 
+        assert sample["metadata"]["foo"] == "bar"
+
         class Message(BaseModel):
             text: str
 
@@ -61,7 +63,13 @@ def agent(tools: bool):
 @task
 def bridged_task(tools: bool):
     return Task(
-        dataset=[Sample(input="Please print the word 'hello'?", target="hello")],
+        dataset=[
+            Sample(
+                input="Please print the word 'hello'?",
+                target="hello",
+                metadata={"foo": "bar"},
+            )
+        ],
         solver=bridge(agent(tools)),
         scorer=includes(),
     )

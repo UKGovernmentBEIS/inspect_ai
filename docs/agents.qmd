@@ -245,20 +245,12 @@ This behavior is controlled by the `on_continue` parameter, which by default yie
 
 ``` default
 Please proceed to the next step using your best judgement. If you believe you
-have completed the task, please call the `submit()` tool."
+have completed the task, please call the `submit()` tool.
 ```
 
 You can pass a different continuation message, or alternative pass an `AgentContinue` function that can dynamically determine both whether to continue and what the message is.
 
 ### Truncation
-
-::: callout-note
-The `truncation` option described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 If your agent runs for long enough, it may end up filling the entire model context window. By default, this will cause the agent to terminate (with a log message indicating the reason). Alternatively, you can specify that the conversation should be truncated and the agent loop continue.
 

@@ -31,23 +31,50 @@ The following environment variables are supported by the OpenAI provider
 
 ### Responses API
 
-By default, Inspect uses the standard OpenAI Chat Completions API. However, if you use features that require the new [Responses API](https://platform.openai.com/docs/api-reference/responses) Inspect will use that instead. 
+By default, Inspect uses the standard OpenAI Chat Completions API for gpt-series models and the new [Responses API](https://platform.openai.com/docs/api-reference/responses) for o-series models and the `computer_use_preview` model.
 
-Currently, the only feature that requires the Responses API is [o1-pro](https://platform.openai.com/docs/models/o1-pro). In the near future, Inspect will add support for OpenAI's built-in computer and web search tools, which will also require the Responses API.
+If you want to manually enable or disable the Responses API you can use the `responses_api` model argument. For example:
 
-If you want to manually switch to the Responses API you can use the `responses_api` model argument. For example:
-
-```bash
+``` bash
 inspect eval math.py --model openai/gpt-4o -M responses_api=true
+```
+
+Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
+
+### Flex Processing
+
+::: callout-note
+The support for flex processing described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+[Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
+
+Note that flex processing is in beta, and currently **only available for o3 and o4-mini models**.
+
+To enable flex processing, use the `service_tier` model argument, setting it to "flex". For example:
+
+``` bash
+inspect eval math.py --model openai/o4-mini -M service_tier=flex
+```
+
+OpenAI recommends using a [higher client timeout](https://platform.openai.com/docs/guides/flex-processing#api-request-timeouts) when making flex requests (15 minutes rather than the standard 10). Inspect automatically increases the client timeout to 15 minutes (900 seconds) for flex requests. To specify another value, use the `client_timeout` model argument. For example:
+
+``` bash
+inspect eval math.py --model openai/o4-mini \
+    -M service_tier=flex -M client_timeout=1200
 ```
 
 ### OpenAI on Azure {#openai-on-azure}
 
 The `openai` provider supports OpenAI models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
 
-- `AZUREAI_OPENAI_API_KEY`
-- `AZUREAI_OPENAI_BASE_URL` 
-- `AZUREAI_OPENAI_API_VERSION`. 
+-   `AZUREAI_OPENAI_API_KEY`
+-   `AZUREAI_OPENAI_BASE_URL`
+-   `AZUREAI_OPENAI_API_VERSION`.
 
 You can then use the normal `openai` provider with the `azure` qualifier and the name of your model deployment (e.g. `gpt-4o-mini`). For example:
 
@@ -123,7 +150,7 @@ The following environment variables are supported by the Google provider
 | `GOOGLE_API_KEY`  | API key credentials (required).  |
 | `GOOGLE_BASE_URL` | Base URL for requests (optional) |
 
-### Gemini on Vertex AI
+### Gemini on Vertex AI {#gemini-on-vertex-ai}
 
 To use Google Gemini models on Vertex, you can use the standard `google` model provider with the `vertex` qualifier (e.g. `google/vertex/gemini-2.0-flash`). You should also set two environment variables indicating your project ID and region. Here is a complete example:
 
@@ -142,7 +169,7 @@ inspect eval ctf.py --model google/vertex/gemini-2.0-flash \
 
 Authentication is done using the standard Google Cloud CLI. For example:
 
-```bash
+``` bash
 gcloud auth application-default login
 ```
 
@@ -153,8 +180,8 @@ If you have authorised the CLI then no additional auth is needed for the model A
 Google models make available [safety settings](https://ai.google.dev/gemini-api/docs/safety-settings) that you can adjust to determine what sorts of requests will be handled (or refused) by the model. The five categories of safety settings are as follows:
 
 | Category | Description |
-|------------------------|-----------------------------------------------|
-| `civic_integrity`   |  Election-related queries.          |
+|-------------------------|-----------------------------------------------|
+| `civic_integrity` | Election-related queries. |
 | `sexually_explicit` | Contains references to sexual acts or other lewd content. |
 | `hate_speech` | Content that is rude, disrespectful, or profane. |
 | `harassment` | Negative or harmful comments targeting identity and/or protected attributes. |
@@ -215,8 +242,8 @@ The following environment variables are supported by the Mistral provider
 
 The `mistral` provider supports Mistral models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
 
-- `AZURE_MISTRAL_API_KEY`
-- `AZUREAI_MISTRAL_BASE_URL`
+-   `AZURE_MISTRAL_API_KEY`
+-   `AZUREAI_MISTRAL_BASE_URL`
 
 You can then use the normal `mistral` provider with the `azure` qualifier and the name of your model deployment (e.g. `Mistral-Large-2411`). For example:
 
@@ -228,23 +255,14 @@ inspect eval math.py --model mistral/azure/Mistral-Large-2411
 
 ## DeepSeek {#deepseek}
 
-::: callout-note
-The `openai-api` provider used to interface with DeepSeek is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 [DeepSeek](https://www.deepseek.com/) provides an OpenAI compatible API endpoint which you can use with Inspect via the `openai-api` provider. To do this, define the `DEEPSEEK_API_KEY` and `DEEPSEEK_BASE_URL` environment variables then refer to models with `openai-api/deepseek/<model-name>`. For example:
 
-```bash
+``` bash
 pip install openai
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 
 ```
-
 
 ## Grok {#grok}
 
@@ -323,8 +341,8 @@ You can also use this option to disable tool emulation for Llama models with `em
 ::: {.callout-note appearance="simple"}
 If you are using Gemini or Anthropic models on Vertex AI, we recommend you use the Google and Anthropic providers (respectively) which both support models hosted on Vertex:
 
-- [Anthropic on Vertex AI](#anthropic-on-vertex-ai)
-- [Gemini on Vertex AI](#gemini-on-vertex-ai)
+-   [Anthropic on Vertex AI](#anthropic-on-vertex-ai)
+-   [Gemini on Vertex AI](#gemini-on-vertex-ai)
 
 If you are using other models hosted on Vertex (e.g. Mistral, Llama, Gemma, etc.) then you should instead use the `vertex` provider as described below.
 :::
@@ -338,7 +356,6 @@ inspect eval eval.py --model vertex/mistral-large-2411
 The core libraries for Vertex AI interact directly with Google Cloud Platform so this provider doesn't use the standard `BASE_URL`/`API_KEY` approach that others do. Consequently you don't need to set these environment variables.
 
 Vertex AI also provides the same `safety_settings` outlined in the [Google](#safety-settings) provider.
-
 
 ## Together AI {#together-ai}
 
@@ -539,23 +556,15 @@ The following environment variables are supported by the llama-cpp-python provid
 
 ## OpenAI Compatible {#openai-api}
 
-::: callout-note
-The `openai-api` provider described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 If your model provider makes an OpenAI API compatible endpoint available, you can use it with Inspect via the `openai-api` provider, which uses the following model naming convention:
 
-```
+```         
 openai-api/<provider-name>/<model-name>
 ```
 
 Inspect will read environment variables corresponding to the api key and base url of your provider using the following convention (note that the provider name is capitalized):
 
-```
+```         
 <PROVIDER-NAME>_API_KEY
 <PROVIDER-NAME>_BASE_URL
 ```
@@ -564,7 +573,7 @@ Inspect will read environment variables corresponding to the api key and base ur
 
 Here is how you would access DeepSeek using the `openai-api` provider:
 
-```bash
+``` bash
 export DEEPSEEK_API_KEY=your-deepseek-api-key
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
 inspect eval arc.py --model openai-api/deepseek/deepseek-reasoner 

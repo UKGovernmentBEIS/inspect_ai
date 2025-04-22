@@ -2,17 +2,17 @@
 export const kModelNone = "none/none";
 
 // Workspace tab constants
-export const kEvalWorkspaceTabId = "eval-tab";
-export const kJsonWorkspaceTabId = "json-tab";
-export const kInfoWorkspaceTabId = "plan-tab";
+export const kLogViewSamplesTabId = "samples";
+export const kLogViewJsonTabId = "json";
+export const kLogViewInfoTabId = "info";
 
 // Sample tab constants
-export const kSampleMessagesTabId = `sample-display-messages`;
-export const kSampleTranscriptTabId = `sample-display-transcript`;
-export const kSampleScoringTabId = `sample-display-scoring`;
-export const kSampleMetdataTabId = `sample-display-metadata`;
-export const kSampleErrorTabId = `sample-display-error`;
-export const kSampleJsonTabId = `sample-display-json`;
+export const kSampleMessagesTabId = `messages`;
+export const kSampleTranscriptTabId = `transcript`;
+export const kSampleScoringTabId = `scoring`;
+export const kSampleMetdataTabId = `metadata`;
+export const kSampleErrorTabId = `error`;
+export const kSampleJsonTabId = `json`;
 
 // Scoring constants
 export const kScoreTypePassFail = "passfail";

@@ -97,6 +97,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     reasoning_tokens: int | None
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
 
+    reasoning_summary: Literal["concise", "detailed", "auto"] | None
+    """Provide summary of reasoning steps (defaults to no summary). Use 'auto' to access the most detailed summarizer available for the current model. OpenAI reasoning models only."""
+
     reasoning_history: Literal["none", "all", "last", "auto"] | None
     """Include reasoning in chat message history sent to generate."""
 
@@ -175,6 +178,11 @@ class GenerateConfig(BaseModel):
 
     reasoning_tokens: int | None = Field(default=None)
     """Maximum number of tokens to use for reasoning. Anthropic Claude models only."""
+
+    reasoning_summary: Literal["concise", "detailed", "auto"] | None = Field(
+        default=None
+    )
+    """Provide summary of reasoning steps (defaults to no summary). Use 'auto' to access the most detailed summarizer available for the current model. OpenAI reasoning models only."""
 
     reasoning_history: Literal["none", "all", "last", "auto"] | None = Field(
         default=None

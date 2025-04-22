@@ -266,14 +266,6 @@ One thing to keep in mind if you are storing logs on S3 is that they will no lon
 
 ## Log File Name
 
-::: callout-note
-The ability to customize the name of log files described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 By default, log files are named using the following convention:
 
 ```
@@ -318,7 +310,7 @@ $ inspect log list --json --status success
 $ inspect log list --json --status error
 ```
 
-You can use the `--retryable` option to list only logs that are [retryable](#sec-errors-and-retries)
+You can use the `--retryable` option to list only logs that are [retryable](#eval-retries)
 
 ``` bash
 $ inspect log list --json --retryable

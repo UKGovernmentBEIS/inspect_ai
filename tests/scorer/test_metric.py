@@ -1,6 +1,7 @@
 from typing import Any, Callable, cast
 
 import pytest
+from pydantic import BaseModel
 
 from inspect_ai import Task, eval, score
 from inspect_ai._util.constants import PKG_NAME
@@ -508,3 +509,18 @@ def test_custom_all():
     assert result["A"] == 2.0
     assert result["B"] == 6.0
     assert result["custom_all"] == 4.0
+
+
+class Metadata(BaseModel, frozen=True):
+    name: str
+    age: int
+
+
+def test_sample_score_metadata_as():
+    score = SampleScore(
+        score=Score(value=1), sample_metadata=Metadata(name="jim", age=42).model_dump()
+    )
+    metadata = score.sample_metadata_as(Metadata)
+    assert metadata is not None
+    assert metadata.name == "jim"
+    assert metadata.age == 42

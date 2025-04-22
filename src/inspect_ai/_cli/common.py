@@ -1,4 +1,5 @@
 import functools
+import os
 from typing import Any, Callable, Literal, cast
 
 import click
@@ -21,6 +22,7 @@ class CommonOptions(TypedDict):
     log_dir: str
     display: Literal["full", "conversation", "rich", "plain", "none"]
     no_ansi: bool | None
+    traceback_locals: bool
     env: tuple[str] | None
     debug: bool
     debug_port: int
@@ -73,6 +75,13 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_NO_ANSI",
     )
     @click.option(
+        "--traceback-locals",
+        type=bool,
+        is_flag=True,
+        envvar="INSPECT_TRACEBACK_LOCALS",
+        help="Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging).",
+    )
+    @click.option(
         "--env",
         multiple=True,
         type=str,
@@ -106,6 +115,10 @@ def process_common_options(options: CommonOptions) -> None:
     # set environment variables
     env_args = parse_cli_args(options["env"])
     init_cli_env(env_args)
+
+    # set traceback locals env var
+    if options.get("traceback_locals", False):
+        os.environ["INSPECT_TRACEBACK_LOCALS"] = "1"
 
     # propagate display
     if options["no_ansi"]:
