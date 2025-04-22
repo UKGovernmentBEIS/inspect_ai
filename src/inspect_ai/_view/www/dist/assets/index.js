@@ -22658,6 +22658,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const kSampleScoringTabId = `scoring`;
     const kSampleMetdataTabId = `metadata`;
     const kSampleErrorTabId = `error`;
+    const kSampleErrorRetriesTabId = `retry-errors`;
     const kSampleJsonTabId = `json`;
     const kScoreTypePassFail = "passfail";
     const kScoreTypeCategorical = "categorical";
@@ -23965,7 +23966,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       play: "bi bi-play-fill",
       previous: "bi bi-chevron-left",
       refresh: "bi bi-arrow-clockwise",
-      retry: "bi bi-arrow-repeat",
       role: {
         user: "bi bi-person",
         system: "bi bi-cpu",
@@ -60301,6 +60301,32 @@ ${events}
                   ) })
                 }
               ) : null,
+              (sample2 == null ? void 0 : sample2.error_retries) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                TabPanel,
+                {
+                  id: kSampleErrorRetriesTabId,
+                  className: "sample-tab",
+                  title: "Errors",
+                  onSelected: onSelectedTab,
+                  selected: effectiveSelectedTab === kSampleErrorRetriesTabId,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.padded), children: sample2.error_retries.map((retry, index2) => {
+                    return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: `Attempt ${index2 + 1}` }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        ANSIDisplay,
+                        {
+                          output: retry.traceback_ansi,
+                          className: clsx("text-size-small", styles$z.ansi),
+                          style: {
+                            fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                            margin: "0.5em 0"
+                          }
+                        }
+                      ) })
+                    ] }, `sample-retry-error-${index2}`);
+                  }) })
+                }
+              ) : null,
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
@@ -81549,7 +81575,7 @@ Supported expressions:
                   styles$5.cell,
                   styles$5.centered
                 ),
-                children: sample2.retries && sample2.retries > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.retry) }) : void 0
+                children: sample2.retries && sample2.retries > 0 ? sample2.retries : void 0
               }
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$5.cell, styles$5.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : completed ? scoreRendered : /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, {}) })
@@ -81643,7 +81669,7 @@ Supported expressions:
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 ? "Target" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: answer2 ? "Answer" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: limit ? "Limit" : "" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: retries ? "Retried" : "" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: retries ? "Retries" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$2.center, children: score2 ? "Score" : "" })
         ]
       }

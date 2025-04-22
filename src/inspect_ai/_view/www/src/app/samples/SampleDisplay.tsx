@@ -24,6 +24,7 @@ import { Card, CardBody, CardHeader } from "../../components/Card";
 import { JSONPanel } from "../../components/JsonPanel";
 import { NoContentsPanel } from "../../components/NoContentsPanel";
 import {
+  kSampleErrorRetriesTabId,
   kSampleErrorTabId,
   kSampleJsonTabId,
   kSampleMessagesTabId,
@@ -239,6 +240,35 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
                 output={sample.error.traceback_ansi}
                 className={clsx("text-size-small", styles.ansi)}
               />
+            </div>
+          </TabPanel>
+        ) : null}
+        {sample?.error_retries ? (
+          <TabPanel
+            id={kSampleErrorRetriesTabId}
+            className="sample-tab"
+            title="Errors"
+            onSelected={onSelectedTab}
+            selected={effectiveSelectedTab === kSampleErrorRetriesTabId}
+          >
+            <div className={clsx(styles.padded)}>
+              {sample.error_retries.map((retry, index) => {
+                return (
+                  <Card key={`sample-retry-error-${index}`}>
+                    <CardHeader label={`Attempt ${index + 1}`} />
+                    <CardBody>
+                      <ANSIDisplay
+                        output={retry.traceback_ansi}
+                        className={clsx("text-size-small", styles.ansi)}
+                        style={{
+                          fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                          margin: "0.5em 0",
+                        }}
+                      />
+                    </CardBody>
+                  </Card>
+                );
+              })}
             </div>
           </TabPanel>
         ) : null}
