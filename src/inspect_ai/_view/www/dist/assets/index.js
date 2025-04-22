@@ -60287,7 +60287,7 @@ ${events}
                   children: sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.metadataPanel), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
-              (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) && (sample2 == null ? void 0 : sample2.error_retries.length) > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleErrorTabId,

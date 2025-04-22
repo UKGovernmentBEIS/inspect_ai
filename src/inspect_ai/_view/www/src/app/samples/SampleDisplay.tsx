@@ -226,7 +226,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             <NoContentsPanel text="No metadata" />
           )}
         </TabPanel>
-        {sample?.error || sample?.error_retries ? (
+        {sample?.error ||
+        (sample?.error_retries && sample?.error_retries.length > 0) ? (
           <TabPanel
             id={kSampleErrorTabId}
             className="sample-tab"
