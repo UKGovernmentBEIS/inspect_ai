@@ -105,5 +105,5 @@ def should_retry_chat_api_error(ex: BaseException) -> bool:
             isinstance(ex.__cause__, httpx.HTTPStatusError)
             and is_retryable_http_status(ex.__cause__.response.status_code)
         )
-        or isinstance(ex.__cause__, httpx.ReadTimeout)
+        or httpx_should_retry(ex.__cause__)
     )
