@@ -357,6 +357,7 @@ class TaskState:
         if self._completed:
             return True
         else:
+            # TODO: Remove check_token_limit and check_message_limit()
             check_token_limit()
             check_message_limit(len(self.messages), raise_for_equal=True)
             check_sample_interrupt()
