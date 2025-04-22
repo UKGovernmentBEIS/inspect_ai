@@ -39,10 +39,11 @@ export const InlineSampleDisplay: FC = () => {
           : true;
 
       if (
-        prevLogFile !== logSelection.logFile ||
+        (prevLogFile !== undefined && prevLogFile !== logSelection.logFile) ||
         sampleData.sample?.id !== logSelection.sample.id ||
         sampleData.sample?.epoch !== logSelection.sample.epoch ||
-        currentSampleCompleted !== prevCompleted
+        (prevCompleted !== undefined &&
+          currentSampleCompleted !== prevCompleted)
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
