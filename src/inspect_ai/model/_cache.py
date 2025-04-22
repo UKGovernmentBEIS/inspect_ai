@@ -8,6 +8,7 @@ from pathlib import Path
 from shutil import rmtree
 from typing import Any
 
+from anyio import open_file
 from dateutil.relativedelta import relativedelta
 
 from inspect_ai._util.appdirs import inspect_cache_dir
@@ -197,7 +198,7 @@ def _is_expired(expiry: datetime | None) -> bool:
     return datetime.now(timezone.utc) > expiry
 
 
-def cache_store(
+async def cache_store(
     entry: CacheEntry,
     output: ModelOutput,
 ) -> bool:
@@ -207,24 +208,26 @@ def cache_store(
     try:
         filename.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(filename, "wb") as f:
+        async with await open_file(filename, "wb") as f:
             expiry = _cache_expiry(entry.policy)
             trace("Storing in cache: %s (expires: %s)", filename, expiry)
-            pickle.dump((expiry, output), f)
+            entry_bytes = pickle.dumps((expiry, output))
+            await f.write(entry_bytes)
         return True
     except Exception as e:
         trace(f"Failed to cache {filename}: {e}")
         return False
 
 
-def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
+async def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
     """Fetch a value from the cache directory."""
     filename = cache_path(model=entry.model) / _cache_key(entry)
     try:
         trace("Fetching from cache: %s", filename)
 
-        with open(filename, "rb") as f:
-            expiry, output = pickle.load(f)
+        async with await open_file(filename, "rb") as f:
+            entry_bytes = await f.read()
+            expiry, output = pickle.loads(entry_bytes)
             if not isinstance(output, ModelOutput):
                 trace(
                     "Unexpected cached type, can only fetch ModelOutput: %s (%s)",

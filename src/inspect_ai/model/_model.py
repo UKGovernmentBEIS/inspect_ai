@@ -591,7 +591,7 @@ class Model:
                     tool_choice=tool_choice,
                     tools=tools_info,
                 )
-                existing = cache_fetch(cache_entry)
+                existing = await cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
                     self._record_model_interaction(
                         input=input,
@@ -675,7 +675,7 @@ class Model:
                 )
 
             if cache and cache_entry:
-                cache_store(entry=cache_entry, output=output)
+                await cache_store(entry=cache_entry, output=output)
 
             return output
 
