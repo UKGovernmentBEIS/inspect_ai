@@ -20088,7 +20088,7 @@ span.ap-marker-container:hover span.ap-marker {
 ._message_5y0hl_15 {
   width: 300px;
 }
-._grid_1oibv_1 {
+._grid_185sx_1 {
   display: grid;
   padding-top: 1em;
   padding-bottom: 1em;
@@ -20100,40 +20100,45 @@ span.ap-marker-container:hover span.ap-marker {
   padding-right: 1rem;
 }
 
-._selected_1oibv_13 {
+._selected_185sx_13 {
   box-shadow: inset 0 0 0px 2px var(--bs-focus-ring-color);
 }
 
-._sampleRowLink_1oibv_17 {
+._sampleRowLink_185sx_17 {
   text-decoration: none;
   color: inherit;
   display: block;
 }
 
-._disabled_1oibv_23 {
+._disabled_185sx_23 {
   cursor: not-allowed;
   opacity: 0.7;
 }
 
-._cell_1oibv_28 {
+._cell_185sx_28 {
   padding-left: 0;
   padding-right: 0;
 }
 
-._wrapAnywhere_1oibv_33 {
+._wrapAnywhere_185sx_33 {
   word-wrap: anywhere;
 }
 
-._noLeft_1oibv_37 {
+._noLeft_185sx_37 {
   padding-left: 0;
 }
 
-._score_1oibv_41 {
+._score_185sx_41 {
   display: flex;
   justify-self: center;
 }
 
-._spinner_1oibv_46 {
+._centered_185sx_46 {
+  display: flex;
+  justify-content: center;
+}
+
+._spinner_185sx_51 {
   height: 1.4em;
   width: 1.4em;
   color: var(--bs-focus-ring-color);

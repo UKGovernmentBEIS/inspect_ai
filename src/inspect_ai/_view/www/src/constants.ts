@@ -12,6 +12,7 @@ export const kSampleTranscriptTabId = `transcript`;
 export const kSampleScoringTabId = `scoring`;
 export const kSampleMetdataTabId = `metadata`;
 export const kSampleErrorTabId = `error`;
+export const kSampleErrorRetriesTabId = `retry-errors`;
 export const kSampleJsonTabId = `json`;
 
 // Scoring constants

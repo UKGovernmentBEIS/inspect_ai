@@ -16,9 +16,9 @@ import clsx from "clsx";
 import { EditorView, minimalSetup } from "codemirror";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 
+import { ScoreFilter } from "../../../../app/types";
 import { SampleSummary } from "../../../../client/api/types";
 import { useEvalDescriptor } from "../../../../state/hooks";
-import { ScoreFilter } from "../../../../app/types";
 import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
 import { getCompletions } from "./completions";
@@ -43,6 +43,7 @@ Filter samples by:
   • Scores
   • Samples with errors: has_error
   • Input, target and error regex search: input_contains, target_contains, error_contains
+  • Samples that have been retried: has_retries
 
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^

@@ -329,6 +329,9 @@ class ZipLogFile:
                         limit=f"{sample.limit.type}"
                         if sample.limit is not None
                         else None,
+                        retries=len(sample.error_retries)
+                        if sample.error_retries is not None
+                        else None,
                     )
                 )
             self._samples.clear()
