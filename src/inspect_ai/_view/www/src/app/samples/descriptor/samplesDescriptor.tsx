@@ -298,11 +298,12 @@ export const createSamplesDescriptor = (
         : current.error
           ? String(current.error)
           : "";
-      previous[0] = Math.min(Math.max(previous[0], text.length), 300);
+      previous[0] = Math.min(Math.max(previous[0], text.length), 200);
       previous[1] = Math.min(
         Math.max(previous[1], arrayToString(current.target).length),
         300,
       );
+
       previous[2] = Math.min(
         Math.max(
           previous[2],
@@ -317,10 +318,17 @@ export const createSamplesDescriptor = (
         50,
       );
       previous[4] = Math.min(
-        Math.max(previous[4], String(current.id).length),
+        Math.max(
+          previous[4],
+          current.retries ? String(current.retries).length : 0,
+        ),
+        50,
+      );
+      previous[5] = Math.min(
+        Math.max(previous[5], String(current.id).length),
         10,
       );
-      previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+      previous[6] = Math.min(Math.max(previous[6], scoreText.length), 30);
 
       return previous;
     },
@@ -333,14 +341,16 @@ export const createSamplesDescriptor = (
     target: Math.min(sizes[1], 300),
     answer: Math.min(sizes[2], 300),
     limit: Math.min(sizes[3], 50),
-    id: Math.min(sizes[4], 10),
-    score: Math.min(sizes[5], 30),
+    retries: Math.min(sizes[4], 50),
+    id: Math.min(sizes[5], 10),
+    score: Math.min(sizes[6], 30),
   };
   const base =
     maxSizes.input +
       maxSizes.target +
       maxSizes.answer +
       maxSizes.limit +
+      maxSizes.retries +
       maxSizes.id +
       maxSizes.score || 1;
   const messageShape = {
@@ -349,14 +359,16 @@ export const createSamplesDescriptor = (
       target: sizes[1],
       answer: sizes[2],
       limit: sizes[3],
-      id: sizes[4],
-      score: sizes[5],
+      retries: sizes[4],
+      id: sizes[5],
+      score: sizes[6],
     },
     normalized: {
       input: maxSizes.input / base,
       target: maxSizes.target / base,
       answer: maxSizes.answer / base,
       limit: maxSizes.limit / base,
+      retries: maxSizes.retries / base,
       id: maxSizes.id / base,
       score: maxSizes.score / base,
     },

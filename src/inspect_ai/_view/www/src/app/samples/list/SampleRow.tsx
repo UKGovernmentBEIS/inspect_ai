@@ -103,7 +103,17 @@ export const SampleRow: FC<SampleRowProps> = ({
       >
         {sample.limit}
       </div>
-
+      <div
+        className={clsx(
+          "sample-retries",
+          "text-size-small",
+          "three-line-clamp",
+          styles.cell,
+          styles.centered,
+        )}
+      >
+        {sample.retries && sample.retries > 0 ? sample.retries : undefined}
+      </div>
       <div className={clsx("text-size-small", styles.cell, styles.score)}>
         {sample.error ? (
           <SampleErrorView message={sample.error} />

@@ -31,7 +31,7 @@ import {
   kSampleScoringTabId,
   kSampleTranscriptTabId,
 } from "../../constants";
-import { useSampleData, useSampleSummaries } from "../../state/hooks";
+import { useFilteredSamples, useSampleData } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
 import { printHeadingHtml, printHtml } from "../../utils/print";
@@ -55,7 +55,7 @@ interface SampleDisplayProps {
 export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Tab ids
   const baseId = `sample-dialog`;
-  const sampleSummaries = useSampleSummaries();
+  const filteredSamples = useFilteredSamples();
   const selectedSampleIndex = useStore(
     (state) => state.log.selectedSampleIndex,
   );
@@ -77,7 +77,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Navigation hook for URL updates
   const navigate = useNavigate();
 
-  const sampleSummary = sampleSummaries[selectedSampleIndex];
+  const sampleSummary = filteredSamples[selectedSampleIndex];
 
   // Consolidate the events and messages into the proper list
   // whether running or not

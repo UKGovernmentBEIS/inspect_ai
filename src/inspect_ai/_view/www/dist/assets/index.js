@@ -23965,6 +23965,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       play: "bi bi-play-fill",
       previous: "bi bi-chevron-left",
       refresh: "bi bi-arrow-clockwise",
+      retry: "bi bi-arrow-repeat",
       role: {
         user: "bi bi-person",
         system: "bi bi-cpu",
@@ -39331,7 +39332,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           const score2 = selectedScore ? evalDescriptor.score(current2, selectedScore) : void 0;
           const scoreValue = score2 == null ? void 0 : score2.value;
           const scoreText = scoreValue ? String(scoreValue) : current2.error ? String(current2.error) : "";
-          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
+          previous[0] = Math.min(Math.max(previous[0], text2.length), 200);
           previous[1] = Math.min(
             Math.max(previous[1], arrayToString(current2.target).length),
             300
@@ -39348,10 +39349,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             50
           );
           previous[4] = Math.min(
-            Math.max(previous[4], String(current2.id).length),
+            Math.max(
+              previous[4],
+              current2.retries ? String(current2.retries).length : 0
+            ),
+            50
+          );
+          previous[5] = Math.min(
+            Math.max(previous[5], String(current2.id).length),
             10
           );
-          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+          previous[6] = Math.min(Math.max(previous[6], scoreText.length), 30);
           return previous;
         },
         [0, 0, 0, 0, 0, 0]
@@ -39361,24 +39369,27 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         target: Math.min(sizes[1], 300),
         answer: Math.min(sizes[2], 300),
         limit: Math.min(sizes[3], 50),
-        id: Math.min(sizes[4], 10),
-        score: Math.min(sizes[5], 30)
+        retries: Math.min(sizes[4], 50),
+        id: Math.min(sizes[5], 10),
+        score: Math.min(sizes[6], 30)
       };
-      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
+      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.retries + maxSizes.id + maxSizes.score || 1;
       const messageShape = {
         raw: {
           input: sizes[0],
           target: sizes[1],
           answer: sizes[2],
           limit: sizes[3],
-          id: sizes[4],
-          score: sizes[5]
+          retries: sizes[4],
+          id: sizes[5],
+          score: sizes[6]
         },
         normalized: {
           input: maxSizes.input / base2,
           target: maxSizes.target / base2,
           answer: maxSizes.answer / base2,
           limit: maxSizes.limit / base2,
+          retries: maxSizes.retries / base2,
           id: maxSizes.id / base2,
           score: maxSizes.score / base2
         }
@@ -50764,10 +50775,10 @@ self.onmessage = function (e) {
       value
     };
     function isEvalSample(sample2) {
-      return "choices" in sample2 && Array.isArray(sample2.choices);
+      return "store" in sample2;
     }
     const resolveSample = (sample2, sampleDescriptor) => {
-      var _a2, _b2, _c;
+      var _a2, _b2, _c, _d;
       const input2 = inputString(sample2.input);
       if (isEvalSample(sample2) && sample2.choices && sample2.choices.length > 0) {
         input2.push("");
@@ -50783,12 +50794,14 @@ self.onmessage = function (e) {
       const working_time = isEvalSample(sample2) ? sample2.working_time : void 0;
       const total_time = isEvalSample(sample2) ? sample2.total_time : void 0;
       const error2 = isEvalSample(sample2) ? (_c = sample2.error) == null ? void 0 : _c.message : void 0;
+      const retries = isEvalSample(sample2) ? (_d = sample2.error_retries) == null ? void 0 : _d.length : sample2.retries;
       return {
         id: sample2.id,
         input: input2,
         target: target2,
         answer: answer2,
         limit,
+        retries,
         working_time,
         total_time,
         error: error2
@@ -50809,7 +50822,7 @@ self.onmessage = function (e) {
       const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
-      const timeSize = fields.working_time || fields.total_time ? 0.15 : 0;
+      const retrySize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.retries) > 0 ? 6 : 0;
       const idSize = Math.max(
         2,
         Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id)
@@ -50850,7 +50863,7 @@ self.onmessage = function (e) {
               className: clsx("no-last-para-padding", styles$x.answer)
             }
           ) : "",
-          size: `${answer2}fr`,
+          size: `${Math.max(answer2, 20)}fr`,
           clamp: true
         });
       }
@@ -50864,7 +50877,7 @@ self.onmessage = function (e) {
         columns.push({
           label: "Time",
           value: formatTime$1(fields.total_time),
-          size: `${timeSize}fr`,
+          size: `fit-content(10rem)`,
           center: true,
           title: toolTip(fields.working_time)
         });
@@ -50873,14 +50886,22 @@ self.onmessage = function (e) {
         columns.push({
           label: "Limit",
           value: fields.limit,
-          size: `${limitSize}fr`,
+          size: `fit-content(10rem)`,
+          center: true
+        });
+      }
+      if ((fields == null ? void 0 : fields.retries) && retrySize > 0) {
+        columns.push({
+          label: "Retries",
+          value: fields.retries,
+          size: `${retrySize}rem`,
           center: true
         });
       }
       columns.push({
         label: "Score",
         value: fields.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(FlatSampleError, { message: fields.error }) : ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.evalDescriptor.score(sample2, currentScore)) == null ? void 0 : _a2.render()) || "",
-        size: "minmax(2em, 30em)",
+        size: "fit-content(15em)",
         center: true
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -60112,7 +60133,7 @@ ${events}
     );
     const SampleDisplay = ({ id, scrollRef }) => {
       const baseId = `sample-dialog`;
-      const sampleSummaries = useSampleSummaries();
+      const filteredSamples = useFilteredSamples();
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
       );
@@ -60124,7 +60145,7 @@ ${events}
       const { sampleTabId } = useParams();
       const effectiveSelectedTab = sampleTabId || selectedTab;
       const navigate = useNavigate();
-      const sampleSummary = sampleSummaries[selectedSampleIndex];
+      const sampleSummary = filteredSamples[selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || runningSampleData;
       const sampleMessages = reactExports.useMemo(() => {
         if (sample2 == null ? void 0 : sample2.messages) {
@@ -81422,13 +81443,14 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$6.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
       ] });
     };
-    const grid = "_grid_1oibv_1";
-    const selected = "_selected_1oibv_13";
-    const disabled = "_disabled_1oibv_23";
-    const cell = "_cell_1oibv_28";
-    const wrapAnywhere = "_wrapAnywhere_1oibv_33";
-    const noLeft = "_noLeft_1oibv_37";
-    const score = "_score_1oibv_41";
+    const grid = "_grid_185sx_1";
+    const selected = "_selected_185sx_13";
+    const disabled = "_disabled_185sx_23";
+    const cell = "_cell_185sx_28";
+    const wrapAnywhere = "_wrapAnywhere_185sx_33";
+    const noLeft = "_noLeft_185sx_37";
+    const score = "_score_185sx_41";
+    const centered = "_centered_185sx_46";
     const styles$5 = {
       grid,
       selected,
@@ -81436,7 +81458,8 @@ Supported expressions:
       cell,
       wrapAnywhere,
       noLeft,
-      score
+      score,
+      centered
     };
     const SampleRow = ({
       id,
@@ -81512,6 +81535,19 @@ Supported expressions:
                 children: sample2.limit
               }
             ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  "sample-retries",
+                  "text-size-small",
+                  "three-line-clamp",
+                  styles$5.cell,
+                  styles$5.centered
+                ),
+                children: sample2.retries && sample2.retries > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.retry) }) : void 0
+              }
+            ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$5.cell, styles$5.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : completed ? scoreRendered : /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, {}) })
           ]
         }
@@ -81584,6 +81620,7 @@ Supported expressions:
       target: target2 = true,
       answer: answer2 = true,
       limit = true,
+      retries = false,
       score: score2 = true,
       gridColumnsTemplate
     }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -81602,6 +81639,7 @@ Supported expressions:
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 ? "Target" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: answer2 ? "Answer" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: limit ? "Limit" : "" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: retries ? "Retried" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$2.center, children: score2 ? "Score" : "" })
         ]
       }
@@ -81714,7 +81752,7 @@ Supported expressions:
         },
         [gridColumnsTemplate]
       );
-      const { input: input2, limit, answer: answer2, target: target2 } = gridColumns(samplesDescriptor);
+      const { input: input2, limit, answer: answer2, target: target2, retries } = gridColumns(samplesDescriptor);
       const sampleCount = items == null ? void 0 : items.reduce((prev, current2) => {
         if (current2.type === "sample") {
           return prev + 1;
@@ -81754,6 +81792,7 @@ Supported expressions:
             target: target2 !== "0",
             answer: answer2 !== "0",
             limit: limit !== "0",
+            retries: retries !== "0em",
             gridColumnsTemplate
           }
         ),
@@ -81794,14 +81833,15 @@ Supported expressions:
       ] });
     });
     const gridColumnsValue = (sampleDescriptor) => {
-      const { input: input2, target: target2, answer: answer2, limit, id, score: score2 } = gridColumns(sampleDescriptor);
-      return `${id} ${input2} ${target2} ${answer2} ${limit} ${score2}`;
+      const { input: input2, target: target2, answer: answer2, limit, retries, id, score: score2 } = gridColumns(sampleDescriptor);
+      return `${id} ${input2} ${target2} ${answer2} ${limit} ${retries} ${score2}`;
     };
     const gridColumns = (sampleDescriptor) => {
       const input2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
       const target2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.target > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.answer > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limit = sampleDescriptor && sampleDescriptor.messageShape.normalized.limit > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
+      const retries = sampleDescriptor && sampleDescriptor.messageShape.normalized.retries > 0 ? 4 : 0;
       const id = Math.max(
         2,
         Math.min(10, (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id) || 0)
@@ -81822,6 +81862,7 @@ Supported expressions:
         target: frSize(target2),
         answer: frSize(answer2),
         limit: frSize(limit),
+        retries: `${retries}em`,
         id: `${id}rem`,
         score: `${score2}rem`
       };
