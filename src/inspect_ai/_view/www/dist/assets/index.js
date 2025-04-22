@@ -22658,7 +22658,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const kSampleScoringTabId = `scoring`;
     const kSampleMetdataTabId = `metadata`;
     const kSampleErrorTabId = `error`;
-    const kSampleErrorRetriesTabId = `retry-errors`;
     const kSampleJsonTabId = `json`;
     const kScoreTypePassFail = "passfail";
     const kScoreTypeCategorical = "categorical";
@@ -29114,7 +29113,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const baseMinusTMin = base$1 - tMin;
     const floor = Math.floor;
     const stringFromCharCode = String.fromCharCode;
-    function error$1(type) {
+    function error$2(type) {
       throw new RangeError(errors[type]);
     }
     function map(array, callback) {
@@ -29194,7 +29193,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       for (let j2 = 0; j2 < basic; ++j2) {
         if (input2.charCodeAt(j2) >= 128) {
-          error$1("not-basic");
+          error$2("not-basic");
         }
         output2.push(input2.charCodeAt(j2));
       }
@@ -29202,14 +29201,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         const oldi = i2;
         for (let w = 1, k = base$1; ; k += base$1) {
           if (index2 >= inputLength) {
-            error$1("invalid-input");
+            error$2("invalid-input");
           }
           const digit = basicToDigit(input2.charCodeAt(index2++));
           if (digit >= base$1) {
-            error$1("invalid-input");
+            error$2("invalid-input");
           }
           if (digit > floor((maxInt - i2) / w)) {
-            error$1("overflow");
+            error$2("overflow");
           }
           i2 += digit * w;
           const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
@@ -29218,14 +29217,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           const baseMinusT = base$1 - t2;
           if (w > floor(maxInt / baseMinusT)) {
-            error$1("overflow");
+            error$2("overflow");
           }
           w *= baseMinusT;
         }
         const out = output2.length + 1;
         bias = adapt(i2 - oldi, out, oldi == 0);
         if (floor(i2 / out) > maxInt - n) {
-          error$1("overflow");
+          error$2("overflow");
         }
         n += floor(i2 / out);
         i2 %= out;
@@ -29259,13 +29258,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         const handledCPCountPlusOne = handledCPCount + 1;
         if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
-          error$1("overflow");
+          error$2("overflow");
         }
         delta += (m - n) * handledCPCountPlusOne;
         n = m;
         for (const currentValue of input2) {
           if (currentValue < n && ++delta > maxInt) {
-            error$1("overflow");
+            error$2("overflow");
           }
           if (currentValue === n) {
             let q = delta;
@@ -42899,11 +42898,11 @@ categories: ${categories.join(" ")}`;
       item: item$1,
       logLink
     };
-    const error = "_error_srruf_1";
+    const error$1 = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
     const styles$11 = {
-      error,
+      error: error$1,
       running,
       cancelled
     };
@@ -50718,19 +50717,21 @@ self.onmessage = function (e) {
         );
       }
     );
-    const tabPanel = "_tabPanel_cjf1d_1";
-    const fullWidth$1 = "_fullWidth_cjf1d_5";
-    const metadataPanel = "_metadataPanel_cjf1d_9";
-    const padded = "_padded_cjf1d_18";
-    const ansi = "_ansi_cjf1d_23";
-    const noTop = "_noTop_cjf1d_27";
-    const timePanel = "_timePanel_cjf1d_31";
-    const chat = "_chat_cjf1d_39";
+    const tabPanel = "_tabPanel_1p5e1_1";
+    const fullWidth$1 = "_fullWidth_1p5e1_5";
+    const metadataPanel = "_metadataPanel_1p5e1_9";
+    const padded = "_padded_1p5e1_18";
+    const error = "_error_1p5e1_23";
+    const ansi = "_ansi_1p5e1_27";
+    const noTop = "_noTop_1p5e1_31";
+    const timePanel = "_timePanel_1p5e1_35";
+    const chat = "_chat_1p5e1_43";
     const styles$z = {
       tabPanel,
       fullWidth: fullWidth$1,
       metadataPanel,
       padded,
+      error,
       ansi,
       noTop,
       timePanel,
@@ -60135,6 +60136,7 @@ ${events}
       }
     );
     const SampleDisplay = ({ id, scrollRef }) => {
+      var _a2;
       const baseId = `sample-dialog`;
       const filteredSamples = useFilteredSamples();
       const selectedSampleIndex = useStore(
@@ -60285,38 +60287,21 @@ ${events}
                   children: sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.metadataPanel), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
-              (sample2 == null ? void 0 : sample2.error) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleErrorTabId,
                   className: "sample-tab",
-                  title: "Error",
-                  onSelected: onSelectedTab,
-                  selected: effectiveSelectedTab === kSampleErrorTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    ANSIDisplay,
-                    {
-                      output: sample2.error.traceback_ansi,
-                      className: clsx("text-size-small", styles$z.ansi)
-                    }
-                  ) })
-                }
-              ) : null,
-              (sample2 == null ? void 0 : sample2.error_retries) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                TabPanel,
-                {
-                  id: kSampleErrorRetriesTabId,
-                  className: "sample-tab",
                   title: "Errors",
                   onSelected: onSelectedTab,
-                  selected: effectiveSelectedTab === kSampleErrorRetriesTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.padded), children: sample2.error_retries.map((retry, index2) => {
-                    return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
-                      /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: `Attempt ${index2 + 1}` }),
+                  selected: effectiveSelectedTab === kSampleErrorTabId,
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$z.error), children: [
+                    (sample2 == null ? void 0 : sample2.error) ? /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: `Sample Error` }),
                       /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                         ANSIDisplay,
                         {
-                          output: retry.traceback_ansi,
+                          output: sample2.error.traceback_ansi,
                           className: clsx("text-size-small", styles$z.ansi),
                           style: {
                             fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
@@ -60324,8 +60309,24 @@ ${events}
                           }
                         }
                       ) })
-                    ] }, `sample-retry-error-${index2}`);
-                  }) })
+                    ] }, `sample-error}`) : void 0,
+                    (_a2 = sample2.error_retries) == null ? void 0 : _a2.map((retry, index2) => {
+                      return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: `Attempt ${index2 + 1}` }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                          ANSIDisplay,
+                          {
+                            output: retry.traceback_ansi,
+                            className: clsx("text-size-small", styles$z.ansi),
+                            style: {
+                              fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                              margin: "0.5em 0"
+                            }
+                          }
+                        ) })
+                      ] }, `sample-retry-error-${index2}`);
+                    })
+                  ] })
                 }
               ) : null,
               /* @__PURE__ */ jsxRuntimeExports.jsx(

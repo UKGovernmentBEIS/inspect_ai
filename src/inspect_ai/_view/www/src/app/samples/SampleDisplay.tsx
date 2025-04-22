@@ -24,7 +24,6 @@ import { Card, CardBody, CardHeader } from "../../components/Card";
 import { JSONPanel } from "../../components/JsonPanel";
 import { NoContentsPanel } from "../../components/NoContentsPanel";
 import {
-  kSampleErrorRetriesTabId,
   kSampleErrorTabId,
   kSampleJsonTabId,
   kSampleMessagesTabId,
@@ -227,32 +226,31 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             <NoContentsPanel text="No metadata" />
           )}
         </TabPanel>
-        {sample?.error ? (
+        {sample?.error || sample?.error_retries ? (
           <TabPanel
             id={kSampleErrorTabId}
             className="sample-tab"
-            title="Error"
+            title="Errors"
             onSelected={onSelectedTab}
             selected={effectiveSelectedTab === kSampleErrorTabId}
           >
-            <div className={clsx(styles.padded)}>
-              <ANSIDisplay
-                output={sample.error.traceback_ansi}
-                className={clsx("text-size-small", styles.ansi)}
-              />
-            </div>
-          </TabPanel>
-        ) : null}
-        {sample?.error_retries ? (
-          <TabPanel
-            id={kSampleErrorRetriesTabId}
-            className="sample-tab"
-            title="Errors"
-            onSelected={onSelectedTab}
-            selected={effectiveSelectedTab === kSampleErrorRetriesTabId}
-          >
-            <div className={clsx(styles.padded)}>
-              {sample.error_retries.map((retry, index) => {
+            <div className={clsx(styles.error)}>
+              {sample?.error ? (
+                <Card key={`sample-error}`}>
+                  <CardHeader label={`Sample Error`} />
+                  <CardBody>
+                    <ANSIDisplay
+                      output={sample.error.traceback_ansi}
+                      className={clsx("text-size-small", styles.ansi)}
+                      style={{
+                        fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                        margin: "0.5em 0",
+                      }}
+                    />
+                  </CardBody>
+                </Card>
+              ) : undefined}
+              {sample.error_retries?.map((retry, index) => {
                 return (
                   <Card key={`sample-retry-error-${index}`}>
                     <CardHeader label={`Attempt ${index + 1}`} />
