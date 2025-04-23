@@ -26,7 +26,6 @@ from anthropic.types import (
     TextBlockParam,
     ThinkingBlock,
     ThinkingBlockParam,
-    ToolBash20250124Param,
     ToolParam,
     ToolResultBlockParam,
     ToolTextEditor20250124Param,
@@ -489,11 +488,7 @@ class AnthropicAPI(ModelAPI):
         self, tool: ToolInfo, config: GenerateConfig
     ) -> Optional["ToolParamDef"]:
         return (
-            (
-                self.computer_use_tool_param(tool)
-                or self.text_editor_tool_param(tool)
-                or self.bash_tool_param(tool)
-            )
+            (self.computer_use_tool_param(tool) or self.text_editor_tool_param(tool))
             if config.internal_tools is not False
             else None
         )
@@ -564,23 +559,10 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
-    def bash_tool_param(self, tool: ToolInfo) -> Optional[ToolBash20250124Param]:
-        # check for compatible 'bash' tool
-        if tool.name == "bash_session" and (
-            sorted(tool.parameters.properties.keys()) == sorted(["command", "restart"])
-        ):
-            return ToolBash20250124Param(type="bash_20250124", name="bash")
-        # not a bash tool
-        else:
-            return None
-
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
 ToolParamDef = (
-    ToolParam
-    | BetaToolComputerUse20250124Param
-    | ToolTextEditor20250124Param
-    | ToolBash20250124Param
+    ToolParam | BetaToolComputerUse20250124Param | ToolTextEditor20250124Param
 )
 
 
@@ -589,7 +571,6 @@ def add_cache_control(
     | ToolParam
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
-    | ToolBash20250124Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
