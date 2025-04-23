@@ -4,6 +4,11 @@
   margin-bottom: 1rem;
 }
 
+.toolView {
+  margin-top: 0.25em;
+  margin-bottom: 1rem;
+}
+
 .outputCode {
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;

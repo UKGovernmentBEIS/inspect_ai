@@ -15597,13 +15597,18 @@ pre[class*="language-"] {
 }
 ._output_xshyh_1 {
 }
-._outputPre_1cvxm_1 {
+._outputPre_1ltrr_1 {
   padding: 0.5em;
   margin-top: 0.25em;
   margin-bottom: 1rem;
 }
 
-._outputCode_1cvxm_7 {
+._toolView_1ltrr_7 {
+  margin-top: 0.25em;
+  margin-bottom: 1rem;
+}
+
+._outputCode_1ltrr_12 {
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }

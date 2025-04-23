@@ -22,7 +22,7 @@ export const ToolInput: FC<ToolInputProps> = (props) => {
       <MarkdownDiv
         markdown={toolCallView.content}
         ref={prismParentRef}
-        className={clsx("text-size-small", "tool-output")}
+        className={clsx("text-size-small", "tool-output", styles.toolView)}
       />
     );
   }
