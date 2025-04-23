@@ -56,7 +56,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
   // are already shown in the tool call above)
   const userMessages = [];
   for (const msg of event.input.slice().reverse()) {
-    if (msg.role === "user" && !msg.tool_call_id) {
+    if ((msg.role === "user" && !msg.tool_call_id) || msg.role === "system") {
       userMessages.push(msg);
     } else {
       break;

@@ -51750,7 +51750,7 @@ self.onmessage = function (e) {
       delete entries["max_connections"];
       const userMessages = [];
       for (const msg of event.input.slice().reverse()) {
-        if (msg.role === "user" && !msg.tool_call_id) {
+        if (msg.role === "user" && !msg.tool_call_id || msg.role === "system") {
           userMessages.push(msg);
         } else {
           break;
@@ -59690,7 +59690,8 @@ ${events}
             };
           case "system_message":
             return {
-              ...rootStepDescriptor
+              ...rootStepDescriptor,
+              collapse: true
             };
           case "use_tools":
             return {
