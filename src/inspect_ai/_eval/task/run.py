@@ -65,7 +65,6 @@ from inspect_ai.log._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     ScoreEvent,
-    StepEvent,
     Transcript,
     transcript,
 )
@@ -91,6 +90,7 @@ from inspect_ai.solver._task_state import sample_state, set_sample_state, state_
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+from inspect_ai.util._span import span
 from inspect_ai.util._subtask import init_subtask
 
 from ..context import init_task_context
@@ -617,7 +617,8 @@ async def task_run_sample(
         results: dict[str, SampleScore] = {}
         try:
             # begin init
-            transcript()._event(StepEvent(action="begin", name="init"))
+            init_span = span(name="init", type="init")
+            init_span.__enter__()
 
             # sample init event (remove file bodies as they have content or absolute paths)
             event_sample = sample.model_copy(
@@ -639,7 +640,7 @@ async def task_run_sample(
                     active.sandboxes = await sandbox_connections()
 
                     # end init
-                    transcript()._event(StepEvent(action="end", name="init"))
+                    init_span.__exit__(None, None, None)
 
                     # initialise timeout context manager
                     timeout_cm = (
@@ -742,7 +743,7 @@ async def task_run_sample(
                                 scorer_name = unique_scorer_name(
                                     scorer, list(results.keys())
                                 )
-                                with transcript().step(name=scorer_name, type="scorer"):
+                                with span(name=scorer_name, type="scorer"):
                                     score_result = (
                                         await scorer(state, Target(sample.target))
                                         if scorer

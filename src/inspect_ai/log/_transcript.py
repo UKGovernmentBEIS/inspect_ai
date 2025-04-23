@@ -23,9 +23,9 @@ from pydantic import (
 )
 from shortuuid import uuid
 
-from inspect_ai._util.constants import SAMPLE_SUBTASK
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.json import JsonChange, json_changes
+from inspect_ai._util.json import JsonChange
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.working import sample_working_time
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
@@ -34,7 +34,6 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
-from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -44,6 +43,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._span import span
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 logger = getLogger(__name__)
@@ -402,6 +402,38 @@ class ScoreEvent(BaseEvent):
     """Was this an intermediate scoring?"""
 
 
+class SpanBeginEvent(BaseEvent):
+    """Mark the beginning of a transcript span."""
+
+    event: Literal["span_begin"] = Field(default="span_begin")
+    """Event type."""
+
+    id: str
+    """Unique identifier for span."""
+
+    parent_id: str | None = Field(default=None)
+    """Identifier for parent span."""
+
+    task_id: int
+    """Runtime async task id for span."""
+
+    type: str | None = Field(default=None)
+    """Optional 'type' field for span."""
+
+    name: str
+    """Span name."""
+
+
+class SpanEndEvent(BaseEvent):
+    """Mark the end of a transcript span."""
+
+    event: Literal["span_end"] = Field(default="span_end")
+    """Event type."""
+
+    id: str
+    """Unique identifier for span."""
+
+
 class StepEvent(BaseEvent):
     """Step within current sample or subtask."""
 
@@ -467,6 +499,8 @@ Event: TypeAlias = Union[
     | ErrorEvent
     | LoggerEvent
     | InfoEvent
+    | SpanBeginEvent
+    | SpanEndEvent
     | StepEvent
     | SubtaskEvent,
 ]
@@ -498,19 +532,20 @@ class Transcript:
     def step(self, name: str, type: str | None = None) -> Iterator[None]:
         """Context manager for recording StepEvent.
 
+        The `step()` context manager is deprecated and will be removed in a future version.
+        Please use the `span()` context manager instead.
+
         Args:
             name (str): Step name.
             type (str | None): Optional step type.
         """
-        # step event
-        self._event(StepEvent(action="begin", name=name, type=type))
-
-        # run the step (tracking state/store changes)
-        with track_state_changes(type), track_store_changes():
+        warn_once(
+            logger,
+            "The `transcript().step()` context manager is deprecated and will "
+            + "be removed in a future version. Please use the span() context manager instead.",
+        )
+        with span(name=name, type=type):
             yield
-
-        # end step event
-        self._event(StepEvent(action="end", name=name, type=type))
 
     @property
     def events(self) -> Sequence[Event]:
@@ -549,23 +584,6 @@ def track_store_changes() -> Iterator[None]:
     changes = store_changes(before, after)
     if changes:
         transcript()._event(StoreEvent(changes=changes))
-
-
-@contextlib.contextmanager
-def track_state_changes(type: str | None = None) -> Iterator[None]:
-    # we only want to track for step() inside the the sample
-    # (solver level tracking is handled already and there are
-    # no state changes in subtasks)
-    if transcript().name == SAMPLE_SUBTASK and type != "solver":
-        before = state_jsonable()
-        yield
-        after = state_jsonable()
-
-        changes = json_changes(before, after)
-        if changes:
-            transcript()._event(StateEvent(changes=changes))
-    else:
-        yield
 
 
 def init_transcript(transcript: Transcript) -> None:
