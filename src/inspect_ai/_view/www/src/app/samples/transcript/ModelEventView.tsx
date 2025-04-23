@@ -9,6 +9,7 @@ import {
   ModelEvent,
   Request,
   Response,
+  ToolChoice,
   Tools1,
 } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
@@ -48,7 +49,6 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
   });
 
   const entries: Record<string, unknown> = { ...event.config };
-  entries["tool_choice"] = event.tool_choice;
   delete entries["max_connections"];
 
   // For any user messages which immediately preceded this model call, including a
@@ -90,9 +90,14 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
       </div>
       <div data-name="All" className={styles.container}>
         <div className={styles.all}>
-          <EventSection title="Configuration" className={styles.tableSelection}>
-            <MetaDataGrid entries={entries} plain={true} />
-          </EventSection>
+          {Object.keys(entries).length > 0 && (
+            <EventSection
+              title="Configuration"
+              className={styles.tableSelection}
+            >
+              <MetaDataGrid entries={entries} plain={true} />
+            </EventSection>
+          )}
 
           <EventSection title="Usage" className={styles.tableSelection}>
             {event.output.usage !== null ? (
@@ -108,13 +113,6 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
               working_time={event.working_time}
             />
           </EventSection>
-
-          <EventSection
-            title="Tools"
-            className={clsx(styles.tableSelection, styles.tools)}
-          >
-            <ToolsConfig tools={event.tools} />
-          </EventSection>
         </div>
 
         <EventSection title="Messages">
@@ -124,6 +122,12 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           />
         </EventSection>
       </div>
+
+      {event.tools.length > 1 && (
+        <div data-name="Tools" className={styles.container}>
+          <ToolsConfig tools={event.tools} toolChoice={event.tool_choice} />
+        </div>
+      )}
 
       {event.call ? (
         <APIView
@@ -191,9 +195,10 @@ export const APICodeCell: FC<APICodeCellProps> = ({ id, contents }) => {
 
 interface ToolConfigProps {
   tools: Tools1;
+  toolChoice: ToolChoice;
 }
 
-const ToolsConfig: FC<ToolConfigProps> = ({ tools }) => {
+const ToolsConfig: FC<ToolConfigProps> = ({ tools, toolChoice }) => {
   const toolEls = tools.map((tool, idx) => {
     return (
       <Fragment key={`${tool.name}-${idx}`}>
@@ -205,5 +210,29 @@ const ToolsConfig: FC<ToolConfigProps> = ({ tools }) => {
     );
   });
 
-  return <div className={styles.toolConfig}>{toolEls}</div>;
+  return (
+    <>
+      <div className={styles.toolConfig}>{toolEls}</div>
+      <div className={styles.toolChoice}>
+        <div className={clsx("text-style-label", "text-style-secondary")}>
+          Tool Choice
+        </div>
+        <div>
+          <ToolChoiceView toolChoice={toolChoice} />
+        </div>
+      </div>
+    </>
+  );
+};
+
+interface ToolChoiceViewProps {
+  toolChoice: ToolChoice;
+}
+
+const ToolChoiceView: FC<ToolChoiceViewProps> = ({ toolChoice }) => {
+  if (typeof toolChoice === "string") {
+    return toolChoice;
+  } else {
+    return <code>`${toolChoice.name}()`</code>;
+  }
 };

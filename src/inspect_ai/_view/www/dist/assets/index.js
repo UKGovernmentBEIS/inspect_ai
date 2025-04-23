@@ -51601,23 +51601,23 @@ self.onmessage = function (e) {
         children2
       ] });
     };
-    const container$4 = "_container_m6aq8_1";
-    const all = "_all_m6aq8_6";
-    const tableSelection = "_tableSelection_m6aq8_12";
-    const tools$1 = "_tools_m6aq8_18";
-    const codePre = "_codePre_m6aq8_22";
-    const code$2 = "_code_m6aq8_22";
-    const toolConfig = "_toolConfig_m6aq8_34";
-    const progress$1 = "_progress_m6aq8_41";
+    const container$4 = "_container_rs4y7_1";
+    const all = "_all_rs4y7_6";
+    const tableSelection = "_tableSelection_rs4y7_12";
+    const codePre = "_codePre_rs4y7_22";
+    const code$2 = "_code_rs4y7_22";
+    const progress$1 = "_progress_rs4y7_34";
+    const toolConfig = "_toolConfig_rs4y7_38";
+    const toolChoice = "_toolChoice_rs4y7_46";
     const styles$n = {
       container: container$4,
       all,
       tableSelection,
-      tools: tools$1,
       codePre,
       code: code$2,
+      progress: progress$1,
       toolConfig,
-      progress: progress$1
+      toolChoice
     };
     const wrapper = "_wrapper_45f60_1";
     const col2 = "_col2_45f60_8";
@@ -51746,7 +51746,6 @@ self.onmessage = function (e) {
         return choice.message;
       });
       const entries = { ...event.config };
-      entries["tool_choice"] = event.tool_choice;
       delete entries["max_connections"];
       const userMessages = [];
       for (const msg of event.input.slice().reverse()) {
@@ -51780,7 +51779,14 @@ self.onmessage = function (e) {
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$n.container, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.all, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Configuration", className: styles$n.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true }) }),
+                Object.keys(entries).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  EventSection,
+                  {
+                    title: "Configuration",
+                    className: styles$n.tableSelection,
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true })
+                  }
+                ),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$n.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Timing", className: styles$n.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   EventTimingPanel,
@@ -51790,15 +51796,7 @@ self.onmessage = function (e) {
                     working_start: event.working_start,
                     working_time: event.working_time
                   }
-                ) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  EventSection,
-                  {
-                    title: "Tools",
-                    className: clsx(styles$n.tableSelection, styles$n.tools),
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools })
-                  }
-                )
+                ) })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Messages", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
@@ -51808,6 +51806,7 @@ self.onmessage = function (e) {
                 }
               ) })
             ] }),
+            event.tools.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Tools", className: styles$n.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools, toolChoice: event.tool_choice }) }),
             event.call ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               APIView,
               {
@@ -51846,14 +51845,31 @@ self.onmessage = function (e) {
         }
       ) }) });
     };
-    const ToolsConfig = ({ tools: tools2 }) => {
+    const ToolsConfig = ({ tools: tools2, toolChoice: toolChoice2 }) => {
       const toolEls = tools2.map((tool2, idx) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: tool2.name }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: tool2.description })
         ] }, `${tool2.name}-${idx}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.toolConfig, children: toolEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.toolConfig, children: toolEls }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.toolChoice, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Tool Choice" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolChoiceView, { toolChoice: toolChoice2 }) })
+        ] })
+      ] });
+    };
+    const ToolChoiceView = ({ toolChoice: toolChoice2 }) => {
+      if (typeof toolChoice2 === "string") {
+        return toolChoice2;
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
+          "`$",
+          toolChoice2.name,
+          "()`"
+        ] });
+      }
     };
     const noMargin = "_noMargin_1a3fk_1";
     const code$1 = "_code_1a3fk_5";
@@ -59185,11 +59201,11 @@ ${events}
           toolIndexes.push(match[1]);
         }
       }
-      const toolName = (toolChoice) => {
-        if (typeof toolChoice === "object" && toolChoice && !Array.isArray(toolChoice)) {
-          return toolChoice["name"];
+      const toolName = (toolChoice2) => {
+        if (typeof toolChoice2 === "object" && toolChoice2 && !Array.isArray(toolChoice2)) {
+          return toolChoice2["name"];
         } else {
-          return String(toolChoice);
+          return String(toolChoice2);
         }
       };
       const toolsInfo = {};
