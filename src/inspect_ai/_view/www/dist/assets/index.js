@@ -22731,13 +22731,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             });
           },
           setShowingSampleDialog: (showing) => {
-            set2((state) => {
-              state.app.dialogs.sample = showing;
+            const state = get2();
+            const isShowing = state.app.dialogs.sample;
+            if (showing === isShowing) {
+              return;
+            }
+            set2((state2) => {
+              state2.app.dialogs.sample = showing;
             });
             if (!showing) {
-              const state = get2();
-              state.appActions.clearSampleTab();
-              state.sampleActions.clearSelectedSample();
+              const state2 = get2();
+              state2.appActions.clearSampleTab();
             }
           },
           setWorkspaceTab: (tab2) => {
@@ -82413,6 +82417,7 @@ Supported expressions:
       const selectSample = useStore((state) => state.logActions.selectSample);
       const setSampleTab = useStore((state) => state.appActions.setSampleTab);
       const filteredSamples = useFilteredSamples();
+      const totalSampleCount = useTotalSampleCount();
       const setStatus = useStore((state) => state.appActions.setStatus);
       const setSelectedLogIndex = useStore(
         (state) => state.logsActions.setSelectedLogIndex
@@ -82496,14 +82501,17 @@ Supported expressions:
             }
           }
         } else {
-          clearSample();
           setShowingSampleDialog(false);
+          if (totalSampleCount > 1) {
+            clearSample();
+          }
         }
       }, [
         sampleId,
         epoch,
         sampleTabId,
         filteredSamples,
+        totalSampleCount,
         selectSample,
         setSampleTab,
         setShowingSampleDialog,
