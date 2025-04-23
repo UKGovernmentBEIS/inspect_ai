@@ -1435,10 +1435,10 @@ _model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={
 def set_total_messages(input: str | list[ChatMessage]) -> None:
     from inspect_ai.log._samples import set_active_sample_total_messages
 
-    existing_message_count = 1 if isinstance(input, str) else len(input)
+    total_messages = 1 if isinstance(input, str) else len(input)
 
     # set total messages
-    set_active_sample_total_messages(existing_message_count)
+    set_active_sample_total_messages(total_messages)
 
 
 def init_model_usage() -> None:
