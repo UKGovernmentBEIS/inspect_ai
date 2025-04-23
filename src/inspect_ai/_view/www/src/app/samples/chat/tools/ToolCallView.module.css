@@ -1,2 +1,7 @@
 .output {
 }
+
+.toolCallView {
+  display: grid;
+  row-gap: 1em;
+}

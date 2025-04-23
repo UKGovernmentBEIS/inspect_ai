@@ -36756,27 +36756,29 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         args: []
       };
     };
-    const output = "_output_xshyh_1";
+    const output = "_output_1tv9l_1";
+    const toolCallView = "_toolCallView_1tv9l_4";
     const styles$1d = {
-      output
+      output,
+      toolCallView
     };
-    const outputPre = "_outputPre_1ltrr_1";
-    const toolView = "_toolView_1ltrr_7";
-    const outputCode = "_outputCode_1ltrr_12";
+    const outputPre = "_outputPre_2x23m_1";
+    const toolView = "_toolView_2x23m_7";
+    const outputCode = "_outputCode_2x23m_11";
     const styles$1c = {
       outputPre,
       toolView,
       outputCode
     };
     const ToolInput = (props) => {
-      const { highlightLanguage, contents: contents2, toolCallView } = props;
-      const prismParentRef = usePrismHighlight(toolCallView == null ? void 0 : toolCallView.content);
-      if (!contents2 && !(toolCallView == null ? void 0 : toolCallView.content)) return null;
-      if (toolCallView) {
+      const { highlightLanguage, contents: contents2, toolCallView: toolCallView2 } = props;
+      const prismParentRef = usePrismHighlight(toolCallView2 == null ? void 0 : toolCallView2.content);
+      if (!contents2 && !(toolCallView2 == null ? void 0 : toolCallView2.content)) return null;
+      if (toolCallView2) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           MarkdownDiv,
           {
-            markdown: toolCallView.content,
+            markdown: toolCallView2.content,
             ref: prismParentRef,
             className: clsx("text-size-small", "tool-output", styles$1c.toolView)
           }
@@ -36854,9 +36856,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
       const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1d.toolCallView), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             ToolInput,
             {
@@ -36864,19 +36866,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               contents: contents2,
               toolCallView: view
             }
-          ),
-          hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ExpandablePanel,
-            {
-              id: `${id}-tool-input`,
-              collapse,
-              border: true,
-              lines: 15,
-              className: styles$1d.output,
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent })
-            }
-          ) : void 0
-        ] }) })
+          )
+        ] }),
+        hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ExpandablePanel,
+          {
+            id: `${id}-tool-input`,
+            collapse,
+            border: true,
+            lines: 15,
+            className: styles$1d.output,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent })
+          }
+        ) : void 0
       ] });
     };
     const normalizeContent$1 = (output2) => {

@@ -15596,20 +15596,24 @@ pre[class*="language-"] {
 ._textCode_1j5uu_17 {
   word-wrap: anywhere;
 }
-._output_xshyh_1 {
+._output_1tv9l_1 {
 }
-._outputPre_1ltrr_1 {
+
+._toolCallView_1tv9l_4 {
+  display: grid;
+  row-gap: 1em;
+}
+._outputPre_2x23m_1 {
   padding: 0.5em;
   margin-top: 0.25em;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 
-._toolView_1ltrr_7 {
+._toolView_2x23m_7 {
   margin-top: 0.25em;
-  margin-bottom: 1rem;
 }
 
-._outputCode_1ltrr_12 {
+._outputCode_2x23m_11 {
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
