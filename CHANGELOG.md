@@ -7,6 +7,7 @@
 - OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
 - OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 - OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
+- OpenAI: Automatically alias reserved internal tool names (e.g. `python`) for responses API.
 - Google: Support for `reasoning_tokens` option for Gemini 2.5 models.
 - Grok: Support for `reasoning_effort` option and capturing reasoning content.
 - OpenRouter: Forward `reasoning_effort` and `reasoning_tokens` to `reasoning` field.
@@ -20,6 +21,7 @@
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
 - Log API: Functions for reading/writing eval logs can now take a `Path`.
+- Registry: Evaluate string annotations when creating registry objects. 
 - Error handling: Added `--traceback-locals` CLI option to print values of local variables in tracebacks.
 - Error handling: Fully unwrap inner errors from exception groups for reporting.
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
