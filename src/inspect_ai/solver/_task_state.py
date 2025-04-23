@@ -164,7 +164,6 @@ class TaskState:
         self._input = input
         self._target = target
         self._metadata = metadata
-        # TODO: What was the reason that ChatMessageList had a reference to TaskState?
         self._messages: list[ChatMessage] = ChatMessageList(messages)
         self._tools: list[Tool] = []
         self._output = output if output else ModelOutput(model=str(model))
