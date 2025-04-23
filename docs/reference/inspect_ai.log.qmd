@@ -60,7 +60,8 @@ title: "inspect_ai.log"
 ### LoggingLevel
 ### LoggingMessage
 ### InfoEvent
-### StepEvent
+### SpanBeginEvent
+### SpanEndEvent
 ### SubtaskEvent
 
 

@@ -2,7 +2,6 @@
 title: "inspect_ai.util"
 ---
 
-
 ## Store
 
 ### Store
@@ -38,6 +37,7 @@ title: "inspect_ai.util"
 
 ## Utilities
 
+### span
 ### resource
 ### throttle
 ### trace_action
