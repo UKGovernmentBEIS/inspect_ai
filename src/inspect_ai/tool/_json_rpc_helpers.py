@@ -183,7 +183,9 @@ def parse_json_rpc_response(
     match JSONRPCResponse.model_validate_json(response_str).root:
         case JSONRPCSuccessResponse(result=rpc_result):
             return rpc_result
-        case JSONRPCError(code=code, message=message):
+        case JSONRPCErrorResponse(
+            error=JSONRPCError(code=code, message=message, data=_)
+        ):
             raise exception_for_rpc_response_error(code, message, method, params)
         case _:
             raise ValueError(
@@ -209,7 +211,7 @@ def exception_for_rpc_response_error(
     # -32603  Internal error    Internal JSON-RPC error.
     # -32700  Parse error       Invalid JSON was received by the server. An error occurred on the server while parsing the JSON text.
 
-    if -32000 <= code >= -32099:
+    if -32099 <= code <= -32000:
         # This range is server defined. This layer has no idea what server was
         # called, so if special mapping is needed, it must be provided by the
         # caller.
