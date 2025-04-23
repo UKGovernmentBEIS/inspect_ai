@@ -14711,8 +14711,8 @@ body {
 
 .markdown-content pre > code,
 .markdown-content pre {
-  white-space: pre-wrap;
-  word-wrap: anywhere;
+  white-space: pre-wrap !important;
+  word-wrap: anywhere !important;
 }
 
 .log pre code {
