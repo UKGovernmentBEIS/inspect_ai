@@ -4,6 +4,4 @@ Message limits are checked:
 
 * Whenever you call `generate()` on any model. A `LimitExceededError` will be raised if the number of messages passed in `input` parameter to `generate()` is equal to or exceeds the limit. This is to avoid proceeding to another (wasteful) generate call if we're already at the limit.
 
-* On every evaluation of `TaskState.completed`, which will raise a `LimitExceededError` if the message count is equal to or exceeds the limit.
-
 * Whenever `TaskState.messages` or `AgentState.messages` is mutated, but a `LimitExceededError` is only raised if the count exceeds the limit.
