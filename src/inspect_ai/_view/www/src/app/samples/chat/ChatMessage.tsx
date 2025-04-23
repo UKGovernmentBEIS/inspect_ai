@@ -10,13 +10,14 @@ import ExpandablePanel from "../../../components/ExpandablePanel";
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
 import { iconForMsg } from "./messages";
+import { ChatViewToolCallStyle } from "./types";
 
 interface ChatMessageProps {
   id: string;
   message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
   toolMessages: ChatMessageTool[];
   indented?: boolean;
-  toolCallStyle: "compact" | "complete";
+  toolCallStyle: ChatViewToolCallStyle;
   padded?: boolean;
 }
 

@@ -12,12 +12,13 @@ import clsx from "clsx";
 import { FC, Fragment } from "react";
 import { ContentTool } from "../../../app/types";
 import styles from "./MessageContents.module.css";
+import { ChatViewToolCallStyle } from "./types";
 
 interface MessageContentsProps {
   id: string;
   message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
   toolMessages: ChatMessageTool[];
-  toolCallStyle: "compact" | "complete";
+  toolCallStyle: ChatViewToolCallStyle;
 }
 
 export const MessageContents: FC<MessageContentsProps> = ({
@@ -58,6 +59,8 @@ export const MessageContents: FC<MessageContentsProps> = ({
             </code>
           </div>
         );
+      } else if (toolCallStyle === "omit") {
+        return undefined;
       } else {
         return (
           <ToolCallView

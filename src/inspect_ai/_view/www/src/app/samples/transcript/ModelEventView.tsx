@@ -80,7 +80,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
           id={`${id}-model-output`}
           messages={[...userMessages, ...(outputMessages || [])]}
           numbered={false}
-          toolCallStyle="compact"
+          toolCallStyle="omit"
         />
         {event.pending ? (
           <div className={clsx(styles.progress)}>

@@ -4,12 +4,13 @@ import { ChatMessage } from "./ChatMessage";
 import { FC } from "react";
 import styles from "./ChatMessageRow.module.css";
 import { ResolvedMessage } from "./messages";
+import { ChatViewToolCallStyle } from "./types";
 
 interface ChatMessageRowProps {
   parentName: string;
   number?: number;
   resolvedMessage: ResolvedMessage;
-  toolCallStyle: "compact" | "complete";
+  toolCallStyle: ChatViewToolCallStyle;
   indented?: boolean;
   padded?: boolean;
 }

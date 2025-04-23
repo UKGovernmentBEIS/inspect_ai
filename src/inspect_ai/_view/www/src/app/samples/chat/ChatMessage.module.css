@@ -18,7 +18,7 @@
   grid-template-columns: max-content auto;
   column-gap: 0.3em;
   font-weight: 500;
-  margin-bottom: 0.5em;
+  margin-bottom: 0.3em;
 }
 
 .messageContents {
