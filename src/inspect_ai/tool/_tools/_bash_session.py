@@ -1,6 +1,10 @@
+from textwrap import dedent
+
 from pydantic import BaseModel, Field
+from semver import Version
 from shortuuid import uuid
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool import ToolResult
 from inspect_ai.util import StoreModel, store_as
 
@@ -134,12 +138,20 @@ def bash_session(
                 unspecified.
 
         Returns:
-          The any output of the shell.
+          The accumulated output of the shell.
         """
         if restart and input is not None:
             raise ToolParsingError("Do not send any 'input_text' when restarting.")
 
-        (sandbox, _) = await tool_support_sandbox("bash session")
+        (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
+        required_version = Version.parse("1.0.0")
+        if sandbox_version < required_version:
+            raise PrerequisiteError(
+                dedent(f"""
+                      The 'inspect-tool-support' version in your container is '{sandbox_version}'. The 'bash_session' tool requires version '{required_version}' or newer. Please update your container image to the latest version of 'inspect-tool-support'.
+                      """).strip()
+            )
+
         store = store_as(BashSessionStore, instance=instance)
 
         if not store.session_id:
