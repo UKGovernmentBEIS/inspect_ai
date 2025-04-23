@@ -1,3 +1,8 @@
+.toolsGrid {
+  display: grid;
+  row-gap: 0em;
+}
+
 .tools {
   display: grid;
   grid-template-columns: max-content max-content;

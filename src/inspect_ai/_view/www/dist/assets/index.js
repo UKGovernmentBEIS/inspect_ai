@@ -59066,9 +59066,11 @@ ${events}
         return defaultValue;
       }
     };
-    const tools = "_tools_1w7nt_1";
-    const tool = "_tool_1w7nt_1";
+    const toolsGrid = "_toolsGrid_1qqm2_1";
+    const tools = "_tools_1qqm2_1";
+    const tool = "_tool_1qqm2_1";
     const styles$h = {
+      toolsGrid,
       tools,
       tool
     };
@@ -59261,7 +59263,7 @@ ${events}
       human_baseline_session
     ];
     const Tools = ({ toolDefinitions }) => {
-      return toolDefinitions.map((toolDefinition, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$h.toolsGrid, children: toolDefinitions.map((toolDefinition, idx) => {
         var _a2;
         const toolName = toolDefinition.name;
         const toolArgs = ((_a2 = toolDefinition.parameters) == null ? void 0 : _a2.properties) ? Object.keys(toolDefinition.parameters.properties) : [];
@@ -59273,7 +59275,7 @@ ${events}
           },
           `${toolName}-${idx}`
         );
-      });
+      }) });
     };
     const Tool = ({ toolName, toolArgs }) => {
       const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
