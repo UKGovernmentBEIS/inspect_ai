@@ -45,6 +45,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._anyio import safe_current_task_id
 from inspect_ai.util._span import current_span_id, span
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
@@ -85,7 +86,7 @@ class BaseEvent(BaseModel):
             if self.span_id is None:
                 self.span_id = current_span_id()
             if self.task_id is None:
-                self.task_id = anyio.get_current_task().id
+                self.task_id = safe_current_task_id()
 
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:
