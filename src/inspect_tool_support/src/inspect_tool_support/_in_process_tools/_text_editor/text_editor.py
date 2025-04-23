@@ -19,11 +19,6 @@ HistoryType = dict[Path, list[HistoryEntryType]]
 async def view(path_str: str, view_range: list[int] | None = None) -> str:
     path = _validated_path(path_str, "view")
     if path.is_dir():
-        if view_range:
-            raise ToolException(
-                "The `view_range` parameter is not allowed when `path` points to a directory."
-            )
-
         path_str = str(path).rstrip("/") + "/"
 
         _, stdout, stderr = await run(
@@ -55,9 +50,8 @@ async def view(path_str: str, view_range: list[int] | None = None) -> str:
                 f"Invalid `view_range`: {view_range}. Its first element `{init_line}` should be within the range of lines of the file: {[1, n_lines_file]}"
             )
         if final_line > n_lines_file:
-            raise ToolException(
-                f"Invalid `view_range`: {view_range}. Its second element `{final_line}` should be smaller than the number of lines in the file: `{n_lines_file}`"
-            )
+            # Final line was too big - just show to EOF
+            final_line = -1
         if final_line != -1 and final_line < init_line:
             raise ToolException(
                 f"Invalid `view_range`: {view_range}. Its second element `{final_line}` should be larger or equal than its first `{init_line}`"
