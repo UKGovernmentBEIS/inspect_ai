@@ -1785,6 +1785,12 @@
                 "$ref": "#/$defs/InfoEvent"
               },
               {
+                "$ref": "#/$defs/SpanBeginEvent"
+              },
+              {
+                "$ref": "#/$defs/SpanEndEvent"
+              },
+              {
                 "$ref": "#/$defs/StepEvent"
               },
               {
@@ -4409,6 +4415,134 @@
       "type": "object",
       "additionalProperties": false
     },
+    "SpanBeginEvent": {
+      "description": "Mark the beginning of a transcript span.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
+        "event": {
+          "const": "span_begin",
+          "default": "span_begin",
+          "title": "Event",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Id"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "integer"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp",
+        "working_start",
+        "pending",
+        "event",
+        "id",
+        "parent_id",
+        "task_id",
+        "type",
+        "name"
+      ],
+      "title": "SpanBeginEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
+    "SpanEndEvent": {
+      "description": "Mark the end of a transcript span.",
+      "properties": {
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "working_start": {
+          "title": "Working Start",
+          "type": "number"
+        },
+        "pending": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pending"
+        },
+        "event": {
+          "const": "span_end",
+          "default": "span_end",
+          "title": "Event",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "timestamp",
+        "working_start",
+        "pending",
+        "event",
+        "id"
+      ],
+      "title": "SpanEndEvent",
+      "type": "object",
+      "additionalProperties": false
+    },
     "StateEvent": {
       "description": "Change to the current `TaskState`",
       "properties": {
@@ -4671,6 +4805,12 @@
               },
               {
                 "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/SpanBeginEvent"
+              },
+              {
+                "$ref": "#/$defs/SpanEndEvent"
               },
               {
                 "$ref": "#/$defs/StepEvent"
@@ -5104,6 +5244,12 @@
               },
               {
                 "$ref": "#/$defs/InfoEvent"
+              },
+              {
+                "$ref": "#/$defs/SpanBeginEvent"
+              },
+              {
+                "$ref": "#/$defs/SpanEndEvent"
               },
               {
                 "$ref": "#/$defs/StepEvent"

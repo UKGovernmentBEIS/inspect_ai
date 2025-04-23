@@ -484,16 +484,30 @@ export type Source4 = string | null;
 export type Timestamp13 = string;
 export type WorkingStart13 = number;
 export type Pending13 = boolean | null;
-export type Event13 = "step";
-export type Action1 = "begin" | "end";
+export type Event13 = "span_begin";
+export type Id8 = string;
+export type ParentId = string | null;
+export type TaskId1 = number;
 export type Type13 = string | null;
 export type Name11 = string;
 export type Timestamp14 = string;
 export type WorkingStart14 = number;
 export type Pending14 = boolean | null;
-export type Event14 = "subtask";
-export type Name12 = string;
+export type Event14 = "span_end";
+export type Id9 = string;
+export type Timestamp15 = string;
+export type WorkingStart15 = number;
+export type Pending15 = boolean | null;
+export type Event15 = "step";
+export type Action1 = "begin" | "end";
 export type Type14 = string | null;
+export type Name12 = string;
+export type Timestamp16 = string;
+export type WorkingStart16 = number;
+export type Pending16 = boolean | null;
+export type Event16 = "subtask";
+export type Name13 = string;
+export type Type15 = string | null;
 export type Events2 = (
   | SampleInitEvent
   | SampleLimitEvent
@@ -508,6 +522,8 @@ export type Events2 = (
   | ErrorEvent
   | LoggerEvent
   | InfoEvent
+  | SpanBeginEvent
+  | SpanEndEvent
   | StepEvent
   | SubtaskEvent
 )[];
@@ -527,6 +543,8 @@ export type Events1 = (
   | ErrorEvent
   | LoggerEvent
   | InfoEvent
+  | SpanBeginEvent
+  | SpanEndEvent
   | StepEvent
   | SubtaskEvent
 )[];
@@ -548,6 +566,8 @@ export type Events = (
   | ErrorEvent
   | LoggerEvent
   | InfoEvent
+  | SpanBeginEvent
+  | SpanEndEvent
   | StepEvent
   | SubtaskEvent
 )[];
@@ -555,7 +575,7 @@ export type TotalTime = number | null;
 export type WorkingTime3 = number | null;
 export type Uuid = string | null;
 export type ErrorRetries = EvalError[] | null;
-export type Type15 =
+export type Type16 =
   | "context"
   | "time"
   | "working"
@@ -1407,27 +1427,51 @@ export interface InfoEvent {
   data: JsonValue;
 }
 /**
- * Step within current sample or subtask.
+ * Mark the beginning of a transcript span.
  */
-export interface StepEvent {
+export interface SpanBeginEvent {
   timestamp: Timestamp13;
   working_start: WorkingStart13;
   pending: Pending13;
   event: Event13;
-  action: Action1;
+  id: Id8;
+  parent_id: ParentId;
+  task_id: TaskId1;
   type: Type13;
   name: Name11;
+}
+/**
+ * Mark the end of a transcript span.
+ */
+export interface SpanEndEvent {
+  timestamp: Timestamp14;
+  working_start: WorkingStart14;
+  pending: Pending14;
+  event: Event14;
+  id: Id9;
+}
+/**
+ * Step within current sample or subtask.
+ */
+export interface StepEvent {
+  timestamp: Timestamp15;
+  working_start: WorkingStart15;
+  pending: Pending15;
+  event: Event15;
+  action: Action1;
+  type: Type14;
+  name: Name12;
 }
 /**
  * Subtask spawned.
  */
 export interface SubtaskEvent {
-  timestamp: Timestamp14;
-  working_start: WorkingStart14;
-  pending: Pending14;
-  event: Event14;
-  name: Name12;
-  type: Type14;
+  timestamp: Timestamp16;
+  working_start: WorkingStart16;
+  pending: Pending16;
+  event: Event16;
+  name: Name13;
+  type: Type15;
   input: Input5;
   result: Result2;
   events: Events2;
@@ -1450,7 +1494,7 @@ export interface Attachments {
  * Limit encontered by sample.
  */
 export interface EvalSampleLimit {
-  type: Type15;
+  type: Type16;
   limit: Limit2;
 }
 /**
