@@ -49,7 +49,11 @@ export const ChatMessage: FC<ChatMessageProps> = ({
           indented ? styles.indented : undefined,
         )}
       >
-        <ExpandablePanel id={`${id}-message`} collapse={collapse} lines={15}>
+        <ExpandablePanel
+          id={`${id}-message`}
+          collapse={collapse}
+          lines={collapse ? 15 : 25}
+        >
           <MessageContents
             id={`${id}-contents`}
             key={`${id}-contents`}

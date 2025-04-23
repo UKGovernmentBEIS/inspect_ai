@@ -37113,16 +37113,24 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   styles$1h.messageContents,
                   indented2 ? styles$1h.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MessageContents,
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ExpandablePanel,
                   {
-                    id: `${id}-contents`,
-                    message: message2,
-                    toolMessages,
-                    toolCallStyle
-                  },
-                  `${id}-contents`
-                ) })
+                    id: `${id}-message`,
+                    collapse,
+                    lines: collapse ? 15 : 25,
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      MessageContents,
+                      {
+                        id: `${id}-contents`,
+                        message: message2,
+                        toolMessages,
+                        toolCallStyle
+                      },
+                      `${id}-contents`
+                    )
+                  }
+                )
               }
             )
           ]
