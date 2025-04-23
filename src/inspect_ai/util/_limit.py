@@ -235,10 +235,19 @@ class MessageLimit(Limit):
 
     @property
     def limit(self) -> int | None:
+        """Get the configured message limit value."""
         return self._limit_value_wrapper.value
 
     @limit.setter
     def limit(self, value: int | None) -> None:
+        """Update the message limit value.
+
+        This will affect the limit for all active message limit nodes derived from this
+        context manager.
+
+        This does not trigger a check of the message limit (which could now have been
+        exceeded).
+        """
         self._validate_message_limit(value)
         self._limit_value_wrapper.value = value
 
