@@ -176,7 +176,7 @@ def basic_agent(
             attempts = 0
 
             with create_token_limit(token_limit):
-                # main loop (state.completed checks message_limit and token_limit)
+                # main loop
                 while not state.completed:
                     # generate output and append assistant message
                     state.output = await get_model().generate(
