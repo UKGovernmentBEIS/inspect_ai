@@ -495,12 +495,13 @@ async def agent_handoff(
         from inspect_ai.log._transcript import SampleLimitEvent, transcript
 
         # sample limit event
-        message = f"The {agent_name} exceeded its {limit_error.type} limit of {limit_error.limit}."
+        message = (
+            f"The {agent_name} exceeded its {limit_error.type} limit of "
+            f"{limit_error.limit}."
+        )
         transcript()._event(
             SampleLimitEvent(
-                type=limit_error.type,
-                limit=limit_error.limit,
-                message=message,
+                type=limit_error.type, limit=limit_error.limit, message=message
             )
         )
         agent_messages.append(ChatMessageUser(content=message))
