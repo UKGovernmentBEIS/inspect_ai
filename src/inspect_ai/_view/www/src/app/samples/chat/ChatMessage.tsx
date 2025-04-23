@@ -17,6 +17,7 @@ interface ChatMessageProps {
   toolMessages: ChatMessageTool[];
   indented?: boolean;
   toolCallStyle: "compact" | "complete";
+  padded?: boolean;
 }
 
 export const ChatMessage: FC<ChatMessageProps> = ({
@@ -25,6 +26,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
   toolMessages,
   indented,
   toolCallStyle,
+  padded,
 }) => {
   const collapse = message.role === "system" || message.role === "user";
   return (
@@ -33,6 +35,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
         message.role,
         "text-size-base",
         styles.message,
+        padded ? styles.padded : undefined,
         message.role === "system" ? styles.systemRole : undefined,
       )}
     >

@@ -11,6 +11,7 @@ interface ChatMessageRowProps {
   resolvedMessage: ResolvedMessage;
   toolCallStyle: "compact" | "complete";
   indented?: boolean;
+  padded?: boolean;
 }
 
 /**
@@ -22,6 +23,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
   resolvedMessage,
   toolCallStyle,
   indented,
+  padded,
 }) => {
   if (number) {
     return (
@@ -41,6 +43,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
           toolMessages={resolvedMessage.toolMessages}
           indented={indented}
           toolCallStyle={toolCallStyle}
+          padded={padded}
         />
       </div>
     );
@@ -52,6 +55,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
         toolMessages={resolvedMessage.toolMessages}
         indented={indented}
         toolCallStyle={toolCallStyle}
+        padded={padded}
       />
     );
   }

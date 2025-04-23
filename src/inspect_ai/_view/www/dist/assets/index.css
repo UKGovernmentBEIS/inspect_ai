@@ -15529,19 +15529,22 @@ pre[class*="language-"] {
   border: none;
   padding: 0.1rem 0.5rem;
 }
-._message_7vbcy_1 {
+._message_1ycty_1 {
   font-weight: 300;
-  padding-bottom: 1em;
   margin-left: 0;
   margin-right: 0;
   white-space: normal;
 }
 
-._systemRole_7vbcy_9 {
+._padded_1ycty_8 {
+  padding-bottom: 1em;
+}
+
+._systemRole_1ycty_12 {
   opacity: 0.7;
 }
 
-._messageGrid_7vbcy_13 {
+._messageGrid_1ycty_16 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.3em;
@@ -15549,12 +15552,12 @@ pre[class*="language-"] {
   margin-bottom: 0.5em;
 }
 
-._messageContents_7vbcy_21 {
+._messageContents_1ycty_24 {
   margin-left: 0;
   padding-bottom: 0;
 }
 
-._messageContents_7vbcy_21._indented_7vbcy_26 {
+._messageContents_1ycty_24._indented_1ycty_29 {
   margin-left: 1.1rem;
   padding-bottom: 0.8rem;
 }

@@ -24474,13 +24474,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         text2
       ] }) }) });
     };
-    const message$1 = "_message_7vbcy_1";
-    const systemRole = "_systemRole_7vbcy_9";
-    const messageGrid = "_messageGrid_7vbcy_13";
-    const messageContents = "_messageContents_7vbcy_21";
-    const indented = "_indented_7vbcy_26";
+    const message$1 = "_message_1ycty_1";
+    const padded$2 = "_padded_1ycty_8";
+    const systemRole = "_systemRole_1ycty_12";
+    const messageGrid = "_messageGrid_1ycty_16";
+    const messageContents = "_messageContents_1ycty_24";
+    const indented = "_indented_1ycty_29";
     const styles$1h = {
       message: message$1,
+      padded: padded$2,
       systemRole,
       messageGrid,
       messageContents,
@@ -37078,7 +37080,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       message: message2,
       toolMessages,
       indented: indented2,
-      toolCallStyle
+      toolCallStyle,
+      padded: padded2
     }) => {
       const collapse = message2.role === "system" || message2.role === "user";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -37088,6 +37091,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             message2.role,
             "text-size-base",
             styles$1h.message,
+            padded2 ? styles$1h.padded : void 0,
             message2.role === "system" ? styles$1h.systemRole : void 0
           ),
           children: [
@@ -37129,7 +37133,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       number: number2,
       resolvedMessage,
       toolCallStyle,
-      indented: indented2
+      indented: indented2,
+      padded: padded2
     }) => {
       if (number2) {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.grid, children: [
@@ -37151,7 +37156,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               message: resolvedMessage.message,
               toolMessages: resolvedMessage.toolMessages,
               indented: indented2,
-              toolCallStyle
+              toolCallStyle,
+              padded: padded2
             }
           )
         ] });
@@ -37163,7 +37169,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             message: resolvedMessage.message,
             toolMessages: resolvedMessage.toolMessages,
             indented: indented2,
-            toolCallStyle
+            toolCallStyle,
+            padded: padded2
           }
         );
       }
@@ -37186,7 +37193,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             number: number2,
             resolvedMessage: msg,
             indented: indented2,
-            toolCallStyle
+            toolCallStyle,
+            padded: index2 < collapsedMessages.length - 1
           },
           `${id}-msg-${index2}`
         );
@@ -50710,7 +50718,8 @@ self.onmessage = function (e) {
               number: number2,
               resolvedMessage: item2,
               indented: indented2,
-              toolCallStyle
+              toolCallStyle,
+              padded: index2 < collapsedMessages.length - 1
             }
           );
         };

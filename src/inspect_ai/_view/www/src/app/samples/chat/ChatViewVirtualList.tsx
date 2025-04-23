@@ -46,6 +46,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           resolvedMessage={item}
           indented={indented}
           toolCallStyle={toolCallStyle}
+          padded={index < collapsedMessages.length - 1}
         />
       );
     };
