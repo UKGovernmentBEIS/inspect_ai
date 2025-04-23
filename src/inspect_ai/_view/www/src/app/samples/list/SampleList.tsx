@@ -41,10 +41,15 @@ export const kSampleFollowProp = "sample-list";
 export const SampleList: FC<SampleListProps> = memo((props) => {
   const { items, totalItemCount, running, className, listHandle } = props;
 
+  const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
   const { getRestoreState, isScrolling } = useVirtuosoState(
     listHandle,
-    "sample-list",
+    `sample-list-${selectedLogIndex}`,
   );
+
+  useEffect(() => {
+    listHandle.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [selectedLogIndex]);
 
   // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();
@@ -218,9 +223,13 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         data={items}
         defaultItemHeight={50}
         itemContent={renderRow}
-        followOutput={(_atBottom: boolean) => {
-          return followOutput;
-        }}
+        followOutput={
+          running
+            ? (_atBottom: boolean) => {
+                return followOutput;
+              }
+            : undefined
+        }
         atBottomStateChange={handleAtBottomStateChange}
         atBottomThreshold={30}
         increaseViewportBy={{ top: 300, bottom: 300 }}

@@ -81688,10 +81688,15 @@ Supported expressions:
     const kSampleFollowProp = "sample-list";
     const SampleList = reactExports.memo((props) => {
       const { items, totalItemCount, running: running2, className: className2, listHandle } = props;
+      const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
       const { getRestoreState, isScrolling } = useVirtuosoState(
         listHandle,
-        "sample-list"
+        `sample-list-${selectedLogIndex}`
       );
+      reactExports.useEffect(() => {
+        var _a2;
+        (_a2 = listHandle.current) == null ? void 0 : _a2.scrollTo({ top: 0, behavior: "instant" });
+      }, [selectedLogIndex]);
       const sampleNavigation = useSampleNavigation();
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
@@ -81839,9 +81844,9 @@ Supported expressions:
             data: items,
             defaultItemHeight: 50,
             itemContent: renderRow,
-            followOutput: (_atBottom) => {
+            followOutput: running2 ? (_atBottom) => {
               return followOutput;
-            },
+            } : void 0,
             atBottomStateChange: handleAtBottomStateChange,
             atBottomThreshold: 30,
             increaseViewportBy: { top: 300, bottom: 300 },
