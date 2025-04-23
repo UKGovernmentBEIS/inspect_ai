@@ -26,10 +26,10 @@ def span(name: str, type: str | None = None) -> Iterator[None]:
     task_id = anyio.get_current_task().id
 
     # capture parent id
-    parent_id = _current_span.get()
+    parent_id = _current_span_id.get()
 
     # set new current span (reset at the end)
-    token = _current_span.set(id)
+    token = _current_span_id.set(id)
 
     # run the span
     try:
@@ -51,7 +51,11 @@ def span(name: str, type: str | None = None) -> Iterator[None]:
         # spend end event
         transcript()._event(SpanEndEvent(id=id))
     finally:
-        _current_span.reset(token)
+        _current_span_id.reset(token)
 
 
-_current_span: ContextVar[str | None] = ContextVar("_current_span", default=None)
+def current_span_id() -> str | None:
+    return _current_span_id.get()
+
+
+_current_span_id: ContextVar[str | None] = ContextVar("_current_span_id", default=None)

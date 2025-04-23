@@ -315,6 +315,8 @@ export type Explanation = string | null;
 export type Metadata6 = {
   [k: string]: unknown;
 } | null;
+export type SpanId = string | null;
+export type TaskId1 = number | null;
 export type Timestamp = string;
 export type WorkingStart = number;
 export type Pending = boolean | null;
@@ -338,6 +340,8 @@ export type Files1 = {
 } | null;
 export type Setup1 = string | null;
 export type JsonValue = unknown;
+export type SpanId1 = string | null;
+export type TaskId2 = number | null;
 export type Timestamp1 = string;
 export type WorkingStart1 = number;
 export type Pending1 = boolean | null;
@@ -351,6 +355,8 @@ export type Type10 =
   | "custom";
 export type Message2 = string;
 export type Limit1 = number | null;
+export type SpanId2 = string | null;
+export type TaskId3 = number | null;
 export type Timestamp2 = string;
 export type WorkingStart2 = number;
 export type Pending2 = boolean | null;
@@ -365,6 +371,8 @@ export type Input2 = string | null;
 export type Result = number | null;
 export type Output = string | null;
 export type Completed = string | null;
+export type SpanId3 = string | null;
+export type TaskId4 = number | null;
 export type Timestamp3 = string;
 export type WorkingStart3 = number;
 export type Pending3 = boolean | null;
@@ -373,11 +381,15 @@ export type Op = "remove" | "add" | "replace" | "move" | "test" | "copy";
 export type Path = string;
 export type From = string | null;
 export type Changes = JsonChange[];
+export type SpanId4 = string | null;
+export type TaskId5 = number | null;
 export type Timestamp4 = string;
 export type WorkingStart4 = number;
 export type Pending4 = boolean | null;
 export type Event4 = "store";
 export type Changes1 = JsonChange[];
+export type SpanId5 = string | null;
+export type TaskId6 = number | null;
 export type Timestamp5 = string;
 export type WorkingStart5 = number;
 export type Pending5 = boolean | null;
@@ -403,6 +415,8 @@ export type Cache = ("read" | "write") | null;
 export type Time1 = number | null;
 export type Completed1 = string | null;
 export type WorkingTime = number | null;
+export type SpanId6 = string | null;
+export type TaskId7 = number | null;
 export type Timestamp6 = string;
 export type WorkingStart6 = number;
 export type Pending6 = boolean | null;
@@ -427,6 +441,8 @@ export type Result1 =
       | ContentVideo
     )[];
 export type Truncated = [unknown, unknown] | null;
+export type SpanId7 = string | null;
+export type TaskId8 = number | null;
 export type Timestamp7 = string;
 export type WorkingStart7 = number;
 export type Pending7 = boolean | null;
@@ -440,22 +456,30 @@ export type Decision =
   | "escalate"
   | "terminate";
 export type Explanation1 = string | null;
+export type SpanId8 = string | null;
+export type TaskId9 = number | null;
 export type Timestamp8 = string;
 export type WorkingStart8 = number;
 export type Pending8 = boolean | null;
 export type Event8 = "input";
 export type Input4 = string;
 export type InputAnsi = string;
+export type SpanId9 = string | null;
+export type TaskId10 = number | null;
 export type Timestamp9 = string;
 export type WorkingStart9 = number;
 export type Pending9 = boolean | null;
 export type Event9 = "score";
 export type Target2 = string | string[] | null;
 export type Intermediate = boolean;
+export type SpanId10 = string | null;
+export type TaskId11 = number | null;
 export type Timestamp10 = string;
 export type WorkingStart10 = number;
 export type Pending10 = boolean | null;
 export type Event10 = "error";
+export type SpanId11 = string | null;
+export type TaskId12 = number | null;
 export type Timestamp11 = string;
 export type WorkingStart11 = number;
 export type Pending11 = boolean | null;
@@ -475,25 +499,32 @@ export type Created1 = number;
 export type Filename = string;
 export type Module = string;
 export type Lineno = number;
+export type SpanId12 = string | null;
+export type TaskId13 = number | null;
 export type Timestamp12 = string;
 export type WorkingStart12 = number;
 export type Pending12 = boolean | null;
 export type Event12 = "info";
 export type Source4 = string | null;
+export type SpanId13 = string | null;
+export type TaskId14 = number;
 export type Timestamp13 = string;
 export type WorkingStart13 = number;
 export type Pending13 = boolean | null;
 export type Event13 = "span_begin";
 export type Id8 = string;
 export type ParentId = string | null;
-export type TaskId1 = number;
 export type Type13 = string | null;
 export type Name11 = string;
+export type SpanId14 = string | null;
+export type TaskId15 = number | null;
 export type Timestamp14 = string;
 export type WorkingStart14 = number;
 export type Pending14 = boolean | null;
 export type Event14 = "span_end";
 export type Id9 = string;
+export type SpanId15 = string | null;
+export type TaskId16 = number | null;
 export type Timestamp15 = string;
 export type WorkingStart15 = number;
 export type Pending15 = boolean | null;
@@ -501,6 +532,8 @@ export type Event15 = "step";
 export type Action1 = "begin" | "end";
 export type Type14 = string | null;
 export type Name12 = string;
+export type SpanId16 = string | null;
+export type TaskId17 = number | null;
 export type Timestamp16 = string;
 export type WorkingStart16 = number;
 export type Pending16 = boolean | null;
@@ -1140,6 +1173,8 @@ export interface Store {
  * Beginning of processing a Sample.
  */
 export interface SampleInitEvent {
+  span_id: SpanId;
+  task_id: TaskId1;
   timestamp: Timestamp;
   working_start: WorkingStart;
   pending: Pending;
@@ -1164,6 +1199,8 @@ export interface Sample {
  * The sample was unable to finish processing due to a limit
  */
 export interface SampleLimitEvent {
+  span_id: SpanId1;
+  task_id: TaskId2;
   timestamp: Timestamp1;
   working_start: WorkingStart1;
   pending: Pending1;
@@ -1176,6 +1213,8 @@ export interface SampleLimitEvent {
  * Sandbox execution or I/O
  */
 export interface SandboxEvent {
+  span_id: SpanId2;
+  task_id: TaskId3;
   timestamp: Timestamp2;
   working_start: WorkingStart2;
   pending: Pending2;
@@ -1193,6 +1232,8 @@ export interface SandboxEvent {
  * Change to the current `TaskState`
  */
 export interface StateEvent {
+  span_id: SpanId3;
+  task_id: TaskId4;
   timestamp: Timestamp3;
   working_start: WorkingStart3;
   pending: Pending3;
@@ -1217,6 +1258,8 @@ export interface JsonChange {
  * Change to data within the current `Store`.
  */
 export interface StoreEvent {
+  span_id: SpanId4;
+  task_id: TaskId5;
   timestamp: Timestamp4;
   working_start: WorkingStart4;
   pending: Pending4;
@@ -1227,6 +1270,8 @@ export interface StoreEvent {
  * Call to a language model.
  */
 export interface ModelEvent {
+  span_id: SpanId5;
+  task_id: TaskId6;
   timestamp: Timestamp5;
   working_start: WorkingStart5;
   pending: Pending5;
@@ -1308,6 +1353,8 @@ export interface Response {
  * Call to a tool.
  */
 export interface ToolEvent {
+  span_id: SpanId6;
+  task_id: TaskId7;
   timestamp: Timestamp6;
   working_start: WorkingStart6;
   pending: Pending6;
@@ -1334,6 +1381,8 @@ export interface Arguments1 {
  * Tool approval.
  */
 export interface ApprovalEvent {
+  span_id: SpanId7;
+  task_id: TaskId8;
   timestamp: Timestamp7;
   working_start: WorkingStart7;
   pending: Pending7;
@@ -1360,6 +1409,8 @@ export interface ToolCallView {
  * Input screen interaction.
  */
 export interface InputEvent {
+  span_id: SpanId8;
+  task_id: TaskId9;
   timestamp: Timestamp8;
   working_start: WorkingStart8;
   pending: Pending8;
@@ -1374,6 +1425,8 @@ export interface InputEvent {
  * resulting from a call to `score`.
  */
 export interface ScoreEvent {
+  span_id: SpanId9;
+  task_id: TaskId10;
   timestamp: Timestamp9;
   working_start: WorkingStart9;
   pending: Pending9;
@@ -1386,6 +1439,8 @@ export interface ScoreEvent {
  * Event with sample error.
  */
 export interface ErrorEvent {
+  span_id: SpanId10;
+  task_id: TaskId11;
   timestamp: Timestamp10;
   working_start: WorkingStart10;
   pending: Pending10;
@@ -1396,6 +1451,8 @@ export interface ErrorEvent {
  * Log message recorded with Python logger.
  */
 export interface LoggerEvent {
+  span_id: SpanId11;
+  task_id: TaskId12;
   timestamp: Timestamp11;
   working_start: WorkingStart11;
   pending: Pending11;
@@ -1418,6 +1475,8 @@ export interface LoggingMessage {
  * Event with custom info/data.
  */
 export interface InfoEvent {
+  span_id: SpanId12;
+  task_id: TaskId13;
   timestamp: Timestamp12;
   working_start: WorkingStart12;
   pending: Pending12;
@@ -1429,13 +1488,14 @@ export interface InfoEvent {
  * Mark the beginning of a transcript span.
  */
 export interface SpanBeginEvent {
+  span_id: SpanId13;
+  task_id: TaskId14;
   timestamp: Timestamp13;
   working_start: WorkingStart13;
   pending: Pending13;
   event: Event13;
   id: Id8;
   parent_id: ParentId;
-  task_id: TaskId1;
   type: Type13;
   name: Name11;
 }
@@ -1443,6 +1503,8 @@ export interface SpanBeginEvent {
  * Mark the end of a transcript span.
  */
 export interface SpanEndEvent {
+  span_id: SpanId14;
+  task_id: TaskId15;
   timestamp: Timestamp14;
   working_start: WorkingStart14;
   pending: Pending14;
@@ -1453,6 +1515,8 @@ export interface SpanEndEvent {
  * Step within current sample or subtask.
  */
 export interface StepEvent {
+  span_id: SpanId15;
+  task_id: TaskId16;
   timestamp: Timestamp15;
   working_start: WorkingStart15;
   pending: Pending15;
@@ -1465,6 +1529,8 @@ export interface StepEvent {
  * Subtask spawned.
  */
 export interface SubtaskEvent {
+  span_id: SpanId16;
+  task_id: TaskId17;
   timestamp: Timestamp16;
   working_start: WorkingStart16;
   pending: Pending16;

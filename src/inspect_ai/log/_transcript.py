@@ -14,6 +14,7 @@ from typing import (
     Union,
 )
 
+import anyio
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -23,6 +24,7 @@ from pydantic import (
 )
 from shortuuid import uuid
 
+from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import JsonChange
 from inspect_ai._util.logger import warn_once
@@ -43,7 +45,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._span import span
+from inspect_ai.util._span import current_span_id, span
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 logger = getLogger(__name__)
@@ -57,6 +59,12 @@ class BaseEvent(BaseModel):
     }
     id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
 
+    span_id: str | None = Field(default=None)
+    """Span the event occurred within."""
+
+    task_id: int | None = Field(default=None)
+    """Async task the event occurred within."""
+
     timestamp: datetime = Field(default_factory=datetime.now)
     """Clock time at which event occurred."""
 
@@ -65,6 +73,19 @@ class BaseEvent(BaseModel):
 
     pending: bool | None = Field(default=None)
     """Is this event pending?"""
+
+    def model_post_init(self, __context: Any) -> None:
+        # check if deserializing
+        is_deserializing = isinstance(__context, dict) and __context.get(
+            DESERIALIZING, False
+        )
+
+        # Generate context id fields if not deserializing
+        if not is_deserializing:
+            if self.span_id is None:
+                self.span_id = current_span_id()
+            if self.task_id is None:
+                self.task_id = anyio.get_current_task().id
 
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:
@@ -222,7 +243,6 @@ class ToolEvent(BaseEvent):
         result: ToolResult,
         truncated: tuple[int, int] | None,
         error: ToolCallError | None,
-        events: list["Event"],
         waiting_time: float,
         agent: str | None,
         failed: bool | None,
@@ -230,7 +250,6 @@ class ToolEvent(BaseEvent):
         self.result = result
         self.truncated = truncated
         self.error = error
-        self.events = events
         self.pending = None
         completed = datetime.now()
         self.completed = completed

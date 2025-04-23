@@ -66,6 +66,7 @@ from inspect_ai.log._transcript import (
     SampleLimitEvent,
     ScoreEvent,
     Transcript,
+    init_transcript,
     transcript,
 )
 from inspect_ai.model import (
@@ -91,7 +92,7 @@ from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._span import span
-from inspect_ai.util._subtask import init_subtask
+from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
@@ -558,7 +559,9 @@ async def task_run_sample(
     # initialise subtask and scoring context
     init_sample_model_usage()
     set_sample_state(state)
-    sample_transcript: Transcript = init_subtask(SAMPLE_SUBTASK, state.store)
+    sample_transcript = Transcript(name=SAMPLE_SUBTASK)
+    init_transcript(sample_transcript)
+    init_subtask_store(state.store)
     if logger:
         sample_transcript._subscribe(
             lambda event: logger.log_sample_event(sample_id, state.epoch, event)

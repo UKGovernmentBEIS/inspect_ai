@@ -3,6 +3,30 @@
     "ApprovalEvent": {
       "description": "Tool approval.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -88,6 +112,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -815,6 +841,30 @@
     "ErrorEvent": {
       "description": "Event with sample error.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -847,6 +897,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -2908,6 +2960,30 @@
     "InfoEvent": {
       "description": "Event with custom info/data.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -2952,6 +3028,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -2966,6 +3044,30 @@
     "InputEvent": {
       "description": "Input screen interaction.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -3003,6 +3105,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -3222,6 +3326,30 @@
     "LoggerEvent": {
       "description": "Log message recorded with Python logger.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -3254,6 +3382,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -3442,6 +3572,30 @@
     "ModelEvent": {
       "description": "Call to a language model.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -3600,6 +3754,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -3952,6 +4108,30 @@
     "SampleInitEvent": {
       "description": "Beginning of processing a Sample.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -3987,6 +4167,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4001,6 +4183,30 @@
     "SampleLimitEvent": {
       "description": "The sample was unable to finish processing due to a limit",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4058,6 +4264,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4093,6 +4301,30 @@
     "SandboxEvent": {
       "description": "Sandbox execution or I/O",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4219,6 +4451,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4348,6 +4582,30 @@
     "ScoreEvent": {
       "description": "Event with score.\n\nCan be the final score for a `Sample`, or can be an intermediate score\nresulting from a call to `score`.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4403,6 +4661,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4418,6 +4678,22 @@
     "SpanBeginEvent": {
       "description": "Mark the beginning of a transcript span.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "title": "Task Id",
+          "type": "integer"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4461,10 +4737,6 @@
           "default": null,
           "title": "Parent Id"
         },
-        "task_id": {
-          "title": "Task Id",
-          "type": "integer"
-        },
         "type": {
           "anyOf": [
             {
@@ -4483,13 +4755,14 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
         "event",
         "id",
         "parent_id",
-        "task_id",
         "type",
         "name"
       ],
@@ -4500,6 +4773,30 @@
     "SpanEndEvent": {
       "description": "Mark the end of a transcript span.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4533,6 +4830,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4546,6 +4845,30 @@
     "StateEvent": {
       "description": "Change to the current `TaskState`",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4582,6 +4905,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4595,6 +4920,30 @@
     "StepEvent": {
       "description": "Step within current sample or subtask.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4648,6 +4997,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4663,6 +5014,30 @@
     "StoreEvent": {
       "description": "Change to data within the current `Store`.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4699,6 +5074,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4712,6 +5089,30 @@
     "SubtaskEvent": {
       "description": "Subtask spawned.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4850,6 +5251,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -5046,6 +5449,30 @@
     "ToolEvent": {
       "description": "Call to a tool.",
       "properties": {
+        "span_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -5313,6 +5740,8 @@
         }
       },
       "required": [
+        "span_id",
+        "task_id",
         "timestamp",
         "working_start",
         "pending",
