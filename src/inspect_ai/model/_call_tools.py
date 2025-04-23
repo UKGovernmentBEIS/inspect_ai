@@ -144,7 +144,6 @@ async def execute_tools(
                         )
                     # unwrap exception group
                     except Exception as ex:
-                        # TODO: This appears to "lose" the LimitExceededError.conversation
                         inner_ex = inner_exception(ex)
                         raise inner_ex.with_traceback(inner_ex.__traceback__)
 
@@ -188,7 +187,6 @@ async def execute_tools(
                     )
                 )
                 tool_error = ToolCallError("limit", error_message)
-
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolApprovalError as ex:
@@ -376,8 +374,6 @@ async def call_tool(
     )
     if not approved:
         if approval and approval.decision == "terminate":
-            from inspect_ai.util._limit import LimitExceededError
-
             raise LimitExceededError(
                 "operator",
                 value=1,
