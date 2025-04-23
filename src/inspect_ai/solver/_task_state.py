@@ -329,7 +329,10 @@ class TaskState:
 
     @token_limit.setter
     def token_limit(self, tokens: int | None) -> None:
-        """Set limit on total tokens allowed per conversation."""
+        """Set limit on total tokens allowed per conversation.
+
+        Also checks whether the current token usage exceeds the new limit.
+        """
         self._token_limit.limit = tokens
         check_token_limit()
 
