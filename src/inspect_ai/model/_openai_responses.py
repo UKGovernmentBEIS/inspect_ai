@@ -266,7 +266,7 @@ def _chat_message_assistant_from_openai_response(
                         tool_calls.append(
                             parse_tool_call(
                                 output.call_id,
-                                output.name,
+                                _from_responses_tool_alias(output.name),
                                 output.arguments,
                                 tools,
                             )
@@ -403,7 +403,7 @@ def _tool_call_items_from_assistant_message(
             tool_call_param: ResponseFunctionToolCallParam = dict(
                 type="function_call",
                 call_id=call.id,
-                name=call.function,
+                name=_responses_tool_alias(call.function),
                 arguments=call.function,
             )
 
@@ -444,8 +444,21 @@ def _tool_param_for_tool_info(
     # standard tool implementation
     return _maybe_native_tool_param(tool, config) or FunctionToolParam(
         type="function",
-        name=tool.name,
+        name=_responses_tool_alias(tool.name),
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
         strict=False,  # default parameters don't work in strict mode
     )
+
+
+# these functions enables us to 'escape' built in tool names like 'python'
+
+_responses_tool_aliases = {"python": "python_exec"}
+
+
+def _responses_tool_alias(name: str) -> str:
+    return _responses_tool_aliases.get(name, name)
+
+
+def _from_responses_tool_alias(name: str) -> str:
+    return next((k for k, v in _responses_tool_aliases.items() if v == name), name)

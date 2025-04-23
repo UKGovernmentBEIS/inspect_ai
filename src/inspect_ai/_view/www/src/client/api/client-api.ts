@@ -65,12 +65,13 @@ export const clientApi = (api: LogViewAPI, log_file?: string): ClientAPI => {
 
   const remoteEvalFile = async (log_file: string, cached: boolean = false) => {
     if (!cached || loadedEvalFile.file !== log_file) {
-      loadedEvalFile.file = log_file;
-      loadedEvalFile.remoteLog = await openRemoteLogFile(
+      const remoteLog = await openRemoteLogFile(
         api,
         encodePathParts(log_file),
         5,
       );
+      loadedEvalFile.file = log_file;
+      loadedEvalFile.remoteLog = remoteLog;
     }
     return loadedEvalFile.remoteLog;
   };

@@ -22731,13 +22731,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             });
           },
           setShowingSampleDialog: (showing) => {
-            set2((state) => {
-              state.app.dialogs.sample = showing;
+            const state = get2();
+            const isShowing = state.app.dialogs.sample;
+            if (showing === isShowing) {
+              return;
+            }
+            set2((state2) => {
+              state2.app.dialogs.sample = showing;
             });
             if (!showing) {
-              const state = get2();
-              state.appActions.clearSampleTab();
-              state.sampleActions.clearSelectedSample();
+              const state2 = get2();
+              state2.appActions.clearSampleTab();
             }
           },
           setWorkspaceTab: (tab2) => {
@@ -29113,7 +29117,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const baseMinusTMin = base$1 - tMin;
     const floor = Math.floor;
     const stringFromCharCode = String.fromCharCode;
-    function error$1(type) {
+    function error$2(type) {
       throw new RangeError(errors[type]);
     }
     function map(array, callback) {
@@ -29193,7 +29197,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       for (let j2 = 0; j2 < basic; ++j2) {
         if (input2.charCodeAt(j2) >= 128) {
-          error$1("not-basic");
+          error$2("not-basic");
         }
         output2.push(input2.charCodeAt(j2));
       }
@@ -29201,14 +29205,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         const oldi = i2;
         for (let w = 1, k = base$1; ; k += base$1) {
           if (index2 >= inputLength) {
-            error$1("invalid-input");
+            error$2("invalid-input");
           }
           const digit = basicToDigit(input2.charCodeAt(index2++));
           if (digit >= base$1) {
-            error$1("invalid-input");
+            error$2("invalid-input");
           }
           if (digit > floor((maxInt - i2) / w)) {
-            error$1("overflow");
+            error$2("overflow");
           }
           i2 += digit * w;
           const t2 = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
@@ -29217,14 +29221,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           const baseMinusT = base$1 - t2;
           if (w > floor(maxInt / baseMinusT)) {
-            error$1("overflow");
+            error$2("overflow");
           }
           w *= baseMinusT;
         }
         const out = output2.length + 1;
         bias = adapt(i2 - oldi, out, oldi == 0);
         if (floor(i2 / out) > maxInt - n) {
-          error$1("overflow");
+          error$2("overflow");
         }
         n += floor(i2 / out);
         i2 %= out;
@@ -29258,13 +29262,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         const handledCPCountPlusOne = handledCPCount + 1;
         if (m - n > floor((maxInt - delta) / handledCPCountPlusOne)) {
-          error$1("overflow");
+          error$2("overflow");
         }
         delta += (m - n) * handledCPCountPlusOne;
         n = m;
         for (const currentValue of input2) {
           if (currentValue < n && ++delta > maxInt) {
-            error$1("overflow");
+            error$2("overflow");
           }
           if (currentValue === n) {
             let q = delta;
@@ -39331,7 +39335,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           const score2 = selectedScore ? evalDescriptor.score(current2, selectedScore) : void 0;
           const scoreValue = score2 == null ? void 0 : score2.value;
           const scoreText = scoreValue ? String(scoreValue) : current2.error ? String(current2.error) : "";
-          previous[0] = Math.min(Math.max(previous[0], text2.length), 300);
+          previous[0] = Math.min(Math.max(previous[0], text2.length), 200);
           previous[1] = Math.min(
             Math.max(previous[1], arrayToString(current2.target).length),
             300
@@ -39348,37 +39352,47 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             50
           );
           previous[4] = Math.min(
-            Math.max(previous[4], String(current2.id).length),
+            Math.max(
+              previous[4],
+              current2.retries ? String(current2.retries).length : 0
+            ),
+            50
+          );
+          previous[5] = Math.min(
+            Math.max(previous[5], String(current2.id).length),
             10
           );
-          previous[5] = Math.min(Math.max(previous[5], scoreText.length), 30);
+          previous[6] = Math.min(Math.max(previous[6], scoreText.length), 30);
           return previous;
         },
-        [0, 0, 0, 0, 0, 0]
+        [0, 0, 0, 0, 0, 0, 0]
       );
       const maxSizes = {
         input: Math.min(sizes[0], 300),
         target: Math.min(sizes[1], 300),
         answer: Math.min(sizes[2], 300),
         limit: Math.min(sizes[3], 50),
-        id: Math.min(sizes[4], 10),
-        score: Math.min(sizes[5], 30)
+        retries: Math.min(sizes[4], 50),
+        id: Math.min(sizes[5], 10),
+        score: Math.min(sizes[6], 30)
       };
-      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.id + maxSizes.score || 1;
+      const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.retries + maxSizes.id + maxSizes.score || 1;
       const messageShape = {
         raw: {
           input: sizes[0],
           target: sizes[1],
           answer: sizes[2],
           limit: sizes[3],
-          id: sizes[4],
-          score: sizes[5]
+          retries: sizes[4],
+          id: sizes[5],
+          score: sizes[6]
         },
         normalized: {
           input: maxSizes.input / base2,
           target: maxSizes.target / base2,
           answer: maxSizes.answer / base2,
           limit: maxSizes.limit / base2,
+          retries: maxSizes.retries / base2,
           id: maxSizes.id / base2,
           score: maxSizes.score / base2
         }
@@ -41853,7 +41867,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const sampleVariables = (sample2) => {
       return {
-        has_error: !!sample2.error
+        has_error: !!sample2.error,
+        has_retries: sample2.retries !== void 0 && sample2.retries > 0
       };
     };
     const scoreFilterItems = (evalDescriptor) => {
@@ -41941,7 +41956,8 @@ categories: ${categories.join(" ")}`;
         };
         const resolveVariable = (name2, get2) => {
           if (name2 in mySampleVariables) {
-            return get2(name2);
+            const value2 = get2(name2);
+            return value2;
           }
           return sample2.error ? void 0 : get2(name2);
         };
@@ -42363,9 +42379,11 @@ categories: ${categories.join(" ")}`;
       const selectedLogFile = useStore(
         (state) => state.logsActions.getSelectedLogFile()
       );
+      const loadedLog = useStore((state) => state.log.loadedLog);
       return reactExports.useMemo(() => {
         return {
           logFile: selectedLogFile,
+          loadedLog,
           sample: selectedSampleSummary
         };
       }, [selectedLogFile, selectedSampleSummary]);
@@ -42886,11 +42904,11 @@ categories: ${categories.join(" ")}`;
       item: item$1,
       logLink
     };
-    const error = "_error_srruf_1";
+    const error$1 = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
     const styles$11 = {
-      error,
+      error: error$1,
       running,
       cancelled
     };
@@ -47009,12 +47027,13 @@ self.onmessage = function (e) {
       };
       const remoteEvalFile = async (log_file2, cached = false) => {
         if (!cached || loadedEvalFile.file !== log_file2) {
-          loadedEvalFile.file = log_file2;
-          loadedEvalFile.remoteLog = await openRemoteLogFile(
+          const remoteLog = await openRemoteLogFile(
             api2,
             encodePathParts(log_file2),
             5
           );
+          loadedEvalFile.file = log_file2;
+          loadedEvalFile.remoteLog = remoteLog;
         }
         return loadedEvalFile.remoteLog;
       };
@@ -50704,19 +50723,21 @@ self.onmessage = function (e) {
         );
       }
     );
-    const tabPanel = "_tabPanel_cjf1d_1";
-    const fullWidth$1 = "_fullWidth_cjf1d_5";
-    const metadataPanel = "_metadataPanel_cjf1d_9";
-    const padded = "_padded_cjf1d_18";
-    const ansi = "_ansi_cjf1d_23";
-    const noTop = "_noTop_cjf1d_27";
-    const timePanel = "_timePanel_cjf1d_31";
-    const chat = "_chat_cjf1d_39";
+    const tabPanel = "_tabPanel_1p5e1_1";
+    const fullWidth$1 = "_fullWidth_1p5e1_5";
+    const metadataPanel = "_metadataPanel_1p5e1_9";
+    const padded = "_padded_1p5e1_18";
+    const error = "_error_1p5e1_23";
+    const ansi = "_ansi_1p5e1_27";
+    const noTop = "_noTop_1p5e1_31";
+    const timePanel = "_timePanel_1p5e1_35";
+    const chat = "_chat_1p5e1_43";
     const styles$z = {
       tabPanel,
       fullWidth: fullWidth$1,
       metadataPanel,
       padded,
+      error,
       ansi,
       noTop,
       timePanel,
@@ -50764,10 +50785,10 @@ self.onmessage = function (e) {
       value
     };
     function isEvalSample(sample2) {
-      return "choices" in sample2 && Array.isArray(sample2.choices);
+      return "store" in sample2;
     }
     const resolveSample = (sample2, sampleDescriptor) => {
-      var _a2, _b2, _c;
+      var _a2, _b2, _c, _d;
       const input2 = inputString(sample2.input);
       if (isEvalSample(sample2) && sample2.choices && sample2.choices.length > 0) {
         input2.push("");
@@ -50783,12 +50804,14 @@ self.onmessage = function (e) {
       const working_time = isEvalSample(sample2) ? sample2.working_time : void 0;
       const total_time = isEvalSample(sample2) ? sample2.total_time : void 0;
       const error2 = isEvalSample(sample2) ? (_c = sample2.error) == null ? void 0 : _c.message : void 0;
+      const retries = isEvalSample(sample2) ? (_d = sample2.error_retries) == null ? void 0 : _d.length : sample2.retries;
       return {
         id: sample2.id,
         input: input2,
         target: target2,
         answer: answer2,
         limit,
+        retries,
         working_time,
         total_time,
         error: error2
@@ -50809,7 +50832,7 @@ self.onmessage = function (e) {
       const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
-      const timeSize = fields.working_time || fields.total_time ? 0.15 : 0;
+      const retrySize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.retries) > 0 ? 6 : 0;
       const idSize = Math.max(
         2,
         Math.min(10, sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id)
@@ -50850,7 +50873,7 @@ self.onmessage = function (e) {
               className: clsx("no-last-para-padding", styles$x.answer)
             }
           ) : "",
-          size: `${answer2}fr`,
+          size: `${Math.max(answer2, 20)}fr`,
           clamp: true
         });
       }
@@ -50864,7 +50887,7 @@ self.onmessage = function (e) {
         columns.push({
           label: "Time",
           value: formatTime$1(fields.total_time),
-          size: `${timeSize}fr`,
+          size: `fit-content(10rem)`,
           center: true,
           title: toolTip(fields.working_time)
         });
@@ -50873,14 +50896,22 @@ self.onmessage = function (e) {
         columns.push({
           label: "Limit",
           value: fields.limit,
-          size: `${limitSize}fr`,
+          size: `fit-content(10rem)`,
+          center: true
+        });
+      }
+      if ((fields == null ? void 0 : fields.retries) && retrySize > 0) {
+        columns.push({
+          label: "Retries",
+          value: fields.retries,
+          size: `${retrySize}rem`,
           center: true
         });
       }
       columns.push({
         label: "Score",
         value: fields.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(FlatSampleError, { message: fields.error }) : ((_a2 = sampleDescriptor == null ? void 0 : sampleDescriptor.evalDescriptor.score(sample2, currentScore)) == null ? void 0 : _a2.render()) || "",
-        size: "minmax(2em, 30em)",
+        size: "fit-content(15em)",
         center: true
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -60111,8 +60142,9 @@ ${events}
       }
     );
     const SampleDisplay = ({ id, scrollRef }) => {
+      var _a2;
       const baseId = `sample-dialog`;
-      const sampleSummaries = useSampleSummaries();
+      const filteredSamples = useFilteredSamples();
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
       );
@@ -60124,7 +60156,7 @@ ${events}
       const { sampleTabId } = useParams();
       const effectiveSelectedTab = sampleTabId || selectedTab;
       const navigate = useNavigate();
-      const sampleSummary = sampleSummaries[selectedSampleIndex];
+      const sampleSummary = filteredSamples[selectedSampleIndex];
       const sampleEvents = (sample2 == null ? void 0 : sample2.events) || runningSampleData;
       const sampleMessages = reactExports.useMemo(() => {
         if (sample2 == null ? void 0 : sample2.messages) {
@@ -60261,21 +60293,46 @@ ${events}
                   children: sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.metadataPanel), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
-              (sample2 == null ? void 0 : sample2.error) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) && (sample2 == null ? void 0 : sample2.error_retries.length) > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleErrorTabId,
                   className: "sample-tab",
-                  title: "Error",
+                  title: "Errors",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleErrorTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.padded), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    ANSIDisplay,
-                    {
-                      output: sample2.error.traceback_ansi,
-                      className: clsx("text-size-small", styles$z.ansi)
-                    }
-                  ) })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$z.error), children: [
+                    (sample2 == null ? void 0 : sample2.error) ? /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: `Sample Error` }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        ANSIDisplay,
+                        {
+                          output: sample2.error.traceback_ansi,
+                          className: clsx("text-size-small", styles$z.ansi),
+                          style: {
+                            fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                            margin: "0.5em 0"
+                          }
+                        }
+                      ) })
+                    ] }, `sample-error}`) : void 0,
+                    (_a2 = sample2.error_retries) == null ? void 0 : _a2.map((retry, index2) => {
+                      return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: `Attempt ${index2 + 1}` }),
+                        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                          ANSIDisplay,
+                          {
+                            output: retry.traceback_ansi,
+                            className: clsx("text-size-small", styles$z.ansi),
+                            style: {
+                              fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                              margin: "0.5em 0"
+                            }
+                          }
+                        ) })
+                      ] }, `sample-retry-error-${index2}`);
+                    })
+                  ] })
                 }
               ) : null,
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -60453,17 +60510,17 @@ ${events}
       const prevCompleted = usePrevious(
         ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
       );
-      const prevLogFile = usePrevious(logSelection.logFile);
+      const prevLogFile = usePrevious(logSelection.loadedLog);
       reactExports.useEffect(() => {
         var _a3, _b3, _c2;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = ((_a3 = logSelection.sample) == null ? void 0 : _a3.completed) !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== logSelection.logFile || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || currentSampleCompleted !== prevCompleted) {
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.loadedLog || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
       }, [
-        logSelection.logFile,
+        logSelection.loadedLog,
         (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
         (_c = logSelection.sample) == null ? void 0 : _c.epoch,
         (_d = logSelection.sample) == null ? void 0 : _d.completed,
@@ -80638,7 +80695,8 @@ ${events}
       ["log10", "Base 10 logarithm"]
     ];
     const SAMPLE_VARIABLES = [
-      ["has_error", "Checks if the sample has an error"]
+      ["has_error", "Checks if the sample has an error"],
+      ["has_retries", "Checks if the sample has been retried"]
     ];
     const SAMPLE_FUNCTIONS = [
       ["input_contains", "Checks if input contains a regular expression"],
@@ -80942,6 +81000,7 @@ Filter samples by:
   • Scores
   • Samples with errors: has_error
   • Input, target and error regex search: input_contains, target_contains, error_contains
+  • Samples that have been retried: has_retries
 
 Supported expressions:
   • Arithmetic: +, -, *, /, mod, ^
@@ -81422,13 +81481,14 @@ Supported expressions:
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$6.message, style: ApplicationStyles.lineClamp(2), children: errorType(message2) })
       ] });
     };
-    const grid = "_grid_1oibv_1";
-    const selected = "_selected_1oibv_13";
-    const disabled = "_disabled_1oibv_23";
-    const cell = "_cell_1oibv_28";
-    const wrapAnywhere = "_wrapAnywhere_1oibv_33";
-    const noLeft = "_noLeft_1oibv_37";
-    const score = "_score_1oibv_41";
+    const grid = "_grid_185sx_1";
+    const selected = "_selected_185sx_13";
+    const disabled = "_disabled_185sx_23";
+    const cell = "_cell_185sx_28";
+    const wrapAnywhere = "_wrapAnywhere_185sx_33";
+    const noLeft = "_noLeft_185sx_37";
+    const score = "_score_185sx_41";
+    const centered = "_centered_185sx_46";
     const styles$5 = {
       grid,
       selected,
@@ -81436,7 +81496,8 @@ Supported expressions:
       cell,
       wrapAnywhere,
       noLeft,
-      score
+      score,
+      centered
     };
     const SampleRow = ({
       id,
@@ -81512,6 +81573,19 @@ Supported expressions:
                 children: sample2.limit
               }
             ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  "sample-retries",
+                  "text-size-small",
+                  "three-line-clamp",
+                  styles$5.cell,
+                  styles$5.centered
+                ),
+                children: sample2.retries && sample2.retries > 0 ? sample2.retries : void 0
+              }
+            ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$5.cell, styles$5.score), children: sample2.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleErrorView, { message: sample2.error }) : completed ? scoreRendered : /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, {}) })
           ]
         }
@@ -81584,6 +81658,7 @@ Supported expressions:
       target: target2 = true,
       answer: answer2 = true,
       limit = true,
+      retries = false,
       score: score2 = true,
       gridColumnsTemplate
     }) => /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -81602,6 +81677,7 @@ Supported expressions:
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 ? "Target" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: answer2 ? "Answer" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: limit ? "Limit" : "" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: retries ? "Retries" : "" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$2.center, children: score2 ? "Score" : "" })
         ]
       }
@@ -81714,7 +81790,7 @@ Supported expressions:
         },
         [gridColumnsTemplate]
       );
-      const { input: input2, limit, answer: answer2, target: target2 } = gridColumns(samplesDescriptor);
+      const { input: input2, limit, answer: answer2, target: target2, retries } = gridColumns(samplesDescriptor);
       const sampleCount = items == null ? void 0 : items.reduce((prev, current2) => {
         if (current2.type === "sample") {
           return prev + 1;
@@ -81754,6 +81830,7 @@ Supported expressions:
             target: target2 !== "0",
             answer: answer2 !== "0",
             limit: limit !== "0",
+            retries: retries !== "0em",
             gridColumnsTemplate
           }
         ),
@@ -81794,14 +81871,15 @@ Supported expressions:
       ] });
     });
     const gridColumnsValue = (sampleDescriptor) => {
-      const { input: input2, target: target2, answer: answer2, limit, id, score: score2 } = gridColumns(sampleDescriptor);
-      return `${id} ${input2} ${target2} ${answer2} ${limit} ${score2}`;
+      const { input: input2, target: target2, answer: answer2, limit, retries, id, score: score2 } = gridColumns(sampleDescriptor);
+      return `${id} ${input2} ${target2} ${answer2} ${limit} ${retries} ${score2}`;
     };
     const gridColumns = (sampleDescriptor) => {
       const input2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.input > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
       const target2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.target > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
       const answer2 = sampleDescriptor && sampleDescriptor.messageShape.normalized.answer > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limit = sampleDescriptor && sampleDescriptor.messageShape.normalized.limit > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
+      const retries = sampleDescriptor && sampleDescriptor.messageShape.normalized.retries > 0 ? 4 : 0;
       const id = Math.max(
         2,
         Math.min(10, (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.raw.id) || 0)
@@ -81822,6 +81900,7 @@ Supported expressions:
         target: frSize(target2),
         answer: frSize(answer2),
         limit: frSize(limit),
+        retries: `${retries}em`,
         id: `${id}rem`,
         score: `${score2}rem`
       };
@@ -82338,6 +82417,7 @@ Supported expressions:
       const selectSample = useStore((state) => state.logActions.selectSample);
       const setSampleTab = useStore((state) => state.appActions.setSampleTab);
       const filteredSamples = useFilteredSamples();
+      const totalSampleCount = useTotalSampleCount();
       const setStatus = useStore((state) => state.appActions.setStatus);
       const setSelectedLogIndex = useStore(
         (state) => state.logsActions.setSelectedLogIndex
@@ -82421,14 +82501,17 @@ Supported expressions:
             }
           }
         } else {
-          clearSample();
           setShowingSampleDialog(false);
+          if (totalSampleCount > 1) {
+            clearSample();
+          }
         }
       }, [
         sampleId,
         epoch,
         sampleTabId,
         filteredSamples,
+        totalSampleCount,
         selectSample,
         setSampleTab,
         setShowingSampleDialog,

@@ -30,7 +30,7 @@ export const InlineSampleDisplay: FC = () => {
       ? logSelection.sample.completed
       : true,
   );
-  const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
+  const prevLogFile = usePrevious<string | undefined>(logSelection.loadedLog);
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
       const currentSampleCompleted =
@@ -39,16 +39,17 @@ export const InlineSampleDisplay: FC = () => {
           : true;
 
       if (
-        prevLogFile !== logSelection.logFile ||
+        (prevLogFile !== undefined && prevLogFile !== logSelection.loadedLog) ||
         sampleData.sample?.id !== logSelection.sample.id ||
         sampleData.sample?.epoch !== logSelection.sample.epoch ||
-        currentSampleCompleted !== prevCompleted
+        (prevCompleted !== undefined &&
+          currentSampleCompleted !== prevCompleted)
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
     }
   }, [
-    logSelection.logFile,
+    logSelection.loadedLog,
     logSelection.sample?.id,
     logSelection.sample?.epoch,
     logSelection.sample?.completed,
