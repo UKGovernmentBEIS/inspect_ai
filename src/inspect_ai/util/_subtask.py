@@ -123,7 +123,7 @@ def subtask(
 
                 # run the subtask
                 with trace_action(logger, "Subtask", subtask_name):
-                    with span(type="subtask", name=subtask_name):
+                    with span(name=subtask_name, type="subtask"):
                         result = await func(*args, **kwargs)
 
                 # return result

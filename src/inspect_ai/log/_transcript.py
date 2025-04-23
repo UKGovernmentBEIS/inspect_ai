@@ -14,7 +14,6 @@ from typing import (
     Union,
 )
 
-import anyio
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -440,7 +439,7 @@ class SpanBeginEvent(BaseEvent):
     parent_id: str | None = Field(default=None)
     """Identifier for parent span."""
 
-    task_id: int
+    task_id: int | None = Field(default=None)
     """Runtime async task id for span."""
 
     type: str | None = Field(default=None)

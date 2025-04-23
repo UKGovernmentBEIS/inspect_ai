@@ -128,15 +128,14 @@ async def execute_tools(
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
             try:
-                with span(name=call.function, type="tool"):
-                    try:
-                        result, messages, output, agent = await call_tool(
-                            tdefs, message.text, call, conversation
-                        )
-                    # unwrap exception group
-                    except Exception as ex:
-                        inner_ex = inner_exception(ex)
-                        raise inner_ex.with_traceback(inner_ex.__traceback__)
+                try:
+                    result, messages, output, agent = await call_tool(
+                        tdefs, message.text, call, conversation
+                    )
+                # unwrap exception group
+                except Exception as ex:
+                    inner_ex = inner_exception(ex)
+                    raise inner_ex.with_traceback(inner_ex.__traceback__)
 
             except TimeoutError:
                 tool_error = ToolCallError(
@@ -380,14 +379,16 @@ async def call_tool(
     with trace_action(
         logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
     ):
-        # agent tools get special handling
         if isinstance(tool_def.tool, AgentTool):
-            return await agent_handoff(tool_def, call, conversation)
+            with span(tool_def.tool.name, type="handoff"):
+                with span(name=call.function, type="tool"):
+                    return await agent_handoff(tool_def, call, conversation)
 
         # normal tool call
         else:
-            result: ToolResult = await tool_def.tool(**arguments)
-            return result, [], None, None
+            with span(name=call.function, type="tool"):
+                result: ToolResult = await tool_def.tool(**arguments)
+                return result, [], None, None
 
 
 async def agent_handoff(
@@ -452,7 +453,8 @@ async def agent_handoff(
     agent_state = AgentState(messages=copy(agent_conversation))
     try:
         with apply_limits(agent_tool.limits):
-            agent_state = await agent_tool.agent(agent_state, **arguments)
+            with span(name=agent_name, type="agent"):
+                agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex
 

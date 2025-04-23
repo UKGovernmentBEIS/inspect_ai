@@ -620,7 +620,7 @@ async def task_run_sample(
         results: dict[str, SampleScore] = {}
         try:
             # begin init
-            init_span = span(name="init", type="init")
+            init_span = span("init", type="init")
             init_span.__enter__()
 
             # sample init event (remove file bodies as they have content or absolute paths)

@@ -3,11 +3,11 @@ from contextvars import ContextVar
 from typing import Iterator
 from uuid import uuid4
 
-import anyio
+from inspect_ai.util._anyio import safe_current_task_id
 
 
 @contextlib.contextmanager
-def span(name: str, type: str | None = None) -> Iterator[None]:
+def span(name: str, *, type: str | None = None) -> Iterator[None]:
     """Context manager for establishing a transcript span.
 
     Args:
@@ -23,7 +23,7 @@ def span(name: str, type: str | None = None) -> Iterator[None]:
 
     # determine span and task id
     id = uuid4().hex
-    task_id = anyio.get_current_task().id
+    task_id = safe_current_task_id()
 
     # capture parent id
     parent_id = _current_span_id.get()
@@ -48,9 +48,10 @@ def span(name: str, type: str | None = None) -> Iterator[None]:
         with track_store_changes():
             yield
 
-        # spend end event
-        transcript()._event(SpanEndEvent(id=id))
     finally:
+        # send end event
+        transcript()._event(SpanEndEvent(id=id))
+
         _current_span_id.reset(token)
 
 
