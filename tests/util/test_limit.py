@@ -8,7 +8,7 @@ from inspect_ai.util._limit import (
     message_limit,
     record_model_usage,
     token_limit,
-    using_limits,
+    apply_limits,
 )
 
 
@@ -26,13 +26,13 @@ def test_can_use_deprecated_sample_limit_exceeded_error() -> None:
         assert exc_info.type == "token"
 
 
-def test_using_limits_empty() -> None:
-    with using_limits([]):
+def test_apply_limits_empty() -> None:
+    with apply_limits([]):
         pass
 
 
-def test_using_limits() -> None:
-    with using_limits([token_limit(10), message_limit(10)]):
+def test_apply_limits() -> None:
+    with apply_limits([token_limit(10), message_limit(10)]):
         with pytest.raises(LimitExceededError):
             record_model_usage(ModelUsage(total_tokens=11))
             check_token_limit()

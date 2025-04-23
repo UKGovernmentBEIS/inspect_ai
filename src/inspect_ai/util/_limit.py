@@ -84,7 +84,7 @@ class Limit(abc.ABC):
 
 
 @contextmanager
-def using_limits(limits: list[Limit]) -> Iterator[None]:
+def apply_limits(limits: list[Limit]) -> Iterator[None]:
     with ExitStack() as stack:
         for limit in limits:
             stack.enter_context(limit)

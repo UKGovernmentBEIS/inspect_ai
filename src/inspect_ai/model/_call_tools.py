@@ -60,7 +60,7 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
-from inspect_ai.util._limit import LimitExceededError, using_limits
+from inspect_ai.util._limit import LimitExceededError, apply_limits
 
 from ._chat_message import (
     ChatMessage,
@@ -472,7 +472,7 @@ async def agent_handoff(
     limit_error: LimitExceededError | None = None
     agent_state = AgentState(messages=copy(agent_conversation))
     try:
-        with using_limits(agent_tool.limits):
+        with apply_limits(agent_tool.limits):
             agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex
