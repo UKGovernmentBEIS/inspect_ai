@@ -59949,13 +59949,13 @@ ${events}
         }
       );
     };
-    const transcriptComponent = "_transcriptComponent_1sywb_19";
-    const eventNode = "_eventNode_1sywb_25";
-    const darkenBg = "_darkenBg_1sywb_29";
-    const lastNode = "_lastNode_1sywb_33";
-    const eventNodeContainer = "_eventNodeContainer_1sywb_37";
-    const noBottom = "_noBottom_1sywb_41";
-    const attached$1 = "_attached_1sywb_45";
+    const transcriptComponent = "_transcriptComponent_13qtu_19";
+    const eventNode = "_eventNode_13qtu_25";
+    const darkenBg = "_darkenBg_13qtu_29";
+    const lastNode = "_lastNode_13qtu_33";
+    const eventNodeContainer = "_eventNodeContainer_13qtu_37";
+    const noBottom = "_noBottom_13qtu_41";
+    const attached$1 = "_attached_13qtu_45";
     const styles$d = {
       transcriptComponent,
       eventNode,
