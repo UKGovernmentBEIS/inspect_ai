@@ -494,8 +494,6 @@ body {
 }
 
 code:not(.sourceCode):not(.source-code) {
-  border-radius: 2px;
-  padding: 0.2em;
   color: var(--bs-code-color);
 }
 

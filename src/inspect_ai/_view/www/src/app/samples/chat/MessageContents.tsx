@@ -8,6 +8,7 @@ import { MessageContent } from "./MessageContent";
 import { resolveToolInput } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
+import clsx from "clsx";
 import { FC, Fragment } from "react";
 import { ContentTool } from "../../../app/types";
 import styles from "./MessageContents.module.css";
@@ -52,7 +53,9 @@ export const MessageContents: FC<MessageContentsProps> = ({
       if (toolCallStyle === "compact") {
         return (
           <div key={`tool-call-${idx}`}>
-            <code>tool: {functionCall}</code>
+            <code className={clsx(styles.codeCompact)}>
+              tool: {functionCall}
+            </code>
           </div>
         );
       } else {

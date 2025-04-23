@@ -14749,8 +14749,6 @@ body {
 }
 
 code:not(.sourceCode):not(.source-code) {
-  border-radius: 2px;
-  padding: 0.2em;
   color: var(--bs-code-color);
 }
 
@@ -15616,8 +15614,12 @@ pre[class*="language-"] {
   margin-right: 0.2rem;
   opacity: 0.4;
 }
-._content_p4lvn_1 {
+._content_1b2jp_1 {
   margin-bottom: 1em;
+}
+
+._codeCompact_1b2jp_5 {
+  color: unset !important;
 }
 ._grid_140x5_1 {
   display: grid;

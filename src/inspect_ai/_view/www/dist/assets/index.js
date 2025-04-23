@@ -36890,9 +36890,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         ];
       }
     };
-    const content$2 = "_content_p4lvn_1";
+    const content$2 = "_content_1b2jp_1";
+    const codeCompact = "_codeCompact_1b2jp_5";
     const styles$1a = {
-      content: content$2
+      content: content$2,
+      codeCompact
     };
     const MessageContents = ({
       id,
@@ -36916,7 +36918,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           const resolvedToolOutput = resolveToolMessage(toolMessage);
           if (toolCallStyle === "compact") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1a.codeCompact), children: [
               "tool: ",
               functionCall
             ] }) }, `tool-call-${idx}`);
