@@ -52006,7 +52006,7 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$k.twoColumn), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$k.wrapPre), children: cmd2 }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$k.wrapPre), children: input2 !== null ? input2 == null ? void 0 : input2.trim() : void 0 }),
-          options2 !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Options`, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          options2 !== null && Object.keys(options2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Options`, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataGrid,
             {
               entries: options2,
@@ -52016,10 +52016,10 @@ self.onmessage = function (e) {
         ] }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(EventSection, { title: `Result`, children: [
           output2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-output`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: output2 }) }) : void 0,
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$k.result), children: [
+          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$k.result), children: [
             "Exited with code ",
             result2
-          ] })
+          ] }) : void 0
         ] })
       ] });
     };
