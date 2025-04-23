@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import uuid
 from typing import Any, Literal, Type
 
@@ -32,7 +30,7 @@ class ModelUsage(BaseModel):
     reasoning_tokens: int | None = Field(default=None)
     """Number of tokens used for reasoning."""
 
-    def __add__(self, other: ModelUsage) -> ModelUsage:
+    def __add__(self, other: "ModelUsage") -> "ModelUsage":
         def optional_sum(a: int | None, b: int | None) -> int | None:
             if a is not None and b is not None:
                 return a + b
