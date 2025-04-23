@@ -178,15 +178,10 @@ async def execute_tools(
                 )
                 result = ex.truncated_output or ""
             except LimitExceededError as ex:
-                error_message = f"The tool exceeded its {ex.type} limit of {ex.limit}."
-                transcript()._event(
-                    SampleLimitEvent(
-                        type=ex.type,
-                        limit=ex.limit,
-                        message=error_message,
-                    )
+                tool_error = ToolCallError(
+                    "limit",
+                    f"The tool exceeded its {ex.type} limit of {ex.limit}.",
                 )
-                tool_error = ToolCallError("limit", error_message)
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolApprovalError as ex:
@@ -356,6 +351,7 @@ async def call_tool(
     tools: list[ToolDef], message: str, call: ToolCall, conversation: list[ChatMessage]
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
+    from inspect_ai.log._transcript import SampleLimitEvent, transcript
 
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
@@ -374,12 +370,11 @@ async def call_tool(
     )
     if not approved:
         if approval and approval.decision == "terminate":
-            raise LimitExceededError(
-                "operator",
-                value=1,
-                limit=1,
-                message="Tool call approver requested termination.",
+            message = "Tool call approver requested termination."
+            transcript()._event(
+                SampleLimitEvent(type="operator", limit=1, message=message)
             )
+            raise LimitExceededError("operator", value=1, limit=1, message=message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
@@ -489,22 +484,17 @@ async def agent_handoff(
     if agent_tool.output_filter is not None:
         agent_messages = await agent_tool.output_filter(agent_messages)
 
-    # if we end with an assistant message then add a user message
-    # so that the calling agent carries on
     if limit_error is not None:
-        from inspect_ai.log._transcript import SampleLimitEvent, transcript
-
-        # sample limit event
-        message = (
-            f"The {agent_name} exceeded its {limit_error.type} limit of "
-            f"{limit_error.limit}."
-        )
-        transcript()._event(
-            SampleLimitEvent(
-                type=limit_error.type, limit=limit_error.limit, message=message
+        agent_messages.append(
+            ChatMessageUser(
+                content=(
+                    f"The {agent_name} exceeded its {limit_error.type} limit of "
+                    f"{limit_error.limit}."
+                )
             )
         )
-        agent_messages.append(ChatMessageUser(content=message))
+    # if we end with an assistant message then add a user message
+    # so that the calling agent carries on
     elif len(agent_messages) == 0 or isinstance(
         agent_messages[-1], ChatMessageAssistant
     ):

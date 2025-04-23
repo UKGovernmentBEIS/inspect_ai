@@ -707,16 +707,7 @@ async def task_run_sample(
                         # handle the cancel exception
                         raise
 
-                except LimitExceededError as ex:
-                    # sample limit event
-                    transcript()._event(
-                        SampleLimitEvent(
-                            type=ex.type,
-                            limit=ex.limit,
-                            message=f"Sample completed: {ex.message}",
-                        )
-                    )
-
+                except LimitExceededError:
                     # capture most recent state for scoring
                     state = sample_state() or state
 

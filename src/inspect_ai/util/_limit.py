@@ -306,11 +306,21 @@ class _TokenLimitNode:
             self.parent.check()
 
     def _check_self(self) -> None:
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
         if self._limit.value is None:
             return
         total = self._usage.total_tokens
         if total > self._limit.value:
-            raise LimitExceededError("token", value=total, limit=self._limit.value)
+            message = (
+                f"Token limit exceeded. value: {total:,}; limit: {self._limit.value:,}"
+            )
+            transcript()._event(
+                SampleLimitEvent(type="token", limit=self._limit.value, message=message)
+            )
+            raise LimitExceededError(
+                "token", value=total, limit=self._limit.value, message=message
+            )
 
 
 class _MessageLimitNode:
@@ -340,8 +350,20 @@ class _MessageLimitNode:
 
         Does not check parents.
         """
+        from inspect_ai.log._transcript import SampleLimitEvent, transcript
+
         if self._limit.value is None:
             return
         limit = self._limit.value
         if count > limit or (raise_for_equal and count == limit):
-            raise LimitExceededError("message", value=count, limit=limit)
+            reached_or_exceeded = "reached" if count == limit else "exceeded"
+            message = (
+                f"Message limit {reached_or_exceeded}. count: {count:,}; "
+                f"limit: {limit:,}"
+            )
+            transcript()._event(
+                SampleLimitEvent(type="message", limit=limit, message=message)
+            )
+            raise LimitExceededError(
+                "message", value=count, limit=limit, message=message
+            )
