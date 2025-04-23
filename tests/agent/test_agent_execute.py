@@ -100,6 +100,8 @@ def looping_agent() -> Agent:
 def call_looping_agent(
     function_name: str = "looping_agent", arguments: dict = {"input": "input"}
 ) -> Solver:
+    """A solver which makes a tool call to looping_agent."""
+
     async def solve(state: TaskState, generate: Generate):
         state.messages.append(
             ChatMessageAssistant(
