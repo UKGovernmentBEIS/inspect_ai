@@ -20,6 +20,7 @@
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
 - Log API: Functions for reading/writing eval logs can now take a `Path`.
+- Registry: Evaluate string annotations when creating registry objects. 
 - Error handling: Added `--traceback-locals` CLI option to print values of local variables in tracebacks.
 - Error handling: Fully unwrap inner errors from exception groups for reporting.
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
