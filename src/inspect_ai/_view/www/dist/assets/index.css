@@ -15279,11 +15279,11 @@ ul.jsondiffpatch-textdiff {
 /* prism-custom.css */
 code[class*="language-"],
 pre[class*="language-"] {
-  font-size: 0.95em !important;
+  font-size: 0.8rem !important;
 }
 
 .token {
-  font-size: 0.95em !important;
+  font-size: 0.8rem !important;
 }
 
 /* PrismJS 1.29.0 https://prismjs.com/download.html#themes=prism-dark&languages=markup+css+clike+javascript+bash+python */
@@ -15580,23 +15580,24 @@ pre[class*="language-"] {
   background-color: var(--bs-light-bg-subtle);
   border-radius: var(--bs-border-radius);
 }
-._toolImage_1j5uu_1 {
+._toolImage_18gxl_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
 
-._output_1j5uu_6 {
+._output_18gxl_6 {
   display: grid;
 }
 
-._textOutput_1j5uu_10 {
+._textOutput_18gxl_10 {
   padding-left: 2px;
   padding: 0.5em 0.5em 0.5em 0.5em;
   white-space: pre-wrap;
   margin-bottom: 0;
+  font-size: 1em !important;
 }
 
-._textCode_1j5uu_17 {
+._textCode_18gxl_18 {
   word-wrap: anywhere;
 }
 ._output_1tv9l_1 {
@@ -15606,17 +15607,22 @@ pre[class*="language-"] {
   display: grid;
   row-gap: 1em;
 }
-._outputPre_2x23m_1 {
+._outputPre_s62go_1 {
   padding: 0.5em;
   margin-top: 0.25em;
   margin-bottom: 0;
 }
 
-._toolView_2x23m_7 {
+._toolView_s62go_7 {
   margin-top: 0.25em;
 }
 
-._outputCode_2x23m_11 {
+._toolView_s62go_7 pre[class*="language-"] {
+  padding: 0.5em !important;
+}
+
+._outputCode_s62go_15 {
+  font-size: 0.8rem !important;
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }

@@ -36555,10 +36555,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       contentImage,
       reasoning
     };
-    const toolImage = "_toolImage_1j5uu_1";
-    const output$1 = "_output_1j5uu_6";
-    const textOutput = "_textOutput_1j5uu_10";
-    const textCode = "_textCode_1j5uu_17";
+    const toolImage = "_toolImage_18gxl_1";
+    const output$1 = "_output_18gxl_6";
+    const textOutput = "_textOutput_18gxl_10";
+    const textCode = "_textCode_18gxl_18";
     const styles$1e = {
       toolImage,
       output: output$1,
@@ -36790,9 +36790,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       output,
       toolCallView
     };
-    const outputPre = "_outputPre_2x23m_1";
-    const toolView = "_toolView_2x23m_7";
-    const outputCode = "_outputCode_2x23m_11";
+    const outputPre = "_outputPre_s62go_1";
+    const toolView = "_toolView_s62go_7";
+    const outputCode = "_outputCode_s62go_15";
     const styles$1c = {
       outputPre,
       toolView,
@@ -36808,7 +36808,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           {
             markdown: toolCallView2.content,
             ref: prismParentRef,
-            className: clsx("text-size-small", "tool-output", styles$1c.toolView)
+            className: clsx("tool-output", styles$1c.toolView)
           }
         );
       }
