@@ -55,17 +55,21 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
     @solver(name=agent_name)
     def agent_to_solver() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
-            # run the agent with limits
             agent_state = AgentState(messages=state.messages)
-            with using_limits(limits):
-                agent_state = await agent(agent_state, **agent_kwargs)
 
-            # update messages
-            state.messages = agent_state.messages
+            try:
+                # run the agent with limits
+                with using_limits(limits):
+                    agent_state = await agent(agent_state, **agent_kwargs)
+            # if an exception occurs, we still want to update the TaskState with the
+            # AgentState's messages + output so that it appears in the log and is scored
+            finally:
+                # update messages
+                state.messages = agent_state.messages
 
-            # update output if its not empty
-            if agent_state.output:
-                state.output = agent_state.output
+                # update output if its not empty
+                if agent_state.output:
+                    state.output = agent_state.output
 
             return state
 

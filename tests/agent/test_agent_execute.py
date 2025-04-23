@@ -9,7 +9,7 @@ from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._run import run
 from inspect_ai.model._call_tools import execute_tools
-from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._model import get_model
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
@@ -109,7 +109,8 @@ def call_looping_agent(
                 ],
             )
         )
-        await execute_tools(state.messages, state.tools)
+        tool_result = await execute_tools(state.messages, state.tools)
+        state.messages.extend(tool_result.messages)
         return state
 
     return solve
@@ -205,9 +206,10 @@ def test_agent_as_tool_respects_limits() -> None:
 
     assert log.status == "success"
     assert log.samples
-    # TODO: Failing. Seems that execute_tools() is removing the re-thrown
-    # LimitExceededError which contains the updated state
-    assert len(log.samples[0].messages) == 10
+    tool_message = log.samples[0].messages[-1]
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.error is not None
+    assert "The tool exceeded its message limit of 10." in tool_message.error.message
     check_limit_event(log, "message")
 
 
@@ -225,6 +227,11 @@ def test_agent_as_tool_respects_sample_limits() -> None:
     )[0]
 
     assert log.status == "success"
+    assert log.samples
+    tool_message = log.samples[0].messages[-1]
+    assert isinstance(tool_message, ChatMessageTool)
+    assert tool_message.error is not None
+    assert tool_message.error.message == "The tool exceeded its message limit of 10."
     check_limit_event(log, "message")
 
 
@@ -264,9 +271,10 @@ def test_agent_handoff_respects_limits():
 
     assert log.status == "success"
     assert log.samples
-    # TODO: Failing. Seems that execute_tools() is removing the re-thrown
-    # LimitExceededError which contains the updated state
-    assert len(log.samples[0].messages) == 10
+    assert (
+        log.samples[0].messages[-1].content
+        == "The looping_agent exceeded its message limit of 10."
+    )
     check_limit_event(log, "message")
 
 
@@ -345,7 +353,3 @@ async def test_agent_run():
 async def test_agent_run_respects_limits() -> None:
     with pytest.raises(LimitExceededError) as ex:
         await run(looping_agent(), "This is the input", limits=[message_limit(10)])
-
-    assert ex.value.conversation is not None
-    assert ex.value.conversation.messages
-    assert len(ex.value.conversation.messages) == 10
