@@ -242,5 +242,5 @@ def test_web_browser_displays_error():
 def web_browser_sandbox() -> tuple[str, str]:
     return (
         "docker",
-        (Path(__file__).parent / "test_web_browser_compose.yaml").as_posix(),
+        (Path(__file__).parent / "test_inspect_tool_support.yaml").as_posix(),
     )
