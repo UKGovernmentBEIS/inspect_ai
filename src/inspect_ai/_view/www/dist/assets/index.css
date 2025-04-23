@@ -19868,14 +19868,15 @@ span.ap-marker-container:hover span.ap-marker {
   max-height: 90vh !important;
   max-width: 90vw !important;
 }
-._tools_1an6l_1 {
+._tools_1w7nt_1 {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 1rem;
   margin: 0;
+  align-items: baseline;
 }
 
-._tool_1an6l_1 {
+._tool_1w7nt_1 {
   padding: 0;
   color: inherit !important;
 }
