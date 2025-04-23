@@ -15720,8 +15720,8 @@ pre[class*="language-"] {
 
 .json-panel .source-code {
   font-size: var(--inspect-font-size-small);
-  white-space: pre-wrap;
-  word-wrap: anywhere;
+  white-space: pre-wrap !important;
+  word-wrap: anywhere !important;
 }
 
 /* Prism.js theme customizations can go here if needed */
