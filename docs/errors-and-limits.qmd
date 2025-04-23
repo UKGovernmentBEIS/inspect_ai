@@ -229,7 +229,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 
 You can also apply limits at arbitrary scopes, independent of the sample-scoped limits. For instance, applied to a specific agent or within a specific block of code.
 
-To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like `handoff()` (see [Using Agents](agents.qmd#using-agents)):
+To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like `handoff()`, `as_tool()`, `as_solver()` or `run()` (see [Using Agents](agents.qmd#using-agents)):
 
 ``` python
 eval(
