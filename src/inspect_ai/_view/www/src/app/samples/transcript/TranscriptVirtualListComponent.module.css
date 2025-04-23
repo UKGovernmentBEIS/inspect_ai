@@ -6,11 +6,7 @@
   background-color: var(--bs-body-bg);
 }
 
-.node.first {
-  padding-top: 0.5em;
-}
-
 .node {
-  padding-top: 0;
-  padding-bottom: 0.65em;
+  padding-top: 0.5rem;
+  padding-bottom: 0em;
 }

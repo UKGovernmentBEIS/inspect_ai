@@ -114,8 +114,8 @@ var require_assets = __commonJS({
       }
       function pop2(heap2) {
         if (0 === heap2.length) return null;
-        var first2 = heap2[0], last = heap2.pop();
-        if (last !== first2) {
+        var first = heap2[0], last = heap2.pop();
+        if (last !== first) {
           heap2[0] = last;
           a: for (var index2 = 0, length = heap2.length, halfLength = length >>> 1; index2 < halfLength; ) {
             var leftIndex = 2 * (index2 + 1) - 1, left = heap2[leftIndex], rightIndex = leftIndex + 1, right = heap2[rightIndex];
@@ -126,7 +126,7 @@ var require_assets = __commonJS({
             else break a;
           }
         }
-        return first2;
+        return first;
       }
       function compare2(a, b) {
         var diff2 = a.sortIndex - b.sortIndex;
@@ -16257,9 +16257,9 @@ var require_assets = __commonJS({
     function explodeOptionalSegments(path) {
       let segments = path.split("/");
       if (segments.length === 0) return [];
-      let [first2, ...rest] = segments;
-      let isOptional = first2.endsWith("?");
-      let required = first2.replace(/\?$/, "");
+      let [first, ...rest] = segments;
+      let isOptional = first.endsWith("?");
+      let required = first.replace(/\?$/, "");
       if (rest.length === 0) {
         return isOptional ? [required, ""] : [required];
       }
@@ -26525,32 +26525,32 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       for (let i2 = 0, line2 = begin; line2 < end; line2++, i2++) {
         let lineIndent = 0;
         const lineStart = this.bMarks[line2];
-        let first2 = lineStart;
+        let first = lineStart;
         let last;
         if (line2 + 1 < end || keepLastLF) {
           last = this.eMarks[line2] + 1;
         } else {
           last = this.eMarks[line2];
         }
-        while (first2 < last && lineIndent < indent) {
-          const ch3 = this.src.charCodeAt(first2);
+        while (first < last && lineIndent < indent) {
+          const ch3 = this.src.charCodeAt(first);
           if (isSpace(ch3)) {
             if (ch3 === 9) {
               lineIndent += 4 - (lineIndent + this.bsCount[line2]) % 4;
             } else {
               lineIndent++;
             }
-          } else if (first2 - lineStart < this.tShift[line2]) {
+          } else if (first - lineStart < this.tShift[line2]) {
             lineIndent++;
           } else {
             break;
           }
-          first2++;
+          first++;
         }
         if (lineIndent > indent) {
-          queue[i2] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first2, last);
+          queue[i2] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last);
         } else {
-          queue[i2] = this.src.slice(first2, last);
+          queue[i2] = this.src.slice(first, last);
         }
       }
       return queue.join("");
@@ -59930,12 +59930,12 @@ ${events}
         }
       );
     };
-    const transcriptComponent = "_transcriptComponent_zakyl_23";
-    const eventNode = "_eventNode_zakyl_29";
-    const darkenBg = "_darkenBg_zakyl_33";
-    const lastNode = "_lastNode_zakyl_37";
-    const eventNodeContainer = "_eventNodeContainer_zakyl_41";
-    const noBottom = "_noBottom_zakyl_45";
+    const transcriptComponent = "_transcriptComponent_1ki3f_19";
+    const eventNode = "_eventNode_1ki3f_25";
+    const darkenBg = "_darkenBg_1ki3f_29";
+    const lastNode = "_lastNode_1ki3f_33";
+    const eventNodeContainer = "_eventNodeContainer_1ki3f_37";
+    const noBottom = "_noBottom_1ki3f_41";
     const styles$d = {
       transcriptComponent,
       eventNode,
@@ -59944,15 +59944,13 @@ ${events}
       eventNodeContainer,
       noBottom
     };
-    const darkenedBg = "_darkenedBg_dl67t_1";
-    const normalBg = "_normalBg_dl67t_5";
-    const node = "_node_dl67t_9";
-    const first = "_first_dl67t_9";
+    const darkenedBg = "_darkenedBg_18e59_1";
+    const normalBg = "_normalBg_18e59_5";
+    const node = "_node_18e59_9";
     const styles$c = {
       darkenedBg,
       normalBg,
-      node,
-      first
+      node
     };
     const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2 }) => {
       const renderRow = reactExports.useCallback((index2, item2) => {
@@ -61281,16 +61279,16 @@ ${events}
       return length;
     }
     function appendText(text2, target2, from = 0, to2 = 1e9) {
-      for (let pos2 = 0, i2 = 0, first2 = true; i2 < text2.length && pos2 <= to2; i2++) {
+      for (let pos2 = 0, i2 = 0, first = true; i2 < text2.length && pos2 <= to2; i2++) {
         let line2 = text2[i2], end = pos2 + line2.length;
         if (end >= from) {
           if (end > to2)
             line2 = line2.slice(0, to2 - pos2);
           if (pos2 < from)
             line2 = line2.slice(from - pos2);
-          if (first2) {
+          if (first) {
             target2[target2.length - 1] += line2;
-            first2 = false;
+            first = false;
           } else
             target2.push(line2);
         }
@@ -69396,9 +69394,9 @@ ${events}
             nodes.push(null, new HeightMapGap(after - 1));
         }
         if (from > 0) {
-          let first2 = nodes[0];
-          if (first2 instanceof HeightMapGap)
-            nodes[0] = new HeightMapGap(from + first2.length);
+          let first = nodes[0];
+          if (first instanceof HeightMapGap)
+            nodes[0] = new HeightMapGap(from + first.length);
           else
             nodes.unshift(new HeightMapGap(from - 1), null);
         }
@@ -71668,13 +71666,13 @@ ${events}
         return changed;
       }
       showAnnouncements(trs) {
-        let first2 = true;
+        let first = true;
         for (let tr2 of trs)
           for (let effect of tr2.effects)
             if (effect.is(EditorView.announce)) {
-              if (first2)
+              if (first)
                 this.announceDOM.textContent = "";
-              first2 = false;
+              first = false;
               let div = this.announceDOM.appendChild(document.createElement("div"));
               div.textContent = effect.value;
             }
@@ -76729,8 +76727,8 @@ ${events}
       let strategy = tree.type.prop(indentNodeProp);
       if (strategy)
         return strategy;
-      let first2 = tree.firstChild, close2;
-      if (first2 && (close2 = first2.type.prop(NodeProp.closedBy))) {
+      let first = tree.firstChild, close2;
+      if (first && (close2 = first.type.prop(NodeProp.closedBy))) {
         let last = tree.lastChild, closed = last && close2.indexOf(last.name) > -1;
         return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
       }
@@ -77770,13 +77768,13 @@ ${events}
       return `[${words ? "\\w" : ""}${flat.replace(/[^\w\s]/g, "\\$&")}]`;
     }
     function prefixMatch(options2) {
-      let first2 = /* @__PURE__ */ Object.create(null), rest = /* @__PURE__ */ Object.create(null);
+      let first = /* @__PURE__ */ Object.create(null), rest = /* @__PURE__ */ Object.create(null);
       for (let { label: label2 } of options2) {
-        first2[label2[0]] = true;
+        first[label2[0]] = true;
         for (let i2 = 1; i2 < label2.length; i2++)
           rest[label2[i2]] = true;
       }
-      let source2 = toSet(first2) + toSet(rest) + "*$";
+      let source2 = toSet(first) + toSet(rest) + "*$";
       return [new RegExp("^" + source2), new RegExp(source2)];
     }
     function completeFromList(list2) {
@@ -77868,10 +77866,10 @@ ${events}
           return null;
         let { chars, folded, any, precise, byWord } = this;
         if (chars.length == 1) {
-          let first2 = codePointAt(word, 0), firstSize = codePointSize(first2);
+          let first = codePointAt(word, 0), firstSize = codePointSize(first);
           let score2 = firstSize == word.length ? 0 : -100;
-          if (first2 == chars[0]) ;
-          else if (first2 == folded[0])
+          if (first == chars[0]) ;
+          else if (first == folded[0])
             score2 += -200;
           else
             return null;
