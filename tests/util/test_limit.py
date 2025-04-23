@@ -3,12 +3,12 @@ import pytest
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util._limit import (
     LimitExceededError,
+    apply_limits,
     check_message_limit,
     check_token_limit,
     message_limit,
     record_model_usage,
     token_limit,
-    apply_limits,
 )
 
 

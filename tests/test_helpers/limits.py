@@ -28,7 +28,7 @@ def find_limit_event_recursive(event: BaseEvent) -> SampleLimitEvent | None:
     if isinstance(event, SampleLimitEvent):
         return event
     # ToolEvent and SubtaskEvent can contain other events
-    if isinstance(event, (ToolEvent, SubtaskEvent)):
+    if isinstance(event, ToolEvent | SubtaskEvent):
         for child in event.events:
             result = find_limit_event_recursive(child)
             if result is not None:
