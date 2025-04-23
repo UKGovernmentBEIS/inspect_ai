@@ -22731,13 +22731,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             });
           },
           setShowingSampleDialog: (showing) => {
-            set2((state) => {
-              state.app.dialogs.sample = showing;
+            const state = get2();
+            const isShowing = state.app.dialogs.sample;
+            if (showing === isShowing) {
+              return;
+            }
+            set2((state2) => {
+              state2.app.dialogs.sample = showing;
             });
             if (!showing) {
-              const state = get2();
-              state.appActions.clearSampleTab();
-              state.sampleActions.clearSelectedSample();
+              const state2 = get2();
+              state2.appActions.clearSampleTab();
             }
           },
           setWorkspaceTab: (tab2) => {
@@ -39361,7 +39365,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           previous[6] = Math.min(Math.max(previous[6], scoreText.length), 30);
           return previous;
         },
-        [0, 0, 0, 0, 0, 0]
+        [0, 0, 0, 0, 0, 0, 0]
       );
       const maxSizes = {
         input: Math.min(sizes[0], 300),
@@ -42375,9 +42379,11 @@ categories: ${categories.join(" ")}`;
       const selectedLogFile = useStore(
         (state) => state.logsActions.getSelectedLogFile()
       );
+      const loadedLog = useStore((state) => state.log.loadedLog);
       return reactExports.useMemo(() => {
         return {
           logFile: selectedLogFile,
+          loadedLog,
           sample: selectedSampleSummary
         };
       }, [selectedLogFile, selectedSampleSummary]);
@@ -60287,7 +60293,7 @@ ${events}
                   children: sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$z.metadataPanel), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
-              (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) && (sample2 == null ? void 0 : sample2.error_retries.length) > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 TabPanel,
                 {
                   id: kSampleErrorTabId,
@@ -60504,17 +60510,17 @@ ${events}
       const prevCompleted = usePrevious(
         ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
       );
-      const prevLogFile = usePrevious(logSelection.logFile);
+      const prevLogFile = usePrevious(logSelection.loadedLog);
       reactExports.useEffect(() => {
         var _a3, _b3, _c2;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = ((_a3 = logSelection.sample) == null ? void 0 : _a3.completed) !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.loadedLog || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
       }, [
-        logSelection.logFile,
+        logSelection.loadedLog,
         (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
         (_c = logSelection.sample) == null ? void 0 : _c.epoch,
         (_d = logSelection.sample) == null ? void 0 : _d.completed,
@@ -82411,6 +82417,7 @@ Supported expressions:
       const selectSample = useStore((state) => state.logActions.selectSample);
       const setSampleTab = useStore((state) => state.appActions.setSampleTab);
       const filteredSamples = useFilteredSamples();
+      const totalSampleCount = useTotalSampleCount();
       const setStatus = useStore((state) => state.appActions.setStatus);
       const setSelectedLogIndex = useStore(
         (state) => state.logsActions.setSelectedLogIndex
@@ -82494,14 +82501,17 @@ Supported expressions:
             }
           }
         } else {
-          clearSample();
           setShowingSampleDialog(false);
+          if (totalSampleCount > 1) {
+            clearSample();
+          }
         }
       }, [
         sampleId,
         epoch,
         sampleTabId,
         filteredSamples,
+        totalSampleCount,
         selectSample,
         setSampleTab,
         setShowingSampleDialog,

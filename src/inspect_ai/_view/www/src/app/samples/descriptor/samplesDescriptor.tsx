@@ -332,7 +332,7 @@ export const createSamplesDescriptor = (
 
       return previous;
     },
-    [0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0],
   );
 
   // normalize to base 1
