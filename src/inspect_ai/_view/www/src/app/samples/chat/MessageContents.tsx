@@ -72,7 +72,7 @@ export const MessageContents: FC<MessageContentsProps> = ({
       }
     });
 
-    return message.content ? (
+    return message.content || toolCalls.length > 0 ? (
       <Fragment>
         <div className={styles.content}>
           <MessageContent contents={message.content} />

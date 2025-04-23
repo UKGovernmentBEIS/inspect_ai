@@ -36945,7 +36945,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             );
           }
         });
-        return message2.content ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+        return message2.content || toolCalls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
           toolCalls
         ] }) : void 0;
