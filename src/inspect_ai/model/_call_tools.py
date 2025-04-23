@@ -110,7 +110,6 @@ async def execute_tools(
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
         from inspect_ai.log._transcript import (
-            SampleLimitEvent,
             ToolEvent,
             Transcript,
             init_transcript,
