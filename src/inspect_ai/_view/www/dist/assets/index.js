@@ -28279,7 +28279,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       state.posMax = max2;
       return true;
     }
-    function image(state, silent) {
+    function image$1(state, silent) {
       let code2, content2, label2, pos2, ref, res, title2, start;
       let href = "";
       const oldPos = state.pos;
@@ -28614,7 +28614,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       ["strikethrough", r_strikethrough.tokenize],
       ["emphasis", r_emphasis.tokenize],
       ["link", link],
-      ["image", image],
+      ["image", image$1],
       ["autolink", autolink],
       ["html_inline", html_inline],
       ["entity", entity]
@@ -36802,11 +36802,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       ) });
     };
-    const styles$1b = {};
+    const image = "_image_a8byr_1";
+    const toolTitle = "_toolTitle_a8byr_6";
+    const styles$1b = {
+      image,
+      toolTitle
+    };
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1b.styles) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "text-size-small", children: title2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1b.image) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1b.toolTitle), children: title2 })
       ] });
     };
     const ToolCallView = ({

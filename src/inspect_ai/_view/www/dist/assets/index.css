@@ -15613,9 +15613,13 @@ pre[class*="language-"] {
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
-._image_10saa_1 {
+._image_a8byr_1 {
   margin-right: 0.2rem;
   opacity: 0.4;
+}
+
+._toolTitle_a8byr_6 {
+  color: unset !important;
 }
 ._content_1b2jp_1 {
   margin-bottom: 1em;
