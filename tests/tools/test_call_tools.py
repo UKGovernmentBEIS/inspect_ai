@@ -1,11 +1,16 @@
+import datetime
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date, time
 from typing import Any, Dict, List, Optional, Set, Tuple, TypedDict, Union
 
 import pytest
 from pydantic import BaseModel
 
-from inspect_ai.model._call_tools import call_tool
+from inspect_ai.model._call_tools import execute_tools
+from inspect_ai.model._chat_message import (
+    ChatMessageAssistant,
+    ChatMessageTool,
+)
 from inspect_ai.tool import tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
@@ -74,7 +79,7 @@ def complex_tool():
         td: MyTypedDict,
         dc: MyDataClass,
         pm: MyPydanticModel,
-        timestamp: datetime,
+        timestamp: datetime.datetime,
         the_date: date,
         the_time: time,
         anything: Any,
@@ -135,13 +140,13 @@ async def test_incr_simple_positive():
     """Calling incr(0) should return 1."""
     tool_def = ToolDef(incr())
     call = make_call("incr", {"x": 0})
-    result, messages, output, agent = await call_tool(
-        [tool_def], message="", call=call, conversation=[]
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
     )
-    assert result == 1
-    assert messages == []
-    assert output is None
-    assert agent is None
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].content == "1"
 
 
 @pytest.mark.asyncio
@@ -168,9 +173,14 @@ async def test_complex_tool_all_params():
     }
     tool_def = ToolDef(complex_tool())
     call = make_call("complex_tool", args)
-    result, messages, output, agent = await call_tool(
-        [tool_def], message="", call=call, conversation=[]
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
     )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+
+    result = eval(messages[-1].content)
 
     # primitives
     assert result["text"] == "hello"
@@ -194,12 +204,7 @@ async def test_complex_tool_all_params():
     assert result["pm"] == {"name": "test", "id": 42}
 
     # date/time/any
-    assert result["timestamp"] == datetime(2025, 4, 17, 12, 0, 0)
+    assert result["timestamp"] == datetime.datetime(2025, 4, 17, 12, 0, 0)
     assert result["the_date"] == date(2025, 4, 17)
     assert result["the_time"] == time(12, 0, 0)
     assert result["anything"] == {"complex": ["structure", 123]}
-
-    # no side‑effects or agent handoff
-    assert messages == []
-    assert output is None
-    assert agent is None
