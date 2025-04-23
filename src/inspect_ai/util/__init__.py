@@ -1,6 +1,12 @@
 from inspect_ai._util.registry import RegistryType, registry_create
 from inspect_ai._util.trace import trace_action, trace_message
-from inspect_ai.util._limit import Limit, LimitExceededError, message_limit, token_limit
+from inspect_ai.util._limit import (
+    Limit,
+    LimitExceededError,
+    apply_limits,
+    message_limit,
+    token_limit,
+)
 
 from ._concurrency import concurrency
 from ._console import input_screen
@@ -32,6 +38,7 @@ from ._subtask import Subtask, subtask
 from ._throttle import throttle
 
 __all__ = [
+    "apply_limits",
     "ExecResult",
     "concurrency",
     "DisplayType",
