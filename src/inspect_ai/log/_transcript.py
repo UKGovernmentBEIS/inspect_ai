@@ -224,7 +224,13 @@ class ToolEvent(BaseEvent):
     """Error that occurred during tool call."""
 
     events: list["Event"] = Field(default_factory=list)
-    """Transcript of events for tool."""
+    """Transcript of events for tool.
+
+    Note that events are no longer recorded separately within
+    tool events but rather all events are recorded in the main
+    transcript. This field is deprecated and here for backwards
+    compatibility with transcripts that have sub-events.
+    """
 
     completed: datetime | None = Field(default=None)
     """Time that tool call completed (see `timestamp` for started)"""
@@ -488,7 +494,13 @@ class SubtaskEvent(BaseEvent):
     """Subtask function result."""
 
     events: list["Event"] = Field(default_factory=list)
-    """Transcript of events for subtask."""
+    """Transcript of events for subtask.
+
+    Note that events are no longer recorded separately within
+    subtasks but rather all events are recorded in the main
+    transcript. This field is deprecated and here for backwards
+    compatibility with transcripts that have sub-events.
+    """
 
     completed: datetime | None = Field(default=None)
     """Time that subtask completed (see `timestamp` for started)"""

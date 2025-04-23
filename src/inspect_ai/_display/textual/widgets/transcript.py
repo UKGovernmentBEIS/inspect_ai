@@ -211,10 +211,6 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
     # render the call
     content = transcript_tool_call(event)
 
-    # render sub-events
-    if event.events:
-        content.extend(render_sub_events(event.events))
-
     # render the output
     if isinstance(event.result, list):
         result: ToolResult = "\n".join(
@@ -258,10 +254,6 @@ def render_score_event(event: ScoreEvent) -> EventDisplay:
 def render_subtask_event(event: SubtaskEvent) -> list[EventDisplay]:
     # render header
     content: list[RenderableType] = [transcript_function(event.name, event.input)]
-
-    # render sub-events
-    if event.events:
-        content.extend(render_sub_events(event.events))
 
     if event.result:
         content.append(Text())

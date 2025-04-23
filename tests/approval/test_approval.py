@@ -7,7 +7,7 @@ from inspect_ai import Task, eval
 from inspect_ai.approval import ApprovalDecision, ApprovalPolicy, auto_approver
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import ApprovalEvent, ToolEvent
+from inspect_ai.log._transcript import ApprovalEvent
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
@@ -147,22 +147,13 @@ def test_approve_config_escalate():
 
 def find_approval(log: EvalLog) -> ApprovalEvent | None:
     if log.samples:
-        tool_event: ToolEvent | None = next(
+        return next(
             (
                 event
                 for event in log.samples[0].transcript.events
-                if isinstance(event, ToolEvent)
+                if isinstance(event, ApprovalEvent)
             ),
             None,
         )
-        if tool_event:
-            return next(
-                (
-                    ev
-                    for ev in reversed(tool_event.events)
-                    if isinstance(ev, ApprovalEvent)
-                ),
-                None,
-            )
-
-    return None
+    else:
+        return None
