@@ -51880,9 +51880,9 @@ self.onmessage = function (e) {
                   ] }, `$choice-{choice}`);
                 }) : "",
                 sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$l.section, children: sections }) : "",
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
+                event.sample.target ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
                   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 }, target2);
-                }) })
+                }) }) : void 0
               ] })
             ] }),
             event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -59904,12 +59904,12 @@ ${events}
         }
       );
     };
-    const transcriptComponent = "_transcriptComponent_eq9th_23";
-    const eventNode = "_eventNode_eq9th_29";
-    const darkenBg = "_darkenBg_eq9th_33";
-    const lastNode = "_lastNode_eq9th_37";
-    const eventNodeContainer = "_eventNodeContainer_eq9th_41";
-    const noBottom = "_noBottom_eq9th_45";
+    const transcriptComponent = "_transcriptComponent_zakyl_23";
+    const eventNode = "_eventNode_zakyl_29";
+    const darkenBg = "_darkenBg_zakyl_33";
+    const lastNode = "_lastNode_zakyl_37";
+    const eventNodeContainer = "_eventNodeContainer_zakyl_41";
+    const noBottom = "_noBottom_zakyl_45";
     const styles$d = {
       transcriptComponent,
       eventNode,
@@ -59918,10 +59918,10 @@ ${events}
       eventNodeContainer,
       noBottom
     };
-    const darkenedBg = "_darkenedBg_1ye6u_1";
-    const normalBg = "_normalBg_1ye6u_5";
-    const node = "_node_1ye6u_9";
-    const first = "_first_1ye6u_9";
+    const darkenedBg = "_darkenedBg_dl67t_1";
+    const normalBg = "_normalBg_dl67t_5";
+    const node = "_node_dl67t_9";
+    const first = "_first_dl67t_9";
     const styles$c = {
       darkenedBg,
       normalBg,
