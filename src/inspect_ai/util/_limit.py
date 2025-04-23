@@ -85,6 +85,13 @@ class Limit(abc.ABC):
 
 @contextmanager
 def apply_limits(limits: list[Limit]) -> Iterator[None]:
+    """
+    Apply a list of limits within a context manager.
+
+    Args:
+      limits: List of limits to apply while the context manager is open. Should a
+        limit be exceeded, a LimitExceededError is raised.
+    """
     with ExitStack() as stack:
         for limit in limits:
             stack.enter_context(limit)
