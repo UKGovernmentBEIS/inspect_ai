@@ -54,7 +54,6 @@ title: "inspect_ai.log"
 ### SandboxEvent
 ### ApprovalEvent
 ### InputEvent
-### StoreEvent
 ### ErrorEvent
 ### LoggerEvent
 ### LoggingLevel
