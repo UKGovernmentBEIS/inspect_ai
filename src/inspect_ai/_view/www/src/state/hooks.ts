@@ -229,10 +229,12 @@ export const useLogSelection = () => {
   const selectedLogFile = useStore((state) =>
     state.logsActions.getSelectedLogFile(),
   );
+  const loadedLog = useStore((state) => state.log.loadedLog);
 
   return useMemo(() => {
     return {
       logFile: selectedLogFile,
+      loadedLog: loadedLog,
       sample: selectedSampleSummary,
     };
   }, [selectedLogFile, selectedSampleSummary]);

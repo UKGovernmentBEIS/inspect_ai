@@ -42375,9 +42375,11 @@ categories: ${categories.join(" ")}`;
       const selectedLogFile = useStore(
         (state) => state.logsActions.getSelectedLogFile()
       );
+      const loadedLog = useStore((state) => state.log.loadedLog);
       return reactExports.useMemo(() => {
         return {
           logFile: selectedLogFile,
+          loadedLog,
           sample: selectedSampleSummary
         };
       }, [selectedLogFile, selectedSampleSummary]);
@@ -60504,17 +60506,17 @@ ${events}
       const prevCompleted = usePrevious(
         ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
       );
-      const prevLogFile = usePrevious(logSelection.logFile);
+      const prevLogFile = usePrevious(logSelection.loadedLog);
       reactExports.useEffect(() => {
         var _a3, _b3, _c2;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = ((_a3 = logSelection.sample) == null ? void 0 : _a3.completed) !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.loadedLog || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
       }, [
-        logSelection.logFile,
+        logSelection.loadedLog,
         (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
         (_c = logSelection.sample) == null ? void 0 : _c.epoch,
         (_d = logSelection.sample) == null ? void 0 : _d.completed,
