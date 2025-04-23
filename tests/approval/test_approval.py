@@ -1,7 +1,5 @@
 from pathlib import Path
 
-from pydantic_core import to_json
-
 from inspect_ai import Task, eval
 from inspect_ai._util.content import ContentText
 from inspect_ai.approval import ApprovalDecision, ApprovalPolicy, auto_approver
