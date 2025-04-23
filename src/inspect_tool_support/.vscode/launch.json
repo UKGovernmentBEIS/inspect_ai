@@ -5,10 +5,10 @@
       "name": "Python: Debug multi_tool cli",
       "type": "python",
       "request": "launch",
-      "module": "inspect_tool_support",
+      "module": "inspect_tool_support._cli.main",
       "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}/src/eric_testing/src",
-      "args": ["${input:requestArg}"]
+      "cwd": "${workspaceFolder}/src",
+      "args": ["exec", "${input:requestArg}"]
     },
     {
       "name": "Python: Debug server.py",

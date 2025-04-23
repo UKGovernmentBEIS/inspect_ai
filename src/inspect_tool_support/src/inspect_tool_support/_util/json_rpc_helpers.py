@@ -23,6 +23,12 @@ from inspect_tool_support._util.validation import (
     validate_params,
 )
 
+
+# TODO: I need to refactor this code so that I can support no parameters. For now, we have a dummy model
+class NoParams(BaseModel):
+    pass
+
+
 BaseModelT = TypeVar("BaseModelT", bound=BaseModel)
 P = ParamSpec("P")
 R = TypeVar("R", str, int, BaseModel, None)

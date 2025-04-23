@@ -10,7 +10,7 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_support_helpers import (
     exec_model_request,
-    tool_container_sandbox,
+    tool_support_sandbox,
 )
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._store_model import StoreModel, store_as
@@ -400,7 +400,7 @@ async def _web_browser_cmd(
     # TODO: Is it worth it to plumb this down from the @tool?
     timeout = 180
     try:
-        sandbox_env = await tool_container_sandbox("web browser")
+        (sandbox_env, _) = await tool_support_sandbox("web browser")
     except PrerequisiteError as e:
         # The user may have the old, incompatible, sandbox. If so, use that and
         # execute the old compatible code.

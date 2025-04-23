@@ -9,7 +9,7 @@ from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 from .._tool_support_helpers import (
     exec_model_request,
     exec_scalar_request,
-    tool_container_sandbox,
+    tool_support_sandbox,
 )
 
 # These models are cloned from the container code. If/when we decide to create
@@ -139,7 +139,7 @@ def bash_session(
         if restart and input is not None:
             raise ToolParsingError("Do not send any 'input_text' when restarting.")
 
-        sandbox = await tool_container_sandbox("bash session")
+        (sandbox, _) = await tool_support_sandbox("bash session")
         store = store_as(BashSessionStore, instance=instance)
 
         if not store.session_id:
@@ -162,7 +162,7 @@ def bash_session(
             "bash_session",
             {
                 "session_name": store.session_id,
-                "wait_for_output": wait_for_output,
+                "wait_for_output": None if restart else wait_for_output,
                 "input": input,
                 "restart": restart,
             },

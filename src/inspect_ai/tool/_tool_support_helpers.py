@@ -4,10 +4,14 @@ This module provides helper code for handling JSON-RPC communication between the
 It includes definitions for JSON-RPC request and response models, as well as functions to create and parse JSON-RPC requests and responses.
 """
 
+from logging import getLogger
 from textwrap import dedent
 from typing import Type
 
+import semver
+
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.logger import warn_once
 from inspect_ai.util import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -22,6 +26,8 @@ from ._json_rpc_helpers import (
 from ._json_rpc_helpers import exec_model_request as model_request
 from ._json_rpc_helpers import exec_notification as notification_helper
 from ._json_rpc_helpers import exec_scalar_request as scalar_request
+
+logger = getLogger(__name__)
 
 
 async def exec_scalar_request(
@@ -128,13 +134,43 @@ class ToolSupportSandboxTransport(JSONRPCTransport):
 
 SANDBOX_CLI = "inspect-tool-support"
 INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB = "aisiuk/inspect-tool-support"
+FIRST_PUBLISHED_VERSION = semver.Version.parse("0.1.6")
+MIN_SUPPORTED_VERSION = FIRST_PUBLISHED_VERSION
+MIN_NON_DEPRECATED_VERSION = semver.Version.parse("1.0.0")
 
 
-async def tool_container_sandbox(
+async def _get_sandbox_tool_support_version(
+    sandbox: SandboxEnvironment,
+) -> semver.Version:
+    try:
+        return semver.Version.parse(
+            await exec_scalar_request(sandbox, "version", {}, str, 5)
+        )
+    except RuntimeError as rte:
+        if "-32601" in str(rte):
+            # The container doesn't even have a version method. The first version
+            # published was 0.1.6, so we'll have to assume it was that old.
+            return FIRST_PUBLISHED_VERSION
+        raise rte
+
+
+async def tool_support_sandbox(
     tool_name: str, *, sandbox_name: str | None = None
-) -> SandboxEnvironment:
+) -> tuple[SandboxEnvironment, semver.Version]:
     if sb := await sandbox_with(SANDBOX_CLI, True, name=sandbox_name):
-        return sb
+        current_version = await _get_sandbox_tool_support_version(sb)
+        if current_version < MIN_SUPPORTED_VERSION:
+            raise PrerequisiteError(
+                dedent(f"""
+                    The version of 'inspect-tool-support' in this container ({current_version}) is no longer supported. Please update your image to the latest version.
+                """).strip()
+            )
+        if current_version < MIN_NON_DEPRECATED_VERSION:
+            warn_once(
+                logger,
+                f"The version of 'inspect-tool-support' in this container ({current_version}) is deprecated. Please update your image the latest version.",
+            )
+        return (sb, current_version)
 
     # This sort of programmatic sentence building will not cut it if we ever
     # support other languages.

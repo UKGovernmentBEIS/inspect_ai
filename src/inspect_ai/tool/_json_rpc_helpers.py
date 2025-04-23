@@ -183,9 +183,7 @@ def parse_json_rpc_response(
     match JSONRPCResponse.model_validate_json(response_str).root:
         case JSONRPCSuccessResponse(result=rpc_result):
             return rpc_result
-        case JSONRPCErrorResponse(
-            error=JSONRPCError(code=code, message=message, data=_)
-        ):
+        case JSONRPCErrorResponse(error=JSONRPCError(code=code, message=message)):
             raise exception_for_rpc_response_error(code, message, method, params)
         case _:
             raise ValueError(

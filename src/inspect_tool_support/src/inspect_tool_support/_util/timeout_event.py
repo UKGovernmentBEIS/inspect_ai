@@ -35,7 +35,7 @@ class TimeoutEvent:
 
     def start_timer(self, timeout: float) -> None:
         """Start or restart the countdown timer."""
-        self._cancel_timer()
+        self.clear()
 
         async def _timeout_handler():
             try:

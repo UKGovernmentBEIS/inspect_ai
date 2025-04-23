@@ -36,7 +36,7 @@ def main() -> None:
     args = _parse_args()
     match args.command:
         case "exec":
-            asyncio.run(_exec())
+            asyncio.run(_exec(args.request))
         case "post-install":
             post_install(no_web_browser=args.no_web_browser)
         case "server":
@@ -46,12 +46,12 @@ def main() -> None:
 # Example/testing requests
 # {"jsonrpc": "2.0", "method": "editor", "id": 666, "params": {"command": "view", "path": "/tmp"}}
 # {"jsonrpc": "2.0", "method": "bash", "id": 666, "params": {"command": "ls ~/Downloads"}}
-async def _exec() -> None:
+async def _exec(request: str | None) -> None:
     _ensure_server_is_running()
 
     in_process_tools = load_tools("inspect_tool_support._in_process_tools")
 
-    request_json_str = sys.stdin.read().strip()
+    request_json_str = request or sys.stdin.read().strip()
     tool_name = JSONRPCIncoming.model_validate_json(request_json_str).method
     assert isinstance(tool_name, str)
 
@@ -93,7 +93,8 @@ def _parse_args() -> argparse.Namespace:
     subparsers = parser.add_subparsers(
         dest="command", required=True, help="Command to execute"
     )
-    subparsers.add_parser("exec")
+    exec_parser = subparsers.add_parser("exec")
+    exec_parser.add_argument(dest="request", type=str, nargs="?")
     subparsers.add_parser("server")
     post_install_parser = subparsers.add_parser("post-install")
     post_install_parser.add_argument("--no-web-browser", action="store_true")

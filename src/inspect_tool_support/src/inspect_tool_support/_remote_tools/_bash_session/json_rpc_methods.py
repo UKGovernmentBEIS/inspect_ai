@@ -1,6 +1,4 @@
-from pydantic import BaseModel
-
-from ..._util.json_rpc_helpers import validated_json_rpc_method
+from ..._util.json_rpc_helpers import NoParams, validated_json_rpc_method
 from ._controller import Controller
 from .tool_types import (
     BashParams,
@@ -14,13 +12,8 @@ from .tool_types import (
 controller = Controller()
 
 
-# TODO: I need to refactor this code so that I can support no parameters. For now, we have a dummy model
-class NoParams(BaseModel):
-    pass
-
-
 @validated_json_rpc_method(NoParams)
-async def bash_session_new_session(params: NoParams) -> NewSessionResult:
+async def bash_session_new_session(_: NoParams) -> NewSessionResult:
     return NewSessionResult(session_name=await controller.new_session())
 
 

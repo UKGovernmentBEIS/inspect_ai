@@ -11,7 +11,7 @@ from inspect_ai.tool._tool_support_helpers import (
     exec_model_request,
     exec_notification,
     exec_scalar_request,
-    tool_container_sandbox,
+    tool_support_sandbox,
 )
 
 from ._context import MCPServerContext
@@ -31,7 +31,7 @@ async def sandbox_client(  # type: ignore
 ) -> MCPServerContext:  # type: ignore
     # TODO: How do we want to plumb timeout into this?
     timeout = 180
-    sandbox_environment = await tool_container_sandbox(
+    (sandbox_environment, _) = await tool_support_sandbox(
         "mcp support", sandbox_name=sandbox_name
     )
 
