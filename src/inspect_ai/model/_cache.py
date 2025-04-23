@@ -8,6 +8,7 @@ from pathlib import Path
 from shutil import rmtree
 from typing import Any
 
+import msgspec
 from anyio import open_file
 from dateutil.relativedelta import relativedelta
 
@@ -198,6 +199,11 @@ def _is_expired(expiry: datetime | None) -> bool:
     return datetime.now(timezone.utc) > expiry
 
 
+class CacheItem(msgspec.Struct):
+    expiry: datetime | None
+    output: dict[str, Any]
+
+
 async def cache_store(
     entry: CacheEntry,
     output: ModelOutput,
@@ -211,7 +217,8 @@ async def cache_store(
         async with await open_file(filename, "wb") as f:
             expiry = _cache_expiry(entry.policy)
             trace("Storing in cache: %s (expires: %s)", filename, expiry)
-            entry_bytes = pickle.dumps((expiry, output))
+            cache_item = CacheItem(expiry, output.model_dump(exclude_none=True))
+            entry_bytes = msgspec.msgpack.encode(cache_item)
             await f.write(entry_bytes)
         return True
     except Exception as e:
@@ -227,14 +234,9 @@ async def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
 
         async with await open_file(filename, "rb") as f:
             entry_bytes = await f.read()
-            expiry, output = pickle.loads(entry_bytes)
-            if not isinstance(output, ModelOutput):
-                trace(
-                    "Unexpected cached type, can only fetch ModelOutput: %s (%s)",
-                    type(output),
-                    filename,
-                )
-                return None
+            cache_item = msgspec.msgpack.decode(entry_bytes, type=CacheItem)
+            expiry = cache_item.expiry
+            output = ModelOutput.model_validate(cache_item.output)
 
             if _is_expired(expiry):
                 trace("Cache expired for %s (%s)", filename, expiry)

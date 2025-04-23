@@ -12,6 +12,7 @@ jsonlines>=3.0.0
 jsonpatch>=1.32
 jsonschema>3.1.1
 mmh3>3.1.0
+msgspec>=0.19.0,
 nest_asyncio
 numpy
 platformdirs>=2.3.0
