@@ -18,7 +18,7 @@
   display: flex;
   margin-top: 0;
   position: relative;
-  height: 0;
+  height: 8px;
 }
 
 .moreToggle.bordered {
