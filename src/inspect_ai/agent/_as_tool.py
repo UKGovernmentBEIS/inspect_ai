@@ -33,7 +33,9 @@ def as_tool(
     Args:
        agent: Agent to convert.
        description: Tool description (defaults to agent description)
-       limits: List of limits to apply to the agent.
+       limits: List of limits to apply to the agent. Should a limit
+          be exceeded, the tool call ends and returns an error
+          explaining that a limit was exceeded.
        **agent_kwargs: Arguments to curry to Agent function (arguments
           provided here will not be presented to the model as part
           of the tool interface).

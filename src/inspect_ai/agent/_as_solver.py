@@ -25,7 +25,8 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
 
     Args:
        agent: Agent to convert.
-       limits: List of limits to apply to the agent.
+       limits: List of limits to apply to the agent. Should a limit
+          be exceeded, the Sample ends and proceeds to scoring.
        **agent_kwargs: Arguments to curry to Agent function (required
           if the agent has parameters without default values).
 

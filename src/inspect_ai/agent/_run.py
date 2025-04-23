@@ -21,7 +21,9 @@ async def run(
     Args:
         agent: Agent to run.
         input: Agent input (string, list of messages, or an `AgentState`).
-        limits: List of limits to apply to the agent.
+        limits: List of limits to apply to the agent. Should a limit be
+            exceeded, a LimitExceededError is raised which the caller may
+            handle as appropriate.
         **agent_kwargs: Additional arguments to pass to agent.
 
     Returns:
