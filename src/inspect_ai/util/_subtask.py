@@ -124,35 +124,34 @@ def subtask(
                 # run the subtask
                 with trace_action(logger, "Subtask", subtask_name):
                     with span(name=subtask_name, type="subtask"):
+                        # create subtask event
+                        waiting_time_start = sample_waiting_time()
+                        event = SubtaskEvent(
+                            name=subtask_name, input=log_input, type=type, pending=True
+                        )
+                        transcript()._event(event)
+
+                        # run the subtask
                         result = await func(*args, **kwargs)
 
-                # return result
-                return result  # type: ignore[no-any-return]
+                        # time accounting
+                        completed = datetime.now()
+                        waiting_time_end = sample_waiting_time()
+                        event.completed = completed
+                        event.working_time = (
+                            completed - event.timestamp
+                        ).total_seconds() - (waiting_time_end - waiting_time_start)
 
-            # create subtask event
-            waiting_time_start = sample_waiting_time()
-            event = SubtaskEvent(
-                name=subtask_name, input=log_input, type=type, pending=True
-            )
-            transcript()._event(event)
+                        # update event
+                        event.result = result
+                        event.pending = None
+                        transcript()._event_updated(event)
+
+                        # return result
+                        return result  # type: ignore[no-any-return]
 
             # create and run the task as a coroutine
             result = (await tg_collect([run]))[0]
-
-            # time accounting
-            completed = datetime.now()
-            waiting_time_end = sample_waiting_time()
-            event.completed = completed
-            event.working_time = (completed - event.timestamp).total_seconds() - (
-                waiting_time_end - waiting_time_start
-            )
-
-            # update event
-            event.result = result
-            event.pending = None
-            transcript()._event_updated(event)
-
-            # return result
             return result
 
         return run_subtask

@@ -45,6 +45,7 @@ from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
+from inspect_ai.log._transcript import ToolEvent, transcript
 from inspect_ai.model._display import display_conversation_message
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, ToolCall, ToolError, ToolInfo
@@ -116,6 +117,7 @@ async def execute_tools(
 
         async def call_tool_task(
             call: ToolCall,
+            event: ToolEvent,
             conversation: list[ChatMessage],
             send_stream: MemoryObjectSendStream[
                 tuple[ExecuteToolsResult, ToolEvent, Exception | None]
@@ -130,7 +132,7 @@ async def execute_tools(
             try:
                 try:
                     result, messages, output, agent = await call_tool(
-                        tdefs, message.text, call, conversation
+                        tdefs, message.text, call, event, conversation
                     )
                 # unwrap exception group
                 except Exception as ex:
@@ -260,7 +262,6 @@ async def execute_tools(
                 internal=call.internal,
                 pending=True,
             )
-            transcript()._event(event)
 
             # execute the tool call. if the operator cancels the
             # tool call then synthesize the appropriate message/event
@@ -270,7 +271,7 @@ async def execute_tools(
 
             result_exception = None
             async with anyio.create_task_group() as tg:
-                tg.start_soon(call_tool_task, call, messages, send_stream)
+                tg.start_soon(call_tool_task, call, event, messages, send_stream)
                 event._set_cancel_fn(tg.cancel_scope.cancel)
                 async with receive_stream:
                     (
@@ -335,7 +336,11 @@ async def execute_tools(
 
 
 async def call_tool(
-    tools: list[ToolDef], message: str, call: ToolCall, conversation: list[ChatMessage]
+    tools: list[ToolDef],
+    message: str,
+    call: ToolCall,
+    event: ToolEvent,
+    conversation: list[ChatMessage],
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
     from inspect_ai.log._transcript import SampleLimitEvent, transcript
@@ -382,11 +387,13 @@ async def call_tool(
         if isinstance(tool_def.tool, AgentTool):
             with span(tool_def.tool.name, type="handoff"):
                 with span(name=call.function, type="tool"):
+                    transcript()._event(event)
                     return await agent_handoff(tool_def, call, conversation)
 
         # normal tool call
         else:
             with span(name=call.function, type="tool"):
+                transcript()._event(event)
                 result: ToolResult = await tool_def.tool(**arguments)
                 return result, [], None, None
 
