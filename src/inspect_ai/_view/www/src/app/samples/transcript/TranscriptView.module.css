@@ -35,9 +35,14 @@
 }
 
 .eventNodeContainer {
-  padding-top: 0.5em;
+  padding-top: 0.7em;
 }
 
 .eventNodeContainer.noBottom {
   padding-bottom: 0;
+}
+
+.attached {
+  padding-top: 0rem;
+  margin-top: -1px;
 }

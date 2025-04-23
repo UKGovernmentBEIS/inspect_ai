@@ -1,4 +1,4 @@
-import { FC, memo, RefObject, useMemo } from "react";
+import { FC, JSX, memo, RefObject, useMemo } from "react";
 import { Events } from "../../../@types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
@@ -88,23 +88,40 @@ interface TranscriptComponentProps {
  */
 export const TranscriptComponent: FC<TranscriptComponentProps> = memo(
   ({ id, eventNodes }) => {
-    const rows = eventNodes.map((eventNode, index) => {
+    const rows: JSX.Element[] = [];
+
+    let attached = false;
+    for (let i = 0; i < eventNodes.length; i++) {
+      const eventNode = eventNodes[i];
       const clz = [styles.eventNode];
+      const containerClz = [];
+
+      if (eventNode.event.event !== "tool") {
+        attached = false;
+      }
+
+      // Special handling for toggling color
       if (eventNode.depth % 2 == 0) {
         clz.push(styles.darkenBg);
       }
-      if (index === eventNodes.length - 1) {
+
+      // Note last node
+      if (i === eventNodes.length - 1) {
         clz.push(styles.lastNode);
       }
 
-      const eventId = `${id}|event|${index}`;
+      if (attached) {
+        containerClz.push(styles.attached);
+      }
 
+      const eventId = `${id}|event|${i}`;
       const row = (
         <div
           key={eventId}
           className={clsx(
             styles.eventNodeContainer,
-            index === eventNodes.length - 1 ? styles.noBottom : undefined,
+            i === eventNodes.length - 1 ? styles.noBottom : undefined,
+            containerClz,
           )}
         >
           <RenderedEventNode
@@ -114,8 +131,12 @@ export const TranscriptComponent: FC<TranscriptComponentProps> = memo(
           />
         </div>
       );
-      return row;
-    });
+      rows.push(row);
+
+      if (eventNode.event.event === "model") {
+        attached = true;
+      }
+    }
 
     return (
       <div

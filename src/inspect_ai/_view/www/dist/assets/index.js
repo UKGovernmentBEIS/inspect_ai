@@ -36945,10 +36945,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             );
           }
         });
-        return message2.content || toolCalls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
           toolCalls
-        ] }) : void 0;
+        ] });
       } else {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content });
       }
@@ -59930,34 +59930,49 @@ ${events}
         }
       );
     };
-    const transcriptComponent = "_transcriptComponent_1ki3f_19";
-    const eventNode = "_eventNode_1ki3f_25";
-    const darkenBg = "_darkenBg_1ki3f_29";
-    const lastNode = "_lastNode_1ki3f_33";
-    const eventNodeContainer = "_eventNodeContainer_1ki3f_37";
-    const noBottom = "_noBottom_1ki3f_41";
+    const transcriptComponent = "_transcriptComponent_1sywb_19";
+    const eventNode = "_eventNode_1sywb_25";
+    const darkenBg = "_darkenBg_1sywb_29";
+    const lastNode = "_lastNode_1sywb_33";
+    const eventNodeContainer = "_eventNodeContainer_1sywb_37";
+    const noBottom = "_noBottom_1sywb_41";
+    const attached$1 = "_attached_1sywb_45";
     const styles$d = {
       transcriptComponent,
       eventNode,
       darkenBg,
       lastNode,
       eventNodeContainer,
-      noBottom
+      noBottom,
+      attached: attached$1
     };
-    const darkenedBg = "_darkenedBg_18e59_1";
-    const normalBg = "_normalBg_18e59_5";
-    const node = "_node_18e59_9";
+    const darkenedBg = "_darkenedBg_6ozk9_1";
+    const normalBg = "_normalBg_6ozk9_5";
+    const node = "_node_6ozk9_9";
+    const attached = "_attached_6ozk9_14";
     const styles$c = {
       darkenedBg,
       normalBg,
-      node
+      node,
+      attached
     };
     const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2 }) => {
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$c.darkenedBg : styles$c.normalBg;
         const paddingClass = index2 === 0 ? styles$c.first : void 0;
         const eventId = `${id}-event-${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$c.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) }) }, eventId);
+        const previousIndex = index2 - 1;
+        const previous = previousIndex > 0 && previousIndex <= eventNodes.length ? eventNodes[previousIndex] : void 0;
+        const attached2 = item2.event.event === "tool" && ((previous == null ? void 0 : previous.event.event) === "tool" || (previous == null ? void 0 : previous.event.event) === "model");
+        const attachedClass = attached2 ? styles$c.attached : void 0;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(styles$c.node, paddingClass, attachedClass),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) })
+          },
+          eventId
+        );
       }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LiveVirtualList,
@@ -60039,21 +60054,32 @@ ${events}
     );
     const TranscriptComponent = reactExports.memo(
       ({ id, eventNodes }) => {
-        const rows = eventNodes.map((eventNode2, index2) => {
+        const rows = [];
+        let attached2 = false;
+        for (let i2 = 0; i2 < eventNodes.length; i2++) {
+          const eventNode2 = eventNodes[i2];
           const clz = [styles$d.eventNode];
+          const containerClz = [];
+          if (eventNode2.event.event !== "tool") {
+            attached2 = false;
+          }
           if (eventNode2.depth % 2 == 0) {
             clz.push(styles$d.darkenBg);
           }
-          if (index2 === eventNodes.length - 1) {
+          if (i2 === eventNodes.length - 1) {
             clz.push(styles$d.lastNode);
           }
-          const eventId = `${id}|event|${index2}`;
+          if (attached2) {
+            containerClz.push(styles$d.attached);
+          }
+          const eventId = `${id}|event|${i2}`;
           const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: clsx(
                 styles$d.eventNodeContainer,
-                index2 === eventNodes.length - 1 ? styles$d.noBottom : void 0
+                i2 === eventNodes.length - 1 ? styles$d.noBottom : void 0,
+                containerClz
               ),
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 RenderedEventNode,
@@ -60066,8 +60092,11 @@ ${events}
             },
             eventId
           );
-          return row2;
-        });
+          rows.push(row2);
+          if (eventNode2.event.event === "model") {
+            attached2 = true;
+          }
+        }
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {

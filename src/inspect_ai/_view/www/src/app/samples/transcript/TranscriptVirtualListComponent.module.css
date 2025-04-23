@@ -7,6 +7,11 @@
 }
 
 .node {
-  padding-top: 0.5rem;
+  padding-top: 0.7rem;
   padding-bottom: 0em;
+}
+
+.attached {
+  padding-top: 0rem;
+  margin-top: -1px;
 }
