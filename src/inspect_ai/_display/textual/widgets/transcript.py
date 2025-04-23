@@ -30,7 +30,7 @@ from inspect_ai.log._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     ScoreEvent,
-    StepEvent,
+    SpanBeginEvent,
     SubtaskEvent,
     ToolEvent,
 )
@@ -235,21 +235,8 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
     return [EventDisplay("tool call", Group(*content))]
 
 
-def render_step_event(event: StepEvent) -> EventDisplay:
-    if event.type == "solver":
-        return render_solver_event(event)
-    if event.type == "scorer":
-        return render_scorer_event(event)
-    else:
-        return EventDisplay(step_title(event))
-
-
-def render_solver_event(event: StepEvent) -> EventDisplay:
-    return EventDisplay(step_title(event))
-
-
-def render_scorer_event(event: StepEvent) -> EventDisplay:
-    return EventDisplay(step_title(event))
+def render_span_begin_event(event: SpanBeginEvent) -> EventDisplay:
+    return EventDisplay(span_title(event))
 
 
 def render_score_event(event: ScoreEvent) -> EventDisplay:
@@ -345,8 +332,8 @@ def render_message(message: ChatMessage) -> list[RenderableType]:
     return content
 
 
-def step_title(event: StepEvent) -> str:
-    return f"{event.type or 'step'}: {event.name}"
+def span_title(event: SpanBeginEvent) -> str:
+    return f"{event.type or 'span'}: {event.name}"
 
 
 EventRenderer = Callable[[Any], EventDisplay | list[EventDisplay] | None]
@@ -354,7 +341,7 @@ EventRenderer = Callable[[Any], EventDisplay | list[EventDisplay] | None]
 _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (SampleInitEvent, render_sample_init_event),
     (SampleLimitEvent, render_sample_limit_event),
-    (StepEvent, render_step_event),
+    (SpanBeginEvent, render_span_begin_event),
     (ModelEvent, render_model_event),
     (ToolEvent, render_tool_event),
     (SubtaskEvent, render_subtask_event),
