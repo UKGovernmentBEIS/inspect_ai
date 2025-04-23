@@ -351,5 +351,5 @@ async def test_agent_run():
 
 
 async def test_agent_run_respects_limits() -> None:
-    with pytest.raises(LimitExceededError) as ex:
+    with pytest.raises(LimitExceededError):
         await run(looping_agent(), "This is the input", limits=[message_limit(10)])
