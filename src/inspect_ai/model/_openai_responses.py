@@ -304,12 +304,10 @@ def _openai_input_items_from_chat_message_assistant(
     field of the `ChatMessageAssistant` to help it provide the proper id's the
     items in the returned list.
     """
-    # As currently coded, this code only supports a single OutputMessage and
-    # a single ReasoningItem for each Response/ChatMessageAssistant.
-    reasoning_item: ResponseReasoningItemParam | None = None
-    output_message: ResponseOutputMessageParam | None = None
-
     (output_message_id, tool_message_ids) = _ids_from_assistant_internal(message)
+
+    items: list[ResponseInputItemParam] = []
+    output_message: ResponseOutputMessageParam | None = None
 
     for content in (
         list[ContentText | ContentReasoning]([ContentText(text=message.content)])
@@ -323,10 +321,14 @@ def _openai_input_items_from_chat_message_assistant(
                 assert content.signature is not None, (
                     "reasoning_id must be saved in signature"
                 )
-                reasoning_item = ResponseReasoningItemParam(
-                    type="reasoning",
-                    id=content.signature,
-                    summary=[Summary(type="summary_text", text=reasoning)],
+                items.append(
+                    ResponseReasoningItemParam(
+                        type="reasoning",
+                        id=content.signature,
+                        summary=[Summary(type="summary_text", text=reasoning)]
+                        if reasoning
+                        else [],
+                    )
                 )
             case ContentText(text=text, refusal=refusal):
                 new_content = (
@@ -347,14 +349,13 @@ def _openai_input_items_from_chat_message_assistant(
                         content=[new_content],
                         status="completed",
                     )
+                    items.append(output_message)
                 else:
                     output_message["content"] = chain(
                         output_message["content"], [new_content]
                     )
 
-    return [
-        item for item in (reasoning_item, output_message) if item
-    ] + _tool_call_items_from_assistant_message(message, tool_message_ids)
+    return items + _tool_call_items_from_assistant_message(message, tool_message_ids)
 
 
 def _model_tool_call_for_internal(
