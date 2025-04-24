@@ -151,12 +151,13 @@ def launch_server_cmd(
 
     full_command = command + ["--port", str(port)]
     logger.info(f"Launching server on port {port}")
+
     process = execute_shell_command(full_command)
 
     if lock_socket is not None:
         process_socket_map[process] = lock_socket
 
-    return process, port
+    return process, port, full_command
 
 
 def terminate_process(process: subprocess.Popen[str]) -> None:
@@ -176,6 +177,7 @@ def terminate_process(process: subprocess.Popen[str]) -> None:
 def wait_for_server(
     base_url: str,
     process: subprocess.Popen[str],
+    full_command: Optional[list[str]] = None,
     timeout: Optional[int] = None,
     api_key: Optional[str] = None,
 ) -> None:
@@ -185,6 +187,7 @@ def wait_for_server(
     Args:
         base_url: The base URL of the server
         process: The subprocess running the server
+        full_command: The full command used to launch the server
         timeout: Maximum time to wait in seconds. None means wait forever.
         api_key: The API key to use for the request
     """
@@ -196,6 +199,8 @@ def wait_for_server(
         if process.poll() is not None:
             exit_code = process.poll()
             error_msg = f"Server process exited unexpectedly with code {exit_code}. Try rerunning with '--log-level debug' to see the full traceback."
+            if full_command:
+                error_msg += f" Alternatively, you can run the following command manually to see the full traceback:\n\n{' '.join(full_command)}\n\n"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
@@ -246,13 +251,16 @@ def start_local_server(
     """
     server_process = None
     try:
-        server_process, port = launch_server_cmd(cmd, host=host, port=port)
+        server_process, port, full_command = launch_server_cmd(
+            cmd, host=host, port=port
+        )
         base_url = f"http://localhost:{port}/v1"
         wait_for_server(
             f"http://localhost:{port}",
             server_process,
             api_key=api_key,
             timeout=timeout,
+            full_command=full_command,
         )
         return base_url, server_process, port
     except Exception as e:

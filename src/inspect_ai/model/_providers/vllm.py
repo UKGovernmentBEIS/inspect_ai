@@ -97,7 +97,9 @@ class VLLMAPI(OpenAICompatibleAPI):
 
             # Start the server
             host = self.server_args.pop("host", "0.0.0.0")
-            base_url = self._start_server(model_name, host, port=None)
+            base_url, api_key = self._start_server(
+                model_name, host, port=None, api_key=api_key
+            )
             atexit.register(self._cleanup_server)
             logger.warning(f"VLLM server started at {base_url}")
 
@@ -111,13 +113,20 @@ class VLLMAPI(OpenAICompatibleAPI):
                 service_base_url=base_url,
             )
 
-    def _start_server(self, model_path: str, host: str, port: int | None = None) -> str:
+    def _start_server(
+        self,
+        model_path: str,
+        host: str,
+        port: int | None = None,
+        api_key: str | None = None,
+    ) -> str:
         """Start a new VLLM server and return the base URL.
 
         Args:
             model_path: Path to the model to use
             host: Host to bind the server to
             port: Port to bind the server to
+            api_key: API key for the server
         Returns:
             str: The base URL for the server
         """
@@ -132,8 +141,11 @@ class VLLMAPI(OpenAICompatibleAPI):
             self.server_args, parallel_size_param="tensor_parallel_size"
         )
 
+        if not api_key:
+            api_key = "inspectai"  # Create a default API key if not provided
+
         # Build command as a list
-        cmd = ["vllm", "serve", model_path, "--host", host, "--api-key", self.api_key]
+        cmd = ["vllm", "serve", model_path, "--host", host, "--api-key", api_key]
 
         # Add additional arguments
         for key, value in self.server_args.items():
@@ -142,10 +154,10 @@ class VLLMAPI(OpenAICompatibleAPI):
             cmd.extend([f"--{cli_key}", str(value)])
 
         base_url, self.server_process, self.port = start_local_server(
-            cmd, host=host, port=port, api_key=self.api_key, server_type="vLLM"
+            cmd, host=host, port=port, api_key=api_key, server_type="vLLM"
         )
 
-        return base_url
+        return base_url, api_key
 
     @property
     def server_is_running(self) -> bool:

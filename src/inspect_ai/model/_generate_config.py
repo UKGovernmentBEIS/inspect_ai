@@ -46,89 +46,89 @@ class ResponseSchema(BaseModel):
     #     """List of trigger strings that indicate a structural tag."""
 
     # class GuidedDecodingConfig(BaseModel):
-    r"""Configuration for guided decoding in vLLM and SGLang.
+    # r"""Configuration for guided decoding in vLLM and SGLang.
 
-    Examples:
-        Using JSON schema:
-            ```python
-            config = GenerateConfig(
-                guided_decoding=GuidedDecodingConfig(
-                    json_schema=ResponseSchema(
-                        name="person",
-                        json_schema=JSONSchema(type="object", properties={
-                            "name": {"type": "string"},
-                            "age": {"type": "integer"}
-                        })
-                    )
-                )
-            )
-            ```
+    # Examples:
+    #     Using JSON schema:
+    #         ```python
+    #         config = GenerateConfig(
+    #             guided_decoding=GuidedDecodingConfig(
+    #                 json_schema=ResponseSchema(
+    #                     name="person",
+    #                     json_schema=JSONSchema(type="object", properties={
+    #                         "name": {"type": "string"},
+    #                         "age": {"type": "integer"}
+    #                     })
+    #                 )
+    #             )
+    #         )
+    #         ```
 
-        Using regex:
-            ```python
-            config = GenerateConfig(
-                guided_decoding=GuidedDecodingConfig(
-                    regex=r"[A-Z][a-z]+ [A-Z][a-z]+"
-                )
-            )
-            ```
+    #     Using regex:
+    #         ```python
+    #         config = GenerateConfig(
+    #             guided_decoding=GuidedDecodingConfig(
+    #                 regex=r"[A-Z][a-z]+ [A-Z][a-z]+"
+    #             )
+    #         )
+    #         ```
 
-        Using grammar:
-            ```python
-            config = GenerateConfig(
-                guided_decoding=GuidedDecodingConfig(
-                    grammar="root ::= object\nobject ::= '{' members '}'\nmembers ::= pair (',' pair)*\npair ::= string ':' value"
-                )
-            )
-            ```
+    #     Using grammar:
+    #         ```python
+    #         config = GenerateConfig(
+    #             guided_decoding=GuidedDecodingConfig(
+    #                 grammar="root ::= object\nobject ::= '{' members '}'\nmembers ::= pair (',' pair)*\npair ::= string ':' value"
+    #             )
+    #         )
+    #         ```
 
-        Using structural tags:
-            ```python
-            config = GenerateConfig(
-                guided_decoding=GuidedDecodingConfig(
-                    structural_tags=StructuralTagConfig(
-                        structures=[
-                            StructureDefinition(
-                                begin="<code>",
-                                json_schema=JSONSchema(type="string"),
-                                end="</code>"
-                            )
-                        ],
-                        triggers=["<code>"]
-                    )
-                )
-            )
-            ```
-    """
+    #     Using structural tags:
+    #         ```python
+    #         config = GenerateConfig(
+    #             guided_decoding=GuidedDecodingConfig(
+    #                 structural_tags=StructuralTagConfig(
+    #                     structures=[
+    #                         StructureDefinition(
+    #                             begin="<code>",
+    #                             json_schema=JSONSchema(type="string"),
+    #                             end="</code>"
+    #                         )
+    #                     ],
+    #                     triggers=["<code>"]
+    #                 )
+    #             )
+    #         )
+    #         ```
+    # """
 
-    json_schema: ResponseSchema | None = Field(
-        default=None, alias="json", serialization_alias="guided_json"
-    )
-    """JSON schema to guide the model's output format."""
+    # json_schema: ResponseSchema | None = Field(
+    #     default=None, alias="json", serialization_alias="guided_json"
+    # )
+    # """JSON schema to guide the model's output format."""
 
-    regex: str | None = Field(default=None, serialization_alias="guided_regex")
-    """Regular expression to constrain the model's output format."""
+    # regex: str | None = Field(default=None, serialization_alias="guided_regex")
+    # """Regular expression to constrain the model's output format."""
 
-    choice: list[str] | None = Field(default=None, serialization_alias="guided_choice")
-    """List of possible choices the model can output."""
+    # choice: list[str] | None = Field(default=None, serialization_alias="guided_choice")
+    # """List of possible choices the model can output."""
 
-    grammar: str | None = Field(default=None, serialization_alias="guided_grammar")
-    """Context-free grammar in EBNF format to define the output structure."""
+    # grammar: str | None = Field(default=None, serialization_alias="guided_grammar")
+    # """Context-free grammar in EBNF format to define the output structure."""
 
-    structural_tags: StructuralTagConfig | None = Field(
-        default=None, serialization_alias="structural_tags"
-    )
-    """Configuration for structural tags to guide the model's output format."""
+    # structural_tags: StructuralTagConfig | None = Field(
+    #     default=None, serialization_alias="structural_tags"
+    # )
+    # """Configuration for structural tags to guide the model's output format."""
 
-    backend: Literal["outlines", "lm-format-enforcer", "xgrammar"] | None = Field(
-        default=None, serialization_alias="guided_decoding_backend"
-    )
-    """Backend implementation to use for guided decoding."""
+    # backend: Literal["outlines", "lm-format-enforcer", "xgrammar"] | None = Field(
+    #     default=None, serialization_alias="guided_decoding_backend"
+    # )
+    # """Backend implementation to use for guided decoding."""
 
-    whitespace_pattern: str | None = Field(
-        default=None, serialization_alias="guided_whitespace_pattern"
-    )
-    """Pattern to use for whitespace handling in guided json decoding."""
+    # whitespace_pattern: str | None = Field(
+    #     default=None, serialization_alias="guided_whitespace_pattern"
+    # )
+    # """Pattern to use for whitespace handling in guided json decoding."""
 
 
 class GenerateConfigArgs(TypedDict, total=False):

@@ -31,7 +31,6 @@ from ._conversation import ModelConversation
 from ._generate_config import (
     GenerateConfig,
     GenerateConfigArgs,
-    GuidedDecodingConfig,
     ResponseSchema,
 )
 from ._model import (

@@ -157,6 +157,9 @@ class SGLangAPI(OpenAIAPI):
         # Handle device configuration
         self.server_args = configure_devices(self.server_args, parallel_size_param="tp")
 
+        if not self.api_key:
+            self.api_key = "inspectai"  # Create a default API key if not provided
+
         # Create server command as a list instead of a string
         cmd = [
             "python", "-m", "sglang.launch_server",
