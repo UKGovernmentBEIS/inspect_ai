@@ -404,6 +404,15 @@ class Model:
         async with self._connection_concurrency(config):
             from inspect_ai.log._samples import track_active_sample_retries
 
+            # TODO: Create the model event here even as a shell
+            # (don't add it to the transcipt). Then, have it
+            # added by _generate but we have a handle to it to update
+
+            # TODO: track_active_sample_retries => track_active_model_event()
+            #   sets a context var with the 'current' modelevent for the task
+
+            # TODO: Then, the reporting interface just hits that
+
             # generate
             with track_active_sample_retries():
                 output = await self._generate(
