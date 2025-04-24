@@ -31,6 +31,7 @@
 - Inspect View: Improved display of sample input, target, answer, and scoring information (improve column width behavior).
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.
 - Inspect View: Collapse sample init view by default.
+- Inspect: Properly store and restore NaN values when viewing logs in VSCode.
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
 - Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider

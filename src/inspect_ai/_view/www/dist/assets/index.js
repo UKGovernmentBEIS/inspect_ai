@@ -51631,14 +51631,14 @@ self.onmessage = function (e) {
         children2
       ] });
     };
-    const container$4 = "_container_rs4y7_1";
-    const all = "_all_rs4y7_6";
-    const tableSelection = "_tableSelection_rs4y7_12";
-    const codePre = "_codePre_rs4y7_22";
-    const code$2 = "_code_rs4y7_22";
-    const progress$1 = "_progress_rs4y7_34";
-    const toolConfig = "_toolConfig_rs4y7_38";
-    const toolChoice = "_toolChoice_rs4y7_46";
+    const container$4 = "_container_11njc_1";
+    const all = "_all_11njc_6";
+    const tableSelection = "_tableSelection_11njc_12";
+    const codePre = "_codePre_11njc_22";
+    const code$2 = "_code_11njc_22";
+    const progress$1 = "_progress_11njc_34";
+    const toolConfig = "_toolConfig_11njc_38";
+    const toolChoice = "_toolChoice_11njc_46";
     const styles$n = {
       container: container$4,
       all,
@@ -59979,13 +59979,13 @@ ${events}
         }
       );
     };
-    const transcriptComponent = "_transcriptComponent_13qtu_19";
-    const eventNode = "_eventNode_13qtu_25";
-    const darkenBg = "_darkenBg_13qtu_29";
-    const lastNode = "_lastNode_13qtu_33";
-    const eventNodeContainer = "_eventNodeContainer_13qtu_37";
-    const noBottom = "_noBottom_13qtu_41";
-    const attached$1 = "_attached_13qtu_45";
+    const transcriptComponent = "_transcriptComponent_171gc_19";
+    const eventNode = "_eventNode_171gc_25";
+    const darkenBg = "_darkenBg_171gc_29";
+    const lastNode = "_lastNode_171gc_33";
+    const eventNodeContainer = "_eventNodeContainer_171gc_37";
+    const noBottom = "_noBottom_171gc_41";
+    const attached$1 = "_attached_171gc_45";
     const styles$d = {
       transcriptComponent,
       eventNode,
@@ -59995,10 +59995,10 @@ ${events}
       noBottom,
       attached: attached$1
     };
-    const darkenedBg = "_darkenedBg_6ozk9_1";
-    const normalBg = "_normalBg_6ozk9_5";
-    const node = "_node_6ozk9_9";
-    const attached = "_attached_6ozk9_14";
+    const darkenedBg = "_darkenedBg_1sie6_1";
+    const normalBg = "_normalBg_1sie6_5";
+    const node = "_node_1sie6_9";
+    const attached = "_attached_1sie6_14";
     const styles$c = {
       darkenedBg,
       normalBg,
@@ -82777,11 +82777,13 @@ Supported expressions:
         return {
           getItem: (_name) => {
             const state = vscodeApi2.getState();
-            return state;
+            const deserialized = lib$1.parse(state);
+            return deserialized;
           },
           setItem: (_name, value2) => {
             const valObj = value2;
-            vscodeApi2.setState(valObj);
+            const serialized = lib$1.stringify(valObj);
+            vscodeApi2.setState(serialized);
           },
           removeItem: (_name) => {
             vscodeApi2.setState(null);
