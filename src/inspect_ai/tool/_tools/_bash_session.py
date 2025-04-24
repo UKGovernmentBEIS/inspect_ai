@@ -1,4 +1,5 @@
 from textwrap import dedent
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from semver import Version
@@ -97,7 +98,7 @@ def bash_session(
     async def execute(
         input: str | None = None,
         include_return: bool | None = None,
-        restart: bool | None = None,
+        restart: Literal[True] | None = None,
     ) -> ToolResult:
         r"""
         Interact with a bash shell.
@@ -107,22 +108,29 @@ def bash_session(
         single call. Call this function multiple times to retrieve additional
         output from the shell.
 
+        IMPORTANT NOTES:
+        - If the previous result does not end in a command prompt (typically
+          "$ " or "# "), it means that a command is likely still in progress.
+        - If a long-running command is in progress, additional input to execute
+          a new command will not be processed until the previous completes. To
+          abort a long-running command, send a Ctrl+C (ETX character):
+          `bash_session(input="\u0003", include_return=False)`
+
         Example use case:
-        - For a short-running shell command with a nominal amount of output, a
-          single call to the function may suffice. e.g.
+        - For a short-running command with a nominal amount of output, a single
+          call may suffice.
           ```
           bash_session(input="echo foo", include_return=True) -> "foo\nuser@host:/# "
           ```
         - For a long-running command with output over time, multiple calls to the
-          function are needed. e.g.
+          function are needed.
           ```
           bash_session(input="tail -f /tmp/foo.log", include_return=True) -> <some output>
           bash_session() -> <more output>
           # Send Ctrl+C (ETX character)
           bash_session(input="\u0003", include_return=False) -> "<final output>^Cuser@host:/# "
           ```
-        - Interactive commands that may await more input from the user are also
-          supported. e.g.
+        - Interactive command awaiting more input from the user.
           ```
           bash_session(input="ssh fred@foo.com", include_return=True) -> "foo.com's password: "
           bash_session(input="secret", include_return=True) -> "fred@foo.com:~$ "
@@ -134,9 +142,9 @@ def bash_session(
                 stderr without sending new input.
           include_return: Simulate the user pressing the 'Return' key after
                 typing the specified input. It must be specified if 'input' is
-                provided.
-          restart: Specifying true will restart this tool. Otherwise, leave this
-                unspecified.
+                not empty, otherwise leave it unspecified.
+          restart: Specifying True will restart this bash session. Otherwise,
+                leave it unspecified.
 
         Returns:
           The accumulated output of the shell.
@@ -144,9 +152,13 @@ def bash_session(
         if restart and input is not None:
             raise ToolParsingError("Do not send any 'input' when restarting.")
 
-        if input is not None and include_return is None:
+        # Normalize input of "" to None
+        input = input or None
+        if (input is not None) != (include_return is not None):
             raise ToolParsingError(
-                "'include_newline' must be specified if 'input' is provided."
+                "'include_return' must be specified if 'input' is provided."
+                if input
+                else "Do not send 'include_return' when no 'input' is provided."
             )
 
         (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
@@ -171,7 +183,7 @@ def bash_session(
                 )
             ).session_name
 
-        if input is not None and include_return:
+        if input and include_return:
             input += "\n"
 
         result = await exec_scalar_request(

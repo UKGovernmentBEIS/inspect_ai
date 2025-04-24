@@ -15,7 +15,7 @@ from inspect_ai.solver import (
 )
 from inspect_ai.solver._chain import chain
 from inspect_ai.tool import bash, computer, python
-from inspect_ai.tool._tools._bash._bash_session import bash_session
+from inspect_ai.tool._tools._bash_session import bash_session
 from inspect_ai.tool._tools._text_editor import text_editor
 from inspect_ai.tool._tools._web_browser._web_browser import web_browser
 from inspect_ai.util import input_screen
