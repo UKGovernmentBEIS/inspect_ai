@@ -61,7 +61,7 @@ async def generate_responses(
     # prepare request (we do this so we can log the ModelCall)
     tool_params = openai_responses_tools(tools, config) if len(tools) > 0 else NOT_GIVEN
     request = dict(
-        input=await openai_responses_inputs(input, model_name),
+        input=await openai_responses_inputs(input, model_name, store),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
         if isinstance(tool_params, list) and tool_choice != "auto"
