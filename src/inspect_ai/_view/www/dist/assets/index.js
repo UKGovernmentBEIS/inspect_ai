@@ -36549,8 +36549,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       );
     }
-    const contentImage = "_contentImage_c5r8l_1";
-    const reasoning = "_reasoning_c5r8l_6";
+    const contentImage = "_contentImage_61gdd_1";
+    const reasoning = "_reasoning_61gdd_6";
     const styles$1f = {
       contentImage,
       reasoning
