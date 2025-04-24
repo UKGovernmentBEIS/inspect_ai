@@ -59502,7 +59502,9 @@ ${events}
       type: null,
       name: name2,
       pending: false,
-      working_start: 0
+      working_start: 0,
+      span_id: null,
+      task_id: null
     });
     const StepEventView = ({
       id,
@@ -60016,6 +60018,57 @@ ${events}
         this.depth = depth;
       }
     }
+    const kTaskGroupName = "task-group";
+    function groupEventsByTaskId(events) {
+      var _a2;
+      if (!events || events.length === 0) {
+        return events;
+      }
+      const taskGroups = /* @__PURE__ */ new Map();
+      const untaskedEvents = [];
+      for (const event of events) {
+        const taskId = event.event.task_id;
+        if (taskId === null || taskId === void 0) {
+          untaskedEvents.push(event);
+          continue;
+        }
+        if (!taskGroups.has(taskId)) {
+          taskGroups.set(taskId, []);
+        }
+        (_a2 = taskGroups.get(taskId)) == null ? void 0 : _a2.push(event);
+      }
+      if (taskGroups.size === 0 || taskGroups.size === 1) {
+        return events;
+      }
+      const result2 = [];
+      for (const taskId of taskGroups.keys()) {
+        const events2 = taskGroups.get(taskId);
+        if (!events2 || (events2 == null ? void 0 : events2.length) === 0) {
+          continue;
+        }
+        const firstEvent = events2[0];
+        const spanBeginEvent = {
+          event: "span_begin",
+          id: `task-group-${taskId}`,
+          parent_id: null,
+          type: kTaskGroupName,
+          name: `Task ${taskId}`,
+          span_id: null,
+          task_id: taskId,
+          // Ensure it's non-null
+          timestamp: firstEvent.event.timestamp,
+          working_start: firstEvent.event.working_start,
+          pending: false
+        };
+        const spanNode = new EventNode(spanBeginEvent, firstEvent.depth);
+        spanNode.children = events2.sort((a, b) => {
+          return a.event.timestamp.localeCompare(b.event.timestamp);
+        });
+        result2.push(spanNode);
+      }
+      result2.push(...untaskedEvents);
+      return result2;
+    }
     function treeifyEvents(events, depth) {
       const rootNodes = [];
       const stack2 = [];
@@ -60047,6 +60100,9 @@ ${events}
             break;
           }
           case "span_end": {
+            const parentNode = stack2[stack2.length - 1];
+            const groupedEvents = groupEventsByTaskId(parentNode.children);
+            parentNode.children = groupedEvents;
             if (stack2.length > 0) {
               stack2.pop();
             }

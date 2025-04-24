@@ -157,4 +157,6 @@ const createStepEvent = (
   name,
   pending: false,
   working_start: 0,
+  span_id: null,
+  task_id: null,
 });
