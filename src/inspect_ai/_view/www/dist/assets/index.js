@@ -60016,10 +60016,16 @@ ${events}
         this.depth = depth;
       }
     }
+    const ET_STEP = "step";
+    const ACTION_BEGIN = "begin";
+    const ET_SPAN_BEGIN = "span_begin";
+    const ET_SPAN_END = "span_end";
     function treeifyEvents(events, depth) {
+      const hasSpans = events.some((event) => event.event === ET_SPAN_BEGIN);
+      const treeFn = hasSpans ? treeifyFnSpan : treeifyFnStep;
       const rootNodes = [];
       const stack2 = [];
-      const pushNode = (event) => {
+      const addNode = (event) => {
         const node2 = new EventNode(event, stack2.length + depth);
         if (stack2.length > 0) {
           const parentNode = stack2[stack2.length - 1];
@@ -60029,36 +60035,58 @@ ${events}
         }
         return node2;
       };
-      events.forEach((event) => {
-        switch (event.event) {
-          case "step":
-            if (event.action === "begin") {
-              const node2 = pushNode(event);
-              stack2.push(node2);
-            } else {
-              if (stack2.length > 0) {
-                stack2.pop();
-              }
-            }
-            break;
-          case "span_begin": {
-            const node2 = pushNode(event);
-            stack2.push(node2);
-            break;
-          }
-          case "span_end": {
-            if (stack2.length > 0) {
-              stack2.pop();
-            }
-            break;
-          }
-          default:
-            pushNode(event);
-            break;
+      const pushStack = (node2) => {
+        stack2.push(node2);
+      };
+      const popStack = () => {
+        if (stack2.length > 0) {
+          stack2.pop();
         }
+      };
+      events.forEach((event) => {
+        treeFn(event, addNode, pushStack, popStack);
       });
       return rootNodes;
     }
+    const treeifyFnStep = (event, addNode, pushStack, popStack) => {
+      switch (event.event) {
+        case ET_STEP:
+          if (event.action === ACTION_BEGIN) {
+            const node2 = addNode(event);
+            pushStack(node2);
+          } else {
+            popStack();
+          }
+          break;
+        case ET_SPAN_BEGIN: {
+          break;
+        }
+        case ET_SPAN_END: {
+          break;
+        }
+        default:
+          addNode(event);
+          break;
+      }
+    };
+    const treeifyFnSpan = (event, addNode, pushStack, popStack) => {
+      switch (event.event) {
+        case ET_STEP:
+          break;
+        case ET_SPAN_BEGIN: {
+          const node2 = addNode(event);
+          pushStack(node2);
+          break;
+        }
+        case ET_SPAN_END: {
+          popStack();
+          break;
+        }
+        default:
+          addNode(event);
+          break;
+      }
+    };
     const TranscriptView = ({
       id,
       events,
