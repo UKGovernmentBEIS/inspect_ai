@@ -36,6 +36,7 @@
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
 - Bugfix: Don't require saved response message id for openai assistant messages.
 - Bugfix: Don't show empty `<think>` tag in conversation view if there is no reasoning content.
+- Bugfix: Properly handle multiple reasoning blocks and empty reasoning summaries in OpenAI responses API.
 
 ## v0.3.90 (21 April 2025)
 
