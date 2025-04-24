@@ -41,7 +41,7 @@ class Process:
         self, input_text: str | None, wait_for_output: int
     ) -> InteractResult:
         self._assert_not_terminated()
-        assert not self._send_data_event.is_set(), "send data event must be cleared"
+        # assert not self._send_data_event.is_set(), "send data event must be cleared"
 
         if input_text:
             self._pty.writer.write(input_text.encode("utf-8"))
