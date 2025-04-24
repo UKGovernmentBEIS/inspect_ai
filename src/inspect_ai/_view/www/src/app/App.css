@@ -83,39 +83,39 @@ body[class^="vscode-"] .app-main-grid {
 
 /* Inspect Font Size Styles */
 .text-size-title {
-  font-size: var(--inspect-font-size-title);
+  font-size: var(--inspect-font-size-title) !important;
 }
 
 .text-size-title-secondary {
-  font-size: var(--inspect-font-size-title-secondary);
+  font-size: var(--inspect-font-size-title-secondary) !important;
 }
 
 .text-size-largest {
-  font-size: var(--inspect-font-size-largest);
+  font-size: var(--inspect-font-size-largest) !important;
 }
 
 .text-size-larger {
-  font-size: var(--inspect-font-size-larger);
+  font-size: var(--inspect-font-size-larger) !important;
 }
 
 .text-size-large {
-  font-size: var(--inspect-font-size-large);
+  font-size: var(--inspect-font-size-large) !important;
 }
 
 .text-size-base {
-  font-size: var(--inspect-font-size-base);
+  font-size: var(--inspect-font-size-base) !important;
 }
 
 .text-size-small {
-  font-size: var(--inspect-font-size-small);
+  font-size: var(--inspect-font-size-small) !important;
 }
 
 .text-size-smaller {
-  font-size: var(--inspect-font-size-smaller);
+  font-size: var(--inspect-font-size-smaller) !important;
 }
 
 .text-size-smallest {
-  font-size: var(--inspect-font-size-smallest);
+  font-size: var(--inspect-font-size-smallest) !important;
 }
 
 .text-truncate {
@@ -456,8 +456,8 @@ body {
 
 .markdown-content pre > code,
 .markdown-content pre {
-  white-space: pre-wrap;
-  word-wrap: anywhere;
+  white-space: pre-wrap !important;
+  word-wrap: anywhere !important;
 }
 
 .log pre code {
@@ -493,9 +493,7 @@ body {
   padding-top: 10em;
 }
 
-code:not(.sourceCode) {
-  border-radius: 2px;
-  padding: 0.2em;
+code:not(.sourceCode):not(.source-code) {
   color: var(--bs-code-color);
 }
 
@@ -1021,6 +1019,16 @@ ul.jsondiffpatch-textdiff {
   background: red;
   color: white;
   font-weight: bold;
+}
+
+/* prism-custom.css */
+code[class*="language-"],
+pre[class*="language-"] {
+  font-size: 0.8rem !important;
+}
+
+.token {
+  font-size: 0.8rem !important;
 }
 
 /* PrismJS 1.29.0 https://prismjs.com/download.html#themes=prism-dark&languages=markup+css+clike+javascript+bash+python */

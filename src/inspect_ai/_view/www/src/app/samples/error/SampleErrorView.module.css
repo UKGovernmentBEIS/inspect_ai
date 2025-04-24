@@ -2,7 +2,7 @@
   color: var(--bs-danger);
   display: grid;
   grid-template-columns: 1fr;
-  align-content: align;
+  align-content: baseline;
   justify-items: center;
 }
 
@@ -13,5 +13,6 @@
 }
 
 .message {
+  text-align: center;
   width: 300px;
 }

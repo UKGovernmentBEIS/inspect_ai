@@ -119,12 +119,15 @@ def transcript_reasoning(reasoning: ContentReasoning) -> list[RenderableType]:
         reasoning.reasoning
         if not reasoning.redacted
         else "Reasoning encrypted by model provider."
-    )
+    ).strip()
 
-    content.append(
-        transcript_markdown(f"**<think>**  \n{text}  \n**</think>**\n\n", escape=True)
-    )
-    content.append(Text())
+    if len(text) > 0:
+        content.append(
+            transcript_markdown(
+                f"**<think>**  \n{text}  \n**</think>**\n\n", escape=True
+            )
+        )
+        content.append(Text())
     return content
 
 

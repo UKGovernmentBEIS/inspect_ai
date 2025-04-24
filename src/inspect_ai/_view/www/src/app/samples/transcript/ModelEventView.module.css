@@ -1,7 +1,3 @@
-.output {
-  padding-top: 1em;
-}
-
 .container {
   margin: 0.5em 0;
   width: 100%;
@@ -35,13 +31,23 @@
   word-wrap: anywhere !important;
 }
 
+.progress {
+  margin-left: 2em;
+}
+
 .toolConfig {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 1em;
   row-gap: 0.5em;
+  padding-top: 0.5em;
 }
 
-.progress {
-  margin-left: 2em;
+.toolChoice {
+  border-top: solid var(--bs-light-border-subtle) 1px;
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 1em;
+  margin-top: 0.5em;
+  padding-top: 0.5em;
 }

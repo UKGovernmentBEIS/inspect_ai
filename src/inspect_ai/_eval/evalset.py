@@ -218,6 +218,7 @@ def eval_set(
             sample_id=sample_id,
             epochs=epochs,
             fail_on_error=fail_on_error,
+            retry_on_error=retry_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,

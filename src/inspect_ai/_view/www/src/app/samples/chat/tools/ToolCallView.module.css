@@ -1,3 +1,7 @@
 .output {
-  padding-top: 1em;
+}
+
+.toolCallView {
+  display: grid;
+  row-gap: 1em;
 }

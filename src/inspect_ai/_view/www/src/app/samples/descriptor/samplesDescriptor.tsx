@@ -353,6 +353,17 @@ export const createSamplesDescriptor = (
       maxSizes.retries +
       maxSizes.id +
       maxSizes.score || 1;
+
+  const inputNormalized = maxSizes.input / base;
+  const targetNormalized =
+    maxSizes.target / base > 0
+      ? Math.max(maxSizes.target / base, inputNormalized / 10)
+      : 0;
+  const answerNormalized =
+    maxSizes.answer / base > 0
+      ? Math.max(maxSizes.answer / base, inputNormalized / 10)
+      : 0;
+
   const messageShape = {
     raw: {
       input: sizes[0],
@@ -364,9 +375,9 @@ export const createSamplesDescriptor = (
       score: sizes[6],
     },
     normalized: {
-      input: maxSizes.input / base,
-      target: maxSizes.target / base,
-      answer: maxSizes.answer / base,
+      input: inputNormalized,
+      target: targetNormalized,
+      answer: answerNormalized,
       limit: maxSizes.limit / base,
       retries: maxSizes.retries / base,
       id: maxSizes.id / base,
