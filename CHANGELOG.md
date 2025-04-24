@@ -26,12 +26,17 @@
 - Error handling: Fully unwrap inner errors from exception groups for reporting.
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
+- Inspect View: Improved display and layout of transcript and events.
+- Inspect View: Improved Tool input and output display.
+- Inspect View: Improved display of sample input, target, answer, and scoring information (improve column width behavior).
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.
 - Inspect View: Collapse sample init view by default.
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
 - Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
 - Bugfix: Don't require saved response message id for openai assistant messages.
+- Bugfix: Don't show empty `<think>` tag in conversation view if there is no reasoning content.
+- Bugfix: Properly handle multiple reasoning blocks and empty reasoning summaries in OpenAI responses API.
 
 ## v0.3.90 (21 April 2025)
 

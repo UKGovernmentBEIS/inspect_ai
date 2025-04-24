@@ -11,7 +11,7 @@ import {
 import { ApplicationIcons } from "../app/appearance/icons";
 import { useCollapsedState } from "../state/hooks";
 import { useResizeObserver } from "../utils/dom";
-import "./ExpandablePanel.css";
+import styles from "./ExpandablePanel.module.css";
 
 interface ExpandablePanelProps {
   id: string;
@@ -61,9 +61,9 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
           style={baseStyles}
           ref={contentRef}
           className={clsx(
-            "expandable-panel",
-            collapsed ? "expandable-collapsed" : undefined,
-            border ? "expandable-bordered" : undefined,
+            styles.expandablePanel,
+            collapsed ? styles.expandableCollapsed : undefined,
+            border ? styles.expandableBordered : undefined,
           )}
         >
           {children}
@@ -104,10 +104,16 @@ const MoreToggle: FC<MoreToggleProps> = ({
   }, [setCollapsed, collapsed]);
 
   return (
-    <div className={`more-toggle ${border ? "bordered" : ""}`} style={style}>
-      <div className="more-toggle-container">
-        <button className="btn more-toggle-button" onClick={handleClick}>
-          <i className={icon} />
+    <div
+      className={clsx(styles.moreToggle, border ? styles.bordered : undefined)}
+      style={style}
+    >
+      <div className={clsx(styles.moreToggleContainer)}>
+        <button
+          className={clsx("btn", styles.moreToggleButton, "text-size-smallest")}
+          onClick={handleClick}
+        >
+          <i className={clsx(icon, styles.icon)} />
           {text}
         </button>
       </div>

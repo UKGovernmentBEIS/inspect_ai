@@ -8,15 +8,17 @@ import { MessageContent } from "./MessageContent";
 import { resolveToolInput } from "./tools/tool";
 import { ToolCallView } from "./tools/ToolCallView";
 
+import clsx from "clsx";
 import { FC, Fragment } from "react";
 import { ContentTool } from "../../../app/types";
 import styles from "./MessageContents.module.css";
+import { ChatViewToolCallStyle } from "./types";
 
 interface MessageContentsProps {
   id: string;
   message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
   toolMessages: ChatMessageTool[];
-  toolCallStyle: "compact" | "complete";
+  toolCallStyle: ChatViewToolCallStyle;
 }
 
 export const MessageContents: FC<MessageContentsProps> = ({
@@ -52,9 +54,13 @@ export const MessageContents: FC<MessageContentsProps> = ({
       if (toolCallStyle === "compact") {
         return (
           <div key={`tool-call-${idx}`}>
-            <code>tool: {functionCall}</code>
+            <code className={clsx(styles.codeCompact)}>
+              tool: {functionCall}
+            </code>
           </div>
         );
+      } else if (toolCallStyle === "omit") {
+        return undefined;
       } else {
         return (
           <ToolCallView
@@ -71,11 +77,11 @@ export const MessageContents: FC<MessageContentsProps> = ({
 
     return (
       <Fragment>
-        <div className={styles.content}>
-          {message.content ? (
+        {message.content && (
+          <div className={styles.content}>
             <MessageContent contents={message.content} />
-          ) : undefined}
-        </div>
+          </div>
+        )}
         {toolCalls}
       </Fragment>
     );

@@ -335,7 +335,9 @@ def _openai_input_items_from_chat_message_assistant(
                         ResponseReasoningItemParam(
                             type="reasoning",
                             id=content.signature,
-                            summary=[Summary(type="summary_text", text=reasoning)],
+                            summary=[Summary(type="summary_text", text=reasoning)]
+                            if reasoning
+                            else [],
                         )
                     )
             case ContentText(text=text, refusal=refusal):

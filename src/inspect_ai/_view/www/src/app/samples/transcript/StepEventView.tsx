@@ -115,6 +115,7 @@ const stepDescriptor = (
       case "system_message":
         return {
           ...rootStepDescriptor,
+          collapse: true,
         };
       case "use_tools":
         return {

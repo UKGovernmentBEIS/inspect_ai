@@ -78,11 +78,13 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
           ) : (
             ""
           )}
-          <EventSection title="Target">
-            {toArray(event.sample.target).map((target) => {
-              return <div key={target}>{target}</div>;
-            })}
-          </EventSection>
+          {event.sample.target ? (
+            <EventSection title="Target">
+              {toArray(event.sample.target).map((target) => {
+                return <div key={target}>{target}</div>;
+              })}
+            </EventSection>
+          ) : undefined}
         </div>
       </div>
       {event.sample.metadata &&

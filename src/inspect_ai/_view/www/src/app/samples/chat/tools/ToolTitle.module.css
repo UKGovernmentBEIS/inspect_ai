@@ -2,3 +2,7 @@
   margin-right: 0.2rem;
   opacity: 0.4;
 }
+
+.toolTitle {
+  color: unset !important;
+}

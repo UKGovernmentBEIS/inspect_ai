@@ -10,13 +10,15 @@ import ExpandablePanel from "../../../components/ExpandablePanel";
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
 import { iconForMsg } from "./messages";
+import { ChatViewToolCallStyle } from "./types";
 
 interface ChatMessageProps {
   id: string;
   message: ChatMessageAssistant | ChatMessageSystem | ChatMessageUser;
   toolMessages: ChatMessageTool[];
   indented?: boolean;
-  toolCallStyle: "compact" | "complete";
+  toolCallStyle: ChatViewToolCallStyle;
+  padded?: boolean;
 }
 
 export const ChatMessage: FC<ChatMessageProps> = ({
@@ -25,6 +27,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
   toolMessages,
   indented,
   toolCallStyle,
+  padded,
 }) => {
   const collapse = message.role === "system" || message.role === "user";
   return (
@@ -33,6 +36,7 @@ export const ChatMessage: FC<ChatMessageProps> = ({
         message.role,
         "text-size-base",
         styles.message,
+        padded ? styles.padded : undefined,
         message.role === "system" ? styles.systemRole : undefined,
       )}
     >
@@ -46,7 +50,11 @@ export const ChatMessage: FC<ChatMessageProps> = ({
           indented ? styles.indented : undefined,
         )}
       >
-        <ExpandablePanel id={`${id}-message`} collapse={collapse} lines={15}>
+        <ExpandablePanel
+          id={`${id}-message`}
+          collapse={collapse}
+          lines={collapse ? 15 : 25}
+        >
           <MessageContents
             id={`${id}-contents`}
             key={`${id}-contents`}
