@@ -2,11 +2,11 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import Iterable, Sequence, TypeAlias
 
-from ._transcript import BaseEvent, SpanBeginEvent, SpanEndEvent
+from ._transcript import Event, SpanBeginEvent, SpanEndEvent
 
 logger = getLogger(__name__)
 
-EventNode: TypeAlias = "SpanNode" | BaseEvent
+EventNode: TypeAlias = "SpanNode" | Event
 """Node in an event tree."""
 
 EventTree: TypeAlias = list[EventNode]
@@ -39,14 +39,14 @@ class SpanNode:
     """Children in the span."""
 
 
-def event_tree(events: Sequence[BaseEvent]) -> EventTree:
+def event_tree(events: Sequence[Event]) -> EventTree:
     """Build a tree representation of a sequence of events.
 
     Organize events heirarchially into event spans. Ensure that
     that occurred in parallel task groups appear in sequence.
 
     Args:
-        events: Sequence of `BaseEvent`.
+        events: Sequence of `Event`.
 
     Returns:
         Event tree.
@@ -91,7 +91,7 @@ def event_tree(events: Sequence[BaseEvent]) -> EventTree:
     return roots
 
 
-def event_sequence(tree: EventTree) -> Iterable[BaseEvent]:
+def event_sequence(tree: EventTree) -> Iterable[Event]:
     """Flatten a span forest back into a properly ordered seqeunce.
 
     Args:
