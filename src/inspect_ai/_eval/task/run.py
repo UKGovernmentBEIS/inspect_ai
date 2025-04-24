@@ -24,7 +24,6 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
-    SAMPLE_SUBTASK,
 )
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
@@ -559,7 +558,7 @@ async def task_run_sample(
     # initialise subtask and scoring context
     init_sample_model_usage()
     set_sample_state(state)
-    sample_transcript = Transcript(name=SAMPLE_SUBTASK)
+    sample_transcript = Transcript()
     init_transcript(sample_transcript)
     init_subtask_store(state.store)
     if logger:

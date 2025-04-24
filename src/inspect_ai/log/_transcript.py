@@ -168,6 +168,9 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
+    retries: int | None = Field(default=None)
+    """Retries for the model API request."""
+
     error: str | None = Field(default=None)
     """Error which occurred during model call."""
 
@@ -545,8 +548,7 @@ class Transcript:
 
     _event_logger: Callable[[Event], None] | None
 
-    def __init__(self, name: str = "") -> None:
-        self.name = name
+    def __init__(self) -> None:
         self._event_logger = None
         self._events: list[Event] = []
 
