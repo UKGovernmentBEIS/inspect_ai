@@ -4,7 +4,7 @@ from pydantic import BaseModel, ValidationError
 
 from inspect_ai import Task, task
 from inspect_ai.dataset import Sample
-from inspect_ai.model import GenerateConfig, ResponseSchema, get_model
+from inspect_ai.model import GenerateConfig, ModelName, ResponseSchema, get_model
 from inspect_ai.scorer import (
     CORRECT,
     INCORRECT,
@@ -40,7 +40,7 @@ def rgb_color():
             ),
         ],
         solver=generate(),
-        scorer=score_color(),
+        scorer=score_json_color(),
         config=GenerateConfig(
             response_schema=ResponseSchema(name="color", json_schema=json_schema(Color))
         ),
@@ -48,7 +48,7 @@ def rgb_color():
 
 
 @scorer(metrics=[accuracy(), stderr()])
-def score_color():
+def score_json_color():
     async def score(state: TaskState, target: Target):
         try:
             color = Color.model_validate_json(state.output.completion)
@@ -73,9 +73,9 @@ def score_color():
 @task(vllm=True, sglang=True)
 def rgb_color_regex():
     model = get_model()
-    if model.provider == "vllm":
+    if ModelName(model).api == "vllm":
         guided_name = "guided_regex"
-    elif model.provider == "sglang":
+    elif ModelName(model).api == "sglang":
         guided_name = "regex"
     else:
         raise ValueError(f"Unsupported provider: {model.provider}")
@@ -92,7 +92,7 @@ def rgb_color_regex():
             ),
         ],
         solver=generate(),
-        scorer=score_regex(),
+        scorer=score_regex_color(),
         config=GenerateConfig(
             extra_body={
                 guided_name: r"RGB: (\d{1,3}),(\d{1,3}),(\d{1,3})",
@@ -104,7 +104,7 @@ def rgb_color_regex():
 @task(vllm=True)
 def rgb_color_choice():
     model = get_model()
-    if model.provider != "vllm":
+    if ModelName(model).api != "vllm":
         raise ValueError("Choice is only supported for vLLM")
 
     return Task(
@@ -119,7 +119,7 @@ def rgb_color_choice():
             ),
         ],
         solver=generate(),
-        scorer=score_regex(),
+        scorer=score_regex_color(),
         config=GenerateConfig(
             extra_body={
                 "guided_choice": ["RGB: 255,255,255", "RGB: 0,0,0"],
@@ -139,9 +139,9 @@ digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 """
 
     model = get_model()
-    if model.provider == "vllm":
+    if ModelName(model).api == "vllm":
         guided_name = "guided_grammar"
-    elif model.provider == "sglang":
+    elif ModelName(model).api == "sglang":
         guided_name = "ebnf"
     else:
         raise ValueError(f"Unsupported provider: {model.provider}")
@@ -158,7 +158,7 @@ digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
             ),
         ],
         solver=generate(),
-        scorer=score_regex(),
+        scorer=score_regex_color(),
         config=GenerateConfig(
             extra_body={
                 guided_name: grammar,
@@ -168,7 +168,7 @@ digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 
 
 @scorer(metrics=[accuracy(), stderr()])
-def score_regex():
+def score_regex_color():
     async def score(state: TaskState, target: Target):
         try:
             # Check if the output matches the expected RGB format
