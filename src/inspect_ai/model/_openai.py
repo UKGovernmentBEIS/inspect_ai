@@ -255,6 +255,8 @@ def openai_completion_params(
                 strict=config.response_schema.strict,
             ),
         )
+    if config.extra_body:
+        params["extra_body"] = config.extra_body
 
     return params
 
