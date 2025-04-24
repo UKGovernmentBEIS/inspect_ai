@@ -165,10 +165,6 @@ def bash_session(
                 )
             ).session_name
 
-        if input and not input.endswith("\n"):
-            # add a newline to the end of the input text
-            input += "\n"
-
         result = await exec_scalar_request(
             sandbox,
             "bash_session",
