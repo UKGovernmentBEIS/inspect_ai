@@ -82777,11 +82777,13 @@ Supported expressions:
         return {
           getItem: (_name) => {
             const state = vscodeApi2.getState();
-            return state;
+            const deserialized = lib$1.parse(state);
+            return deserialized;
           },
           setItem: (_name, value2) => {
             const valObj = value2;
-            vscodeApi2.setState(valObj);
+            const serialized = lib$1.stringify(valObj);
+            vscodeApi2.setState(serialized);
           },
           removeItem: (_name) => {
             vscodeApi2.setState(null);
