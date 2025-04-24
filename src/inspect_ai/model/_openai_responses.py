@@ -56,17 +56,17 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model: str
+    messages: list[ChatMessage], model: str, store: bool
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model)
+        for item in await _openai_input_item_from_chat_message(message, model, store)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model: str
+    message: ChatMessage, model: str, store: bool
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -84,7 +84,7 @@ async def _openai_input_item_from_chat_message(
             )
         ]
     elif message.role == "assistant":
-        return _openai_input_items_from_chat_message_assistant(message)
+        return _openai_input_items_from_chat_message_assistant(message, store)
     elif message.role == "tool":
         if message.internal:
             internal = _model_tool_call_for_internal(message.internal)
@@ -294,7 +294,7 @@ def _chat_message_assistant_from_openai_response(
 
 
 def _openai_input_items_from_chat_message_assistant(
-    message: ChatMessageAssistant,
+    message: ChatMessageAssistant, store: bool
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -304,12 +304,17 @@ def _openai_input_items_from_chat_message_assistant(
     field of the `ChatMessageAssistant` to help it provide the proper id's the
     items in the returned list.
     """
-    # As currently coded, this code only supports a single OutputMessage and
-    # a single ReasoningItem for each Response/ChatMessageAssistant.
-    reasoning_item: ResponseReasoningItemParam | None = None
-    output_message: ResponseOutputMessageParam | None = None
-
     (output_message_id, tool_message_ids) = _ids_from_assistant_internal(message)
+
+    # if we are not storing messages on the server then blank these out
+    if not store:
+        output_message_id = None
+        tool_message_ids = {}
+
+    # items to return -- ensure we use a single output message (and just chain
+    # additional content on to it)
+    items: list[ResponseInputItemParam] = []
+    output_message: ResponseOutputMessageParam | None = None
 
     for content in (
         list[ContentText | ContentReasoning]([ContentText(text=message.content)])
@@ -323,11 +328,16 @@ def _openai_input_items_from_chat_message_assistant(
                 assert content.signature is not None, (
                     "reasoning_id must be saved in signature"
                 )
-                reasoning_item = ResponseReasoningItemParam(
-                    type="reasoning",
-                    id=content.signature,
-                    summary=[Summary(type="summary_text", text=reasoning)],
-                )
+                # if items are not stored on the server then there is no
+                # sense appending the reasoning item as its just a pointer
+                if store:
+                    items.append(
+                        ResponseReasoningItemParam(
+                            type="reasoning",
+                            id=content.signature,
+                            summary=[Summary(type="summary_text", text=reasoning)],
+                        )
+                    )
             case ContentText(text=text, refusal=refusal):
                 new_content = (
                     ResponseOutputRefusalParam(type="refusal", refusal=text)
@@ -342,19 +352,18 @@ def _openai_input_items_from_chat_message_assistant(
                         role="assistant",
                         # this actually can be `None`, and it will in fact be `None` when the
                         # assistant message is synthesized by the scaffold as opposed to being
-                        # replayed from the model
+                        # replayed from the model (or when store=False)
                         id=output_message_id,  # type: ignore[typeddict-item]
                         content=[new_content],
                         status="completed",
                     )
+                    items.append(output_message)
                 else:
                     output_message["content"] = chain(
                         output_message["content"], [new_content]
                     )
 
-    return [
-        item for item in (reasoning_item, output_message) if item
-    ] + _tool_call_items_from_assistant_message(message, tool_message_ids)
+    return items + _tool_call_items_from_assistant_message(message, tool_message_ids)
 
 
 def _model_tool_call_for_internal(
