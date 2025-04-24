@@ -96,6 +96,7 @@ def bash_session(
 
     async def execute(
         input: str | None = None,
+        include_return: bool | None = None,
         restart: bool | None = None,
     ) -> ToolResult:
         r"""
@@ -106,34 +107,34 @@ def bash_session(
         single call. Call this function multiple times to retrieve additional
         output from the shell.
 
-        IMPORTANT: You must include a trailing '\n' in 'input' when appropriate.
-        See the examples below for more details.
-
         Example use case:
         - For a short-running shell command with a nominal amount of output, a
           single call to the function may suffice. e.g.
           ```
-          bash_session(input="echo foo\n") -> "foo\nuser@host:/# "
+          bash_session(input="echo foo", include_return=True) -> "foo\nuser@host:/# "
           ```
         - For a long-running command with output over time, multiple calls to the
           function are needed. e.g.
           ```
-          bash_session(input="tail -f /tmp/foo.log\n") -> <some output>
+          bash_session(input="tail -f /tmp/foo.log", include_return=True) -> <some output>
           bash_session() -> <more output>
           # Send Ctrl+C (ETX character)
-          bash_session(input="\u0003") -> "<final output>^Cuser@host:/# "
+          bash_session(input="\u0003", include_return=False) -> "<final output>^Cuser@host:/# "
           ```
         - Interactive commands that may await more input from the user are also
           supported. e.g.
           ```
-          bash_session(input="ssh fred@foo.com\n") -> "foo.com's password: "
-          bash_session(input="secret\n") -> "fred@foo.com:~$ "
+          bash_session(input="ssh fred@foo.com", include_return=True) -> "foo.com's password: "
+          bash_session(input="secret", include_return=True) -> "fred@foo.com:~$ "
           ```
 
         Args:
           input: The input to send to the shell. If omitted, the function will
                 return any additional content sent to the shell's stdout and
                 stderr without sending new input.
+          include_return: Simulate the user pressing the 'Return' key after
+                typing the specified input. It must be specified if 'input' is
+                provided.
           restart: Specifying true will restart this tool. Otherwise, leave this
                 unspecified.
 
@@ -142,6 +143,11 @@ def bash_session(
         """
         if restart and input is not None:
             raise ToolParsingError("Do not send any 'input' when restarting.")
+
+        if input is not None and include_return is None:
+            raise ToolParsingError(
+                "'include_newline' must be specified if 'input' is provided."
+            )
 
         (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
         required_version = Version.parse("1.0.0")
@@ -164,6 +170,9 @@ def bash_session(
                     TRANSPORT_TIMEOUT,
                 )
             ).session_name
+
+        if input is not None and include_return:
+            input += "\n"
 
         result = await exec_scalar_request(
             sandbox,
