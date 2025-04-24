@@ -51839,11 +51839,11 @@ self.onmessage = function (e) {
       const icon2 = resolve_icon(event.type);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(EventPanel, { id, title: title2, icon: icon2, className: className2, children: event.message });
     };
-    const twoColumn = "_twoColumn_iwnfd_9";
-    const exec = "_exec_iwnfd_15";
-    const result = "_result_iwnfd_19";
-    const fileLabel = "_fileLabel_iwnfd_23";
-    const wrapPre = "_wrapPre_iwnfd_28";
+    const twoColumn = "_twoColumn_1irga_9";
+    const exec = "_exec_1irga_15";
+    const result = "_result_1irga_19";
+    const fileLabel = "_fileLabel_1irga_23";
+    const wrapPre = "_wrapPre_1irga_28";
     const styles$l = {
       twoColumn,
       exec,

@@ -13,7 +13,7 @@
 }
 
 .exec {
-  margin-top: 0.5em;
+  margin-top: 0;
 }
 
 .result {
@@ -29,4 +29,5 @@
   white-space: pre-wrap;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  margin-bottom: 0;
 }
