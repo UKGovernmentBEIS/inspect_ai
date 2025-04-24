@@ -1,39 +1,42 @@
-.expandable-bordered {
+.expandableBordered {
   border: solid var(--bs-light-border-subtle) 1px;
 }
 
-.expandable-togglable {
+.expandableTogglable {
   margin-bottom: 1em;
 }
 
-.expandable-contents {
+.expandableContents {
   font-size: var(--inspect-font-size-base);
 }
 
-.expandable-collapsed {
+.expandableCollapsed {
   overflow: hidden;
 }
 
-.more-toggle {
+.moreToggle {
   display: flex;
-  margin-bottom: 0.5em;
   margin-top: 0;
+  position: relative;
+  height: 8px;
 }
 
-.more-toggle.bordered {
+.moreToggle.bordered {
   border-top: solid var(--bs-light-border-subtle) 1px;
-  margin-top: 0.5em;
 }
 
-.more-toggle-container {
+.moreToggleContainer {
+  position: absolute;
+  top: -1px;
+  right: 0;
   display: inline-block;
   border: solid var(--bs-light-border-subtle) 1px;
   border-top: none;
   margin-left: auto;
-  margin-right: 1em;
+  margin-right: 0;
 }
 
-.more-toggle-button {
+.moreToggleButton {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0.1rem 0.5rem;

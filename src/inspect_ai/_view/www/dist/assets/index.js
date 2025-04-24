@@ -114,8 +114,8 @@ var require_assets = __commonJS({
       }
       function pop2(heap2) {
         if (0 === heap2.length) return null;
-        var first2 = heap2[0], last = heap2.pop();
-        if (last !== first2) {
+        var first = heap2[0], last = heap2.pop();
+        if (last !== first) {
           heap2[0] = last;
           a: for (var index2 = 0, length = heap2.length, halfLength = length >>> 1; index2 < halfLength; ) {
             var leftIndex = 2 * (index2 + 1) - 1, left = heap2[leftIndex], rightIndex = leftIndex + 1, right = heap2[rightIndex];
@@ -126,7 +126,7 @@ var require_assets = __commonJS({
             else break a;
           }
         }
-        return first2;
+        return first;
       }
       function compare2(a, b) {
         var diff2 = a.sortIndex - b.sortIndex;
@@ -16257,9 +16257,9 @@ var require_assets = __commonJS({
     function explodeOptionalSegments(path) {
       let segments = path.split("/");
       if (segments.length === 0) return [];
-      let [first2, ...rest] = segments;
-      let isOptional = first2.endsWith("?");
-      let required = first2.replace(/\?$/, "");
+      let [first, ...rest] = segments;
+      let isOptional = first.endsWith("?");
+      let required = first.replace(/\?$/, "");
       if (rest.length === 0) {
         return isOptional ? [required, ""] : [required];
       }
@@ -24167,7 +24167,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
-    const styles$1k = {
+    const styles$1l = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -24183,9 +24183,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "span",
             {
               className: clsx(
-                styles$1k.circle,
+                styles$1l.circle,
                 "text-size-small",
-                score2 ? styles$1k.green : styles$1k.red
+                score2 ? styles$1l.green : styles$1l.red
               ),
               children: String(score2)
             }
@@ -24239,7 +24239,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const container$k = "_container_1ramc_1";
     const key = "_key_1ramc_12";
     const value$3 = "_value_1ramc_16";
-    const styles$1j = {
+    const styles$1k = {
       container: container$k,
       key,
       value: value$3
@@ -24282,12 +24282,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1j.key, "text-size-smaller"), children: key2 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1j.value, "text-size-base"), children: formattedValue })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.value, "text-size-base"), children: formattedValue })
               ] })
             );
           });
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1j.container), children: scores2 }, `score-value`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -24295,7 +24295,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1i = {
+    const styles$1j = {
       visible,
       hidden: hidden$2,
       pills,
@@ -24327,7 +24327,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1i.visible : styles$1i.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1j.visible : styles$1j.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -24337,7 +24337,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$1i.pills),
+            className: clsx("nav", "nav-pills", styles$1j.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -24373,7 +24373,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$1i.pill
+              styles$1j.pill
             ),
             "data-target": title2,
             onClick: handleClick,
@@ -24408,6 +24408,20 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [callback]);
       return elementRef;
     };
+    const expandableBordered = "_expandableBordered_1wpxz_1";
+    const expandableCollapsed = "_expandableCollapsed_1wpxz_13";
+    const moreToggle = "_moreToggle_1wpxz_17";
+    const bordered = "_bordered_1wpxz_24";
+    const moreToggleContainer = "_moreToggleContainer_1wpxz_28";
+    const moreToggleButton = "_moreToggleButton_1wpxz_39";
+    const styles$1i = {
+      expandableBordered,
+      expandableCollapsed,
+      moreToggle,
+      bordered,
+      moreToggleContainer,
+      moreToggleButton
+    };
     const ExpandablePanel = reactExports.memo(
       ({ id, collapse, border, lines = 15, children: children2, className: className2 }) => {
         const [collapsed, setCollapsed] = useCollapsedState(id, collapse);
@@ -24440,9 +24454,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               style: baseStyles,
               ref: contentRef,
               className: clsx(
-                "expandable-panel",
-                collapsed ? "expandable-collapsed" : void 0,
-                border ? "expandable-bordered" : void 0
+                styles$1i.expandablePanel,
+                collapsed ? styles$1i.expandableCollapsed : void 0,
+                border ? styles$1i.expandableBordered : void 0
               ),
               children: children2
             }
@@ -24469,18 +24483,34 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const handleClick = reactExports.useCallback(() => {
         setCollapsed(!collapsed);
       }, [setCollapsed, collapsed]);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `more-toggle ${border ? "bordered" : ""}`, style: style2, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "more-toggle-container", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("button", { className: "btn more-toggle-button", onClick: handleClick, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon2 }),
-        text2
-      ] }) }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(styles$1i.moreToggle, border ? styles$1i.bordered : void 0),
+          style: style2,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.moreToggleContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "button",
+            {
+              className: clsx("btn", styles$1i.moreToggleButton, "text-size-smallest"),
+              onClick: handleClick,
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$1i.icon) }),
+                text2
+              ]
+            }
+          ) })
+        }
+      );
     };
-    const message$1 = "_message_xh8qq_1";
-    const systemRole = "_systemRole_xh8qq_9";
-    const messageGrid = "_messageGrid_xh8qq_13";
-    const messageContents = "_messageContents_xh8qq_21";
-    const indented = "_indented_xh8qq_26";
+    const message$1 = "_message_1nz1x_1";
+    const padded$2 = "_padded_1nz1x_8";
+    const systemRole = "_systemRole_1nz1x_12";
+    const messageGrid = "_messageGrid_1nz1x_16";
+    const messageContents = "_messageContents_1nz1x_24";
+    const indented = "_indented_1nz1x_29";
     const styles$1h = {
       message: message$1,
+      padded: padded$2,
       systemRole,
       messageGrid,
       messageContents,
@@ -26523,32 +26553,32 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       for (let i2 = 0, line2 = begin; line2 < end; line2++, i2++) {
         let lineIndent = 0;
         const lineStart = this.bMarks[line2];
-        let first2 = lineStart;
+        let first = lineStart;
         let last;
         if (line2 + 1 < end || keepLastLF) {
           last = this.eMarks[line2] + 1;
         } else {
           last = this.eMarks[line2];
         }
-        while (first2 < last && lineIndent < indent) {
-          const ch3 = this.src.charCodeAt(first2);
+        while (first < last && lineIndent < indent) {
+          const ch3 = this.src.charCodeAt(first);
           if (isSpace(ch3)) {
             if (ch3 === 9) {
               lineIndent += 4 - (lineIndent + this.bsCount[line2]) % 4;
             } else {
               lineIndent++;
             }
-          } else if (first2 - lineStart < this.tShift[line2]) {
+          } else if (first - lineStart < this.tShift[line2]) {
             lineIndent++;
           } else {
             break;
           }
-          first2++;
+          first++;
         }
         if (lineIndent > indent) {
-          queue[i2] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first2, last);
+          queue[i2] = new Array(lineIndent - indent + 1).join(" ") + this.src.slice(first, last);
         } else {
-          queue[i2] = this.src.slice(first2, last);
+          queue[i2] = this.src.slice(first, last);
         }
       }
       return queue.join("");
@@ -28277,7 +28307,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       state.posMax = max2;
       return true;
     }
-    function image(state, silent) {
+    function image$1(state, silent) {
       let code2, content2, label2, pos2, ref, res, title2, start;
       let href = "";
       const oldPos = state.pos;
@@ -28612,7 +28642,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       ["strikethrough", r_strikethrough.tokenize],
       ["emphasis", r_emphasis.tokenize],
       ["link", link],
-      ["image", image],
+      ["image", image$1],
       ["autolink", autolink],
       ["html_inline", html_inline],
       ["entity", entity]
@@ -36525,13 +36555,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       contentImage,
       reasoning
     };
-    const toolImage = "_toolImage_1j5uu_1";
-    const output$2 = "_output_1j5uu_6";
-    const textOutput = "_textOutput_1j5uu_10";
-    const textCode = "_textCode_1j5uu_17";
+    const toolImage = "_toolImage_18gxl_1";
+    const output$1 = "_output_18gxl_6";
+    const textOutput = "_textOutput_18gxl_10";
+    const textCode = "_textCode_18gxl_18";
     const styles$1e = {
       toolImage,
-      output: output$2,
+      output: output$1,
       textOutput,
       textCode
     };
@@ -36754,29 +36784,31 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         args: []
       };
     };
-    const output$1 = "_output_s17ok_1";
+    const output = "_output_1tv9l_1";
+    const toolCallView = "_toolCallView_1tv9l_4";
     const styles$1d = {
-      output: output$1
+      output,
+      toolCallView
     };
-    const outputPre = "_outputPre_1t1y9_1";
-    const outputCode = "_outputCode_1t1y9_7";
-    const bottomPadding = "_bottomPadding_1t1y9_12";
+    const outputPre = "_outputPre_s62go_1";
+    const toolView = "_toolView_s62go_7";
+    const outputCode = "_outputCode_s62go_15";
     const styles$1c = {
       outputPre,
-      outputCode,
-      bottomPadding
+      toolView,
+      outputCode
     };
     const ToolInput = (props) => {
-      const { highlightLanguage, contents: contents2, toolCallView } = props;
-      const prismParentRef = usePrismHighlight(toolCallView == null ? void 0 : toolCallView.content);
-      if (!contents2 && !(toolCallView == null ? void 0 : toolCallView.content)) return null;
-      if (toolCallView) {
+      const { highlightLanguage, contents: contents2, toolCallView: toolCallView2 } = props;
+      const prismParentRef = usePrismHighlight(toolCallView2 == null ? void 0 : toolCallView2.content);
+      if (!contents2 && !(toolCallView2 == null ? void 0 : toolCallView2.content)) return null;
+      if (toolCallView2) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           MarkdownDiv,
           {
-            markdown: toolCallView.content,
+            markdown: toolCallView2.content,
             ref: prismParentRef,
-            className: clsx(styles$1c.bottomPadding, "text-size-small", "tool-output")
+            className: clsx("tool-output", styles$1c.toolView)
           }
         );
       }
@@ -36800,11 +36832,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       ) });
     };
-    const styles$1b = {};
+    const image = "_image_a8byr_1";
+    const toolTitle = "_toolTitle_a8byr_6";
+    const styles$1b = {
+      image,
+      toolTitle
+    };
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1b.styles) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "text-size-small", children: title2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1b.image) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1b.toolTitle), children: title2 })
       ] });
     };
     const ToolCallView = ({
@@ -36847,9 +36884,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
       const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1d.toolCallView), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+          mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             ToolInput,
             {
@@ -36857,19 +36894,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               contents: contents2,
               toolCallView: view
             }
-          ),
-          hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ExpandablePanel,
-            {
-              id: `${id}-tool-input`,
-              collapse,
-              border: true,
-              lines: 15,
-              className: styles$1d.output,
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent })
-            }
-          ) : void 0
-        ] }) })
+          )
+        ] }),
+        hasContent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ExpandablePanel,
+          {
+            id: `${id}-tool-input`,
+            collapse,
+            border: true,
+            lines: 15,
+            className: styles$1d.output,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent })
+          }
+        ) : void 0
       ] });
     };
     const normalizeContent$1 = (output2) => {
@@ -36890,9 +36927,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         ];
       }
     };
-    const content$2 = "_content_p4lvn_1";
+    const content$2 = "_content_1b2jp_1";
+    const codeCompact = "_codeCompact_1b2jp_5";
     const styles$1a = {
-      content: content$2
+      content: content$2,
+      codeCompact
     };
     const MessageContents = ({
       id,
@@ -36916,10 +36955,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           const resolvedToolOutput = resolveToolMessage(toolMessage);
           if (toolCallStyle === "compact") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1a.codeCompact), children: [
               "tool: ",
               functionCall
             ] }) }, `tool-call-${idx}`);
+          } else if (toolCallStyle === "omit") {
+            return void 0;
           } else {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolCallView,
@@ -36935,7 +36976,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.content, children: message2.content ? /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) : void 0 }),
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1a.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
           toolCalls
         ] });
       } else {
@@ -37076,7 +37117,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       message: message2,
       toolMessages,
       indented: indented2,
-      toolCallStyle
+      toolCallStyle,
+      padded: padded2
     }) => {
       const collapse = message2.role === "system" || message2.role === "user";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -37086,6 +37128,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             message2.role,
             "text-size-base",
             styles$1h.message,
+            padded2 ? styles$1h.padded : void 0,
             message2.role === "system" ? styles$1h.systemRole : void 0
           ),
           children: [
@@ -37100,16 +37143,24 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   styles$1h.messageContents,
                   indented2 ? styles$1h.indented : void 0
                 ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-message`, collapse, lines: 15, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  MessageContents,
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ExpandablePanel,
                   {
-                    id: `${id}-contents`,
-                    message: message2,
-                    toolMessages,
-                    toolCallStyle
-                  },
-                  `${id}-contents`
-                ) })
+                    id: `${id}-message`,
+                    collapse,
+                    lines: collapse ? 15 : 25,
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      MessageContents,
+                      {
+                        id: `${id}-contents`,
+                        message: message2,
+                        toolMessages,
+                        toolCallStyle
+                      },
+                      `${id}-contents`
+                    )
+                  }
+                )
               }
             )
           ]
@@ -37127,7 +37178,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       number: number2,
       resolvedMessage,
       toolCallStyle,
-      indented: indented2
+      indented: indented2,
+      padded: padded2
     }) => {
       if (number2) {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.grid, children: [
@@ -37149,7 +37201,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               message: resolvedMessage.message,
               toolMessages: resolvedMessage.toolMessages,
               indented: indented2,
-              toolCallStyle
+              toolCallStyle,
+              padded: padded2
             }
           )
         ] });
@@ -37161,7 +37214,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             message: resolvedMessage.message,
             toolMessages: resolvedMessage.toolMessages,
             indented: indented2,
-            toolCallStyle
+            toolCallStyle,
+            padded: padded2
           }
         );
       }
@@ -37184,7 +37238,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             number: number2,
             resolvedMessage: msg,
             indented: indented2,
-            toolCallStyle
+            toolCallStyle,
+            padded: index2 < collapsedMessages.length - 1
           },
           `${id}-msg-${index2}`
         );
@@ -39377,6 +39432,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         score: Math.min(sizes[6], 30)
       };
       const base2 = maxSizes.input + maxSizes.target + maxSizes.answer + maxSizes.limit + maxSizes.retries + maxSizes.id + maxSizes.score || 1;
+      const inputNormalized = maxSizes.input / base2;
+      const targetNormalized = maxSizes.target / base2 > 0 ? Math.max(maxSizes.target / base2, inputNormalized / 10) : 0;
+      const answerNormalized = maxSizes.answer / base2 > 0 ? Math.max(maxSizes.answer / base2, inputNormalized / 10) : 0;
       const messageShape = {
         raw: {
           input: sizes[0],
@@ -39388,9 +39446,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           score: sizes[6]
         },
         normalized: {
-          input: maxSizes.input / base2,
-          target: maxSizes.target / base2,
-          answer: maxSizes.answer / base2,
+          input: inputNormalized,
+          target: targetNormalized,
+          answer: answerNormalized,
           limit: maxSizes.limit / base2,
           retries: maxSizes.retries / base2,
           id: maxSizes.id / base2,
@@ -50705,7 +50763,8 @@ self.onmessage = function (e) {
               number: number2,
               resolvedMessage: item2,
               indented: indented2,
-              toolCallStyle
+              toolCallStyle,
+              padded: index2 < collapsedMessages.length - 1
             }
           );
         };
@@ -50766,14 +50825,14 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$y.lineBase, "text-truncate"), children: errorType(message2) })
       ] });
     };
-    const target = "_target_giah9_1";
-    const answer = "_answer_giah9_5";
-    const grid$2 = "_grid_giah9_9";
-    const centerLabel = "_centerLabel_giah9_17";
-    const centerValue = "_centerValue_giah9_22";
-    const wrap = "_wrap_giah9_27";
-    const titled = "_titled_giah9_31";
-    const value = "_value_giah9_35";
+    const target = "_target_1s9n0_1";
+    const answer = "_answer_1s9n0_5";
+    const grid$2 = "_grid_1s9n0_9";
+    const centerLabel = "_centerLabel_1s9n0_17";
+    const centerValue = "_centerValue_1s9n0_22";
+    const wrap = "_wrap_1s9n0_27";
+    const titled = "_titled_1s9n0_31";
+    const value = "_value_1s9n0_35";
     const styles$x = {
       target,
       answer,
@@ -50828,9 +50887,6 @@ self.onmessage = function (e) {
         return void 0;
       }
       const fields = resolveSample(sample2, sampleDescriptor);
-      const input2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.input) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input) : 0;
-      const target2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.target) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target) : 0;
-      const answer2 = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.answer) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer) : 0;
       const limitSize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.limit) > 0 ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit) : 0;
       const retrySize = (sampleDescriptor == null ? void 0 : sampleDescriptor.messageShape.normalized.retries) > 0 ? 6 : 0;
       const idSize = Math.max(
@@ -50846,7 +50902,7 @@ self.onmessage = function (e) {
       columns.push({
         label: "Input",
         value: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: fields.input.join(" ") }),
-        size: `${input2}fr`,
+        size: `minmax(auto, 5fr)`,
         clamp: true
       });
       if (fields.target) {
@@ -50859,7 +50915,7 @@ self.onmessage = function (e) {
               className: clsx("no-last-para-padding", styles$x.target)
             }
           ),
-          size: `${target2}fr`,
+          size: `minmax(auto, 3fr)`,
           clamp: true
         });
       }
@@ -50873,7 +50929,7 @@ self.onmessage = function (e) {
               className: clsx("no-last-para-padding", styles$x.answer)
             }
           ) : "",
-          size: `${Math.max(answer2, 20)}fr`,
+          size: `minmax(auto, 5fr)`,
           clamp: true
         });
       }
@@ -50904,7 +50960,7 @@ self.onmessage = function (e) {
         columns.push({
           label: "Retries",
           value: fields.retries,
-          size: `${retrySize}rem`,
+          size: `fit-content(${retrySize}rem)`,
           center: true
         });
       }
@@ -51575,25 +51631,23 @@ self.onmessage = function (e) {
         children2
       ] });
     };
-    const output = "_output_1bdt9_1";
-    const container$4 = "_container_1bdt9_5";
-    const all = "_all_1bdt9_10";
-    const tableSelection = "_tableSelection_1bdt9_16";
-    const tools$1 = "_tools_1bdt9_22";
-    const codePre = "_codePre_1bdt9_26";
-    const code$2 = "_code_1bdt9_26";
-    const toolConfig = "_toolConfig_1bdt9_38";
-    const progress$1 = "_progress_1bdt9_45";
+    const container$4 = "_container_rs4y7_1";
+    const all = "_all_rs4y7_6";
+    const tableSelection = "_tableSelection_rs4y7_12";
+    const codePre = "_codePre_rs4y7_22";
+    const code$2 = "_code_rs4y7_22";
+    const progress$1 = "_progress_rs4y7_34";
+    const toolConfig = "_toolConfig_rs4y7_38";
+    const toolChoice = "_toolChoice_rs4y7_46";
     const styles$n = {
-      output,
       container: container$4,
       all,
       tableSelection,
-      tools: tools$1,
       codePre,
       code: code$2,
+      progress: progress$1,
       toolConfig,
-      progress: progress$1
+      toolChoice
     };
     const wrapper = "_wrapper_45f60_1";
     const col2 = "_col2_45f60_8";
@@ -51722,11 +51776,10 @@ self.onmessage = function (e) {
         return choice.message;
       });
       const entries = { ...event.config };
-      entries["tool_choice"] = event.tool_choice;
       delete entries["max_connections"];
       const userMessages = [];
       for (const msg of event.input.slice().reverse()) {
-        if (msg.role === "user" && !msg.tool_call_id) {
+        if (msg.role === "user" && !msg.tool_call_id || msg.role === "system") {
           userMessages.push(msg);
         } else {
           break;
@@ -51748,16 +51801,22 @@ self.onmessage = function (e) {
                 {
                   id: `${id}-model-output`,
                   messages: [...userMessages, ...outputMessages || []],
-                  className: clsx(styles$n.output),
                   numbered: false,
-                  toolCallStyle: "compact"
+                  toolCallStyle: "omit"
                 }
               ),
               event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
             ] }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "All", className: styles$n.container, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.all, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Configuration", className: styles$n.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true }) }),
+                Object.keys(entries).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  EventSection,
+                  {
+                    title: "Configuration",
+                    className: styles$n.tableSelection,
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries, plain: true })
+                  }
+                ),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Usage", className: styles$n.tableSelection, children: event.output.usage !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage: event.output.usage }) : void 0 }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Timing", className: styles$n.tableSelection, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                   EventTimingPanel,
@@ -51767,15 +51826,7 @@ self.onmessage = function (e) {
                     working_start: event.working_start,
                     working_time: event.working_time
                   }
-                ) }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  EventSection,
-                  {
-                    title: "Tools",
-                    className: clsx(styles$n.tableSelection, styles$n.tools),
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools })
-                  }
-                )
+                ) })
               ] }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Messages", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
@@ -51785,6 +51836,7 @@ self.onmessage = function (e) {
                 }
               ) })
             ] }),
+            event.tools.length > 1 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Tools", className: styles$n.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolsConfig, { tools: event.tools, toolChoice: event.tool_choice }) }),
             event.call ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               APIView,
               {
@@ -51823,14 +51875,31 @@ self.onmessage = function (e) {
         }
       ) }) });
     };
-    const ToolsConfig = ({ tools: tools2 }) => {
+    const ToolsConfig = ({ tools: tools2, toolChoice: toolChoice2 }) => {
       const toolEls = tools2.map((tool2, idx) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: tool2.name }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: tool2.description })
         ] }, `${tool2.name}-${idx}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.toolConfig, children: toolEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.toolConfig, children: toolEls }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.toolChoice, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Tool Choice" }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolChoiceView, { toolChoice: toolChoice2 }) })
+        ] })
+      ] });
+    };
+    const ToolChoiceView = ({ toolChoice: toolChoice2 }) => {
+      if (typeof toolChoice2 === "string") {
+        return toolChoice2;
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { children: [
+          "`$",
+          toolChoice2.name,
+          "()`"
+        ] });
+      }
     };
     const noMargin = "_noMargin_1a3fk_1";
     const code$1 = "_code_1a3fk_5";
@@ -51883,9 +51952,9 @@ self.onmessage = function (e) {
                   ] }, `$choice-{choice}`);
                 }) : "",
                 sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$l.section, children: sections }) : "",
-                /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
+                event.sample.target ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
                   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 }, target2);
-                }) })
+                }) }) : void 0
               ] })
             ] }),
             event.sample.metadata && Object.keys(event.sample.metadata).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -51983,7 +52052,7 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$k.twoColumn), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$k.wrapPre), children: cmd2 }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$k.wrapPre), children: input2 !== null ? input2 == null ? void 0 : input2.trim() : void 0 }),
-          options2 !== null ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Options`, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          options2 !== null && Object.keys(options2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Options`, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             MetaDataGrid,
             {
               entries: options2,
@@ -51993,10 +52062,10 @@ self.onmessage = function (e) {
         ] }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(EventSection, { title: `Result`, children: [
           output2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-output`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: output2 }) }) : void 0,
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$k.result), children: [
+          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$k.result), children: [
             "Exited with code ",
             result2
-          ] })
+          ] }) : void 0
         ] })
       ] });
     };
@@ -59043,9 +59112,11 @@ ${events}
         return defaultValue;
       }
     };
-    const tools = "_tools_13oio_1";
-    const tool = "_tool_13oio_1";
+    const toolsGrid = "_toolsGrid_1qqm2_1";
+    const tools = "_tools_1qqm2_1";
+    const tool = "_tool_1qqm2_1";
     const styles$h = {
+      toolsGrid,
       tools,
       tool
     };
@@ -59160,11 +59231,11 @@ ${events}
           toolIndexes.push(match[1]);
         }
       }
-      const toolName = (toolChoice) => {
-        if (typeof toolChoice === "object" && toolChoice && !Array.isArray(toolChoice)) {
-          return toolChoice["name"];
+      const toolName = (toolChoice2) => {
+        if (typeof toolChoice2 === "object" && toolChoice2 && !Array.isArray(toolChoice2)) {
+          return toolChoice2["name"];
         } else {
-          return String(toolChoice);
+          return String(toolChoice2);
         }
       };
       const toolsInfo = {};
@@ -59198,7 +59269,7 @@ ${events}
               children: key2
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base"), children: toolsInfo[key2] })
+          toolsInfo[key2]
         ] }, key2);
       }) }, "state-diff-tools");
     };
@@ -59238,7 +59309,7 @@ ${events}
       human_baseline_session
     ];
     const Tools = ({ toolDefinitions }) => {
-      return toolDefinitions.map((toolDefinition, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$h.toolsGrid, children: toolDefinitions.map((toolDefinition, idx) => {
         var _a2;
         const toolName = toolDefinition.name;
         const toolArgs = ((_a2 = toolDefinition.parameters) == null ? void 0 : _a2.properties) ? Object.keys(toolDefinition.parameters.properties) : [];
@@ -59250,11 +59321,11 @@ ${events}
           },
           `${toolName}-${idx}`
         );
-      });
+      }) });
     };
     const Tool = ({ toolName, toolArgs }) => {
       const functionCall = toolArgs && toolArgs.length > 0 ? `${toolName}(${toolArgs.join(", ")})` : toolName;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$h.tool), children: functionCall }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-smallest", styles$h.tool), children: functionCall });
     };
     const diff = "_diff_eobja_1";
     const summary$2 = "_summary_eobja_6";
@@ -59667,7 +59738,8 @@ ${events}
             };
           case "system_message":
             return {
-              ...rootStepDescriptor
+              ...rootStepDescriptor,
+              collapse: true
             };
           case "use_tools":
             return {
@@ -59907,36 +59979,49 @@ ${events}
         }
       );
     };
-    const transcriptComponent = "_transcriptComponent_eq9th_23";
-    const eventNode = "_eventNode_eq9th_29";
-    const darkenBg = "_darkenBg_eq9th_33";
-    const lastNode = "_lastNode_eq9th_37";
-    const eventNodeContainer = "_eventNodeContainer_eq9th_41";
-    const noBottom = "_noBottom_eq9th_45";
+    const transcriptComponent = "_transcriptComponent_13qtu_19";
+    const eventNode = "_eventNode_13qtu_25";
+    const darkenBg = "_darkenBg_13qtu_29";
+    const lastNode = "_lastNode_13qtu_33";
+    const eventNodeContainer = "_eventNodeContainer_13qtu_37";
+    const noBottom = "_noBottom_13qtu_41";
+    const attached$1 = "_attached_13qtu_45";
     const styles$d = {
       transcriptComponent,
       eventNode,
       darkenBg,
       lastNode,
       eventNodeContainer,
-      noBottom
+      noBottom,
+      attached: attached$1
     };
-    const darkenedBg = "_darkenedBg_1ye6u_1";
-    const normalBg = "_normalBg_1ye6u_5";
-    const node = "_node_1ye6u_9";
-    const first = "_first_1ye6u_9";
+    const darkenedBg = "_darkenedBg_6ozk9_1";
+    const normalBg = "_normalBg_6ozk9_5";
+    const node = "_node_6ozk9_9";
+    const attached = "_attached_6ozk9_14";
     const styles$c = {
       darkenedBg,
       normalBg,
       node,
-      first
+      attached
     };
     const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2 }) => {
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$c.darkenedBg : styles$c.normalBg;
         const paddingClass = index2 === 0 ? styles$c.first : void 0;
         const eventId = `${id}-event-${index2}`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$c.node, paddingClass), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) }) }, eventId);
+        const previousIndex = index2 - 1;
+        const previous = previousIndex > 0 && previousIndex <= eventNodes.length ? eventNodes[previousIndex] : void 0;
+        const attached2 = item2.event.event === "tool" && ((previous == null ? void 0 : previous.event.event) === "tool" || (previous == null ? void 0 : previous.event.event) === "model");
+        const attachedClass = attached2 ? styles$c.attached : void 0;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(styles$c.node, paddingClass, attachedClass),
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) })
+          },
+          eventId
+        );
       }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LiveVirtualList,
@@ -60018,21 +60103,32 @@ ${events}
     );
     const TranscriptComponent = reactExports.memo(
       ({ id, eventNodes }) => {
-        const rows = eventNodes.map((eventNode2, index2) => {
+        const rows = [];
+        let attached2 = false;
+        for (let i2 = 0; i2 < eventNodes.length; i2++) {
+          const eventNode2 = eventNodes[i2];
           const clz = [styles$d.eventNode];
+          const containerClz = [];
+          if (eventNode2.event.event !== "tool") {
+            attached2 = false;
+          }
           if (eventNode2.depth % 2 == 0) {
             clz.push(styles$d.darkenBg);
           }
-          if (index2 === eventNodes.length - 1) {
+          if (i2 === eventNodes.length - 1) {
             clz.push(styles$d.lastNode);
           }
-          const eventId = `${id}|event|${index2}`;
+          if (attached2) {
+            containerClz.push(styles$d.attached);
+          }
+          const eventId = `${id}|event|${i2}`;
           const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: clsx(
                 styles$d.eventNodeContainer,
-                index2 === eventNodes.length - 1 ? styles$d.noBottom : void 0
+                i2 === eventNodes.length - 1 ? styles$d.noBottom : void 0,
+                containerClz
               ),
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 RenderedEventNode,
@@ -60045,8 +60141,11 @@ ${events}
             },
             eventId
           );
-          return row2;
-        });
+          rows.push(row2);
+          if (eventNode2.event.event === "model") {
+            attached2 = true;
+          }
+        }
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -61258,16 +61357,16 @@ ${events}
       return length;
     }
     function appendText(text2, target2, from = 0, to2 = 1e9) {
-      for (let pos2 = 0, i2 = 0, first2 = true; i2 < text2.length && pos2 <= to2; i2++) {
+      for (let pos2 = 0, i2 = 0, first = true; i2 < text2.length && pos2 <= to2; i2++) {
         let line2 = text2[i2], end = pos2 + line2.length;
         if (end >= from) {
           if (end > to2)
             line2 = line2.slice(0, to2 - pos2);
           if (pos2 < from)
             line2 = line2.slice(from - pos2);
-          if (first2) {
+          if (first) {
             target2[target2.length - 1] += line2;
-            first2 = false;
+            first = false;
           } else
             target2.push(line2);
         }
@@ -69373,9 +69472,9 @@ ${events}
             nodes.push(null, new HeightMapGap(after - 1));
         }
         if (from > 0) {
-          let first2 = nodes[0];
-          if (first2 instanceof HeightMapGap)
-            nodes[0] = new HeightMapGap(from + first2.length);
+          let first = nodes[0];
+          if (first instanceof HeightMapGap)
+            nodes[0] = new HeightMapGap(from + first.length);
           else
             nodes.unshift(new HeightMapGap(from - 1), null);
         }
@@ -71645,13 +71744,13 @@ ${events}
         return changed;
       }
       showAnnouncements(trs) {
-        let first2 = true;
+        let first = true;
         for (let tr2 of trs)
           for (let effect of tr2.effects)
             if (effect.is(EditorView.announce)) {
-              if (first2)
+              if (first)
                 this.announceDOM.textContent = "";
-              first2 = false;
+              first = false;
               let div = this.announceDOM.appendChild(document.createElement("div"));
               div.textContent = effect.value;
             }
@@ -76706,8 +76805,8 @@ ${events}
       let strategy = tree.type.prop(indentNodeProp);
       if (strategy)
         return strategy;
-      let first2 = tree.firstChild, close2;
-      if (first2 && (close2 = first2.type.prop(NodeProp.closedBy))) {
+      let first = tree.firstChild, close2;
+      if (first && (close2 = first.type.prop(NodeProp.closedBy))) {
         let last = tree.lastChild, closed = last && close2.indexOf(last.name) > -1;
         return (cx) => delimitedStrategy(cx, true, 1, void 0, closed && !ignoreClosed(cx) ? last.from : void 0);
       }
@@ -77747,13 +77846,13 @@ ${events}
       return `[${words ? "\\w" : ""}${flat.replace(/[^\w\s]/g, "\\$&")}]`;
     }
     function prefixMatch(options2) {
-      let first2 = /* @__PURE__ */ Object.create(null), rest = /* @__PURE__ */ Object.create(null);
+      let first = /* @__PURE__ */ Object.create(null), rest = /* @__PURE__ */ Object.create(null);
       for (let { label: label2 } of options2) {
-        first2[label2[0]] = true;
+        first[label2[0]] = true;
         for (let i2 = 1; i2 < label2.length; i2++)
           rest[label2[i2]] = true;
       }
-      let source2 = toSet(first2) + toSet(rest) + "*$";
+      let source2 = toSet(first) + toSet(rest) + "*$";
       return [new RegExp("^" + source2), new RegExp(source2)];
     }
     function completeFromList(list2) {
@@ -77845,10 +77944,10 @@ ${events}
           return null;
         let { chars, folded, any, precise, byWord } = this;
         if (chars.length == 1) {
-          let first2 = codePointAt(word, 0), firstSize = codePointSize(first2);
+          let first = codePointAt(word, 0), firstSize = codePointSize(first);
           let score2 = firstSize == word.length ? 0 : -100;
-          if (first2 == chars[0]) ;
-          else if (first2 == folded[0])
+          if (first == chars[0]) ;
+          else if (first == folded[0])
             score2 += -200;
           else
             return null;
@@ -81463,9 +81562,9 @@ Supported expressions:
         }
       }
     };
-    const body = "_body_5y0hl_1";
-    const iconSmall = "_iconSmall_5y0hl_9";
-    const message = "_message_5y0hl_15";
+    const body = "_body_12gn4_1";
+    const iconSmall = "_iconSmall_12gn4_9";
+    const message = "_message_12gn4_15";
     const styles$6 = {
       body,
       iconSmall,
@@ -81691,10 +81790,15 @@ Supported expressions:
     const kSampleFollowProp = "sample-list";
     const SampleList = reactExports.memo((props) => {
       const { items, totalItemCount, running: running2, className: className2, listHandle } = props;
+      const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
       const { getRestoreState, isScrolling } = useVirtuosoState(
         listHandle,
-        "sample-list"
+        `sample-list-${selectedLogIndex}`
       );
+      reactExports.useEffect(() => {
+        var _a2;
+        (_a2 = listHandle.current) == null ? void 0 : _a2.scrollTo({ top: 0, behavior: "instant" });
+      }, [selectedLogIndex]);
       const sampleNavigation = useSampleNavigation();
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
@@ -81842,9 +81946,9 @@ Supported expressions:
             data: items,
             defaultItemHeight: 50,
             itemContent: renderRow,
-            followOutput: (_atBottom) => {
+            followOutput: running2 ? (_atBottom) => {
               return followOutput;
-            },
+            } : void 0,
             atBottomStateChange: handleAtBottomStateChange,
             atBottomThreshold: 30,
             increaseViewportBy: { top: 300, bottom: 300 },

@@ -1,9 +1,12 @@
 .message {
   font-weight: 300;
-  padding-bottom: 0.5em;
   margin-left: 0;
   margin-right: 0;
   white-space: normal;
+}
+
+.padded {
+  padding-bottom: 1em;
 }
 
 .systemRole {
@@ -15,7 +18,7 @@
   grid-template-columns: max-content auto;
   column-gap: 0.3em;
   font-weight: 500;
-  margin-bottom: 0.5em;
+  margin-bottom: 0.3em;
 }
 
 .messageContents {

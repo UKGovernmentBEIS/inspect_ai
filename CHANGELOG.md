@@ -26,6 +26,9 @@
 - Error handling: Fully unwrap inner errors from exception groups for reporting.
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
+- Inspect View: Improved display and layout of transcript and events.
+- Inspect View: Improved Tool input and output display.
+- Inspect View: Improved display of sample input, target, answer, and scoring information (improve column width behavior).
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.
 - Inspect View: Collapse sample init view by default.
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.

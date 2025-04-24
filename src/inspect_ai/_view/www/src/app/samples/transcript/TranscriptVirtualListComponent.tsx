@@ -24,9 +24,21 @@ export const TranscriptVirtualListComponent: FC<
     const paddingClass = index === 0 ? styles.first : undefined;
 
     const eventId = `${id}-event-${index}`;
+    const previousIndex = index - 1;
+    const previous =
+      previousIndex > 0 && previousIndex <= eventNodes.length
+        ? eventNodes[previousIndex]
+        : undefined;
+    const attached =
+      item.event.event === "tool" &&
+      (previous?.event.event === "tool" || previous?.event.event === "model");
+    const attachedClass = attached ? styles.attached : undefined;
 
     return (
-      <div key={eventId} className={clsx(styles.node, paddingClass)}>
+      <div
+        key={eventId}
+        className={clsx(styles.node, paddingClass, attachedClass)}
+      >
         <RenderedEventNode id={eventId} node={item} className={clsx(bgClass)} />
       </div>
     );

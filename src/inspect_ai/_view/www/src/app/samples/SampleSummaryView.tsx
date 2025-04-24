@@ -96,18 +96,6 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   }
   const fields = resolveSample(sample, sampleDescriptor);
 
-  const input =
-    sampleDescriptor?.messageShape.normalized.input > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
-      : 0;
-  const target =
-    sampleDescriptor?.messageShape.normalized.target > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
-      : 0;
-  const answer =
-    sampleDescriptor?.messageShape.normalized.answer > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
-      : 0;
   const limitSize =
     sampleDescriptor?.messageShape.normalized.limit > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
@@ -130,7 +118,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   columns.push({
     label: "Input",
     value: <MarkdownDiv markdown={fields.input.join(" ")} />,
-    size: `${input}fr`,
+    size: `minmax(auto, 5fr)`,
     clamp: true,
   });
 
@@ -143,7 +131,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
           className={clsx("no-last-para-padding", styles.target)}
         />
       ),
-      size: `${target}fr`,
+      size: `minmax(auto, 3fr)`,
       clamp: true,
     });
   }
@@ -159,7 +147,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       ) : (
         ""
       ),
-      size: `${Math.max(answer, 20)}fr`,
+      size: `minmax(auto, 5fr)`,
       clamp: true,
     });
   }
@@ -194,7 +182,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Retries",
       value: fields.retries,
-      size: `${retrySize}rem`,
+      size: `fit-content(${retrySize}rem)`,
       center: true,
     });
   }

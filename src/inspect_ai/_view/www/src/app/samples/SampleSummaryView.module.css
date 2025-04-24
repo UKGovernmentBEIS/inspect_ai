@@ -8,7 +8,7 @@
 
 .grid {
   display: grid;
-  grid-column-gap: 0.5em;
+  grid-column-gap: 1em;
   border-bottom: solid var(--bs-border-color) 1px;
   margin-bottom: 1em;
   padding: 0em 1em 1em 1em;
