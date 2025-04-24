@@ -17,6 +17,7 @@ import { ToolEventView } from "./ToolEventView";
 import { EventNode } from "./types";
 
 import clsx from "clsx";
+import { SpanEventView } from "./SpanEventView";
 import styles from "./TranscriptView.module.css";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
 import { fixupEventStream } from "./transform/fixups";
@@ -199,6 +200,16 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
       case "state":
         return (
           <StateEventView id={id} event={node.event} className={className} />
+        );
+
+      case "span_begin":
+        return (
+          <SpanEventView
+            id={id}
+            event={node.event}
+            children={node.children}
+            className={className}
+          />
         );
 
       case "step":

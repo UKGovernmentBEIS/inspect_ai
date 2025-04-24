@@ -20,18 +20,34 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
   };
 
   events.forEach((event) => {
-    if (event.event === "step" && event.action === "begin") {
-      // Starting a new step
-      const node = pushNode(event);
-      stack.push(node);
-    } else if (event.event === "step" && event.action === "end") {
-      // An ending step
-      if (stack.length > 0) {
-        stack.pop();
+    switch (event.event) {
+      case "step":
+        if (event.action === "begin") {
+          // Starting a new step
+          const node = pushNode(event);
+          stack.push(node);
+        } else {
+          // An ending step
+          if (stack.length > 0) {
+            stack.pop();
+          }
+        }
+        break;
+      case "span_begin": {
+        const node = pushNode(event);
+        stack.push(node);
+        break;
       }
-    } else {
-      // An event
-      pushNode(event);
+      case "span_end": {
+        if (stack.length > 0) {
+          stack.pop();
+        }
+        break;
+      }
+      default:
+        // An event
+        pushNode(event);
+        break;
     }
   });
 

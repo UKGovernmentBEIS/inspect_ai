@@ -59426,34 +59426,48 @@ ${events}
       }, []);
     };
     const collapseSampleInit = (events) => {
+      const hasSpans = events.some((e) => {
+        return e.event === "span_begin" || e.event === "span_end";
+      });
+      if (hasSpans) {
+        return events;
+      }
       const hasInitStep = events.findIndex((e) => {
         return e.event === "step" && e.name === "init";
       }) !== -1;
+      if (hasInitStep) {
+        return events;
+      }
       const initEventIndex = events.findIndex((e) => {
         return e.event === "sample_init";
       });
       const initEvent = events[initEventIndex];
-      const fixedUp = [...events];
-      if (!hasInitStep && initEvent) {
-        fixedUp.splice(initEventIndex, 0, {
-          timestamp: initEvent.timestamp,
-          event: "step",
-          action: "begin",
-          type: null,
-          name: "sample_init",
-          pending: false,
-          working_start: 0
-        });
-        fixedUp.splice(initEventIndex + 2, 0, {
-          timestamp: initEvent.timestamp,
-          event: "step",
-          action: "end",
-          type: null,
-          name: "sample_init",
-          pending: false,
-          working_start: 0
-        });
+      if (!initEvent) {
+        return events;
       }
+      const fixedUp = [...events];
+      fixedUp.splice(initEventIndex, 0, {
+        timestamp: initEvent.timestamp,
+        event: "step",
+        action: "begin",
+        type: null,
+        name: "sample_init",
+        pending: false,
+        working_start: 0,
+        span_id: initEvent.span_id,
+        task_id: initEvent.task_id
+      });
+      fixedUp.splice(initEventIndex + 2, 0, {
+        timestamp: initEvent.timestamp,
+        event: "step",
+        action: "end",
+        type: null,
+        name: "sample_init",
+        pending: false,
+        working_start: 0,
+        span_id: initEvent.span_id,
+        task_id: initEvent.task_id
+      });
       return fixedUp;
     };
     const groupSandboxEvents = (events) => {
@@ -59498,7 +59512,7 @@ ${events}
     }) => {
       const descriptor = stepDescriptor(event);
       const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
-      const text2 = summarize(children2);
+      const text2 = summarize$1(children2);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
@@ -59519,7 +59533,7 @@ ${events}
         }
       );
     };
-    const summarize = (children2) => {
+    const summarize$1 = (children2) => {
       if (children2.length === 0) {
         return "(no events)";
       }
@@ -59808,6 +59822,136 @@ ${events}
         }
       );
     };
+    const SpanEventView = ({
+      id,
+      event,
+      children: children2,
+      className: className2
+    }) => {
+      const descriptor = spanDescriptor(event);
+      const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
+      const text2 = summarize(children2);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        EventPanel,
+        {
+          id: `span-${event.name}-${id}`,
+          className: clsx("transcript-span", className2),
+          title: title2,
+          subTitle: formatDateTime(new Date(event.timestamp)),
+          text: text2,
+          collapse: descriptor.collapse,
+          icon: descriptor.icon,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            TranscriptComponent,
+            {
+              id: `span|${event.name}|${id}`,
+              eventNodes: children2
+            }
+          )
+        }
+      );
+    };
+    const summarize = (children2) => {
+      if (children2.length === 0) {
+        return "(no events)";
+      }
+      const formatEvent = (event, count) => {
+        if (count === 1) {
+          return `${count} ${event} event`;
+        } else {
+          return `${count} ${event} events`;
+        }
+      };
+      const typeCount = {};
+      children2.forEach((child) => {
+        const currentCount = typeCount[child.event.event] || 0;
+        typeCount[child.event.event] = currentCount + 1;
+      });
+      const numberOfTypes = Object.keys(typeCount).length;
+      if (numberOfTypes < 3) {
+        return Object.keys(typeCount).map((key2) => {
+          return formatEvent(key2, typeCount[key2]);
+        }).join(", ");
+      }
+      if (children2.length === 1) {
+        return "1 event";
+      } else {
+        return `${children2.length} events`;
+      }
+    };
+    const spanDescriptor = (event) => {
+      const rootStepDescriptor = {
+        endSpace: true
+      };
+      if (event.type === "solver") {
+        switch (event.name) {
+          case "chain_of_thought":
+            return {
+              ...rootStepDescriptor
+            };
+          case "generate":
+            return {
+              ...rootStepDescriptor
+            };
+          case "self_critique":
+            return {
+              ...rootStepDescriptor
+            };
+          case "system_message":
+            return {
+              ...rootStepDescriptor,
+              collapse: true
+            };
+          case "use_tools":
+            return {
+              ...rootStepDescriptor
+            };
+          case "multiple_choice":
+            return {
+              ...rootStepDescriptor
+            };
+          default:
+            return {
+              ...rootStepDescriptor
+            };
+        }
+      } else if (event.type === "scorer") {
+        return {
+          ...rootStepDescriptor
+        };
+      } else if (event.event === "span_begin") {
+        if (event.name === kSandboxSignalName) {
+          return {
+            ...rootStepDescriptor,
+            name: "Sandbox Events",
+            collapse: true
+          };
+        } else if (event.name === "init") {
+          return {
+            ...rootStepDescriptor,
+            name: "Init",
+            collapse: true
+          };
+        } else {
+          return {
+            ...rootStepDescriptor
+          };
+        }
+      } else {
+        switch (event.name) {
+          case "sample_init":
+            return {
+              ...rootStepDescriptor,
+              name: "Sample Init",
+              collapse: true
+            };
+          default:
+            return {
+              endSpace: false
+            };
+        }
+      }
+    };
     const transcriptComponent = "_transcriptComponent_171gc_19";
     const eventNode = "_eventNode_171gc_25";
     const darkenBg = "_darkenBg_171gc_29";
@@ -59886,15 +60030,31 @@ ${events}
         return node2;
       };
       events.forEach((event) => {
-        if (event.event === "step" && event.action === "begin") {
-          const node2 = pushNode(event);
-          stack2.push(node2);
-        } else if (event.event === "step" && event.action === "end") {
-          if (stack2.length > 0) {
-            stack2.pop();
+        switch (event.event) {
+          case "step":
+            if (event.action === "begin") {
+              const node2 = pushNode(event);
+              stack2.push(node2);
+            } else {
+              if (stack2.length > 0) {
+                stack2.pop();
+              }
+            }
+            break;
+          case "span_begin": {
+            const node2 = pushNode(event);
+            stack2.push(node2);
+            break;
           }
-        } else {
-          pushNode(event);
+          case "span_end": {
+            if (stack2.length > 0) {
+              stack2.pop();
+            }
+            break;
+          }
+          default:
+            pushNode(event);
+            break;
         }
       });
       return rootNodes;
@@ -60016,6 +60176,16 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreEventView, { id, event: node2.event, className: className2 });
           case "state":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(StateEventView, { id, event: node2.event, className: className2 });
+          case "span_begin":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SpanEventView,
+              {
+                id,
+                event: node2.event,
+                children: node2.children,
+                className: className2
+              }
+            );
           case "step":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               StepEventView,

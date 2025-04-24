@@ -10,6 +10,8 @@ import {
   SampleLimitEvent,
   SandboxEvent,
   ScoreEvent,
+  SpanBeginEvent,
+  SpanEndEvent,
   StateEvent,
   StepEvent,
   StoreEvent,
@@ -39,7 +41,9 @@ export type EventType =
   | InputEvent
   | ErrorEvent
   | ApprovalEvent
-  | SandboxEvent;
+  | SandboxEvent
+  | SpanBeginEvent
+  | SpanEndEvent;
 
 export class EventNode {
   event: EventType;

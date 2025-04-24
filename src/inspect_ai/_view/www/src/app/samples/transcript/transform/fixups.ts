@@ -54,39 +54,57 @@ const processPendingEvents = (events: Events, filter: boolean): Events => {
 };
 
 const collapseSampleInit = (events: Events): Events => {
-  // See if the events have an init step
+  // Don't performance sample init logic if spans are present
+  const hasSpans = events.some((e) => {
+    return e.event === "span_begin" || e.event === "span_end";
+  });
+  if (hasSpans) {
+    return events;
+  }
+
+  // Don't synthesize a sample init step if one already exists
   const hasInitStep =
     events.findIndex((e) => {
       return e.event === "step" && e.name === "init";
     }) !== -1;
+  if (hasInitStep) {
+    return events;
+  }
 
+  // Find a sample init event
   const initEventIndex = events.findIndex((e) => {
     return e.event === "sample_init";
   });
   const initEvent = events[initEventIndex];
-
-  const fixedUp = [...events];
-  if (!hasInitStep && initEvent) {
-    fixedUp.splice(initEventIndex, 0, {
-      timestamp: initEvent.timestamp,
-      event: "step",
-      action: "begin",
-      type: null,
-      name: "sample_init",
-      pending: false,
-      working_start: 0,
-    });
-
-    fixedUp.splice(initEventIndex + 2, 0, {
-      timestamp: initEvent.timestamp,
-      event: "step",
-      action: "end",
-      type: null,
-      name: "sample_init",
-      pending: false,
-      working_start: 0,
-    });
+  if (!initEvent) {
+    return events;
   }
+
+  // Splice in sample init step if needed
+  const fixedUp = [...events];
+  fixedUp.splice(initEventIndex, 0, {
+    timestamp: initEvent.timestamp,
+    event: "step",
+    action: "begin",
+    type: null,
+    name: "sample_init",
+    pending: false,
+    working_start: 0,
+    span_id: initEvent.span_id,
+    task_id: initEvent.task_id,
+  });
+
+  fixedUp.splice(initEventIndex + 2, 0, {
+    timestamp: initEvent.timestamp,
+    event: "step",
+    action: "end",
+    type: null,
+    name: "sample_init",
+    pending: false,
+    working_start: 0,
+    span_id: initEvent.span_id,
+    task_id: initEvent.task_id,
+  });
   return fixedUp;
 };
 
