@@ -106,28 +106,28 @@ def bash_session(
         single call. Call this function multiple times to retrieve additional
         output from the shell.
 
-        IMPORTANT: You must include a trailing '\n' in your 'input_text' when
-        appropriate. See the examples below for more details.
+        IMPORTANT: You must include a trailing '\n' in 'input' when appropriate.
+        See the examples below for more details.
 
         Example use case:
         - For a short-running shell command with a nominal amount of output, a
           single call to the function may suffice. e.g.
           ```
-          bash_session(input_text="echo foo\n") -> "foo\nuser@host:/# "
+          bash_session(input="echo foo\n") -> "foo\nuser@host:/# "
           ```
         - For a long-running command with output over time, multiple calls to the
           function are needed. e.g.
           ```
-          bash_session(input_text="tail -f /tmp/foo.log\n") -> <some output>
+          bash_session(input="tail -f /tmp/foo.log\n") -> <some output>
           bash_session() -> <more output>
           # Send Ctrl+C (ETX character)
-          bash_session(input_text="\u0003") -> "<final output>^Cuser@host:/# "
+          bash_session(input="\u0003") -> "<final output>^Cuser@host:/# "
           ```
         - Interactive commands that may await more input from the user are also
           supported. e.g.
           ```
-          bash_session(input_text="ssh fred@foo.com\n") -> "foo.com's password: "
-          bash_session(input_text="secret\n") -> "fred@foo.com:~$ "
+          bash_session(input="ssh fred@foo.com\n") -> "foo.com's password: "
+          bash_session(input="secret\n") -> "fred@foo.com:~$ "
           ```
 
         Args:
@@ -141,7 +141,7 @@ def bash_session(
           The accumulated output of the shell.
         """
         if restart and input is not None:
-            raise ToolParsingError("Do not send any 'input_text' when restarting.")
+            raise ToolParsingError("Do not send any 'input' when restarting.")
 
         (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
         required_version = Version.parse("1.0.0")

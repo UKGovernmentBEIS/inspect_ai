@@ -29,8 +29,7 @@ class NewSessionResult(BaseModel):
     session_name: str
 
 
-class BashRestartResult(BaseModel):
-    pass
+BashRestartResult: TypeAlias = str
 
 
 InteractResult: TypeAlias = str

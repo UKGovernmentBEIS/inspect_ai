@@ -22,4 +22,4 @@ class Session:
             self._process.terminate(timeout=timeout), Process.create()
         )
         self._process = new_process
-        return BashRestartResult()
+        return "shell restarted successfully"
