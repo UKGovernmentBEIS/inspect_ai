@@ -54,7 +54,7 @@ export const RenderedContent: FC<RenderedContentProps> = ({
       if (typeof entry.value === "object") {
         return JSON.stringify(entry.value);
       }
-      return String(entry.value);
+      return String(entry.value).trim();
     } catch (e) {
       return "[Unable to display value]";
     }
