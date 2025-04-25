@@ -1,9 +1,7 @@
 import contextlib
 from contextvars import ContextVar
-from typing import AsyncIterator, Iterator
+from typing import AsyncIterator
 from uuid import uuid4
-
-from inspect_ai.util._anyio import safe_current_task_id
 
 
 @contextlib.asynccontextmanager
