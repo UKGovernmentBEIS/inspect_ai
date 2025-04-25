@@ -5,25 +5,27 @@ import os
 from copy import copy
 from io import BytesIO
 from logging import getLogger
-from typing import Any
+from typing import Any, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
-from google.genai import Client  # type: ignore
-from google.genai.errors import APIError, ClientError  # type: ignore
-from google.genai.types import (  # type: ignore
+from google.genai import Client
+from google.genai.errors import APIError, ClientError
+from google.genai.types import (
     Candidate,
     Content,
+    ContentListUnion,
+    ContentListUnionDict,
     File,
     FinishReason,
     FunctionCallingConfig,
+    FunctionCallingConfigMode,
     FunctionDeclaration,
     FunctionResponse,
     GenerateContentConfig,
     GenerateContentResponse,
     GenerateContentResponsePromptFeedback,
     GenerateContentResponseUsageMetadata,
-    GenerationConfig,
     HarmBlockThreshold,
     HarmCategory,
     HttpOptions,
@@ -34,6 +36,7 @@ from google.genai.types import (  # type: ignore
     ThinkingConfig,
     Tool,
     ToolConfig,
+    ToolListUnion,
     Type,
 )
 from pydantic import JsonValue
@@ -90,13 +93,28 @@ GOOGLE_API_KEY = "GOOGLE_API_KEY"
 VERTEX_API_KEY = "VERTEX_API_KEY"
 
 SAFETY_SETTINGS = "safety_settings"
-DEFAULT_SAFETY_SETTINGS = {
-    HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-}
+DEFAULT_SAFETY_SETTINGS: list[SafetySettingDict] = [
+    {
+        "category": HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+        "threshold": HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        "category": HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        "threshold": HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        "category": HarmCategory.HARM_CATEGORY_HARASSMENT,
+        "threshold": HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        "category": HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        "threshold": HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        "category": HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        "threshold": HarmBlockThreshold.BLOCK_NONE,
+    },
+]
 
 
 class GoogleGenAIAPI(ModelAPI):
@@ -121,11 +139,26 @@ class GoogleGenAIAPI(ModelAPI):
         self.api_version = api_version
 
         # pick out user-provided safety settings and merge against default
-        self.safety_settings = DEFAULT_SAFETY_SETTINGS.copy()
+        self.safety_settings: list[SafetySettingDict] = DEFAULT_SAFETY_SETTINGS.copy()
         if SAFETY_SETTINGS in model_args:
-            self.safety_settings.update(
-                parse_safety_settings(model_args.get(SAFETY_SETTINGS))
+
+            def update_safety_setting(
+                category: HarmCategory, threshold: HarmBlockThreshold
+            ) -> None:
+                for setting in self.safety_settings:
+                    if setting["category"] == category:
+                        setting["threshold"] = threshold
+                        break
+
+            user_safety_settings = parse_safety_settings(
+                model_args.get(SAFETY_SETTINGS)
             )
+            for safety_setting in user_safety_settings:
+                if safety_setting["category"] and safety_setting["threshold"]:
+                    update_safety_setting(
+                        safety_setting["category"], safety_setting["threshold"]
+                    )
+
             del model_args[SAFETY_SETTINGS]
 
         # extract any service prefix from model name
@@ -229,7 +262,7 @@ class GoogleGenAIAPI(ModelAPI):
             safety_settings=safety_settings_to_list(self.safety_settings),
             tools=gemini_tools,
             tool_config=gemini_tool_config,
-            system_instruction=await extract_system_message_as_parts(client, input),
+            system_instruction=await extract_system_message_as_parts(client, input),  # type: ignore[arg-type]
             thinking_config=self.chat_thinking_config(config),
         )
         if config.response_schema is not None:
@@ -242,7 +275,7 @@ class GoogleGenAIAPI(ModelAPI):
 
         def model_call() -> ModelCall:
             return build_model_call(
-                contents=gemini_contents,
+                contents=gemini_contents,  # type: ignore[arg-type]
                 safety_settings=self.safety_settings,
                 generation_config=parameters,
                 tools=gemini_tools,
@@ -254,7 +287,7 @@ class GoogleGenAIAPI(ModelAPI):
         try:
             response = await client.aio.models.generate_content(
                 model=self.service_model_name(),
-                contents=gemini_contents,
+                contents=gemini_contents,  # type: ignore[arg-type]
                 config=parameters,
             )
         except ClientError as ex:
@@ -324,21 +357,22 @@ class GoogleGenAIAPI(ModelAPI):
             return None
 
 
-def safety_settings_to_list(safety_settings: SafetySettingDict) -> list[SafetySetting]:
-    return [
-        SafetySetting(
-            category=category,
-            threshold=threshold,
+def safety_settings_to_list(
+    safety_settings: list[SafetySettingDict],
+) -> list[SafetySetting]:
+    settings: list[SafetySetting] = []
+    for setting in safety_settings:
+        settings.append(
+            SafetySetting(category=setting["category"], threshold=setting["threshold"])
         )
-        for category, threshold in safety_settings.items()
-    ]
+    return settings
 
 
 def build_model_call(
-    contents: list[Content],
-    generation_config: GenerationConfig,
-    safety_settings: SafetySettingDict,
-    tools: list[Tool] | None,
+    contents: ContentListUnion | ContentListUnionDict,
+    generation_config: GenerateContentConfig,
+    safety_settings: list[SafetySettingDict],
+    tools: ToolListUnion | None,
     tool_config: ToolConfig | None,
     response: GenerateContentResponse | None,
     time: float | None,
@@ -394,7 +428,7 @@ def consecutive_tool_message_reducer(
         and messages[-1].role == "function"
     ):
         messages[-1] = Content(
-            role="function", parts=messages[-1].parts + message.parts
+            role="function", parts=(messages[-1].parts or []) + (message.parts or [])
         )
     else:
         messages.append(message)
@@ -473,14 +507,16 @@ async def chat_content_to_part(
         return Part.from_bytes(mime_type=mime_type, data=content_bytes)
     else:
         file = await file_for_content(client, content)
+        if file.uri is None:
+            raise RuntimeError(f"Failed to get URI for file: {file.display_name}")
         return Part.from_uri(file_uri=file.uri, mime_type=file.mime_type)
 
 
 async def extract_system_message_as_parts(
     client: Client,
     messages: list[ChatMessage],
-) -> list[Part] | None:
-    system_parts: list[Part] = []
+) -> list[File | Part | str] | None:
+    system_parts: list[File | Part | str] = []
     for message in messages:
         if message.role == "system":
             content = message.content
@@ -496,7 +532,7 @@ async def extract_system_message_as_parts(
     return system_parts or None
 
 
-def chat_tools(tools: list[ToolInfo]) -> list[Tool]:
+def chat_tools(tools: list[ToolInfo]) -> ToolListUnion:
     declarations = [
         FunctionDeclaration(
             name=tool.name,
@@ -589,12 +625,15 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
     if isinstance(tool_choice, ToolFunction):
         return ToolConfig(
             function_calling_config=FunctionCallingConfig(
-                mode="ANY", allowed_function_names=[tool_choice.name]
+                mode=FunctionCallingConfigMode.ANY,
+                allowed_function_names=[tool_choice.name],
             )
         )
     else:
         return ToolConfig(
-            function_calling_config=FunctionCallingConfig(mode=tool_choice.upper())
+            function_calling_config=FunctionCallingConfig(
+                mode=cast(FunctionCallingConfigMode, tool_choice.upper())
+            )
         )
 
 
@@ -603,7 +642,16 @@ def completion_choice_from_candidate(
 ) -> ChatCompletionChoice:
     # content can be None when the finish_reason is SAFETY
     if candidate.content is None:
-        content: str | list[Content] = ""
+        content: (
+            str
+            | list[
+                ContentText
+                | ContentReasoning
+                | ContentImage
+                | ContentAudio
+                | ContentVideo
+            ]
+        ) = ""
     # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
     elif candidate.content.parts is None:
         content = ""
@@ -621,16 +669,25 @@ def completion_choice_from_candidate(
     if candidate.content is not None and candidate.content.parts is not None:
         for part in candidate.content.parts:
             if part.function_call:
-                tool_calls.append(
-                    ToolCall(
-                        id=part.function_call.name,
-                        function=part.function_call.name,
-                        arguments=part.function_call.args,
+                if (
+                    part.function_call is not None
+                    and part.function_call.name is not None
+                    and part.function_call.args is not None
+                ):
+                    tool_calls.append(
+                        ToolCall(
+                            id=part.function_call.name,
+                            function=part.function_call.name,
+                            arguments=part.function_call.args,
+                        )
                     )
-                )
+                else:
+                    raise ValueError(f"Incomplete function call: {part.function_call}")
 
     # stop reason
-    stop_reason = finish_reason_to_stop_reason(candidate.finish_reason)
+    stop_reason = finish_reason_to_stop_reason(
+        candidate.finish_reason or FinishReason.STOP
+    )
 
     # build choice
     choice = ChatCompletionChoice(
@@ -646,21 +703,27 @@ def completion_choice_from_candidate(
     # add logprobs if provided
     if candidate.logprobs_result:
         logprobs: list[Logprob] = []
-        for chosen, top in zip(
-            candidate.logprobs_result.chosen_candidates,
-            candidate.logprobs_result.top_candidates,
+        if (
+            candidate.logprobs_result.chosen_candidates
+            and candidate.logprobs_result.top_candidates
         ):
-            logprobs.append(
-                Logprob(
-                    token=chosen.token,
-                    logprob=chosen.log_probability,
-                    top_logprobs=[
-                        TopLogprob(token=c.token, logprob=c.log_probability)
-                        for c in top.candidates
-                    ],
-                )
-            )
-        choice.logprobs = Logprobs(content=logprobs)
+            for chosen, top in zip(
+                candidate.logprobs_result.chosen_candidates,
+                candidate.logprobs_result.top_candidates,
+            ):
+                if chosen.token and chosen.log_probability:
+                    logprobs.append(
+                        Logprob(
+                            token=chosen.token,
+                            logprob=chosen.log_probability,
+                            top_logprobs=[
+                                TopLogprob(token=c.token, logprob=c.log_probability)
+                                for c in (top.candidates or [])
+                                if c.token and c.log_probability
+                            ],
+                        )
+                    )
+            choice.logprobs = Logprobs(content=logprobs)
 
     return choice
 
@@ -671,7 +734,7 @@ def completion_choices_from_candidates(
 ) -> list[ChatCompletionChoice]:
     candidates = response.candidates
     if candidates:
-        candidates_list = sorted(candidates, key=lambda c: c.index)
+        candidates_list = sorted(candidates, key=lambda c: c.index or 0)
         return [
             completion_choice_from_candidate(model, candidate)
             for candidate in candidates_list
@@ -717,7 +780,7 @@ def prompt_feedback_to_content(
 
 
 def usage_metadata_to_model_usage(
-    metadata: GenerateContentResponseUsageMetadata,
+    metadata: GenerateContentResponseUsageMetadata | None,
 ) -> ModelUsage | None:
     if metadata is None:
         return None
@@ -751,14 +814,14 @@ def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:
 
 def parse_safety_settings(
     safety_settings: Any,
-) -> dict[HarmCategory, HarmBlockThreshold]:
+) -> list[SafetySettingDict]:
     # ensure we have a dict
     if isinstance(safety_settings, str):
         safety_settings = json.loads(safety_settings)
     if not isinstance(safety_settings, dict):
         raise ValueError(f"{SAFETY_SETTINGS} must be dictionary.")
 
-    parsed_settings: dict[HarmCategory, HarmBlockThreshold] = {}
+    parsed_settings: list[SafetySettingDict] = []
     for key, value in safety_settings.items():
         if not isinstance(key, str):
             raise ValueError(f"Unexpected type for harm category: {key}")
@@ -766,7 +829,7 @@ def parse_safety_settings(
             raise ValueError(f"Unexpected type for harm block threshold: {value}")
         key = str_to_harm_category(key)
         value = str_to_harm_block_threshold(value)
-        parsed_settings[key] = value
+        parsed_settings.append({"category": key, "threshold": value})
     return parsed_settings
 
 
@@ -826,6 +889,7 @@ async def file_for_content(
         if uploaded_file:
             try:
                 upload: File = client.files.get(name=uploaded_file)
+                assert upload.state
                 if upload.state.name == "ACTIVE":
                     trace(f"Using uploaded file: {uploaded_file}")
                     return upload
@@ -840,14 +904,15 @@ async def file_for_content(
         upload = client.files.upload(
             file=BytesIO(content_bytes), config=dict(mime_type=mime_type)
         )
-        while upload.state.name == "PROCESSING":
+        while upload.state.name == "PROCESSING":  # type: ignore[union-attr]
             await anyio.sleep(3)
+            assert upload.name
             upload = client.files.get(name=upload.name)
-        if upload.state.name == "FAILED":
+        if upload.state.name == "FAILED":  # type: ignore[union-attr]
             trace(f"Failed to upload file '{upload.name}: {upload.error}")
             raise ValueError(f"Google file upload failed: {upload.error}")
         # trace and record it
         trace(f"Uploaded file: {upload.name}")
-        files_db.put(content_sha256, upload.name)
+        files_db.put(content_sha256, str(upload.name))
         # return the file
         return upload
