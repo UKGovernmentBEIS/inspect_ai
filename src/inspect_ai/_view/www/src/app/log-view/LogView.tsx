@@ -17,6 +17,7 @@ import { useLogNavigation } from "../routing/navigationHooks";
 import styles from "./LogView.module.css";
 import { useInfoTabConfig } from "./tabs/InfoTab";
 import { useJsonTabConfig } from "./tabs/JsonTab";
+import { useModelsTab } from "./tabs/ModelsTab";
 import { useSamplesTabConfig } from "./tabs/SamplesTab";
 import { TabDescriptor } from "./types";
 
@@ -45,7 +46,12 @@ export const LogView: FC = () => {
     selectedLogSummary?.plan,
     selectedLogSummary?.error,
     selectedLogSummary?.results,
+  );
+
+  const modelsTabConfig = useModelsTab(
+    evalSpec,
     selectedLogSummary?.stats,
+    selectedLogSummary?.status,
   );
 
   const jsonTabConfig = useJsonTabConfig(
@@ -60,7 +66,9 @@ export const LogView: FC = () => {
 
   const tabs: Record<string, TabDescriptor<any>> = {
     ...(samplesTabConfig ? { samples: samplesTabConfig } : {}),
+    model: modelsTabConfig,
     config: configTabConfig,
+
     json: jsonTabConfig,
   };
 

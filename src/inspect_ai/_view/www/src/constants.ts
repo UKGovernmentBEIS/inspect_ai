@@ -5,6 +5,7 @@ export const kModelNone = "none/none";
 export const kLogViewSamplesTabId = "samples";
 export const kLogViewJsonTabId = "json";
 export const kLogViewInfoTabId = "info";
+export const kLogViewModelsTabId = "models";
 
 // Sample tab constants
 export const kSampleMessagesTabId = `messages`;
