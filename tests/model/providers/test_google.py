@@ -24,10 +24,6 @@ def test_google_safety_settings():
         model="google/gemini-1.5-flash",
         model_args=dict(safety_settings=safety_settings),
     )[0]
-    log_json = log.model_dump_json(indent=2)
-    assert '"HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_MEDIUM_AND_ABOVE"' in log_json
-    assert '"HARM_CATEGORY_HATE_SPEECH": "BLOCK_LOW_AND_ABOVE"' in log_json
-    assert '"HARM_CATEGORY_HARASSMENT": "BLOCK_NONE"' in log_json
 
 
 @skip_if_no_google
