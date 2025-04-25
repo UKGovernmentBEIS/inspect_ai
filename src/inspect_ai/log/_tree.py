@@ -108,3 +108,12 @@ def event_sequence(tree: EventTree) -> Iterable[Event]:
                 yield item.end
         else:
             yield item
+
+
+def _print_event_tree(tree: EventTree, indent: str = "") -> None:
+    for item in tree:
+        if isinstance(item, SpanNode):
+            print(f"{indent}span ({item.type}): {item.name}")
+            _print_event_tree(item.children, f"{indent}  ")
+        else:
+            print(f"{indent}{item.event}")
