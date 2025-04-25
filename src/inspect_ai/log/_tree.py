@@ -42,8 +42,15 @@ class SpanNode:
 def event_tree(events: Sequence[Event]) -> EventTree:
     """Build a tree representation of a sequence of events.
 
-    Organize events heirarchially into event spans. Ensure that
-    that occurred in parallel task groups appear in sequence.
+    Organize events heirarchially into event spans.
+
+    ::: callout-note
+    The `event_tree()` and `event_sequence()` functions are available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
 
     Args:
         events: Sequence of `Event`.
