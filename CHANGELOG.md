@@ -39,6 +39,7 @@
 - Bugfix: Don't require saved response message id for openai assistant messages.
 - Bugfix: Don't show empty `<think>` tag in conversation view if there is no reasoning content.
 - Bugfix: Properly handle multiple reasoning blocks and empty reasoning summaries in OpenAI responses API.
+- Bugfix: Tolerate assistant messages with no internal representation in Open AI responses API.
 
 ## v0.3.90 (21 April 2025)
 

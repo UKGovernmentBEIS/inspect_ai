@@ -432,11 +432,14 @@ def _tool_call_items_from_assistant_message(
 def _ids_from_assistant_internal(
     message: ChatMessageAssistant,
 ) -> tuple[str | None, dict[str, str]]:
-    assert isinstance(message.internal, dict), (
-        "OpenAI ChatMessageAssistant internal must be an _AssistantInternal"
-    )
-    internal = cast(_AssistantInternal, message.internal)
-    return (internal["output_message_id"], internal["tool_message_ids"])
+    if message.internal is not None:
+        assert isinstance(message.internal, dict), (
+            "OpenAI ChatMessageAssistant internal must be an _AssistantInternal"
+        )
+        internal = cast(_AssistantInternal, message.internal)
+        return (internal["output_message_id"], internal["tool_message_ids"])
+    else:
+        return None, {}
 
 
 _ResponseToolCallParam = (
