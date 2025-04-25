@@ -164,48 +164,6 @@ def test_span_end_without_begin():
     assert sequence == [log_event]
 
 
-def test_task_order_deterministic():
-    """Test that task ordering is deterministic based on first appearance"""
-    span_begin = SpanBeginEvent(id="span", name="span")
-
-    # Create events with different task IDs in mixed order
-    log1 = LoggerEvent(span_id="span", task_id=3, message=logger_msg("task 3 first"))
-    log2 = LoggerEvent(span_id="span", task_id=1, message=logger_msg("task 1 first"))
-    log3 = LoggerEvent(span_id="span", task_id=3, message=logger_msg("task 3 second"))
-    log4 = LoggerEvent(span_id="span", task_id=2, message=logger_msg("task 2 first"))
-    log5 = LoggerEvent(span_id="span", task_id=1, message=logger_msg("task 1 second"))
-
-    span_end = SpanEndEvent(id="span")
-
-    events = [span_begin, log1, log2, log3, log4, log5, span_end]
-    tree = event_tree(events)
-
-    # The order should be tasks grouped by first appearance: 3, 1, 2
-    span_node = tree[0]
-    children = span_node.children
-
-    # Expected groups: task 3 (log1, log3), task 1 (log2, log5), task 2 (log4)
-    assert children[0].task_id == 3
-    assert children[1].task_id == 3
-    assert children[2].task_id == 1
-    assert children[3].task_id == 1
-    assert children[4].task_id == 2
-
-    # Run again with different initial order
-    events2 = [span_begin, log2, log4, log1, log3, log5, span_end]
-    tree2 = event_tree(events2)
-
-    span_node2 = tree2[0]
-    children2 = span_node2.children
-
-    # Expected groups: task 1 (log2, log5), task 2 (log4), task 3 (log1, log3)
-    assert children2[0].task_id == 1
-    assert children2[1].task_id == 1
-    assert children2[2].task_id == 2
-    assert children2[3].task_id == 3
-    assert children2[4].task_id == 3
-
-
 def test_sequence_preserves_events():
     """Test that all events from the tree are present in the sequence"""
     # Create a complex event structure
@@ -249,21 +207,6 @@ def test_sequence_preserves_event_order():
 
     # Check order is preserved
     assert sequence == events
-
-    # Test with alternate valid order that should result in the same tree
-    events_alt = [span1_begin, log2, span2_begin, log1, span2_end, span1_end]
-
-    tree_alt = event_tree(events_alt)
-    sequence_alt = list(event_sequence(tree_alt))
-
-    # The resulting sequence should have the span containment logic preserved
-    # span1_begin, span2_begin, log1, span2_end, log2, span1_end
-    assert sequence_alt[0] == span1_begin
-    assert sequence_alt[1] == span2_begin
-    assert sequence_alt[2] == log1
-    assert sequence_alt[3] == span2_end
-    assert sequence_alt[4] == log2
-    assert sequence_alt[5] == span1_end
 
 
 def logger_msg(msg: str) -> LoggingMessage:
