@@ -34,6 +34,7 @@ import {
 import { useFilteredSamples, useSampleData } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
+import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
 import { sampleUrl } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
@@ -280,7 +281,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         >
           {!sample ? (
             <NoContentsPanel text="JSON not available" />
-          ) : sample.messages.length > 100 ? (
+          ) : estimateSize(sample.events) > 250000 ? (
             <NoContentsPanel text="JSON too large too display" />
           ) : (
             <div className={clsx(styles.padded, styles.fullWidth)}>
