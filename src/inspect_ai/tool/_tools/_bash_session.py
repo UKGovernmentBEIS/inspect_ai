@@ -1,7 +1,7 @@
 from textwrap import dedent
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Discriminator, Field, RootModel
 from semver import Version
 from shortuuid import uuid
 
@@ -10,7 +10,6 @@ from inspect_ai.tool import ToolResult
 from inspect_ai.util import StoreModel, store_as
 
 from .._tool import Tool, ToolParsingError, tool
-from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 from .._tool_support_helpers import (
     exec_model_request,
     exec_scalar_request,
@@ -32,6 +31,42 @@ class BashRestartResult(BaseModel):
 
 class BashSessionStore(StoreModel):
     session_id: str = Field(default_factory=str)
+
+
+# Action-specific parameter models
+
+
+class TypeParams(BaseModel):
+    action: Literal["type"] = "type"
+    input: str
+
+
+class TypeSubmitParams(BaseModel):
+    action: Literal["type_submit"] = "type_submit"
+    input: str
+
+
+class RestartParams(BaseModel):
+    action: Literal["restart"] = "restart"
+
+
+class ReadParams(BaseModel):
+    action: Literal["read"] = "read"
+
+
+class InterruptParams(BaseModel):
+    action: Literal["interrupt"] = "interrupt"
+
+
+class BashSessionParams(
+    RootModel[
+        TypeParams | TypeSubmitParams | RestartParams | ReadParams | InterruptParams
+    ]
+):
+    root: Annotated[
+        TypeParams | TypeSubmitParams | RestartParams | ReadParams | InterruptParams,
+        Discriminator("action"),
+    ]
 
 
 DEFAULT_MAX_WAIT = 30
@@ -82,9 +117,8 @@ def bash_session(
         )
 
     async def execute(
+        action: Literal["type", "type_submit", "restart", "read", "interrupt"],
         input: str | None = None,
-        include_return: bool | None = None,
-        restart: Literal[True] | None = None,
     ) -> ToolResult:
         r"""
         Interact with a bash shell.
@@ -94,61 +128,66 @@ def bash_session(
         single call. Call this function multiple times to retrieve additional
         output from the shell.
 
-        IMPORTANT NOTES:
+        USAGE NOTES:
         - Ensure that the shell is at a command prompt (typically when the
-          output ends in "$ " or "# ") before sending a new command.
+          output ends in "$ " or "# ") before submitting a new command.
         - Control characters must be sent as Unicode escape sequences (e.g., use
           "\u0003" for Ctrl+C/ETX, "\u0004" for Ctrl+D/EOT). The literal string
           "Ctrl+C" will not be interpreted as a control character.
+        - Use the "read" action to retrieve output from the shell without
+          sending any input. This is useful for long-running commands that
+          produce output over time. The "read" action will return any new output
+          since the last call.
         - If a long-running command is in progress, additional input to execute
           a new command will not be processed until the previous completes. To
-          abort a long-running command, send a Ctrl+C (ETX character):
-          `bash_session(input="\u0003", include_return=False)`
+          abort a long-running command, use the "interrupt" action:
+          `bash_session(action="interrupt")`
 
         Example use case:
         - For a short-running command with a nominal amount of output, a single
           call may suffice.
           ```
-          bash_session(input="echo foo", include_return=True) -> "foo\nuser@host:/# "
+          bash_session(action="type_submit", input="echo foo") -> "foo\nuser@host:/# "
           ```
-        - For a long-running command with output over time, multiple calls to the
-          function are needed.
+        - For a long-running command with output over time, multiple calls to are needed.
           ```
-          bash_session(input="tail -f /tmp/foo.log", include_return=True) -> <some output>
-          bash_session() -> <more output>
-          # Send Ctrl+C (ETX character)
-          bash_session(input="\u0003", include_return=False) -> "<final output>^Cuser@host:/# "
+          bash_session(action="type_submit", input="tail -f /tmp/foo.log") -> <some output>
+          bash_session(action="read") -> <more output>
+          # Send interrupt (Ctrl+C)
+          bash_session(action="interrupt") -> "<final output>^Cuser@host:/# "
           ```
         - Interactive command awaiting more input from the user.
           ```
-          bash_session(input="ssh fred@foo.com", include_return=True) -> "foo.com's password: "
-          bash_session(input="secret", include_return=True) -> "fred@foo.com:~$ "
+          bash_session(action="type_submit", input="ssh fred@foo.com") -> "foo.com's password: "
+          bash_session(action="type_submit", input="secret") -> "fred@foo.com:~$ "
           ```
 
         Args:
-          input: The input to send to the shell. If omitted, the function will
-                return any additional content sent to the shell's stdout and
-                stderr without sending new input.
-          include_return: Simulate the user pressing the 'Return' key after
-                typing the specified input. It must be specified if 'input' is
-                not empty, otherwise leave it unspecified.
-          restart: Specifying True will restart this bash session. Otherwise,
-                leave it unspecified.
+          action: The action to execute:
+                - "type": Send input without a return key
+                - "type_submit": Send input followed by a return key
+                - "read": Read any new output without sending input
+                - "interrupt": Send a Ctrl+C (ETX character) to interrupt the current process
+                - "restart": Restart the bash session
+          input: The input to send to the shell.
+                Required for "type". Optional for "type_submit" actions. Must
+                not be provided for "restart", "read", or "interrupt" actions.
 
         Returns:
           The accumulated output of the shell.
         """
-        if restart and input is not None:
-            raise ToolParsingError("Do not send any 'input' when restarting.")
-
-        # Normalize input of "" to None
-        input = input or None
-        if (input is not None) != (include_return is not None):
-            raise ToolParsingError(
-                "'include_return' must be specified if 'input' is provided."
-                if input
-                else "Do not send 'include_return' when no 'input' is provided."
-            )
+        # Validate parameters based on action
+        match action:
+            case "type":
+                if input is None:
+                    raise ToolParsingError(
+                        f"'input' is required for '{action}' action."
+                    )
+            case "restart" | "read" | "interrupt":
+                if input is not None:
+                    raise ToolParsingError(
+                        f"Do not provide 'input' with '{action}' action."
+                    )
 
         (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
         required_version = Version.parse("1.0.0")
@@ -172,27 +211,31 @@ def bash_session(
                 )
             ).session_name
 
-        if input and include_return:
-            input += "\n"
+        timing: dict[str, object] = {
+            "wait_for_output": wait_for_output,
+            "idle_timeout": DEFAULT_IDLE_TIME,
+        }
+        action_specific: dict[str, dict[str, object]] = {
+            "type": {"input": input, **timing},
+            "type_submit": {"input": f"{input}\n", **timing},
+            "interrupt": {"input": "\u0003", **timing},
+            "read": timing,
+            "restart": {"restart": True},
+        }
 
         result = await exec_scalar_request(
             sandbox,
             "bash_session",
-            {
-                "session_name": store.session_id,
-                "input": input,
-                "wait_for_output": None if restart else wait_for_output,
-                "idle_timeout": None if restart else DEFAULT_IDLE_TIME,
-                "restart": restart,
-            },
+            {"session_name": store.session_id, **(action_specific[action])},
             str,
             timeout,
         )
 
-        if isinstance(result, BashRestartResult):
-            return "Bash session restarted."
-
-        # return output (including stderr if any)
-        return result
+        # Return the appropriate response
+        return (
+            "Bash session restarted."
+            if isinstance(result, BashRestartResult)
+            else result
+        )
 
     return execute
