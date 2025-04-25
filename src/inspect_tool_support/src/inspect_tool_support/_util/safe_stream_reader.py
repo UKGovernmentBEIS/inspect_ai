@@ -31,8 +31,9 @@ class SafeStreamReader:
         self._on_data = on_data
         self._chunk_size = chunk_size
         self._incomplete: bytes | None = None
-        self._read_task = asyncio.create_task(self._read_loop())
         self._stopping = False
+        self._exception: Exception | None = None
+        self._read_task = asyncio.create_task(self._read_loop())
 
     async def stop(self) -> None:
         if self._read_task:
@@ -43,34 +44,49 @@ class SafeStreamReader:
             except asyncio.CancelledError:
                 pass
 
+            # Re-raise any exception that occurred during reading
+            if self._exception:
+                raise self._exception
+
     async def _read_loop(self) -> None:
-        while not self._stopping:
-            # Read available data - this will return as soon as any data is available
-            # up to the maximum chunk_size
-            chunk = await self._stream.read(self._chunk_size)
-            if self._stopping:
-                break
+        try:
+            while not self._stopping:
+                # Read available data - this will return as soon as any data is available
+                # up to the maximum chunk_size
+                try:
+                    chunk = await self._stream.read(self._chunk_size)
+                except Exception as e:
+                    # Capture and store the exception
+                    self._exception = e
+                    # Break out of the loop to stop reading
+                    break
 
-            if not chunk:  # EOF
+                if self._stopping:
+                    break
+
+                if not chunk:  # EOF
+                    if self._incomplete:
+                        self._exception = UnicodeDecodeError(
+                            "utf-8",
+                            self._incomplete,
+                            0,
+                            len(self._incomplete),
+                            "Incomplete UTF-8 sequence at end of stream",
+                        )
+                    break
+
+                data: bytes
                 if self._incomplete:
-                    raise UnicodeDecodeError(
-                        "utf-8",
-                        self._incomplete,
-                        0,
-                        len(self._incomplete),
-                        "Incomplete UTF-8 sequence at end of stream",
-                    )
-                break
+                    # Handle any incomplete sequences from previous reads
+                    data = self._incomplete + chunk
+                    self._incomplete = None
+                else:
+                    data = chunk
 
-            data: bytes
-            if self._incomplete:
-                # Handle any incomplete sequences from previous reads
-                data = self._incomplete + chunk
-                self._incomplete = None
-            else:
-                data = chunk
-
-            self._process_data(data)
+                self._process_data(data)
+        except Exception as e:
+            # Catch any other exceptions in the read loop
+            self._exception = e
 
     def _process_data(self, data: bytes) -> None:
         """
@@ -79,14 +95,26 @@ class SafeStreamReader:
         Calls the on_data callback.
         """
         try:
-            # Attempt a decode just to detect a break in the middle of a UTF-8 sequence
+            # Try strict decode first
             data.decode("utf-8")
+            # If successful, process all data
+            if len(data) > 0:
+                self._on_data(data)
+            return
         except UnicodeDecodeError as e:
-            # Keep only valid bytes in data moving the bogus data into _incomplete
-            valid_bytes = e.start
-            self._incomplete = data[valid_bytes:]
-            data = data[:valid_bytes]
+            # Decode failed - try with replacement
+            decoded = data.decode("utf-8", errors="replace")
 
-        # Call the callback with the processed data if provided
-        if len(data) > 0:
-            self._on_data(data)
+            # Check if the last character is a replacement character
+            if decoded and decoded[-1] != "�":
+                # If the last char is not a replacement, all errors are in the middle
+                # We can safely use the entire data with replacements
+                if len(data) > 0:
+                    self._on_data(decoded.encode("utf-8"))
+            else:
+                # The error is at the end, so keep only valid bytes in data
+                # moving the bogus data into _incomplete
+                valid_bytes = e.start
+                self._incomplete = data[valid_bytes:]
+                data = data[:valid_bytes]
+                self._on_data(data)
