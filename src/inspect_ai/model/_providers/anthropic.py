@@ -49,6 +49,7 @@ from inspect_ai._util.error import exception_message
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -939,9 +940,15 @@ async def count_tokens(
             messages=[{"role": "user", "content": text}],
         )
         return response.input_tokens
-    except Exception as e:
-        logger.warning(
-            f"Error counting tokens (falling back to estimated tokens): {str(e)}"
+    except Exception as ex:
+        warn_once(
+            logger,
+            f"Unable to call count_tokens API for model {model} (falling back to estimated tokens)",
+        )
+        trace_message(
+            logger,
+            "Anthropic",
+            f"Unable to call count_tokens API for model {model} ({ex})",
         )
         words = text.split()
         estimated_tokens = int(len(words) * 1.3)
