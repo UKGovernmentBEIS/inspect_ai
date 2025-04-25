@@ -135,17 +135,17 @@ def kill_process_tree(pid: int) -> None:
 
 def launch_server_cmd(
     command: list[str], host: str = "0.0.0.0", port: Optional[int] = None
-) -> Tuple[subprocess.Popen[str], int]:
+) -> Tuple[subprocess.Popen[str], int, list[str]]:
     """
-    Launch a server using the given command.
+    Launch a server process with the given base command and return the process, port, and full command.
 
     Args:
-        command: List of command arguments or string command
+        command: Base command to execute
         host: Host to bind to
         port: Port to bind to. If None, a free port is reserved.
 
     Returns:
-        Tuple of (process, port)
+        Tuple of (process, port, full_command)
     """
     if port is None:
         port, lock_socket = reserve_port(host)
@@ -254,8 +254,9 @@ def start_local_server(
     Raises:
         RuntimeError: If server fails to start
     """
-    server_process = None
     full_command = base_cmd
+    server_process = None
+
     if server_args:
         for key, value in server_args.items():
             # Convert Python style args (underscore) to CLI style (dash)
@@ -263,18 +264,18 @@ def start_local_server(
             full_command.extend([f"--{cli_key}", str(value)])
 
     try:
-        server_process, port, full_command = launch_server_cmd(
+        server_process, found_port, full_command = launch_server_cmd(
             full_command, host=host, port=port
         )
-        base_url = f"http://localhost:{port}/v1"
+        base_url = f"http://localhost:{found_port}/v1"
         wait_for_server(
-            f"http://localhost:{port}",
+            f"http://localhost:{found_port}",
             server_process,
             api_key=api_key,
             timeout=timeout,
             full_command=full_command,
         )
-        return base_url, server_process, port
+        return base_url, server_process, found_port
     except Exception as e:
         # Cleanup any partially started server
         if server_process:

@@ -227,8 +227,13 @@ class SGLangAPI(OpenAICompatibleAPI):
 
     @override
     def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
-        if ex.code == 400:
-            content = ex.body["message"]
+        if ex.status_code == 400:
+            # Extract message safely
+            if isinstance(ex.body, dict) and "message" in ex.body:
+                content = str(ex.body.get("message"))
+            else:
+                content = ex.message
+
             if "context length" in content:
                 return ModelOutput.from_content(
                     self.model_name, content=content, stop_reason="model_length"
