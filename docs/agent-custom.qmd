@@ -321,6 +321,8 @@ There are two reasons that you might want to create spans:
 1.  Any changes to the store which occur during a span will be collected into a `StoreEvent` that records the changes (in [JSON Patch](https://jsonpatch.com/) format) that occurred.
 2.  The Inspect log viewer will create a visual delineation for the span, which will make it easier to see the flow of activity within the transcript.
 
+Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
+
 ## Subtasks {#sec-subtasks}
 
 Subtasks provide a mechanism for creating isolated, re-usable units of execution. You might implement a complex tool using a subtask or might use them in a multi-agent evaluation. The main characteristics of sub-tasks are:

@@ -1,3 +1,8 @@
+## Future
+
+- [span()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for grouping transcript events.
+- Task display: Realtime display of events that occur within tool calls and subtasks.
+
 ## Unreleased
 
 - [Scoped Limits](https://inspect.aisi.org.uk/errors-and-limits.html#scoped-limits) for enforcing token and message limits using a context manager.
