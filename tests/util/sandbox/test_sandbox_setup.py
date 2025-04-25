@@ -25,7 +25,7 @@ NOT_FOUND = "MISSING"
 
 
 @solver
-def check_file(expected_content: str = None) -> Solver:
+def check_file(expected_content: str | None = None) -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
         """
         Check if a file exists, and if it contains the expected_content.
