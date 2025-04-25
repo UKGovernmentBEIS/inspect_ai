@@ -282,7 +282,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           {!sample ? (
             <NoContentsPanel text="JSON not available" />
           ) : estimateSize(sample.events) > 250000 ? (
-            <NoContentsPanel text="JSON too large too display" />
+            <NoContentsPanel text="JSON too large to display" />
           ) : (
             <div className={clsx(styles.padded, styles.fullWidth)}>
               <JSONPanel
