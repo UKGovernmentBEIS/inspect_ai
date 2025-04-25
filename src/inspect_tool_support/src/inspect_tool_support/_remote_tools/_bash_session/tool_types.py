@@ -14,6 +14,7 @@ class InteractParams(BashBaseParams):
     Maximum time (in seconds) to wait for any output. If no output is received
     within this period, the function will return an empty string.
     """
+    idle_timeout: float
     input: str | None = None
 
 

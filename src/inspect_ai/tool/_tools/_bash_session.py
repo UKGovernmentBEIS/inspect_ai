@@ -34,27 +34,13 @@ class BashSessionStore(StoreModel):
     session_id: str = Field(default_factory=str)
 
 
-# custom viewer for bash
-def code_viewer(language: str, code_param: str) -> ToolCallViewer:
-    def viewer(tool_call: ToolCall) -> ToolCallView:
-        code = tool_call.arguments.get(code_param, None)
-        code = (code or tool_call.function).strip()
-        call = ToolCallContent(
-            title=language,
-            format="markdown",
-            content=f"```{language}\n" + code + "\n```\n",
-        )
-        return ToolCallView(call=call)
-
-    return viewer
-
-
 DEFAULT_MAX_WAIT = 30
+DEFAULT_IDLE_TIME = 0.5
 # this is how long we're willing to wait for the basic RPC call overhead.
 TRANSPORT_TIMEOUT = 5
 
 
-@tool(viewer=code_viewer("bash", "command"))
+@tool()
 def bash_session(
     *,
     timeout: int | None = None,  # default is max_wait + 5 seconds
@@ -109,8 +95,11 @@ def bash_session(
         output from the shell.
 
         IMPORTANT NOTES:
-        - If the previous result does not end in a command prompt (typically
-          "$ " or "# "), it means that a command is likely still in progress.
+        - Ensure that the shell is at a command prompt (typically when the
+          output ends in "$ " or "# ") before sending a new command.
+        - Control characters must be sent as Unicode escape sequences (e.g., use
+          "\u0003" for Ctrl+C/ETX, "\u0004" for Ctrl+D/EOT). The literal string
+          "Ctrl+C" will not be interpreted as a control character.
         - If a long-running command is in progress, additional input to execute
           a new command will not be processed until the previous completes. To
           abort a long-running command, send a Ctrl+C (ETX character):
@@ -191,8 +180,9 @@ def bash_session(
             "bash_session",
             {
                 "session_name": store.session_id,
-                "wait_for_output": None if restart else wait_for_output,
                 "input": input,
+                "wait_for_output": None if restart else wait_for_output,
+                "idle_timeout": None if restart else DEFAULT_IDLE_TIME,
                 "restart": restart,
             },
             str,

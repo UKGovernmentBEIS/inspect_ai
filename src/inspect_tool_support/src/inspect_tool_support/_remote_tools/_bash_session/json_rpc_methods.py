@@ -23,8 +23,13 @@ async def bash_session(
 ) -> InteractResult | BashRestartResult:
     match params.root:
         case InteractParams(
-            session_name=session_name, input=input_text, wait_for_output=wait_for_output
+            session_name=session_name,
+            input=input_text,
+            wait_for_output=wait_for_output,
+            idle_timeout=idle_timeout,
         ):
-            return await controller.interact(session_name, input_text, wait_for_output)
+            return await controller.interact(
+                session_name, input_text, wait_for_output, idle_timeout
+            )
         case RestartParams(session_name=session_name):
             return await controller.restart(session_name)

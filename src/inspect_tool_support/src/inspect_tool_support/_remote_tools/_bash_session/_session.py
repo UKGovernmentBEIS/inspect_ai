@@ -13,9 +13,9 @@ class Session:
         self._process = process
 
     async def interact(
-        self, input_text: str | None, wait_for_output: int
+        self, input_text: str | None, wait_for_output: int, idle_timeout: float
     ) -> InteractResult:
-        return await self._process.interact(input_text, wait_for_output)
+        return await self._process.interact(input_text, wait_for_output, idle_timeout)
 
     async def restart(self, timeout: int = 30) -> BashRestartResult:
         _, new_process = await asyncio.gather(

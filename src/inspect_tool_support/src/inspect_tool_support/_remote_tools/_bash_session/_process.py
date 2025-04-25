@@ -8,8 +8,6 @@ from ..._util.safe_stream_reader import SafeStreamReader
 from ..._util.timeout_event import TimeoutEvent
 from .tool_types import InteractResult
 
-IDLE_TIMEOUT = 0.25
-
 
 class Process:
     @classmethod
@@ -36,13 +34,15 @@ class Process:
         self._output_data = bytearray()
         self._output_reader = SafeStreamReader(pty.reader, self._receive_data)
         self._send_data_event = TimeoutEvent()
+        self._idle_timeout = 0.0
 
     async def interact(
-        self, input_text: str | None, wait_for_output: int
+        self, input_text: str | None, wait_for_output: int, idle_timeout: float
     ) -> InteractResult:
         self._assert_not_terminated()
         # assert not self._send_data_event.is_set(), "send data event must be cleared"
 
+        self._idle_timeout = idle_timeout
         if input_text:
             self._pty.writer.write(input_text.encode("utf-8"))
             await self._pty.writer.drain()
@@ -50,7 +50,7 @@ class Process:
         # If there's already available data, just wait for the idle timeout.
         # Otherwise, wait the longer amount of time for output to be available.
         self._send_data_event.start_timer(
-            IDLE_TIMEOUT if len(self._output_data) else wait_for_output
+            idle_timeout if len(self._output_data) else wait_for_output
         )
         await self._send_data_event.wait()
 
@@ -99,7 +99,7 @@ class Process:
         if len(self._output_data) >= 4096:
             self._send_data_event.set()
         else:
-            self._send_data_event.start_timer(IDLE_TIMEOUT)
+            self._send_data_event.start_timer(self._idle_timeout)
 
     def _assert_not_terminated(self) -> None:
         assert not self._terminated, "process must not be terminated"
