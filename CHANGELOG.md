@@ -8,6 +8,7 @@
 - OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 - OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
 - OpenAI: Automatically alias reserved internal tool names (e.g. `python`) for responses API.
+- Google: Update to 1.12.1 of `google-genai` (which is now required).
 - Google: Support for `reasoning_tokens` option for Gemini 2.5 models.
 - Grok: Support for `reasoning_effort` option and capturing reasoning content.
 - OpenRouter: Forward `reasoning_effort` and `reasoning_tokens` to `reasoning` field.
