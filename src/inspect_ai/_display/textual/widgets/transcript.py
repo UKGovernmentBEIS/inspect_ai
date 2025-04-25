@@ -231,10 +231,6 @@ def render_tool_event(event: ToolEvent) -> list[EventDisplay]:
     return [EventDisplay("tool call", Group(*content))]
 
 
-def render_span_begin_event(event: SpanBeginEvent) -> EventDisplay:
-    return EventDisplay(span_title(event))
-
-
 def render_score_event(event: ScoreEvent) -> EventDisplay:
     table = Table(box=None, show_header=False)
     table.add_column("", min_width=10, justify="left")
@@ -333,7 +329,6 @@ EventRenderer = Callable[[Any], EventDisplay | list[EventDisplay] | None]
 _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (SampleInitEvent, render_sample_init_event),
     (SampleLimitEvent, render_sample_limit_event),
-    (SpanBeginEvent, render_span_begin_event),
     (ModelEvent, render_model_event),
     (ToolEvent, render_tool_event),
     (SubtaskEvent, render_subtask_event),
