@@ -1,7 +1,6 @@
 import { FC, useMemo } from "react";
 import { EvalSpec, EvalStats, Status } from "../../../@types/log";
 import { kLogViewModelsTabId } from "../../../constants";
-import { useTotalSampleCount } from "../../../state/hooks";
 import { ModelCard } from "../../plan/ModelCard";
 import { UsageCard } from "../../usage/UsageCard";
 
@@ -11,7 +10,6 @@ export const useModelsTab = (
   evalStats: EvalStats | undefined,
   evalStatus?: Status,
 ) => {
-  const totalSampleCount = useTotalSampleCount();
   return useMemo(() => {
     return {
       id: kLogViewModelsTabId,
@@ -24,7 +22,7 @@ export const useModelsTab = (
         evalStatus,
       },
     };
-  }, [evalSpec, evalStats, totalSampleCount]);
+  }, [evalSpec, evalStats]);
 };
 
 interface ModelTabProps {
@@ -42,7 +40,11 @@ export const ModelTab: FC<ModelTabProps> = ({
     <div style={{ width: "100%" }}>
       <div style={{ padding: "0.5em 1em 0 1em", width: "100%" }}>
         {evalSpec ? <ModelCard evalSpec={evalSpec} /> : undefined}
-        {evalStatus !== "started" ? <UsageCard stats={evalStats} /> : undefined}
+        {evalStatus !== "started" &&
+          evalStats?.model_usage &&
+          Object.keys(evalStats.model_usage).length > 0 && (
+            <UsageCard stats={evalStats} />
+          )}
       </div>
     </div>
   );

@@ -3,7 +3,6 @@ import { FC } from "react";
 import clsx from "clsx";
 import { EvalModelConfig, EvalSpec } from "../../@types/log";
 import { Card, CardBody, CardHeader } from "../../components/Card";
-import { ApplicationIcons } from "../appearance/icons";
 import { MetaDataGrid } from "../content/MetaDataGrid";
 import styles from "./ModelCard.module.css";
 
@@ -33,7 +32,7 @@ export const ModelCard: FC<ModelCardProps> = ({ evalSpec }) => {
 
   return (
     <Card>
-      <CardHeader icon={ApplicationIcons.model} label="Models" />
+      <CardHeader label="Models" />
       <CardBody id={"task-model-card-body"}>
         <div className={styles.container}>
           {Object.keys(modelsInfo || {}).map((modelKey) => {
