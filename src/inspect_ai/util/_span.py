@@ -21,9 +21,8 @@ def span(name: str, *, type: str | None = None) -> Iterator[None]:
         transcript,
     )
 
-    # determine span and task id
+    # span id
     id = uuid4().hex
-    task_id = safe_current_task_id()
 
     # capture parent id
     parent_id = _current_span_id.get()
@@ -38,7 +37,6 @@ def span(name: str, *, type: str | None = None) -> Iterator[None]:
             SpanBeginEvent(
                 id=id,
                 parent_id=parent_id,
-                task_id=task_id,
                 type=type,
                 name=name,
             )

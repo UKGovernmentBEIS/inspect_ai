@@ -4616,18 +4616,6 @@
           "default": null,
           "title": "Parent Id"
         },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
-        },
         "type": {
           "anyOf": [
             {
@@ -4653,7 +4641,6 @@
         "event",
         "id",
         "parent_id",
-        "task_id",
         "type",
         "name"
       ],

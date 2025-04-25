@@ -502,7 +502,6 @@ export type Pending13 = boolean | null;
 export type Event13 = "span_begin";
 export type Id8 = string;
 export type ParentId = string | null;
-export type TaskId1 = number | null;
 export type Type13 = string | null;
 export type Name11 = string;
 export type SpanId14 = string | null;
@@ -1469,7 +1468,6 @@ export interface SpanBeginEvent {
   event: Event13;
   id: Id8;
   parent_id: ParentId;
-  task_id: TaskId1;
   type: Type13;
   name: Name11;
 }
