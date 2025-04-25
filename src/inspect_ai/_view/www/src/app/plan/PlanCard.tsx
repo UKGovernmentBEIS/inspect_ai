@@ -15,10 +15,6 @@ interface PlanCardProps {
  */
 export const PlanCard: FC<PlanCardProps> = ({ evalSpec, evalPlan, scores }) => {
   const metadata = evalSpec?.metadata || {};
-  const generate_config = evalPlan?.config;
-  const generate_record: Record<string, unknown> = Object.fromEntries(
-    Object.entries(generate_config || {}),
-  );
 
   return (
     <>
@@ -32,20 +28,6 @@ export const PlanCard: FC<PlanCardProps> = ({ evalSpec, evalPlan, scores }) => {
           />
         </CardBody>
       </Card>
-
-      {Object.keys(generate_record).length > 0 && (
-        <Card>
-          <CardHeader label="Generate Config" />
-          <CardBody id={"task-generate-config"}>
-            <MetaDataView
-              key={`plan-md-generate-config`}
-              className={"text-size-small"}
-              entries={generate_record}
-              tableOptions="sm"
-            />
-          </CardBody>
-        </Card>
-      )}
 
       {Object.keys(metadata).length > 0 && (
         <Card>

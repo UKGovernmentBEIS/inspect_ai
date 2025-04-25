@@ -44811,10 +44811,6 @@ categories: ${categories.join(" ")}`;
     };
     const PlanCard = ({ evalSpec, evalPlan, scores: scores2 }) => {
       const metadata2 = (evalSpec == null ? void 0 : evalSpec.metadata) || {};
-      const generate_config = evalPlan == null ? void 0 : evalPlan.config;
-      const generate_record = Object.fromEntries(
-        Object.entries(generate_config || {})
-      );
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Summary" }),
@@ -44825,18 +44821,6 @@ categories: ${categories.join(" ")}`;
               plan: evalPlan,
               scores: scores2
             }
-          ) })
-        ] }),
-        Object.keys(generate_record).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Generate Config" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-generate-config", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MetaDataView,
-            {
-              className: "text-size-small",
-              entries: generate_record,
-              tableOptions: "sm"
-            },
-            `plan-md-generate-config`
           ) })
         ] }),
         Object.keys(metadata2).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
