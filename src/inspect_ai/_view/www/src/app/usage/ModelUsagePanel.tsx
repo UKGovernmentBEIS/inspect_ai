@@ -6,6 +6,7 @@ import styles from "./ModelUsagePanel.module.css";
 
 interface ModelUsageProps {
   usage: ModelUsage1;
+  className?: string | string[];
 }
 
 interface ModelUsageRow {
@@ -19,7 +20,7 @@ interface ModelUsageRow {
 /**
  * Renders the ModelUsagePanel component.
  */
-export const ModelUsagePanel: FC<ModelUsageProps> = ({ usage }) => {
+export const ModelUsagePanel: FC<ModelUsageProps> = ({ usage, className }) => {
   if (!usage) {
     return null;
   }
@@ -84,7 +85,7 @@ export const ModelUsagePanel: FC<ModelUsageProps> = ({ usage }) => {
   });
 
   return (
-    <div className={clsx("text-size-small", styles.wrapper)}>
+    <div className={clsx("text-size-small", styles.wrapper, className)}>
       {rows.map((row, idx) => {
         if (row.label === "---") {
           return (

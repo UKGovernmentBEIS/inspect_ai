@@ -14,3 +14,7 @@
 .model {
   padding-right: 1em;
 }
+
+.cellContents {
+  padding-bottom: 1em;
+}

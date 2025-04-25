@@ -38665,11 +38665,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
       }
     };
-    const table$2 = "_table_9qith_1";
-    const cell$3 = "_cell_9qith_11";
-    const compact = "_compact_9qith_15";
-    const cellKey = "_cellKey_9qith_19";
-    const cellValue = "_cellValue_9qith_31";
+    const table$2 = "_table_1t3ts_1";
+    const cell$3 = "_cell_1t3ts_11";
+    const compact = "_compact_1t3ts_15";
+    const cellKey = "_cellKey_1t3ts_19";
+    const cellValue = "_cellValue_1t3ts_31";
     const styles$19 = {
       table: table$2,
       cell: cell$3,
@@ -47069,7 +47069,7 @@ self.onmessage = function (e) {
       separator: separator$3,
       padded: padded$1
     };
-    const ModelUsagePanel = ({ usage }) => {
+    const ModelUsagePanel = ({ usage, className: className2 }) => {
       if (!usage) {
         return null;
       }
@@ -47123,7 +47123,7 @@ self.onmessage = function (e) {
         value: usage.total_tokens,
         secondary: false
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$G.wrapper), children: rows.map((row2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$G.wrapper, className2), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
@@ -47153,15 +47153,17 @@ self.onmessage = function (e) {
         }
       }) });
     };
-    const table = "_table_m6ndw_1";
-    const tableTokens = "_tableTokens_m6ndw_5";
-    const tableH = "_tableH_m6ndw_9";
-    const model = "_model_m6ndw_14";
+    const table = "_table_z217i_1";
+    const tableTokens = "_tableTokens_z217i_5";
+    const tableH = "_tableH_z217i_9";
+    const model = "_model_z217i_14";
+    const cellContents = "_cellContents_z217i_18";
     const styles$F = {
       table,
       tableTokens,
       tableH,
-      model
+      model,
+      cellContents
     };
     const TokenTable$1 = ({ className: className2, children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -47228,8 +47230,8 @@ self.onmessage = function (e) {
     };
     const TokenRow = ({ model: model2, usage }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$F.model, children: model2 }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$F.model, styles$F.cellContents), children: model2 }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage, className: clsx(styles$F.cellContents) }) })
       ] });
     };
     const ModelTokenTable = ({
