@@ -16,14 +16,14 @@ def test_google_safety_settings():
     )
 
     # run with safety settings
-    log = eval(
+    eval(
         Task(
             dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
             scorer=includes(),
         ),
         model="google/gemini-1.5-flash",
         model_args=dict(safety_settings=safety_settings),
-    )[0]
+    )
 
 
 @skip_if_no_google
