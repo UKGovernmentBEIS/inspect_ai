@@ -9,9 +9,9 @@ from typing import Any, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
 import anyio
-from google.genai import Client  # type: ignore
-from google.genai.errors import APIError, ClientError  # type: ignore
-from google.genai.types import (  # type: ignore
+from google.genai import Client
+from google.genai.errors import APIError, ClientError
+from google.genai.types import (
     Candidate,
     Content,
     ContentListUnion,
