@@ -212,7 +212,7 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
         prompt that asks the model to use the <tool_call>...</tool_call> syntax)
         """
         # extract tool calls
-        tool_call_regex = rf"<{TOOL_CALL}>((?:.|\n)*?)</{TOOL_CALL}>"
+        tool_call_regex = rf"<{TOOL_CALL}>\s*(\{{[\s\S]*?\}})\s*</{TOOL_CALL}>"
         tool_calls_content: list[str] = re.findall(tool_call_regex, response)
 
         # if there are tool calls proceed with parsing

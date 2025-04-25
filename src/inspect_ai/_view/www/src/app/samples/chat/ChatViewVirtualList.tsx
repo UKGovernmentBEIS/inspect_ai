@@ -5,12 +5,13 @@ import { ChatMessageRow } from "./ChatMessageRow";
 import { ResolvedMessage, resolveMessages } from "./messages";
 
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
+import { ChatViewToolCallStyle } from "./types";
 
 interface ChatViewVirtualListProps {
   id: string;
   className?: string | string[];
   messages: Messages;
-  toolCallStyle: "compact" | "complete";
+  toolCallStyle: ChatViewToolCallStyle;
   indented: boolean;
   numbered?: boolean;
   scrollRef?: RefObject<HTMLDivElement | null>;
@@ -46,6 +47,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           resolvedMessage={item}
           indented={indented}
           toolCallStyle={toolCallStyle}
+          padded={index < collapsedMessages.length - 1}
         />
       );
     };

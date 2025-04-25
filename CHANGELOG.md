@@ -7,6 +7,8 @@
 - OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
 - OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 - OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
+- OpenAI: Automatically alias reserved internal tool names (e.g. `python`) for responses API.
+- Google: Update to 1.12.1 of `google-genai` (which is now required).
 - Google: Support for `reasoning_tokens` option for Gemini 2.5 models.
 - Grok: Support for `reasoning_effort` option and capturing reasoning content.
 - OpenRouter: Forward `reasoning_effort` and `reasoning_tokens` to `reasoning` field.
@@ -20,16 +22,24 @@
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
 - Log API: Functions for reading/writing eval logs can now take a `Path`.
+- Registry: Evaluate string annotations when creating registry objects. 
 - Error handling: Added `--traceback-locals` CLI option to print values of local variables in tracebacks.
 - Error handling: Fully unwrap inner errors from exception groups for reporting.
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
+- Inspect View: Improved display and layout of transcript and events.
+- Inspect View: Improved Tool input and output display.
+- Inspect View: Improved display of sample input, target, answer, and scoring information (improve column width behavior).
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.
 - Inspect View: Collapse sample init view by default.
+- Inspect: Properly store and restore NaN values when viewing logs in VSCode.
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
 - Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
 - Bugfix: Don't require saved response message id for openai assistant messages.
+- Bugfix: Don't show empty `<think>` tag in conversation view if there is no reasoning content.
+- Bugfix: Properly handle multiple reasoning blocks and empty reasoning summaries in OpenAI responses API.
+- Bugfix: Tolerate assistant messages with no internal representation in Open AI responses API.
 
 ## v0.3.90 (21 April 2025)
 

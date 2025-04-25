@@ -117,13 +117,19 @@ export const createAppSlice = (
         });
       },
       setShowingSampleDialog: (showing: boolean) => {
+        const state = get();
+        const isShowing = state.app.dialogs.sample;
+
+        if (showing === isShowing) {
+          return;
+        }
+
         set((state) => {
           state.app.dialogs.sample = showing;
         });
         if (!showing) {
           const state = get();
           state.appActions.clearSampleTab();
-          state.sampleActions.clearSelectedSample();
         }
       },
       setWorkspaceTab: (tab: string) => {

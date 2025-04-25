@@ -204,7 +204,7 @@ const renderTools = (
             >
               {key}
             </div>
-            <div className={clsx("text-size-base")}>{toolsInfo[key]}</div>
+            {toolsInfo[key]}
           </Fragment>
         );
       })}
@@ -275,19 +275,23 @@ interface ToolsProps {
  * Renders a list of tool components based on the provided tool definitions.
  */
 export const Tools: FC<ToolsProps> = ({ toolDefinitions }) => {
-  return toolDefinitions.map((toolDefinition, idx) => {
-    const toolName = toolDefinition.name;
-    const toolArgs = toolDefinition.parameters?.properties
-      ? Object.keys(toolDefinition.parameters.properties)
-      : [];
-    return (
-      <Tool
-        key={`${toolName}-${idx}`}
-        toolName={toolName}
-        toolArgs={toolArgs}
-      />
-    );
-  });
+  return (
+    <div className={styles.toolsGrid}>
+      {toolDefinitions.map((toolDefinition, idx) => {
+        const toolName = toolDefinition.name;
+        const toolArgs = toolDefinition.parameters?.properties
+          ? Object.keys(toolDefinition.parameters.properties)
+          : [];
+        return (
+          <Tool
+            key={`${toolName}-${idx}`}
+            toolName={toolName}
+            toolArgs={toolArgs}
+          />
+        );
+      })}
+    </div>
+  );
 };
 
 interface ToolProps {
@@ -304,10 +308,8 @@ export const Tool: FC<ToolProps> = ({ toolName, toolArgs }) => {
       ? `${toolName}(${toolArgs.join(", ")})`
       : toolName;
   return (
-    <div>
-      <code className={clsx("text-size-small", styles.tool)}>
-        {functionCall}
-      </code>
-    </div>
+    <code className={clsx("text-size-smallest", styles.tool)}>
+      {functionCall}
+    </code>
   );
 };

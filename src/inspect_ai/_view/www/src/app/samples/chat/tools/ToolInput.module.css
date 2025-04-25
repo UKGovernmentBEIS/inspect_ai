@@ -1,14 +1,19 @@
 .outputPre {
   padding: 0.5em;
   margin-top: 0.25em;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
+}
+
+.toolView {
+  margin-top: 0.25em;
+}
+
+.toolView pre[class*="language-"] {
+  padding: 0.5em !important;
 }
 
 .outputCode {
+  font-size: 0.8rem !important;
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
-}
-
-.bottomPadding {
-  padding-bottom: 1em;
 }

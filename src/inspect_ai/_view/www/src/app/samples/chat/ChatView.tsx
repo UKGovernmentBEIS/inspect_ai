@@ -3,11 +3,12 @@ import { FC } from "react";
 import { Messages } from "../../../@types/log";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { resolveMessages } from "./messages";
+import { ChatViewToolCallStyle } from "./types";
 
 interface ChatViewProps {
   id?: string;
   messages: Messages;
-  toolCallStyle?: "compact" | "complete";
+  toolCallStyle?: ChatViewToolCallStyle;
   title?: string;
   indented?: boolean;
   numbered?: boolean;
@@ -39,6 +40,7 @@ export const ChatView: FC<ChatViewProps> = ({
             resolvedMessage={msg}
             indented={indented}
             toolCallStyle={toolCallStyle}
+            padded={index < collapsedMessages.length - 1}
           />
         );
       })}

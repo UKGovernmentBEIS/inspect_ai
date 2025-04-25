@@ -68,7 +68,7 @@ const ExecView: FC<ExecViewProps> = ({ id, event }) => {
             {input !== null ? input?.trim() : undefined}
           </pre>
 
-          {options !== null ? (
+          {options !== null && Object.keys(options).length > 0 ? (
             <EventSection title={`Options`}>
               <MetaDataGrid
                 entries={options as Record<string, unknown>}
@@ -84,7 +84,9 @@ const ExecView: FC<ExecViewProps> = ({ id, event }) => {
             <MarkdownDiv markdown={output} />
           </ExpandablePanel>
         ) : undefined}
-        <div className={clsx(styles.result)}>Exited with code {result}</div>
+        {result !== 0 ? (
+          <div className={clsx(styles.result)}>Exited with code {result}</div>
+        ) : undefined}
       </EventSection>
     </div>
   );

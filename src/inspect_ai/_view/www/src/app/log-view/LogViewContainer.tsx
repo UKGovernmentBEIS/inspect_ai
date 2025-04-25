@@ -1,7 +1,7 @@
 import { FC, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
-import { useFilteredSamples } from "../../state/hooks";
+import { useFilteredSamples, useTotalSampleCount } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { baseUrl } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
@@ -26,6 +26,7 @@ export const LogViewContainer: FC = () => {
   const selectSample = useStore((state) => state.logActions.selectSample);
   const setSampleTab = useStore((state) => state.appActions.setSampleTab);
   const filteredSamples = useFilteredSamples();
+  const totalSampleCount = useTotalSampleCount();
   const setStatus = useStore((state) => state.appActions.setStatus);
   const setSelectedLogIndex = useStore(
     (state) => state.logsActions.setSelectedLogIndex,
@@ -137,14 +138,17 @@ export const LogViewContainer: FC = () => {
     } else {
       // If we don't have sample params in the URL but the dialog is showing, close it
       // This handles the case when user navigates back from a sample
-      clearSample();
       setShowingSampleDialog(false);
+      if (totalSampleCount > 1) {
+        clearSample();
+      }
     }
   }, [
     sampleId,
     epoch,
     sampleTabId,
     filteredSamples,
+    totalSampleCount,
     selectSample,
     setSampleTab,
     setShowingSampleDialog,
