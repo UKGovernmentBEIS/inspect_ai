@@ -9,6 +9,7 @@ from ._file import (
     read_eval_log,
     read_eval_log_async,
     read_eval_log_sample,
+    read_eval_log_sample_summaries,
     read_eval_log_samples,
     write_eval_log,
     write_eval_log_async,
@@ -33,6 +34,7 @@ from ._log import (
     EvalStats,
 )
 from ._message import LoggingLevel, LoggingMessage
+from ._recorders import EvalSampleSummary
 from ._retry import retryable_eval_logs
 from ._transcript import (
     ApprovalEvent,
@@ -70,6 +72,7 @@ __all__ = [
     "EvalSampleLimit",
     "EvalSampleScore",
     "EvalSampleReductions",
+    "EvalSampleSummary",
     "EvalScore",
     "EvalSpec",
     "EvalStats",
@@ -100,6 +103,7 @@ __all__ = [
     "read_eval_log_async",
     "read_eval_log_sample",
     "read_eval_log_samples",
+    "read_eval_log_sample_summaries",
     "condense_sample",
     "resolve_sample_attachments",
     "write_eval_log",

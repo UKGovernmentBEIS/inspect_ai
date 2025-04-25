@@ -35,7 +35,7 @@ from .._log import (
     sort_samples,
 )
 from .file import FileRecorder
-from .types import SampleSummary
+from .types import EvalSampleSummary
 
 logger = getLogger(__name__)
 
@@ -224,6 +224,15 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
+    async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
+        with file(location, "rb") as z:
+            with ZipFile(z, mode="r") as zip:
+                summary_counter = _read_summary_counter(zip)
+                summaries = _read_all_summaries(zip, summary_counter)
+                return summaries
+
+    @classmethod
+    @override
     async def write_log(cls, location: str, log: EvalLog) -> None:
         # write using the recorder (so we get all of the extra streams)
         recorder = EvalRecorder(dirname(location))
@@ -278,14 +287,14 @@ class ZipLogFile:
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[EvalSample] = []
         self._summary_counter = 0
-        self._summaries: list[SampleSummary] = []
+        self._summaries: list[EvalSampleSummary] = []
         self._log_start: LogStart | None = None
 
     async def init(
         self,
         log_start: LogStart | None,
         summary_counter: int,
-        summaries: list[SampleSummary],
+        summaries: list[EvalSampleSummary],
     ) -> None:
         async with self._lock:
             self._open()
@@ -309,14 +318,14 @@ class ZipLogFile:
     async def write_buffered_samples(self) -> None:
         async with self._lock:
             # Write the buffered samples
-            summaries: list[SampleSummary] = []
+            summaries: list[EvalSampleSummary] = []
             for sample in self._samples:
                 # Write the sample
                 self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
 
                 # Capture the summary
                 summaries.append(
-                    SampleSummary(
+                    EvalSampleSummary(
                         id=sample.id,
                         epoch=sample.epoch,
                         input=text_inputs(sample.input),
@@ -451,12 +460,12 @@ def _read_summary_counter(zip: ZipFile) -> int:
     return current_count
 
 
-def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
+def _read_all_summaries(zip: ZipFile, count: int) -> list[EvalSampleSummary]:
     if SUMMARIES_JSON in zip.namelist():
         summaries_raw = _read_json(zip, SUMMARIES_JSON)
         if isinstance(summaries_raw, list):
             return [
-                SampleSummary.model_validate(value, context=DESERIALIZING_CONTEXT)
+                EvalSampleSummary.model_validate(value, context=DESERIALIZING_CONTEXT)
                 for value in summaries_raw
             ]
         else:
@@ -464,7 +473,7 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
                 f"Expected a list of summaries when reading {SUMMARIES_JSON}"
             )
     else:
-        summaries: list[SampleSummary] = []
+        summaries: list[EvalSampleSummary] = []
         for i in range(1, count):
             summary_file = _journal_summary_file(i)
             summary_path = _journal_summary_path(summary_file)
@@ -472,7 +481,7 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
             if isinstance(summary, list):
                 summaries.extend(
                     [
-                        SampleSummary.model_validate(
+                        EvalSampleSummary.model_validate(
                             value, context=DESERIALIZING_CONTEXT
                         )
                         for value in summary

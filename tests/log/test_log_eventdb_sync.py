@@ -9,7 +9,7 @@ from inspect_ai.log._recorders.buffer.database import (
 )
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
-from inspect_ai.log._recorders.types import SampleEvent, SampleSummary
+from inspect_ai.log._recorders.types import EvalSampleSummary, SampleEvent
 from inspect_ai.log._transcript import InfoEvent
 
 
@@ -62,7 +62,7 @@ def test_sync_one_sample(
     db, filestore = db_and_filestore
 
     # 1) Start a sample in the DB
-    sample = SampleSummary(id="s1", epoch=1, input="Hello", target="World")
+    sample = EvalSampleSummary(id="s1", epoch=1, input="Hello", target="World")
     db.start_sample(sample)
 
     # 2) Log a couple of events
@@ -107,8 +107,8 @@ def test_sync_multiple_samples(
     db, filestore = db_and_filestore
 
     # Create two samples
-    s1 = SampleSummary(id="A", epoch=1, input="inputA", target="targetA")
-    s2 = SampleSummary(id="B", epoch=1, input="inputB", target="targetB")
+    s1 = EvalSampleSummary(id="A", epoch=1, input="inputA", target="targetA")
+    s2 = EvalSampleSummary(id="B", epoch=1, input="inputB", target="targetB")
     db.start_sample(s1)
     db.start_sample(s2)
 
@@ -145,8 +145,8 @@ def test_sync_removed_sample(
     db, filestore = db_and_filestore
 
     # Create two samples
-    s1 = SampleSummary(id="keep", epoch=1, input="x", target="y")
-    s2 = SampleSummary(id="remove", epoch=1, input="xx", target="yy")
+    s1 = EvalSampleSummary(id="keep", epoch=1, input="x", target="y")
+    s2 = EvalSampleSummary(id="remove", epoch=1, input="xx", target="yy")
     db.start_sample(s1)
     db.start_sample(s2)
 
@@ -179,7 +179,7 @@ def test_sync_incremental(
     """Demonstrate incremental sync. First, create a sample and log events; sync. Then log more events and sync again, ensuring a second segment is created containing only the new events."""
     db, filestore = db_and_filestore
 
-    s1 = SampleSummary(id="inc", epoch=1, input="foo", target="bar")
+    s1 = EvalSampleSummary(id="inc", epoch=1, input="foo", target="bar")
     db.start_sample(s1)
 
     # First batch

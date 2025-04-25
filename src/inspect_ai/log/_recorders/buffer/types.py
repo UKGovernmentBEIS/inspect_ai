@@ -5,13 +5,13 @@ from pydantic import BaseModel, JsonValue
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 
-from ..types import SampleSummary
+from ..types import EvalSampleSummary
 
 JsonData: TypeAlias = dict[str, JsonValue]
 
 
 class Samples(BaseModel):
-    samples: list[SampleSummary]
+    samples: list[EvalSampleSummary]
     metrics: list[TaskDisplayMetric]
     refresh: int
     etag: str

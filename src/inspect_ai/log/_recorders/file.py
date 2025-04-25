@@ -10,6 +10,7 @@ from inspect_ai._util.registry import registry_unqualified_name
 
 from .._log import EvalLog, EvalSample, EvalSpec
 from .recorder import Recorder
+from .types import EvalSampleSummary
 
 logger = getLogger(__name__)
 
@@ -40,11 +41,7 @@ class FileRecorder(Recorder):
         cls, location: str, id: str | int, epoch: int = 1
     ) -> EvalSample:
         # establish the log to read from (might be cached)
-        if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == "location"):
-            eval_log = cls.__last_read_sample_log[1]
-        else:
-            eval_log = await cls.read_log(location)
-            cls.__last_read_sample_log = (location, eval_log)
+        eval_log = await cls._log_file_maybe_cached(location)
 
         # throw if no samples
         if not eval_log.samples:
@@ -65,6 +62,45 @@ class FileRecorder(Recorder):
             )
         else:
             return eval_sample
+
+    @classmethod
+    @override
+    async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
+        # establish the log to read from (might be cached)
+        eval_log = await cls._log_file_maybe_cached(location)
+
+        # throw if no samples
+        if not eval_log.samples:
+            raise IndexError(f"No samples found in log {location}")
+
+        summaries: list[EvalSampleSummary] = []
+        for sample in eval_log.samples:
+            summaries.append(
+                EvalSampleSummary(
+                    id=sample.id,
+                    epoch=sample.epoch,
+                    input=sample.input,
+                    target=sample.target,
+                    scores=sample.scores,
+                    error=sample.error.message if sample.error else None,
+                    limit=sample.limit.type if sample.limit else None,
+                    retries=len(sample.error_retries)
+                    if sample.error_retries is not None
+                    else None,
+                )
+            )
+
+        return summaries
+
+    @classmethod
+    async def _log_file_maybe_cached(cls, location: str) -> EvalLog:
+        # establish the log to read from (might be cached)
+        if cls.__last_read_sample_log and (cls.__last_read_sample_log[0] == "location"):
+            eval_log = cls.__last_read_sample_log[1]
+        else:
+            eval_log = await cls.read_log(location)
+            cls.__last_read_sample_log = (location, eval_log)
+        return eval_log
 
     def _log_file_key(self, eval: EvalSpec) -> str:
         # clean underscores, slashes, and : from the log file key (so we can reliably parse it

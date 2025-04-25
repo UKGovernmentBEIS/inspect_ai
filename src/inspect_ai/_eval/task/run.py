@@ -52,7 +52,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import eval_log_json_str
 from inspect_ai.log._log import EvalSampleLimit, EvalSampleReductions, eval_error
-from inspect_ai.log._recorders.types import SampleSummary
+from inspect_ai.log._recorders.types import EvalSampleSummary
 from inspect_ai.log._samples import (
     active_sample,
 )
@@ -655,7 +655,7 @@ async def task_run_sample(
 
                         if logger is not None:
                             await logger.start_sample(
-                                SampleSummary(
+                                EvalSampleSummary(
                                     id=sample_id,
                                     epoch=state.epoch,
                                     input=sample.input,

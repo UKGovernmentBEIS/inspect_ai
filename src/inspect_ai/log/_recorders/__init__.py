@@ -5,8 +5,10 @@ from .create import (
     recorder_type_for_location,
 )
 from .recorder import Recorder
+from .types import EvalSampleSummary
 
 __all__ = [
+    "EvalSampleSummary",
     "Recorder",
     "create_recorder_for_format",
     "create_recorder_for_location",

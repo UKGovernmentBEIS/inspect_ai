@@ -16,6 +16,7 @@ from inspect_ai._util.file import (
 )
 from inspect_ai._util.json import jsonable_python
 from inspect_ai.log._condense import resolve_sample_attachments
+from inspect_ai.log._recorders.types import EvalSampleSummary
 
 from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location
@@ -391,6 +392,61 @@ async def read_eval_log_sample_async(
         sample = resolve_sample_attachments(sample)
 
     return sample
+
+
+def read_eval_log_sample_summaries(
+    log_file: str | Path | EvalLogInfo,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> list[EvalSampleSummary]:
+    """Read sample summaries from an eval log.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+
+    Returns:
+       Sample summaries for eval log.
+    """
+    # don't mix trio and asyncio
+    if current_async_backend() == "trio":
+        raise RuntimeError(
+            "read_eval_log_sample_summaries cannot be called from a trio async context (please use read_eval_log_sample_summaries_asymc instead)"
+        )
+
+    # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
+    # flow, so force the use of asyncio
+    return run_coroutine(read_eval_log_sample_summaries_async(log_file, format))
+
+
+async def read_eval_log_sample_summaries_async(
+    log_file: str | Path | EvalLogInfo,
+    format: Literal["eval", "json", "auto"] = "auto",
+) -> list[EvalSampleSummary]:
+    """Read sample summaries from an eval log.
+
+    Args:
+       log_file (str | FileInfo): Log file to read.
+       format (Literal["eval", "json", "auto"]): Read from format
+          (defaults to 'auto' based on `log_file` extension)
+
+    Returns:
+       Sample summaries for eval log.
+    """
+    # resolve to file path
+    log_file = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+
+    if format == "auto":
+        recorder_type = recorder_type_for_location(log_file)
+    else:
+        recorder_type = recorder_type_for_format(format)
+    return await recorder_type.read_log_sample_summaries(log_file)
 
 
 def read_eval_log_samples(
