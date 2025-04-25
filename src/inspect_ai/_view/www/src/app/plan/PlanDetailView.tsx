@@ -258,7 +258,7 @@ export const PlanDetailView: FC<PlanDetailViewProps> = ({
       <div
         className={styles.grid}
         style={{
-          gridTemplateColumns: `repeat(${taskColumns.length}, auto)`,
+          gridTemplateColumns: `repeat(${taskColumns.length}, fit-content(50%))`,
         }}
       >
         {taskColumns.map((col) => {
