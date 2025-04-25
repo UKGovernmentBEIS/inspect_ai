@@ -3,8 +3,6 @@ import json
 import os
 from typing import Any, Literal
 
-from httpcore import ReadTimeout
-from httpx import ReadTimeout as AsyncReadTimeout
 from mistralai import (
     ContentChunk,
     DocumentURLChunk,
@@ -51,6 +49,7 @@ from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
+from ..._util.httpx import httpx_should_retry
 from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
@@ -235,7 +234,7 @@ class MistralAPI(ModelAPI):
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, SDKError):
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, ReadTimeout | AsyncReadTimeout):
+        elif httpx_should_retry(ex):
             return True
         else:
             return False

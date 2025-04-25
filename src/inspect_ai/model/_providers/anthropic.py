@@ -5,8 +5,6 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, cast
 
-import httpcore
-import httpx
 from anthropic import (
     APIConnectionError,
     APIStatusError,
@@ -54,6 +52,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
+from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
@@ -330,13 +329,9 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(
-            ex,
-            APIConnectionError
-            | APITimeoutError
-            | httpx.RemoteProtocolError
-            | httpcore.RemoteProtocolError,
-        ):
+        elif httpx_should_retry(ex):
+            return True
+        elif isinstance(ex, APIConnectionError | APITimeoutError):
             return True
         else:
             return False
