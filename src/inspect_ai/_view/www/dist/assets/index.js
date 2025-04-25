@@ -23752,6 +23752,45 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
+    const isJson = (text2) => {
+      text2 = text2.trim();
+      if (text2.startsWith("{") && text2.endsWith("}")) {
+        try {
+          JSON.parse(text2);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    };
+    const parsedJson = (text2) => {
+      text2 = text2.trim();
+      if (text2.startsWith("{") && text2.endsWith("}")) {
+        try {
+          return JSON.parse(text2);
+        } catch {
+          return void 0;
+        }
+      }
+      return void 0;
+    };
+    function estimateSize(list2, frequency = 0.2) {
+      if (!list2 || list2.length === 0) {
+        return 0;
+      }
+      const sampleSize = Math.ceil(list2.length * frequency);
+      const messageIndices = /* @__PURE__ */ new Set();
+      while (messageIndices.size < sampleSize && messageIndices.size < list2.length) {
+        const randomIndex = Math.floor(Math.random() * list2.length);
+        messageIndices.add(randomIndex);
+      }
+      const totalSize = Array.from(messageIndices).reduce((size, index2) => {
+        return size + JSON.stringify(list2[index2]).length;
+      }, 0);
+      const estimatedTotalSize = totalSize / sampleSize * list2.length;
+      return estimatedTotalSize;
+    }
     function filterState(state) {
       if (!state) {
         return state;
@@ -23797,22 +23836,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       } else {
         return state;
       }
-    }
-    function estimateSize(list2, frequency = 0.2) {
-      if (!list2 || list2.length === 0) {
-        return 0;
-      }
-      const sampleSize = Math.ceil(list2.length * frequency);
-      const messageIndices = /* @__PURE__ */ new Set();
-      while (messageIndices.size < sampleSize && messageIndices.size < list2.length) {
-        const randomIndex = Math.floor(Math.random() * list2.length);
-        messageIndices.add(randomIndex);
-      }
-      const totalSize = Array.from(messageIndices).reduce((size, index2) => {
-        return size + JSON.stringify(list2[index2]).length;
-      }, 0);
-      const estimatedTotalSize = totalSize / sampleSize * list2.length;
-      return estimatedTotalSize;
     }
     const log$2 = createLogger("store");
     let storeImplementation = null;
@@ -38810,29 +38833,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return resolvedValue;
       }
       return value2;
-    };
-    const isJson = (text2) => {
-      text2 = text2.trim();
-      if (text2.startsWith("{") && text2.endsWith("}")) {
-        try {
-          JSON.parse(text2);
-          return true;
-        } catch {
-          return false;
-        }
-      }
-      return false;
-    };
-    const parsedJson = (text2) => {
-      text2 = text2.trim();
-      if (text2.startsWith("{") && text2.endsWith("}")) {
-        try {
-          return JSON.parse(text2);
-        } catch {
-          return void 0;
-        }
-      }
-      return void 0;
     };
     const query = "_query_9u9bt_1";
     const summary$3 = "_summary_9u9bt_6";
@@ -60614,7 +60614,7 @@ ${events}
                   title: "JSON",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleJsonTabId,
-                  children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : sample2.messages.length > 100 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large too display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : estimateSize(sample2.events) > 25e4 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large too display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     JSONPanel,
                     {
                       data: sample2,
