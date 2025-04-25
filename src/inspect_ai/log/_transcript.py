@@ -44,7 +44,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._span import current_span_id, span
+from inspect_ai.util._span import current_span_id
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 logger = getLogger(__name__)
@@ -566,10 +566,10 @@ class Transcript:
         warn_once(
             logger,
             "The `transcript().step()` context manager is deprecated and will "
-            + "be removed in a future version. Please use the span() context manager instead.",
+            + "be removed in a future version. Please replace the call to step() "
+            + "with a call to span().",
         )
-        with span(name=name, type=type):
-            yield
+        yield
 
     @property
     def events(self) -> Sequence[Event]:

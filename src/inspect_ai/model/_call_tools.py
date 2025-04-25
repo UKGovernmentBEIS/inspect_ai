@@ -387,14 +387,14 @@ async def call_tool(
         logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
     ):
         if isinstance(tool_def.tool, AgentTool):
-            with span(tool_def.tool.name, type="handoff"):
-                with span(name=call.function, type="tool"):
+            async with span(tool_def.tool.name, type="handoff"):
+                async with span(name=call.function, type="tool"):
                     transcript()._event(event)
                     return await agent_handoff(tool_def, call, conversation)
 
         # normal tool call
         else:
-            with span(name=call.function, type="tool"):
+            async with span(name=call.function, type="tool"):
                 transcript()._event(event)
                 result: ToolResult = await tool_def.tool(**arguments)
                 return result, [], None, None
@@ -462,7 +462,7 @@ async def agent_handoff(
     agent_state = AgentState(messages=copy(agent_conversation))
     try:
         with apply_limits(agent_tool.limits):
-            with span(name=agent_name, type="agent"):
+            async with span(name=agent_name, type="agent"):
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex

@@ -620,7 +620,7 @@ async def task_run_sample(
         try:
             # begin init
             init_span = span("init", type="init")
-            init_span.__enter__()
+            await init_span.__aenter__()
 
             # sample init event (remove file bodies as they have content or absolute paths)
             event_sample = sample.model_copy(
@@ -642,7 +642,7 @@ async def task_run_sample(
                     active.sandboxes = await sandbox_connections()
 
                     # end init
-                    init_span.__exit__(None, None, None)
+                    await init_span.__aexit__(None, None, None)
 
                     # initialise timeout context manager
                     timeout_cm = (
@@ -745,7 +745,7 @@ async def task_run_sample(
                                 scorer_name = unique_scorer_name(
                                     scorer, list(results.keys())
                                 )
-                                with span(name=scorer_name, type="scorer"):
+                                async with span(name=scorer_name, type="scorer"):
                                     score_result = (
                                         await scorer(state, Target(sample.target))
                                         if scorer

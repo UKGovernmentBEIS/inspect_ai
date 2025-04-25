@@ -56,5 +56,5 @@ async def run(
     with apply_limits(limits):
         # run the agent
         agent_name = registry_unqualified_name(agent)
-        with span(name=agent_name, type="agent"):
+        async with span(name=agent_name, type="agent"):
             return await agent(state, **agent_kwargs)

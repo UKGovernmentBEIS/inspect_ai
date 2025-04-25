@@ -15,7 +15,7 @@ def test_sample_transcript():
     @solver
     def transcript_solver():
         async def solve(state: TaskState, generate: Generate):
-            with span("info"):
+            async with span("info"):
                 state.metadata["foo"] = "bar"
                 transcript().info(str(state.sample_id))
             return state

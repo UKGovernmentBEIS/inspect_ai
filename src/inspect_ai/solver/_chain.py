@@ -82,7 +82,7 @@ class Chain(Sequence[Solver], Solver):
         from ._transcript import solver_transcript
 
         for slv in self._solvers:
-            with solver_transcript(slv, state) as st:
+            async with solver_transcript(slv, state) as st:
                 state = await slv(state, generate)
                 st.complete(state)
             if state.completed:

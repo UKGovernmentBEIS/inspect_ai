@@ -123,7 +123,7 @@ def subtask(
 
                 # run the subtask
                 with trace_action(logger, "Subtask", subtask_name):
-                    with span(name=subtask_name, type="subtask"):
+                    async with span(name=subtask_name, type="subtask"):
                         # create subtask event
                         waiting_time_start = sample_waiting_time()
                         event = SubtaskEvent(

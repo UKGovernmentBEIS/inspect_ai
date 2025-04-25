@@ -59,7 +59,7 @@ def as_tool(
 
         # run the agent with limits
         with apply_limits(limits):
-            with span(name=tool_info.name, type="agent"):
+            async with span(name=tool_info.name, type="agent"):
                 state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # find assistant message to read content from (prefer output)

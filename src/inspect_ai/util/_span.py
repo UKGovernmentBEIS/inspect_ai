@@ -1,13 +1,13 @@
 import contextlib
 from contextvars import ContextVar
-from typing import Iterator
+from typing import AsyncIterator, Iterator
 from uuid import uuid4
 
 from inspect_ai.util._anyio import safe_current_task_id
 
 
-@contextlib.contextmanager
-def span(name: str, *, type: str | None = None) -> Iterator[None]:
+@contextlib.asynccontextmanager
+async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
     """Context manager for establishing a transcript span.
 
     Args:
