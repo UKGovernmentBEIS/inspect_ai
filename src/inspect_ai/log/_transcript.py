@@ -44,7 +44,6 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
-from inspect_ai.util._anyio import safe_current_task_id
 from inspect_ai.util._span import current_span_id, span
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
@@ -61,9 +60,6 @@ class BaseEvent(BaseModel):
 
     span_id: str | None = Field(default=None)
     """Span the event occurred within."""
-
-    task_id: int | None = Field(default=None)
-    """Async task the event occurred within."""
 
     timestamp: datetime = Field(default_factory=datetime.now)
     """Clock time at which event occurred."""
@@ -84,8 +80,6 @@ class BaseEvent(BaseModel):
         if not is_deserializing:
             if self.span_id is None:
                 self.span_id = current_span_id()
-            if self.task_id is None:
-                self.task_id = safe_current_task_id()
 
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:

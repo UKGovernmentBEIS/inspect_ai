@@ -108,39 +108,3 @@ def event_sequence(tree: EventTree) -> Iterable[Event]:
                 yield item.end
         else:
             yield item
-
-
-def _reorder_children_by_task(root_items: Iterable[EventNode]) -> None:
-    """Ensure that span children appear in task order.
-
-    Walk an already-built span forest *recursively* and, for every SpanNode,
-    rewrite its .children list so that elements are grouped by task_id.
-
-    Runs in O(n) time over the whole forest and mutates in place.
-    """
-
-    def tid(item: EventNode) -> int | None:
-        if isinstance(item, SpanNode):
-            return item.begin.task_id
-        return item.task_id
-
-    for elem in root_items:
-        if not isinstance(elem, SpanNode):
-            continue
-
-        # recurse first so nesting works inside-out
-        _reorder_children_by_task(elem.children)
-
-        bins: dict[int | None, list[EventNode]] = {}
-        first_seen: dict[int | None, int] = {}
-
-        for idx, child in enumerate(elem.children):
-            t = tid(child)
-            if t not in bins:
-                bins[t] = []
-                first_seen[t] = idx
-            bins[t].append(child)
-
-        # deterministic order of task blocks
-        sorted_tids = sorted(bins, key=first_seen.__getitem__)
-        elem.children = [it for t in sorted_tids for it in bins[t]]

@@ -15,18 +15,6 @@
           "default": null,
           "title": "Span Id"
         },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
-        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -113,7 +101,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -853,18 +840,6 @@
           "default": null,
           "title": "Span Id"
         },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
-        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -898,7 +873,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -2972,18 +2946,6 @@
           "default": null,
           "title": "Span Id"
         },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
-        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -3029,7 +2991,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -3055,18 +3016,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -3106,7 +3055,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -3338,18 +3286,6 @@
           "default": null,
           "title": "Span Id"
         },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
-        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -3383,7 +3319,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -3584,18 +3519,6 @@
           "default": null,
           "title": "Span Id"
         },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
-        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -3688,6 +3611,18 @@
         "output": {
           "$ref": "#/$defs/ModelOutput"
         },
+        "retries": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retries"
+        },
         "error": {
           "anyOf": [
             {
@@ -3755,7 +3690,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -3767,6 +3701,7 @@
         "tool_choice",
         "config",
         "output",
+        "retries",
         "error",
         "cache",
         "call",
@@ -4120,18 +4055,6 @@
           "default": null,
           "title": "Span Id"
         },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
-        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4168,7 +4091,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4194,18 +4116,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -4265,7 +4175,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4312,18 +4221,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -4452,7 +4349,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4594,18 +4490,6 @@
           "default": null,
           "title": "Span Id"
         },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
-        },
         "timestamp": {
           "format": "date-time",
           "title": "Timestamp",
@@ -4662,7 +4546,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4689,10 +4572,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "title": "Task Id",
-          "type": "integer"
         },
         "timestamp": {
           "format": "date-time",
@@ -4737,6 +4616,18 @@
           "default": null,
           "title": "Parent Id"
         },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
         "type": {
           "anyOf": [
             {
@@ -4756,13 +4647,13 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
         "event",
         "id",
         "parent_id",
+        "task_id",
         "type",
         "name"
       ],
@@ -4784,18 +4675,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -4831,7 +4710,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4856,18 +4734,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -4906,7 +4772,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -4931,18 +4796,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -4998,7 +4851,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -5025,18 +4877,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -5075,7 +4915,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -5100,18 +4939,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -5252,7 +5079,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
@@ -5460,18 +5286,6 @@
           ],
           "default": null,
           "title": "Span Id"
-        },
-        "task_id": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Task Id"
         },
         "timestamp": {
           "format": "date-time",
@@ -5741,7 +5555,6 @@
       },
       "required": [
         "span_id",
-        "task_id",
         "timestamp",
         "working_start",
         "pending",
