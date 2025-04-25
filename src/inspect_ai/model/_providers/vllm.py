@@ -4,19 +4,20 @@ import os
 from subprocess import Popen
 from typing import Any
 
+from openai import APIStatusError
 from typing_extensions import override
 
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._model_call import ModelCall
-from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.model._providers.util.local_server_utils import (
+from inspect_ai._util.local_server import (
     configure_devices,
     merge_env_server_args,
     start_local_server,
     terminate_process,
 )
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
@@ -34,22 +35,23 @@ logger = logging.getLogger(__name__)
 
 class VLLMAPI(OpenAICompatibleAPI):
     """
-    Provider for using VLLM models.
+    Provider for using vLLM models.
 
     This provider can either:
-    1. Connect to an existing VLLM server (if base_url or port is provided)
-    2. Start a new VLLM server for the specified model
+    1. Connect to an existing vLLM server (if base_url or port is provided)
+    2. Start a new vLLM server for the specified model
 
     Additional server_args:
+        timeout (int): Timeout for the server (default: 10 minutes)
         host (str): Host to bind the server to (default: "0.0.0.0")
-        configure_logging (bool): Enable fine-grained VLLM logging (default: False)
+        configure_logging (bool): Enable fine-grained vLLM logging (default: False)
         device (str): Devices to run the server on. Can be a single device or a list of devices as used in CUDA_VISIBLE_DEVICES. If tensor_parallel_size is not provided, the server will use the number of devices as the tensor parallel size.
 
     Environment variables:
         VLLM_BASE_URL: Base URL for an existing vLLM server
         VLLM_API_KEY: API key for the vLLM server
         VLLM_DEFAULT_SERVER_ARGS: JSON string of default server args, e.g. '{"tensor_parallel_size": 4, "max_model_len": 8192}'
-        VLLM_CONFIGURE_LOGGING: Enable fine-grained VLLM logging
+        VLLM_CONFIGURE_LOGGING: Enable fine-grained vLLM logging
     """
 
     def __init__(
@@ -84,7 +86,7 @@ class VLLMAPI(OpenAICompatibleAPI):
                 service="vLLM",
                 service_base_url=base_url,
             )
-            logger.info(f"Using existing VLLM server at {self.base_url}")
+            logger.info(f"Using existing vLLM server at {self.base_url}")
         except PrerequisiteError:
             # No existing server found, start a new one
             logger.warning(
@@ -96,12 +98,8 @@ class VLLMAPI(OpenAICompatibleAPI):
             os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
 
             # Start the server
-            host = self.server_args.pop("host", "0.0.0.0")
-            base_url, api_key = self._start_server(
-                model_name, host, port=None, api_key=api_key
-            )
-            atexit.register(self._cleanup_server)
-            logger.warning(f"VLLM server started at {base_url}")
+            base_url, api_key = self._start_server(model_name, api_key=api_key)
+            logger.warning(f"vLLM server started at {base_url}")
 
             # Initialize with new server
             super().__init__(
@@ -116,19 +114,15 @@ class VLLMAPI(OpenAICompatibleAPI):
     def _start_server(
         self,
         model_path: str,
-        host: str,
-        port: int | None = None,
         api_key: str | None = None,
-    ) -> str:
-        """Start a new VLLM server and return the base URL.
+    ) -> tuple[str, str]:
+        """Start a new vLLM server and return the base URL and API key.
 
         Args:
             model_path: Path to the model to use
-            host: Host to bind the server to
-            port: Port to bind the server to
             api_key: API key for the server
         Returns:
-            str: The base URL for the server
+            tuple[str, str]: The base URL for the server and the API key
         """
         # Verify vllm package is installed since we're starting a server
         try:
@@ -144,18 +138,24 @@ class VLLMAPI(OpenAICompatibleAPI):
         if not api_key:
             api_key = "inspectai"  # Create a default API key if not provided
 
+        timeout = self.server_args.pop("timeout", None)
+        host = self.server_args.pop("host", "0.0.0.0")
+
         # Build command as a list
         cmd = ["vllm", "serve", model_path, "--host", host, "--api-key", api_key]
 
-        # Add additional arguments
-        for key, value in self.server_args.items():
-            # Convert Python style args (underscore) to CLI style (dash)
-            cli_key = key.replace("_", "-")
-            cmd.extend([f"--{cli_key}", str(value)])
-
         base_url, self.server_process, self.port = start_local_server(
-            cmd, host=host, port=port, api_key=api_key, server_type="vLLM"
+            cmd,
+            host=host,
+            port=None,  # find a free port
+            api_key=api_key,
+            server_type="vLLM",
+            timeout=timeout,
+            server_args=self.server_args,
         )
+
+        # Register cleanup function to run when Python exits
+        atexit.register(self._cleanup_server)
 
         return base_url, api_key
 
@@ -179,21 +179,18 @@ class VLLMAPI(OpenAICompatibleAPI):
     def _cleanup_server(self) -> None:
         """Cleanup method to terminate server process when Python exits."""
         if self.server_is_running and self.server_process is not None:
-            logger.info("Cleaning up VLLM server")
+            logger.info("Cleaning up vLLM server")
             terminate_process(self.server_process)
             self.server_process, self.port = None, None
 
     async def aclose(self) -> None:
         """Close the client and terminate the server if we started it."""
-        logger.info("Closing VLLM server")
+        logger.info("Closing vLLM server")
 
         # Close the OpenAI client
         await super().aclose()
 
-        self._cleanup_server()
-
-        # Deregister the atexit handler since we've manually cleaned up
-        atexit.unregister(self._cleanup_server)
+        self.close()
 
     def close(self) -> None:
         """
@@ -233,68 +230,59 @@ class VLLMAPI(OpenAICompatibleAPI):
 
         return await super().generate(input, tools, tool_choice, config)
 
-    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        params: dict[str, Any] = dict(
-            model=self.model_name,
-        )
-        if config.max_tokens is not None:
-            params["max_tokens"] = config.max_tokens
-        if config.frequency_penalty is not None:
-            params["frequency_penalty"] = config.frequency_penalty
-        if config.stop_seqs is not None:
-            params["stop"] = config.stop_seqs
-        if config.presence_penalty is not None:
-            params["presence_penalty"] = config.presence_penalty
-        if config.logit_bias is not None:
-            params["logit_bias"] = config.logit_bias
-        if config.seed is not None:
-            params["seed"] = config.seed
-        if config.temperature is not None:
-            params["temperature"] = config.temperature
-        if config.top_p is not None:
-            params["top_p"] = config.top_p
-        if config.num_choices is not None:
-            params["n"] = config.num_choices
-        if config.logprobs is not None:
-            params["logprobs"] = config.logprobs
-        if config.top_logprobs is not None:
-            params["top_logprobs"] = config.top_logprobs
+    @override
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
+        if ex.code == 400:
+            content = ex.body["message"]
+            if "maximum context length" in content:
+                return ModelOutput.from_content(
+                    self.model_name, content=content, stop_reason="model_length"
+                )
+        return ex
 
-        # if config.response_schema is not None and config.guided_decoding is not None:
-        #     raise ValueError(
-        #         "response_schema and guided_decoding cannot both be set. Please set only one of them."
-        #     )
+    # def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+    #     params: dict[str, Any] = dict(
+    #         model=self.model_name,
+    #     )
+    #     if config.max_tokens is not None:
+    #         params["max_tokens"] = config.max_tokens
+    #     if config.frequency_penalty is not None:
+    #         params["frequency_penalty"] = config.frequency_penalty
+    #     if config.stop_seqs is not None:
+    #         params["stop"] = config.stop_seqs
+    #     if config.presence_penalty is not None:
+    #         params["presence_penalty"] = config.presence_penalty
+    #     if config.logit_bias is not None:
+    #         params["logit_bias"] = config.logit_bias
+    #     if config.seed is not None:
+    #         params["seed"] = config.seed
+    #     if config.temperature is not None:
+    #         params["temperature"] = config.temperature
+    #     if config.top_p is not None:
+    #         params["top_p"] = config.top_p
+    #     if config.num_choices is not None:
+    #         params["n"] = config.num_choices
+    #     if config.logprobs is not None:
+    #         params["logprobs"] = config.logprobs
+    #     if config.top_logprobs is not None:
+    #         params["top_logprobs"] = config.top_logprobs
 
-        if config.response_schema is not None:
-            params["response_format"] = dict(
-                type="json_schema",
-                json_schema=dict(
-                    name=config.response_schema.name,
-                    schema=config.response_schema.json_schema.model_dump(
-                        exclude_none=True,
-                        by_alias=True,
-                    ),
-                    description=config.response_schema.description,
-                    strict=config.response_schema.strict,
-                ),
-            )
+    #     if config.response_schema is not None:
+    #         params["response_format"] = dict(
+    #             type="json_schema",
+    #             json_schema=dict(
+    #                 name=config.response_schema.name,
+    #                 schema=config.response_schema.json_schema.model_dump(
+    #                     exclude_none=True,
+    #                     by_alias=True,
+    #                 ),
+    #                 description=config.response_schema.description,
+    #                 strict=config.response_schema.strict,
+    #             ),
+    #         )
 
-        # Handle extra_body
-        extra_body = {}
-        if config.extra_body:
-            extra_body.update(config.extra_body)
+    #     # Handle extra_body
+    #     if config.extra_body:
+    #         params["extra_body"] = config.extra_body
 
-        # Add guided decoding configuration to extra_body if present
-        # if config.guided_decoding:
-        #     guided_config = config.guided_decoding.model_dump(
-        #         exclude_none=True,
-        #         by_alias=True,
-        #     )
-        #     if guided_config:
-        #         extra_body.update(guided_config)
-
-        # Add extra_body to params if it has content
-        if extra_body:
-            params["extra_body"] = extra_body
-
-        return params
+    #     return params

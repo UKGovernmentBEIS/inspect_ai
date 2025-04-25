@@ -12,8 +12,11 @@ import requests
 # Set up logger for this module
 logger = logging.getLogger(__name__)
 
-# Global dictionary to keep track of process and port mappings
+# Global dictionary to keep track of process -> reserved port mappings
 process_socket_map = {}
+
+
+DEFAULT_TIMEOUT = 60 * 10  # fairly conservative default timeout of 10 minutes
 
 
 def reserve_port(
@@ -200,7 +203,8 @@ def wait_for_server(
             exit_code = process.poll()
             error_msg = f"Server process exited unexpectedly with code {exit_code}. Try rerunning with '--log-level debug' to see the full traceback."
             if full_command:
-                error_msg += f" Alternatively, you can run the following command manually to see the full traceback:\n\n{' '.join(full_command)}\n\n"
+                error_msg += f" Alternatively, you can run the following launch command manually to see the full traceback:\n\n{' '.join(full_command)}\n\n"
+
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
@@ -214,35 +218,36 @@ def wait_for_server(
                 break
 
             if timeout and time.time() - start_time > timeout:
-                error_msg = "Server did not become ready within timeout period"
+                error_msg = f"Server did not become ready within timeout period ({timeout} seconds). Try increasing the timeout with '-M timeout=...' or rerunning with '--log-level debug' to see the full traceback."
+                if full_command:
+                    error_msg += f" Alternatively, you can run the following launch command manually to see the full traceback:\n\n{' '.join(full_command)}\n\n"
+
                 logger.error(error_msg)
                 raise TimeoutError(error_msg)
         except requests.exceptions.RequestException:
             time.sleep(1)
 
 
-DEFAULT_TIMEOUT = 60 * 10  # 10 minutes
-
-
 def start_local_server(
-    cmd: list[str],
+    base_cmd: list[str],
     host: str,
     port: Optional[int] = None,
     api_key: Optional[str] = None,
     server_type: str = "server",
     timeout: Optional[int] = DEFAULT_TIMEOUT,
+    server_args: Optional[dict[str, Any]] = None,
 ) -> Tuple[str, subprocess.Popen[str], int]:
     """
     Start a server with the given command and handle potential errors.
 
     Args:
-        cmd: List of command arguments
+        base_cmd: List of base command arguments
         host: Host to bind to
         port: Port to bind to. If None, a free port is reserved.
         api_key: API key to use for server authentication
         server_type: Type of server being started (for error messages)
         timeout: Maximum time to wait for server to become ready
-
+        server_args: Additional server arguments to pass to the command
     Returns:
         Tuple of (base_url, process, port)
 
@@ -250,9 +255,16 @@ def start_local_server(
         RuntimeError: If server fails to start
     """
     server_process = None
+    full_command = base_cmd
+    if server_args:
+        for key, value in server_args.items():
+            # Convert Python style args (underscore) to CLI style (dash)
+            cli_key = key.replace("_", "-")
+            full_command.extend([f"--{cli_key}", str(value)])
+
     try:
         server_process, port, full_command = launch_server_cmd(
-            cmd, host=host, port=port
+            full_command, host=host, port=port
         )
         base_url = f"http://localhost:{port}/v1"
         wait_for_server(

@@ -1,21 +1,26 @@
 import atexit
-import os
 from logging import getLogger
 from subprocess import Popen
 from typing import Any
 
+from openai import APIStatusError
 from typing_extensions import override
 
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
-from inspect_ai.model._generate_config import GenerateConfig
-from inspect_ai.model._providers.util.local_server_utils import (
-    merge_env_server_args,
+from inspect_ai._util.local_server import (
     configure_devices,
+    merge_env_server_args,
     start_local_server,
     terminate_process,
 )
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_info import ToolInfo
 
-from .openai import OpenAIAPI
+from .openai_compatible import OpenAICompatibleAPI
 
 # Environment variable names
 # SGLANG_BASE_URL = "SGLANG_BASE_URL"
@@ -25,7 +30,7 @@ SGLANG_DEFAULT_SERVER_ARGS = "SGLANG_DEFAULT_SERVER_ARGS"
 logger = getLogger(__name__)
 
 
-class SGLangAPI(OpenAIAPI):
+class SGLangAPI(OpenAICompatibleAPI):
     """
     Provider for using SGLang models.
 
@@ -34,6 +39,7 @@ class SGLangAPI(OpenAIAPI):
     2. Start a new SGLang server for the specified model
 
     Additional server_args:
+        timeout (int): Timeout for the server (default: 10 minutes)
         host (str): Host to bind the server to (default: "0.0.0.0")
         device (str): Devices to run the server on. Can be a single device or a list of devices as used in CUDA_VISIBLE_DEVICES. If tp is not provided, the server will use the number of devices as the tensor parallel size.
 
@@ -83,9 +89,7 @@ class SGLangAPI(OpenAIAPI):
             )
 
             # Start the server
-            host = self.server_args.pop("host", "0.0.0.0")
-            base_url = self._start_server(model_name, host, port=None)
-            atexit.register(self._cleanup_server)
+            base_url, api_key = self._start_server(model_name, api_key=api_key)
             logger.warning(f"SGLang server started at {base_url}")
 
             # Initialize with new server
@@ -97,56 +101,19 @@ class SGLangAPI(OpenAIAPI):
                 service="SGLang",
                 service_base_url=base_url,
             )
-        # # Load and merge server args from environment
-        # self.server_args = merge_env_server_args(
-        #     SGLANG_DEFAULT_SERVER_ARGS, server_args, logger
-        # )
 
-        # # Get base_url from environment or argument
-        # if not base_url and port:  # if port is provided assume there is a local server
-        #     base_url = f"http://localhost:{port}/v1"
-        # else:
-        #     base_url = model_base_url(base_url, SGLANG_BASE_URL)
-
-        # self.server_process: Popen[str] | None = None
-        # self.port: int | None = port
-
-        # # Default API key if not provided
-        # if api_key is not None:
-        #     self.api_key: str = api_key
-        # else:
-        #     self.api_key = str(os.environ.get(SGLANG_API_KEY, "local"))
-
-        # # If no base_url is provided, start a new server
-        # if not base_url:
-        #     logger.warning(
-        #         f"Existing SGLang server not found. Starting new server for {model_name}."
-        #     )
-        #     host = self.server_args.pop("host", "0.0.0.0")
-        #     base_url = self._start_server(model_name, host, port=None)
-        #     atexit.register(self._cleanup_server)
-
-        #     logger.warning(f"SGLang server started at {base_url}")
-        # else:
-        #     logger.info(f"Using existing SGLang server at {base_url}")
-
-        # # Initialize OpenAI API with our SGLang server
-        # super().__init__(
-        #     model_name=model_name,
-        #     base_url=base_url,
-        #     api_key=api_key,
-        #     config=config,
-        # )
-
-    def _start_server(self, model_path: str, host: str, port: int | None = None) -> str:
-        """Start a new SGLang server and return the base URL.
+    def _start_server(
+        self,
+        model_path: str,
+        api_key: str | None = None,
+    ) -> tuple[str, str]:
+        """Start a new SGLang server and return the base URL and API key.
 
         Args:
             model_path: Path to the model to use
-            host: Host to bind the server to
-            port: Port to bind the server to
+            api_key: API key for the server
         Returns:
-            str: The base URL for the server
+            tuple[str, str]: The base URL for the server and the API key
         """
         # Verify sglang package is installed since we're starting a server
         try:
@@ -154,32 +121,40 @@ class SGLangAPI(OpenAIAPI):
         except ImportError:
             raise pip_dependency_error("SGLang Server", ["sglang"])
 
+        if not api_key:
+            api_key = "inspectai"  # Create a default API key if not provided
+
         # Handle device configuration
         self.server_args = configure_devices(self.server_args, parallel_size_param="tp")
 
-        if not self.api_key:
-            self.api_key = "inspectai"  # Create a default API key if not provided
+        timeout = self.server_args.pop("timeout", None)
+        host = self.server_args.pop("host", "0.0.0.0")
 
         # Create server command as a list instead of a string
         cmd = [
             "python", "-m", "sglang.launch_server",
             "--model-path", model_path,
             "--host", host,
-            "--api-key", self.api_key,
+            "--api-key", api_key,
             # while the default backend is supposed to be xgrammar, for some reason leaving this
             # unspecified causes the server to fail when using ebnf grammars
             "--grammar-backend", self.server_args.pop("grammar_backend", "xgrammar"),
         ]  # fmt: skip
 
-        # Add additional arguments
-        for key, value in self.server_args.items():
-            cmd.extend([f"--{key}", str(value)])
-
         base_url, self.server_process, self.port = start_local_server(
-            cmd, host=host, port=port, api_key=self.api_key, server_type="SGLang"
+            cmd,
+            host=host,
+            port=None,  # find a free port
+            api_key=api_key,
+            server_type="SGLang",
+            timeout=timeout,
+            server_args=self.server_args,
         )
 
-        return base_url
+        # Register cleanup function to run when Python exits
+        atexit.register(self._cleanup_server)
+
+        return base_url, api_key
 
     @property
     def server_is_running(self) -> bool:
@@ -210,10 +185,7 @@ class SGLangAPI(OpenAIAPI):
         # Close the OpenAI client
         await super().aclose()
 
-        self._cleanup_server()
-
-        # Deregister the atexit handler since we've manually cleaned up
-        atexit.unregister(self._cleanup_server)
+        self.close()
 
     def close(self) -> None:
         """
@@ -226,92 +198,85 @@ class SGLangAPI(OpenAIAPI):
         # Deregister the atexit handler since we've manually cleaned up
         atexit.unregister(self._cleanup_server)
 
-    def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
-        params: dict[str, Any] = dict(
-            model=self.model_name,
-        )
-        if config.max_tokens is not None:
-            params["max_tokens"] = config.max_tokens
-        if config.frequency_penalty is not None:
-            params["frequency_penalty"] = config.frequency_penalty
-        if config.stop_seqs is not None:
-            params["stop"] = config.stop_seqs
-        if config.presence_penalty is not None:
-            params["presence_penalty"] = config.presence_penalty
-        if config.logit_bias is not None:
-            params["logit_bias"] = config.logit_bias
-        if config.seed is not None:
-            params["seed"] = config.seed
-        if config.temperature is not None:
-            params["temperature"] = config.temperature
-        if config.top_p is not None:
-            params["top_p"] = config.top_p
-        if config.num_choices is not None:
-            params["n"] = config.num_choices
-        if config.logprobs is not None:
-            params["logprobs"] = config.logprobs
-        if config.top_logprobs is not None:
-            params["top_logprobs"] = config.top_logprobs
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # check if last message is an assistant message, in this case we want to
+        # continue the final message instead of generating a new one
+        if input[-1].role == "assistant":
+            # Create a copy of the config to avoid modifying the original
+            config = config.model_copy()
 
-        # if config.response_schema is not None and config.guided_decoding is not None:
-        #     raise ValueError(
-        #         "response_schema and guided_decoding cannot both be set. Please set only one of them."
-        #     )
+            # Set these parameters in extra_body
+            if config.extra_body is None:
+                config.extra_body = {}
 
-        # Handle extra_body
-        extra_body = {}
-        if config.extra_body:
-            extra_body.update(config.extra_body)
+            # Only set these values if they're not already present in extra_body
+            if (
+                "add_generation_prompt" not in config.extra_body
+                and "continue_final_message" not in config.extra_body
+            ):
+                config.extra_body["add_generation_prompt"] = False
+                config.extra_body["continue_final_message"] = True
 
-        if config.response_schema:
-            params["response_format"] = dict(
-                type="json_schema",
-                json_schema=dict(
-                    name=config.response_schema.name,
-                    schema=config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    description=config.response_schema.description,
-                    strict=config.response_schema.strict,
-                ),
-            )
-        # elif config.guided_decoding:
-        #     if config.guided_decoding.json_schema:
-        #         params["response_format"] = dict(
-        #             type="json_schema",
-        #             json_schema=dict(
-        #                 name=config.guided_decoding.json_schema.name,
-        #                 schema=config.guided_decoding.json_schema.json_schema.model_dump(
-        #                     exclude_none=True
-        #                 ),
-        #                 description=config.guided_decoding.json_schema.description,
-        #                 strict=config.guided_decoding.json_schema.strict,
-        #             ),
-        #         )
-        #     elif config.guided_decoding.structural_tags:
-        #         params["response_format"] = dict(
-        #             type="structural_tag",
-        #             structures=[
-        #                 dict(
-        #                     begin=structure.begin,
-        #                     schema=structure.json_schema.model_dump(exclude_none=True),
-        #                     end=structure.end,
-        #                 )
-        #                 for structure in config.guided_decoding.structural_tags.structures
-        #             ],
-        #             triggers=config.guided_decoding.structural_tags.triggers,
-        #         )
-        #     elif config.guided_decoding.grammar:
-        #         extra_body["ebnf"] = config.guided_decoding.grammar
-        #     elif config.guided_decoding.regex:
-        #         extra_body["regex"] = config.guided_decoding.regex
-        #     elif config.guided_decoding.choice:
-        #         # choice is not natively supported by SGLang, so we need to convert it to a regex format
-        #         regex = "|".join(config.guided_decoding.choice)
-        #         extra_body["regex"] = regex
+        return await super().generate(input, tools, tool_choice, config)
 
-        # Add extra_body to params if it has content
-        if extra_body:
-            params["extra_body"] = extra_body
+    @override
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
+        if ex.code == 400:
+            content = ex.body["message"]
+            if "context length" in content:
+                return ModelOutput.from_content(
+                    self.model_name, content=content, stop_reason="model_length"
+                )
+        return super().handle_bad_request(ex)
 
-        return params
+    # def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+    #     params: dict[str, Any] = dict(
+    #         model=self.model_name,
+    #     )
+    #     if config.max_tokens is not None:
+    #         params["max_tokens"] = config.max_tokens
+    #     if config.frequency_penalty is not None:
+    #         params["frequency_penalty"] = config.frequency_penalty
+    #     if config.stop_seqs is not None:
+    #         params["stop"] = config.stop_seqs
+    #     if config.presence_penalty is not None:
+    #         params["presence_penalty"] = config.presence_penalty
+    #     if config.logit_bias is not None:
+    #         params["logit_bias"] = config.logit_bias
+    #     if config.seed is not None:
+    #         params["seed"] = config.seed
+    #     if config.temperature is not None:
+    #         params["temperature"] = config.temperature
+    #     if config.top_p is not None:
+    #         params["top_p"] = config.top_p
+    #     if config.num_choices is not None:
+    #         params["n"] = config.num_choices
+    #     if config.logprobs is not None:
+    #         params["logprobs"] = config.logprobs
+    #     if config.top_logprobs is not None:
+    #         params["top_logprobs"] = config.top_logprobs
+
+    #     if config.response_schema:
+    #         params["response_format"] = dict(
+    #             type="json_schema",
+    #             json_schema=dict(
+    #                 name=config.response_schema.name,
+    #                 schema=config.response_schema.json_schema.model_dump(
+    #                     exclude_none=True
+    #                 ),
+    #                 description=config.response_schema.description,
+    #                 strict=config.response_schema.strict,
+    #             ),
+    #         )
+
+    #     # Handle extra_body
+    #     if config.extra_body:
+    #         params["extra_body"] = config.extra_body
+
+    #     return params
