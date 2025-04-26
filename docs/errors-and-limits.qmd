@@ -40,7 +40,7 @@ Failed samples are *not scored* and a warning indicating that some samples faile
 You can specify `fail_on_error` as a boolean (turning the behaviour on and off entirely), as a number between 0 and 1 (indicating a proportion of failures to tolerate), or a number greater than 1 to (indicating a count of failures to tolerate):
 
 | Value                 | Behaviour                                           |
-|--------------------------|----------------------------------------------|
+|---------------------------|---------------------------------------------|
 | `fail_on_error=True`  | Fail eval immediately on sample errors (default).   |
 | `fail_on_error=False` | Never fail eval on sample errors.                   |
 | `fail_on_error=0.1`   | Fail if more than 10% of total samples have errors. |
@@ -189,7 +189,6 @@ def intercode_ctf():
     )
 ```
 
-
 ::: callout-important
 It's important to note that the `token_limit` is for all tokens used within the execution of a sample. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 :::
@@ -198,7 +197,7 @@ It's important to note that the `token_limit` is for all tokens used within the 
 
 When limits are exceeded, a `LimitExceededError` is raised and caught by the main Inspect sample execution logic. If you want to create custom limit types, you can enforce them by raising a `LimitExceededError` as follows:
 
-```python
+``` python
 from inspect_ai.util import LimitExceededError
 
 raise LimitExceededError(
@@ -219,24 +218,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-You can also apply limits at arbitrary scopes, independent of the sample-scoped limits. For instance, applied to a specific agent or within a specific block of code.
-
-To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like `handoff()`, `as_tool()`, `as_solver()` or `run()` (see [Using Agents](agents.qmd#using-agents)):
-
-``` python
-eval(
-    task="research_bench", 
-    solver=[
-        use_tools(
-            addition(),
-            handoff(web_surfer(), limits=[token_limit(1024*500)]),
-        ),
-        generate()
-    ]
-)
-```
-
-To use a limit within a specific block of code:
+You can also apply limits at arbitrary scopes, independent of the sample or agent-scoped limits. For instance, applied to a specific agent or within a specific block of code. For example:
 
 ``` python
 with token_limit(1024*500):
@@ -252,9 +234,9 @@ Scoped message limits behave differently to scoped token limits in that only the
 To limit the conversation length within a block of code:
 
 ``` python
-@solver
-def agent_loop() -> Solver:
-    async def solve(state: TaskState, generate: Generate):
+@agent
+def myagent() -> Agent:
+    async def execute(state: AgentState):
 
         with message_limit(50):
             # A LimitExceededError will be raised when the limit is exceeded
@@ -264,7 +246,7 @@ def agent_loop() -> Solver:
                 ...
 ```
 
-::: {.callout-important}
+::: callout-important
 It's important to note that `message_limit()` limits the total number of messages in the conversation, not just "new" messages appended by an agent.
 :::
 
@@ -275,9 +257,9 @@ It's important to note that `message_limit()` limits the total number of message
 To limit the total number of tokens which can be used in a block of code:
 
 ``` python
-@solver
-def agent_loop(tokens: int = (1024*500)) -> Solver:
-    async def solve(state: TaskState, generate: Generate):
+@agent
+def myagent(tokens: int = (1024*500)) -> Agent:
+    async def execute(state: AgentState):
 
         with token_limit(tokens):
             # a LimitExceededError will be raised if the limit is exceeded
@@ -287,9 +269,9 @@ def agent_loop(tokens: int = (1024*500)) -> Solver:
 The limits can be stacked. Tokens used while a context manager is open count towards all open token limits.
 
 ``` python
-@solver
-def agent_loop() -> Solver:
-    async def solve(state: TaskState, generate: Generate):
+@agent
+def myagent() -> Solver:
+    async def execute(state: AgentState):
 
         with token_limit(1024*500):
             ...
@@ -298,6 +280,64 @@ def agent_loop() -> Solver:
                 ...
 ```
 
-::: {.callout-important}
-It's important to note that `token_limit()` is for all tokens used _while the context manager is open_. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
+::: callout-important
+It's important to note that `token_limit()` is for all tokens used *while the context manager is open*. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 :::
+
+## Agent Limits
+
+The agent limits described below are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+
+To run an agent with one or more limits, pass the limit object in the `limits` argument to a function like `handoff()`, `as_tool()`, `as_solver()` or `run()` (see [Using Agents](agents.qmd#using-agents) for details on the various ways to run agents).
+
+Here we limit an agent we are including as a solver to 500K tokens:
+
+``` python
+eval(
+    task="research_bench", 
+    solver=as_solver(web_surfer(), limits=[token_limit(1024*500)])
+)
+```
+
+Here we limit an agent `handoff()` to 500K tokens:
+
+``` python
+eval(
+    task="research_bench", 
+    solver=[
+        use_tools(
+            addition(),
+            handoff(web_surfer(), limits=[token_limit(1024*500)]),
+        ),
+        generate()
+    ]
+)
+```
+
+Note that when limits are exceeded during an agent's execution, the way this is handled differs depending on how the agent was executed:
+
+-   For tool based agents (`handoff()` and `as_tool()`), if a limit is exceeded then a message to that effect is returned to the model but the *sample continues running*.
+
+-   For agents used via `as_solver()`, if a limit is exceeded then the sample will terminate (this is exactly how sample-level limits work).
+
+-   For agents that are `run()` directly, by default an exception is thrown and the sample terminates. You may on the other hand catch the exception and take another action:
+
+    ``` python
+    from inspect_ai.agent import run
+
+    try:
+        state = await run(
+            agent=web_surfer(), 
+            input="What were the 3 most popular movies of 2020?",
+            limits=[token_limit(1024*500)])
+        )
+    except LimitExceededError as ex:
+        if ex.type == "token":
+            ...
+        else:
+            raise
+    ```
