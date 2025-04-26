@@ -934,6 +934,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td><code>--debug-errors</code></td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 </tr>
+<tr class="even">
+<td><code>--traceback-locals</code></td>
+<td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
+</tr>
 </tbody>
 </table>
 </section>

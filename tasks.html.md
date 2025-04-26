@@ -388,7 +388,7 @@ and has a task named `mytask` the `tasks.py` file:
         _registry.py
       pyproject.toml
 
-The `_registry.py` file serves a place to import things that you wan’t
+The `_registry.py` file serves as a place to import things that you want
 registered with Inspect. For example:
 
 **\_registry.py**

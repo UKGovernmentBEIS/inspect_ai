@@ -72,16 +72,6 @@ which models are supported by the respective APIs.
 
 ### Flex Processing
 
-> [!NOTE]
->
-> The support for flex processing described below is available only in
-> the development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 [Flex
 processing](https://platform.openai.com/docs/guides/flex-processing)
 provides significantly lower costs for requests in exchange for slower

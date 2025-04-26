@@ -415,14 +415,13 @@ of inputs and results:
 def math(shuffle=True):
     return Task(
         dataset=hf_dataset(
-            "hendrycks/competition_math",
+            "HuggingFaceH4/MATH-500",
             split="test",
             sample_fields=FieldSpec(
                 input="problem", 
                 target="solution"
             ),
             shuffle=shuffle,
-            trust=True,
         ),
         solver=[
             prompt_template(PROMPT_TEMPLATE),

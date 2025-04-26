@@ -190,6 +190,7 @@ example:
 | `--debug` | Wait to attach debugger |
 | `--debug-port` | Port number for debugger |
 | `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
+| `--traceback-locals` | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). |
 
 ## Miscellaneous
 

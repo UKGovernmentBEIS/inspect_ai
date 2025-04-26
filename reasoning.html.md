@@ -87,17 +87,7 @@ option, which can be set to `low`, `medium`, or `high` (the default is
 inspect eval math.py --model openai/o3 --reasoning-effort high
 ```
 
-#### Reasoning History
-
-> [!NOTE]
->
-> The `reasoning_summary` and `responses_store` options described below
-> are available only in the development version of Inspect. To install
-> the development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
+#### Reasoning Summary
 
 You can see a summary of the model’s reasoning by specifying the
 [`reasoning_summary`](https://platform.openai.com/docs/guides/reasoning?api-mode=responses#reasoning-summaries)

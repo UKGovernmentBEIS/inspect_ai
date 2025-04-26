@@ -1,16 +1,6 @@
 # Model Context Protocol
 
 
-> [!NOTE]
->
-> The support for Model Context Protocol tools described below is
-> available only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 The [Model Context
