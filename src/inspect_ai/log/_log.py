@@ -30,6 +30,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ._transcript import Event
+from ._util import text_input_only, thin_metadata
 
 logger = getLogger(__name__)
 
@@ -161,6 +162,70 @@ class EvalSampleLimit(BaseModel):
     """The limit value"""
 
 
+class EvalSampleSummary(BaseModel):
+    """Summary information (including scoring) for a sample."""
+
+    id: int | str
+    """Unique id for sample."""
+
+    epoch: int
+    """Epoch number for sample."""
+
+    input: str | list[ChatMessage]
+    """Sample input (text inputs only)."""
+
+    target: str | list[str]
+    """Sample target value(s)"""
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Sample metadata (scalar types only, strings truncated to 1k)."""
+
+    scores: dict[str, Score] | None = Field(default=None)
+    """Scores for sample (score values only, no answers, explanations, or metadata)."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage for sample."""
+
+    total_time: float | None = Field(default=None)
+    """Total time that the sample was running."""
+
+    working_time: float | None = Field(default=None)
+    """Time spent working (model generation, sandbox calls, etc.)"""
+
+    uuid: str | None = Field(default=None)
+    """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
+
+    error: str | None = Field(default=None)
+    """Error that halted sample."""
+
+    limit: str | None = Field(default=None)
+    """Limit that halted the sample"""
+
+    retries: int | None = Field(default=None)
+    """Number of retries for the sample."""
+
+    completed: bool = Field(default=False)
+    """Is the sample complete."""
+
+    @model_validator(mode="after")
+    def thin_data(self) -> "EvalSampleSummary":
+        # thin input
+        self.input = text_input_only(self.input)
+
+        # thin metadata
+        self.metadata = thin_metadata(self.metadata)
+
+        # thin score explanations and metadata
+        if self.scores is not None:
+            self.scores = {
+                key: Score(value=score.value) for key, score in self.scores.items()
+            }
+        return self
+
+    # allow field model_usage
+    model_config = ConfigDict(protected_namespaces=())
+
+
 class EvalSample(BaseModel):
     """Sample from evaluation task."""
 
@@ -270,6 +335,35 @@ class EvalSample(BaseModel):
 
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
+
+    def summary(self) -> EvalSampleSummary:
+        """Summary of sample.
+
+        The summary excludes potentially large fields like messages, output,
+        events, store, and metadata so that it is always fast to load.
+
+        If there are images, audio, or video in the input, they are
+        replaced with a placeholder.
+
+        Returns:
+           Summary of sample.
+        """
+        return EvalSampleSummary(
+            id=self.id,
+            epoch=self.epoch,
+            input=self.input,
+            target=self.target,
+            metadata=self.metadata,
+            scores=self.scores,
+            model_usage=self.model_usage,
+            total_time=self.total_time,
+            working_time=self.working_time,
+            uuid=self.uuid,
+            error=self.error.message if self.error is not None else None,
+            limit=f"{self.limit.type}" if self.limit is not None else None,
+            retries=len(self.error_retries) if self.error_retries is not None else None,
+            completed=True,
+        )
 
     # deprecated properties
 

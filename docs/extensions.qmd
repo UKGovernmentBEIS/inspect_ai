@@ -319,7 +319,7 @@ evaltools/
 pyproject.toml
 ```
 
-The `_registry.py` file serves a place to import things that you wan't registered with Inspect. For example:
+The `_registry.py` file serves as a place to import things that you want registered with Inspect. For example:
 
 ``` {.python filename="_registry.py"}
 from .approvers import auto_approver
