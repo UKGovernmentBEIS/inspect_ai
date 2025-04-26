@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenAI: In responses API, don't pass back assistant output that wasn't part of the output included in the server response (e.g. output generated from a call to a `submit()` tool).
 - Bugfix: Correctly pass tool arguments back to model for OpenAI responses API.
 
 ## v0.3.91 (26 April 2025)
