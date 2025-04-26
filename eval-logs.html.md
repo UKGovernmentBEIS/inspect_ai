@@ -230,6 +230,7 @@ helper functions from the `inspect_ai.log` module:
 | `read_eval_log` | Read an `EvalLog` from a log file path (pass `header_only` to not read samples). |
 | `read_eval_log_sample` | Read a single `EvalSample` from a log file |
 | `read_eval_log_samples` | Read all samples incrementally (returns a generator that yields samples one at a time). |
+| `read_eval_log_sample_summaries` | Read a summary of all samples (including scoring for each sample). |
 | `write_eval_log` | Write an `EvalLog` to a log file path. |
 
 A common workflow is to define an `INSPECT_LOG_DIR` for running a set of
@@ -250,6 +251,65 @@ logs = list_eval_logs()
 
 Note that `list_eval_logs()` lists log files recursively. Pass
 `recursive=False` to list only the log files at the root level.
+
+### Log Headers
+
+Eval log files can get quite large (multiple GB) so it is often useful
+to read only the header, which contains metadata and aggregated scores.
+Use the `header_only` option to read only the header of a log file:
+
+``` python
+log_header = read_eval_log(log_file, header_only=True)
+```
+
+The log header is a standard `EvalLog` object without the `samples` and
+`reductions` fields.
+
+### Summaries
+
+> [!NOTE]
+>
+> The `read_eval_log_sample_summaries()` function described below is
+> available only in the development version of Inspect. To install the
+> development version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+It may also be useful to read only the summary level information about
+samples (input, target, error status, and scoring). To do this, use the
+`read_eval_log_sample_summaries()` function:
+
+``` python
+summaries = read_eval_log_sample_summaries(log_file)
+```
+
+The `summaries` are a list of `EvalSampleSummary` objects, one for each
+sample. Some sample data is “thinned” in the interest of keeping the
+summaries small: images are removed from `input`, `metadata` is
+restricted to scalar values (with strings truncated to 1k), and scores
+include only their `value`.
+
+Reading only sample summaries will take orders of magnitude less time
+than reading all of the samples one-by-one, so if you only need access
+to summary level data, always prefer this function to reading the entire
+log file.
+
+#### Filtering
+
+You can also use `read_eval_log_sample_summaries()` as means of
+filtering which samples you want to read in full. For example, imagine
+you only want to read samples that include errors:
+
+``` python
+errors: list[EvalSample] = []
+for sample in read_eval_log_sample_summaries(log_file):
+    if sample.error is not None
+        errors.append(
+            read_eval_log_sample(log_file, sample.id, sample.epoch)
+        )
+```
 
 ### Streaming
 
