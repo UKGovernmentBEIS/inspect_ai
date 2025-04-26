@@ -6,6 +6,7 @@ from test_helpers.tools import addition
 from test_helpers.utils import skip_if_no_docker, skip_if_no_openai
 
 from inspect_ai import Task, eval
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai.agent import (
     Agent,
     AgentState,
@@ -17,6 +18,8 @@ from inspect_ai.agent import (
     run,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.log._transcript import ModelEvent, SpanBeginEvent, SpanEndEvent
+from inspect_ai.log._tree import event_sequence, event_tree
 from inspect_ai.model import ChatMessageSystem, Model, get_model
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.solver import (
@@ -28,6 +31,8 @@ from inspect_ai.solver import (
     user_message,
 )
 from inspect_ai.tool import ToolFunction, bash_session, text_editor, web_browser
+from inspect_ai.tool._tool import Tool, tool
+from inspect_ai.util._collect import collect
 
 
 @agent
@@ -224,3 +229,49 @@ def test_agent_critic_parameters():
     )
 
     eval(task, model="openai/gpt-4o")
+
+
+@tool
+def web_researcher() -> Tool:
+    async def execute(query: str) -> list[Content]:
+        """Expert web researcher.
+
+        Args:
+            query: Query for web researcher
+        """
+
+        async def web_query() -> str:
+            _, output = await get_model().generate_loop(query, tools=web_browser())
+            return output.completion
+
+        results = await collect(web_query(), web_query())
+        return [ContentText(text=result) for result in results]
+
+    return execute
+
+
+@skip_if_no_openai
+@skip_if_no_docker
+def test_agent_collect() -> None:
+    task = Task(
+        dataset=[Sample(input="What was the most popular movie of 2019?")],
+        solver=react(tools=[web_researcher()]),
+        sandbox=("docker", (Path(__file__).parent / "compose.yaml").as_posix()),
+    )
+    log = eval(task, model="openai/gpt-4o")[0]
+    assert log.status == "success"
+    assert log.samples
+
+    tree = event_tree(log.samples[0].events)
+
+    events = list(event_sequence(tree))
+
+    assert isinstance(events[7], SpanBeginEvent)
+    assert events[7].name == "task-1"
+    assert isinstance(events[8], ModelEvent)
+    assert isinstance(events[9], SpanEndEvent)
+
+    assert isinstance(events[10], SpanBeginEvent)
+    assert events[10].name == "task-2"
+    assert isinstance(events[11], ModelEvent)
+    assert isinstance(events[12], SpanEndEvent)

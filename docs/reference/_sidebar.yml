@@ -415,6 +415,16 @@ website:
           href: reference/inspect_ai.log.qmd#transcript
         - text: Event
           href: reference/inspect_ai.log.qmd#event
+        - text: event_tree
+          href: reference/inspect_ai.log.qmd#event_tree
+        - text: event_sequence
+          href: reference/inspect_ai.log.qmd#event_sequence
+        - text: EventTree
+          href: reference/inspect_ai.log.qmd#eventtree
+        - text: EventNode
+          href: reference/inspect_ai.log.qmd#eventnode
+        - text: SpanNode
+          href: reference/inspect_ai.log.qmd#spannode
         - text: SampleInitEvent
           href: reference/inspect_ai.log.qmd#sampleinitevent
         - text: SampleLimitEvent
@@ -490,6 +500,8 @@ website:
           href: reference/inspect_ai.util.qmd#subtask
         - text: span
           href: reference/inspect_ai.util.qmd#span
+        - text: gather
+          href: reference/inspect_ai.util.qmd#gather
         - text: resource
           href: reference/inspect_ai.util.qmd#resource
         - text: throttle

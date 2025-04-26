@@ -38,6 +38,7 @@ title: "inspect_ai.util"
 ## Utilities
 
 ### span
+### collect
 ### resource
 ### throttle
 ### trace_action

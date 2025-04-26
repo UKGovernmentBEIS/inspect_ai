@@ -323,6 +323,36 @@ There are two reasons that you might want to create spans:
 
 Spans are automatically created for sample initialisation, solvers, scorers, subtasks, tool calls, and agent execution.
 
+
+## Parallel Execution
+
+::: callout-note
+The `collect()` function described below is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+You can execute subtasks in parallel using the `collect()` function. For example, to run 3 `web_search()` coroutines in parallel:
+
+``` python
+from inspect_ai.util import collect
+
+results = collect(
+  web_search(keywords="solar power"),
+  web_search(keywords="wind power"),
+  web_search(keywords="hydro power"),
+)
+```
+
+Note that `collect()` is similar to [`asyncio.gather()`](https://docs.python.org/3/library/asyncio-task.html#asyncio.gather),
+but also works when [Trio](https://trio.readthedocs.io/en/stable/) is the Inspect async backend.
+
+The Inspect `collect()` function also automatically includes each task in a `span()`, which ensures that its events are grouped together in the transcript.
+
+Using `collect()` in preference to `asyncio.gather()` is highly recommended for both Trio compatibility and more legible transcript output.
+
 ## Subtasks {#sec-subtasks}
 
 Subtasks provide a mechanism for creating isolated, re-usable units of execution. You might implement a complex tool using a subtask or might use them in a multi-agent evaluation. The main characteristics of sub-tasks are:
@@ -362,21 +392,3 @@ A few things will occur automatically when you run a subtask:
 -   A `SubtaskEvent` will be added to the current transcript. The event will include the name of the subtask, its input and results, and a transcript of all events that occur within the subtask.
 
 You can also include one or more spans within a subtask.
-
-### Parallel Execution
-
-You can execute subtasks in parallel using `asyncio.gather()`. For example, to run 3 `web_search()` subtasks in parallel:
-
-``` python
-import asyncio
-
-searches = [
-  web_search(keywords="solar power"),
-  web_search(keywords="wind power"),
-  web_search(keywords="hydro power"),
-]
-
-results = await asyncio.gather(*searches)
-```
-
-Note that we don't `await` the subtasks when building up our list of `searches`. Rather, we let `asyncio.gather()` await all of them, returning only when all of the results are available.
