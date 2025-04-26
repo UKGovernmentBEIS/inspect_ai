@@ -359,6 +359,8 @@ website:
           href: reference/inspect_ai.log.qmd#read_eval_log_sample
         - text: read_eval_log_samples
           href: reference/inspect_ai.log.qmd#read_eval_log_samples
+        - text: read_eval_log_sample_summaries
+          href: reference/inspect_ai.log.qmd#read_eval_log_sample_summaries
         - text: convert_eval_logs
           href: reference/inspect_ai.log.qmd#convert_eval_logs
         - text: bundle_log_dir
@@ -399,6 +401,8 @@ website:
           href: reference/inspect_ai.log.qmd#evalerror
         - text: EvalSample
           href: reference/inspect_ai.log.qmd#evalsample
+        - text: EvalSampleSummary
+          href: reference/inspect_ai.log.qmd#evalsamplesummary
         - text: EvalSampleLimit
           href: reference/inspect_ai.log.qmd#evalsamplelimit
         - text: EvalSampleReductions

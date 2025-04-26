@@ -5,8 +5,6 @@ from copy import copy
 from logging import getLogger
 from typing import Any, Literal, Optional, Tuple, cast
 
-import httpcore
-import httpx
 from anthropic import (
     APIConnectionError,
     APIStatusError,
@@ -51,9 +49,11 @@ from inspect_ai._util.error import exception_message
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
+from ..._util.httpx import httpx_should_retry
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageSystem
 from .._generate_config import GenerateConfig
 from .._model import ModelAPI
@@ -330,13 +330,9 @@ class AnthropicAPI(ModelAPI):
     def should_retry(self, ex: Exception) -> bool:
         if isinstance(ex, APIStatusError):
             return is_retryable_http_status(ex.status_code)
-        elif isinstance(
-            ex,
-            APIConnectionError
-            | APITimeoutError
-            | httpx.RemoteProtocolError
-            | httpcore.RemoteProtocolError,
-        ):
+        elif httpx_should_retry(ex):
+            return True
+        elif isinstance(ex, APIConnectionError | APITimeoutError):
             return True
         else:
             return False
@@ -944,9 +940,15 @@ async def count_tokens(
             messages=[{"role": "user", "content": text}],
         )
         return response.input_tokens
-    except Exception as e:
-        logger.warning(
-            f"Error counting tokens (falling back to estimated tokens): {str(e)}"
+    except Exception as ex:
+        warn_once(
+            logger,
+            f"Unable to call count_tokens API for model {model} (falling back to estimated tokens)",
+        )
+        trace_message(
+            logger,
+            "Anthropic",
+            f"Unable to call count_tokens API for model {model} ({ex})",
         )
         words = text.split()
         estimated_tokens = int(len(words) * 1.3)

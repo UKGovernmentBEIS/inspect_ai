@@ -79,10 +79,10 @@ export const TokenRow: FC<TokenRowProps> = ({ model, usage }) => {
   return (
     <tr>
       <td>
-        <div className={styles.model}>{model}</div>
+        <div className={clsx(styles.model, styles.cellContents)}>{model}</div>
       </td>
       <td>
-        <ModelUsagePanel usage={usage} />
+        <ModelUsagePanel usage={usage} className={clsx(styles.cellContents)} />
       </td>
     </tr>
   );

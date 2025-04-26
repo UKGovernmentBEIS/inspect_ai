@@ -58,14 +58,6 @@ You might choose to do this if you want to tolerate a certain proportion of erro
 
 ## Sample Retries
 
-::: callout-note
-The `retry_on_error` option described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 The `retry_on_error` option enables retrying samples with errors some number of times before they are considered failed (and subject to `fail_on_error` processing as described above). For example:
 
 ``` bash

@@ -11,18 +11,10 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
-from inspect_ai._util.content import (
-    ContentAudio,
-    ContentImage,
-    ContentReasoning,
-    ContentText,
-    ContentVideo,
-)
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
-from inspect_ai.model._chat_message import ChatMessage
 
 from .._log import (
     EvalLog,
@@ -30,12 +22,12 @@ from .._log import (
     EvalResults,
     EvalSample,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalSpec,
     EvalStats,
     sort_samples,
 )
 from .file import FileRecorder
-from .types import SampleSummary
 
 logger = getLogger(__name__)
 
@@ -224,6 +216,15 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     @override
+    async def read_log_sample_summaries(cls, location: str) -> list[EvalSampleSummary]:
+        with file(location, "rb") as z:
+            with ZipFile(z, mode="r") as zip:
+                summary_counter = _read_summary_counter(zip)
+                summaries = _read_all_summaries(zip, summary_counter)
+                return summaries
+
+    @classmethod
+    @override
     async def write_log(cls, location: str, log: EvalLog) -> None:
         # write using the recorder (so we get all of the extra streams)
         recorder = EvalRecorder(dirname(location))
@@ -236,36 +237,6 @@ class EvalRecorder(FileRecorder):
         )
 
 
-def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
-    # Clean the input of any images
-    if isinstance(inputs, list):
-        input: list[ChatMessage] = []
-        for message in inputs:
-            if not isinstance(message.content, str):
-                filtered_content: list[
-                    ContentText
-                    | ContentReasoning
-                    | ContentImage
-                    | ContentAudio
-                    | ContentVideo
-                ] = []
-                for content in message.content:
-                    if content.type == "text":
-                        filtered_content.append(content)
-                    else:
-                        filtered_content.append(
-                            ContentText(text=f"({content.type.capitalize()})")
-                        )
-                message.content = filtered_content
-                input.append(message)
-            else:
-                input.append(message)
-
-        return input
-    else:
-        return inputs
-
-
 class ZipLogFile:
     _zip: ZipFile | None
     _temp_file: BinaryIO
@@ -273,19 +244,20 @@ class ZipLogFile:
 
     def __init__(self, file: str) -> None:
         self._file = file
+        self._zip = None
         self._fs = filesystem(file)
         self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()
         self._samples: list[EvalSample] = []
         self._summary_counter = 0
-        self._summaries: list[SampleSummary] = []
+        self._summaries: list[EvalSampleSummary] = []
         self._log_start: LogStart | None = None
 
     async def init(
         self,
         log_start: LogStart | None,
         summary_counter: int,
-        summaries: list[SampleSummary],
+        summaries: list[EvalSampleSummary],
     ) -> None:
         async with self._lock:
             self._open()
@@ -309,31 +281,14 @@ class ZipLogFile:
     async def write_buffered_samples(self) -> None:
         async with self._lock:
             # Write the buffered samples
-            summaries: list[SampleSummary] = []
+            summaries: list[EvalSampleSummary] = []
             for sample in self._samples:
                 # Write the sample
                 self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
 
                 # Capture the summary
-                summaries.append(
-                    SampleSummary(
-                        id=sample.id,
-                        epoch=sample.epoch,
-                        input=text_inputs(sample.input),
-                        target=sample.target,
-                        completed=True,
-                        scores=sample.scores,
-                        error=sample.error.message
-                        if sample.error is not None
-                        else None,
-                        limit=f"{sample.limit.type}"
-                        if sample.limit is not None
-                        else None,
-                        retries=len(sample.error_retries)
-                        if sample.error_retries is not None
-                        else None,
-                    )
-                )
+                summaries.append(sample.summary())
+
             self._samples.clear()
 
             # write intermediary summaries and add to master list
@@ -451,12 +406,12 @@ def _read_summary_counter(zip: ZipFile) -> int:
     return current_count
 
 
-def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
+def _read_all_summaries(zip: ZipFile, count: int) -> list[EvalSampleSummary]:
     if SUMMARIES_JSON in zip.namelist():
         summaries_raw = _read_json(zip, SUMMARIES_JSON)
         if isinstance(summaries_raw, list):
             return [
-                SampleSummary.model_validate(value, context=DESERIALIZING_CONTEXT)
+                EvalSampleSummary.model_validate(value, context=DESERIALIZING_CONTEXT)
                 for value in summaries_raw
             ]
         else:
@@ -464,7 +419,7 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
                 f"Expected a list of summaries when reading {SUMMARIES_JSON}"
             )
     else:
-        summaries: list[SampleSummary] = []
+        summaries: list[EvalSampleSummary] = []
         for i in range(1, count):
             summary_file = _journal_summary_file(i)
             summary_path = _journal_summary_path(summary_file)
@@ -472,7 +427,7 @@ def _read_all_summaries(zip: ZipFile, count: int) -> list[SampleSummary]:
             if isinstance(summary, list):
                 summaries.extend(
                     [
-                        SampleSummary.model_validate(
+                        EvalSampleSummary.model_validate(
                             value, context=DESERIALIZING_CONTEXT
                         )
                         for value in summary

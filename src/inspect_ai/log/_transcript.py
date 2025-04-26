@@ -14,7 +14,13 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_serializer,
+)
 from shortuuid import uuid
 
 from inspect_ai._util.constants import SAMPLE_SUBTASK

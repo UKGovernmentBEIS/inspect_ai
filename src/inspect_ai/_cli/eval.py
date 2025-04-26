@@ -1164,6 +1164,10 @@ def eval_retry_command(
     elif fail_on_error == 0.0:
         fail_on_error = True
 
+    # resolve retry on error
+    if retry_on_error == 0:
+        retry_on_error = None
+
     # resolve log file
     retry_log_files = [
         log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files

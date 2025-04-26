@@ -30,13 +30,14 @@ from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalScorer,
     eval_config_defaults,
 )
 from inspect_ai.log._model import model_args_for_log, model_roles_to_model_roles_config
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
-from inspect_ai.log._recorders.types import SampleEvent, SampleSummary
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Event
 from inspect_ai.model import (
     GenerateConfig,
@@ -180,7 +181,7 @@ class TaskLogger:
         await self.recorder.log_start(self.eval, plan)
         await self.recorder.flush(self.eval)
 
-    async def start_sample(self, sample: SampleSummary) -> None:
+    async def start_sample(self, sample: EvalSampleSummary) -> None:
         self._buffer_db.start_sample(sample)
 
     def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
@@ -195,21 +196,7 @@ class TaskLogger:
         await self.recorder.log_sample(self.eval, sample)
 
         # mark complete
-        self._buffer_db.complete_sample(
-            SampleSummary(
-                id=sample.id,
-                epoch=sample.epoch,
-                input=sample.input,
-                target=sample.target,
-                completed=True,
-                scores=sample.scores,
-                error=sample.error.message if sample.error is not None else None,
-                limit=f"{sample.limit.type}" if sample.limit is not None else None,
-                retries=len(sample.error_retries)
-                if sample.error_retries is not None
-                else None,
-            )
-        )
+        self._buffer_db.complete_sample(sample.summary())
 
         # flush if requested
         if flush:

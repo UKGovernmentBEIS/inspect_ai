@@ -26,7 +26,8 @@ from ..._condense import (
     walk_input,
     walk_json_dict,
 )
-from ..types import SampleEvent, SampleSummary
+from ..._log import EvalSampleSummary
+from ..types import SampleEvent
 from .filestore import (
     Manifest,
     SampleBufferFilestore,
@@ -141,7 +142,7 @@ class SampleBufferDatabase(SampleBuffer):
         )
         self._sync_time = time.monotonic()
 
-    def start_sample(self, sample: SampleSummary) -> None:
+    def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
             sample = self._consense_sample(conn, sample)
             conn.execute(
@@ -177,7 +178,7 @@ class SampleBufferDatabase(SampleBuffer):
             # Insert all rows
             conn.execute(sql, values)
 
-    def complete_sample(self, summary: SampleSummary) -> None:
+    def complete_sample(self, summary: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
             summary = self._consense_sample(conn, summary)
             conn.execute(
@@ -359,7 +360,7 @@ class SampleBufferDatabase(SampleBuffer):
 
     def _get_samples(
         self, conn: Connection, resolve_attachments: bool = False
-    ) -> Iterator[SampleSummary]:
+    ) -> Iterator[EvalSampleSummary]:
         cursor = conn.execute(
             """
             SELECT s.data as sample_data
@@ -369,7 +370,7 @@ class SampleBufferDatabase(SampleBuffer):
         )
 
         for row in cursor:
-            summary = SampleSummary.model_validate_json(row["sample_data"])
+            summary = EvalSampleSummary.model_validate_json(row["sample_data"])
             if resolve_attachments:
                 summary = self._resolve_sample_attachments(conn, summary)
             yield summary
@@ -437,8 +438,8 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def _consense_sample(
-        self, conn: Connection, sample: SampleSummary
-    ) -> SampleSummary:
+        self, conn: Connection, sample: EvalSampleSummary
+    ) -> EvalSampleSummary:
         # alias attachments
         attachments: dict[str, str] = {}
         sample = sample.model_copy(
@@ -456,8 +457,8 @@ class SampleBufferDatabase(SampleBuffer):
         return sample
 
     def _resolve_sample_attachments(
-        self, conn: Connection, sample: SampleSummary
-    ) -> SampleSummary:
+        self, conn: Connection, sample: EvalSampleSummary
+    ) -> EvalSampleSummary:
         return sample.model_copy(
             update={
                 "input": walk_input(

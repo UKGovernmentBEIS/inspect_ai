@@ -1,10 +1,13 @@
 import logging
 from typing import Callable
 
-from httpx import ConnectError, ConnectTimeout, HTTPStatusError, ReadTimeout
+import httpcore
+import httpx
+from httpx import HTTPStatusError
 from tenacity import RetryCallState
 
 from inspect_ai._util.constants import HTTP
+from inspect_ai._util.http import is_retryable_http_status
 
 logger = logging.getLogger(__name__)
 
@@ -20,25 +23,10 @@ def httpx_should_retry(ex: BaseException) -> bool:
     Returns:
       True if a retry should occur
     """
-    # httpx status exception
     if isinstance(ex, HTTPStatusError):
-        # request timeout
-        if ex.response.status_code == 408:
-            return True
-        # lock timeout
-        elif ex.response.status_code == 409:
-            return True
-        # rate limit
-        elif ex.response.status_code == 429:
-            return True
-        # internal errors
-        elif ex.response.status_code >= 500:
-            return True
-        else:
-            return False
+        return is_retryable_http_status(ex.response.status_code)
 
-    # connection error
-    elif is_httpx_connection_error(ex):
+    elif httpx_should_retry_no_status_code(ex):
         return True
 
     # don't retry
@@ -50,11 +38,106 @@ def log_httpx_retry_attempt(context: str) -> Callable[[RetryCallState], None]:
     def log_attempt(retry_state: RetryCallState) -> None:
         logger.log(
             HTTP,
-            f"{context} connection retry {retry_state.attempt_number} after waiting for {retry_state.idle_for}",
+            f"{context} connection retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)",
         )
 
     return log_attempt
 
 
-def is_httpx_connection_error(ex: BaseException) -> bool:
-    return isinstance(ex, ConnectTimeout | ConnectError | ConnectionError | ReadTimeout)
+def httpx_should_retry_no_status_code(ex: BaseException) -> bool:
+    """
+    Check whether an exception (without an HTTP status code) should be retried.
+
+    To understand this function, it may be helpful to look at the exception hierarchies for
+    httpx and httpcore, which are reproduced below.
+
+
+    # HTTPX Exception Hierarchy
+    Exception (Python built-in)
+    |
+    +-- HTTPError
+    |   |
+    |   +-- RequestError
+    |   |   |
+    |   |   +-- TransportError
+    |   |   |   |
+    |   |   |   +-- TimeoutException
+    |   |   |   |   |
+    |   |   |   |   +-- ConnectTimeout
+    |   |   |   |   +-- ReadTimeout
+    |   |   |   |   +-- WriteTimeout
+    |   |   |   |   +-- PoolTimeout
+    |   |   |   |
+    |   |   |   +-- NetworkError
+    |   |   |   |   |
+    |   |   |   |   +-- ConnectError
+    |   |   |   |   +-- ReadError
+    |   |   |   |   +-- WriteError
+    |   |   |   |   +-- CloseError
+    |   |   |   |
+    |   |   |   +-- ProtocolError
+    |   |   |   |   |
+    |   |   |   |   +-- LocalProtocolError
+    |   |   |   |   +-- RemoteProtocolError
+    |   |   |   |
+    |   |   |   +-- ProxyError
+    |   |   |   +-- UnsupportedProtocol
+    |   |   |
+    |   |   +-- DecodingError
+    |   |   +-- TooManyRedirects
+    |   |
+    |   +-- HTTPStatusError
+    |
+    +-- InvalidURL
+    +-- CookieConflict
+    +-- RuntimeError (Python built-in)
+        |
+        +-- StreamError
+            |
+            +-- StreamConsumed
+            +-- StreamClosed
+            +-- ResponseNotRead
+            +-- RequestNotRead
+
+
+    # HTTPCore Exception Hierarchy
+    Exception (Python built-in)
+    |
+    +-- ConnectionNotAvailable
+    +-- ProxyError
+    +-- UnsupportedProtocol
+    +-- ProtocolError
+    |   |
+    |   +-- RemoteProtocolError
+    |   +-- LocalProtocolError
+    |
+    +-- TimeoutException
+    |   |
+    |   +-- PoolTimeout
+    |   +-- ConnectTimeout
+    |   +-- ReadTimeout
+    |   +-- WriteTimeout
+    |
+    +-- NetworkError
+        |
+        +-- ConnectError
+        +-- ReadError
+        +-- WriteError
+    """
+    # Base class for all exceptions that occur at the level of the Transport API.
+    is_transport_error = isinstance(ex, httpx.TransportError)
+
+    # Sometimes exceptions are raised directly by httpcore, the lower-level library that httpx uses
+    is_httpcore_network_error = isinstance(ex, httpcore.NetworkError)
+    is_httpcore_timeout_error = isinstance(ex, httpcore.TimeoutException)
+    is_httpcore_protocol_error = isinstance(ex, httpcore.ProtocolError)
+
+    # extensible in case we notice other cases
+    return any(
+        [
+            is_transport_error,
+            is_httpcore_network_error,
+            is_httpcore_timeout_error,
+            is_httpcore_protocol_error,
+        ]
+    )
