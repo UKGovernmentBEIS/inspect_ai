@@ -3,7 +3,7 @@ from pathlib import Path
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
-from inspect_ai.log import list_eval_logs, read_eval_log_sample_summaries
+from inspect_ai.log import list_eval_logs, read_eval_log_sample_summaries, read_eval_log_samples
 
 file = Path(__file__)
 
@@ -30,3 +30,14 @@ def test_sample_summaries_thin_metadata() -> None:
     assert len(summaries) > 0
     assert "dict" not in summaries[0].metadata
     assert len(summaries[0].metadata["long"]) <= 1024
+
+def test_model_usage() -> None:
+    logs = list_eval_logs(
+        join(dirname(file), "test_list_logs"), formats=["eval", "json"]
+    )
+    for log in logs:
+        summary_samples = read_eval_log_sample_summaries(log)
+        full_samples = read_eval_log_samples(log)
+
+        for summary, full in zip(summary_samples, full_samples):
+            assert(summary.model_usage == full.model_usage)
