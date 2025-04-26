@@ -460,6 +460,16 @@ website:
           href: reference/inspect_ai.util.qmd#store_as
         - text: StoreModel
           href: reference/inspect_ai.util.qmd#storemodel
+        - text: apply_limits
+          href: reference/inspect_ai.util.qmd#apply_limits
+        - text: message_limit
+          href: reference/inspect_ai.util.qmd#message_limit
+        - text: token_limit
+          href: reference/inspect_ai.util.qmd#token_limit
+        - text: Limit
+          href: reference/inspect_ai.util.qmd#limit
+        - text: LimitExceededError
+          href: reference/inspect_ai.util.qmd#limitexceedederror
         - text: concurrency
           href: reference/inspect_ai.util.qmd#concurrency
         - text: subprocess

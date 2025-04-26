@@ -68,7 +68,7 @@ class ToolCallError:
         "permission",
         "file_not_found",
         "is_a_directory",
-        "output_limit",
+        "limit",
         "approval",
         "unknown",
     ]

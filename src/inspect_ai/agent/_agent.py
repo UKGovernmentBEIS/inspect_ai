@@ -27,13 +27,14 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
 )
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
+from inspect_ai.util._limited_conversation import ChatMessageList
 
 
 class AgentState:
     """Agent state."""
 
     def __init__(self, *, messages: list[ChatMessage]) -> None:
-        self._messages = messages
+        self._messages: list[ChatMessage] = ChatMessageList(messages)
         self._output: ModelOutput | None = None
 
     @property
@@ -43,8 +44,7 @@ class AgentState:
 
     @messages.setter
     def messages(self, messages: list[ChatMessage]) -> None:
-        """Set the conversation history."""
-        self._messages = messages
+        self._messages = ChatMessageList(messages)
 
     @property
     def output(self) -> ModelOutput:

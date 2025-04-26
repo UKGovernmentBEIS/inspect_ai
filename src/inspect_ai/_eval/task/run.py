@@ -86,9 +86,9 @@ from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import Generate, Plan, TaskState
 from inspect_ai.solver._chain import Chain, unroll
 from inspect_ai.solver._fork import set_task_generate
-from inspect_ai.solver._limit import SampleLimitExceededError
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
+from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._subtask import init_subtask
@@ -653,7 +653,7 @@ async def task_run_sample(
                     init_sample_working_limit(start_time, working_limit)
 
                     # run sample w/ optional timeout
-                    with timeout_cm:
+                    with timeout_cm, state._token_limit, state._message_limit:
                         # mark started
                         active.started = datetime.now().timestamp()
 
@@ -712,18 +712,9 @@ async def task_run_sample(
                         # handle the cancel exception
                         raise
 
-                except SampleLimitExceededError as ex:
-                    # sample limit event
-                    transcript()._event(
-                        SampleLimitEvent(
-                            type=ex.type,
-                            limit=ex.limit,
-                            message=f"Sample completed: {ex.message}",
-                        )
-                    )
-
+                except LimitExceededError:
                     # capture most recent state for scoring
-                    state = ex.state or sample_state() or state
+                    state = sample_state() or state
 
                 except BaseException as ex:
                     error, raise_error = handle_error(ex)
@@ -740,9 +731,6 @@ async def task_run_sample(
                 if time_limit is not None:
                     timeout_cm = anyio.fail_after(time_limit / 2)
 
-                # turn off message and token limits
-                state.message_limit = None
-                state.token_limit = None
                 set_sample_state(state)
 
                 # scoring

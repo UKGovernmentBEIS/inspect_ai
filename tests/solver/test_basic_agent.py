@@ -2,6 +2,7 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
 from inspect_ai.model import ChatMessageUser, ModelOutput, get_model
+from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.scorer import Score, Target, accuracy, includes, scorer
 from inspect_ai.solver import Solver, TaskState, basic_agent, solver, system_message
 from inspect_ai.solver._solver import Generate
@@ -216,6 +217,65 @@ def test_basic_agent_provide_answer():
     )
     log = eval(task, mockllm_model(["2"]))[0]
     assert log.results.scores[0].metrics["accuracy"].value == 1
+
+
+def test_basic_agent_respects_token_limit():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(token_limit=10),
+        scorer=includes(),
+    )
+    model_output = ModelOutput.from_content(model="mockllm", content="hello")
+    model_output.usage = ModelUsage(total_tokens=7)
+    model = get_model("mockllm/model", custom_outputs=[model_output] * 5)
+
+    log = eval(task, model)[0]
+
+    assert log.status == "success"
+    assert sum(usage.total_tokens for usage in log.stats.model_usage.values()) == 14
+
+
+def test_basic_agent_respects_message_limit():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(message_limit=3),
+        scorer=includes(),
+    )
+    model = get_model("mockllm/model")
+
+    log = eval(task, model)[0]
+
+    assert log.status == "success"
+    assert len(log.samples[0].messages) == 3
+
+
+def test_basic_agent_uses_task_message_limit():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(),
+        scorer=includes(),
+        message_limit=3,
+    )
+    model = get_model("mockllm/model")
+
+    log = eval(task, model)[0]
+
+    assert log.status == "success"
+    assert len(log.samples[0].messages) == 3
+
+
+def test_basic_agent_defaults_to_50_message_limit():
+    task = Task(
+        dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+        solver=basic_agent(),
+        scorer=includes(),
+    )
+    model = get_model("mockllm/model")
+
+    log = eval(task, model)[0]
+
+    assert log.status == "success"
+    assert len(log.samples[0].messages) == 50
 
 
 if __name__ == "__main__":

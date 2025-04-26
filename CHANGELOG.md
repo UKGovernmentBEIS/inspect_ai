@@ -1,5 +1,7 @@
 ## Unreleased
 
+- [Scoped Limits](https://inspect.aisi.org.uk/errors-and-limits.html#scoped-limits) for enforcing token and message limits using a context manager.
+- [Agent Limits](https://inspect.aisi.org.uk/errors-and-limits.html#agent-limits) for enforcing token and message limits for agent execution.
 - [read_eval_log_sample_summaries()](https://inspect.aisi.org.uk/eval-logs.html#summaries) function for reading sample summaries (including scoring) from eval logs.
 - Inspect View: Split info tab into task, models, and info for improved layout.
 

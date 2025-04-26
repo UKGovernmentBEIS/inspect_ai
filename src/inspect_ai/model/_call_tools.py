@@ -60,6 +60,7 @@ from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._limit import LimitExceededError, apply_limits
 
 from ._chat_message import (
     ChatMessage,
@@ -171,10 +172,15 @@ async def execute_tools(
                 tool_error = ToolCallError("is_a_directory", err)
             except OutputLimitExceededError as ex:
                 tool_error = ToolCallError(
-                    "output_limit",
-                    f"The tool output limit of {ex.limit_str} was exceeded.",
+                    "limit",
+                    f"The tool exceeded its output limit of {ex.limit_str}.",
                 )
                 result = ex.truncated_output or ""
+            except LimitExceededError as ex:
+                tool_error = ToolCallError(
+                    "limit",
+                    f"The tool exceeded its {ex.type} limit of {ex.limit}.",
+                )
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
             except ToolApprovalError as ex:
@@ -344,6 +350,7 @@ async def call_tool(
     tools: list[ToolDef], message: str, call: ToolCall, conversation: list[ChatMessage]
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
+    from inspect_ai.log._transcript import SampleLimitEvent, transcript
 
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
@@ -362,14 +369,11 @@ async def call_tool(
     )
     if not approved:
         if approval and approval.decision == "terminate":
-            from inspect_ai.solver._limit import SampleLimitExceededError
-
-            raise SampleLimitExceededError(
-                "operator",
-                value=1,
-                limit=1,
-                message="Tool call approver requested termination.",
+            message = "Tool call approver requested termination."
+            transcript()._event(
+                SampleLimitEvent(type="operator", limit=1, message=message)
             )
+            raise LimitExceededError("operator", value=1, limit=1, message=message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:
@@ -454,9 +458,14 @@ async def agent_handoff(
     arguments = tool_params(arguments, agent_tool.agent)
     del arguments["state"]
 
-    # make the call
+    # run the agent with limits
+    limit_error: LimitExceededError | None = None
     agent_state = AgentState(messages=copy(agent_conversation))
-    agent_state = await agent_tool.agent(agent_state, **arguments)
+    try:
+        with apply_limits(agent_tool.limits):
+            agent_state = await agent_tool.agent(agent_state, **arguments)
+    except LimitExceededError as ex:
+        limit_error = ex
 
     # determine which messages are new and return only those (but exclude new
     # system messages as they an internal matter for the handed off to agent.
@@ -474,9 +483,20 @@ async def agent_handoff(
     if agent_tool.output_filter is not None:
         agent_messages = await agent_tool.output_filter(agent_messages)
 
+    if limit_error is not None:
+        agent_messages.append(
+            ChatMessageUser(
+                content=(
+                    f"The {agent_name} exceeded its {limit_error.type} limit of "
+                    f"{limit_error.limit}."
+                )
+            )
+        )
     # if we end with an assistant message then add a user message
     # so that the calling agent carries on
-    if len(agent_messages) == 0 or isinstance(agent_messages[-1], ChatMessageAssistant):
+    elif len(agent_messages) == 0 or isinstance(
+        agent_messages[-1], ChatMessageAssistant
+    ):
         agent_messages.append(
             ChatMessageUser(content=f"The {agent_name} agent has completed its work.")
         )

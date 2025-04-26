@@ -13,8 +13,8 @@ from inspect_ai.scorer._score import score
 from inspect_ai.solver._chain import chain
 from inspect_ai.tool._tool import Tool, ToolResult, tool
 from inspect_ai.tool._tool_with import tool_with
+from inspect_ai.util._limit import token_limit as create_token_limit
 
-from ._limit import SampleLimitExceededError
 from ._prompt import system_message
 from ._solver import Generate, Solver, solver
 from ._task_state import TaskState
@@ -172,14 +172,11 @@ def basic_agent(
             # (if there is no message_limit then default to 50)
             state.message_limit = message_limit or state.message_limit or 50
 
-            # resolve token limit
-            state.token_limit = token_limit or state.token_limit
-
             # track attempts
             attempts = 0
 
-            try:
-                # main loop (state.completed checks message_limit and token_limit)
+            with create_token_limit(token_limit):
+                # main loop
                 while not state.completed:
                     # generate output and append assistant message
                     state.output = await get_model().generate(
@@ -246,10 +243,6 @@ def basic_agent(
                     # no tool calls, urge the model to continue
                     else:
                         state.messages.append(ChatMessageUser(content=continue_message))
-
-            # propagate current state along with sample limit exceeded
-            except SampleLimitExceededError as ex:
-                raise ex.with_state(state)
 
             return state
 
