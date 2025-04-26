@@ -96,7 +96,7 @@ async def compose_cp(
     output_limit: int | None = None,
 ) -> None:
     result = await compose_command(
-        ["cp", "--", src, dest],
+        ["cp", "-L", "--", src, dest],
         project=project,
         timeout=120,  # 2-minute timeout for file copies
         cwd=cwd,
