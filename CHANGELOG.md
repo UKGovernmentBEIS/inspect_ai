@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Correctly pass tool arguments back to model for OpenAI responses API.
+
 ## v0.3.91 (26 April 2025)
 
 - Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.

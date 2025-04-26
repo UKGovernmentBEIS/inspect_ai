@@ -1,3 +1,4 @@
+import json
 from itertools import chain
 from typing import TypedDict, cast
 
@@ -415,7 +416,7 @@ def _tool_call_items_from_assistant_message(
                 type="function_call",
                 call_id=call.id,
                 name=_responses_tool_alias(call.function),
-                arguments=call.function,
+                arguments=json.dumps(call.arguments),
             )
 
             # add id if available
