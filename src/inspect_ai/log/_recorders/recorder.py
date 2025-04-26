@@ -8,10 +8,10 @@ from inspect_ai.log._log import (
     EvalResults,
     EvalSample,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._log import EvalSampleSummary
 
 
 class Recorder(abc.ABC):

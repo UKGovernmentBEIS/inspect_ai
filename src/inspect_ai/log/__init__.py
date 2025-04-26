@@ -29,12 +29,12 @@ from ._log import (
     EvalSampleLimit,
     EvalSampleReductions,
     EvalSampleScore,
+    EvalSampleSummary,
     EvalScore,
     EvalSpec,
     EvalStats,
 )
 from ._message import LoggingLevel, LoggingMessage
-from ._log import EvalSampleSummary
 from ._retry import retryable_eval_logs
 from ._transcript import (
     ApprovalEvent,
