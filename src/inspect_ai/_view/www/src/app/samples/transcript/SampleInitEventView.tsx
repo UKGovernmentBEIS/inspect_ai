@@ -8,6 +8,7 @@ import { ChatView } from "../chat/ChatView";
 import { EventPanel } from "./event/EventPanel";
 import { EventSection } from "./event/EventSection";
 
+import clsx from "clsx";
 import { FC } from "react";
 import styles from "./SampleInitEventView.module.css";
 
@@ -81,7 +82,11 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
           {event.sample.target ? (
             <EventSection title="Target">
               {toArray(event.sample.target).map((target) => {
-                return <div key={target}>{target}</div>;
+                return (
+                  <div key={target} className={clsx("text-size-base")}>
+                    {target}
+                  </div>
+                );
               })}
             </EventSection>
           ) : undefined}
