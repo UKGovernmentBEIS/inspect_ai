@@ -6,14 +6,12 @@ import {
   EvalSpec,
   EvalStats,
 } from "../../../@types/log";
-import { UsageCard } from "../../usage/UsageCard";
-import { TaskErrorCard } from "../error/TaskErrorPanel";
 import { SampleSummary } from "../../../client/api/types";
 import { MessageBand } from "../../../components/MessageBand";
-import { ModelCard } from "../../plan/ModelCard";
 import { kLogViewInfoTabId } from "../../../constants";
 import { useTotalSampleCount } from "../../../state/hooks";
 import { PlanCard } from "../../plan/PlanCard";
+import { TaskErrorCard } from "../error/TaskErrorPanel";
 
 // Individual hook for Info tab
 export const useInfoTabConfig = (
@@ -21,7 +19,6 @@ export const useInfoTabConfig = (
   evalPlan: EvalPlan | undefined,
   evalError: EvalError | undefined | null,
   evalResults: EvalResults | undefined | null,
-  evalStats: EvalStats | undefined,
 ) => {
   const totalSampleCount = useTotalSampleCount();
   return useMemo(() => {
@@ -35,11 +32,10 @@ export const useInfoTabConfig = (
         evalPlan,
         evalError,
         evalResults,
-        evalStats,
         sampleCount: totalSampleCount,
       },
     };
-  }, [evalSpec, evalPlan, evalError, evalResults, evalStats, totalSampleCount]);
+  }, [evalSpec, evalPlan, evalError, evalResults, totalSampleCount]);
 };
 
 interface PlanTabProps {
@@ -57,7 +53,6 @@ export const InfoTab: FC<PlanTabProps> = ({
   evalSpec,
   evalPlan,
   evalResults,
-  evalStats,
   evalStatus,
   evalError,
   sampleCount,
@@ -85,8 +80,6 @@ export const InfoTab: FC<PlanTabProps> = ({
           evalPlan={evalPlan}
           scores={evalResults?.scores}
         />
-        {evalSpec ? <ModelCard evalSpec={evalSpec} /> : undefined}
-        {evalStatus !== "started" ? <UsageCard stats={evalStats} /> : undefined}
         {evalStatus === "error" && evalError ? (
           <TaskErrorCard error={evalError} />
         ) : undefined}

@@ -1,7 +1,7 @@
 .grid {
   display: grid;
   grid-template-columns: max-content auto;
-  column-gap: 1em;
+  column-gap: 0.5em;
   row-gap: 0.2em;
 }
 
