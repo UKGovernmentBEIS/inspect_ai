@@ -74,20 +74,7 @@ class FileRecorder(Recorder):
 
         summaries: list[EvalSampleSummary] = []
         for sample in eval_log.samples:
-            summaries.append(
-                EvalSampleSummary(
-                    id=sample.id,
-                    epoch=sample.epoch,
-                    input=sample.input,
-                    target=sample.target,
-                    scores=sample.scores,
-                    error=sample.error.message if sample.error else None,
-                    limit=sample.limit.type if sample.limit else None,
-                    retries=len(sample.error_retries)
-                    if sample.error_retries is not None
-                    else None,
-                )
-            )
+            summaries.append(sample.summary())
 
         return summaries
 

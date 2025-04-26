@@ -30,6 +30,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ._transcript import Event
+from ._util import text_inputs
 
 logger = getLogger(__name__)
 
@@ -324,6 +325,34 @@ class EvalSample(BaseModel):
 
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
+
+    def summary(self) -> EvalSampleSummary:
+        """Summary of sample.
+
+        The summary excludes potentially large fields like messages, output,
+        events, store, and metadata so that it is always fast to load.
+
+        If there are images, audio, or video in the input, they are
+        replaced with a placeholder.
+
+        Returns:
+           Summary of sample.
+        """
+        return EvalSampleSummary(
+            id=self.id,
+            epoch=self.epoch,
+            input=text_inputs(self.input),
+            target=self.target,
+            scores=self.scores,
+            model_usage=self.model_usage,
+            total_time=self.total_time,
+            working_time=self.working_time,
+            uuid=self.uuid,
+            error=self.error.message if self.error is not None else None,
+            limit=f"{self.limit.type}" if self.limit is not None else None,
+            retries=len(self.error_retries) if self.error_retries is not None else None,
+            completed=True,
+        )
 
     # deprecated properties
 

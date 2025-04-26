@@ -196,25 +196,7 @@ class TaskLogger:
         await self.recorder.log_sample(self.eval, sample)
 
         # mark complete
-        self._buffer_db.complete_sample(
-            EvalSampleSummary(
-                id=sample.id,
-                epoch=sample.epoch,
-                input=sample.input,
-                target=sample.target,
-                completed=True,
-                scores=sample.scores,
-                model_usage=sample.model_usage,
-                total_time=sample.total_time,
-                working_time=sample.working_time,
-                uuid=sample.uuid,
-                error=sample.error.message if sample.error is not None else None,
-                limit=f"{sample.limit.type}" if sample.limit is not None else None,
-                retries=len(sample.error_retries)
-                if sample.error_retries is not None
-                else None,
-            )
-        )
+        self._buffer_db.complete_sample(sample.summary())
 
         # flush if requested
         if flush:

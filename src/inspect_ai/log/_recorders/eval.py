@@ -11,18 +11,10 @@ from pydantic_core import to_json
 from typing_extensions import override
 
 from inspect_ai._util.constants import DESERIALIZING_CONTEXT, LOG_SCHEMA_VERSION
-from inspect_ai._util.content import (
-    ContentAudio,
-    ContentImage,
-    ContentReasoning,
-    ContentText,
-    ContentVideo,
-)
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.trace import trace_action
-from inspect_ai.model._chat_message import ChatMessage
 
 from .._log import (
     EvalLog,
@@ -245,36 +237,6 @@ class EvalRecorder(FileRecorder):
         )
 
 
-def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
-    # Clean the input of any images
-    if isinstance(inputs, list):
-        input: list[ChatMessage] = []
-        for message in inputs:
-            if not isinstance(message.content, str):
-                filtered_content: list[
-                    ContentText
-                    | ContentReasoning
-                    | ContentImage
-                    | ContentAudio
-                    | ContentVideo
-                ] = []
-                for content in message.content:
-                    if content.type == "text":
-                        filtered_content.append(content)
-                    else:
-                        filtered_content.append(
-                            ContentText(text=f"({content.type.capitalize()})")
-                        )
-                message.content = filtered_content
-                input.append(message)
-            else:
-                input.append(message)
-
-        return input
-    else:
-        return inputs
-
-
 class ZipLogFile:
     _zip: ZipFile | None
     _temp_file: BinaryIO
@@ -325,25 +287,8 @@ class ZipLogFile:
                 self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample)
 
                 # Capture the summary
-                summaries.append(
-                    EvalSampleSummary(
-                        id=sample.id,
-                        epoch=sample.epoch,
-                        input=text_inputs(sample.input),
-                        target=sample.target,
-                        completed=True,
-                        scores=sample.scores,
-                        error=sample.error.message
-                        if sample.error is not None
-                        else None,
-                        limit=f"{sample.limit.type}"
-                        if sample.limit is not None
-                        else None,
-                        retries=len(sample.error_retries)
-                        if sample.error_retries is not None
-                        else None,
-                    )
-                )
+                summaries.append(sample.summary())
+
             self._samples.clear()
 
             # write intermediary summaries and add to master list
