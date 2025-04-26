@@ -30,12 +30,12 @@ from .._log import (
     EvalResults,
     EvalSample,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalSpec,
     EvalStats,
     sort_samples,
 )
 from .file import FileRecorder
-from .types import EvalSampleSummary
 
 logger = getLogger(__name__)
 
@@ -282,6 +282,7 @@ class ZipLogFile:
 
     def __init__(self, file: str) -> None:
         self._file = file
+        self._zip = None
         self._fs = filesystem(file)
         self._lock = anyio.Lock()
         self._temp_file = tempfile.TemporaryFile()

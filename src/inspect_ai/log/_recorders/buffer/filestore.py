@@ -14,7 +14,7 @@ from inspect_ai._util.file import FileSystem, basename, dirname, file, filesyste
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai.log._file import read_eval_log
 
-from ..types import EvalSampleSummary
+from ..._log import EvalSampleSummary
 from .types import SampleBuffer, SampleData, Samples
 
 logger = getLogger(__name__)

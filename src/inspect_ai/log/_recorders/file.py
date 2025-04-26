@@ -8,9 +8,8 @@ from inspect_ai._util.constants import MODEL_NONE
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.registry import registry_unqualified_name
 
-from .._log import EvalLog, EvalSample, EvalSpec
+from .._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from .recorder import Recorder
-from .types import EvalSampleSummary
 
 logger = getLogger(__name__)
 

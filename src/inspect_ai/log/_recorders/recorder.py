@@ -11,7 +11,7 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._recorders.types import EvalSampleSummary
+from inspect_ai.log._log import EvalSampleSummary
 
 
 class Recorder(abc.ABC):

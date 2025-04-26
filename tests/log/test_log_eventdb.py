@@ -8,11 +8,12 @@ from typing import Any, Generator, Iterator, cast
 
 import pytest
 
+from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.database import sync_to_filestore
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
-from inspect_ai.log._recorders.types import EvalSampleSummary, SampleEvent
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Event, InfoEvent
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 

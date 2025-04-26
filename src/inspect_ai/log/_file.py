@@ -16,7 +16,7 @@ from inspect_ai._util.file import (
 )
 from inspect_ai._util.json import jsonable_python
 from inspect_ai.log._condense import resolve_sample_attachments
-from inspect_ai.log._recorders.types import EvalSampleSummary
+from inspect_ai.log._log import EvalSampleSummary
 
 from ._log import EvalLog, EvalSample
 from ._recorders import recorder_type_for_format, recorder_type_for_location

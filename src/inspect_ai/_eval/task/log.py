@@ -30,13 +30,14 @@ from inspect_ai.log._log import (
     EvalLog,
     EvalMetricDefinition,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalScorer,
     eval_config_defaults,
 )
 from inspect_ai.log._model import model_args_for_log, model_roles_to_model_roles_config
 from inspect_ai.log._recorders import Recorder
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
-from inspect_ai.log._recorders.types import EvalSampleSummary, SampleEvent
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Event
 from inspect_ai.model import (
     GenerateConfig,
@@ -203,6 +204,10 @@ class TaskLogger:
                 target=sample.target,
                 completed=True,
                 scores=sample.scores,
+                model_usage=sample.model_usage,
+                total_time=sample.total_time,
+                working_time=sample.working_time,
+                uuid=sample.uuid,
                 error=sample.error.message if sample.error is not None else None,
                 limit=f"{sample.limit.type}" if sample.limit is not None else None,
                 retries=len(sample.error_retries)

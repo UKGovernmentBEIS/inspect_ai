@@ -34,7 +34,7 @@ from ._log import (
     EvalStats,
 )
 from ._message import LoggingLevel, LoggingMessage
-from ._recorders import EvalSampleSummary
+from ._log import EvalSampleSummary
 from ._retry import retryable_eval_logs
 from ._transcript import (
     ApprovalEvent,

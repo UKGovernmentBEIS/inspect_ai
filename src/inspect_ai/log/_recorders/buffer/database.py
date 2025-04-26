@@ -18,6 +18,7 @@ from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
+from ..._log import EvalSampleSummary
 
 from ..._condense import (
     ATTACHMENT_PROTOCOL,
@@ -26,7 +27,7 @@ from ..._condense import (
     walk_input,
     walk_json_dict,
 )
-from ..types import EvalSampleSummary, SampleEvent
+from ..types import SampleEvent
 from .filestore import (
     Manifest,
     SampleBufferFilestore,

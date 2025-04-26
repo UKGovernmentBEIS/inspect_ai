@@ -161,6 +161,60 @@ class EvalSampleLimit(BaseModel):
     """The limit value"""
 
 
+class EvalSampleSummary(BaseModel):
+    """Summary information (including scoring) for a sample."""
+
+    id: int | str
+    """Unique id for sample."""
+
+    epoch: int
+    """Epoch number for sample."""
+
+    input: str | list[ChatMessage]
+    """Sample input."""
+
+    target: str | list[str]
+    """Sample target value(s)"""
+
+    scores: dict[str, Score] | None = Field(default=None)
+    """Scores for sample."""
+
+    model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage for sample."""
+
+    total_time: float | None = Field(default=None)
+    """Total time that the sample was running."""
+
+    working_time: float | None = Field(default=None)
+    """Time spent working (model generation, sandbox calls, etc.)"""
+
+    uuid: str | None = Field(default=None)
+    """Globally unique identifier for sample run (exists for samples created in Inspect >= 0.3.70)"""
+
+    error: str | None = Field(default=None)
+    """Error that halted sample."""
+
+    limit: str | None = Field(default=None)
+    """Limit that halted the sample"""
+
+    retries: int | None = Field(default=None)
+    """Number of retries for the sample."""
+
+    completed: bool = Field(default=False)
+    """Is the sample complete."""
+
+    @model_validator(mode="after")
+    def thin_scores(self) -> "EvalSampleSummary":
+        if self.scores is not None:
+            self.scores = {
+                key: Score(value=score.value) for key, score in self.scores.items()
+            }
+        return self
+
+    # allow field model_usage
+    model_config = ConfigDict(protected_namespaces=())
+
+
 class EvalSample(BaseModel):
     """Sample from evaluation task."""
 

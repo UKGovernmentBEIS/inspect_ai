@@ -5,7 +5,7 @@ from .create import (
     recorder_type_for_location,
 )
 from .recorder import Recorder
-from .types import EvalSampleSummary
+from .._log import EvalSampleSummary
 
 __all__ = [
     "EvalSampleSummary",
