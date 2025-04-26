@@ -1,3 +1,7 @@
+## Unreleased
+
+- [read_eval_log_sample_summaries()](https://inspect.aisi.org.uk/eval-logs.html#summaries) function for reading sample summaries (including scoring) from eval logs.
+
 ## v0.3.92 (26 April 2025)
 
 - OpenAI: In responses API, don't pass back assistant output that wasn't part of the output included in the server response (e.g. output generated from a call to a `submit()` tool).
