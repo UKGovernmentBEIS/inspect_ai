@@ -30,7 +30,7 @@ from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
 
 from ._transcript import Event
-from ._util import text_inputs
+from ._util import text_input_only, thin_metadata
 
 logger = getLogger(__name__)
 
@@ -172,13 +172,16 @@ class EvalSampleSummary(BaseModel):
     """Epoch number for sample."""
 
     input: str | list[ChatMessage]
-    """Sample input."""
+    """Sample input (text inputs only)."""
 
     target: str | list[str]
     """Sample target value(s)"""
 
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Sample metadata (scalar types only, strings truncated to 1k)."""
+
     scores: dict[str, Score] | None = Field(default=None)
-    """Scores for sample."""
+    """Scores for sample (score values only, no answers, explanations, or metadata)."""
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
@@ -205,7 +208,14 @@ class EvalSampleSummary(BaseModel):
     """Is the sample complete."""
 
     @model_validator(mode="after")
-    def thin_scores(self) -> "EvalSampleSummary":
+    def thin_data(self) -> "EvalSampleSummary":
+        # thin input
+        self.input = text_input_only(self.input)
+
+        # thin metadata
+        self.metadata = thin_metadata(self.metadata)
+
+        # thin score explanations and metadata
         if self.scores is not None:
             self.scores = {
                 key: Score(value=score.value) for key, score in self.scores.items()
@@ -341,8 +351,9 @@ class EvalSample(BaseModel):
         return EvalSampleSummary(
             id=self.id,
             epoch=self.epoch,
-            input=text_inputs(self.input),
+            input=self.input,
             target=self.target,
+            metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
             total_time=self.total_time,

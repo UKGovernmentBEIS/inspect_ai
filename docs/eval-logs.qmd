@@ -219,7 +219,11 @@ It may also be useful to read only the summary level information about samples (
 summaries = read_eval_log_sample_summaries(log_file)
 ```
 
-The `summaries` are a list of `EvalSampleSummary` objects, one for each sample. Reading only sample summaries will take orders of magnitude less time than reading all of the samples one-by-one, so if you only need access to summary level data, always prefer this function to reading the entire log file.
+The `summaries` are a list of `EvalSampleSummary` objects, one for each sample. Some sample data is "thinned" in the interest of keeping the summaries small: images are removed from `input`, `metadata` is restricted to scalar values (with strings truncated to 1k), and scores include only their `value`.
+
+Reading only sample summaries will take orders of magnitude less time than reading all of the samples one-by-one, so if you only need access to summary level data, always prefer this function to reading the entire log file.
+
+#### Filtering
 
 You can also use `read_eval_log_sample_summaries()` as means of filtering which samples you want to read in full. For example, imagine you only want to read samples that include errors:
 

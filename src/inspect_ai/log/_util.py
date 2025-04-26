@@ -1,3 +1,7 @@
+import textwrap
+from datetime import date, datetime, time
+from typing import Any
+
 from inspect_ai._util.content import (
     ContentAudio,
     ContentImage,
@@ -8,7 +12,7 @@ from inspect_ai._util.content import (
 from inspect_ai.model._chat_message import ChatMessage
 
 
-def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
+def text_input_only(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
     # Clean the input of any images
     if isinstance(inputs, list):
         input: list[ChatMessage] = []
@@ -36,3 +40,13 @@ def text_inputs(inputs: str | list[ChatMessage]) -> str | list[ChatMessage]:
         return input
     else:
         return inputs
+
+
+def thin_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    thinned: dict[str, Any] = {}
+    for key, value in metadata.items():
+        if isinstance(value, int | float | bool | date | time | datetime):
+            thinned[key] = value
+        elif isinstance(value, str):
+            thinned[key] = textwrap.shorten(value, width=1024, placeholder="...")
+    return thinned

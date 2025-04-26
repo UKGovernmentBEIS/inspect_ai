@@ -664,6 +664,7 @@ async def task_run_sample(
                                     epoch=state.epoch,
                                     input=sample.input,
                                     target=sample.target,
+                                    metadata=sample.metadata or {},
                                 )
                             )
 
@@ -933,7 +934,7 @@ async def log_sample(
         input=sample.input,
         choices=sample.choices,
         target=sample.target,
-        metadata=state.metadata if state.metadata else {},
+        metadata=sample.metadata or {},
         sandbox=sample.sandbox,
         files=list(sample.files.keys()) if sample.files else None,
         setup=sample.setup,
