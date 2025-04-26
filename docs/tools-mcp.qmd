@@ -2,14 +2,6 @@
 title: Model Context Protocol
 ---
 
-::: callout-note
-The support for Model Context Protocol tools described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 ## Overview
 
 The [Model Context Protocol](https://modelcontextprotocol.io/introduction) is a standard way to provide capabilities to LLMs. There are hundreds of [MCP Servers](https://github.com/modelcontextprotocol/servers) that provide tools for a myriad of purposes including web search, filesystem interaction, database access, git, and more.
