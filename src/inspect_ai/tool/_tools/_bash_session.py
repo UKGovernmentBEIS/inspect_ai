@@ -8,6 +8,7 @@ from shortuuid import uuid
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.tool import ToolResult
 from inspect_ai.util import StoreModel, store_as
+from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._tool import Tool, ToolParsingError, tool
 from .._tool_support_helpers import (
@@ -31,6 +32,7 @@ class BashRestartResult(BaseModel):
 
 class BashSessionStore(StoreModel):
     session_id: str = Field(default_factory=str)
+    sandbox: SandboxEnvironment | None = Field(default=None)
 
 
 # Action-specific parameter models
@@ -189,16 +191,8 @@ def bash_session(
                         f"Do not provide 'input' with '{action}' action."
                     )
 
-        (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
-        required_version = Version.parse("1.0.0")
-        if sandbox_version < required_version:
-            raise PrerequisiteError(
-                dedent(f"""
-                      The 'inspect-tool-support' version in your container is '{sandbox_version}'. The 'bash_session' tool requires version '{required_version}' or newer. Please update your container image to the latest version of 'inspect-tool-support'.
-                      """).strip()
-            )
-
         store = store_as(BashSessionStore, instance=instance)
+        sandbox = await _get_sandbox(store)
 
         if not store.session_id:
             store.session_id = (
@@ -239,3 +233,18 @@ def bash_session(
         )
 
     return execute
+
+
+async def _get_sandbox(store: BashSessionStore) -> SandboxEnvironment:
+    if not store.sandbox:
+        (sandbox, sandbox_version) = await tool_support_sandbox("bash session")
+        required_version = Version.parse("1.0.0")
+        if sandbox_version < required_version:
+            raise PrerequisiteError(
+                dedent(f"""
+                    The 'inspect-tool-support' version in your container is '{sandbox_version}'. The 'bash_session' tool requires version '{required_version}' or newer. Please update your container image to the latest version of 'inspect-tool-support'.
+                    """).strip()
+            )
+        store.sandbox = sandbox
+
+    return store.sandbox

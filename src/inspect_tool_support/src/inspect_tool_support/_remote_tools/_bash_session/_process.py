@@ -4,7 +4,6 @@ import re
 from asyncio.subprocess import Process as AsyncIOProcess
 
 from ..._util.pseudo_terminal import PseudoTerminal, PseudoTerminalIO
-from ..._util.safe_stream_reader import SafeStreamReader
 from ..._util.timeout_event import TimeoutEvent
 from .tool_types import InteractResult
 
@@ -31,8 +30,8 @@ class Process:
         self._process = process
         self._pty = pty
         self._terminated = False
-        self._output_data = bytearray()
-        self._output_reader = SafeStreamReader(pty.reader, self._receive_data)
+        self._output_data: list[str] = []
+        self._read_task = asyncio.create_task(self._read_loop())
         self._send_data_event = TimeoutEvent()
         self._idle_timeout = 0.0
 
@@ -54,11 +53,10 @@ class Process:
         )
         await self._send_data_event.wait()
 
-        output = self._output_data.decode("utf-8")
         # This isn't 100% correct. Just like the stream chunks could split a
         # utf-8 character, it could also split these control sequences. The
         # downside is just that a control sequence could be left in the output.
-        output = strip_control_characters(output)
+        output = strip_control_characters("".join(self._output_data))
         self._output_data.clear()
 
         return output
@@ -78,7 +76,12 @@ class Process:
             pass
 
         # Cancel the reading task
-        await self._output_reader.stop()
+        if self._read_task:
+            self._read_task.cancel()
+            try:
+                await self._read_task
+            except asyncio.CancelledError:
+                pass
 
         # Clean up the timeout handler
         self._send_data_event.cancel()
@@ -93,10 +96,25 @@ class Process:
 
         self._pty.cleanup()
 
-    def _receive_data(self, new_data: bytes) -> None:
-        self._output_data.extend(new_data)
+    async def _read_loop(self) -> None:
+        """Read decoded data from the PTY and process it."""
+        try:
+            while not self._terminated:
+                decoded_str = await self._pty.read(4096)
+                if not decoded_str:  # EOF
+                    break
 
-        if len(self._output_data) >= 4096:
+                self._receive_data(decoded_str)
+        except (asyncio.CancelledError, BrokenPipeError, ConnectionResetError):
+            # These are expected during termination
+            pass
+        except Exception as e:
+            print(f"Error in read loop: {e}")
+
+    def _receive_data(self, new_data: str) -> None:
+        self._output_data.append(new_data)
+
+        if sum(len(data) for data in self._output_data) >= 4096:
             self._send_data_event.set()
         else:
             self._send_data_event.start_timer(self._idle_timeout)

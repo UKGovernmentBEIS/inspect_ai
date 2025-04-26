@@ -1,4 +1,5 @@
 import asyncio
+import codecs
 import os
 import pty
 import termios
@@ -17,6 +18,8 @@ class PseudoTerminalIO:
     - `reader`: An `asyncio.StreamReader` for reading from the coordinator side.
 
     Methods:
+        read_decoded(n=-1):
+            Read bytes from the reader and properly decode as UTF-8, handling split characters.
         cleanup():
             Releases the resources by closing the file descriptors, reader and writer.
     """
@@ -34,6 +37,7 @@ class PseudoTerminalIO:
         self._writer = writer
         self._reader = reader
         self._read_transport = read_transport
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
 
     @property
     def coordinator_fd(self) -> int:
@@ -50,15 +54,15 @@ class PseudoTerminalIO:
         """A StreamWriter for writing to the coordinator side."""
         return self._writer
 
-    @property
-    def reader(self) -> asyncio.StreamReader:
-        """A StreamReader for reading from the coordinator side."""
-        return self._reader
+    async def read(self, n=-1) -> str:
+        return self._decoder.decode(await self._reader.read(n))
 
     def cleanup(self) -> None:
         self._writer.transport.close()
         # Close the read transport
         self._read_transport.close()
+        # Reset the decoder
+        self._decoder.reset()
         try:
             os.close(self._subprocess_fd)
         except OSError:
