@@ -224,7 +224,7 @@ def web_surfer() -> Agent:
 ```
 ````
 
-Note that the `mcp_connection()` function can take an arbitrary list of `tools` and will discover and connect to any MCP-based `ToolSource` in the list. So if you agent takes a `tools` parameter you can just forward it on. For example:
+Note that the `mcp_connection()` function can take an arbitrary list of `tools` and will discover and connect to any MCP-based `ToolSource` in the list. So if your agent takes a `tools` parameter you can just forward it on. For example:
 
 ``` python
 @agent
