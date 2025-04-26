@@ -1,3 +1,4 @@
+import json
 from itertools import chain
 from typing import TypedDict, cast
 
@@ -306,6 +307,14 @@ def _openai_input_items_from_chat_message_assistant(
     """
     (output_message_id, tool_message_ids) = _ids_from_assistant_internal(message)
 
+    # we want to prevent yielding output messages in the case where we have an
+    # 'internal' field (so the message came from the model API as opposed to
+    # being user synthesized) AND there is no output_message_id (indicating that
+    # when reading the message from the server we didn't find output). this could
+    # happen e.g. when a react() agent sets the output.completion in response
+    # to a submit() tool call
+    suppress_output_message = message.internal is not None and output_message_id is None
+
     # if we are not storing messages on the server then blank these out
     if not store:
         output_message_id = None
@@ -341,6 +350,9 @@ def _openai_input_items_from_chat_message_assistant(
                         )
                     )
             case ContentText(text=text, refusal=refusal):
+                if suppress_output_message:
+                    continue
+
                 new_content = (
                     ResponseOutputRefusalParam(type="refusal", refusal=text)
                     if refusal
@@ -415,7 +427,7 @@ def _tool_call_items_from_assistant_message(
                 type="function_call",
                 call_id=call.id,
                 name=_responses_tool_alias(call.function),
-                arguments=call.function,
+                arguments=json.dumps(call.arguments),
             )
 
             # add id if available
