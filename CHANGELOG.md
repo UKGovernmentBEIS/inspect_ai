@@ -1,6 +1,7 @@
 ## Unreleased
 
 - [read_eval_log_sample_summaries()](https://inspect.aisi.org.uk/eval-logs.html#summaries) function for reading sample summaries (including scoring) from eval logs.
+- Inspect View: Split info tab into task, models, and info for improved layout.
 
 ## v0.3.92 (26 April 2025)
 
