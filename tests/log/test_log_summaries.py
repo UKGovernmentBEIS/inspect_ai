@@ -31,6 +31,19 @@ def test_sample_summaries_thin_metadata() -> None:
     assert "dict" not in summaries[0].metadata
     assert len(summaries[0].metadata["long"]) <= 1024
 
+def test_metadata_summary() -> None:
+    # XXX: The test logs have no metadata - this test isn't really checking anything
+    logs = list_eval_logs(
+        join(dirname(file), "test_list_logs"), formats=["eval", "json"]
+    )
+    for log in logs:
+        summary_samples = read_eval_log_sample_summaries(log)
+        full_samples = read_eval_log_samples(log)
+
+        for summary, full in zip(summary_samples, full_samples):
+            assert(summary.metadata == full.metadata)
+
+
 def test_model_usage() -> None:
     logs = list_eval_logs(
         join(dirname(file), "test_list_logs"), formats=["eval", "json"]
