@@ -1,4 +1,4 @@
-import { Events, ToolEvent } from "../../../../@types/log";
+import { Events, SubtaskEvent, ToolEvent } from "../../../../@types/log";
 import { EventNode, EventType } from "../types";
 
 const ET_STEP = "step";
@@ -47,7 +47,7 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
   });
 
   if (hasSpans) {
-    return fixupTools(rootNodes);
+    return fixupTree(rootNodes);
   } else {
     return rootNodes;
   }
@@ -111,52 +111,80 @@ const treeifyFnSpan: TreeifyFunction = (
   }
 };
 
-const fixupTools = (roots: EventNode[]): EventNode[] => {
+/**
+ * Process a span node by elevating a specific child node type and moving its siblings as children
+ * @template T - Type of the event (either ToolEvent or SubtaskEvent)
+ */
+const processSpanNode = <T extends ToolEvent | SubtaskEvent>(
+  node: EventNode,
+  childEventType: "tool" | "subtask",
+): EventNode | null => {
+  // Find the specific event child
+  const targetIndex = node.children.findIndex(
+    (child) => child.event.event === childEventType,
+  );
+
+  if (targetIndex === -1) {
+    console.log(
+      `No ${childEventType} event found in a span, this is very unexpected.`,
+    );
+    return null;
+  }
+
+  // Get the target node and set its depth
+  const targetNode = node.children[targetIndex];
+  targetNode.depth = node.depth;
+
+  // Process the remaining children
+  const remainingChildren = node.children.filter((_, i) => i !== targetIndex);
+  targetNode.children = remainingChildren.map((child) => {
+    child.depth = child.depth - 1;
+    return child;
+  });
+
+  // Process children recursively
+  // We need to process children here because they might contain nested tool/subtask spans
+  targetNode.children = fixupTree(targetNode.children);
+
+  // Move the children events to the target event
+  const targetEvent = targetNode.event as T;
+  const newEvent: T = {
+    ...targetEvent,
+    events: targetNode.children.map((child) => child.event),
+  };
+  targetNode.event = newEvent as EventType;
+
+  return targetNode;
+};
+
+const fixupTree = (roots: EventNode[]): EventNode[] => {
   const results: EventNode[] = [];
 
   for (const node of roots) {
-    if (node.event.event === "span_begin" && node.event.type === "tool") {
-      // Find the tool event child
-      const toolIndex = node.children.findIndex(
-        (child) => child.event.event === "tool",
-      );
-
-      // This shouldn't happen, but if it does, just add this node as is and continue
-      if (toolIndex === -1) {
-        console.log(
-          "No tool event found in a tool span, this is very unexpected.",
-        );
+    if (node.event.event === "span_begin" && node.event["type"] === "subtask") {
+      const processedNode = processSpanNode<SubtaskEvent>(node, "subtask");
+      if (processedNode) {
+        results.push(processedNode);
+      } else {
+        // If processing failed, still process children recursively
+        node.children = fixupTree(node.children);
         results.push(node);
-        continue;
       }
-
-      // Get the tool node and set its depth
-      const toolNode = node.children[toolIndex];
-      toolNode.depth = node.depth;
-
-      // Process the remaining children
-      const remainingChildren = node.children.filter((_, i) => i !== toolIndex);
-      toolNode.children = remainingChildren.map((child) => {
-        child.depth = child.depth - 1;
-        return child;
-      });
-
-      // Process children recursively
-      toolNode.children = fixupTools(toolNode.children);
-
-      // Move the children events to the tool event
-      const toolEvent = toolNode.event as ToolEvent;
-      const newToolEvent: ToolEvent = {
-        ...toolEvent,
-        events: toolNode.children.map((child) => child.event),
-      };
-      toolNode.event = newToolEvent;
-
-      // Add the tool node to the results
-      results.push(toolNode);
+    } else if (
+      node.event.event === "span_begin" &&
+      node.event["type"] === "tool"
+    ) {
+      const processedNode = processSpanNode<ToolEvent>(node, "tool");
+      if (processedNode) {
+        results.push(processedNode);
+      } else {
+        // If processing failed, still process children recursively
+        node.children = fixupTree(node.children);
+        results.push(node);
+      }
     } else if (node.event.event === "span_begin") {
-      // Process children recursively
-      node.children = fixupTools(node.children);
+      // Process children recursively for non-tool, non-subtask spans
+      node.children = fixupTree(node.children);
       results.push(node);
     } else {
       results.push(node);

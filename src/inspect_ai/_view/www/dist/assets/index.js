@@ -59454,8 +59454,7 @@ ${events}
         name: "sample_init",
         pending: false,
         working_start: 0,
-        span_id: initEvent.span_id,
-        task_id: initEvent.task_id
+        span_id: initEvent.span_id
       });
       fixedUp.splice(initEventIndex + 2, 0, {
         timestamp: initEvent.timestamp,
@@ -59465,8 +59464,7 @@ ${events}
         name: "sample_init",
         pending: false,
         working_start: 0,
-        span_id: initEvent.span_id,
-        task_id: initEvent.task_id
+        span_id: initEvent.span_id
       });
       return fixedUp;
     };
@@ -59502,7 +59500,8 @@ ${events}
       type: null,
       name: name2,
       pending: false,
-      working_start: 0
+      working_start: 0,
+      span_id: null
     });
     const StepEventView = ({
       id,
@@ -60047,7 +60046,7 @@ ${events}
         treeFn(event, addNode, pushStack, popStack);
       });
       if (hasSpans) {
-        return fixupTools(rootNodes);
+        return fixupTree(rootNodes);
       } else {
         return rootNodes;
       }
@@ -60091,36 +60090,53 @@ ${events}
           break;
       }
     };
-    const fixupTools = (roots) => {
+    const processSpanNode = (node2, childEventType) => {
+      const targetIndex = node2.children.findIndex(
+        (child) => child.event.event === childEventType
+      );
+      if (targetIndex === -1) {
+        console.log(
+          `No ${childEventType} event found in a span, this is very unexpected.`
+        );
+        return null;
+      }
+      const targetNode = node2.children[targetIndex];
+      targetNode.depth = node2.depth;
+      const remainingChildren = node2.children.filter((_, i2) => i2 !== targetIndex);
+      targetNode.children = remainingChildren.map((child) => {
+        child.depth = child.depth - 1;
+        return child;
+      });
+      targetNode.children = fixupTree(targetNode.children);
+      const targetEvent = targetNode.event;
+      const newEvent = {
+        ...targetEvent,
+        events: targetNode.children.map((child) => child.event)
+      };
+      targetNode.event = newEvent;
+      return targetNode;
+    };
+    const fixupTree = (roots) => {
       const results = [];
       for (const node2 of roots) {
-        if (node2.event.event === "span_begin" && node2.event.type === "tool") {
-          const toolIndex = node2.children.findIndex(
-            (child) => child.event.event === "tool"
-          );
-          if (toolIndex === -1) {
-            console.log(
-              "No tool event found in a tool span, this is very unexpected."
-            );
-            continue;
+        if (node2.event.event === "span_begin" && node2.event["type"] === "subtask") {
+          const processedNode = processSpanNode(node2, "subtask");
+          if (processedNode) {
+            results.push(processedNode);
+          } else {
+            node2.children = fixupTree(node2.children);
+            results.push(node2);
           }
-          const toolNode = node2.children[toolIndex];
-          toolNode.depth = node2.depth;
-          node2.children.splice(toolIndex, 1);
-          toolNode.children = fixupTools(node2.children);
-          const toolEvent = toolNode.event;
-          const newToolEvent = {
-            ...toolEvent,
-            events: toolNode.children.map((child) => child.event)
-          };
-          toolNode.event = newToolEvent;
-          node2.children = node2.children.map((child) => {
-            child.depth = child.depth - 1;
-            return child;
-          });
-          results.push(toolNode);
+        } else if (node2.event.event === "span_begin" && node2.event["type"] === "tool") {
+          const processedNode = processSpanNode(node2, "tool");
+          if (processedNode) {
+            results.push(processedNode);
+          } else {
+            node2.children = fixupTree(node2.children);
+            results.push(node2);
+          }
         } else if (node2.event.event === "span_begin") {
-          node2.children = fixupTools(node2.children);
+          node2.children = fixupTree(node2.children);
           results.push(node2);
         } else {
           results.push(node2);

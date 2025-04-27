@@ -91,7 +91,6 @@ const collapseSampleInit = (events: Events): Events => {
     pending: false,
     working_start: 0,
     span_id: initEvent.span_id,
-    task_id: initEvent.task_id,
   });
 
   fixedUp.splice(initEventIndex + 2, 0, {
@@ -103,7 +102,6 @@ const collapseSampleInit = (events: Events): Events => {
     pending: false,
     working_start: 0,
     span_id: initEvent.span_id,
-    task_id: initEvent.task_id,
   });
   return fixedUp;
 };
@@ -157,4 +155,5 @@ const createStepEvent = (
   name,
   pending: false,
   working_start: 0,
+  span_id: null,
 });
