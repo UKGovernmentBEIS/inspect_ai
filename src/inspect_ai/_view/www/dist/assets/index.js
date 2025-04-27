@@ -24205,6 +24205,20 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       };
     };
+    function compareWithNan(a, b) {
+      const aIsNaN = Number.isNaN(a);
+      const bIsNaN = Number.isNaN(b);
+      if (aIsNaN && bIsNaN) {
+        return 0;
+      }
+      if (aIsNaN) {
+        return 1;
+      }
+      if (bIsNaN) {
+        return -1;
+      }
+      return a - b;
+    }
     const numericScoreDescriptor = (values) => {
       const onlyNumeric = values.filter((val) => {
         return typeof val === "number";
@@ -24215,7 +24229,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         max: Math.max(...onlyNumeric),
         compare: (a, b) => {
           if (typeof a.value === "number" && typeof b.value === "number") {
-            return a.value - b.value;
+            return compareWithNan(a.value, b.value);
           } else {
             console.warn("Comparing non-numerics using a numeric score descriptor");
             return 0;
