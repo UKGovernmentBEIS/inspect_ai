@@ -60046,7 +60046,11 @@ ${events}
       events.forEach((event) => {
         treeFn(event, addNode, pushStack, popStack);
       });
-      return rootNodes;
+      if (hasSpans) {
+        return fixupTools(rootNodes);
+      } else {
+        return rootNodes;
+      }
     }
     const treeifyFnStep = (event, addNode, pushStack, popStack) => {
       switch (event.event) {
@@ -60086,6 +60090,43 @@ ${events}
           addNode(event);
           break;
       }
+    };
+    const fixupTools = (roots) => {
+      const results = [];
+      for (const node2 of roots) {
+        if (node2.event.event === "span_begin" && node2.event.type === "tool") {
+          const toolIndex = node2.children.findIndex(
+            (child) => child.event.event === "tool"
+          );
+          if (toolIndex === -1) {
+            console.log(
+              "No tool event found in a tool span, this is very unexpected."
+            );
+            continue;
+          }
+          const toolNode = node2.children[toolIndex];
+          toolNode.depth = node2.depth;
+          node2.children.splice(toolIndex, 1);
+          toolNode.children = fixupTools(node2.children);
+          const toolEvent = toolNode.event;
+          const newToolEvent = {
+            ...toolEvent,
+            events: toolNode.children.map((child) => child.event)
+          };
+          toolNode.event = newToolEvent;
+          node2.children = node2.children.map((child) => {
+            child.depth = child.depth - 1;
+            return child;
+          });
+          results.push(toolNode);
+        } else if (node2.event.event === "span_begin") {
+          node2.children = fixupTools(node2.children);
+          results.push(node2);
+        } else {
+          results.push(node2);
+        }
+      }
+      return results;
     };
     const TranscriptView = ({
       id,

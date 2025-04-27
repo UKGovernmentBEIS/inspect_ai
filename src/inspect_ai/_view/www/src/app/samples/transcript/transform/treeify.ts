@@ -1,4 +1,4 @@
-import { Events } from "../../../../@types/log";
+import { Events, ToolEvent } from "../../../../@types/log";
 import { EventNode, EventType } from "../types";
 
 const ET_STEP = "step";
@@ -45,7 +45,12 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
   events.forEach((event) => {
     treeFn(event, addNode, pushStack, popStack);
   });
-  return rootNodes;
+
+  if (hasSpans) {
+    return fixupTools(rootNodes);
+  } else {
+    return rootNodes;
+  }
 }
 
 const treeifyFnStep: TreeifyFunction = (
@@ -104,4 +109,59 @@ const treeifyFnSpan: TreeifyFunction = (
       addNode(event);
       break;
   }
+};
+
+const fixupTools = (roots: EventNode[]): EventNode[] => {
+  const results: EventNode[] = [];
+
+  for (const node of roots) {
+    if (node.event.event === "span_begin" && node.event.type === "tool") {
+      // Find the tool event child
+      const toolIndex = node.children.findIndex(
+        (child) => child.event.event === "tool",
+      );
+
+      // This shouldn't happen, but if it does, just add this node as is and continue
+      if (toolIndex === -1) {
+        console.log(
+          "No tool event found in a tool span, this is very unexpected.",
+        );
+        results.push(node);
+        continue;
+      }
+
+      // Get the tool node and set its depth
+      const toolNode = node.children[toolIndex];
+      toolNode.depth = node.depth;
+
+      // Process the remaining children
+      const remainingChildren = node.children.filter((_, i) => i !== toolIndex);
+      toolNode.children = remainingChildren.map((child) => {
+        child.depth = child.depth - 1;
+        return child;
+      });
+
+      // Process children recursively
+      toolNode.children = fixupTools(toolNode.children);
+
+      // Move the children events to the tool event
+      const toolEvent = toolNode.event as ToolEvent;
+      const newToolEvent: ToolEvent = {
+        ...toolEvent,
+        events: toolNode.children.map((child) => child.event),
+      };
+      toolNode.event = newToolEvent;
+
+      // Add the tool node to the results
+      results.push(toolNode);
+    } else if (node.event.event === "span_begin") {
+      // Process children recursively
+      node.children = fixupTools(node.children);
+      results.push(node);
+    } else {
+      results.push(node);
+    }
+  }
+
+  return results;
 };
