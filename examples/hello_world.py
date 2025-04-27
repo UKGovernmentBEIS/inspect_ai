@@ -11,6 +11,9 @@ from inspect_ai.solver import generate
 # We could do time based buffering of the database inserts (note that the buffer you experimented with is for writing to the .eval file not for the db, which does not currently do any buffering)
 # Note that the Python sqlite interface is sync but I am not at all sure this is the main issue. There are async sqlite wrappers that use threads under the hood, but these don't work w/ Trio (and we are committed to allowing users to choose either asyncio or trio as their async backend). It's also not clear whether this yields any perf benefit (e.g. see https://github.com/simonw/datasette/issues/1727).
 
+# python3 -m cProfile -o program.prof examples/hello_world.py
+# snakeviz program.prof
+
 
 @task
 def hello_world():
@@ -31,8 +34,8 @@ def hello_world():
 def main():
     eval_logs = eval(
         hello_world(),
-        max_samples=900,
-        max_connections=900,
+        max_samples=100,
+        max_connections=100,
         model="openai/gpt-4.1-nano",
         epochs=2000,
         log_samples=True,
