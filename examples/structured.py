@@ -1,5 +1,3 @@
-from logging import getLogger
-
 from pydantic import BaseModel, ValidationError
 
 from inspect_ai import Task, task
@@ -16,8 +14,6 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.solver import TaskState, generate
 from inspect_ai.util import json_schema
-
-logger = getLogger(__name__)
 
 
 class Color(BaseModel):

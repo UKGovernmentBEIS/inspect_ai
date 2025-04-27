@@ -24,112 +24,6 @@ class ResponseSchema(BaseModel):
     """Whether to enable strict schema adherence when generating the output. If set to true, the model will always follow the exact schema defined in the schema field.
     OpenAI and Mistral only."""
 
-    # class StructureDefinition(BaseModel):
-    #     """Definition of a structural tag format."""
-
-    #     begin: str
-    #     """The opening tag that marks the beginning of the structure."""
-
-    #     json_schema: JSONSchema = Field(serialization_alias="schema")
-    #     """The JSON schema that defines the structure's format."""
-
-    #     end: str
-    #     """The closing tag that marks the end of the structure."""
-
-    # class StructuralTagConfig(BaseModel):
-    #     """Configuration for structural tags."""
-
-    #     structures: list[StructureDefinition]
-    #     """List of structure definitions."""
-
-    #     triggers: list[str]
-    #     """List of trigger strings that indicate a structural tag."""
-
-    # class GuidedDecodingConfig(BaseModel):
-    # r"""Configuration for guided decoding in vLLM and SGLang.
-
-    # Examples:
-    #     Using JSON schema:
-    #         ```python
-    #         config = GenerateConfig(
-    #             guided_decoding=GuidedDecodingConfig(
-    #                 json_schema=ResponseSchema(
-    #                     name="person",
-    #                     json_schema=JSONSchema(type="object", properties={
-    #                         "name": {"type": "string"},
-    #                         "age": {"type": "integer"}
-    #                     })
-    #                 )
-    #             )
-    #         )
-    #         ```
-
-    #     Using regex:
-    #         ```python
-    #         config = GenerateConfig(
-    #             guided_decoding=GuidedDecodingConfig(
-    #                 regex=r"[A-Z][a-z]+ [A-Z][a-z]+"
-    #             )
-    #         )
-    #         ```
-
-    #     Using grammar:
-    #         ```python
-    #         config = GenerateConfig(
-    #             guided_decoding=GuidedDecodingConfig(
-    #                 grammar="root ::= object\nobject ::= '{' members '}'\nmembers ::= pair (',' pair)*\npair ::= string ':' value"
-    #             )
-    #         )
-    #         ```
-
-    #     Using structural tags:
-    #         ```python
-    #         config = GenerateConfig(
-    #             guided_decoding=GuidedDecodingConfig(
-    #                 structural_tags=StructuralTagConfig(
-    #                     structures=[
-    #                         StructureDefinition(
-    #                             begin="<code>",
-    #                             json_schema=JSONSchema(type="string"),
-    #                             end="</code>"
-    #                         )
-    #                     ],
-    #                     triggers=["<code>"]
-    #                 )
-    #             )
-    #         )
-    #         ```
-    # """
-
-    # json_schema: ResponseSchema | None = Field(
-    #     default=None, alias="json", serialization_alias="guided_json"
-    # )
-    # """JSON schema to guide the model's output format."""
-
-    # regex: str | None = Field(default=None, serialization_alias="guided_regex")
-    # """Regular expression to constrain the model's output format."""
-
-    # choice: list[str] | None = Field(default=None, serialization_alias="guided_choice")
-    # """List of possible choices the model can output."""
-
-    # grammar: str | None = Field(default=None, serialization_alias="guided_grammar")
-    # """Context-free grammar in EBNF format to define the output structure."""
-
-    # structural_tags: StructuralTagConfig | None = Field(
-    #     default=None, serialization_alias="structural_tags"
-    # )
-    # """Configuration for structural tags to guide the model's output format."""
-
-    # backend: Literal["outlines", "lm-format-enforcer", "xgrammar"] | None = Field(
-    #     default=None, serialization_alias="guided_decoding_backend"
-    # )
-    # """Backend implementation to use for guided decoding."""
-
-    # whitespace_pattern: str | None = Field(
-    #     default=None, serialization_alias="guided_whitespace_pattern"
-    # )
-    # """Pattern to use for whitespace handling in guided json decoding."""
-
 
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
@@ -212,9 +106,6 @@ class GenerateConfigArgs(TypedDict, total=False):
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
-    # guided_decoding: GuidedDecodingConfig | None
-    # """Configuration for guided decoding to control model output format. vLLM only."""
-
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
 
@@ -250,28 +141,28 @@ class GenerateConfig(BaseModel):
     """Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). vLLM only."""
 
     frequency_penalty: float | None = Field(default=None)
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, and vLLM only."""
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model's likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, vLLM, and SGLang only."""
 
     presence_penalty: float | None = Field(default=None)
-    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Google, Grok, Groq, and vLLM only."""
+    """Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model's likelihood to talk about new topics. OpenAI, Google, Grok, Groq, vLLM, and SGLang only."""
 
     logit_bias: dict[int, float] | None = Field(default=None)
-    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI, Grok, and Grok only."""
+    """Map token Ids to an associated bias value from -100 to 100 (e.g. "42=10,43=-10"). OpenAI, Grok, Grok, and vLLM only."""
 
     seed: int | None = Field(default=None)
     """Random seed. OpenAI, Google, Mistral, Groq, HuggingFace, and vLLM only."""
 
     top_k: int | None = Field(default=None)
-    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only."""
+    """Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, vLLM, and SGLang only."""
 
     num_choices: int | None = Field(default=None)
-    """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only."""
+    """How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, vLLM, and SGLang only."""
 
     logprobs: bool | None = Field(default=None)
-    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only."""
+    """Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, vLLM, and SGLang only."""
 
     top_logprobs: int | None = Field(default=None)
-    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, Huggingface, and vLLM only."""
+    """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, Huggingface, vLLM, and SGLang only."""
 
     parallel_tool_calls: bool | None = Field(default=None)
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
@@ -302,10 +193,7 @@ class GenerateConfig(BaseModel):
     """Include reasoning in chat message history sent to generate."""
 
     response_schema: ResponseSchema | None = Field(default=None)
-    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, and vLLM only."""
-
-    # guided_decoding: GuidedDecodingConfig | None = Field(default=None)
-    # """Configuration for guided decoding to control model output format. vLLM only."""
+    """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, vLLM, and SGLang only."""
 
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""

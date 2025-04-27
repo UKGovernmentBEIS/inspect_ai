@@ -56,7 +56,6 @@ from ._trim import trim_messages
 __all__ = [
     "GenerateConfig",
     "GenerateConfigArgs",
-    "GuidedDecodingConfig",
     "ResponseSchema",
     "CachePolicy",
     "ContentAudio",
