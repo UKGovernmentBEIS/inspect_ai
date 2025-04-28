@@ -161,13 +161,17 @@ class TaskLogger:
         self.flush_buffer = eval_config.log_buffer or recorder.default_log_buffer()
         self.flush_pending: list[tuple[str | int, int]] = []
 
+        # sample buffer db
+        self._buffer_db: SampleBufferDatabase | None = None
+
     async def init(self) -> None:
         self._location = await self.recorder.log_init(self.eval)
-        self._buffer_db = SampleBufferDatabase(
-            location=self._location,
-            log_images=self.eval.config.log_images is not False,
-            log_shared=self.eval.config.log_shared,
-        )
+        if self.eval.config.log_realtime is not False:
+            self._buffer_db = SampleBufferDatabase(
+                location=self._location,
+                log_images=self.eval.config.log_images is not False,
+                log_shared=self.eval.config.log_shared,
+            )
 
     @property
     def location(self) -> str:
@@ -182,21 +186,25 @@ class TaskLogger:
         await self.recorder.flush(self.eval)
 
     async def start_sample(self, sample: EvalSampleSummary) -> None:
-        self._buffer_db.start_sample(sample)
+        if self._buffer_db is not None:
+            self._buffer_db.start_sample(sample)
 
     def log_sample_event(self, id: str | int, epoch: int, event: Event) -> None:
         # log the sample event
-        self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
+        if self._buffer_db is not None:
+            self._buffer_db.log_events([SampleEvent(id=id, epoch=epoch, event=event)])
 
     def remove_sample(self, id: str | int, epoch: int) -> None:
-        self._buffer_db.remove_samples([(id, epoch)])
+        if self._buffer_db is not None:
+            self._buffer_db.remove_samples([(id, epoch)])
 
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         # log the sample
         await self.recorder.log_sample(self.eval, sample)
 
         # mark complete
-        self._buffer_db.complete_sample(sample.summary())
+        if self._buffer_db is not None:
+            self._buffer_db.complete_sample(sample.summary())
 
         # flush if requested
         if flush:
@@ -206,7 +214,8 @@ class TaskLogger:
                 await self.recorder.flush(self.eval)
 
                 # notify the event db it can remove these
-                self._buffer_db.remove_samples(self.flush_pending)
+                if self._buffer_db is not None:
+                    self._buffer_db.remove_samples(self.flush_pending)
 
                 # Clear
                 self.flush_pending.clear()
@@ -216,7 +225,8 @@ class TaskLogger:
             self._samples_completed += 1
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
-        self._buffer_db.update_metrics(metrics)
+        if self._buffer_db is not None:
+            self._buffer_db.update_metrics(metrics)
 
     async def log_finish(
         self,
@@ -232,7 +242,8 @@ class TaskLogger:
         )
 
         # cleanup the events db
-        self._buffer_db.cleanup()
+        if self._buffer_db is not None:
+            self._buffer_db.cleanup()
 
         # return log
         return log

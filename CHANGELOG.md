@@ -3,6 +3,8 @@
 - [Scoped Limits](https://inspect.aisi.org.uk/errors-and-limits.html#scoped-limits) for enforcing token and message limits using a context manager.
 - [Agent Limits](https://inspect.aisi.org.uk/errors-and-limits.html#agent-limits) for enforcing token and message limits for agent execution.
 - [read_eval_log_sample_summaries()](https://inspect.aisi.org.uk/eval-logs.html#summaries) function for reading sample summaries (including scoring) from eval logs.
+- Improved write performance for realtime event logging.
+- `--no-log-realtime` option for disabling realtime event logging (live viewing of logs is disabled when this is specified).
 - Inspect View: Split info tab into task, models, and info for improved layout.
 
 ## v0.3.92 (26 April 2025)
