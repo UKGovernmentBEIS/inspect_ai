@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from .file_descriptor_reader import FileDescriptorReader
+from .async_decoded_stream_reader import AsyncDecodedStreamReader
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ def test_close():
     """Test proper cleanup when close() is called."""
     mock_reader = Mock()
     mock_transport = Mock()
-    reader = FileDescriptorReader(
+    reader = AsyncDecodedStreamReader(
         reader=mock_reader,
         read_transport=mock_transport,
         encoding="utf-8",
@@ -108,7 +108,7 @@ async def test_resource_management(mock_get_loop):
     mock_loop.connect_read_pipe.return_value = future
 
     # Use the context manager approach
-    async with await FileDescriptorReader.create(1):
+    async with await AsyncDecodedStreamReader.create(1):
         pass  # Resources will be automatically cleaned up
 
     mock_loop.connect_read_pipe.assert_called_once()
@@ -116,12 +116,12 @@ async def test_resource_management(mock_get_loop):
 
 @pytest.mark.asyncio
 async def test_context_manager_open():
-    """Test using FileDescriptorReader.open as an async context manager."""
+    """Test using AsyncDecodedStreamReader.open as an async context manager."""
     read_fd, write_fd = os.pipe()
 
     try:
         # Use the open method which is explicitly designed for context manager usage
-        async with await FileDescriptorReader.open(read_fd) as reader:
+        async with await AsyncDecodedStreamReader.open(read_fd) as reader:
             test_data = b"Context manager test"
             os.write(write_fd, test_data)
             os.close(write_fd)
@@ -143,12 +143,12 @@ async def test_context_manager_open():
 
 @pytest.mark.asyncio
 async def test_direct_context_manager():
-    """Test using FileDescriptorReader instance directly as an async context manager."""
+    """Test using AsyncDecodedStreamReader instance directly as an async context manager."""
     read_fd, write_fd = os.pipe()
 
     try:
         # Create the reader first, then use it as a context manager
-        reader = await FileDescriptorReader.create(read_fd)
+        reader = await AsyncDecodedStreamReader.create(read_fd)
         async with reader:
             test_data = b"Direct context manager"
             os.write(write_fd, test_data)
@@ -170,10 +170,10 @@ async def test_direct_context_manager():
 
 
 class FDPipeReader:
-    """Helper class for testing FileDescriptorReader with pipes.
+    """Helper class for testing AsyncDecodedStreamReader with pipes.
 
     This class is an async context manager that automatically sets up and tears down
-    pipes for testing FileDescriptorReader.
+    pipes for testing AsyncDecodedStreamReader.
 
     Usage:
         async with FDPipeReader() as (reader, write_pipe):
@@ -193,7 +193,7 @@ class FDPipeReader:
 
     async def __aenter__(self):
         # Use the reader as a context manager
-        self.reader_ctx = await FileDescriptorReader.create(self.read_fd)
+        self.reader_ctx = await AsyncDecodedStreamReader.create(self.read_fd)
         self.reader = (
             self.reader_ctx
         )  # They are the same object, but helps clarify intent

@@ -4,7 +4,7 @@ import pty
 import termios
 from contextlib import AbstractAsyncContextManager
 
-from .file_descriptor_reader import FileDescriptorReader
+from .async_decoded_stream_reader import AsyncDecodedStreamReader
 
 
 class PseudoTerminalIO:
@@ -16,7 +16,7 @@ class PseudoTerminalIO:
     - `coordinator_fd`: Used to send and receive data from the PTY.
     - `subprocess_fd`: Used to interact with the subprocess connected to the PTY.
     - `writer`: An `asyncio.StreamWriter` for writing to the coordinator side.
-    - `fd_reader`: A `FileDescriptorReader` for reading from the coordinator side.
+    - `fd_reader`: A `AsyncDecodedStreamReader` for reading from the coordinator side.
 
     Methods:
         read(n=-1):
@@ -30,7 +30,7 @@ class PseudoTerminalIO:
         coordinator_fd: int,
         subprocess_fd: int,
         writer: asyncio.StreamWriter,
-        fd_reader: FileDescriptorReader,
+        fd_reader: AsyncDecodedStreamReader,
     ) -> None:
         self._coordinator_fd = coordinator_fd
         self._subprocess_fd = subprocess_fd
@@ -130,11 +130,11 @@ class PseudoTerminal(AbstractAsyncContextManager):
         termios.tcsetattr(coordinator_fd, termios.TCSANOW, attrs)
 
         # We need to duplicate the file descriptor for writing separately
-        # (FileDescriptorReader will duplicate the read fd internally)
+        # (AsyncDecodedStreamReader will duplicate the read fd internally)
         write_fd = os.dup(coordinator_fd)
 
-        # Set up the reader component using our new FileDescriptorReader class
-        fd_reader = await FileDescriptorReader.create(coordinator_fd)
+        # Set up the reader component using our new AsyncDecodedStreamReader class
+        fd_reader = await AsyncDecodedStreamReader.create(coordinator_fd)
 
         # Set up writer
         loop = asyncio.get_event_loop()
