@@ -245,6 +245,21 @@ execution).
 
 ### Message Limit
 
+Message limits enforce a limit on the number of messages in any
+conversation (e.g. a `TaskState`, `AgentState`, or any input to
+`generate()`).
+
+Message limits are checked:
+
+- Whenever you call `generate()` on any model. A `LimitExceededError`
+  will be raised if the number of messages passed in `input` parameter
+  to `generate()` is equal to or exceeds the limit. This is to avoid
+  proceeding to another (wasteful) generate call if we’re already at the
+  limit.
+
+- Whenever `TaskState.messages` or `AgentState.messages` is mutated, but
+  a `LimitExceededError` is only raised if the count exceeds the limit.
+
 Here we set a `message_limit` of 30 for each sample within a task:
 
 ``` python
@@ -268,26 +283,11 @@ model is forced to give up. At that point, whatever `output` happens to
 be in the `TaskState` will be scored (presumably leading to a score of
 incorrect).
 
-Note that its also possible for a solver to set the `message_limit`
-directly on the `TaskState` (this is often done by agent solvers which
-provide their own generate loop):
-
-``` python
-@solver
-def agent_loop(message_limit: int = 50):
-    async def solve(state: TaskState, generate: Generate):
-
-        # establish message limit so we have a termination condition
-        state.message_limit = message_limit
-
-        ...
-```
-
-Message limits are checked whenever you call `generate()` on the main
-model being evaluated. The `message_limit` is comparted to the number of
-messages passed in `input` parameter to `generate()`.
-
 ### Token Limit
+
+Token usage (using `total_tokens` of `ModelUsage`) is automatically
+recorded for all models. Token limits are checked whenever `generate()`
+is called.
 
 Here we set a `token_limit` of 500K for each sample within a task:
 
@@ -307,20 +307,6 @@ def intercode_ctf():
     )
 ```
 
-As with `message_limit`, it’s also possible for a solver to set the
-`token_limit` directly on the `TaskState`:
-
-``` python
-@solver
-def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
-    async def solve(state: TaskState, generate: Generate):
-
-        # establish token limit so we have a termination condition
-        state.token_limit = token_limit
-
-        ...
-```
-
 > [!IMPORTANT]
 >
 > It’s important to note that the `token_limit` is for all tokens used
@@ -330,18 +316,189 @@ def agent_loop(token_limit: int = (1024 * 500)) -> Solver:
 
 ### Custom Limit
 
-When limits are exceeded, a `SampleLimitExceededError` is raised and
-caught by the main Inspect sample execution logic. If you want to create
-custom limit types, you can enforce them by raising a
-`SampleLimitExceededError` as follows:
+When limits are exceeded, a `LimitExceededError` is raised and caught by
+the main Inspect sample execution logic. If you want to create custom
+limit types, you can enforce them by raising a `LimitExceededError` as
+follows:
 
 ``` python
-from inspect_ai.solver import SampleLimitExceededError
+from inspect_ai.util import LimitExceededError
 
-raise SampleLimitExceededError(
+raise LimitExceededError(
     "custom", 
     value=value,
     limit=limit,
     message=f"A custom limit was exceeded: {value}"
 )
 ```
+
+## Scoped Limits
+
+> [!NOTE]
+>
+> The scoped limits described below are available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+You can also apply limits at arbitrary scopes, independent of the sample
+or agent-scoped limits. For instance, applied to a specific agent or
+within a specific block of code. For example:
+
+``` python
+with token_limit(1024*500):
+    ...
+```
+
+### Message Limit
+
+Message limits enforce a limit on the number of messages in any
+conversation (e.g. a `TaskState`, `AgentState`, or any input to
+`generate()`).
+
+Message limits are checked:
+
+- Whenever you call `generate()` on any model. A `LimitExceededError`
+  will be raised if the number of messages passed in `input` parameter
+  to `generate()` is equal to or exceeds the limit. This is to avoid
+  proceeding to another (wasteful) generate call if we’re already at the
+  limit.
+
+- Whenever `TaskState.messages` or `AgentState.messages` is mutated, but
+  a `LimitExceededError` is only raised if the count exceeds the limit.
+
+Scoped message limits behave differently to scoped token limits in that
+only the innermost active `message_limit()` is checked.
+
+To limit the conversation length within a block of code:
+
+``` python
+@agent
+def myagent() -> Agent:
+    async def execute(state: AgentState):
+
+        with message_limit(50):
+            # A LimitExceededError will be raised when the limit is exceeded
+            ...
+            with message_limit(None):
+                # The limit of 50 is temporarily removed in this block of code
+                ...
+```
+
+> [!IMPORTANT]
+>
+> It’s important to note that `message_limit()` limits the total number
+> of messages in the conversation, not just “new” messages appended by
+> an agent.
+
+### Token Limit
+
+Token usage (using `total_tokens` of `ModelUsage`) is automatically
+recorded for all models. Token limits are checked whenever `generate()`
+is called.
+
+To limit the total number of tokens which can be used in a block of
+code:
+
+``` python
+@agent
+def myagent(tokens: int = (1024*500)) -> Agent:
+    async def execute(state: AgentState):
+
+        with token_limit(tokens):
+            # a LimitExceededError will be raised if the limit is exceeded
+            ...
+```
+
+The limits can be stacked. Tokens used while a context manager is open
+count towards all open token limits.
+
+``` python
+@agent
+def myagent() -> Solver:
+    async def execute(state: AgentState):
+
+        with token_limit(1024*500):
+            ...
+            with token_limit(1024*200):
+                # Tokens used here count towards both active limits
+                ...
+```
+
+> [!IMPORTANT]
+>
+> It’s important to note that `token_limit()` is for all tokens used
+> *while the context manager is open*. If you want to limit the number
+> of tokens that can be yielded from a single call to the model you
+> should use the `max_tokens` generation option.
+
+## Agent Limits
+
+The agent limits described below are available only in the development
+version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+
+To run an agent with one or more limits, pass the limit object in the
+`limits` argument to a function like `handoff()`, `as_tool()`,
+`as_solver()` or `run()` (see [Using Agents](agents.qmd#using-agents)
+for details on the various ways to run agents).
+
+Here we limit an agent we are including as a solver to 500K tokens:
+
+``` python
+eval(
+    task="research_bench", 
+    solver=as_solver(web_surfer(), limits=[token_limit(1024*500)])
+)
+```
+
+Here we limit an agent `handoff()` to 500K tokens:
+
+``` python
+eval(
+    task="research_bench", 
+    solver=[
+        use_tools(
+            addition(),
+            handoff(web_surfer(), limits=[token_limit(1024*500)]),
+        ),
+        generate()
+    ]
+)
+```
+
+Note that when limits are exceeded during an agent’s execution, the way
+this is handled differs depending on how the agent was executed:
+
+- For tool based agents (`handoff()` and `as_tool()`), if a limit is
+  exceeded then a message to that effect is returned to the model but
+  the *sample continues running*.
+
+- For agents used via `as_solver()`, if a limit is exceeded then the
+  sample will terminate (this is exactly how sample-level limits work).
+
+- For agents that are `run()` directly, by default an exception is
+  thrown and the sample terminates. You may on the other hand catch the
+  exception and take another action:
+
+  ``` python
+  from inspect_ai.agent import run
+
+  try:
+      state = await run(
+          agent=web_surfer(), 
+          input="What were the 3 most popular movies of 2020?",
+          limits=[token_limit(1024*500)])
+      )
+  except LimitExceededError as ex:
+      if ex.type == "token":
+          ...
+      else:
+          raise
+  ```
