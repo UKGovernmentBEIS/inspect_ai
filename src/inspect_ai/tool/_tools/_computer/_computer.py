@@ -6,7 +6,31 @@ from inspect_ai.tool._tool import TOOL_INIT_MODEL_INPUT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallModelInput, ToolCallModelInputHints
 
 from . import _common as common
-from ._resources.tool._constants import Action
+
+# this is duplicated from ._resources.tool._constants import Action
+# changes should be synchronized!
+
+Action = Literal[
+    "key",
+    "hold_key",
+    "type",
+    "cursor_position",
+    "mouse_move",
+    "left_mouse_down",
+    "left_mouse_up",
+    "left_click",
+    "left_click_drag",
+    "right_click",
+    "middle_click",
+    "back_click",
+    "forward_click",
+    "double_click",
+    "triple_click",
+    "scroll",
+    "wait",
+    "screenshot",
+]
+
 
 ActionFunction = Callable[[str], ToolResult | Awaitable[ToolResult]]
 

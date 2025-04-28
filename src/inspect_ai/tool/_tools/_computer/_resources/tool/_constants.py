@@ -1,5 +1,7 @@
 from typing import Literal
 
+# this is duplicated in _computer.py
+# changes should be synchronized!
 Action = Literal[
     "key",
     "hold_key",
