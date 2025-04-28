@@ -7,7 +7,7 @@ import subprocess
 import time
 from typing import Any, Dict, Optional, Tuple
 
-import requests
+import httpx
 
 # Set up logger for this module
 logger = logging.getLogger(__name__)
@@ -209,9 +209,10 @@ def wait_for_server(
             raise RuntimeError(error_msg)
 
         try:
-            response = requests.get(
+            response = httpx.get(
                 f"{base_url}/v1/models",
                 headers={"Authorization": f"Bearer {api_key or 'None'}"},
+                timeout=5.0,
             )
             if response.status_code == 200:
                 logger.info("Server is ready.")
@@ -224,7 +225,7 @@ def wait_for_server(
 
                 logger.error(error_msg)
                 raise TimeoutError(error_msg)
-        except requests.exceptions.RequestException:
+        except httpx.RequestError:
             time.sleep(1)
 
 
@@ -333,14 +334,18 @@ def configure_devices(
     """
     result = server_args.copy()
 
-    if "device" not in result or not result["device"]:
-        return result
+    if "device" in result and "devices" in result:
+        raise ValueError("Cannot specify both device and devices in server args")
+    elif "devices" in result:
+        devices = result.pop("devices")
+    elif "device" in result:
+        devices = result.pop("device")
 
     # Convert device list to comma-separated string if needed
-    if isinstance(result["device"], list):
-        device_str = ",".join(map(str, result["device"]))
+    if isinstance(devices, list):
+        device_str = ",".join(map(str, devices))
     else:
-        device_str = str(result["device"])
+        device_str = str(devices)
 
     # Set CUDA_VISIBLE_DEVICES environment variable
     os.environ["CUDA_VISIBLE_DEVICES"] = device_str
@@ -350,8 +355,5 @@ def configure_devices(
     # Set parallel size parameter if not explicitly provided
     if parallel_size_param not in result:
         result[parallel_size_param] = device_count
-
-    # Remove device from args since it's handled via environment variable
-    result.pop("device")
 
     return result
