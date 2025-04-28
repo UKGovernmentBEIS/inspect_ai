@@ -1,9 +1,10 @@
 import asyncio
-import codecs
 import os
 import pty
 import termios
 from contextlib import AbstractAsyncContextManager
+
+from .file_descriptor_reader import FileDescriptorReader
 
 
 class PseudoTerminalIO:
@@ -15,10 +16,10 @@ class PseudoTerminalIO:
     - `coordinator_fd`: Used to send and receive data from the PTY.
     - `subprocess_fd`: Used to interact with the subprocess connected to the PTY.
     - `writer`: An `asyncio.StreamWriter` for writing to the coordinator side.
-    - `reader`: An `asyncio.StreamReader` for reading from the coordinator side.
+    - `fd_reader`: A `FileDescriptorReader` for reading from the coordinator side.
 
     Methods:
-        read_decoded(n=-1):
+        read(n=-1):
             Read bytes from the reader and properly decode as UTF-8, handling split characters.
         cleanup():
             Releases the resources by closing the file descriptors, reader and writer.
@@ -29,15 +30,12 @@ class PseudoTerminalIO:
         coordinator_fd: int,
         subprocess_fd: int,
         writer: asyncio.StreamWriter,
-        reader: asyncio.StreamReader,
-        read_transport: asyncio.ReadTransport,
+        fd_reader: FileDescriptorReader,
     ) -> None:
         self._coordinator_fd = coordinator_fd
         self._subprocess_fd = subprocess_fd
         self._writer = writer
-        self._reader = reader
-        self._read_transport = read_transport
-        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self._fd_reader = fd_reader
 
     @property
     def coordinator_fd(self) -> int:
@@ -55,14 +53,15 @@ class PseudoTerminalIO:
         return self._writer
 
     async def read(self, n=-1) -> str:
-        return self._decoder.decode(await self._reader.read(n))
+        """Read and decode data from the pseudo-terminal."""
+        return await self._fd_reader.read(n)
 
     def cleanup(self) -> None:
+        """Release all resources."""
         self._writer.transport.close()
-        # Close the read transport
-        self._read_transport.close()
-        # Reset the decoder
-        self._decoder.reset()
+        # Close the read stack
+        self._fd_reader.close()
+        # Close the file descriptors
         try:
             os.close(self._subprocess_fd)
         except OSError:
@@ -130,21 +129,15 @@ class PseudoTerminal(AbstractAsyncContextManager):
 
         termios.tcsetattr(coordinator_fd, termios.TCSANOW, attrs)
 
-        # We need to duplicate the file descriptor for reading and writing separately
-        read_fd = os.dup(coordinator_fd)
+        # We need to duplicate the file descriptor for writing separately
+        # (FileDescriptorReader will duplicate the read fd internally)
         write_fd = os.dup(coordinator_fd)
 
-        # Set up the reader and writer for the coordinator side
-        loop = asyncio.get_event_loop()
-
-        # Set up reader
-        reader = asyncio.StreamReader()
-        read_protocol = asyncio.StreamReaderProtocol(reader)
-        read_transport, _ = await loop.connect_read_pipe(
-            lambda: read_protocol, os.fdopen(read_fd, "rb")
-        )
+        # Set up the reader component using our new FileDescriptorReader class
+        fd_reader = await FileDescriptorReader.create(coordinator_fd)
 
         # Set up writer
+        loop = asyncio.get_event_loop()
         write_flow_control = asyncio.streams.FlowControlMixin()
         write_transport, _ = await loop.connect_write_pipe(
             lambda: write_flow_control, os.fdopen(write_fd, "wb")
@@ -157,8 +150,7 @@ class PseudoTerminal(AbstractAsyncContextManager):
             coordinator_fd=coordinator_fd,
             subprocess_fd=subprocess_fd,
             writer=writer,
-            reader=reader,
-            read_transport=read_transport,
+            fd_reader=fd_reader,
         )
         return self._inner
 
