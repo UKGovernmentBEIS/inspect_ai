@@ -8,39 +8,25 @@ from .file_descriptor_reader import FileDescriptorReader
 
 
 @pytest.mark.asyncio
-async def test_create_from_fd():
-    """Test creating a FileDescriptorReader from a file descriptor."""
-    async with FDPipeReader() as (reader, _):
-        assert reader._reader is not None
-        assert reader._read_transport is not None
-        assert reader._decoder is not None
-
-
-@pytest.mark.asyncio
 async def test_read_simple_data():
     """Test reading simple ASCII data."""
     async with FDPipeReader() as (reader, write_pipe):
-        # Write some data to the pipe
-        test_data = b"Hello, world!"
+        test_data = b"Trudging across the tundra. Mile after mile."
         write_pipe.write(test_data)
         write_pipe.close_write()  # Close the write end to signal EOF
-
-        # Read from the reader
         result = await reader.read()
-
-        # Verify the result
-        assert result == "Hello, world!"
+        assert result == "Trudging across the tundra. Mile after mile."
 
 
 @pytest.mark.asyncio
 async def test_read_utf8_data():
     """Test reading UTF-8 encoded data with multi-byte characters."""
     async with FDPipeReader() as (reader, write_pipe):
-        test_data = "Hello, 世界!".encode("utf-8")
+        test_data = "Hi café हाँ! 👨‍👩‍👧‍👦 apple аррӏе".encode("utf-8")
         write_pipe.write(test_data)
         write_pipe.close_write()
         result = await reader.read()
-        assert result == "Hello, 世界!"
+        assert result == "Hi café हाँ! 👨‍👩‍👧‍👦 apple аррӏе"
 
 
 @pytest.mark.asyncio
@@ -73,15 +59,14 @@ async def test_split_utf8_character():
     async with FDPipeReader() as (reader, write_pipe):
         write_pipe.write(b"Juan Per\xc3")
 
-        # Read the first byte - it shouldn't produce any output yet because
-        # it's an incomplete character
+        # Read the first - it should omit the \xc3 since it's an incomplete character
         first_result = await asyncio.wait_for(reader.read(100), 0.5)
         assert first_result == "Juan Per"
 
         write_pipe.write(b"\xb3n")
         write_pipe.close_write()
 
-        # Now we should get the complete character
+        # Now we should get the rest
         second_result = await reader.read()
         assert second_result == "ón"
 
@@ -111,9 +96,8 @@ def test_close():
 
 
 @pytest.mark.asyncio
-@patch("asyncio.StreamReader")
 @patch("asyncio.get_event_loop")
-async def test_resource_management(mock_get_loop, mock_stream_reader):
+async def test_resource_management(mock_get_loop):
     """Test that resources are properly managed during creation and cleanup."""
     mock_loop = Mock()
     mock_get_loop.return_value = mock_loop
@@ -123,10 +107,66 @@ async def test_resource_management(mock_get_loop, mock_stream_reader):
     future.set_result((mock_transport, mock_protocol))
     mock_loop.connect_read_pipe.return_value = future
 
-    reader = await FileDescriptorReader.create(1)  # 1 is just a dummy file descriptor
-    reader.close()
+    # Use the context manager approach
+    async with await FileDescriptorReader.create(1):
+        pass  # Resources will be automatically cleaned up
 
     mock_loop.connect_read_pipe.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_context_manager_open():
+    """Test using FileDescriptorReader.open as an async context manager."""
+    read_fd, write_fd = os.pipe()
+
+    try:
+        # Use the open method which is explicitly designed for context manager usage
+        async with await FileDescriptorReader.open(read_fd) as reader:
+            test_data = b"Context manager test"
+            os.write(write_fd, test_data)
+            os.close(write_fd)
+
+            result = await reader.read()
+            assert result == "Context manager test"
+        # Reader should be automatically closed here
+    finally:
+        # Clean up file descriptors if anything went wrong
+        try:
+            os.close(read_fd)
+        except OSError:
+            pass
+        try:
+            os.close(write_fd)
+        except OSError:
+            pass
+
+
+@pytest.mark.asyncio
+async def test_direct_context_manager():
+    """Test using FileDescriptorReader instance directly as an async context manager."""
+    read_fd, write_fd = os.pipe()
+
+    try:
+        # Create the reader first, then use it as a context manager
+        reader = await FileDescriptorReader.create(read_fd)
+        async with reader:
+            test_data = b"Direct context manager"
+            os.write(write_fd, test_data)
+            os.close(write_fd)
+
+            result = await reader.read()
+            assert result == "Direct context manager"
+        # Reader should be automatically closed here
+    finally:
+        # Clean up file descriptors if anything went wrong
+        try:
+            os.close(read_fd)
+        except OSError:
+            pass
+        try:
+            os.close(write_fd)
+        except OSError:
+            pass
 
 
 class FDPipeReader:
@@ -149,9 +189,14 @@ class FDPipeReader:
     def __init__(self):
         self.read_fd, self.write_fd = os.pipe()
         self.reader = None
+        self.reader_ctx = None
 
     async def __aenter__(self):
-        self.reader = await FileDescriptorReader.create(self.read_fd)
+        # Use the reader as a context manager
+        self.reader_ctx = await FileDescriptorReader.create(self.read_fd)
+        self.reader = (
+            self.reader_ctx
+        )  # They are the same object, but helps clarify intent
         return self.reader, self  # Return both the reader and self as the pipe
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -169,6 +214,7 @@ class FDPipeReader:
         """Clean up all resources."""
         if self.reader:
             self.reader.close()
+            self.reader = None
         try:
             os.close(self.read_fd)
         except OSError:

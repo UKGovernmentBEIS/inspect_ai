@@ -1,10 +1,12 @@
 import asyncio
 import codecs
 import os
+from types import TracebackType
+from typing import AsyncContextManager, Optional, Type
 
 
 class FileDescriptorReader:
-    """Encapsulates the components needed to read decoded text from a file descriptor using `asyncio`.
+    """Encapsulates reading decoded text from a pipe/socket using `asyncio`.
 
     This class is necessary when the consumer needs to read textual data from an
     FD that refers to a pipe/socket as opposed to an actual file. This is because
@@ -24,9 +26,17 @@ class FileDescriptorReader:
     - Incremental Decoder: Handles decoding with proper split character handling
 
     Methods:
-        create(fd: int, encoding: str = "utf-8"): Class method to create an instance from a file descriptor
+        create(fd: int, encoding: str = "utf-8"): Class method to create an
+            instance from a file descriptor
+        open(fd: int, encoding: str = "utf-8"): Class method to create an
+            instance for use as an async context manager
         read(n: int = -1): Read and decode data from the file descriptor
         close(): Release all resources
+
+    The class also implements the AsyncContextManager protocol and can be used
+    with async with:
+        async with FileDescriptorReader.open(fd) as reader:
+            data = await reader.read()
     """
 
     @classmethod
@@ -44,6 +54,20 @@ class FileDescriptorReader:
 
         Returns:
             A FileDescriptorReader instance configured to read from the given file descriptor.
+
+        Note:
+            The caller is responsible for calling close() when done with the reader.
+            If you prefer automatic resource management, use the open() method instead
+            with an async context manager.
+
+        Example:
+            ```python
+            reader = await FileDescriptorReader.create(fd)
+            try:
+                data = await reader.read()
+            finally:
+                reader.close()
+            ```
         """
         reader = asyncio.StreamReader()
         read_transport, _ = await asyncio.get_event_loop().connect_read_pipe(
@@ -51,6 +75,32 @@ class FileDescriptorReader:
         )
 
         return cls(reader=reader, read_transport=read_transport, encoding=encoding)
+
+    @classmethod
+    async def open(
+        cls,
+        fd: int,
+        encoding: str = "utf-8",
+    ) -> AsyncContextManager["FileDescriptorReader"]:
+        """Create a FileDescriptorReader from a file descriptor for use with async context manager.
+
+        Args:
+            fd: The file descriptor to read from.
+            encoding: The character encoding to use for decoding the bytes read
+              from the file descriptor. Default is 'utf-8'.
+
+        Returns:
+            A FileDescriptorReader instance that can be used with async with.
+            The reader will be automatically closed when the context is exited.
+
+        Example:
+            ```python
+            async with FileDescriptorReader.open(fd) as reader:
+                data = await reader.read()
+            # Reader is automatically closed here
+            ```
+        """
+        return await cls.create(fd, encoding)
 
     def __init__(
         self,
@@ -81,3 +131,17 @@ class FileDescriptorReader:
         """
         self._read_transport.close()
         self._decoder.reset()
+
+    # Async context manager protocol implementation
+    async def __aenter__(self) -> "FileDescriptorReader":
+        """Enter the async context and return self."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        """Exit the async context and close resources."""
+        self.close()
