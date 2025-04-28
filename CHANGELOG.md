@@ -5,6 +5,7 @@
 - [read_eval_log_sample_summaries()](https://inspect.aisi.org.uk/eval-logs.html#summaries) function for reading sample summaries (including scoring) from eval logs.
 - Improved write performance for realtime event logging.
 - `--no-log-realtime` option for disabling realtime event logging (live viewing of logs is disabled when this is specified).
+- Packaging: Exclude `_resources` directories from package (reduces pressure on path lengths for Windows).
 - Inspect View: Split info tab into task, models, and info for improved layout.
 
 ## v0.3.92 (26 April 2025)
