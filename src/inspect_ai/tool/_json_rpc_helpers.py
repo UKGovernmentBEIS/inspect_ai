@@ -4,7 +4,7 @@ from typing import Literal, Protocol, Type, TypeAlias, TypeVar
 
 from pydantic import BaseModel, RootModel
 
-from inspect_ai.tool._tool import ToolError
+from inspect_ai.tool._tool import ToolError, ToolParsingError
 
 
 class JSONRPCResponseBase(BaseModel):
@@ -237,16 +237,17 @@ def exception_for_rpc_response_error(
             if server_error_mapper
             else ToolError(message)
         )
+    elif code == -32602:  # (Invalid params)
+        # Even though the Inspect side does validation, it can't possibly be
+        # complete - especially for tools that have dynamic action dependant
+        # rules for optional/required params.
+        return ToolParsingError(message)
     elif code == -32603:
         return ToolError(message)
     else:
         # -32600 (Invalid Request)
         #   If we sent a bogus request, it's 100% a code bug.
         # -32601 (Method not found)
-        # -32602 (Invalid params)
-        #   These shouldn't be possible since Inspect did validation prior to
-        #   making the tool call. Because of that, these errors should not make
-        #   it back to the model, so choose RuntimeError.
         # -32700 (Parse error)
         #   shouldn't be seen in this flow since we're processing responses, and
         #   this is a request oriented error.
