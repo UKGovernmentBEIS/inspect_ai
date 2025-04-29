@@ -265,7 +265,8 @@ export type Type9 =
   | "is_a_directory"
   | "limit"
   | "approval"
-  | "unknown";
+  | "unknown"
+  | "output_limit";
 export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
