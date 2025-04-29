@@ -196,15 +196,21 @@ def wait_for_server(
     """
     logger.info(f"Waiting for server at {base_url} to become ready...")
     start_time = time.time()
+    debug_advice = "Try rerunning with '--log-level debug' to see the full traceback."
+    if full_command:
+        debug_advice += f" Alternatively, you can run the following launch command manually to see the full traceback:\n\n{' '.join(full_command)}\n\n"
 
     while True:
+        # Check for timeout first
+        if timeout and time.time() - start_time > timeout:
+            error_msg = f"Server did not become ready within timeout period ({timeout} seconds). Try increasing the timeout with '-M timeout=...'. {debug_advice}"
+            logger.error(error_msg)
+            raise TimeoutError(error_msg)
+
         # Check if the process is still alive
         if process.poll() is not None:
             exit_code = process.poll()
-            error_msg = f"Server process exited unexpectedly with code {exit_code}. Try rerunning with '--log-level debug' to see the full traceback."
-            if full_command:
-                error_msg += f" Alternatively, you can run the following launch command manually to see the full traceback:\n\n{' '.join(full_command)}\n\n"
-
+            error_msg = f"Server process exited unexpectedly with code {exit_code}. {debug_advice}"
             logger.error(error_msg)
             raise RuntimeError(error_msg)
 
@@ -212,21 +218,23 @@ def wait_for_server(
             response = httpx.get(
                 f"{base_url}/v1/models",
                 headers={"Authorization": f"Bearer {api_key or 'None'}"},
-                timeout=5.0,
+                timeout=5.0,  # Short timeout for individual requests
             )
             if response.status_code == 200:
                 logger.info("Server is ready.")
                 break
 
-            if timeout and time.time() - start_time > timeout:
-                error_msg = f"Server did not become ready within timeout period ({timeout} seconds). Try increasing the timeout with '-M timeout=...' or rerunning with '--log-level debug' to see the full traceback."
-                if full_command:
-                    error_msg += f" Alternatively, you can run the following launch command manually to see the full traceback:\n\n{' '.join(full_command)}\n\n"
+            # Log non-200 status but don't treat as hard error yet
+            logger.debug(
+                f"Server check returned status {response.status_code}, retrying..."
+            )
+        except httpx.RequestError as e:
+            # Log connection errors but don't treat as hard error yet
+            logger.debug(f"Server check failed: {e}, retrying...")
+            pass  # Request failed (e.g., connection refused), will retry
 
-                logger.error(error_msg)
-                raise TimeoutError(error_msg)
-        except httpx.RequestError:
-            time.sleep(1)
+        # Wait before the next poll attempt
+        time.sleep(1)
 
 
 def start_local_server(

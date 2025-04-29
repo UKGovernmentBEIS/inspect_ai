@@ -150,8 +150,7 @@ dev = [
     "types-jsonschema",
     "types-protobuf",
     "types-psutil",
-    "types-python-dateutil",
-    "types-requests"
+    "types-python-dateutil"
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
