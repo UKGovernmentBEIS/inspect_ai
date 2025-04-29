@@ -101,6 +101,7 @@ def eval(
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     log_samples: bool | None = None,
+    log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
@@ -171,6 +172,7 @@ def eval(
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
+        log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
         log_buffer: Number of samples to buffer before writing log file.
@@ -228,6 +230,7 @@ def eval(
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
                 log_samples=log_samples,
+                log_realtime=log_realtime,
                 log_images=log_images,
                 log_buffer=log_buffer,
                 log_shared=log_shared,
@@ -281,6 +284,7 @@ async def eval_async(
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     log_samples: bool | None = None,
+    log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
@@ -335,6 +339,7 @@ async def eval_async(
         max_subprocesses: Maximum number of subprocesses to run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider) to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
+        log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
@@ -473,6 +478,7 @@ async def eval_async(
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             log_samples=log_samples,
+            log_realtime=log_realtime,
             log_images=log_images,
             log_buffer=log_buffer,
             log_shared=log_shared,
@@ -562,6 +568,7 @@ def eval_retry(
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
+    log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
@@ -603,6 +610,7 @@ def eval_retry(
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         log_samples: Log detailed samples and scores (defaults to True)
+        log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
         log_buffer: Number of samples to buffer before writing log file.
@@ -645,6 +653,7 @@ def eval_retry(
             retry_on_error=retry_on_error,
             debug_errors=debug_errors,
             log_samples=log_samples,
+            log_realtime=log_realtime,
             log_images=log_images,
             log_buffer=log_buffer,
             log_shared=log_shared,
@@ -673,6 +682,7 @@ async def eval_retry_async(
     retry_on_error: int | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
+    log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
@@ -707,6 +717,7 @@ async def eval_retry_async(
         debug_errors: Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
         log_samples: Log detailed samples and scores (defaults to True)
+        log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
         log_buffer: Number of samples to buffer before writing log file.
@@ -817,6 +828,11 @@ async def eval_retry_async(
         log_samples = (
             log_samples if log_samples is not None else eval_log.eval.config.log_samples
         )
+        log_realtime = (
+            log_realtime
+            if log_realtime is not None
+            else eval_log.eval.config.log_realtime
+        )
         log_images = (
             log_images if log_images is not None else eval_log.eval.config.log_images
         )
@@ -875,6 +891,7 @@ async def eval_retry_async(
                 max_subprocesses=max_subprocesses,
                 max_sandboxes=max_sandboxes,
                 log_samples=log_samples,
+                log_realtime=log_realtime,
                 log_images=log_images,
                 log_buffer=log_buffer,
                 log_shared=log_shared,

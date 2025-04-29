@@ -71,6 +71,9 @@ class ToolCallError:
         "limit",
         "approval",
         "unknown",
+        # Retained for backward compatibility when loading logs created with an older
+        # version of inspect.
+        "output_limit",
     ]
     """Error type."""
 

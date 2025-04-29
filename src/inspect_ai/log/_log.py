@@ -43,6 +43,7 @@ class EvalConfigDefaults(TypedDict):
     fail_on_error: bool
     sandbox_cleanup: bool
     log_samples: bool
+    log_realtime: bool
     log_images: bool
     score_display: bool
 
@@ -54,6 +55,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "fail_on_error": True,
         "sandbox_cleanup": True,
         "log_samples": True,
+        "log_realtime": True,
         "log_images": True,
         "score_display": True,
     }
@@ -120,6 +122,9 @@ class EvalConfig(BaseModel):
 
     log_samples: bool | None = Field(default=None)
     """Log detailed information on each sample."""
+
+    log_realtime: bool | None = Field(default=None)
+    """Log events in realtime (enables live viewing of samples in inspect view)."""
 
     log_images: bool | None = Field(default=None)
     """Log base64 encoded versions of images."""

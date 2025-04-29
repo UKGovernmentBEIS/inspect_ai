@@ -93,6 +93,7 @@ def eval_set(
     max_subprocesses: int | None = None,
     max_sandboxes: int | None = None,
     log_samples: bool | None = None,
+    log_realtime: bool | None = None,
     log_images: bool | None = None,
     log_buffer: int | None = None,
     log_shared: bool | int | None = None,
@@ -173,6 +174,7 @@ def eval_set(
         max_sandboxes: Maximum number of sandboxes (per-provider)
             to run in parallel.
         log_samples: Log detailed samples and scores (defaults to True)
+        log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
         log_buffer: Number of samples to buffer before writing log file.
@@ -229,6 +231,7 @@ def eval_set(
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
             log_samples=log_samples,
+            log_realtime=log_realtime,
             log_images=log_images,
             log_buffer=log_buffer,
             log_shared=log_shared,

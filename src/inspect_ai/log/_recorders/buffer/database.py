@@ -308,9 +308,9 @@ class SampleBufferDatabase(SampleBuffer):
             conn.execute("PRAGMA foreign_keys = ON")
 
             # concurrency setup
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA journal_mode=MEMORY")
             conn.execute("PRAGMA busy_timeout=10000")
-            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA synchronous=OFF")
 
             # do work
             yield conn
