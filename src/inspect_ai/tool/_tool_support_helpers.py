@@ -7,13 +7,17 @@ It includes definitions for JSON-RPC request and response models, as well as fun
 from textwrap import dedent
 from typing import Type
 
+import semver
+
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.tool._tool import ToolError
 from inspect_ai.util import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from ._json_rpc_helpers import (
     BaseModelT,
     JSONRPCParamsType,
+    JSONRPCServerErrorMapper,
     JSONRPCTransport,
     ScalarT,
     _rpc_call_description,
@@ -29,7 +33,7 @@ async def exec_scalar_request(
     method: str,
     params: JSONRPCParamsType,
     result_type: Type[ScalarT],
-    timeout: int | None = None,
+    timeout: int,
     user: str | None = None,
 ) -> ScalarT:
     return await scalar_request(
@@ -37,6 +41,7 @@ async def exec_scalar_request(
         params,
         result_type,
         transport=ToolSupportSandboxTransport(sandbox, timeout, user),
+        server_error_mapper=ToolSupportServerErrorMapper(),
     )
 
 
@@ -45,7 +50,7 @@ async def exec_model_request(
     method: str,
     params: JSONRPCParamsType,
     result_type: Type[BaseModelT],
-    timeout: int | None = None,
+    timeout: int,
     user: str | None = None,
 ) -> BaseModelT:
     return await model_request(
@@ -53,6 +58,7 @@ async def exec_model_request(
         params,
         result_type,
         transport=ToolSupportSandboxTransport(sandbox, timeout, user),
+        server_error_mapper=ToolSupportServerErrorMapper(),
     )
 
 
@@ -60,7 +66,7 @@ async def exec_notification(
     sandbox: SandboxEnvironment,
     method: str,
     params: JSONRPCParamsType,
-    timeout: int | None = None,
+    timeout: int,
     user: str | None = None,
 ) -> None:
     return await notification_helper(
@@ -68,19 +74,33 @@ async def exec_notification(
     )
 
 
+class ToolSupportServerErrorMapper(JSONRPCServerErrorMapper):
+    def __call__(
+        self, code: int, message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        """Map `inspect-tool-support` defined custom codes to an exception."""
+        match code:
+            case -32099:  # This is a ToolException from the container
+                return ToolError(message)
+            case -32098:  # This is an unexpected exception inside the container
+                return RuntimeError(message)
+            case _:
+                return RuntimeError(message)
+
+
 class ToolSupportSandboxTransport(JSONRPCTransport):
     """
-    A transport callable that uses a sandbox for RPC communication.
+    A transport that uses a sandbox for RPC communication.
 
-    This class implements the TransportCallable protocol and encapsulates
-    the sandbox, timeout, and user parameters needed for sandbox-based
-    RPC communication.
+    This class implements the TransportCallable protocol and encapsulates the
+    sandbox, timeout, and user parameters needed for sandbox-based RPC
+    communication.
     """
 
     def __init__(
         self,
         sandbox: SandboxEnvironment,
-        timeout: int | None = None,
+        timeout: int,
         user: str | None = None,
     ):
         """
@@ -128,13 +148,32 @@ class ToolSupportSandboxTransport(JSONRPCTransport):
 
 SANDBOX_CLI = "inspect-tool-support"
 INSPECT_TOOL_SUPPORT_IMAGE_DOCKERHUB = "aisiuk/inspect-tool-support"
+FIRST_PUBLISHED_VERSION = semver.Version.parse("0.1.6")
+MIN_SUPPORTED_VERSION = FIRST_PUBLISHED_VERSION
+MIN_NON_DEPRECATED_VERSION = semver.Version.parse("1.0.0")
 
 
-async def tool_container_sandbox(
+async def _get_sandbox_tool_support_version(
+    sandbox: SandboxEnvironment,
+) -> semver.Version:
+    try:
+        return semver.Version.parse(
+            await exec_scalar_request(sandbox, "version", {}, str, 5)
+        )
+    except RuntimeError as rte:
+        if "-32601" in str(rte):
+            # The container doesn't even have a version method. The first version
+            # published was 0.1.6, so we'll have to assume it was that old.
+            return FIRST_PUBLISHED_VERSION
+        raise rte
+
+
+async def tool_support_sandbox(
     tool_name: str, *, sandbox_name: str | None = None
-) -> SandboxEnvironment:
+) -> tuple[SandboxEnvironment, semver.Version]:
     if sb := await sandbox_with(SANDBOX_CLI, True, name=sandbox_name):
-        return sb
+        current_version = await _get_sandbox_tool_support_version(sb)
+        return (sb, current_version)
 
     # This sort of programmatic sentence building will not cut it if we ever
     # support other languages.
@@ -160,7 +199,7 @@ async def tool_container_sandbox(
 
 
 def create_sandbox_transport(
-    sandbox: SandboxEnvironment, timeout: int | None = None, user: str | None = None
+    sandbox: SandboxEnvironment, timeout: int, user: str | None = None
 ) -> JSONRPCTransport:
     """
     Create a transport callable that uses a sandbox for RPC communication.

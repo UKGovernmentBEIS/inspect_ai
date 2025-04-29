@@ -10,7 +10,7 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_support_helpers import (
     exec_model_request,
-    tool_container_sandbox,
+    tool_support_sandbox,
 )
 from inspect_ai.tool._tool_with import tool_with
 from inspect_ai.util._store_model import StoreModel, store_as
@@ -397,8 +397,10 @@ def web_browser_refresh(instance: str | None = None) -> Tool:
 async def _web_browser_cmd(
     tool_name: str, instance: str | None, params: dict[str, object]
 ) -> ToolResult:
+    # TODO: Is it worth it to plumb this down from the @tool?
+    timeout = 180
     try:
-        sandbox_env = await tool_container_sandbox("web browser")
+        (sandbox_env, _) = await tool_support_sandbox("web browser")
     except PrerequisiteError as e:
         # The user may have the old, incompatible, sandbox. If so, use that and
         # execute the old compatible code.
@@ -419,13 +421,18 @@ async def _web_browser_cmd(
                 method="web_new_session",
                 params={"headful": False},
                 result_type=NewSessionResult,
+                timeout=timeout,
             )
         ).session_name
 
     params["session_name"] = store.session_id
 
     crawler_result = await exec_model_request(
-        sandbox=sandbox_env, method=tool_name, params=params, result_type=CrawlerResult
+        sandbox=sandbox_env,
+        method=tool_name,
+        params=params,
+        result_type=CrawlerResult,
+        timeout=timeout,
     )
     if crawler_result.error and crawler_result.error.strip() != "":
         raise ToolError(crawler_result.error)

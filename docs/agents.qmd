@@ -77,7 +77,7 @@ web_surfer = react(
 )
 ```
 
-### Using Agents
+### Using Agents {#using-agents}
 
 Agents can be used in the following ways:
 

@@ -1,21 +1,28 @@
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, RootModel
 
 
 class BashBaseParams(BaseModel):
     session_name: str
+    model_config = {"extra": "forbid"}
 
 
-class CommandParams(BashBaseParams):
-    command: str
+class InteractParams(BashBaseParams):
+    wait_for_output: int
+    """
+    Maximum time (in seconds) to wait for any output. If no output is received
+    within this period, the function will return an empty string.
+    """
+    idle_timeout: float
+    input: str | None = None
 
 
 class RestartParams(BashBaseParams):
     restart: Literal[True]
 
 
-class BashParams(RootModel[CommandParams | RestartParams]):
+class BashParams(RootModel[InteractParams | RestartParams]):
     pass
 
 
@@ -23,11 +30,7 @@ class NewSessionResult(BaseModel):
     session_name: str
 
 
-class BashRestartResult(BaseModel):
-    pass
+BashRestartResult: TypeAlias = str
 
 
-class BashCommandResult(BaseModel):
-    status: int
-    stdout: str
-    stderr: str
+InteractResult: TypeAlias = str

@@ -263,9 +263,10 @@ export type Type9 =
   | "permission"
   | "file_not_found"
   | "is_a_directory"
-  | "output_limit"
+  | "limit"
   | "approval"
-  | "unknown";
+  | "unknown"
+  | "output_limit";
 export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];

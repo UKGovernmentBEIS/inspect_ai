@@ -28,7 +28,11 @@ from ._chat_message import (
     ChatMessageUser,
 )
 from ._conversation import ModelConversation
-from ._generate_config import GenerateConfig, GenerateConfigArgs, ResponseSchema
+from ._generate_config import (
+    GenerateConfig,
+    GenerateConfigArgs,
+    ResponseSchema,
+)
 from ._model import (
     Model,
     ModelAPI,

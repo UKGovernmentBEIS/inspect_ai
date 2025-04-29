@@ -43,6 +43,9 @@ MAX_SANDBOXES_HELP = "Maximum number of sandboxes (per-provider) to run in paral
 NO_SANDBOX_CLEANUP_HELP = "Do not cleanup sandbox environments after task completes"
 FAIL_ON_ERROR_HELP = "Threshold of sample errors to tolerage (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count."
 NO_LOG_SAMPLES_HELP = "Do not include samples in the log file."
+NO_LOG_REALTIME_HELP = (
+    "Do not log events in realtime (affects live viewing of samples in inspect view)"
+)
 NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (instead, continue running other samples)"
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
 LOG_IMAGES_HELP = (
@@ -280,6 +283,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_LOG_SAMPLES_HELP,
         envvar="INSPECT_EVAL_NO_LOG_SAMPLES",
+    )
+    @click.option(
+        "--no-log-realtime",
+        type=bool,
+        is_flag=True,
+        help=NO_LOG_REALTIME_HELP,
+        envvar="INSPECT_EVAL_NO_LOG_REALTIME",
     )
     @click.option(
         "--log-images/--no-log-images",
@@ -544,6 +554,7 @@ def eval_command(
     no_fail_on_error: bool | None,
     retry_on_error: int | None,
     no_log_samples: bool | None,
+    no_log_realtime: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
@@ -600,6 +611,7 @@ def eval_command(
         retry_on_error=retry_on_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
+        no_log_realtime=no_log_realtime,
         log_images=log_images,
         log_buffer=log_buffer,
         log_shared=log_shared,
@@ -718,6 +730,7 @@ def eval_set_command(
     no_fail_on_error: bool | None,
     retry_on_error: int | None,
     no_log_samples: bool | None,
+    no_log_realtime: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
@@ -779,6 +792,7 @@ def eval_set_command(
         retry_on_error=retry_on_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
+        no_log_realtime=no_log_realtime,
         log_images=log_images,
         log_buffer=log_buffer,
         log_shared=log_shared,
@@ -837,6 +851,7 @@ def eval_exec(
     retry_on_error: int | None,
     debug_errors: bool | None,
     no_log_samples: bool | None,
+    no_log_realtime: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
@@ -889,6 +904,7 @@ def eval_exec(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
+    log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
     trace = True if trace else None
     score = False if no_score else True
@@ -929,6 +945,7 @@ def eval_exec(
             max_subprocesses=max_subprocesses,
             max_sandboxes=max_sandboxes,
             log_samples=log_samples,
+            log_realtime=log_realtime,
             log_images=log_images,
             log_buffer=log_buffer,
             log_shared=log_shared,
@@ -1070,6 +1087,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_LOG_SAMPLES",
 )
 @click.option(
+    "--no-log-realtime",
+    type=bool,
+    is_flag=True,
+    help=NO_LOG_REALTIME_HELP,
+    envvar="INSPECT_EVAL_LOG_REALTIME",
+)
+@click.option(
     "--log-images/--no-log-images",
     type=bool,
     default=True,
@@ -1136,6 +1160,7 @@ def eval_retry_command(
     no_fail_on_error: bool | None,
     retry_on_error: int | None,
     no_log_samples: bool | None,
+    no_log_realtime: bool | None,
     log_images: bool | None,
     log_buffer: int | None,
     log_shared: int | None,
@@ -1154,6 +1179,7 @@ def eval_retry_command(
     # resolve negating options
     sandbox_cleanup = False if no_sandbox_cleanup else None
     log_samples = False if no_log_samples else None
+    log_realtime = False if no_log_realtime else None
     log_images = False if log_images is False else None
     score = False if no_score else True
     score_display = False if no_score_display else None
@@ -1163,6 +1189,10 @@ def eval_retry_command(
         fail_on_error = False
     elif fail_on_error == 0.0:
         fail_on_error = True
+
+    # resolve retry on error
+    if retry_on_error == 0:
+        retry_on_error = None
 
     # resolve log file
     retry_log_files = [
@@ -1185,6 +1215,7 @@ def eval_retry_command(
         retry_on_error=retry_on_error,
         debug_errors=common["debug_errors"],
         log_samples=log_samples,
+        log_realtime=log_realtime,
         log_images=log_images,
         log_buffer=log_buffer,
         log_shared=log_shared,

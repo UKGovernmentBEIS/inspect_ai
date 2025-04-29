@@ -26,7 +26,6 @@ from anthropic.types import (
     TextBlockParam,
     ThinkingBlock,
     ThinkingBlockParam,
-    ToolBash20250124Param,
     ToolParam,
     ToolResultBlockParam,
     ToolTextEditor20250124Param,
@@ -49,6 +48,7 @@ from inspect_ai._util.error import exception_message
 from inspect_ai._util.http import is_retryable_http_status
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.logger import warn_once
+from inspect_ai._util.trace import trace_message
 from inspect_ai._util.url import data_uri_mime_type, data_uri_to_base64
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 
@@ -488,11 +488,7 @@ class AnthropicAPI(ModelAPI):
         self, tool: ToolInfo, config: GenerateConfig
     ) -> Optional["ToolParamDef"]:
         return (
-            (
-                self.computer_use_tool_param(tool)
-                or self.text_editor_tool_param(tool)
-                or self.bash_tool_param(tool)
-            )
+            (self.computer_use_tool_param(tool) or self.text_editor_tool_param(tool))
             if config.internal_tools is not False
             else None
         )
@@ -563,23 +559,10 @@ class AnthropicAPI(ModelAPI):
         else:
             return None
 
-    def bash_tool_param(self, tool: ToolInfo) -> Optional[ToolBash20250124Param]:
-        # check for compatible 'bash' tool
-        if tool.name == "bash_session" and (
-            sorted(tool.parameters.properties.keys()) == sorted(["command", "restart"])
-        ):
-            return ToolBash20250124Param(type="bash_20250124", name="bash")
-        # not a bash tool
-        else:
-            return None
-
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
 ToolParamDef = (
-    ToolParam
-    | BetaToolComputerUse20250124Param
-    | ToolTextEditor20250124Param
-    | ToolBash20250124Param
+    ToolParam | BetaToolComputerUse20250124Param | ToolTextEditor20250124Param
 )
 
 
@@ -588,7 +571,6 @@ def add_cache_control(
     | ToolParam
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
-    | ToolBash20250124Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -939,9 +921,15 @@ async def count_tokens(
             messages=[{"role": "user", "content": text}],
         )
         return response.input_tokens
-    except Exception as e:
-        logger.warning(
-            f"Error counting tokens (falling back to estimated tokens): {str(e)}"
+    except Exception as ex:
+        warn_once(
+            logger,
+            f"Unable to call count_tokens API for model {model} (falling back to estimated tokens)",
+        )
+        trace_message(
+            logger,
+            "Anthropic",
+            f"Unable to call count_tokens API for model {model} ({ex})",
         )
         words = text.split()
         estimated_tokens = int(len(words) * 1.3)

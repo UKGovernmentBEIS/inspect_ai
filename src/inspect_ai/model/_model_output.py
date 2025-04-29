@@ -30,6 +30,31 @@ class ModelUsage(BaseModel):
     reasoning_tokens: int | None = Field(default=None)
     """Number of tokens used for reasoning."""
 
+    def __add__(self, other: "ModelUsage") -> "ModelUsage":
+        def optional_sum(a: int | None, b: int | None) -> int | None:
+            if a is not None and b is not None:
+                return a + b
+            if a is not None:
+                return a
+            if b is not None:
+                return b
+            return None
+
+        return ModelUsage(
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+            total_tokens=self.total_tokens + other.total_tokens,
+            input_tokens_cache_write=optional_sum(
+                self.input_tokens_cache_write, other.input_tokens_cache_write
+            ),
+            input_tokens_cache_read=optional_sum(
+                self.input_tokens_cache_read, other.input_tokens_cache_read
+            ),
+            reasoning_tokens=optional_sum(
+                self.reasoning_tokens, other.reasoning_tokens
+            ),
+        )
+
 
 StopReason = Literal[
     "stop",

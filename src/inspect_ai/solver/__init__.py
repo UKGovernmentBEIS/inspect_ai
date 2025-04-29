@@ -6,7 +6,6 @@ from ._chain import chain
 from ._critique import self_critique
 from ._fork import fork
 from ._human_agent import human_agent
-from ._limit import SampleLimitExceededError
 from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
 from ._plan import Plan, plan
 from ._prompt import (
@@ -45,13 +44,13 @@ __all__ = [
     "TaskState",
     "Generate",
     "MultipleChoiceTemplate",
-    "SampleLimitExceededError",
 ]
 
 
 _TOOL_MODULE_VERSION_3_18 = "0.3.18"
 _TOOL_MODULE_VERSION_3_19 = "0.3.19"
 _SUBTASKS_MODULE_VERSION = "0.3.26"
+_SAMPLE_LIMIT_VERSION = "0.3.91"
 _REMOVED_IN = "0.4"
 relocated_module_attribute(
     "Tool", "inspect_ai.tool.Tool", _TOOL_MODULE_VERSION_3_18, _REMOVED_IN
@@ -135,5 +134,11 @@ relocated_module_attribute(
     "subtask",
     "inspect_ai.util.subtask",
     _SUBTASKS_MODULE_VERSION,
+    _REMOVED_IN,
+)
+relocated_module_attribute(
+    "SampleLimitExceededError",
+    "inspect_ai.util.LimitExceededError",
+    _SAMPLE_LIMIT_VERSION,
     _REMOVED_IN,
 )

@@ -41,13 +41,13 @@ export const MetaDataGrid: FC<MetadataGridProps> = ({
             styles.cell,
             "text-style-label",
             "text-style-secondary",
-            "text-size-small",
+            "text-size-smaller",
           )}
         >
           {entry.name}
         </div>
         <div
-          className={clsx(styles.value, `${baseId}-value`, "text-size-small")}
+          className={clsx(styles.value, `${baseId}-value`, "text-size-smaller")}
         >
           <RenderedContent id={id} entry={entry} />
         </div>

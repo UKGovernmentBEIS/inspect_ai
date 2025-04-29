@@ -38,7 +38,7 @@ def log_httpx_retry_attempt(context: str) -> Callable[[RetryCallState], None]:
     def log_attempt(retry_state: RetryCallState) -> None:
         logger.log(
             HTTP,
-            f"{context} connection retry {retry_state.attempt_number} after waiting for {retry_state.idle_for}",
+            f"{context} connection retry {retry_state.attempt_number} (retrying in {retry_state.upcoming_sleep:,.0f} seconds)",
         )
 
     return log_attempt

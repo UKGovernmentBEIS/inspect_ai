@@ -11,7 +11,7 @@ from inspect_ai.tool._tool_support_helpers import (
     exec_model_request,
     exec_notification,
     exec_scalar_request,
-    tool_container_sandbox,
+    tool_support_sandbox,
 )
 
 from ._context import MCPServerContext
@@ -28,8 +28,10 @@ async def sandbox_client(  # type: ignore
     *,
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
+    timeout: int | None = None,  # default 180 seconds
 ) -> MCPServerContext:  # type: ignore
-    sandbox_environment = await tool_container_sandbox(
+    timeout = timeout or 180
+    (sandbox_environment, _) = await tool_support_sandbox(
         "mcp support", sandbox_name=sandbox_name
     )
 
@@ -49,6 +51,7 @@ async def sandbox_client(  # type: ignore
         method="mcp_launch_server",
         params={"server_params": server.model_dump()},
         result_type=int,
+        timeout=timeout,
     )
 
     async def stdout_reader() -> None:
@@ -72,6 +75,7 @@ async def sandbox_client(  # type: ignore
                                     "request": root.model_dump(),
                                 },
                                 result_type=JSONRPCMessage,
+                                timeout=timeout,
                             )
                         )
                     elif isinstance(root, JSONRPCNotification):
@@ -82,6 +86,7 @@ async def sandbox_client(  # type: ignore
                                 "session_id": session_id,
                                 "notification": root.model_dump(),
                             },
+                            timeout=timeout,
                         )
                     else:
                         assert False, f"Unexpected message type {message=}"
@@ -101,4 +106,5 @@ async def sandbox_client(  # type: ignore
                 method="mcp_kill_server",
                 params={"session_id": session_id},
                 result_type=type(None),
+                timeout=timeout,
             )

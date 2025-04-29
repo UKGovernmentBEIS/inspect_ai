@@ -1,17 +1,36 @@
 ## Unreleased
 
+- [Scoped Limits](https://inspect.aisi.org.uk/errors-and-limits.html#scoped-limits) for enforcing token and message limits using a context manager.
+- [Agent Limits](https://inspect.aisi.org.uk/errors-and-limits.html#agent-limits) for enforcing token and message limits for agent execution.
+- [read_eval_log_sample_summaries()](https://inspect.aisi.org.uk/eval-logs.html#summaries) function for reading sample summaries (including scoring) from eval logs.
+- Updated [vLLM](https://inspect.aisi.org.uk/providers.html#vllm) provider to use local server rather than in process `vllm` package (improved concurrency and resource utilization).
+- New [SGLang](https://inspect.aisi.org.uk/providers.html#sglang) provider (using similar local server architecture as vLLM provider).
+- Improved write performance for realtime event logging.
+- `--no-log-realtime` option for disabling realtime event logging (live viewing of logs is disabled when this is specified).
+- Packaging: Exclude `_resources` directories from package (reduces pressure on path lengths for Windows).
+- Inspect View: Split info tab into task, models, and info for improved layout.
+- Bugfix: Avoid validation errors when loading old log files which contain "output_limit" tool errors.
+
+## v0.3.92 (26 April 2025)
+
+- OpenAI: In responses API, don't pass back assistant output that wasn't part of the output included in the server response (e.g. output generated from a call to a `submit()` tool).
+- Bugfix: Correctly pass tool arguments back to model for OpenAI responses API.
+
+## v0.3.91 (26 April 2025)
+
 - Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
 - New [retry_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#sample-retries) option to enable sample level retry of errors (retries occur immediately rather than waiting until the next full eval retry).
-- Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
-- OpenAI: Responses API is now used by default for all reasoning models.
 - OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
-- OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
+- OpenAI: `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 - OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
+- OpenAI: Responses API is now used by default for all reasoning models.
 - OpenAI: Automatically alias reserved internal tool names (e.g. `python`) for responses API.
+- Anthropic: Warn only once if unable to call count_tokens() for a model.
 - Google: Update to 1.12.1 of `google-genai` (which is now required).
 - Google: Support for `reasoning_tokens` option for Gemini 2.5 models.
 - Grok: Support for `reasoning_effort` option and capturing reasoning content.
 - OpenRouter: Forward `reasoning_effort` and `reasoning_tokens` to `reasoning` field.
+- Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - ReAct Agent: Ability to fully repleace the default `submit()` tool.
 - Human Agent: Added `user` parameter for running the human agent cli as a given user.
 - Scoring: Support for multimodal inputs to `model_graded_qa()` and `model_graded_fact()`.
@@ -40,6 +59,7 @@
 - Bugfix: Don't show empty `<think>` tag in conversation view if there is no reasoning content.
 - Bugfix: Properly handle multiple reasoning blocks and empty reasoning summaries in OpenAI responses API.
 - Bugfix: Tolerate assistant messages with no internal representation in Open AI responses API.
+- Bugifx: Correct reporting of seconds until next retry for model generate calls.
 
 ## v0.3.90 (21 April 2025)
 

@@ -1,6 +1,6 @@
 import pytest
 
-from ._resources.tool._args import parse_arguments
+from .tool._args import parse_arguments
 
 
 def test_parse_args_screenshot() -> None:

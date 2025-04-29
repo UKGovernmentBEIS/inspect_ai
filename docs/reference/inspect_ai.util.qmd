@@ -10,6 +10,14 @@ title: "inspect_ai.util"
 ### store_as
 ### StoreModel
 
+## Limits
+
+### apply_limits
+### message_limit
+### token_limit
+### Limit
+### LimitExceededError
+
 ## Concurrency
 
 ### concurrency

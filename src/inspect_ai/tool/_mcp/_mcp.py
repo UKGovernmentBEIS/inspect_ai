@@ -259,6 +259,7 @@ def create_server_sandbox(
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
     sandbox: str | None = None,
+    timeout: int | None = None,
 ) -> MCPServer:
     # TODO: Confirm the lifetime concepts. By the time a request makes it to the
     # sandbox, it's going to need both a session id and a server "name".
@@ -272,6 +273,7 @@ def create_server_sandbox(
                 env=env,
             ),
             sandbox_name=sandbox,
+            timeout=timeout,
         ),
         name=name,
         events=False,

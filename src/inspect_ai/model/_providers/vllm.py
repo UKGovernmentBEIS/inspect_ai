@@ -1,224 +1,207 @@
-import concurrent.futures
-import functools
-import gc
+import atexit
+import logging
 import os
-import time
-from concurrent.futures import Future
-from dataclasses import dataclass
-from queue import Empty, Queue
-from threading import Thread
-from typing import Any, cast
+from subprocess import Popen
+from typing import Any
 
-import anyio
+from openai import APIStatusError
 from typing_extensions import override
-from vllm import LLM, CompletionOutput, RequestOutput, SamplingParams  # type: ignore
 
-from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai.tool import ToolChoice, ToolInfo
-
-from .._chat_message import ChatMessage, ChatMessageAssistant
-from .._generate_config import GenerateConfig
-from .._model import ModelAPI, simple_input_messages
-from .._model_output import (
-    ChatCompletionChoice,
-    Logprob,
-    Logprobs,
-    ModelOutput,
-    ModelUsage,
-    StopReason,
-    TopLogprob,
+from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
+from inspect_ai._util.local_server import (
+    configure_devices,
+    merge_env_server_args,
+    start_local_server,
+    terminate_process,
 )
-from .util import ChatAPIHandler, chat_api_input
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_info import ToolInfo
 
-DEFAULT_START_TOKEN = "<|im_start|>"
-DEFAULT_END_TOKEN = "<|im_end|>"
+from .openai_compatible import OpenAICompatibleAPI
 
-HF_TOKEN = "HF_TOKEN"
+# Environment variable names
+# VLLM_BASE_URL = "VLLM_BASE_URL"
+# VLLM_API_KEY = "VLLM_API_KEY"
+VLLM_DEFAULT_SERVER_ARGS = "VLLM_DEFAULT_SERVER_ARGS"
+VLLM_CONFIGURE_LOGGING = "VLLM_CONFIGURE_LOGGING"
 
-
-@dataclass
-class GenerateInput:
-    input: str
-    generator: Any
-    batch_size: int
-    num_top_logprobs: int | None = None
-
-
-@dataclass
-class GenerateOutput:
-    output: str
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
-    stop_reason: StopReason
-    logprobs: Logprobs | None
-    time: float
+# Set up logger for this module
+logger = logging.getLogger(__name__)
 
 
-class VLLMAPI(ModelAPI):
+class VLLMAPI(OpenAICompatibleAPI):
+    """
+    Provider for using vLLM models.
+
+    This provider can either:
+    1. Connect to an existing vLLM server (if base_url or port is provided)
+    2. Start a new vLLM server for the specified model
+
+    Additional server_args:
+        timeout (int): Timeout for the server (default: 10 minutes)
+        host (str): Host to bind the server to (default: "0.0.0.0")
+        configure_logging (bool): Enable fine-grained vLLM logging (default: False)
+        device (str): Devices to run the server on. Can be a single device or a list of devices as used in CUDA_VISIBLE_DEVICES. If tensor_parallel_size is not provided, the server will use the number of devices as the tensor parallel size.
+
+    Environment variables:
+        VLLM_BASE_URL: Base URL for an existing vLLM server
+        VLLM_API_KEY: API key for the vLLM server
+        VLLM_DEFAULT_SERVER_ARGS: JSON string of default server args, e.g. '{"tensor_parallel_size": 4, "max_model_len": 8192}'
+        VLLM_CONFIGURE_LOGGING: Enable fine-grained vLLM logging
+    """
+
     def __init__(
         self,
         model_name: str,
         base_url: str | None = None,
+        port: int | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
-        **model_args: Any,
+        **server_args: Any,
     ) -> None:
-        super().__init__(
-            model_name=model_name,
-            base_url=base_url,
+        # Validate inputs
+        if base_url and port:
+            raise ValueError("base_url and port cannot both be provided.")
+        if port:
+            base_url = f"http://localhost:{port}/v1"
+
+        # Initialize server process and port variables
+        self.server_process: Popen[str] | None = None
+        self.port: int | None = port
+        self.server_args = merge_env_server_args(
+            VLLM_DEFAULT_SERVER_ARGS, server_args, logger
+        )
+
+        try:
+            # Try to initialize with existing server
+            super().__init__(
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+                config=config,
+                service="vLLM",
+                service_base_url=base_url,
+            )
+            logger.info(f"Using existing vLLM server at {self.base_url}")
+        except PrerequisiteError:
+            # No existing server found, start a new one
+            logger.warning(
+                f"Existing vLLM server not found. Starting new server for {model_name}."
+            )
+
+            # Extract and handle the configure_logging parameter
+            configure_logging = self.server_args.pop("configure_logging", False)
+            os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
+
+            # Start the server
+            base_url, api_key = self._start_server(model_name, api_key=api_key)
+            logger.warning(f"vLLM server started at {base_url}")
+
+            # Initialize with new server
+            super().__init__(
+                model_name=model_name,
+                base_url=base_url,
+                api_key=api_key,
+                config=config,
+                service="vLLM",
+                service_base_url=base_url,
+            )
+
+    def _start_server(
+        self,
+        model_path: str,
+        api_key: str | None = None,
+    ) -> tuple[str, str]:
+        """Start a new vLLM server and return the base URL and API key.
+
+        Args:
+            model_path: Path to the model to use
+            api_key: API key for the server
+        Returns:
+            tuple[str, str]: The base URL for the server and the API key
+        """
+        # Verify vllm package is installed since we're starting a server
+        try:
+            import vllm  # type: ignore  # noqa: F401
+        except ImportError:
+            raise pip_dependency_error("vLLM Server", ["vllm"])
+
+        # Handle device configuration
+        self.server_args = configure_devices(
+            self.server_args, parallel_size_param="tensor_parallel_size"
+        )
+
+        if not api_key:
+            api_key = "inspectai"  # Create a default API key if not provided
+
+        timeout = self.server_args.pop("timeout", None)
+        host = self.server_args.pop("host", "0.0.0.0")
+
+        # Build command as a list
+        cmd = ["vllm", "serve", model_path, "--host", host, "--api-key", api_key]
+
+        base_url, self.server_process, self.port = start_local_server(
+            cmd,
+            host=host,
+            port=None,  # find a free port
             api_key=api_key,
-            api_key_vars=[HF_TOKEN],
-            config=config,
+            server_type="vLLM",
+            timeout=timeout,
+            server_args=self.server_args,
         )
 
-        self.seed = None
-        if config.seed is not None:
-            self.seed = config.seed
+        # Register cleanup function to run when Python exits
+        atexit.register(self._cleanup_server)
 
-        # collect known model_args (then delete them so we can pass the rest on)
-        def collect_model_arg(name: str) -> Any | None:
-            nonlocal model_args
-            value = model_args.get(name, None)
-            if value is not None:
-                model_args.pop(name)
-            return value
+        return base_url, api_key
 
-        device = collect_model_arg("device")
-        tokenizer = collect_model_arg("tokenizer")
-        model_path = collect_model_arg("model_path")
-        tokenizer_path = collect_model_arg("tokenizer_path")
-        self.batch_size = collect_model_arg("batch_size")
-        self.chat_template = collect_model_arg("chat_template")
+    @property
+    def server_is_running(self) -> bool:
+        """Check if the server is running."""
+        if self.server_process is None:
+            return False
 
-        # if user provides model_path, use that instead of model_name
-        if model_path:
-            model_name = model_path
-
-        # load tokenizer
-        if not tokenizer:
-            if tokenizer_path:
-                tokenizer = tokenizer_path
-            else:
-                tokenizer = model_name
-
-        # set which GPUs are available to use
-        if device is not None:
-            os.environ["CUDA_VISIBLE_DEVICES"] = ",".join(device)
-
-        # tell vllm how many GPUs to use
-        if "tensor_parallel_size" not in model_args:
-            devices = os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
-            num_devices = len(devices)
-            if num_devices > 1:
-                model_args["tensor_parallel_size"] = num_devices
-            else:
-                model_args["tensor_parallel_size"] = 1
-
-        # https://github.com/vllm-project/vllm/pull/6051
-        # Gemma 2 models require FlashInfer backend for softcap logits
-        if "google/gemma-2" in model_name:
-            os.environ["VLLM_ATTENTION_BACKEND"] = "FLASHINFER"
-            try:
-                import importlib
-
-                # check if flashinfer is installed
-                importlib.import_module("flashinfer")
-            except ImportError:
-                raise ImportError(
-                    "To use the 'google/gemma-2' model, you must install the 'flashinfer' package. "
-                    "See https://docs.flashinfer.ai/installation.html"
-                )
-
-        # load model
-        self.model = LLM(model_name, tokenizer=tokenizer, **model_args)
-
-        # we get the tokenizer so we can use it to apply the model's chat template later
-        self.tokenizer = self.model.get_tokenizer()
+        # Check if process is still alive
+        return self.server_process.poll() is None
 
     @override
+    def collapse_user_messages(self) -> bool:
+        return True
+
+    @override
+    def collapse_assistant_messages(self) -> bool:
+        return True
+
+    def _cleanup_server(self) -> None:
+        """Cleanup method to terminate server process when Python exits."""
+        if self.server_is_running and self.server_process is not None:
+            logger.info("Cleaning up vLLM server")
+            terminate_process(self.server_process)
+            self.server_process, self.port = None, None
+
+    async def aclose(self) -> None:
+        """Close the client and terminate the server if we started it."""
+        logger.info("Closing vLLM server")
+
+        # Close the OpenAI client
+        await super().aclose()
+
+        self.close()
+
     def close(self) -> None:
-        self.tokenizer = None
-        self.model = None
-        gc.collect()
+        """
+        Terminate the server if we started it.
 
-    def apply_chat_template(
-        self, messages: list[ChatMessage], tools: list[ToolInfo]
-    ) -> str:
-        # handle system message and consecutive user messages
-        messages = simple_input_messages(messages)
-        # convert to chat template input format
-        chat_messages = chat_api_input(messages, tools, ChatAPIHandler(self.model_name))
-        # apply chat template
-        chat = self.tokenizer.apply_chat_template(
-            chat_messages,
-            add_generation_prompt=True,
-            tokenize=False,
-            chat_template=self.chat_template,
-        )
-        return cast(str, chat)
+        Note that this does not close the OpenAI client as we are not in an async context.
+        """
+        self._cleanup_server()
 
-    @override
-    def max_connections(self) -> int:
-        """Effectively the batch size."""
-        return 32
-
-    def get_sampling_params(self, config: GenerateConfig, chat: str) -> SamplingParams:
-        kwargs: dict[str, Any] = dict()
-        if config.max_tokens is not None:
-            kwargs["max_tokens"] = config.max_tokens
-        else:
-            kwargs["max_tokens"] = DEFAULT_MAX_TOKENS
-
-        if config.temperature is not None:
-            # for some reason vllm doesn't generate anything for 0 < temperature < 0.02
-            if 0 < config.temperature < 0.02:
-                config.temperature = 0.02
-            kwargs["temperature"] = config.temperature
-        if config.top_p is not None:
-            kwargs["top_p"] = config.top_p
-        if config.top_k is not None:
-            kwargs["top_k"] = config.top_k
-        # if config.min_p is not None:
-        #     kwargs["min_p"] = config.min_p
-        if config.seed is not None:
-            kwargs["seed"] = config.seed
-        elif self.seed is not None:
-            kwargs["seed"] = self.seed
-
-        if config.frequency_penalty is not None:
-            kwargs["frequency_penalty"] = config.frequency_penalty
-        if config.presence_penalty is not None:
-            kwargs["presence_penalty"] = config.presence_penalty
-
-        if config.num_choices is not None:
-            kwargs["n"] = config.num_choices
-        if config.best_of is not None:
-            kwargs["best_of"] = config.best_of
-
-        if config.logprobs is not None:
-            kwargs["logprobs"] = 0
-        if config.top_logprobs is not None:
-            kwargs["logprobs"] = config.top_logprobs
-
-        if config.stop_seqs is not None:
-            kwargs["stop"] = config.stop_seqs
-
-        # some models don't stop at <|im_end|> token
-        # perhaps there is a better solution than this (modify tokenizer?)
-        # TODO: what model needs this?
-        if chat.startswith(DEFAULT_START_TOKEN):
-            if "stop" not in kwargs:
-                kwargs["stop"] = [DEFAULT_END_TOKEN]
-            else:
-                kwargs["stop"].append(DEFAULT_END_TOKEN)
-
-        sampling_params = SamplingParams(
-            **kwargs,
-            stop_token_ids=self.tokenizer.all_special_ids,  # We default to stopping at all special tokens
-            include_stop_str_in_output=False,
-        )
-        return sampling_params
+        # Deregister the atexit handler since we've manually cleaned up
+        atexit.unregister(self._cleanup_server)
 
     async def generate(
         self,
@@ -226,214 +209,38 @@ class VLLMAPI(ModelAPI):
         tools: list[ToolInfo],
         tool_choice: ToolChoice,
         config: GenerateConfig,
-    ) -> ModelOutput:
-        chat = self.apply_chat_template(input, tools)
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # check if last message is an assistant message, in this case we want to
+        # continue the final message instead of generating a new one
+        if input[-1].role == "assistant":
+            # Create a copy of the config to avoid modifying the original
+            config = config.model_copy()
 
-        # prepare generator
-        sampling_params = self.get_sampling_params(config, chat)
-        generator = functools.partial(
-            self.model.generate, sampling_params=sampling_params, use_tqdm=False
-        )
+            # Set these parameters in extra_body
+            if config.extra_body is None:
+                config.extra_body = {}
 
-        # generate
-        responses = await batched_generate(
-            GenerateInput(
-                input=chat,
-                generator=generator,
-                batch_size=config.max_connections or self.max_connections(),
-                num_top_logprobs=config.top_logprobs,
-            )
-        )
+            # Only set these values if they're not already present in extra_body
+            if (
+                "add_generation_prompt" not in config.extra_body
+                and "continue_final_message" not in config.extra_body
+            ):
+                config.extra_body["add_generation_prompt"] = False
+                config.extra_body["continue_final_message"] = True
 
-        return self.process_responses(responses, tools)
+        return await super().generate(input, tools, tool_choice, config)
 
-    def process_responses(
-        self, responses: list[GenerateOutput], tools: list[ToolInfo]
-    ) -> ModelOutput:
-        choices = [
-            ChatCompletionChoice(
-                message=ChatMessageAssistant(
-                    content=response.output, model=self.model_name, source="generate"
-                ),
-                stop_reason=response.stop_reason,
-                logprobs=response.logprobs,
-            )
-            for response in responses
-        ]
+    @override
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
+        if ex.status_code == 400:
+            # Extract message safely
+            if isinstance(ex.body, dict) and "message" in ex.body:
+                content = str(ex.body.get("message"))
+            else:
+                content = ex.message
 
-        # TODO: what's the best way to calculate token usage for num_choices > 1
-        total_time = responses[0].time
-        input_tokens = responses[0].input_tokens
-        output_tokens = sum(response.output_tokens for response in responses)
-        total_tokens = input_tokens + output_tokens
-
-        return ModelOutput(
-            model=self.model_name,
-            choices=choices,
-            usage=ModelUsage(
-                input_tokens=input_tokens,
-                output_tokens=output_tokens,
-                total_tokens=total_tokens,
-            ),
-            time=total_time,
-        )
-
-
-@dataclass
-class _QueueItem:
-    input: GenerateInput
-    future: Future[list[GenerateOutput]]
-
-
-batch_thread: Thread | None = None
-
-batch_queue: "Queue[_QueueItem]" = Queue()
-
-
-async def batched_generate(input: GenerateInput) -> list[GenerateOutput]:
-    # start the background thread if necessary
-    global batch_thread
-    if batch_thread is None:
-        batch_thread = Thread(target=process_batches, daemon=True)
-        batch_thread.start()
-
-    # enqueue the job
-    future = Future[list[GenerateOutput]]()
-    batch_queue.put(_QueueItem(input=input, future=future))
-
-    # await the future
-    while True:
-        try:
-            return future.result(timeout=0.01)
-        except concurrent.futures.TimeoutError:
-            pass
-        await anyio.sleep(1)
-
-
-def string_to_bytes(string: str) -> list[int]:
-    return list(map(ord, string))
-
-
-def extract_logprobs(
-    completion: CompletionOutput, num_top_logprobs: int | None
-) -> Logprobs | None:
-    if completion.logprobs is None or not completion.logprobs:
-        return None
-
-    # if config.logprobs = True, we want to get the selected tokens logprob
-    # but if config.top_logprobs is not set, we don't want to return the top logprobs
-    if num_top_logprobs is None:
-        num_top_logprobs = 0
-
-    logprobs = []
-    for token_id, logprob in zip(completion.token_ids, completion.logprobs):
-        top_logprobs = [
-            TopLogprob(
-                token=cast(str, token.decoded_token),
-                logprob=token.logprob,
-                bytes=string_to_bytes(cast(str, token.decoded_token)),
-            )
-            # exclude the chosen token if it's not in the top logprobs
-            for token in logprob.values()
-            if cast(int, token.rank) - 1 < num_top_logprobs
-        ]
-        selected_token = logprob[token_id]
-        logprobs.append(
-            Logprob(
-                token=cast(str, selected_token.decoded_token),
-                logprob=selected_token.logprob,
-                bytes=string_to_bytes(cast(str, selected_token.decoded_token)),
-                top_logprobs=top_logprobs,
-            )
-        )
-
-    return Logprobs(content=logprobs)
-
-
-def get_stop_reason(finish_reason: str | None) -> StopReason:
-    if finish_reason == "stop":
-        return "stop"
-    elif finish_reason == "length":
-        return "max_tokens"
-    elif finish_reason == "abort":
-        return "unknown"
-    else:
-        return "unknown"
-
-
-def post_process_output(
-    output: RequestOutput, i: int, num_top_logprobs: int | None, total_time: float
-) -> GenerateOutput:
-    completion = output.outputs[i]
-    output_text: str = completion.text
-
-    # # remove end token if it's there (byproduct of default chat template)
-    # TODO: Remove
-    # if output_text.endswith(DEFAULT_END_TOKEN):
-    #     output_text = output_text[:len(DEFAULT_END_TOKEN)]
-
-    input_tokens = len(output.prompt_token_ids)
-    output_tokens = len(completion.token_ids)
-    total_tokens = input_tokens + output_tokens
-
-    return GenerateOutput(
-        output=output_text,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        total_tokens=total_tokens,
-        stop_reason=get_stop_reason(completion.finish_reason),
-        logprobs=extract_logprobs(completion, num_top_logprobs),
-        time=total_time,
-    )
-
-
-def post_process_outputs(
-    output: RequestOutput, num_top_logprobs: int | None, total_time: float
-) -> list[GenerateOutput]:
-    return [
-        post_process_output(output, i, num_top_logprobs, total_time)
-        for i in range(len(output.outputs))
-    ]
-
-
-def process_batches() -> None:
-    while True:
-        # drain the queue (wait until no new messages have shown up for 2 seconds)
-        inputs: list[tuple[GenerateInput, Future[list[GenerateOutput]]]] = []
-        while True:
-            try:
-                input = batch_queue.get(
-                    timeout=2
-                )  # wait 2 seconds max TODO: what's optimal wait time?
-                inputs.append((input.input, input.future))
-                if len(inputs) >= input.input.batch_size:
-                    # max batch size reached
-                    break
-            except Empty:
-                # we have exhausted the queue
-                break
-
-        # see if we have any work to do
-        if len(inputs) == 0:
-            continue
-
-        try:
-            start_time = time.monotonic()
-            first_input = inputs[0][0]
-            generator = first_input.generator
-            num_top_logprobs = first_input.num_top_logprobs
-
-            # generate
-            outputs = generator([input[0].input for input in inputs])
-
-            total_time = time.monotonic() - start_time
-            for i, output in enumerate(outputs):
-                future = inputs[i][1]
-
-                future.set_result(
-                    post_process_outputs(output, num_top_logprobs, total_time),
+            if "maximum context length" in content:
+                return ModelOutput.from_content(
+                    self.model_name, content=content, stop_reason="model_length"
                 )
-
-        except Exception as e:
-            for _, future in inputs:
-                future.set_exception(e)
+        return ex

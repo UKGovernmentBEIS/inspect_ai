@@ -1,0 +1,3 @@
+# Exclude specific subdirectories
+recursive-exclude src/inspect_ai/tool/_tools/_computer/_resources *
+recursive-exclude src/inspect_ai/tool/_tools/_web_browser/_resources *

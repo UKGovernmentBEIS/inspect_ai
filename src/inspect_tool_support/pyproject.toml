@@ -66,7 +66,7 @@ ignore = ["W002", "W009"]
 
 [project]
 name = "inspect_tool_support"
-version = "0.1.9"
+version = "1.0.0"
 description = "Sandbox container tool code for inspect_ai"
 authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
@@ -90,8 +90,10 @@ dependencies = [
     "httpx",
     "jsonrpcserver",
     "mcp",
+    "packaging",
     "pydantic",
     "returns",
+    "semver",
     "tenacity",
     "playwright",
     "psutil",

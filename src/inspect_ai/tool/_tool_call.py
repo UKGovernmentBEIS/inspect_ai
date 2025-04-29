@@ -68,9 +68,12 @@ class ToolCallError:
         "permission",
         "file_not_found",
         "is_a_directory",
-        "output_limit",
+        "limit",
         "approval",
         "unknown",
+        # Retained for backward compatibility when loading logs created with an older
+        # version of inspect.
+        "output_limit",
     ]
     """Error type."""
 
