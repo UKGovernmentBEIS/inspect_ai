@@ -1,3 +1,7 @@
+## v1.0.1 (29 April 2025)
+
+- Fix occasional "Execution context was destroyed, most likely because of a navigation" web browser bug. (#1781)
+
 ## v1.0.0 (29 April 2025)
 
 - Major version bump for `bash_session` tool to be terminal oriented rather than command oriented. (#1600)
