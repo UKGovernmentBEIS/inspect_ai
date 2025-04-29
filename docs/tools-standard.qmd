@@ -75,10 +75,6 @@ def intercode_ctf():
 
 Note that we provide a `timeout` for bash session commands (this is a best practice to guard against extremely long running commands).
 
-### Tool Binding
-
-The schema for the `bash_session()` tool is based on the standard Anthropic [bash tool type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#bash-tool). The `bash_session()` works with all models that support tool calling, but when using Claude, the bash session tool will automatically bind to the native Claude tool definition.
-
 ## Text Editor {#sec-text-editor}
 
 The `text_editor()` tool enables viewing, creating and editing text files. The tool supports editing files within a protected [Sandbox Environment](sandboxing.qmd) so tasks that use the text editor should have a sandbox defined and configured as described below.
