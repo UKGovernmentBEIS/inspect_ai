@@ -342,6 +342,7 @@ def configure_devices(
     """
     result = server_args.copy()
 
+    devices = None
     if "device" in result and "devices" in result:
         raise ValueError("Cannot specify both device and devices in server args")
     elif "devices" in result:
