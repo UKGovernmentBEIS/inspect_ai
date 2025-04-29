@@ -1087,6 +1087,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_LOG_SAMPLES",
 )
 @click.option(
+    "--no-log-realtime",
+    type=bool,
+    is_flag=True,
+    help=NO_LOG_REALTIME_HELP,
+    envvar="INSPECT_EVAL_LOG_REALTIME",
+)
+@click.option(
     "--log-images/--no-log-images",
     type=bool,
     default=True,
