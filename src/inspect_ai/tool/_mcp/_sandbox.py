@@ -28,9 +28,9 @@ async def sandbox_client(  # type: ignore
     *,
     sandbox_name: str | None = None,
     errlog: TextIO = sys.stderr,
+    timeout: int | None = None,  # default 180 seconds
 ) -> MCPServerContext:  # type: ignore
-    # TODO: How do we want to plumb timeout into this?
-    timeout = 180
+    timeout = timeout or 180
     (sandbox_environment, _) = await tool_support_sandbox(
         "mcp support", sandbox_name=sandbox_name
     )
