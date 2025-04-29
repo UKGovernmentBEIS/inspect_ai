@@ -108,8 +108,6 @@ class Process:
         except (asyncio.CancelledError, BrokenPipeError, ConnectionResetError):
             # These are expected during termination
             pass
-        except Exception as e:
-            print(f"Error in read loop: {e}")
 
     def _receive_data(self, new_data: str) -> None:
         self._output_data.append(new_data)

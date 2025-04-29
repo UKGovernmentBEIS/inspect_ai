@@ -71,7 +71,7 @@ class BashSessionParams(
     ]
 
 
-DEFAULT_MAX_WAIT = 30
+DEFAULT_WAIT_FOR_OUTPUT = 30
 DEFAULT_IDLE_TIME = 0.5
 # this is how long we're willing to wait for the basic RPC call overhead.
 TRANSPORT_TIMEOUT = 5
@@ -109,7 +109,7 @@ def bash_session(
     Returns:
       String with output from the shell.
     """
-    wait_for_output = wait_for_output or DEFAULT_MAX_WAIT
+    wait_for_output = wait_for_output or DEFAULT_WAIT_FOR_OUTPUT
     min_timeout = wait_for_output + TRANSPORT_TIMEOUT
     if timeout is None:
         timeout = min_timeout
