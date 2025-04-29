@@ -7,6 +7,7 @@
 - `--no-log-realtime` option for disabling realtime event logging (live viewing of logs is disabled when this is specified).
 - Packaging: Exclude `_resources` directories from package (reduces pressure on path lengths for Windows).
 - Inspect View: Split info tab into task, models, and info for improved layout.
+- Bugfix: Avoid validation errors when loading old log files which contain "output_limit" tool errors.
 
 ## v0.3.92 (26 April 2025)
 

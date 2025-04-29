@@ -1,0 +1,206 @@
+{
+    "version": 2,
+    "status": "success",
+    "eval": {
+        "run_id": "...",
+        "created": "2025-02-07T00:00:00+00:00",
+        "task": "...",
+        "task_id": "...",
+        "task_version": 0,
+        "task_file": "...",
+        "task_attribs": {
+            "lite": true
+        },
+        "task_args": {},
+        "dataset": {
+            "name": "...",
+            "location": ".",
+            "samples": 1,
+            "sample_ids": [
+                1
+            ],
+            "shuffled": false
+        },
+        "sandbox": {
+            "type": "docker",
+            "config": "compose.yaml"
+        },
+        "model": "...",
+        "model_generate_config": {},
+        "model_args": {},
+        "config": {},
+        "revision": {
+            "type": "git",
+            "origin": "...",
+            "commit": "..."
+        },
+        "packages": {
+            "inspect_ai": "0.3.58.dev9002"
+        }
+    },
+    "plan": {
+        "name": "plan",
+        "steps": [
+            {
+                "solver": "...",
+                "params": {}
+            }
+        ]
+    },
+    "results": {
+        "total_samples": 4,
+        "completed_samples": 4,
+        "scores": [
+            {
+                "name": "includes",
+                "scorer": "includes",
+                "params": {},
+                "metrics": {
+                    "accuracy": {
+                        "name": "accuracy",
+                        "value": 1.0,
+                        "params": {}
+                    },
+                    "stderr": {
+                        "name": "stderr",
+                        "value": 0.0,
+                        "params": {}
+                    }
+                }
+            }
+        ]
+    },
+    "stats": {
+        "started_at": "2025-02-07T00:00:00+00:00",
+        "completed_at": "2025-02-07T00:00:00+00:00",
+        "model_usage": {
+            "...": {
+                "input_tokens": 1,
+                "output_tokens": 1,
+                "total_tokens": 1
+            }
+        }
+    },
+    "samples": [
+        {
+            "id": 1,
+            "epoch": 4,
+            "input": "...",
+            "target": "...",
+            "files": [],
+            "setup": "...",
+            "messages": [
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_1",
+                    "function": "bash",
+                    "error": {
+                        "type": "parsing",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_2",
+                    "function": "bash",
+                    "error": {
+                        "type": "timeout",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_3",
+                    "function": "bash",
+                    "error": {
+                        "type": "parsing",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_4",
+                    "function": "bash",
+                    "error": {
+                        "type": "unicode_decode",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_5",
+                    "function": "bash",
+                    "error": {
+                        "type": "permission",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_6",
+                    "function": "bash",
+                    "error": {
+                        "type": "file_not_found",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_7",
+                    "function": "bash",
+                    "error": {
+                        "type": "is_a_directory",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_8",
+                    "function": "bash",
+                    "error": {
+                        "type": "limit",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_9",
+                    "function": "bash",
+                    "error": {
+                        "type": "approval",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "...",
+                    "role": "tool",
+                    "tool_call_id": "bash_10",
+                    "function": "bash",
+                    "error": {
+                        "type": "unknown",
+                        "message": "..."
+                    }
+                },
+                {
+                    "content": "\nThe output of your call to bash was too long to be displayed.\nHere is a truncated version:\n<START_TOOL_OUTPUT>\n...\n<END_TOOL_OUTPUT>\n",
+                    "role": "tool",
+                    "tool_call_id": "bash_11",
+                    "function": "bash",
+                    "error": {
+                        "type": "output_limit",
+                        "message": "The tool output limit of 10 MiB was exceeded."
+                    }
+                }
+            ]
+        }
+    ]
+}
