@@ -463,6 +463,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
   <li><a href="#schema" id="toc-schema" class="nav-link" data-scroll-target="#schema">Schema</a></li>
+  <li><a href="#vllmsglang-api" id="toc-vllmsglang-api" class="nav-link" data-scroll-target="#vllmsglang-api">vLLM/SGLang API</a>
+  <ul class="collapse">
+  <li><a href="#guided-choice-decoding" id="toc-guided-choice-decoding" class="nav-link" data-scroll-target="#guided-choice-decoding">Guided Choice Decoding</a></li>
+  <li><a href="#guided-regex-decoding" id="toc-guided-regex-decoding" class="nav-link" data-scroll-target="#guided-regex-decoding">Guided Regex Decoding</a></li>
+  <li><a href="#guided-context-free-grammar-decoding" id="toc-guided-context-free-grammar-decoding" class="nav-link" data-scroll-target="#guided-context-free-grammar-decoding">Guided Context Free Grammar Decoding</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -490,7 +496,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Structured output is a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured output is currently supported in Inspect for the OpenAI, Google, and Mistral providers.</p>
+<p>Structured output is a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured output is currently supported in Inspect for the OpenAI, Google, Mistral, vLLM, and SGLang providers.</p>
 <p>While structured output may seem like a robust solution to model unreliability, it’s important to keep in mind that by specifying a JSON schema you are also introducing unknown effects on model task performance. There is even some early literature indicating that <a href="https://dylancastillo.co/posts/say-what-you-mean-sometimes.html">models perform worse with structured output</a>.</p>
 <p>You should therefore test the use of structured output as an elicitation technique like you would any other, and only proceed if you feel confident that it has made a genuine improvement in your overall task.</p>
 </section>
@@ -590,8 +596,75 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that not all model providers support all of these options. In particular, only the Mistral and OpenAI providers support the <code>name</code>, <code>description</code>, and <code>strict</code> fields (the Google provider takes the <code>json_schema</code> only).</p>
 <p>You should therefore never assume that specifying <code>strict</code> gets your scorer off the hook for parsing and validating the model output as some models won’t respect <code>strict</code>. Using <code>strict</code> may also impact task performance—as always it’s best to experiment and measure!</p>
+</section>
+<section id="vllmsglang-api" class="level2">
+<h2 class="anchored" data-anchor-id="vllmsglang-api">vLLM/SGLang API</h2>
+<p>The vLLM and SGLang providers support structured output from JSON schemas as above, as well as in the choice, regex, and context free grammar formats. This is currently implemented through the <code>extra_body</code> field in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> object. See the docs for <a href="https://docs.vllm.ai/en/stable/features/structured_outputs.html">vLLM</a> and <a href="https://docs.sglang.ai/backend/structured_outputs.html">SGLang</a> for more details.</p>
+<p>The key names for each guided decoding format differ between vLLM and SGLang:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Format</th>
+<th>vLLM key</th>
+<th>SGLang key</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Choice</td>
+<td><code>guided_choice</code></td>
+<td><code>choice</code></td>
+</tr>
+<tr class="even">
+<td>Regex</td>
+<td><code>guided_regex</code></td>
+<td><code>regex</code></td>
+</tr>
+<tr class="odd">
+<td>Grammar</td>
+<td><code>guided_grammar</code></td>
+<td><code>ebnf</code></td>
+</tr>
+</tbody>
+</table>
+<p>Below are example usages for each format.</p>
+<section id="guided-choice-decoding" class="level3">
+<h3 class="anchored" data-anchor-id="guided-choice-decoding">Guided Choice Decoding</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> GenerateConfig(</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    extra_body<span class="op">=</span>{</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"guided_choice"</span>: [<span class="st">"RGB: 255,255,255"</span>, <span class="st">"RGB: 0,0,0"</span>]  <span class="co"># vLLM</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># "choice": ["RGB: 255,255,255", "RGB: 0,0,0"]       # SGLang</span></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="guided-regex-decoding" class="level3">
+<h3 class="anchored" data-anchor-id="guided-regex-decoding">Guided Regex Decoding</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> GenerateConfig(</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    extra_body<span class="op">=</span>{</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>        <span class="st">"guided_regex"</span>: <span class="vs">r"RGB: (\d{1,3}),(\d{1,3}),(\d{1,3})"</span>  <span class="co"># vLLM</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># "regex": r"RGB: (\d{1,3}),(\d{1,3}),(\d{1,3})"       # SGLang</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="guided-context-free-grammar-decoding" class="level3">
+<h3 class="anchored" data-anchor-id="guided-context-free-grammar-decoding">Guided Context Free Grammar Decoding</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>grammar <span class="op">=</span> <span class="st">"""</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="st">root ::= rgb_color</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="st">rgb_color ::= "RGB: " rgb_values</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="st">rgb_values ::= number "," number "," number</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="st">number ::= digit | digit digit | digit digit digit</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a><span class="st">digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> GenerateConfig(</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    extra_body<span class="op">=</span>{</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        <span class="st">"guided_grammar"</span>: grammar  <span class="co"># vLLM</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        <span class="co"># "ebnf": grammar          # SGLang</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->

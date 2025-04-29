@@ -6,7 +6,7 @@
 Structured output is a feature supported by some model providers to
 ensure that models generate responses which adhere to a supplied JSON
 Schema. Structured output is currently supported in Inspect for the
-OpenAI, Google, and Mistral providers.
+OpenAI, Google, Mistral, vLLM, and SGLang providers.
 
 While structured output may seem like a robust solution to model
 unreliability, it’s important to keep in mind that by specifying a JSON
@@ -167,3 +167,65 @@ You should therefore never assume that specifying `strict` gets your
 scorer off the hook for parsing and validating the model output as some
 models won’t respect `strict`. Using `strict` may also impact task
 performance—as always it’s best to experiment and measure!
+
+## vLLM/SGLang API
+
+The vLLM and SGLang providers support structured output from JSON
+schemas as above, as well as in the choice, regex, and context free
+grammar formats. This is currently implemented through the `extra_body`
+field in the `GenerateConfig` object. See the docs for
+[vLLM](https://docs.vllm.ai/en/stable/features/structured_outputs.html)
+and [SGLang](https://docs.sglang.ai/backend/structured_outputs.html) for
+more details.
+
+The key names for each guided decoding format differ between vLLM and
+SGLang:
+
+| Format  | vLLM key         | SGLang key |
+|---------|------------------|------------|
+| Choice  | `guided_choice`  | `choice`   |
+| Regex   | `guided_regex`   | `regex`    |
+| Grammar | `guided_grammar` | `ebnf`     |
+
+Below are example usages for each format.
+
+### Guided Choice Decoding
+
+``` python
+config = GenerateConfig(
+    extra_body={
+        "guided_choice": ["RGB: 255,255,255", "RGB: 0,0,0"]  # vLLM
+        # "choice": ["RGB: 255,255,255", "RGB: 0,0,0"]       # SGLang
+    }
+)
+```
+
+### Guided Regex Decoding
+
+``` python
+config = GenerateConfig(
+    extra_body={
+        "guided_regex": r"RGB: (\d{1,3}),(\d{1,3}),(\d{1,3})"  # vLLM
+        # "regex": r"RGB: (\d{1,3}),(\d{1,3}),(\d{1,3})"       # SGLang
+    }
+)
+```
+
+### Guided Context Free Grammar Decoding
+
+``` python
+grammar = """
+root ::= rgb_color
+rgb_color ::= "RGB: " rgb_values
+rgb_values ::= number "," number "," number
+number ::= digit | digit digit | digit digit digit
+digit ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+"""
+
+config = GenerateConfig(
+    extra_body={
+        "guided_grammar": grammar  # vLLM
+        # "ebnf": grammar          # SGLang
+    }
+)
+```

@@ -854,22 +854,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>Do not log images and other media.</td>
 </tr>
 <tr class="even">
+<td><code>--no-log-realtime</code></td>
+<td>Do not log events in realtime (affects live viewing of logs)</td>
+</tr>
+<tr class="odd">
 <td><code>--log-buffer</code></td>
 <td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-shared</code></td>
 <td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify <code>True</code> to sync every 10 seconds, otherwise an integer to sync every <code>n</code> seconds.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-format</code></td>
 <td>Values: <code>eval</code>, <code>json</code> Format for writing log files (defaults to <code>eval</code>).</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level</code></td>
 <td>Python logger level for console. Values: <code>debug</code>, <code>trace</code>, <code>http</code>, <code>info</code>, <code>warning</code>, <code>error</code>, <code>critical</code> (defaults to <code>warning</code>)</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-level-transcript</code></td>
 <td>Python logger level for eval log transcript (values same as <code>--log-level</code>, defaults to <code>info</code>).</td>
 </tr>

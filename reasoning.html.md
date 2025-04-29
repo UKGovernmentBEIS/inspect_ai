@@ -236,3 +236,16 @@ DeepSeek models, although they have indicated that this will be
 Reasoning content from DeepSeek models is captured using either the
 `reasoning_content` field made available by the hosted DeepSeek API or
 the `<think>` tags used by various hosting providers.
+
+## vLLM/SGLang
+
+vLLM and SGLang both support reasoning outputs; however, the usage is
+often model dependant and requires additional configuration. See the
+[vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html)
+and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html)
+documentation for details.
+
+If the model already outputs its reasoning between `<think></think>`
+tags such as with the R1 models or through prompt engineering, then
+Inspect will capture it automatically without any additional
+configuration of vLLM or SGLang.

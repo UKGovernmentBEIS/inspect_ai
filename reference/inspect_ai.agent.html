@@ -1902,7 +1902,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Use the <code>attempts</code> option to enable additional submissions if the initial submission(s) are incorrect (by default, no additional attempts are permitted).</p>
 <p>By default, the model will be urged to continue if it fails to call a tool. Customise this behavior using the <code>on_continue</code> option.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_react.py#L35">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_react.py#L35">Source</a>
 </div>
 <div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> react(</span>
@@ -1961,7 +1961,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Bridge an external agent into an Inspect Agent.</p>
 <p>See documentation at <a href="https://inspect.aisi.org.uk/agent-bridge.html" class="uri">https://inspect.aisi.org.uk/agent-bridge.html</a></p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_bridge/bridge.py#L15">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_bridge/bridge.py#L15">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> bridge(agent: Callable[[<span class="bu">dict</span>[<span class="bu">str</span>, Any]], Awaitable[<span class="bu">dict</span>[<span class="bu">str</span>, Any]]]) <span class="op">-&gt;</span> Agent</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -1978,7 +1978,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The Human CLI agent installs agent task tools in the default sandbox and presents the user with both task instructions and documentation for the various tools (e.g.&nbsp;<code>task submit</code>, <code>task start</code>, <code>task stop</code> <code>task instructions</code>, etc.). A human agent panel is displayed with instructions for logging in to the sandbox.</p>
 <p>If the user is running in VS Code with the Inspect extension, they will also be presented with links to login to the sandbox using a VS Code Window or Terminal.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_human/agent.py#L16">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_human/agent.py#L16">Source</a>
 </div>
 <div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> human_cli(</span>
@@ -2013,7 +2013,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="handoff">handoff</h3>
 <p>Create a tool that enables models to handoff to agents.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_handoff.py#L19">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_handoff.py#L19">Source</a>
 </div>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> handoff(</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    agent: Agent,</span>
@@ -2060,7 +2060,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Run an agent.</p>
 <p>The input messages(s) will be copied prior to running so are not modified in place.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_run.py#L10">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_run.py#L10">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> run(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    agent: Agent,</span>
@@ -2092,7 +2092,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Convert an agent to a tool.</p>
 <p>By default the model will see all of the agent’s arguments as tool arguments (save for <code>state</code> which is converted to an <code>input</code> arguments of type <code>str</code>). Provide optional <code>agent_kwargs</code> to mask out agent parameters with default values (these parameters will not be presented to the model as part of the tool interface)</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_as_tool.py#L18">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_as_tool.py#L18">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="at">@tool</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_tool(</span>
@@ -2125,7 +2125,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Convert an agent to a solver.</p>
 <p>Note that agents used as solvers will only receive their first parameter (<code>state</code>). Any other parameters must provide appropriate defaults or be explicitly specified in <code>agent_kwargs</code></p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_as_solver.py#L19">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_as_solver.py#L19">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> as_solver(agent: Agent, limits: <span class="bu">list</span>[Limit] <span class="op">=</span> [], <span class="op">**</span>agent_kwargs: Any) <span class="op">-&gt;</span> Solver</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2151,7 +2151,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Remove tool calls from messages.</p>
 <p>Removes all instances of <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> as well as the <code>tool_calls</code> field from <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#chatmessageassistant">ChatMessageAssistant</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_filter.py#L13">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_filter.py#L13">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> remove_tools(messages: <span class="bu">list</span>[ChatMessage]) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2165,7 +2165,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="last_message">last_message</h3>
 <p>Remove all but the last message.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_filter.py#L36">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_filter.py#L36">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> last_message(messages: <span class="bu">list</span>[ChatMessage]) <span class="op">-&gt;</span> <span class="bu">list</span>[ChatMessage]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
@@ -2179,7 +2179,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="messagefilter">MessageFilter</h3>
 <p>Filter messages sent to or received from agent handoffs.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_filter.py#L9">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_filter.py#L9">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>MessageFilter <span class="op">=</span> Callable[[<span class="bu">list</span>[ChatMessage]], Awaitable[<span class="bu">list</span>[ChatMessage]]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -2193,7 +2193,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>You can give the model a tool that enables handoff to your agent using the <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#handoff">handoff()</a></span> function.</p>
 <p>You can create a simple tool (that receives a string as input) from an agent using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_agent.py#L91">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_agent.py#L91">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Agent(Protocol):</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> <span class="fu">__call__</span>(</span>
@@ -2221,7 +2221,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agentstate">AgentState</h3>
 <p>Agent state.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_agent.py#L33">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_agent.py#L33">Source</a>
 </div>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentState</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2242,7 +2242,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agent-1">agent</h3>
 <p>Decorator for registering agents.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_agent.py#L139">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_agent.py#L139">Source</a>
 </div>
 <div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent(</span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    func: Callable[P, Agent] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
@@ -2270,7 +2270,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Agent with modifications to name and/or description</p>
 <p>This function modifies the passed agent in place and returns it. If you want to create multiple variations of a single agent using <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.agent.html#agent_with">agent_with()</a></span> you should create the underlying agent multiple times.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_agent.py#L213">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_agent.py#L213">Source</a>
 </div>
 <div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> agent_with(</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    agent: Agent,</span>
@@ -2300,7 +2300,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agentprompt">AgentPrompt</h3>
 <p>Prompt for agent.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_types.py#L31">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_types.py#L31">Source</a>
 </div>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentPrompt(NamedTuple)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2326,7 +2326,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Configure a react agent to make multiple attempts.</p>
 <p>Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. “C” becomes 1.0) using the standard value_to_float() function. Provide an alternate conversion scheme as required via <code>score_value</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_types.py#L59">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_types.py#L59">Source</a>
 </div>
 <div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentAttempts(NamedTuple)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
@@ -2352,7 +2352,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Function called to determine whether the agent should continue.</p>
 <p>Returns <code>True</code> to continue (with no additional messages inserted), return <code>False</code> to stop. Returns <code>str</code> to continue with an additional custom user message inserted.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_types.py#L50">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_types.py#L50">Source</a>
 </div>
 <div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>AgentContinue: TypeAlias <span class="op">=</span> Callable[[AgentState], Awaitable[<span class="bu">bool</span> <span class="op">|</span> <span class="bu">str</span>]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
@@ -2360,7 +2360,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="agentsubmit">AgentSubmit</h3>
 <p>Configure the submit tool of a react agent.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/46e607e238d16124784b96bf3f5fe236fc9b1d84/src/inspect_ai/agent/_types.py#L81">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/780175fc06f65de9f9d97cd13fbf228e2896e9f0/src/inspect_ai/agent/_types.py#L81">Source</a>
 </div>
 <div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AgentSubmit(NamedTuple)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">

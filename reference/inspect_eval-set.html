@@ -2087,234 +2087,240 @@ ul.task-list li input[type="checkbox"] {
 <td><code>False</code></td>
 </tr>
 <tr class="odd">
+<td><code>--no-log-realtime</code></td>
+<td>boolean</td>
+<td>Do not log events in realtime (affects live viewing of samples in inspect view)</td>
+<td><code>False</code></td>
+</tr>
+<tr class="even">
 <td><code>--log-images</code> / <code>--no-log-images</code></td>
 <td>boolean</td>
 <td>Include base64 encoded versions of filename or URL based images in the log file.</td>
 <td><code>True</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-buffer</code></td>
 <td>integer</td>
 <td>Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most all cases, 100 for JSON logs on remote filesystems).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-shared</code></td>
 <td>text</td>
 <td>Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every <code>n</code> seconds).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--no-score</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--no-score-display</code></td>
 <td>boolean</td>
 <td>Do not score model output (use the inspect score command to score output later)</td>
 <td><code>False</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tokens</code></td>
 <td>integer</td>
 <td>The maximum number of tokens that can be generated in the completion (default is model specific)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--system-message</code></td>
 <td>text</td>
 <td>Override the default system message.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--best-of</code></td>
 <td>integer</td>
 <td>Generates best_of completions server-side and returns the ‘best’ (the one with the highest log probability per token). OpenAI only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--frequency-penalty</code></td>
 <td>float</td>
 <td>Number between -2.0 and 2.0. Positive values penalize new tokens based on their existing frequency in the text so far, decreasing the model’s likelihood to repeat the same line verbatim. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--presence-penalty</code></td>
 <td>float</td>
 <td>Number between -2.0 and 2.0. Positive values penalize new tokens based on whether they appear in the text so far, increasing the model’s likelihood to talk about new topics. OpenAI, Google, Grok, Groq, llama-cpp-python and vLLM only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--logit-bias</code></td>
 <td>text</td>
 <td>Map token Ids to an associated bias value from -100 to 100 (e.g.&nbsp;“42=10,43=-10”). OpenAI, Grok, and Grok only.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--seed</code></td>
 <td>integer</td>
 <td>Random seed. OpenAI, Google, Groq, Mistral, HuggingFace, and vLLM only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--stop-seqs</code></td>
 <td>text</td>
 <td>Sequences where the API will stop generating further tokens. The returned text will not contain the stop sequence.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--temperature</code></td>
 <td>float</td>
 <td>What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--top-p</code></td>
 <td>float</td>
 <td>An alternative to sampling with temperature, called nucleus sampling, where the model considers the results of the tokens with top_p probability mass.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--top-k</code></td>
 <td>integer</td>
 <td>Randomly sample the next word from the top_k most likely next words. Anthropic, Google, HuggingFace, and vLLM only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--num-choices</code></td>
 <td>integer</td>
 <td>How many chat completion choices to generate for each input message. OpenAI, Grok, Google, TogetherAI, and vLLM only.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--logprobs</code></td>
 <td>boolean</td>
 <td>Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--top-logprobs</code></td>
 <td>integer</td>
 <td>Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--parallel-tool-calls</code> / <code>--no-parallel-tool-calls</code></td>
 <td>boolean</td>
 <td>Whether to enable parallel function calling during tool use (defaults to True) OpenAI and Groq only.</td>
 <td><code>True</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--internal-tools</code> / <code>--no-internal-tools</code></td>
 <td>boolean</td>
 <td>Whether to automatically map tools to model internal implementations (e.g.&nbsp;‘computer’ for anthropic).</td>
 <td><code>True</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-tool-output</code></td>
 <td>integer</td>
 <td>Maximum size of tool output (in bytes). Defaults to 16 * 1024.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--cache-prompt</code></td>
 <td>choice (<code>auto</code> | <code>true</code> | <code>false</code>)</td>
 <td>Cache prompt prefix (Anthropic only). Defaults to “auto”, which will enable caching for requests with tools.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-effort</code></td>
 <td>choice (<code>low</code> | <code>medium</code> | <code>high</code>)</td>
 <td>Constrains effort on reasoning for reasoning models (defaults to <code>medium</code>). Open AI o-series models only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-tokens</code></td>
 <td>integer</td>
 <td>Maximum number of tokens to use for reasoning. Anthropic Claude models only.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--reasoning-summary</code></td>
 <td>choice (<code>concise</code> | <code>detailed</code> | <code>auto</code>)</td>
 <td>Provide summary of reasoning steps (defaults to no summary). Use ‘auto’ to access the most detailed summarizer available for the current model. OpenAI reasoning models only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--reasoning-history</code></td>
 <td>choice (<code>none</code> | <code>all</code> | <code>last</code> | <code>auto</code>)</td>
 <td>Include reasoning in chat message history sent to generate (defaults to “auto”, which uses the recommended default for each provider)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--response-schema</code></td>
 <td>text</td>
 <td>JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-format</code></td>
 <td>choice (<code>eval</code> | <code>json</code>)</td>
 <td>Format for writing log files.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-level-transcript</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code>)</td>
 <td>Set the log level of the transcript (defaults to ‘info’)</td>
 <td><code>info</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--traceback-locals</code></td>
 <td>boolean</td>
 <td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>

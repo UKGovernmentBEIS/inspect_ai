@@ -12,7 +12,7 @@ providers is built in to Inspect:
 | Lab APIs | [OpenAI](providers.qmd#openai), [Anthropic](providers.qmd#anthropic), [Google](providers.qmd#google), [Grok](providers.qmd#grok), [Mistral](providers.qmd#mistral), [DeepSeek](providers.qmd#deepseek) |
 | Cloud APIs | [AWS Bedrock](providers.qmd#aws-bedrock), [Azure AI](providers.qmd#azure-ai), [Vertex AI](providers.qmd#vertex-ai) |
 | Open (Hosted) | [Groq](providers.qmd#groq), [Together AI](providers.qmd#together-ai), [Cloudflare](providers.qmd#cloudflare) |
-| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python) |
+| Open (Local) | [Hugging Face](providers.qmd#hugging-face), [vLLM](providers.qmd#vllm), [Ollama](providers.qmd#ollama), [Lllama-cpp-python](providers.qmd#llama-cpp-python), [SGLang](providers.qmd#sglang), |
 
 If the provider you are using is not listed above, you may still be able
 to use it if:
@@ -618,6 +618,16 @@ model = get_model("hf/local", model_path="./my-model")
 
 ## vLLM
 
+> [!NOTE]
+>
+> The vLLM provider as described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
 The [vLLM](https://docs.vllm.ai/) provider also implements support for
 Hugging Face models using the
 [vllm](https://github.com/vllm-project/vllm/) package. To use the vLLM
@@ -629,20 +639,26 @@ pip install vllm
 inspect eval arc.py --model vllm/openai-community/gpt2
 ```
 
+For the `vllm` provider, custom model args (-M) are forwarded to the
+vllm
+[CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference).
+
+The following environment variables are supported by the vLLM provider:
+
+| Variable | Description |
+|----|----|
+| `VLLM_BASE_URL` | Base URL for requests (optional, defaults to the server started by Inspect) |
+| `VLLM_API_KEY` | API key for the vLLM server (optional, defaults to “local”) |
+| `VLLM_DEFAULT_SERVER_ARGS` | JSON string of default server args (e.g., ‘{“tensor_parallel_size”: 4, “max_model_len”: 8192}’) |
+
 You can also access models from ModelScope rather than Hugging Face, see
 the [vLLM
-documentation](https://docs.vllm.ai/en/latest/getting_started/quickstart.html)
+documentation](https://docs.vllm.ai/en/stable/getting_started/quickstart.html)
 for details on this.
 
 vLLM is generally much faster than the Hugging Face provider as the
 library is designed entirely for inference speed whereas the Hugging
 Face library is more general purpose.
-
-> [!TIP]
->
-> Rather than doing inference locally, you can also connect to a remote
-> vLLM server. See the section below on [vLLM Server](#sec-vllm-server)
-> for details).
 
 ### Batching
 
@@ -672,23 +688,95 @@ arguments:
 $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 ```
 
+### Tool Use and Reasoning
+
+vLLM supports tool use and reasoning; however, the usage is often model
+dependant and requires additional configuration. See the [Tool
+Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and
+[Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html)
+sections of the vLLM documentation for details.
+
 ### vLLM Server
 
-vLLM provides an HTTP server that implements OpenAI’s Chat API. To use
-this with Inspect, use the `openai-api` provider rather than the `vllm`
-provider, setting the model base URL to point to the vLLM server. For
-example:
+Rather than letting Inspect start and stop a vLLM server every time you
+run an evaluation (which can take several minutes for large models), you
+can instead start the server manually and then connect to it. To do
+this, set the model base URL to point to the vLLM server and the API key
+to the server’s API key. For example:
 
 ``` bash
 $ export VLLM_BASE_URL=http://localhost:8080/v1
 $ export VLLM_API_KEY=<your-server-api-key>
-$ inspect eval arc.py \
-    --model openai-api/vllm/meta-llama/Meta-Llama-3-8B-Instruct
+$ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct
+```
+
+or
+
+``` bash
+$ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct --model-base-url http://localhost:8080/v1 -M api_key=<your-server-api-key>
 ```
 
 See the vLLM documentation on [Server
-Mode](https://docs.vllm.ai/en/latest/serving/openai_compatible_server.html)
+Mode](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html)
 for additional details.
+
+## SGLang
+
+> [!NOTE]
+>
+> The SGLang provider as described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+To use the [SGLang](https://docs.sglang.ai/index.html) provider, install
+the `sglang` package and specify a model using the `--model` option:
+
+``` bash
+pip install "sglang[all]>=0.4.4.post2" --find-links https://flashinfer.ai/whl/cu124/torch2.5/flashinfer-python
+inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct
+```
+
+For the `sglang` provider, custom model args (-M) are forwarded to the
+sglang [CLI](https://docs.sglang.ai/backend/server_arguments.html).
+
+The following environment variables are supported by the SGLang
+provider:
+
+| Variable | Description |
+|----|----|
+| `SGLANG_BASE_URL` | Base URL for requests (optional, defaults to the server started by Inspect) |
+| `SGLANG_API_KEY` | API key for the SGLang server (optional, defaults to “local”) |
+| `SGLANG_DEFAULT_SERVER_ARGS` | JSON string of default server args (e.g., ‘{“tp”: 4, “max_model_len”: 8192}’) |
+
+SGLang is a fast and efficient language model server that supports a
+variety of model architectures and configurations. Its usage in Inspect
+is almost identical to the [vLLM provider](#vllm). You can either let
+Inspect start and stop the server for you, or start the server manually
+and then connect to it:
+
+``` bash
+$ export SGLANG_BASE_URL=http://localhost:8080/v1
+$ export SGLANG_API_KEY=<your-server-api-key>
+$ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct
+```
+
+or
+
+``` bash
+$ inspect eval arc.py --model sglang/meta-llama/Meta-Llama-3-8B-Instruct --model-base-url http://localhost:8080/v1 -M api_key=<your-server-api-key>
+```
+
+### Tool Use and Reasoning
+
+SGLang supports tool use and reasoning; however, the usage is often
+model dependant and requires additional configuration. See the [Tool
+Use](https://docs.sglang.ai/backend/function_calling.html) and
+[Reasoning](https://docs.sglang.ai/backend/separate_reasoning.html)
+sections of the SGLang documentation for details.
 
 ## Ollama
 

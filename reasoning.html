@@ -468,6 +468,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#google-gemini" id="toc-google-gemini" class="nav-link" data-scroll-target="#google-gemini">Google Gemini</a></li>
   <li><a href="#grok" id="toc-grok" class="nav-link" data-scroll-target="#grok">Grok</a></li>
   <li><a href="#deepseek-r1" id="toc-deepseek-r1" class="nav-link" data-scroll-target="#deepseek-r1">DeepSeek-R1</a></li>
+  <li><a href="#vllmsglang" id="toc-vllmsglang" class="nav-link" data-scroll-target="#vllmsglang">vLLM/SGLang</a></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
@@ -662,6 +663,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>There isn’t currently a way to customise the <code>reasoning_effort</code> of DeepSeek models, although they have indicated that this will be <a href="https://api-docs.deepseek.com/guides/reasoning_model">available soon</a>.</p>
 <p>Reasoning content from DeepSeek models is captured using either the <code>reasoning_content</code> field made available by the hosted DeepSeek API or the <code>&lt;think&gt;</code> tags used by various hosting providers.</p>
+</section>
+<section id="vllmsglang" class="level2">
+<h2 class="anchored" data-anchor-id="vllmsglang">vLLM/SGLang</h2>
+<p>vLLM and SGLang both support reasoning outputs; however, the usage is often model dependant and requires additional configuration. See the <a href="https://docs.vllm.ai/en/stable/features/reasoning_outputs.html">vLLM</a> and <a href="https://docs.sglang.ai/backend/separate_reasoning.html">SGLang</a> documentation for details.</p>
+<p>If the model already outputs its reasoning between <code>&lt;think&gt;&lt;/think&gt;</code> tags such as with the R1 models or through prompt engineering, then Inspect will capture it automatically without any additional configuration of vLLM or SGLang.</p>
 
 
 </section>
