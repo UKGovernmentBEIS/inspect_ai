@@ -39,7 +39,7 @@ class Process:
         self, input_text: str | None, wait_for_output: int, idle_timeout: float
     ) -> InteractResult:
         self._assert_not_terminated()
-        # assert not self._send_data_event.is_set(), "send data event must be cleared"
+        self._send_data_event.clear()
 
         self._idle_timeout = idle_timeout
         if input_text:
