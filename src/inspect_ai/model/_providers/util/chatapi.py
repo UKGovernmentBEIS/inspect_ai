@@ -100,10 +100,20 @@ async def chat_api_request(
 # look at its `__cause__`. we've observed Cloudflare giving transient 500
 # status as well as a ReadTimeout, so we count these as rate limit errors
 def should_retry_chat_api_error(ex: BaseException) -> bool:
-    return isinstance(ex, RetryError) and (
-        (
-            isinstance(ex.__cause__, httpx.HTTPStatusError)
-            and is_retryable_http_status(ex.__cause__.response.status_code)
-        )
-        or isinstance(ex.__cause__, httpx.ReadTimeout)
-    )
+    # not a tenacity RetryError
+    if not isinstance(ex, RetryError):
+        return False
+
+    cause = ex.__cause__
+
+    if cause is None:
+        raise RuntimeError(f"Tenacity RetryError with no __cause__: {ex}")
+
+    if isinstance(cause, httpx.HTTPStatusError):
+        if is_retryable_http_status(cause.response.status_code):
+            return True
+
+    if httpx_should_retry(cause):
+        return True
+
+    return False

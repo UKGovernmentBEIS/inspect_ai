@@ -41,10 +41,15 @@ export const kSampleFollowProp = "sample-list";
 export const SampleList: FC<SampleListProps> = memo((props) => {
   const { items, totalItemCount, running, className, listHandle } = props;
 
+  const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
   const { getRestoreState, isScrolling } = useVirtuosoState(
     listHandle,
-    "sample-list",
+    `sample-list-${selectedLogIndex}`,
   );
+
+  useEffect(() => {
+    listHandle.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [selectedLogIndex]);
 
   // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();
@@ -157,7 +162,8 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
     [gridColumnsTemplate],
   );
 
-  const { input, limit, answer, target } = gridColumns(samplesDescriptor);
+  const { input, limit, answer, target, retries } =
+    gridColumns(samplesDescriptor);
 
   const sampleCount = items?.reduce((prev, current) => {
     if (current.type === "sample") {
@@ -208,6 +214,7 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         target={target !== "0"}
         answer={answer !== "0"}
         limit={limit !== "0"}
+        retries={retries !== "0em"}
         gridColumnsTemplate={gridColumnsTemplate}
       />
       <Virtuoso
@@ -216,9 +223,13 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
         data={items}
         defaultItemHeight={50}
         itemContent={renderRow}
-        followOutput={(_atBottom: boolean) => {
-          return followOutput;
-        }}
+        followOutput={
+          running
+            ? (_atBottom: boolean) => {
+                return followOutput;
+              }
+            : undefined
+        }
         atBottomStateChange={handleAtBottomStateChange}
         atBottomThreshold={30}
         increaseViewportBy={{ top: 300, bottom: 300 }}
@@ -243,9 +254,9 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
 });
 
 const gridColumnsValue = (sampleDescriptor?: SamplesDescriptor) => {
-  const { input, target, answer, limit, id, score } =
+  const { input, target, answer, limit, retries, id, score } =
     gridColumns(sampleDescriptor);
-  return `${id} ${input} ${target} ${answer} ${limit} ${score}`;
+  return `${id} ${input} ${target} ${answer} ${limit} ${retries} ${score}`;
 };
 
 const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
@@ -265,6 +276,11 @@ const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
     sampleDescriptor && sampleDescriptor.messageShape.normalized.limit > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
+  const retries =
+    sampleDescriptor && sampleDescriptor.messageShape.normalized.retries > 0
+      ? 4
+      : 0;
+
   const id = Math.max(
     2,
     Math.min(10, sampleDescriptor?.messageShape.raw.id || 0),
@@ -287,6 +303,7 @@ const gridColumns = (sampleDescriptor?: SamplesDescriptor) => {
     target: frSize(target),
     answer: frSize(answer),
     limit: frSize(limit),
+    retries: `${retries}em`,
     id: `${id}rem`,
     score: `${score}rem`,
   };

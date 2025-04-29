@@ -119,14 +119,6 @@ def sample_active() -> ActiveSample | None:
     return _sample_active.get(None)
 
 
-def active_sample_token_limit() -> int | None:
-    active = sample_active()
-    if active:
-        return active.token_limit
-    else:
-        return None
-
-
 def set_active_sample_token_limit(token_limit: int | None) -> None:
     active = sample_active()
     if active:

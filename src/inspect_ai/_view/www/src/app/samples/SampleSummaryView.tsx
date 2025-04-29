@@ -30,6 +30,7 @@ interface SampleFields {
   target: Target;
   answer?: string;
   limit?: string;
+  retries?: number;
   working_time?: WorkingTime;
   total_time?: TotalTime;
   error?: string;
@@ -38,7 +39,7 @@ interface SampleFields {
 function isEvalSample(
   sample: SampleSummary | EvalSample,
 ): sample is EvalSample {
-  return "choices" in sample && Array.isArray((sample as EvalSample).choices);
+  return "store" in sample;
 }
 
 const resolveSample = (
@@ -64,6 +65,9 @@ const resolveSample = (
   const working_time = isEvalSample(sample) ? sample.working_time : undefined;
   const total_time = isEvalSample(sample) ? sample.total_time : undefined;
   const error = isEvalSample(sample) ? sample.error?.message : undefined;
+  const retries = isEvalSample(sample)
+    ? sample.error_retries?.length
+    : sample.retries;
 
   return {
     id: sample.id,
@@ -71,6 +75,7 @@ const resolveSample = (
     target,
     answer,
     limit,
+    retries,
     working_time,
     total_time,
     error,
@@ -91,23 +96,12 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   }
   const fields = resolveSample(sample, sampleDescriptor);
 
-  const input =
-    sampleDescriptor?.messageShape.normalized.input > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.input)
-      : 0;
-  const target =
-    sampleDescriptor?.messageShape.normalized.target > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.target)
-      : 0;
-  const answer =
-    sampleDescriptor?.messageShape.normalized.answer > 0
-      ? Math.max(0.15, sampleDescriptor.messageShape.normalized.answer)
-      : 0;
   const limitSize =
     sampleDescriptor?.messageShape.normalized.limit > 0
       ? Math.max(0.15, sampleDescriptor.messageShape.normalized.limit)
       : 0;
-  const timeSize = fields.working_time || fields.total_time ? 0.15 : 0;
+  const retrySize =
+    sampleDescriptor?.messageShape.normalized.retries > 0 ? 6 : 0;
   const idSize = Math.max(
     2,
     Math.min(10, sampleDescriptor?.messageShape.raw.id),
@@ -124,7 +118,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
   columns.push({
     label: "Input",
     value: <MarkdownDiv markdown={fields.input.join(" ")} />,
-    size: `${input}fr`,
+    size: `minmax(auto, 5fr)`,
     clamp: true,
   });
 
@@ -137,7 +131,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
           className={clsx("no-last-para-padding", styles.target)}
         />
       ),
-      size: `${target}fr`,
+      size: `minmax(auto, 3fr)`,
       clamp: true,
     });
   }
@@ -153,7 +147,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       ) : (
         ""
       ),
-      size: `${answer}fr`,
+      size: `minmax(auto, 5fr)`,
       clamp: true,
     });
   }
@@ -169,7 +163,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Time",
       value: formatTime(fields.total_time),
-      size: `${timeSize}fr`,
+      size: `fit-content(10rem)`,
       center: true,
       title: toolTip(fields.working_time),
     });
@@ -179,7 +173,16 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
     columns.push({
       label: "Limit",
       value: fields.limit,
-      size: `${limitSize}fr`,
+      size: `fit-content(10rem)`,
+      center: true,
+    });
+  }
+
+  if (fields?.retries && retrySize > 0) {
+    columns.push({
+      label: "Retries",
+      value: fields.retries,
+      size: `fit-content(${retrySize}rem)`,
       center: true,
     });
   }
@@ -192,7 +195,7 @@ export const SampleSummaryView: FC<SampleSummaryViewProps> = ({
       sampleDescriptor?.evalDescriptor.score(sample, currentScore)?.render() ||
       ""
     ),
-    size: "minmax(2em, 30em)",
+    size: "fit-content(15em)",
     center: true,
   });
 

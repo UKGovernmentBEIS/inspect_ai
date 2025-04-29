@@ -8,11 +8,12 @@ from typing import Any, Generator, Iterator, cast
 
 import pytest
 
+from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
 from inspect_ai.log._recorders.buffer.database import sync_to_filestore
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
-from inspect_ai.log._recorders.types import SampleEvent, SampleSummary
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._transcript import Event, InfoEvent
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 
@@ -27,8 +28,10 @@ def db() -> Generator[SampleBufferDatabase, None, None]:
 
 
 @pytest.fixture
-def sample() -> Generator[SampleSummary, None, None]:
-    yield SampleSummary(id="sample1", epoch=1, input="test input", target="test target")
+def sample() -> Generator[EvalSampleSummary, None, None]:
+    yield EvalSampleSummary(
+        id="sample1", epoch=1, input="test input", target="test target"
+    )
 
 
 def get_samples(db: SampleBufferDatabase) -> Samples:
@@ -43,7 +46,7 @@ def test_database_initialization(db: SampleBufferDatabase) -> None:
     assert bool(re.search(r"test_location\.\d+\.db$", db.db_path.as_posix()))
 
 
-def test_start_sample(db: SampleBufferDatabase, sample: SampleSummary) -> None:
+def test_start_sample(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:
     """Test starting a new sample."""
     db.start_sample(sample=sample)
 
@@ -53,7 +56,7 @@ def test_start_sample(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     assert samples[0] == sample
 
 
-def test_log_events(db: SampleBufferDatabase, sample: SampleSummary) -> None:
+def test_log_events(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:
     """Test logging events for a sample."""
     # First create a sample
     db.start_sample(sample=sample)
@@ -68,13 +71,13 @@ def test_log_events(db: SampleBufferDatabase, sample: SampleSummary) -> None:
     assert len(logged_events) == 2
 
 
-def test_complete_sample(db: SampleBufferDatabase, sample: SampleSummary) -> None:
+def test_complete_sample(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:
     """Test completing a sample with a summary."""
     # Create sample
     db.start_sample(sample=sample)
 
     # Complete sample
-    summary = SampleSummary(
+    summary = EvalSampleSummary(
         id=sample.id, epoch=sample.epoch, input=sample.input, target=sample.target
     )
     db.complete_sample(summary=summary)
@@ -88,8 +91,12 @@ def test_complete_sample(db: SampleBufferDatabase, sample: SampleSummary) -> Non
 def test_get_events_with_filters(db: SampleBufferDatabase) -> None:
     """Test getting events with various filters."""
     # Create two samples with events
-    sample1 = SampleSummary(id="sample1", epoch=1, input="test1", target="test target")
-    sample2 = SampleSummary(id="sample2", epoch=1, input="test2", target="test target")
+    sample1 = EvalSampleSummary(
+        id="sample1", epoch=1, input="test1", target="test target"
+    )
+    sample2 = EvalSampleSummary(
+        id="sample2", epoch=1, input="test2", target="test target"
+    )
     db.start_sample(sample=sample1)
     db.start_sample(sample=sample2)
 
@@ -119,10 +126,10 @@ def test_get_events_with_filters(db: SampleBufferDatabase) -> None:
 def test_concurrent_samples(db: SampleBufferDatabase) -> None:
     """Test handling multiple samples concurrently."""
     # Create multiple samples
-    samples: list[SampleSummary] = [
-        SampleSummary(id="sample1", epoch=1, input="test1", target="target"),
-        SampleSummary(id="sample1", epoch=2, input="test1_v2", target="target"),
-        SampleSummary(id="sample2", epoch=1, input="test2", target="target"),
+    samples: list[EvalSampleSummary] = [
+        EvalSampleSummary(id="sample1", epoch=1, input="test1", target="target"),
+        EvalSampleSummary(id="sample1", epoch=2, input="test1_v2", target="target"),
+        EvalSampleSummary(id="sample2", epoch=1, input="test2", target="target"),
     ]
 
     for sample in samples:
@@ -153,10 +160,10 @@ def test_concurrent_samples(db: SampleBufferDatabase) -> None:
 def test_remove_samples(db: SampleBufferDatabase) -> None:
     """Test removing samples and their associated events."""
     # Create multiple samples with events
-    samples: list[SampleSummary] = [
-        SampleSummary(id="sample1", epoch=1, input="test1", target="target"),
-        SampleSummary(id="sample1", epoch=2, input="test1_v2", target="target"),
-        SampleSummary(id="sample2", epoch=1, input="test2", target="target"),
+    samples: list[EvalSampleSummary] = [
+        EvalSampleSummary(id="sample1", epoch=1, input="test1", target="target"),
+        EvalSampleSummary(id="sample1", epoch=2, input="test1_v2", target="target"),
+        EvalSampleSummary(id="sample2", epoch=1, input="test2", target="target"),
     ]
 
     # Start all samples
@@ -245,7 +252,7 @@ def test_large_input_attachment_handling(db: SampleBufferDatabase) -> None:
     """Test that large inputs are automatically converted to attachments."""
     # Create a sample with input larger than 100 characters
     large_input = ChatMessageUser(content="x" * 150)
-    sample = SampleSummary(
+    sample = EvalSampleSummary(
         id="large_sample",
         epoch=1,
         input=[large_input],
@@ -293,7 +300,7 @@ def test_large_input_attachment_handling(db: SampleBufferDatabase) -> None:
 def test_large_event_attachment_handling(db: SampleBufferDatabase) -> None:
     """Test that events with large data fields are automatically converted to attachments."""
     # Create a normal sample
-    sample = SampleSummary(
+    sample = EvalSampleSummary(
         id="event_test", epoch=1, input="test input", target="test target"
     )
     db.start_sample(sample=sample)
@@ -346,7 +353,7 @@ def test_multiple_attachments_same_content(db: SampleBufferDatabase) -> None:
 
     # Create two samples with the same large input
     samples = [
-        SampleSummary(id=f"sample{i}", epoch=1, input=large_input, target="test")
+        EvalSampleSummary(id=f"sample{i}", epoch=1, input=large_input, target="test")
         for i in range(2)
     ]
 
@@ -373,7 +380,7 @@ def test_mixed_content_sizes(db: SampleBufferDatabase) -> None:
     large_data = "y" * 150
 
     # Create sample with large input
-    sample = SampleSummary(
+    sample = EvalSampleSummary(
         id="mixed_test", epoch=1, input=large_input, target="test target"
     )
     db.start_sample(sample=sample)
@@ -409,7 +416,7 @@ def test_version_increments_on_write_operations(db: SampleBufferDatabase):
         task_data = db._get_task_data(conn)
 
     # Test write operation
-    sample = SampleSummary(id="test1", epoch=1, input="foo", target="bar")
+    sample = EvalSampleSummary(id="test1", epoch=1, input="foo", target="bar")
     db.start_sample(sample)
 
     with db._get_connection() as conn:
@@ -419,7 +426,7 @@ def test_version_increments_on_write_operations(db: SampleBufferDatabase):
 
 
 def test_version_unchanged_on_read_operations(
-    db: SampleBufferDatabase, sample: SampleSummary
+    db: SampleBufferDatabase, sample: EvalSampleSummary
 ):
     """Test that read operations don't change the version."""
     # First add a sample so we have something to read
@@ -447,7 +454,7 @@ def test_version_in_samples_etag(db: SampleBufferDatabase):
     assert samples.etag == str(task_data.version)
 
 
-def test_cleanup(db: SampleBufferDatabase, sample: SampleSummary) -> None:
+def test_cleanup(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:
     """Test database cleanup."""
     # Create some data
     db.start_sample(sample=sample)
@@ -479,7 +486,7 @@ def test_running_tasks():
 
             try:
                 # some test data
-                s1 = SampleSummary(id="inc", epoch=1, input="foo", target="bar")
+                s1 = EvalSampleSummary(id="inc", epoch=1, input="foo", target="bar")
                 test_db.start_sample(s1)
 
                 # First batch

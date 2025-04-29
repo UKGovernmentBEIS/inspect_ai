@@ -1,6 +1,5 @@
 .table {
   width: 100%;
-  margin-top: 0.7rem;
 }
 
 .tableTokens {
@@ -14,4 +13,8 @@
 
 .model {
   padding-right: 1em;
+}
+
+.cellContents {
+  padding-bottom: 1em;
 }

@@ -5,6 +5,8 @@ export const kModelNone = "none/none";
 export const kLogViewSamplesTabId = "samples";
 export const kLogViewJsonTabId = "json";
 export const kLogViewInfoTabId = "info";
+export const kLogViewModelsTabId = "models";
+export const kLogViewTaskTabId = "task";
 
 // Sample tab constants
 export const kSampleMessagesTabId = `messages`;
@@ -12,6 +14,7 @@ export const kSampleTranscriptTabId = `transcript`;
 export const kSampleScoringTabId = `scoring`;
 export const kSampleMetdataTabId = `metadata`;
 export const kSampleErrorTabId = `error`;
+export const kSampleErrorRetriesTabId = `retry-errors`;
 export const kSampleJsonTabId = `json`;
 
 // Scoring constants

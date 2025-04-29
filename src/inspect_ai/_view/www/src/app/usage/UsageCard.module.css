@@ -3,13 +3,18 @@
   padding-bottom: 1em;
   margin-left: 0.5em;
   display: flex;
+  flex-wrap: wrap;
+  gap: 1em;
 }
 
 .col1 {
-  flex: 1 1 40%;
-  margin-right: 1em;
+  flex: 0 1 auto;
+  min-width: 200px;
+  width: fit-content;
 }
 
 .col2 {
-  flex: 1 1 60%;
+  flex: 1 1 auto;
+  min-width: 300px;
+  width: fit-content;
 }

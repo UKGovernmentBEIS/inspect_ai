@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import { FC, useMemo } from "react";
 import {
   ContentAudio,
@@ -105,32 +106,30 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
 
   const contents = mode !== "compact" ? input : input || functionCall;
   return (
-    <div>
-      {mode !== "compact" && (!view || view.title) ? (
-        <ToolTitle title={view?.title || functionCall} />
-      ) : (
-        ""
-      )}
+    <div className={clsx(styles.toolCallView)}>
       <div>
-        <div>
-          <ToolInput
-            highlightLanguage={highlightLanguage}
-            contents={contents}
-            toolCallView={view}
-          />
-          {hasContent ? (
-            <ExpandablePanel
-              id={`${id}-tool-input`}
-              collapse={collapse}
-              border={true}
-              lines={15}
-              className={styles.output}
-            >
-              <MessageContent contents={normalizedContent} />
-            </ExpandablePanel>
-          ) : undefined}
-        </div>
+        {mode !== "compact" && (!view || view.title) ? (
+          <ToolTitle title={view?.title || functionCall} />
+        ) : (
+          ""
+        )}
+        <ToolInput
+          highlightLanguage={highlightLanguage}
+          contents={contents}
+          toolCallView={view}
+        />
       </div>
+      {hasContent ? (
+        <ExpandablePanel
+          id={`${id}-tool-input`}
+          collapse={collapse}
+          border={true}
+          lines={15}
+          className={styles.output}
+        >
+          <MessageContent contents={normalizedContent} />
+        </ExpandablePanel>
+      ) : undefined}
     </div>
   );
 };

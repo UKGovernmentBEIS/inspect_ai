@@ -115,6 +115,7 @@ const stepDescriptor = (
       case "system_message":
         return {
           ...rootStepDescriptor,
+          collapse: true,
         };
       case "use_tools":
         return {
@@ -140,6 +141,12 @@ const stepDescriptor = (
         name: "Sandbox Events",
         collapse: true,
       };
+    } else if (event.name === "init") {
+      return {
+        ...rootStepDescriptor,
+        name: "Init",
+        collapse: true,
+      };
     } else {
       return {
         ...rootStepDescriptor,
@@ -151,12 +158,6 @@ const stepDescriptor = (
         return {
           ...rootStepDescriptor,
           name: "Sample Init",
-          collapse: true,
-        };
-      case "init":
-        return {
-          ...rootStepDescriptor,
-          name: "Init",
           collapse: true,
         };
       default:

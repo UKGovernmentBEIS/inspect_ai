@@ -15,6 +15,7 @@ export const MATH_FUNCTIONS: [string, string][] = [
 
 export const SAMPLE_VARIABLES: [string, string][] = [
   ["has_error", "Checks if the sample has an error"],
+  ["has_retries", "Checks if the sample has been retried"],
 ];
 
 export const SAMPLE_FUNCTIONS: [string, string][] = [

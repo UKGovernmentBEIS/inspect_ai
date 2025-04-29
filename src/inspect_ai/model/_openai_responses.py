@@ -1,3 +1,4 @@
+import json
 from itertools import chain
 from typing import TypedDict, cast
 
@@ -56,17 +57,17 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model: str
+    messages: list[ChatMessage], model: str, store: bool
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model)
+        for item in await _openai_input_item_from_chat_message(message, model, store)
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model: str
+    message: ChatMessage, model: str, store: bool
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -84,7 +85,7 @@ async def _openai_input_item_from_chat_message(
             )
         ]
     elif message.role == "assistant":
-        return _openai_input_items_from_chat_message_assistant(message)
+        return _openai_input_items_from_chat_message_assistant(message, store)
     elif message.role == "tool":
         if message.internal:
             internal = _model_tool_call_for_internal(message.internal)
@@ -266,7 +267,7 @@ def _chat_message_assistant_from_openai_response(
                         tool_calls.append(
                             parse_tool_call(
                                 output.call_id,
-                                output.name,
+                                _from_responses_tool_alias(output.name),
                                 output.arguments,
                                 tools,
                             )
@@ -294,7 +295,7 @@ def _chat_message_assistant_from_openai_response(
 
 
 def _openai_input_items_from_chat_message_assistant(
-    message: ChatMessageAssistant,
+    message: ChatMessageAssistant, store: bool
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -304,12 +305,25 @@ def _openai_input_items_from_chat_message_assistant(
     field of the `ChatMessageAssistant` to help it provide the proper id's the
     items in the returned list.
     """
-    # As currently coded, this code only supports a single OutputMessage and
-    # a single ReasoningItem for each Response/ChatMessageAssistant.
-    reasoning_item: ResponseReasoningItemParam | None = None
-    output_message: ResponseOutputMessageParam | None = None
-
     (output_message_id, tool_message_ids) = _ids_from_assistant_internal(message)
+
+    # we want to prevent yielding output messages in the case where we have an
+    # 'internal' field (so the message came from the model API as opposed to
+    # being user synthesized) AND there is no output_message_id (indicating that
+    # when reading the message from the server we didn't find output). this could
+    # happen e.g. when a react() agent sets the output.completion in response
+    # to a submit() tool call
+    suppress_output_message = message.internal is not None and output_message_id is None
+
+    # if we are not storing messages on the server then blank these out
+    if not store:
+        output_message_id = None
+        tool_message_ids = {}
+
+    # items to return -- ensure we use a single output message (and just chain
+    # additional content on to it)
+    items: list[ResponseInputItemParam] = []
+    output_message: ResponseOutputMessageParam | None = None
 
     for content in (
         list[ContentText | ContentReasoning]([ContentText(text=message.content)])
@@ -323,12 +337,22 @@ def _openai_input_items_from_chat_message_assistant(
                 assert content.signature is not None, (
                     "reasoning_id must be saved in signature"
                 )
-                reasoning_item = ResponseReasoningItemParam(
-                    type="reasoning",
-                    id=content.signature,
-                    summary=[Summary(type="summary_text", text=reasoning)],
-                )
+                # if items are not stored on the server then there is no
+                # sense appending the reasoning item as its just a pointer
+                if store:
+                    items.append(
+                        ResponseReasoningItemParam(
+                            type="reasoning",
+                            id=content.signature,
+                            summary=[Summary(type="summary_text", text=reasoning)]
+                            if reasoning
+                            else [],
+                        )
+                    )
             case ContentText(text=text, refusal=refusal):
+                if suppress_output_message:
+                    continue
+
                 new_content = (
                     ResponseOutputRefusalParam(type="refusal", refusal=text)
                     if refusal
@@ -337,22 +361,23 @@ def _openai_input_items_from_chat_message_assistant(
                     )
                 )
                 if output_message is None:
-                    assert output_message_id is not None, "Missing output message id"
                     output_message = ResponseOutputMessageParam(
                         type="message",
                         role="assistant",
-                        id=output_message_id,
+                        # this actually can be `None`, and it will in fact be `None` when the
+                        # assistant message is synthesized by the scaffold as opposed to being
+                        # replayed from the model (or when store=False)
+                        id=output_message_id,  # type: ignore[typeddict-item]
                         content=[new_content],
                         status="completed",
                     )
+                    items.append(output_message)
                 else:
                     output_message["content"] = chain(
                         output_message["content"], [new_content]
                     )
 
-    return [
-        item for item in (reasoning_item, output_message) if item
-    ] + _tool_call_items_from_assistant_message(message, tool_message_ids)
+    return items + _tool_call_items_from_assistant_message(message, tool_message_ids)
 
 
 def _model_tool_call_for_internal(
@@ -401,8 +426,8 @@ def _tool_call_items_from_assistant_message(
             tool_call_param: ResponseFunctionToolCallParam = dict(
                 type="function_call",
                 call_id=call.id,
-                name=call.function,
-                arguments=call.function,
+                name=_responses_tool_alias(call.function),
+                arguments=json.dumps(call.arguments),
             )
 
             # add id if available
@@ -419,11 +444,14 @@ def _tool_call_items_from_assistant_message(
 def _ids_from_assistant_internal(
     message: ChatMessageAssistant,
 ) -> tuple[str | None, dict[str, str]]:
-    assert isinstance(message.internal, dict), (
-        "OpenAI ChatMessageAssistant internal must be an _AssistantInternal"
-    )
-    internal = cast(_AssistantInternal, message.internal)
-    return (internal["output_message_id"], internal["tool_message_ids"])
+    if message.internal is not None:
+        assert isinstance(message.internal, dict), (
+            "OpenAI ChatMessageAssistant internal must be an _AssistantInternal"
+        )
+        internal = cast(_AssistantInternal, message.internal)
+        return (internal["output_message_id"], internal["tool_message_ids"])
+    else:
+        return None, {}
 
 
 _ResponseToolCallParam = (
@@ -442,8 +470,21 @@ def _tool_param_for_tool_info(
     # standard tool implementation
     return _maybe_native_tool_param(tool, config) or FunctionToolParam(
         type="function",
-        name=tool.name,
+        name=_responses_tool_alias(tool.name),
         description=tool.description,
         parameters=tool.parameters.model_dump(exclude_none=True),
         strict=False,  # default parameters don't work in strict mode
     )
+
+
+# these functions enables us to 'escape' built in tool names like 'python'
+
+_responses_tool_aliases = {"python": "python_exec"}
+
+
+def _responses_tool_alias(name: str) -> str:
+    return _responses_tool_aliases.get(name, name)
+
+
+def _from_responses_tool_alias(name: str) -> str:
+    return next((k for k, v in _responses_tool_aliases.items() if v == name), name)

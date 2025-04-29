@@ -6,11 +6,12 @@
   background-color: var(--bs-body-bg);
 }
 
-.node.first {
-  padding-top: 0.5em;
+.node {
+  padding-top: 0.7rem;
+  padding-bottom: 0em;
 }
 
-.node {
-  padding-top: 0;
-  padding-bottom: 0.5em;
+.attached {
+  padding-top: 0rem;
+  margin-top: -8px;
 }

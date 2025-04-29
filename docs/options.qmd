@@ -137,6 +137,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--log-dir` | Directory for log files (defaults to `./logs`) |
 | `--no-log-samples` | Do not log sample details. |
 | `--no-log-images` | Do not log images and other media. |
+| `--no-log-realtime` | Do not log events in realtime (affects live viewing of logs) |
 | `--log-buffer` | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
 | `--log-shared`           | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify `True` to sync every 10 seconds, otherwise an integer to sync every `n` seconds. |
 | `--log-format` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
@@ -164,6 +165,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--debug` | Wait to attach debugger |
 | `--debug-port` | Port number for debugger |
 | `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
+| `--traceback-locals` | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). |
 
 ## Miscellaneous
 

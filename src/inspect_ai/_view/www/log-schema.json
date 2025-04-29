@@ -144,6 +144,7 @@
           "title": "Tools"
         },
         "params": {
+          "additionalProperties": true,
           "title": "Params",
           "type": "object"
         }
@@ -1326,12 +1327,14 @@
           "title": "Value"
         },
         "params": {
+          "additionalProperties": true,
           "title": "Params",
           "type": "object"
         },
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -1361,6 +1364,7 @@
         "options": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -1402,6 +1406,7 @@
           "title": "Base Url"
         },
         "args": {
+          "additionalProperties": true,
           "title": "Args",
           "type": "object"
         }
@@ -1493,6 +1498,7 @@
           "type": "string"
         },
         "params": {
+          "additionalProperties": true,
           "title": "Params",
           "type": "object"
         }
@@ -1529,6 +1535,7 @@
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -1726,10 +1733,12 @@
           "title": "Scores"
         },
         "metadata": {
+          "additionalProperties": true,
           "title": "Metadata",
           "type": "object"
         },
         "store": {
+          "additionalProperties": true,
           "title": "Store",
           "type": "object"
         },
@@ -2055,6 +2064,7 @@
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -2115,6 +2125,7 @@
           "title": "Reducer"
         },
         "params": {
+          "additionalProperties": true,
           "title": "Params",
           "type": "object"
         },
@@ -2128,6 +2139,7 @@
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -2159,6 +2171,7 @@
         "options": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -2208,6 +2221,7 @@
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -2277,10 +2291,12 @@
           "title": "Task Registry Name"
         },
         "task_attribs": {
+          "additionalProperties": true,
           "title": "Task Attribs",
           "type": "object"
         },
         "task_args": {
+          "additionalProperties": true,
           "title": "Task Args",
           "type": "object"
         },
@@ -2299,6 +2315,7 @@
         "solver_args": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -2357,6 +2374,7 @@
           "title": "Model Base Url"
         },
         "model_args": {
+          "additionalProperties": true,
           "title": "Model Args",
           "type": "object"
         },
@@ -2399,6 +2417,7 @@
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -3637,6 +3656,7 @@
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -3860,6 +3880,7 @@
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -4297,6 +4318,7 @@
         "metadata": {
           "anyOf": [
             {
+              "additionalProperties": true,
               "type": "object"
             },
             {
@@ -4600,6 +4622,7 @@
           "title": "Type"
         },
         "input": {
+          "additionalProperties": true,
           "title": "Input",
           "type": "object"
         },
@@ -4714,6 +4737,7 @@
           "type": "string"
         },
         "arguments": {
+          "additionalProperties": true,
           "title": "Arguments",
           "type": "object"
         },
@@ -4824,9 +4848,10 @@
             "permission",
             "file_not_found",
             "is_a_directory",
-            "output_limit",
+            "limit",
             "approval",
-            "unknown"
+            "unknown",
+            "output_limit"
           ],
           "title": "Type",
           "type": "string"

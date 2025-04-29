@@ -177,6 +177,13 @@ def test_can_round_trip_serialize_subtask_event():
     assert original == deserialized
 
 
+def test_can_load_log_with_all_tool_call_errors():
+    # Log file contains all supported tool call errors.
+    log_file = os.path.join("tests", "log", "test_eval_log", "log_tool_call_error.json")
+
+    read_eval_log(log_file)
+
+
 def check_log_location(log_file: str):
     location = filesystem(log_file).info(log_file).name
     log = read_eval_log(location)

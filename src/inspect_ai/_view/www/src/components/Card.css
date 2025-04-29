@@ -23,7 +23,6 @@
   background-color: var(--bs-light-bg-subtle);
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
-  margin-bottom: 1.5em;
 }
 
 .card-collaping-header {

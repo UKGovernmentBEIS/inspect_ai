@@ -43,14 +43,6 @@ Note that certain models including `o1-pro` and `computer_use_preview` *require*
 
 ### Flex Processing
 
-::: callout-note
-The support for flex processing described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 [Flex processing](https://platform.openai.com/docs/guides/flex-processing) provides significantly lower costs for requests in exchange for slower response times and occasional resource unavailability (input and output tokens are priced using [batch API rates](https://platform.openai.com/docs/guides/batch) for flex requests).
 
 Note that flex processing is in beta, and currently **only available for o3 and o4-mini models**.

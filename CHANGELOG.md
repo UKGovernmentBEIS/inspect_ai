@@ -1,26 +1,71 @@
 ## Unreleased
 
+- [Scoped Limits](https://inspect.aisi.org.uk/errors-and-limits.html#scoped-limits) for enforcing token and message limits using a context manager.
+- [Agent Limits](https://inspect.aisi.org.uk/errors-and-limits.html#agent-limits) for enforcing token and message limits for agent execution.
+- [read_eval_log_sample_summaries()](https://inspect.aisi.org.uk/eval-logs.html#summaries) function for reading sample summaries (including scoring) from eval logs.
+- Improved write performance for realtime event logging.
+- `--no-log-realtime` option for disabling realtime event logging (live viewing of logs is disabled when this is specified).
+- Packaging: Exclude `_resources` directories from package (reduces pressure on path lengths for Windows).
+- Inspect View: Split info tab into task, models, and info for improved layout.
+- Bugfix: Avoid validation errors when loading old log files which contain "output_limit" tool errors.
+
+## v0.3.92 (26 April 2025)
+
+- OpenAI: In responses API, don't pass back assistant output that wasn't part of the output included in the server response (e.g. output generated from a call to a `submit()` tool).
+- Bugfix: Correctly pass tool arguments back to model for OpenAI responses API.
+
+## v0.3.91 (26 April 2025)
+
 - Support for using tools from [Model Context Protocol](https://inspect.aisi.org.uk/tools-mcp.html) providers.
 - New [retry_on_error](https://inspect.aisi.org.uk/errors-and-limits.html#sample-retries) option to enable sample level retry of errors (retries occur immediately rather than waiting until the next full eval retry).
-- Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
-- OpenAI: Responses API is now used by default for all reasoning models.
 - OpenAI: [reasoning_summary](https://inspect.aisi.org.uk/reasoning.html#reasoning-history) generation option for reasoning models.
-- OpenAI: New `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
+- OpenAI: `responses_store` model argument to control whether the `store` option is enabled (it is enabled by default for reasoning models to support reasoning playback).
 - OpenAI: Support for [flex processing](https://inspect.aisi.org.uk/providers.html#flex-processing), which provides lower inference costs in exchange for slower response times and occasional resource unavailability (added in v1.75.0, which is now required).
+- OpenAI: Responses API is now used by default for all reasoning models.
+- OpenAI: Automatically alias reserved internal tool names (e.g. `python`) for responses API.
+- Anthropic: Warn only once if unable to call count_tokens() for a model.
+- Google: Update to 1.12.1 of `google-genai` (which is now required).
 - Google: Support for `reasoning_tokens` option for Gemini 2.5 models.
 - Grok: Support for `reasoning_effort` option and capturing reasoning content.
+- OpenRouter: Forward `reasoning_effort` and `reasoning_tokens` to `reasoning` field.
+- Model API: `ToolSource` for dynamic tools inputs (can be used in calls to `model.generate()` and `execute_tools()`)
 - ReAct Agent: Ability to fully repleace the default `submit()` tool.
 - Human Agent: Added `user` parameter for running the human agent cli as a given user.
+- Scoring: Support for multimodal inputs to `model_graded_qa()` and `model_graded_fact()`.
+- Scoring: Handle parsing unicode fractions when evaluating numeric input for `match()` scorer.
+- Scoring: Add `sample_metadata_as()` method to `SampleScore`.
 - Sandbox API: Added `user` parameter to `connection()` method for getting connection details for a given user.
+- Docker: Register samples for cleanup immediately (so they are still cleaned up even if interrupted during startup).
 - Docker: Support sample metadata interpolation for image names in compose files. 
 - Tool calling: Support for additional types (`datetime`, `date`, `time`, and `Set`)
 - Log API: Functions for reading/writing eval logs can now take a `Path`.
+- Registry: Evaluate string annotations when creating registry objects. 
+- Error handling: Added `--traceback-locals` CLI option to print values of local variables in tracebacks.
+- Error handling: Fully unwrap inner errors from exception groups for reporting.
 - Inspect View: Support for viewing logs in Google Cloud Storage (gc://).
 - Inspect View: Improved display of reasoning blocks.
+- Inspect View: Improved display and layout of transcript and events.
+- Inspect View: Improved Tool input and output display.
+- Inspect View: Improved display of sample input, target, answer, and scoring information (improve column width behavior).
 - Inspect View: Add support for linking to logs, specific log tabs, individual samples, and sample tabs within samples.
+- Inspect View: Collapse sample init view by default.
+- Inspect: Properly store and restore NaN values when viewing logs in VSCode.
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
 - Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
+- Bugfix: Don't require saved response message id for openai assistant messages.
+- Bugfix: Don't show empty `<think>` tag in conversation view if there is no reasoning content.
+- Bugfix: Properly handle multiple reasoning blocks and empty reasoning summaries in OpenAI responses API.
+- Bugfix: Tolerate assistant messages with no internal representation in Open AI responses API.
+- Bugifx: Correct reporting of seconds until next retry for model generate calls.
+
+## v0.3.90 (21 April 2025)
+
+- Inspect View: Collapse user messages after 15 lines by default.
+- Inspect View: Improved spacing between transcript events.
+- Bugfix: Prevent duplicate sample init events in transcript.
+- Bugfix: Properly collapse initialization events in the transcript.
+- Bugfix: Properly pre-wrap source code in the transcript.
 
 ## v0.3.89 (17 April 2025)
 

@@ -5,8 +5,8 @@
 
 .reasoning {
   border: solid var(--bs-light-border-subtle) 1px;
-  padding: 0.5em;
-  margin-bottom: 1em;
+  padding: 1em;
+  margin-bottom: 0.5em;
   background-color: var(--bs-light-bg-subtle);
   border-radius: var(--bs-border-radius);
 }

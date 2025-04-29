@@ -6,13 +6,9 @@
   background-color: var(--bs-body-bg);
 }
 
-.node.first {
-  padding-top: 0.5em;
-}
-
 .node {
   padding-top: 0;
-  padding-bottom: 0.5em;
+  padding-bottom: 0.65em;
 }
 
 .nodes {
@@ -22,14 +18,12 @@
 
 .transcriptComponent {
   display: grid;
-  margin: 0.5em 0 0 0;
+  margin: 0 0 0 0;
   width: 100%;
 }
 
 .eventNode {
   background-color: var(--bs-body-bg);
-  margin-bottom: 1.5em;
-  padding-bottom: 0.5em;
 }
 
 .eventNode.darkenBg {
@@ -41,9 +35,14 @@
 }
 
 .eventNodeContainer {
-  padding-bottom: 0.5em;
+  padding-top: 0.7em;
 }
 
 .eventNodeContainer.noBottom {
   padding-bottom: 0;
+}
+
+.attached {
+  padding-top: 0rem;
+  margin-top: -8px;
 }
