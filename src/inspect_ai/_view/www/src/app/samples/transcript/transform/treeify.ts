@@ -112,10 +112,35 @@ const treeifyFnSpan: TreeifyFunction = (
 };
 
 /**
+ * Fixup the tree by processing spans and moving their children
+ * @param roots - The root nodes of the event tree
+ * @returns The fixed-up event tree
+ */
+const fixupTree = (roots: EventNode[]): EventNode[] => {
+  const results: EventNode[] = [];
+
+  for (const node of roots) {
+    let processed = false;
+    for (const processor of spanProcessors) {
+      if (processor.shouldProcess(node)) {
+        const processedNode = processor.process(node);
+        results.push(processedNode);
+        break;
+      }
+    }
+    if (!processed) {
+      results.push(node);
+    }
+  }
+
+  return results;
+};
+
+/**
  * Process a span node by elevating a specific child node type and moving its siblings as children
  * @template T - Type of the event (either ToolEvent or SubtaskEvent)
  */
-const processSpanNode = <T extends ToolEvent | SubtaskEvent>(
+const elevateChildNode = <T extends ToolEvent | SubtaskEvent>(
   node: EventNode,
   childEventType: "tool" | "subtask",
 ): EventNode | null => {
@@ -157,39 +182,95 @@ const processSpanNode = <T extends ToolEvent | SubtaskEvent>(
   return targetNode;
 };
 
-const fixupTree = (roots: EventNode[]): EventNode[] => {
-  const results: EventNode[] = [];
-
-  for (const node of roots) {
-    if (node.event.event === "span_begin" && node.event["type"] === "subtask") {
-      const processedNode = processSpanNode<SubtaskEvent>(node, "subtask");
-      if (processedNode) {
-        results.push(processedNode);
-      } else {
-        // If processing failed, still process children recursively
-        node.children = fixupTree(node.children);
-        results.push(node);
-      }
-    } else if (
-      node.event.event === "span_begin" &&
-      node.event["type"] === "tool"
-    ) {
-      const processedNode = processSpanNode<ToolEvent>(node, "tool");
-      if (processedNode) {
-        results.push(processedNode);
-      } else {
-        // If processing failed, still process children recursively
-        node.children = fixupTree(node.children);
-        results.push(node);
-      }
-    } else if (node.event.event === "span_begin") {
-      // Process children recursively for non-tool, non-subtask spans
-      node.children = fixupTree(node.children);
-      results.push(node);
-    } else {
-      results.push(node);
+// Reduce the depth of the children by 1
+// This is used when we hoist a child node to the parent
+const reduceDepth = (nodes: EventNode[]): EventNode[] => {
+  return nodes.map((node) => {
+    const newNode = { ...node, depth: node.depth - 1 };
+    if (node.children.length > 0) {
+      newNode.children = reduceDepth(node.children);
     }
-  }
-
-  return results;
+    return newNode;
+  });
 };
+
+interface SpanProcessor {
+  shouldProcess: (node: EventNode) => boolean;
+  process: (node: EventNode) => EventNode;
+}
+
+const defaultSpanProcessor: SpanProcessor = {
+  shouldProcess: (node: EventNode): boolean => {
+    return node.event.event === "span_begin";
+  },
+  process: (node: EventNode): EventNode => {
+    // Process children recursively for non-tool, non-subtask spans
+    node.children = fixupTree(node.children);
+    return node;
+  },
+};
+
+const toolSpanProcessor: SpanProcessor = {
+  shouldProcess: (node: EventNode): boolean => {
+    return node.event.event === "span_begin" && node.event["type"] === "tool";
+  },
+  process: (node: EventNode): EventNode => {
+    const processedNode = elevateChildNode<ToolEvent>(node, "tool");
+    if (processedNode) {
+      return processedNode;
+    } else {
+      // If processing failed, still process children recursively
+      node.children = fixupTree(node.children);
+      return node;
+    }
+  },
+};
+
+const subtaskSpanProcessor: SpanProcessor = {
+  shouldProcess: (node: EventNode): boolean => {
+    return (
+      node.event.event === "span_begin" && node.event["type"] === "subtask"
+    );
+  },
+  process: (node: EventNode): EventNode => {
+    const processedNode = elevateChildNode<SubtaskEvent>(node, "subtask");
+    if (processedNode) {
+      return processedNode;
+    } else {
+      // If processing failed, still process children recursively
+      node.children = fixupTree(node.children);
+      return node;
+    }
+  },
+};
+
+const solverAgentSpanProcessor: SpanProcessor = {
+  shouldProcess: (node: EventNode): boolean => {
+    return (
+      node.event.event === "span_begin" &&
+      node.event["type"] === "solver" &&
+      node.children.length === 2 &&
+      node.children[0].event.event === "span_begin" &&
+      node.children[0].event.type === "agent" &&
+      node.children[1].event.event === "state"
+    );
+  },
+  process: (node: EventNode): EventNode => {
+    // If the solver only contains a single agent span and a state, we can
+    // hoist the agent span and ignore the solver
+
+    // Discard the agent span
+    const agentSpan = node.children.splice(0, 1)[0];
+    node.children.unshift(...reduceDepth(agentSpan.children));
+    node.children = fixupTree(node.children);
+
+    return node;
+  },
+};
+
+const spanProcessors: SpanProcessor[] = [
+  subtaskSpanProcessor,
+  toolSpanProcessor,
+  solverAgentSpanProcessor,
+  defaultSpanProcessor,
+];

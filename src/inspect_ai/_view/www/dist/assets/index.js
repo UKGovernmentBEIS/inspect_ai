@@ -60090,7 +60090,23 @@ ${events}
           break;
       }
     };
-    const processSpanNode = (node2, childEventType) => {
+    const fixupTree = (roots) => {
+      const results = [];
+      for (const node2 of roots) {
+        for (const processor of spanProcessors) {
+          if (processor.shouldProcess(node2)) {
+            const processedNode = processor.process(node2);
+            results.push(processedNode);
+            break;
+          }
+        }
+        {
+          results.push(node2);
+        }
+      }
+      return results;
+    };
+    const elevateChildNode = (node2, childEventType) => {
       const targetIndex = node2.children.findIndex(
         (child) => child.event.event === childEventType
       );
@@ -60116,34 +60132,69 @@ ${events}
       targetNode.event = newEvent;
       return targetNode;
     };
-    const fixupTree = (roots) => {
-      const results = [];
-      for (const node2 of roots) {
-        if (node2.event.event === "span_begin" && node2.event["type"] === "subtask") {
-          const processedNode = processSpanNode(node2, "subtask");
-          if (processedNode) {
-            results.push(processedNode);
-          } else {
-            node2.children = fixupTree(node2.children);
-            results.push(node2);
-          }
-        } else if (node2.event.event === "span_begin" && node2.event["type"] === "tool") {
-          const processedNode = processSpanNode(node2, "tool");
-          if (processedNode) {
-            results.push(processedNode);
-          } else {
-            node2.children = fixupTree(node2.children);
-            results.push(node2);
-          }
-        } else if (node2.event.event === "span_begin") {
-          node2.children = fixupTree(node2.children);
-          results.push(node2);
+    const reduceDepth = (nodes) => {
+      return nodes.map((node2) => {
+        const newNode = { ...node2, depth: node2.depth - 1 };
+        if (node2.children.length > 0) {
+          newNode.children = reduceDepth(node2.children);
+        }
+        return newNode;
+      });
+    };
+    const defaultSpanProcessor = {
+      shouldProcess: (node2) => {
+        return node2.event.event === "span_begin";
+      },
+      process: (node2) => {
+        node2.children = fixupTree(node2.children);
+        return node2;
+      }
+    };
+    const toolSpanProcessor = {
+      shouldProcess: (node2) => {
+        return node2.event.event === "span_begin" && node2.event["type"] === "tool";
+      },
+      process: (node2) => {
+        const processedNode = elevateChildNode(node2, "tool");
+        if (processedNode) {
+          return processedNode;
         } else {
-          results.push(node2);
+          node2.children = fixupTree(node2.children);
+          return node2;
         }
       }
-      return results;
     };
+    const subtaskSpanProcessor = {
+      shouldProcess: (node2) => {
+        return node2.event.event === "span_begin" && node2.event["type"] === "subtask";
+      },
+      process: (node2) => {
+        const processedNode = elevateChildNode(node2, "subtask");
+        if (processedNode) {
+          return processedNode;
+        } else {
+          node2.children = fixupTree(node2.children);
+          return node2;
+        }
+      }
+    };
+    const solverAgentSpanProcessor = {
+      shouldProcess: (node2) => {
+        return node2.event.event === "span_begin" && node2.event["type"] === "solver" && node2.children.length === 2 && node2.children[0].event.event === "span_begin" && node2.children[0].event.type === "agent" && node2.children[1].event.event === "state";
+      },
+      process: (node2) => {
+        const agentSpan = node2.children.splice(0, 1)[0];
+        node2.children.unshift(...reduceDepth(agentSpan.children));
+        node2.children = fixupTree(node2.children);
+        return node2;
+      }
+    };
+    const spanProcessors = [
+      subtaskSpanProcessor,
+      toolSpanProcessor,
+      solverAgentSpanProcessor,
+      defaultSpanProcessor
+    ];
     const TranscriptView = ({
       id,
       events,
