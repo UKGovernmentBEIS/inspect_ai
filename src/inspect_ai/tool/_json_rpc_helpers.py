@@ -70,6 +70,7 @@ async def exec_scalar_request(
     params: JSONRPCParamsType,
     result_type: Type[ScalarT],
     transport: JSONRPCTransport,
+    server_error_mapper: JSONRPCServerErrorMapper,
 ) -> ScalarT:
     """
     Execute a JSON-RPC command expecting a scalar result.
@@ -79,6 +80,7 @@ async def exec_scalar_request(
       params (JSONRPCParamsType): The parameters for the JSON-RPC method.
       result_type (Type[ScalarT]): The scalar type (str, int, float, bool, None) to validate the result against.
       transport (JSONRPCTransport): The transport callable to use for the RPC communication.
+      server_error_mapper (JSONRPCServerErrorMapper): A callable to map server specific JSON-RPC errors to exceptions.
 
     Returns:
       ScalarT: The scalar result of the JSON-RPC call.
@@ -88,7 +90,12 @@ async def exec_scalar_request(
       ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
       ValueError: If the result is not of the expected scalar type.
     """
-    rpc_result = await _exec_request(method=method, params=params, transport=transport)
+    rpc_result = await _exec_request(
+        method=method,
+        params=params,
+        transport=transport,
+        server_error_mapper=server_error_mapper,
+    )
     if (result_type is type(None) and rpc_result is not None) or not isinstance(
         rpc_result, result_type
     ):
@@ -101,6 +108,7 @@ async def exec_model_request(
     params: JSONRPCParamsType,
     result_type: Type[BaseModelT],
     transport: JSONRPCTransport,
+    server_error_mapper: JSONRPCServerErrorMapper | None = None,
 ) -> BaseModelT:
     """
     Execute a JSON-RPC command to a sandbox environment expecting a model result.
@@ -110,6 +118,7 @@ async def exec_model_request(
       params (JSONRPCParamsType): The parameters for the JSON-RPC method.
       result_type (Type[BaseModelT]): The Pydantic model class to validate and parse the result.
       transport (JSONRPCTransport): The transport callable to use for the RPC communication.
+      server_error_mapper (JSONRPCServerErrorMapper): A callable to map server specific JSON-RPC errors to exceptions.
 
     Returns:
       BaseModelT: The parsed and validated result of the JSON-RPC call.
@@ -119,7 +128,12 @@ async def exec_model_request(
       ToolParsingError: If the JSON-RPC response contains a specific error code indicating a parsing error.
       ValueError: If the result cannot be validated against the provided model class.
     """
-    rpc_result = await _exec_request(method=method, params=params, transport=transport)
+    rpc_result = await _exec_request(
+        method=method,
+        params=params,
+        transport=transport,
+        server_error_mapper=server_error_mapper,
+    )
     return result_type.model_validate(rpc_result, strict=True)
 
 
@@ -161,6 +175,7 @@ async def _exec_request(
     method: str,
     params: JSONRPCParamsType,
     transport: JSONRPCTransport,
+    server_error_mapper: JSONRPCServerErrorMapper | None = None,
 ) -> object:
     """Execute a request using the provided transport mechanism."""
     return parse_json_rpc_response(
@@ -171,6 +186,7 @@ async def _exec_request(
         ),
         method,
         params,
+        server_error_mapper,
     )
 
 
@@ -178,13 +194,16 @@ def parse_json_rpc_response(
     response_str: str,
     method: str,
     params: JSONRPCParamsType,
+    server_error_mapper: JSONRPCServerErrorMapper | None = None,
 ) -> object:
     """Validates the JSON RPC response and returns the result or raises a proper Inspect error."""
     match JSONRPCResponse.model_validate_json(response_str).root:
         case JSONRPCSuccessResponse(result=rpc_result):
             return rpc_result
         case JSONRPCErrorResponse(error=JSONRPCError(code=code, message=message)):
-            raise exception_for_rpc_response_error(code, message, method, params)
+            raise exception_for_rpc_response_error(
+                code, message, method, params, server_error_mapper
+            )
         case _:
             raise ValueError(
                 f"Unexpected JSON RPC response to request {_rpc_call_description(method, params)}: {response_str}"

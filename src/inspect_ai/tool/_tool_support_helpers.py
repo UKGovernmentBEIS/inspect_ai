@@ -10,12 +10,14 @@ from typing import Type
 import semver
 
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai.tool._tool import ToolError
 from inspect_ai.util import sandbox_with
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from ._json_rpc_helpers import (
     BaseModelT,
     JSONRPCParamsType,
+    JSONRPCServerErrorMapper,
     JSONRPCTransport,
     ScalarT,
     _rpc_call_description,
@@ -39,6 +41,7 @@ async def exec_scalar_request(
         params,
         result_type,
         transport=ToolSupportSandboxTransport(sandbox, timeout, user),
+        server_error_mapper=ToolSupportServerErrorMapper(),
     )
 
 
@@ -55,6 +58,7 @@ async def exec_model_request(
         params,
         result_type,
         transport=ToolSupportSandboxTransport(sandbox, timeout, user),
+        server_error_mapper=ToolSupportServerErrorMapper(),
     )
 
 
@@ -68,6 +72,20 @@ async def exec_notification(
     return await notification_helper(
         method, params, transport=ToolSupportSandboxTransport(sandbox, timeout, user)
     )
+
+
+class ToolSupportServerErrorMapper(JSONRPCServerErrorMapper):
+    def __call__(
+        self, code: int, message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        """Map `inspect-tool-support` defined custom codes to an exception."""
+        match code:
+            case -32099:  # This is a ToolException from the container
+                return ToolError(message)
+            case -32098:  # This is an unexpected exception inside the container
+                return RuntimeError(message)
+            case _:
+                return RuntimeError(message)
 
 
 class ToolSupportSandboxTransport(JSONRPCTransport):
