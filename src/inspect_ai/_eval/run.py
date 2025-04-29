@@ -122,6 +122,11 @@ async def eval_run(
                 task = resolved_task.task
                 task_eval_config = eval_config.model_copy()
 
+                # sample_ids can be specified per task
+                task_eval_config.sample_id = resolve_task_sample_ids(
+                    resolved_task.task.name, task_eval_config.sample_id
+                )
+
                 # resolve the task scorers
                 eval_scorer_specs = (
                     [as_scorer_spec(scorer) for scorer in task.scorer]
@@ -422,6 +427,42 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             clear_task_screen()
 
         return results
+
+
+def resolve_task_sample_ids(
+    task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
+) -> str | int | list[str] | list[int] | list[str | int] | None:
+    def collect_for_task(sample: str | int) -> str | int | None:
+        if isinstance(sample, str):
+            scoped = sample.split(":", maxsplit=1)
+            if len(scoped) > 1:
+                if scoped[0].lower() == task.lower():
+                    return scoped[1]
+                else:
+                    return None
+            else:
+                return sample
+        else:
+            return sample
+
+    if sample_id is not None:
+        if isinstance(sample_id, list):
+            ids: list[int | str] = []
+            for id in sample_id:
+                collect = collect_for_task(id)
+                if collect is not None:
+                    ids.append(collect)
+            return ids
+
+        else:
+            collect = collect_for_task(sample_id)
+            if collect is not None:
+                return collect
+            else:
+                return []
+
+    else:
+        return sample_id
 
 
 async def startup_sandbox_environments(
