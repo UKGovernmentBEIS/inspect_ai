@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import typing
 from typing import Literal
 
 from playwright.async_api import CDPSession, Frame, Page
@@ -197,10 +198,10 @@ class PageCrawler:
         # Mouse.click() requires coordinates relative to the viewport:
         # https://playwright.dev/python/docs/api/class-mouse#mouse-click,
         # thus adjusting the Y coordinate since we only scroll up/down.
-        scroll_y = await self._page.evaluate("window.scrollY")
-        await self._click_and_await_navigation(
-            element.bounds.center_x, element.bounds.center_y - scroll_y
-        )
+        x = element.bounds.center_x
+        y = element.bounds.center_y - await self._page.evaluate("window.scrollY")
+
+        await self._await_navigation_after_action(lambda: self._page.mouse.click(x, y))
 
     async def clear(self, element_id: int | str) -> None:
         """Clears text within a field."""
@@ -212,6 +213,12 @@ class PageCrawler:
         """Types into the element with the given id."""
         await self.click(element_id)
         await self._page.keyboard.type(text)
+
+    async def submit(self, element_id: int | str, text: str) -> None:
+        await self.clear(element_id)
+        await self._await_navigation_after_action(
+            lambda: self._page.keyboard.type(text + "\n")
+        )
 
     async def scroll(self, direction: Literal["up", "down"]) -> None:
         """Scrolls the page to the given direction.
@@ -248,26 +255,32 @@ class PageCrawler:
         """Refresh (reload) the page."""
         await self._page.reload(wait_until=_WAIT_STRATEGY)
 
-    async def _click_and_await_navigation(self, x: float, y: float) -> None:
+    async def _await_navigation_after_action(
+        self, action: typing.Callable[[], typing.Awaitable[None]]
+    ) -> None:
         """
-        Clicks on the specified coordinates and waits for navigation (if any) to occur.
+        Performs the specified action and waits for navigation (if any) to occur.
 
-        This function sets up event listeners to detect in-page navigation or new page
-        navigation, performs a mouse click at the given coordinates, and waits for the
+        This function sets up event listeners to detect in-page navigation or
+        new page navigation, performs the provided action, and waits for the
         navigation to complete within the specified timeout period.
 
-        The point of this is to allow enough time to switch our page in the event of a new
-        page being opened. The problem is that it takes some amount of time, and the challenge
-        is determining how long to wait.
+        The point of this is to allow enough time to switch our page in the
+        event of a new page being opened. The problem is that it takes some
+        amount of time, and the challenge is determining how long to wait.
 
-        A naïve approach would simply sleep for some amount of time. However, this time may
-        not be long enough AND it would delay the common case by that delay waiting for a new
-        page navigation that never comes.
+        A naïve approach would simply sleep for some amount of time. However,
+        this time may not be long enough AND it would delay the common case by
+        that delay waiting for a new page navigation that never comes.
 
-        This approach accomplishes waiting the minimal amount of time in the common cases of
-        a click inducing an in page or new page navigation. The downside is that clicks that
-        do not induce navigation are delayed by the timeout. Since navigating clicks are much
-        more common, this is a reasonable approach.
+        This approach accomplishes waiting the minimal amount of time in the
+        common cases of an action inducing an in-page or new page navigation.
+        The downside is that actions that do not induce navigation are delayed
+        by the timeout. Since navigating actions are much more common, this is a
+        reasonable approach.
+
+        Args:
+            action: A no-argument async callable that will be executed and may trigger navigation
         """
         future = asyncio.Future[None]()
 
@@ -284,7 +297,7 @@ class PageCrawler:
         self._page.once("framenavigated", on_in_page_navigation)
         self._page.context.once("page", on_new_page)
 
-        await self._page.mouse.click(x, y)
+        await action()
 
         try:
             await asyncio.wait_for(future, timeout=_WAIT_FOR_NAVIGATION_TIME)

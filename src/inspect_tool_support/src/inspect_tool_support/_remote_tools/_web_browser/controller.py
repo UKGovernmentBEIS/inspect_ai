@@ -87,8 +87,7 @@ class WebBrowserSessionController(SessionController[PlaywrightCrawler]):
         self, session_name: str, element_id: int, text: str
     ) -> CrawlerResult:
         async def handler(page: PageCrawler) -> None:
-            await page.clear(element_id)
-            await page.type(element_id, text + "\n")
+            await page.submit(element_id, text)
 
         return await self._execute_crawler_command(session_name, handler)
 
