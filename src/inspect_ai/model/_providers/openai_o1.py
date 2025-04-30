@@ -233,7 +233,6 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
             ]
 
             # find other content that exists outside tool calls
-            tool_call_content_regex = rf"<{TOOL_CALL}>(?:.|\n)*?</{TOOL_CALL}>"
             other_content = re.split(tool_call_content_regex, response, flags=re.DOTALL)
             other_content = [
                 str(content).strip()
