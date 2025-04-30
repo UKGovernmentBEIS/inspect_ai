@@ -20,7 +20,7 @@ inspect eval examples/intervention -T mode=computer --display conversation
 inspect eval examples/intervention -T mode=multi-tool --display conversation
 ```
 
-See the documentation on the [Computer Tool](https://inspect.aisi.org.uk/tools-standard.html#sec-computer) for additional details on Inspect comptuer use.
+See the documentation on the [Computer Tool](https://inspect.aisi.org.uk/tools-standard.html#sec-computer) for additional details on Inspect computer use.
 
 ## Approval
 

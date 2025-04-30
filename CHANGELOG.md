@@ -54,7 +54,7 @@
 - Inspect View: Collapse sample init view by default.
 - Inspect: Properly store and restore NaN values when viewing logs in VSCode.
 - Documentation: Update tutorial to use HuggingFaceH4/MATH-500 as math dataset.
-- Documetnation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
+- Documentation: Add scorer.py example that uses the expression_equivalence custom scorer from the tutorial.
 - Bugfix: Correct parsing of `CUDA_VISIBLE_DEVICES` environment variable for vLLM provider
 - Bugfix: Don't require saved response message id for openai assistant messages.
 - Bugfix: Don't show empty `<think>` tag in conversation view if there is no reasoning content.
@@ -145,7 +145,7 @@
 - Docker: `write_file()` function now gracefully handles larger input file sizes (was failing on files > 2MB).
 - Docker: Prevent low timeout values (e.g. 1 second) from disabling timeout entirely when they are retried.
 - Display: Print warnings after task summaries for improved visibility.
-- Inspect View: Fallback to content range request if inital HEAD request fails.
+- Inspect View: Fallback to content range request if initial HEAD request fails.
 - Inspect View: Improve error message when view bundles are server from incompatible servers.
 - Inspect View: Render messages in `user` and `assistant` solver events.
 - Inspect View: Improved support for display of nested arrays.
@@ -165,7 +165,7 @@
 
 ## v0.3.82 (02 April 2025)
 
-- Bugfix: Correct handling of backward compatiblity for inspect-web-browser-tool image.
+- Bugfix: Correct handling of backward compatibility for inspect-web-browser-tool image.
 - Bugfix: Eval now properly exits when `max_tasks` is greater than total tasks
 
 ## v0.3.81 (30 March 2025)
@@ -253,7 +253,7 @@
 - OpenAI: More flexible parsing of content parts (some providers omit the "type" field); support for "reasoning" content parts.
 - Anthropic: Retry api connection errors and remote protocol errors that occur during streaming.
 - Mistral: Update to new Mistral API (v1.5.1 of `mistralai` is now required).
-- Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possiblity of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
+- Logging: Inspect no longer sets the global log level nor does it allow its own messages to propagate to the global handler (eliminating the possibility of duplicate display). This should improve compatibility with applications that have their own custom logging configured. 
 - Tasks: For filesystem based tasks, no longer switch to the task file's directory during execution (directory switching still occurs during task loading). Specify `@task(chdir=True)` to preserve the previous behavior.
 - Bugfix: Fix issue with deserializing custom sandbox configuration objects.
 - Bugfix: Handle `parallel_tool_calls` correctly for OpenAI models served through Azure.
@@ -283,7 +283,7 @@
 - Inspect View: Fix layout issues with human agent terminal session playback.
 - Inspect View: Improve tool input / output appearance when rendered in VSCode.
 - Inspect View: Display reasoning tokens in model usage for the samples and for the complete eval.
-- Inspect View: Improve model api request / response output when rendere in VSCode.
+- Inspect View: Improve model api request / response output when rendered in VSCode.
 - Inspect View: Improve rendering of some tool calls in the transcript.
 - Bugfix: Fix audio and video inputs for new Google GenAI client.
 - Bugfix: Ensure that token limits are not enforced during model graded scoring.
@@ -297,13 +297,13 @@
 - Sandboxes: `as_type()` function for checked downcasting of `SandboxEnvironment`
 - Remove root logging handlers upon Inspect logger initialisation (as they result in lots of log spam if left installed).
 - Only explicitly set `state.completed=True` when entering scoring (`basic_agent()` no longer sets `completed` so can be used in longer compositions of solvers).
-- Add `uuid` property to `TaskState` and `EvalSample` (globally unique identifer for sample run).
+- Add `uuid` property to `TaskState` and `EvalSample` (globally unique identifier for sample run).
 - Add `cleanup` to tasks for executing a function at the end of each sample run.
 - Agent `bridge()` is now compatible with the use of a custom `OPENAI_BASE_URL`.
 - Mistral: Bump required version of `mistralai` package to 1.5 (required for `working_limit`).
 - Truncate tracebacks included in evaluation log to a maximum of 1MB.
-- Compatiblity with textual version 2.0 (remove upper bound).
-- Align with HF datasets `fsspec` version contraints to avoid pip errors when installing alongside `datasets`.
+- Compatibility with textual version 2.0 (remove upper bound).
+- Align with HF datasets `fsspec` version constraints to avoid pip errors when installing alongside `datasets`.
 - Bugfix: Fix issue with tools that had an ordinary `dict` as a parameter.
 - Bugfix: Print the correct container `sample_id` for `--no-sandbox-cleanup`.
 
@@ -374,7 +374,7 @@
 
 - Add [OpenRouter](https://inspect.aisi.org.uk/providers.html#openrouter) model provider.
 - Inspect View: Convert codebase from JS/Preact to Typescript/React
-- Add `shuffle_choices` to dataset and dataset loading funtions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
+- Add `shuffle_choices` to dataset and dataset loading functions. Deprecate `shuffle` parameter to the `multiple_choice` solver.
 - Add `stop_words` param to the `f1` scorer. `stop_words` will be removed from the target and answer during normalization.
 - Tools: Handle return of empty list from tool calls.
 - Computer: Moved out of beta (i.e. from `inspect_ai.tool.beta` into `inspect_ai.tool`).
@@ -416,9 +416,9 @@
 - Vertex: Support for Anthropic models hosted on Vertex.
 - OpenAI: Read `refusal` field from assistant message when provided.
 - OpenAI: Use qualifiers rather than model args for OpenAI on other providers (`openai/azure`)
-- Anthropic: Don't insert '(no content)' into cannonical messages list (do only on replay)
+- Anthropic: Don't insert '(no content)' into canonical messages list (do only on replay)
 - Anthropic: Use qualifiers rather than model args for Anthropic on other providers (`anthropic/bedrock`, `anthropic/vertex`).
-- Anthropic: Suport for `extra_body` model arg (for adding additional JSON properties to the request)
+- Anthropic: Support for `extra_body` model arg (for adding additional JSON properties to the request)
 - Basic Agent: Append `tools` to `state` so that tools added in `init` are preserved.
 - Scoring: Always provide half-again the sample time limit for scoring.
 - Bugfix: Fix issue w/ approvals for samples with id==0.
@@ -477,7 +477,7 @@
 - Log: provide `metadata_as` and `store_as` typed accessors for sample metadata and store.
 - Tool parameters with a default of `None` are now supported.
 - More fine graned HTML escaping for sample transcripts displalyed in terminal.
-- Bugfix: prevent errors when a state or storage value uses a tilda or slash in the key name.
+- Bugfix: prevent errors when a state or storage value uses a tilde or slash in the key name.
 - Bugfix: Include input in sample summary when the sample input contains a simple string.
 
 ## v0.3.56 (01 January 2025)

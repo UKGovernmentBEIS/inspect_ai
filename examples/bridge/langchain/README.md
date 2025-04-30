@@ -6,7 +6,7 @@ The example includes the following source files:
 
 | File            | Description                                                                            |
 |------------------|------------------------------------------------------|
-| [agent.py](agent.py)      | LangChain agent (this file has no dependencies on Insepct, it is pure LangChain). |
+| [agent.py](agent.py)      | LangChain agent (this file has no dependencies on Inspect, it is pure LangChain). |
 | [task.py](task.py)       | Evaluation task which uses `bridge()` to use the LangChain agent as an Inspect agent.          |
 | [dataset.json](dataset.json) | Dataset with questions and ideal answers.                                              |
 | [requirements.txt](requirements.txt) | Dependencies for LangChain example. |
