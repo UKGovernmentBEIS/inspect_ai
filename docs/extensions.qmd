@@ -51,7 +51,7 @@ def custom():
     return CustomModelAPI
 ```
 
-The layer of indirection (creating a function that returns a ModelAPI class) is done so that you can separate the registration of models from the importing of libraries they require (important for limiting dependencies). You can see this used within Inspect to make all model package dependencies optional [here](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_providers/providers.py). With this scheme, packages required to interace with models (e.g. `openai`, `anthropic`, `vllm`, etc.) are only imported when their model API type is actually used.
+The layer of indirection (creating a function that returns a ModelAPI class) is done so that you can separate the registration of models from the importing of libraries they require (important for limiting dependencies). You can see this used within Inspect to make all model package dependencies optional [here](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_providers/providers.py). With this scheme, packages required to interact with models (e.g. `openai`, `anthropic`, `vllm`, etc.) are only imported when their model API type is actually used.
 
 The `__init__()` method *must* call the `super().__init__()` method, and typically instantiates the model client library.
 
