@@ -9,7 +9,7 @@ Inspect evaluations have a large number of options available for logging, tuning
 
 1.  Options that you want to set on a more durable basis (for a project or session).
 
-2.  Options that you want to tweak per-evel to accomodate particular scenarios.
+2.  Options that you want to tweak per-evel to accommodate particular scenarios.
 
 For the former, we recommend you specify these options in a `.env` file within your project directory, which is covered in the section below. See the [Eval Options](#eval-options) for details on all available options.
 
@@ -105,7 +105,7 @@ Below are sections for the various categories of options supported by `inspect e
 |  |  |
 |--------------------------|----------------------------------------------|
 | `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
-| `--sample-id` | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
+| `--sample-id` | Evaluate a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
 | `--epochs` | Number of times to repeat each sample (defaults to 1) |
 | `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
 
