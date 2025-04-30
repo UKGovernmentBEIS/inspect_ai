@@ -211,8 +211,15 @@ class O1PreviewChatAPIHandler(ChatAPIHandler):
         This method has an interdependency with `input_with_tools()` (as that is the
         prompt that asks the model to use the <tool_call>...</tool_call> syntax)
         """
-        # extract tool calls
+        # define regex patterns
+        # NOTE: If you change either of these regex patterns, please update the other
+        # tool_call_regex extracts the JSON content (in curly braces) between tool call tags
         tool_call_regex = rf"<{TOOL_CALL}>\s*(\{{[\s\S]*?\}})\s*</{TOOL_CALL}>"
+        # tool_call_content_regex matches the entire tool call block including tags for extracting
+        # the content outside of the tool call tags
+        tool_call_content_regex = rf"<{TOOL_CALL}>\s*\{{[\s\S]*?\}}\s*</{TOOL_CALL}>"
+
+        # extract tool calls
         tool_calls_content: list[str] = re.findall(tool_call_regex, response)
 
         # if there are tool calls proceed with parsing
