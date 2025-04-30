@@ -65,7 +65,6 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
     const eventNodes = useMemo(() => {
       const resolvedEvents = fixupEventStream(events, !running);
       const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
-
       return eventNodes;
     }, [events, depth]);
 
@@ -248,7 +247,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
             id={id}
             event={node.event}
             className={className}
-            depth={node.depth}
+            children={node.children}
           />
         );
 

@@ -1,6 +1,12 @@
 // This is a special name that signals a group of sandbox events.
 
-import { Events, StepEvent } from "../../../../@types/log";
+import {
+  Events,
+  SpanBeginEvent,
+  SpanEndEvent,
+  StepEvent,
+} from "../../../../@types/log";
+import { hasSpans } from "./utils";
 
 // It will be caught elsewhere and rendered with a pretty name
 export const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
@@ -110,12 +116,22 @@ const groupSandboxEvents = (events: Events): Events => {
   const result: Events = [];
   const pendingSandboxEvents: Events = [];
 
+  const useSpans = hasSpans(events);
+
   const pushPendingSandboxEvents = () => {
     const timestamp =
       pendingSandboxEvents[pendingSandboxEvents.length - 1].timestamp;
-    result.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
+    if (useSpans) {
+      result.push(createSpanBegin(kSandboxSignalName, timestamp, null));
+    } else {
+      result.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
+    }
     result.push(...pendingSandboxEvents);
-    result.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
+    if (useSpans) {
+      result.push(createSpanEnd(kSandboxSignalName, timestamp));
+    } else {
+      result.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
+    }
     pendingSandboxEvents.length = 0;
   };
 
@@ -157,3 +173,32 @@ const createStepEvent = (
   working_start: 0,
   span_id: null,
 });
+
+const createSpanBegin = (
+  name: string,
+  timestamp: string,
+  parent_id: string | null,
+): SpanBeginEvent => {
+  return {
+    name,
+    id: `${name}-begin`,
+    span_id: name,
+    parent_id,
+    timestamp,
+    event: "span_begin",
+    type: null,
+    pending: false,
+    working_start: 0,
+  };
+};
+
+const createSpanEnd = (name: string, timestamp: string): SpanEndEvent => {
+  return {
+    id: `${name}-end`,
+    timestamp,
+    event: "span_end",
+    pending: false,
+    working_start: 0,
+    span_id: name,
+  };
+};

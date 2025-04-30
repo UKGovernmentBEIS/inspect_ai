@@ -125,6 +125,7 @@ const spanDescriptor = (
       default:
         return {
           ...rootStepDescriptor,
+          collapse: false,
         };
     }
   } else if (event.type === "scorer") {
@@ -132,7 +133,7 @@ const spanDescriptor = (
       ...rootStepDescriptor,
     };
   } else if (event.event === "span_begin") {
-    if (event.name === kSandboxSignalName) {
+    if (event.span_id === kSandboxSignalName) {
       return {
         ...rootStepDescriptor,
         name: "Sandbox Events",
@@ -147,6 +148,7 @@ const spanDescriptor = (
     } else {
       return {
         ...rootStepDescriptor,
+        collapse: false,
       };
     }
   } else {

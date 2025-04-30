@@ -4,7 +4,7 @@ import { resolveToolInput } from "../chat/tools/tool";
 import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptView } from "./TranscriptView";
+import { TranscriptComponent } from "./TranscriptView";
 
 import clsx from "clsx";
 import { FC, useMemo } from "react";
@@ -12,11 +12,12 @@ import { PulsingDots } from "../../../components/PulsingDots";
 import { ChatView } from "../chat/ChatView";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
+import { EventNode } from "./types";
 
 interface ToolEventViewProps {
   id: string;
   event: ToolEvent;
-  depth: number;
+  children: EventNode[];
   className?: string | string[];
 }
 
@@ -26,7 +27,7 @@ interface ToolEventViewProps {
 export const ToolEventView: FC<ToolEventViewProps> = ({
   id,
   event,
-  depth,
+  children,
   className,
 }) => {
   // Extract tool input
@@ -92,13 +93,12 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
           </div>
         ) : undefined}
       </div>
-      {event.events.length > 0 ? (
-        <TranscriptView
-          id={`${id}-subtask`}
+      {children.length > 0 ? (
+        <TranscriptComponent
           data-name="Transcript"
+          id={`${id}-subtask`}
+          eventNodes={children}
           data-default={event.failed || event.agent ? true : null}
-          events={event.events}
-          depth={depth + 1}
         />
       ) : (
         ""
