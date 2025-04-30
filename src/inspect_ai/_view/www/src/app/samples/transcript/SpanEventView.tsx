@@ -100,14 +100,17 @@ const spanDescriptor = (
       case "chain_of_thought":
         return {
           ...rootStepDescriptor,
+          collapse: false,
         };
       case "generate":
         return {
           ...rootStepDescriptor,
+          collapse: false,
         };
       case "self_critique":
         return {
           ...rootStepDescriptor,
+          collapse: false,
         };
       case "system_message":
         return {
@@ -117,10 +120,12 @@ const spanDescriptor = (
       case "use_tools":
         return {
           ...rootStepDescriptor,
+          collapse: false,
         };
       case "multiple_choice":
         return {
           ...rootStepDescriptor,
+          collapse: false,
         };
       default:
         return {
@@ -131,6 +136,7 @@ const spanDescriptor = (
   } else if (event.type === "scorer") {
     return {
       ...rootStepDescriptor,
+      collapse: false,
     };
   } else if (event.event === "span_begin") {
     if (event.span_id === kSandboxSignalName) {

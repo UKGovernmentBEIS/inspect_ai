@@ -59920,15 +59920,18 @@ ${events}
         switch (event.name) {
           case "chain_of_thought":
             return {
-              ...rootStepDescriptor
+              ...rootStepDescriptor,
+              collapse: false
             };
           case "generate":
             return {
-              ...rootStepDescriptor
+              ...rootStepDescriptor,
+              collapse: false
             };
           case "self_critique":
             return {
-              ...rootStepDescriptor
+              ...rootStepDescriptor,
+              collapse: false
             };
           case "system_message":
             return {
@@ -59937,11 +59940,13 @@ ${events}
             };
           case "use_tools":
             return {
-              ...rootStepDescriptor
+              ...rootStepDescriptor,
+              collapse: false
             };
           case "multiple_choice":
             return {
-              ...rootStepDescriptor
+              ...rootStepDescriptor,
+              collapse: false
             };
           default:
             return {
@@ -59951,7 +59956,8 @@ ${events}
         }
       } else if (event.type === "scorer") {
         return {
-          ...rootStepDescriptor
+          ...rootStepDescriptor,
+          collapse: false
         };
       } else if (event.event === "span_begin") {
         if (event.span_id === kSandboxSignalName) {
@@ -60155,7 +60161,6 @@ ${events}
         processedNode.children = processedNode.children.map(visitNode);
         for (const transformer of treeNodeTransformers) {
           if (transformer.matches(processedNode)) {
-            console.log("Processing node with transformer:", transformer.name);
             processedNode = transformer.process(processedNode);
             break;
           }

@@ -180,7 +180,6 @@ const transformTree = (roots: EventNode[]): EventNode[] => {
     // Apply any visitors to this node
     for (const transformer of treeNodeTransformers) {
       if (transformer.matches(processedNode)) {
-        console.log("Processing node with transformer:", transformer.name);
         processedNode = transformer.process(processedNode);
         // Only apply the first matching transformer
         break;
