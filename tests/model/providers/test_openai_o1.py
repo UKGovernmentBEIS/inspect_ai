@@ -61,6 +61,7 @@ def test_openai_o1_tool_call_parsing_no_arguments() -> None:
     assert resp.tool_calls[0].function == "unknown"
     assert resp.tool_calls[0].parse_error is not None
 
+
 def test_openai_o1_tool_call_parsing_model_mentions_tool_call_tag() -> None:
     from inspect_ai.model._providers.openai_o1 import O1PreviewChatAPIHandler
 
@@ -80,4 +81,7 @@ def test_openai_o1_tool_call_parsing_model_mentions_tool_call_tag() -> None:
         "element_id": 11399,
         "text": "hilarious cat videos",
     }
-    assert resp.content == "I will use the <tool_call> tags to enter the search term into the search box and submit the search."
+    assert (
+        resp.content
+        == "I will use the <tool_call> tags to enter the search term into the search box and submit the search."
+    )
