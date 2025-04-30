@@ -346,6 +346,6 @@ services:
 
 ## Troubleshooting
 
-To diagnose sandbox execution issues (e.g. commands that don't terminate properly, container lifecylce issues, etc.) you should use Inspect's [Tracing](tracing.qmd) facility.
+To diagnose sandbox execution issues (e.g. commands that don't terminate properly, container lifecycle issues, etc.) you should use Inspect's [Tracing](tracing.qmd) facility.
 
 Trace logs record the beginning and end of calls to `subprocess()` (e.g. tool calls that run commands in sandboxes) as well as control commands sent to Docker Compose. The `inspect trace anomalies` subcommand then enables you to query for commands that don't terminate, timeout, or have errors. See the article on [Tracing](tracing.qmd) for additional details.
