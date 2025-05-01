@@ -3,6 +3,7 @@ from datetime import datetime
 from .spec import ImportSpec
 
 EvalId: ImportSpec = {
+    "eval_id": ("$.id", {"required": True}),
     "run_id": ("$.eval.run_id", {"required": True}),
     "task_id": ("$.eval.task_id", {"required": True}),
     "log": "$.log",

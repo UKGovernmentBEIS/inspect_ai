@@ -9,6 +9,7 @@ from inspect_ai.analysis._df.record import _resolve_value, import_record
 
 # ======== Test Data ========
 test_record: dict[str, JsonValue] = {
+    "id": "foobar",
     "status": "complete",
     "eval": {
         "run_id": "foo",

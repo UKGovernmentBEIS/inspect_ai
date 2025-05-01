@@ -13,6 +13,7 @@ from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.path import native_path, pretty_path
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.analysis._df.record import import_record
+from inspect_ai.analysis._df.util import eval_id
 from inspect_ai.log._file import read_eval_log
 
 from .spec import FieldType, ImportSpec
@@ -65,7 +66,7 @@ def evals_df(
     import pyarrow as pa
 
     # resolve logs
-    log_paths = resolve_logs(logs, recursive=recursive)
+    log_paths = _resolve_logs(logs, recursive=recursive)
 
     # accumulate errors for strict=False
     all_errors: dict[str, list[str]] = {}
@@ -76,7 +77,8 @@ def evals_df(
         for log_path in log_paths:
             log = read_eval_log(log_path, header_only=True)
             log_data: dict[str, JsonValue] = jsonable_python(log) | {
-                "log": native_path(log.location)
+                "id": eval_id(log.eval.run_id, log.eval.task_id),
+                "log": native_path(log.location),
             }
             if strict:
                 records.append(import_record(log_data, import_spec, True))
@@ -94,12 +96,16 @@ def evals_df(
         return evals_table, all_errors
 
 
-def samples_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:
+def samples_df(
+    logs: LogPaths, summaries: bool = True, recursive: bool = True
+) -> pd.DataFrame:
     _verify_prerequisites()
     import pandas as pd
 
+    # use *.samples as branch point to look in summaries
+
     # resolve logs
-    logs = resolve_logs(logs, recursive=recursive)
+    logs = _resolve_logs(logs, recursive=recursive)
 
     return pd.DataFrame()
 
@@ -111,7 +117,7 @@ def events_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-def resolve_logs(logs: LogPaths, recursive: bool) -> list[str]:
+def _resolve_logs(logs: LogPaths, recursive: bool) -> list[str]:
     # normalize to list of str
     logs = [logs] if isinstance(logs, str | PathLike[str]) else logs
     logs = [Path(log).as_posix() if isinstance(log, PathLike) else log for log in logs]
