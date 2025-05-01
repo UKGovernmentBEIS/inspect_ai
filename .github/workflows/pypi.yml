@@ -16,12 +16,17 @@ on:
         required: false
         type: boolean
         default: false
+      dry-run:
+        description: "Dry run (no actual publishing)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
-    environment: pypi
+    environment: ${{ inputs.dry-run == false && 'pypi' || '' }}
     strategy:
       fail-fast: false
     permissions:
@@ -41,19 +46,44 @@ jobs:
           pip install
           build
           --user
-      - name: Set working directory for inspect_tool_support
-        if: ${{ inputs.package-name == 'inspect_tool_support' }}
-        run: cd src/inspect_tool_support
+      - name: Set working directory
+        id: set-dir
+        run: |
+          if [ "${{ inputs.package-name }}" == "inspect_tool_support" ]; then
+            echo "PACKAGE_DIR=src/inspect_tool_support" >> $GITHUB_ENV
+            echo "DIST_DIR=src/inspect_tool_support/dist" >> $GITHUB_ENV
+          else
+            echo "PACKAGE_DIR=." >> $GITHUB_ENV
+            echo "DIST_DIR=dist" >> $GITHUB_ENV
+          fi
       - name: Build
-        run: python -m build
+        run: |
+          cd ${{ env.PACKAGE_DIR }}
+          python -m build
+      - name: List package contents (dry run)
+        if: ${{ inputs.dry-run }}
+        run: |
+          echo "🧪 DRY RUN MODE - No packages will be published 🧪"
+          echo "Package that would be published:"
+          ls -la ${{ env.DIST_DIR }}
+      - name: Verify package metadata (dry run)
+        if: ${{ inputs.dry-run }}
+        run: |
+          pip install twine
+          twine check ${{ env.DIST_DIR }}/*
+      - name: Simulate publishing (dry run)
+        if: ${{ inputs.dry-run }}
+        run: |
+          echo "✅ Validation complete. Package is ready for publishing."
+          echo "Would publish to: ${{ inputs.publish-release && 'PyPI' || 'TestPyPI' }}"
       - name: Publish package to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        if: ${{ ! inputs.publish-release }}
+        if: ${{ !inputs.publish-release && !inputs.dry-run }}
         with:
           repository-url: https://test.pypi.org/legacy/
-          packages-dir: ${{ inputs.package-name == 'inspect_tool_support' && 'src/inspect_tool_support/dist/' || 'dist/' }}
+          packages-dir: ${{ env.DIST_DIR }}
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        if: ${{ inputs.publish-release }}
+        if: ${{ inputs.publish-release && !inputs.dry-run }}
         with:
-          packages-dir: ${{ inputs.package-name == 'inspect_tool_support' && 'src/inspect_tool_support/dist/' || 'dist/' }}
+          packages-dir: ${{ env.DIST_DIR }}
