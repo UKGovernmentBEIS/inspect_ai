@@ -8,6 +8,14 @@ from uuid import uuid4
 async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
     """Context manager for establishing a transcript span.
 
+    ::: callout-note
+    The `span()` function is available only in the development version of Inspect. To install the development version from GitHub:
+
+    ``` bash
+    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+    ```
+    :::
+
     Args:
         name (str): Step name.
         type (str | None): Optional span type.
