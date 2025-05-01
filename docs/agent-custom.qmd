@@ -310,7 +310,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 You can create arbitrary groupings of transcript activity using the  `span()` context manager. For example:
 
 ``` python
-from inpsect_ai.util import span
+from inspect_ai.util import span
 
 async with span("planning"):
     ...
