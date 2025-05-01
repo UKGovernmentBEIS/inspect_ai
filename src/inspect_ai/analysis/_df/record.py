@@ -1,5 +1,6 @@
 import json
 from datetime import date, datetime, time, timezone
+from logging import getLogger
 from typing import Any, Callable, Literal, Type, cast, overload
 
 import yaml
@@ -11,12 +12,14 @@ from pydantic import JsonValue
 
 from .spec import FieldOptions, FieldType, ImportSpec
 
+logger = getLogger(__name__)
+
 
 @overload
 def import_record(
     record: dict[str, JsonValue],
     spec: ImportSpec | list[ImportSpec],
-    raise_on_error: Literal[True] = True,
+    strict: Literal[True] = True,
 ) -> dict[str, FieldType]: ...
 
 
@@ -24,14 +27,14 @@ def import_record(
 def import_record(
     record: dict[str, JsonValue],
     spec: ImportSpec | list[ImportSpec],
-    raise_on_error: Literal[False],
+    strict: Literal[False],
 ) -> tuple[dict[str, FieldType], list[str]]: ...
 
 
 def import_record(
     record: dict[str, JsonValue],
     spec: ImportSpec | list[ImportSpec],
-    raise_on_error: bool = True,
+    strict: bool = True,
 ) -> dict[str, FieldType] | tuple[dict[str, FieldType], list[str]]:
     # return values
     result: dict[str, FieldType] = {}
@@ -46,10 +49,12 @@ def import_record(
         try:
             result[field_name] = _resolve_value(field_name, value, type_)
         except ValueError as ex:
-            if raise_on_error:
+            if strict:
                 raise
             else:
-                errors.append(repr(ex))
+                error = str(ex)
+                logger.warning(error)
+                errors.append(error)
 
     # helper to raise or record errror
     def field_not_found(
@@ -57,9 +62,10 @@ def import_record(
     ) -> None:
         condition = f"of type {required_type}" if required_type else "found"
         error = f"Required field '{field_name}' not {condition} at '{json_path}'"
-        if raise_on_error:
+        if strict:
             raise ValueError(error)
         else:
+            logger.warning(error)
             errors.append(error)
 
     # merge import specs
@@ -86,9 +92,10 @@ def import_record(
                 json_path = parse(path_spec)
             except Exception as ex:
                 error = f"Error parsing JSON path expression: {path_spec}: {ex}"
-                if raise_on_error:
+                if strict:
                     raise ValueError(error)
                 else:
+                    logger.warning(error)
                     errors.append(error)
                     continue
         else:
@@ -119,7 +126,7 @@ def import_record(
             else:
                 result[field_name] = None
 
-    if raise_on_error:
+    if strict:
         return result
     else:
         return result, errors
