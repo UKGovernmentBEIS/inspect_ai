@@ -12,7 +12,7 @@ By default, model tool calls are executed within the main process running the ev
 
 -   You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accomodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 
@@ -346,6 +346,6 @@ services:
 
 ## Troubleshooting
 
-To diagnose sandbox execution issues (e.g. commands that don't terminate properly, contianer lifecylce issues, etc.) you should use Inspect's [Tracing](tracing.qmd) facility.
+To diagnose sandbox execution issues (e.g. commands that don't terminate properly, container lifecycle issues, etc.) you should use Inspect's [Tracing](tracing.qmd) facility.
 
 Trace logs record the beginning and end of calls to `subprocess()` (e.g. tool calls that run commands in sandboxes) as well as control commands sent to Docker Compose. The `inspect trace anomalies` subcommand then enables you to query for commands that don't terminate, timeout, or have errors. See the article on [Tracing](tracing.qmd) for additional details.

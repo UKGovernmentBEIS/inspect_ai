@@ -36,7 +36,7 @@ INSPECT_EVAL_MODEL=google/gemini-1.5-pro
 
 Some evaluations will either not make use of models or call the lower-level `get_model()` function to explicitly access models for different roles (see the [Model API](#model-api) section below for details on this).
 
-In these cases, you are not required to specify a `--model`. If you happen to have an `INSPECT_EVAL_MODEL` defined and you want to prevent your evaluation from using it, you can explcitly specify no model as follows:
+In these cases, you are not required to specify a `--model`. If you happen to have an `INSPECT_EVAL_MODEL` defined and you want to prevent your evaluation from using it, you can explicitly specify no model as follows:
 
 ``` bash
 inspect eval arc.py --model none

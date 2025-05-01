@@ -4,7 +4,7 @@ title: Custom Tools
 
 ## Overview
 
-Inspect natively supports registering Python functions as tools and providing these tools to models that support them. Inspect also supports secure sandboxes for running abritrary code produced by models, flexible error handling, as well as dynamic tool definitions. 
+Inspect natively supports registering Python functions as tools and providing these tools to models that support them. Inspect also supports secure sandboxes for running arbitrary code produced by models, flexible error handling, as well as dynamic tool definitions. 
 
 We'll cover all of these features below, but we'll start with a very simple example to cover the basic mechanics of tool use.
 
@@ -99,7 +99,7 @@ See the documentation on [Sandbox Environments](sandboxing.qmd) for additional d
 
 ## Stateful Tools
 
-Some tools need to retain state across invocations (for example, the `bash_session()` and `web_browser()` tools both interact with a stateful remote process). You can create stateful tools by using the `store_as()` function to access discrete storage for your tool and/or speicfic instances of your tool.
+Some tools need to retain state across invocations (for example, the `bash_session()` and `web_browser()` tools both interact with a stateful remote process). You can create stateful tools by using the `store_as()` function to access discrete storage for your tool and/or specific instances of your tool.
 
 For example, imagine we were creating a `web_surfer()` tool that builds  on the `web_browser()` tool to complete sequences of browser actions in service of researching a topic. We might want to ask multiple questions of the web surfer and have it retain its message history and browser state.
 
