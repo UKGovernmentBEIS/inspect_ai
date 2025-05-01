@@ -105,7 +105,7 @@ inspect eval math.py --model openai/o4-mini \
 ### OpenAI on Azure
 
 The `openai` provider supports OpenAI models deployed on the [Azure AI
-Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI,
+Foundry](https://ai.azure.com/). To use OpenAI models on Azure AI,
 specify the following environment variables:
 
 - `AZUREAI_OPENAI_API_KEY`
@@ -311,7 +311,7 @@ provider
 ### Mistral on Azure AI
 
 The `mistral` provider supports Mistral models deployed on the [Azure AI
-Foundary](https://ai.azure.com/). To use Mistral models on Azure AI,
+Foundry](https://ai.azure.com/). To use Mistral models on Azure AI,
 specify the following environment variables:
 
 - `AZURE_MISTRAL_API_KEY`
@@ -397,7 +397,7 @@ access.
 ## Azure AI
 
 The `azureai` provider supports models deployed on the [Azure AI
-Foundary](https://ai.azure.com/).
+Foundry](https://ai.azure.com/).
 
 To use the `azureai` provider, install the `azure-ai-inference` package,
 set your credentials and base URL, and specify the name of the model you
@@ -618,16 +618,6 @@ model = get_model("hf/local", model_path="./my-model")
 
 ## vLLM
 
-> [!NOTE]
->
-> The vLLM provider as described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 The [vLLM](https://docs.vllm.ai/) provider also implements support for
 Hugging Face models using the
 [vllm](https://github.com/vllm-project/vllm/) package. To use the vLLM
@@ -721,16 +711,6 @@ Mode](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html)
 for additional details.
 
 ## SGLang
-
-> [!NOTE]
->
-> The SGLang provider as described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 To use the [SGLang](https://docs.sglang.ai/index.html) provider, install
 the `sglang` package and specify a model using the `--model` option:

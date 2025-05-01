@@ -74,7 +74,7 @@ tool to fulfil the request.
 
 Agents often run a tool use loop, and one of the more common reasons for
 creating a custom agent is to tailor the behaviour of the loop. Here is
-an agent loop that has a core simillar to the built-in `react()` agent:
+an agent loop that has a core similar to the built-in `react()` agent:
 
 ``` python
 from typing import Sequence
@@ -92,7 +92,7 @@ def my_agent(tools: Sequence[Tool | ToolDef | ToolSource]):
         async with mcp_connection(tools):
 
             while True:
-                # call model and apppend to messages
+                # call model and append to messages
                 state.output = await get_model().generate(
                     input=state.messages,                          
                     tools=tools,                                   
@@ -350,7 +350,7 @@ Metadata tabs in the per-sample display).
 
 ### Custom Info
 
-You can insert custom entries into the transcript via the Transcipt
+You can insert custom entries into the transcript via the Transcript
 `info()` method (which creates an `InfoEvent`). Access the transcript
 for the current sample using the `transcript()` function, for example:
 

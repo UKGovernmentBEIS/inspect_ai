@@ -247,7 +247,7 @@ eval(task, model="openai/gpt-4o")
 
 In the examples above we provide a `prompt` to the agent. This prompt is
 layered with other default prompt(s) to compose the final system prompt.
-This includes an `asssistant` prompt and a `handoff` prompt (used only
+This includes an `assistant` prompt and a `handoff` prompt (used only
 when a multi-agent system with `handoff()` is running). Here is the
 default `assistant` prompt:
 
@@ -378,7 +378,7 @@ Note that when you pass an `Agent` as the `model` it must include a
 
 ## Learning More
 
-See these additioanl articles to learn more about creating agent
+See these additional articles to learn more about creating agent
 evaluations with Inspect:
 
 - [Multi Agent](multi-agent.qmd) covers various ways to compose agents

@@ -5,7 +5,7 @@
 
 Inspect natively supports registering Python functions as tools and
 providing these tools to models that support them. Inspect also supports
-secure sandboxes for running abritrary code produced by models, flexible
+secure sandboxes for running arbitrary code produced by models, flexible
 error handling, as well as dynamic tool definitions.
 
 We’ll cover all of these features below, but we’ll start with a very
@@ -45,7 +45,7 @@ Note that we provide type annotations for both arguments:
 async def execute(x: int, y: int)
 ```
 
-Further, we provide descriptions for each parameter in the documention
+Further, we provide descriptions for each parameter in the documentation
 comment:
 
 ``` python
@@ -292,7 +292,7 @@ used to login to the sandbox container from a terminal or IDE.
 Note that to deal with potential unreliability of container services,
 the `exec()` method includes a `timeout_retry` parameter that defaults
 to `True`. For sandbox implementations this parameter is *advisory*
-(they should only use it if potential unreliablity exists in their
+(they should only use it if potential unreliability exists in their
 runtime). No more than 2 retries should be attempted and both with
 timeouts less than 60 seconds. If you are executing commands that are
 not idempotent (i.e. the side effects of a failed first attempt may
@@ -314,7 +314,7 @@ additional details.
 Some tools need to retain state across invocations (for example, the
 `bash_session()` and `web_browser()` tools both interact with a stateful
 remote process). You can create stateful tools by using the `store_as()`
-function to access discrete storage for your tool and/or speicfic
+function to access discrete storage for your tool and/or specific
 instances of your tool.
 
 For example, imagine we were creating a `web_surfer()` tool that builds

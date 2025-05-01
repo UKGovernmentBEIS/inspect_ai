@@ -585,7 +585,7 @@ Note that we provide type annotations for both arguments:
 async def execute(x: int, y: int)
 ```
 
-Further, we provide descriptions for each parameter in the documention
+Further, we provide descriptions for each parameter in the documentation
 comment:
 
 ``` python
@@ -691,7 +691,7 @@ def ctf_agent(attempts=3):
     """)
 
     return react(
-        propmpt=SYSTEM_MESSAGE,
+        prompt=SYSTEM_MESSAGE,
         tools=[bash(timeout=180), python(timeout=180)],
         attempts=attempts,
     )
@@ -703,8 +703,8 @@ composing agents together into multi-agent systems. For now, think of an
 agent as a type of solver (see the [Agents](agents.qmd) documentation to
 learn more about agents).
 
-The `react()` agent in paticular provides a ReAct tool loop with support
-for retries and encouraging the model to continue if its gives up or
-gets stuck. The `bash()` and `python()` tools are provided to the model
-with a 3-minute timeout to prevent long running commands from getting
-the evaluation stuck.
+The `react()` agent in particular provides a ReAct tool loop with
+support for retries and encouraging the model to continue if its gives
+up or gets stuck. The `bash()` and `python()` tools are provided to the
+model with a 3-minute timeout to prevent long running commands from
+getting the evaluation stuck.

@@ -25,7 +25,7 @@ Note that model providers only support multimodal inputs for a subset of
 their models. In the sections below on images, audio, and video we’ll
 enumerate which models can handle these input types. It’s also always a
 good idea to check the provider documentation for the most up to date
-compatiblity matrix.
+compatibility matrix.
 
 ## Images
 

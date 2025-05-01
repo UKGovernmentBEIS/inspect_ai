@@ -754,33 +754,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="summaries" class="level3">
 <h3 class="anchored" data-anchor-id="summaries">Summaries</h3>
-<div class="callout callout-style-default callout-note callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Note
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_sample_summaries">read_eval_log_sample_summaries()</a></span> function described below is available only in the development version of Inspect. To install the development version from GitHub:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-</div>
 <p>It may also be useful to read only the summary level information about samples (input, target, error status, and scoring). To do this, use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_sample_summaries">read_eval_log_sample_summaries()</a></span> function:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>summaries <span class="op">=</span> read_eval_log_sample_summaries(log_file)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>summaries <span class="op">=</span> read_eval_log_sample_summaries(log_file)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>summaries</code> are a list of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span> objects, one for each sample. Some sample data is “thinned” in the interest of keeping the summaries small: images are removed from <code>input</code>, <code>metadata</code> is restricted to scalar values (with strings truncated to 1k), and scores include only their <code>value</code>.</p>
 <p>Reading only sample summaries will take orders of magnitude less time than reading all of the samples one-by-one, so if you only need access to summary level data, always prefer this function to reading the entire log file.</p>
 <section id="filtering" class="level4">
 <h4 class="anchored" data-anchor-id="filtering">Filtering</h4>
 <p>You can also use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_sample_summaries">read_eval_log_sample_summaries()</a></span> as means of filtering which samples you want to read in full. For example, imagine you only want to read samples that include errors:</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>errors: <span class="bu">list</span>[EvalSample] <span class="op">=</span> []</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sample <span class="kw">in</span> read_eval_log_sample_summaries(log_file):</span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> sample.error <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>        errors.append(</span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>            read_eval_log_sample(log_file, sample.<span class="bu">id</span>, sample.epoch)</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>        )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>errors: <span class="bu">list</span>[EvalSample] <span class="op">=</span> []</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sample <span class="kw">in</span> read_eval_log_sample_summaries(log_file):</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> sample.error <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>        errors.append(</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>            read_eval_log_sample(log_file, sample.<span class="bu">id</span>, sample.epoch)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>        )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="streaming" class="level3">
@@ -789,27 +775,27 @@ Note
 <ol type="1">
 <li><p>Use the <code>.eval</code> log file format which supports compression and incremental access to samples (see details on this in the <a href="#sec-log-format">Log Format</a> section above). If you have existing <code>.json</code> files you can easily batch convert them to <code>.eval</code> using the <a href="#converting-logs">Log Commands</a> described below.</p></li>
 <li><p>If you only need access to the “header” of the log file (which includes general eval metadata as well as the evaluation results) use the <code>header_only</code> option of <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span>:</p>
-<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(log_file, header_only <span class="op">=</span> <span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> read_eval_log(log_file, header_only <span class="op">=</span> <span class="va">True</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
 <li><p>If you want to read individual samples, either read them selectively using <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_sample">read_eval_log_sample()</a></span>, or read them iteratively using <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_samples">read_eval_log_samples()</a></span> (which will ensure that only one sample at a time is read into memory):</p>
-<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read a single sample</span></span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> read_eval_log_sample(log_file, <span class="bu">id</span> <span class="op">=</span> <span class="dv">42</span>)</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="co"># read all samples using a generator</span></span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sample <span class="kw">in</span> read_eval_log_samples(log_file):</span>
-<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read a single sample</span></span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> read_eval_log_sample(log_file, <span class="bu">id</span> <span class="op">=</span> <span class="dv">42</span>)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="co"># read all samples using a generator</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sample <span class="kw">in</span> read_eval_log_samples(log_file):</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
 </ol>
 <p>Note that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_samples">read_eval_log_samples()</a></span> will raise an error if you pass it a log that does not have <code>status=="success"</code> (this is because it can’t read all of the samples in an incomplete log). If you want to read the samples anyway, pass the <code>all_samples_required=False</code> option:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="co"># will not raise an error if the log file has an "error" or "cancelled" status</span></span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sample <span class="kw">in</span> read_eval_log_samples(log_file, all_samples_required<span class="op">=</span><span class="va">False</span>):</span>
-<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># will not raise an error if the log file has an "error" or "cancelled" status</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> sample <span class="kw">in</span> read_eval_log_samples(log_file, all_samples_required<span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    ...</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="attachments" class="level3">
 <h3 class="anchored" data-anchor-id="attachments">Attachments</h3>
 <p>Sample logs often include large pieces of content (e.g.&nbsp;images) that are duplicated in multiple places in the log file (input, message history, events, etc.). To keep the size of log files manageable, images and other large blocks of content are de-duplicated and stored as attachments.</p>
 <p>When reading log files, you may want to resolve the attachments so you can get access to the underlying content. You can do this for an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> using the <code>resolve_sample_attachments()</code> function:</p>
-<div class="sourceCode" id="cb21"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> resolve_sample_attachments</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> resolve_sample_attachments(sample)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> resolve_sample_attachments</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>sample <span class="op">=</span> resolve_sample_attachments(sample)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log">read_eval_log()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#read_eval_log_sample">read_eval_log_sample()</a></span> functions also take a <code>resolve_attachments</code> option if you want to resolve at the time of reading.</p>
 <p>Note you will most typically <em>not</em> want to resolve attachments. The two cases that require attachment resolution for an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsample">EvalSample</a></span> are:</p>
 <ol type="1">
@@ -822,15 +808,15 @@ Note
 <h2 class="anchored" data-anchor-id="eval-retries">Eval Retries</h2>
 <p>When an evaluation task fails due to an error or is otherwise interrupted (e.g.&nbsp;by a Ctrl+C), an evaluation log is still written. In many cases errors are transient (e.g.&nbsp;due to network connectivity or a rate limit) and can be subsequently <em>retried</em>.</p>
 <p>For these cases, Inspect includes an <code>eval-retry</code> command and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span> function that you can use to resume tasks interrupted by errors (including <a href="./eval-logs.html#sec-sample-preservation">preserving samples</a> already completed within the original task). For example, if you had a failing task with log file <code>logs/2024-05-29T12-38-43_math_Gprr29Mv.json</code>, you could retry it from the shell with:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval-retry logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or from Python with:</p>
-<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>eval_retry(<span class="st">"logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>eval_retry(<span class="st">"logs/2024-05-29T12-38-43_math_43_math_Gprr29Mv.json"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that retry only works for tasks that are created from <code>@task</code> decorated functions (as if a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> is created dynamically outside of an <code>@task</code> function Inspect does not know how to reconstruct it for the retry).</p>
 <p>Note also that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_retry">eval_retry()</a></span> does not overwrite the previous log file, but rather creates a new one (preserving the <code>task_id</code> from the original file).</p>
 <p>Here’s an example of retrying a failed eval with a lower number of <code>max_connections</code> (the theory being that too many concurrent connections may have caused a rate limit error):</p>
-<div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(my_task)[<span class="dv">0</span>]</span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">!=</span> <span class="st">"success"</span>:</span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>  eval_retry(log, max_connections <span class="op">=</span> <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>log <span class="op">=</span> <span class="bu">eval</span>(my_task)[<span class="dv">0</span>]</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> log.status <span class="op">!=</span> <span class="st">"success"</span>:</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  eval_retry(log, max_connections <span class="op">=</span> <span class="dv">3</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="sec-sample-preservation" class="level3">
 <h3 class="anchored" data-anchor-id="sec-sample-preservation">Sample Preservation</h3>
 <p>When retrying a log file, Inspect will attempt to re-use completed samples from the original task. This can result in substantial time and cost savings compared to starting over from the beginning.</p>
@@ -876,8 +862,8 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <pre><code>{timestamp}_{task}_{id}</code></pre>
 <p>Where <code>timestamp</code> is the time the log was created; <code>task</code> is the name of the task the log corresponds to; and <code>id</code> is a unique task id.</p>
 <p>The <code>{timestamp}</code> part of the log file name is required to ensure that log files appear in sequential order in the filesystem. However, the rest of the filename can be customized using the <code>INSPECT_EVAL_LOG_FILE_PATTERN</code> environment variable, which can include any combination of <code>task</code>, <code>model</code>, and <code>id</code> fields. For example, to include the <code>model</code> in log file names:</p>
-<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
-<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">INSPECT_EVAL_LOG_FILE_PATTERN</span><span class="op">=</span>{task}_{model}_{id}</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf.py </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>As with other log file oriented environment variables, you may find it convenient to define this in a <code>.env</code> file from the location where you run your evals.</p>
 </section>
 <section id="sec-log-commands" class="level2">
@@ -912,13 +898,13 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <section id="listing-logs" class="level3">
 <h3 class="anchored" data-anchor-id="listing-logs">Listing Logs</h3>
 <p>You can use the <code>inspect log list</code> command to enumerate all of the logs for a given log directory. This command will utilise the <code>INSPECT_LOG_DIR</code> if it is set (alternatively you can specify a <code>--log-dir</code> directly). You’ll likely also want to use the <code>--json</code> flag to get more granular and structured information on the log files. For example:</p>
-<div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
-<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb27"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span>           <span class="co"># uses INSPECT_LOG_DIR</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--log-dir</span> ./security_04-07-2024</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can also use the <code>--status</code> option to list only logs with a <code>success</code> or <code>error</code> status:</p>
-<div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
-<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> success</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--status</span> error</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>You can use the <code>--retryable</code> option to list only logs that are <a href="#eval-retries">retryable</a></p>
-<div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log list <span class="at">--json</span> <span class="at">--retryable</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="reading-logs" class="level3">
 <h3 class="anchored" data-anchor-id="reading-logs">Reading Logs</h3>
@@ -928,22 +914,22 @@ AWS_DEFAULT_REGION=eu-west-2</code></pre>
 <li>Log files can be located on remote storage systems (e.g.&nbsp;Amazon S3) that users have configured read/write credentials for within their Inspect environment, and you’ll want to be sure to take advantage of these credentials.</li>
 </ol>
 <p>For example, here we read a local log file and a log file on Amazon S3:</p>
-<div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
-<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump file:///home/user/log/logfile.json</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log dump s3://my-evals-bucket/logfile.json</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="converting-logs" class="level3">
 <h3 class="anchored" data-anchor-id="converting-logs">Converting Logs</h3>
 <p>You can convert between the two underlying <a href="#sec-log-format">log formats</a> using the <code>inspect log convert</code> command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (<code>--to</code> and <code>--output-dir</code>). For example:</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert source.json <span class="at">--to</span> eval <span class="at">--output-dir</span> log-output</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Or for an entire directory:</p>
-<div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log convert logs <span class="at">--to</span> eval <span class="at">--output-dir</span> logs-eval</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the <code>--overwrite</code> flag to force an overwrite.</p>
 <p>Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.</p>
 </section>
 <section id="log-schema" class="level3">
 <h3 class="anchored" data-anchor-id="log-schema">Log Schema</h3>
 <p>Log files are stored in JSON. You can get the JSON schema for the log file format with a call to <code>inspect log schema</code>:</p>
-<div class="sourceCode" id="cb34"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="callout callout-style-simple callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -1491,7 +1477,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","openEffect":"zoom","descPosition":"bottom","closeEffect":"zoom","loop":false});
+<script>var lightboxQuarto = GLightbox({"selector":".lightbox","descPosition":"bottom","openEffect":"zoom","loop":false,"closeEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

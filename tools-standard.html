@@ -469,13 +469,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#configuration" id="toc-configuration" class="nav-link" data-scroll-target="#configuration">Configuration</a></li>
   <li><a href="#task-setup" id="toc-task-setup" class="nav-link" data-scroll-target="#task-setup">Task Setup</a></li>
-  <li><a href="#tool-binding" id="toc-tool-binding" class="nav-link" data-scroll-target="#tool-binding">Tool Binding</a></li>
   </ul></li>
   <li><a href="#sec-text-editor" id="toc-sec-text-editor" class="nav-link" data-scroll-target="#sec-text-editor">Text Editor</a>
   <ul class="collapse">
   <li><a href="#configuration-1" id="toc-configuration-1" class="nav-link" data-scroll-target="#configuration-1">Configuration</a></li>
   <li><a href="#task-setup-1" id="toc-task-setup-1" class="nav-link" data-scroll-target="#task-setup-1">Task Setup</a></li>
-  <li><a href="#tool-binding-1" id="toc-tool-binding-1" class="nav-link" data-scroll-target="#tool-binding-1">Tool Binding</a></li>
+  <li><a href="#tool-binding" id="toc-tool-binding" class="nav-link" data-scroll-target="#tool-binding">Tool Binding</a></li>
   </ul></li>
   <li><a href="#sec-web-browser" id="toc-sec-web-browser" class="nav-link" data-scroll-target="#sec-web-browser">Web Browser</a>
   <ul class="collapse">
@@ -490,7 +489,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#task-setup-3" id="toc-task-setup-3" class="nav-link" data-scroll-target="#task-setup-3">Task Setup</a></li>
   <li><a href="#vnc-client" id="toc-vnc-client" class="nav-link" data-scroll-target="#vnc-client">VNC Client</a></li>
   <li><a href="#approval" id="toc-approval" class="nav-link" data-scroll-target="#approval">Approval</a></li>
-  <li><a href="#tool-binding-2" id="toc-tool-binding-2" class="nav-link" data-scroll-target="#tool-binding-2">Tool Binding</a></li>
+  <li><a href="#tool-binding-1" id="toc-tool-binding-1" class="nav-link" data-scroll-target="#tool-binding-1">Tool Binding</a></li>
   </ul></li>
   <li><a href="#sec-web-search" id="toc-sec-web-search" class="nav-link" data-scroll-target="#sec-web-search">Web Search</a></li>
   <li><a href="#sec-think" id="toc-sec-think" class="nav-link" data-scroll-target="#sec-think">Think</a>
@@ -625,10 +624,6 @@ Sandbox Dependencies
 <span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that we provide a <code>timeout</code> for bash session commands (this is a best practice to guard against extremely long running commands).</p>
 </section>
-<section id="tool-binding" class="level3">
-<h3 class="anchored" data-anchor-id="tool-binding">Tool Binding</h3>
-<p>The schema for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> tool is based on the standard Anthropic <a href="https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#bash-tool">bash tool type</a>. The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash_session">bash_session()</a></span> works with all models that support tool calling, but when using Claude, the bash session tool will automatically bind to the native Claude tool definition.</p>
-</section>
 </section>
 <section id="sec-text-editor" class="level2">
 <h2 class="anchored" data-anchor-id="sec-text-editor">Text Editor</h2>
@@ -694,8 +689,8 @@ Sandbox Dependencies
 <span id="cb9-20"><a href="#cb9-20" aria-hidden="true" tabindex="-1"></a>    )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Note that we provide a <code>timeout</code> for the bash session and text editor tools (this is a best practice to guard against extremely long running commands).</p>
 </section>
-<section id="tool-binding-1" class="level3">
-<h3 class="anchored" data-anchor-id="tool-binding-1">Tool Binding</h3>
+<section id="tool-binding" class="level3">
+<h3 class="anchored" data-anchor-id="tool-binding">Tool Binding</h3>
 <p>The schema for the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> tool is based on the standard Anthropic <a href="https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#text-editor-tool">text editor tool type</a>. The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#text_editor">text_editor()</a></span> works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.</p>
 </section>
 </section>
@@ -969,13 +964,13 @@ Sandbox Dependencies
 <span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">tools</span><span class="kw">:</span><span class="at"> </span><span class="st">"*"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Note that since this is a prefix match and there could be other arguments, we don’t end the tool match pattern with a parentheses.</p>
-<p>You can apply this policy using the <code>--approval</code> commmand line option:</p>
+<p>You can apply this policy using the <code>--approval</code> command line option:</p>
 <div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval computer.py <span class="at">--approval</span> approval.yaml</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
-<section id="tool-binding-2" class="level3">
-<h3 class="anchored" data-anchor-id="tool-binding-2">Tool Binding</h3>
+<section id="tool-binding-1" class="level3">
+<h3 class="anchored" data-anchor-id="tool-binding-1">Tool Binding</h3>
 <p>The computer tool’s schema is a superset of the standard <a href="https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool">Anthropic</a> and <a href="https://platform.openai.com/docs/guides/tools-computer-use">Open AI</a> computer tool schemas. When using models tuned for computer use (currently <code>anthropic/claude-3-7-sonnet-latest</code> and <code>openai/computer-use-preview</code>) the computer tool will automatically bind to the native computer tool definitions (as this presumably provides improved performance).</p>
-<p>If you want to experiement with bypassing the native computer tool types and just register the computer tool as a normal function based tool then specify the <code>--no-internal-tools</code> generation option as follows:</p>
+<p>If you want to experiment with bypassing the native computer tool types and just register the computer tool as a normal function based tool then specify the <code>--no-internal-tools</code> generation option as follows:</p>
 <div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval computer.py <span class="at">--no-internal-tools</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
@@ -1664,7 +1659,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"openEffect":"zoom","closeEffect":"zoom","descPosition":"bottom","loop":false,"selector":".lightbox"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","loop":false,"openEffect":"zoom","descPosition":"bottom","selector":".lightbox"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

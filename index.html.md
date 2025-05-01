@@ -210,7 +210,7 @@ eval(theory_of_mind(), model="openai/gpt-4o")
 
 ## Learning More
 
-The best way to get familar with Inspect’s core features is the
+The best way to get familiar with Inspect’s core features is the
 [Tutorial](tutorial.qmd), which includes several annotated examples.
 
 Next, review these articles which cover basic workflow, more

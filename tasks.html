@@ -644,7 +644,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <code>-T</code> CLI flag is used to specify parameter values. You can include multiple <code>-T</code> flags. For example:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval security.py <span class="dt">\</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>   <span class="at">-T</span> system=<span class="st">"researcher.txt"</span> <span class="at">-T</span> grader=<span class="st">"hacker.txt"</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>If you have several task paramaters you want to specify together, you can put them in a YAML or JSON file and use the <code>--task-config</code> CLI option. For example:</p>
+<p>If you have several task parameters you want to specify together, you can put them in a YAML or JSON file and use the <code>--task-config</code> CLI option. For example:</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>config.yaml</strong></pre>
@@ -820,7 +820,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="packaging">Packaging</h2>
 <p>A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.</p>
 <p>Tasks in packages can be <em>registered</em> such that users can easily refer to them by name from the CLI. For example, the <a href="https://github.com/UKGovernmentBEIS/inspect_ai">Inspect Evals</a> package includes a suite of tasks that can be run as follows:</p>
-<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">insepct</span> eval inspect_evals/gaia </span>
+<div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gaia </span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/swe_bench</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>

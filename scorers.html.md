@@ -963,7 +963,7 @@ follows:
 inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --overwrite
 ```
 
-#### Ovewriting Scores
+#### Overwriting Scores
 
 When rescoring a previously scored log file you have two options:
 

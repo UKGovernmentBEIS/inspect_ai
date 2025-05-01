@@ -65,7 +65,7 @@ details on this).
 
 In these cases, you are not required to specify a `--model`. If you
 happen to have an `INSPECT_EVAL_MODEL` defined and you want to prevent
-your evaluation from using it, you can explcitly specify no model as
+your evaluation from using it, you can explicitly specify no model as
 follows:
 
 ``` bash

@@ -67,7 +67,7 @@ the importing of libraries they require (important for limiting
 dependencies). You can see this used within Inspect to make all model
 package dependencies optional
 [here](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/model/_providers/providers.py).
-With this scheme, pacakges required to interace with models
+With this scheme, packages required to interact with models
 (e.g. `openai`, `anthropic`, `vllm`, etc.) are only imported when their
 model API type is actually used.
 
@@ -380,7 +380,7 @@ used to login to the sandbox container from a terminal or IDE.
 Note that to deal with potential unreliability of container services,
 the `exec()` method includes a `timeout_retry` parameter that defaults
 to `True`. For sandbox implementations this parameter is *advisory*
-(they should only use it if potential unreliablity exists in their
+(they should only use it if potential unreliability exists in their
 runtime). No more than 2 retries should be attempted and both with
 timeouts less than 60 seconds. If you are executing commands that are
 not idempotent (i.e. the side effects of a failed first attempt may

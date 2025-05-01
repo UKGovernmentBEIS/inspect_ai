@@ -10,7 +10,7 @@ into roughly two categories:
 1.  Options that you want to set on a more durable basis (for a project
     or session).
 
-2.  Options that you want to tweak per-evel to accomodate particular
+2.  Options that you want to tweak per-eval to accommodate particular
     scenarios.
 
 For the former, we recommend you specify these options in a `.env` file
@@ -131,7 +131,7 @@ example:
 |  |  |
 |----|----|
 | `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
-| `--sample-id` | Evalute a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
+| `--sample-id` | Evaluate a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
 | `--epochs` | Number of times to repeat each sample (defaults to 1) |
 | `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
 

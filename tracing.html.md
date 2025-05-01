@@ -96,7 +96,7 @@ or S3 can also return retryable errors or timeout when they are under
 heavy load).
 
 As with the `inspect trace dump` command, you can apply a filter when
-listing anomolies. For example:
+listing anomalies. For example:
 
 ``` bash
 inspect trace anomalies --filter model

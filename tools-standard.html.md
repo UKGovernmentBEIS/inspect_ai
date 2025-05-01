@@ -151,15 +151,6 @@ def intercode_ctf():
 Note that we provide a `timeout` for bash session commands (this is a
 best practice to guard against extremely long running commands).
 
-### Tool Binding
-
-The schema for the `bash_session()` tool is based on the standard
-Anthropic [bash tool
-type](https://docs.anthropic.com/en/docs/agents-and-tools/computer-use#bash-tool).
-The `bash_session()` works with all models that support tool calling,
-but when using Claude, the bash session tool will automatically bind to
-the native Claude tool definition.
-
 ## Text Editor
 
 The `text_editor()` tool enables viewing, creating and editing text
@@ -559,7 +550,7 @@ approvers:
 Note that since this is a prefix match and there could be other
 arguments, we don’t end the tool match pattern with a parentheses.
 
-You can apply this policy using the `--approval` commmand line option:
+You can apply this policy using the `--approval` command line option:
 
 ``` bash
 inspect eval computer.py --approval approval.yaml
@@ -576,7 +567,7 @@ tool schemas. When using models tuned for computer use (currently
 the computer tool will automatically bind to the native computer tool
 definitions (as this presumably provides improved performance).
 
-If you want to experiement with bypassing the native computer tool types
+If you want to experiment with bypassing the native computer tool types
 and just register the computer tool as a normal function based tool then
 specify the `--no-internal-tools` generation option as follows:
 

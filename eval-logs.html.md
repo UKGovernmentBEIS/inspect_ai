@@ -267,16 +267,6 @@ The log header is a standard `EvalLog` object without the `samples` and
 
 ### Summaries
 
-> [!NOTE]
->
-> The `read_eval_log_sample_summaries()` function described below is
-> available only in the development version of Inspect. To install the
-> development version from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 It may also be useful to read only the summary level information about
 samples (input, target, error status, and scoring). To do this, use the
 `read_eval_log_sample_summaries()` function:

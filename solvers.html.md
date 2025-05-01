@@ -159,21 +159,21 @@ is not (yet) reference documentation on these functions so the best way
 to learn about how they can be customised, etc. is to use the **Go to
 Definition** command in your source editor. - `prompt_template()`
 
-    Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template. Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named paramters passed in `params`.
+    Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template. Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named parameters passed in `params`.
 
 - `system_message()`
 
   Prepend role=“system” `message` to the list of messages (will follow
   any other system messages it finds in the message stream). Also
   automatically substitutes any variables defined in sample `metadata`
-  and `store`, as well as any other custom named paramters passed in
+  and `store`, as well as any other custom named parameters passed in
   `params`.
 
 - `user_message()`
 
   Append role=“user” `message` to the list of messages. Also
   automatically substitutes any variables defined in sample `metadata`
-  and `store`, as well as any other custom named paramters passed in
+  and `store`, as well as any other custom named parameters passed in
   `params`.
 
 - `chain_of_thought()`

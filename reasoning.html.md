@@ -143,21 +143,30 @@ The `max_tokens` for any given request is determined as follows:
     be set to `4096 + reasoning_tokens` (as 4096 is the standard Inspect
     default for Anthropic max tokens).
 2.  If you explicitly specify a `max_tokens`, that value will be used as
-    the max tokens without modification (so should accomodate sufficient
-    space for both your `reasoning_tokens` and normal output).
+    the max tokens without modification (so should accommodate
+    sufficient space for both your `reasoning_tokens` and normal
+    output).
 
 Inspect will automatically use [response
 streaming](https://docs.anthropic.com/en/api/messages-streaming)
 whenever extended thinking is enabled to mitigate against networking
-issue that can occur for long running requests.
+issue that can occur for long running requests. You can override the
+default behavior using the `streaming` model argument. For example:
+
+``` bash
+inspect eval math.py \
+  --model anthropic/claude-3-7-sonnet-latest \
+  --reasoning-tokens 4096 \
+  -M streaming=false
+```
 
 #### History
 
 Note that Anthropic requests that all reasoning blocks and played back
 to the model in chat conversations (although they will only use the last
 reasoning block and will not bill for tokens on previous ones).
-Consquently, the `reasoning_history` option has no effect for Claude 3.7
-models (it effectively always uses `last`).
+Consequently, the `reasoning_history` option has no effect for Claude
+3.7 models (it effectively always uses `last`).
 
 #### Tools
 
@@ -197,7 +206,7 @@ reasoning models.
 
 ## Grok
 
-Grok currenntly makes available two reasoning models:
+Grok currently makes available two reasoning models:
 
 - `grok/grok-3-mini-beta`
 

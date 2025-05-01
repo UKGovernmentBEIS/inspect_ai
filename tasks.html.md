@@ -105,7 +105,7 @@ inspect eval security.py \
    -T system="researcher.txt" -T grader="hacker.txt"
 ```
 
-If you have several task paramaters you want to specify together, you
+If you have several task parameters you want to specify together, you
 can put them in a YAML or JSON file and use the `--task-config` CLI
 option. For example:
 
@@ -372,7 +372,7 @@ Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes
 a suite of tasks that can be run as follows:
 
 ``` bash
-insepct eval inspect_evals/gaia 
+inspect eval inspect_evals/gaia 
 inspect eval inspect_evals/swe_bench
 ```
 

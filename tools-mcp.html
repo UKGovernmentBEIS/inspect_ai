@@ -743,7 +743,7 @@ ToolSource
 <span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="co"># filesystem mcp server</span></span>
 <span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">npm</span> install <span class="at">-g</span> @modelcontextprotocol/server-filesystem</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Note that we install the <code>@modelcontextprotocol/server-filesystem</code> package globally so it is availale to sandbox users and can be run even when the container is disconnected from the Internet.</p>
+<p>Note that we install the <code>@modelcontextprotocol/server-filesystem</code> package globally so it is available to sandbox users and can be run even when the container is disconnected from the Internet.</p>
 <p>You are not required to inherit from the <code>aisiuk/inspect-tool-support</code> base image. If you want to use another base image please see <strong>Custom Base Image</strong> below for details on how to do this.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center" data-bs-toggle="collapse" data-bs-target=".callout-3-contents" aria-controls="callout-3" aria-expanded="false" aria-label="Toggle callout">
@@ -757,7 +757,7 @@ Custom Base Image
 </div>
 <div id="callout-3" class="callout-3-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
-<p>If you are inheriting from a different base image then you can equivalently satisfiy the <code>inspect-tool-support</code> dependency by adding this to your Dockerfile:</p>
+<p>If you are inheriting from a different base image then you can equivalently satisfy the <code>inspect-tool-support</code> dependency by adding this to your Dockerfile:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode dockerfile code-with-copy"><code class="sourceCode dockerfile"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">ENV</span> PATH=<span class="st">"$PATH:/opt/inspect_tool_support/bin"</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">RUN</span> <span class="ex">python</span> <span class="at">-m</span> venv /opt/inspect_tool_support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    <span class="ex">/opt/inspect_tool_support/bin/pip</span> install inspect-tool-support <span class="kw">&amp;&amp;</span> <span class="dt">\</span></span>

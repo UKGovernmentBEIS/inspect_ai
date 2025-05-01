@@ -520,7 +520,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>You need to provision per-sample filesystem resources.</p></li>
 <li><p>You want to provide access to a more sophisticated evaluation environment (e.g.&nbsp;creating network hosts for a cybersecurity eval).</p></li>
 </ul>
-<p>To accomodate these scenarios, Inspect provides support for <em>sandboxing</em>, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the <a href="./extensions.html#sec-sandbox-environment-extensions">Extension API</a> enables the creation of additional sandbox types.</p>
+<p>To accommodate these scenarios, Inspect provides support for <em>sandboxing</em>, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the <a href="./extensions.html#sec-sandbox-environment-extensions">Extension API</a> enables the creation of additional sandbox types.</p>
 </section>
 <section id="example-file-listing" class="level2">
 <h2 class="anchored" data-anchor-id="example-file-listing">Example: File Listing</h2>
@@ -640,7 +640,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-59"><a href="#cb3-59" aria-hidden="true" tabindex="-1"></a><span class="co">        """</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The <code>read_file()</code> method should preserve newline constructs (e.g.&nbsp;crlf should be preserved not converted to lf). This is equivalent to specifying <code>newline=""</code> in a call to the Python <code>open()</code> function. Note that <code>write_file()</code> automatically creates parent directories as required if they don’t exist.</p>
 <p>The <code>connection()</code> method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.</p>
-<p>Note that to deal with potential unreliability of container services, the <code>exec()</code> method includes a <code>timeout_retry</code> parameter that defaults to <code>True</code>. For sandbox implementations this parameter is <em>advisory</em> (they should only use it if potential unreliablity exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e.&nbsp;the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify <code>timeout_retry=False</code> to override this behavior.</p>
+<p>Note that to deal with potential unreliability of container services, the <code>exec()</code> method includes a <code>timeout_retry</code> parameter that defaults to <code>True</code>. For sandbox implementations this parameter is <em>advisory</em> (they should only use it if potential unreliability exists in their runtime). No more than 2 retries should be attempted and both with timeouts less than 60 seconds. If you are executing commands that are not idempotent (i.e.&nbsp;the side effects of a failed first attempt may affect the results of subsequent attempts) then you can specify <code>timeout_retry=False</code> to override this behavior.</p>
 <p>For each method there is a documented set of errors that are raised: these are <em>expected</em> errors and can either be caught by tools or allowed to propagate in which case they will be reported to the model for potential recovery. In addition, <em>unexpected</em> errors may occur (e.g.&nbsp;a networking error connecting to a remote container): these errors are not reported to the model and fail the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#sample">Sample</a></span> with an error state.</p>
 <p>The sandbox is also available to custom scorers.</p>
 </section>
@@ -915,7 +915,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="troubleshooting" class="level2">
 <h2 class="anchored" data-anchor-id="troubleshooting">Troubleshooting</h2>
-<p>To diagnose sandbox execution issues (e.g.&nbsp;commands that don’t terminate properly, contianer lifecylce issues, etc.) you should use Inspect’s <a href="./tracing.html">Tracing</a> facility.</p>
+<p>To diagnose sandbox execution issues (e.g.&nbsp;commands that don’t terminate properly, container lifecycle issues, etc.) you should use Inspect’s <a href="./tracing.html">Tracing</a> facility.</p>
 <p>Trace logs record the beginning and end of calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#subprocess">subprocess()</a></span> (e.g.&nbsp;tool calls that run commands in sandboxes) as well as control commands sent to Docker Compose. The <code>inspect trace anomalies</code> subcommand then enables you to query for commands that don’t terminate, timeout, or have errors. See the article on <a href="./tracing.html">Tracing</a> for additional details.</p>
 
 

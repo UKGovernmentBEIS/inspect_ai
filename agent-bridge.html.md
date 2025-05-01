@@ -24,12 +24,12 @@ The basic mechanism for integrating external agents works like this:
 
 ## Agent Function
 
-An external agent function is simillar to an Inspect `Agent` but without
+An external agent function is similar to an Inspect `Agent` but without
 `AgentState`. Rather, it takes a sample `dict` as input and returns a
 result `dict` as output.
 
 Here is a very simple agent function definition (it just calls generate
-and returns the ouptut). It is structured similar to an Inspect `Agent`
+and returns the output). It is structured similar to an Inspect `Agent`
 where an enclosing function returns the function that handles the sample
 (this enables you to share initialisation code and pass options to
 configure the behaviour of the agent):
@@ -89,7 +89,7 @@ Import custom agent from `agent.py` file (shown above)
 Line 12  
 Adapt custom agent into an Inspect agent with the `bridge()` function.
 
-For more in-depth examples that make use of popular agent framworks,
+For more in-depth examples that make use of popular agent frameworks,
 see:
 
 - [AutoGen

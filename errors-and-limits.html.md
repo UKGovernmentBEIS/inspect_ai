@@ -334,16 +334,6 @@ raise LimitExceededError(
 
 ## Scoped Limits
 
-> [!NOTE]
->
-> The scoped limits described below are available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 You can also apply limits at arbitrary scopes, independent of the sample
 or agent-scoped limits. For instance, applied to a specific agent or
 within a specific block of code. For example:
@@ -436,13 +426,6 @@ def myagent() -> Solver:
 > should use the `max_tokens` generation option.
 
 ## Agent Limits
-
-The agent limits described below are available only in the development
-version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
 
 To run an agent with one or more limits, pass the limit object in the
 `limits` argument to a function like `handoff()`, `as_tool()`,

@@ -16,7 +16,7 @@ be the case if:
 - You want to provide access to a more sophisticated evaluation
   environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accomodate these scenarios, Inspect provides support for
+To accommodate these scenarios, Inspect provides support for
 *sandboxing*, which typically involves provisioning containers for tools
 to execute code within. Support for Docker sandboxes is built in, and
 the [Extension API](extensions.qmd#sec-sandbox-environment-extensions)
@@ -177,7 +177,7 @@ used to login to the sandbox container from a terminal or IDE.
 Note that to deal with potential unreliability of container services,
 the `exec()` method includes a `timeout_retry` parameter that defaults
 to `True`. For sandbox implementations this parameter is *advisory*
-(they should only use it if potential unreliablity exists in their
+(they should only use it if potential unreliability exists in their
 runtime). No more than 2 retries should be attempted and both with
 timeouts less than 60 seconds. If you are executing commands that are
 not idempotent (i.e. the side effects of a failed first attempt may
@@ -602,7 +602,7 @@ services:
 ## Troubleshooting
 
 To diagnose sandbox execution issues (e.g. commands that don’t terminate
-properly, contianer lifecylce issues, etc.) you should use Inspect’s
+properly, container lifecycle issues, etc.) you should use Inspect’s
 [Tracing](tracing.qmd) facility.
 
 Trace logs record the beginning and end of calls to `subprocess()`

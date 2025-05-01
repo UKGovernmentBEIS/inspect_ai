@@ -336,7 +336,7 @@ RUN npm install -g @modelcontextprotocol/server-filesystem
 ```
 
 Note that we install the `@modelcontextprotocol/server-filesystem`
-package globally so it is availale to sandbox users and can be run even
+package globally so it is available to sandbox users and can be run even
 when the container is disconnected from the Internet.
 
 You are not required to inherit from the `aisiuk/inspect-tool-support`
@@ -348,7 +348,7 @@ Base Image** below for details on how to do this.
 > ### Custom Base Image
 >
 > If you are inheriting from a different base image then you can
-> equivalently satisfiy the `inspect-tool-support` dependency by adding
+> equivalently satisfy the `inspect-tool-support` dependency by adding
 > this to your Dockerfile:
 >
 > ``` dockerfile

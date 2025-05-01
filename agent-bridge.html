@@ -506,8 +506,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="agent-function" class="level2">
 <h2 class="anchored" data-anchor-id="agent-function">Agent Function</h2>
-<p>An external agent function is simillar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> but without <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span>. Rather, it takes a sample <code>dict</code> as input and returns a result <code>dict</code> as output.</p>
-<p>Here is a very simple agent function definition (it just calls generate and returns the ouptut). It is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> where an enclosing function returns the function that handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
+<p>An external agent function is similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> but without <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentstate">AgentState</a></span>. Rather, it takes a sample <code>dict</code> as input and returns a result <code>dict</code> as output.</p>
+<p>Here is a very simple agent function definition (it just calls generate and returns the output). It is structured similar to an Inspect <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">Agent</a></span> where an enclosing function returns the function that handles the sample (this enables you to share initialisation code and pass options to configure the behaviour of the agent):</p>
 <div class="code-with-filename">
 <div class="code-with-filename-file">
 <pre><strong>agent.py</strong></pre>
@@ -560,7 +560,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span data-code-cell="annotated-cell-2" data-code-lines="12" data-code-annotation="2">Adapt custom agent into an Inspect agent with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#bridge">bridge()</a></span> function.</span>
 </dd>
 </dl>
-<p>For more in-depth examples that make use of popular agent framworks, see:</p>
+<p>For more in-depth examples that make use of popular agent frameworks, see:</p>
 <ul>
 <li><p><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/autogen">AutoGen Example</a></p></li>
 <li><p><a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/bridge/langchain">LangChain Example</a></p></li>
