@@ -32,6 +32,9 @@ interface LiveVirtualListProps<T> {
   // The progress message to show (if any)
   // no message show if progress isn't provided
   showProgress?: boolean;
+
+  // The initial index to scroll to when loading
+  initialTopMostItemIndex?: number;
 }
 
 /**
@@ -45,6 +48,7 @@ export const LiveVirtualList = <T,>({
   scrollRef,
   live,
   showProgress,
+  initialTopMostItemIndex,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
   const listHandle = useRef<VirtuosoHandle>(null);
@@ -154,6 +158,22 @@ export const LiveVirtualList = <T,>({
       return () => parent.removeEventListener("scroll", handleScroll);
     }
   }, [scrollRef, handleScroll]);
+
+  // Scroll to index when component mounts or targetIndex changes
+  useEffect(() => {
+    if (initialTopMostItemIndex !== undefined && listHandle.current) {
+      // If there is an initial index, scroll to it after a short delay
+      const timer = setTimeout(() => {
+        listHandle.current?.scrollToIndex({
+          index: initialTopMostItemIndex,
+          align: "start",
+          behavior: "auto",
+        });
+      }, 50);
+
+      return () => clearTimeout(timer);
+    }
+  }, [initialTopMostItemIndex]);
 
   return (
     <Virtuoso

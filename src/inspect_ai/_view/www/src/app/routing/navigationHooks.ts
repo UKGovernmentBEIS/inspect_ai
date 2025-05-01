@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useFilteredSamples } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { directoryRelativeUrl } from "../../utils/uri";
@@ -178,5 +178,15 @@ export const useSampleNavigation = () => {
     previousSample,
     getSampleUrl,
     clearSampleUrl,
+  };
+};
+
+export const useSampleDetailNavigation = () => {
+  const [searchParams, _setSearchParams] = useSearchParams();
+  const message = searchParams.get("message");
+  const event = searchParams.get("event");
+  return {
+    message,
+    event,
   };
 };

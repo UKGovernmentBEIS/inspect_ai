@@ -36,6 +36,7 @@ import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
+import { useSampleDetailNavigation } from "../routing/navigationHooks";
 import { sampleUrl } from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
@@ -154,6 +155,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Is the sample running?
   const running = isRunning(sampleSummary, runningSampleData);
 
+  const sampleDetailNavigation = useSampleDetailNavigation();
+
   return (
     <Fragment>
       {sample || sampleSummary ? (
@@ -198,6 +201,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             key={`${baseId}-chat-${id}`}
             id={`${baseId}-chat-${id}`}
             messages={sampleMessages}
+            initialMessageId={sampleDetailNavigation.message}
             indented={true}
             scrollRef={scrollRef}
             toolCallStyle="complete"

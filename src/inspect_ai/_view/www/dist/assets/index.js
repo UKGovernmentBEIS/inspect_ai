@@ -20641,6 +20641,29 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       (!target2 || target2 === "_self") && // Let browser handle "target=_blank" etc.
       !isModifiedEvent(event);
     }
+    function createSearchParams(init = "") {
+      return new URLSearchParams(
+        typeof init === "string" || Array.isArray(init) || init instanceof URLSearchParams ? init : Object.keys(init).reduce((memo2, key2) => {
+          let value2 = init[key2];
+          return memo2.concat(
+            Array.isArray(value2) ? value2.map((v) => [key2, v]) : [[key2, value2]]
+          );
+        }, [])
+      );
+    }
+    function getSearchParamsForLocation(locationSearch, defaultSearchParams) {
+      let searchParams = createSearchParams(locationSearch);
+      if (defaultSearchParams) {
+        defaultSearchParams.forEach((_, key2) => {
+          if (!searchParams.has(key2)) {
+            defaultSearchParams.getAll(key2).forEach((value2) => {
+              searchParams.append(key2, value2);
+            });
+          }
+        });
+      }
+      return searchParams;
+    }
     var _formDataSupportsSubmitter = null;
     function isFormDataSubmitterSupported() {
       if (_formDataSupportsSubmitter === null) {
@@ -21415,6 +21438,39 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           viewTransition
         ]
       );
+    }
+    function useSearchParams(defaultInit) {
+      warning(
+        typeof URLSearchParams !== "undefined",
+        `You cannot use the \`useSearchParams\` hook in a browser that does not support the URLSearchParams API. If you need to support Internet Explorer 11, we recommend you load a polyfill such as https://github.com/ungap/url-search-params.`
+      );
+      let defaultSearchParamsRef = reactExports.useRef(createSearchParams(defaultInit));
+      let hasSetSearchParamsRef = reactExports.useRef(false);
+      let location = useLocation();
+      let searchParams = reactExports.useMemo(
+        () => (
+          // Only merge in the defaults if we haven't yet called setSearchParams.
+          // Once we call that we want those to take precedence, otherwise you can't
+          // remove a param with setSearchParams({}) if it has an initial value
+          getSearchParamsForLocation(
+            location.search,
+            hasSetSearchParamsRef.current ? null : defaultSearchParamsRef.current
+          )
+        ),
+        [location.search]
+      );
+      let navigate = useNavigate();
+      let setSearchParams = reactExports.useCallback(
+        (nextInit, navigateOptions) => {
+          const newSearchParams = createSearchParams(
+            typeof nextInit === "function" ? nextInit(searchParams) : nextInit
+          );
+          hasSetSearchParamsRef.current = true;
+          navigate("?" + newSearchParams, navigateOptions);
+        },
+        [navigate, searchParams]
+      );
+      return [searchParams, setSearchParams];
     }
     var fetcherId = 0;
     var getUniqueFetcherId = () => `__${String(++fetcherId)}__`;
@@ -44546,6 +44602,15 @@ categories: ${categories.join(" ")}`;
         clearSampleUrl
       };
     };
+    const useSampleDetailNavigation = () => {
+      const [searchParams, _setSearchParams] = useSearchParams();
+      const message2 = searchParams.get("message");
+      const event = searchParams.get("event");
+      return {
+        message: message2,
+        event
+      };
+    };
     const workspace = "_workspace_1r3mu_1";
     const tabContainer = "_tabContainer_1r3mu_6";
     const tabSet = "_tabSet_1r3mu_14";
@@ -50525,7 +50590,8 @@ self.onmessage = function (e) {
       renderRow,
       scrollRef,
       live,
-      showProgress
+      showProgress,
+      initialTopMostItemIndex
     }) => {
       const listHandle = reactExports.useRef(null);
       const { getRestoreState, isScrolling } = useVirtuosoState(
@@ -50602,6 +50668,19 @@ self.onmessage = function (e) {
           return () => parent.removeEventListener("scroll", handleScroll);
         }
       }, [scrollRef, handleScroll]);
+      reactExports.useEffect(() => {
+        if (initialTopMostItemIndex !== void 0 && listHandle.current) {
+          const timer = setTimeout(() => {
+            var _a2;
+            (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({
+              index: initialTopMostItemIndex,
+              align: "start",
+              behavior: "auto"
+            });
+          }, 50);
+          return () => clearTimeout(timer);
+        }
+      }, [initialTopMostItemIndex]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         Kr,
         {
@@ -50627,6 +50706,7 @@ self.onmessage = function (e) {
       ({
         id,
         messages,
+        initialMessageId,
         className: className2,
         toolCallStyle,
         indented: indented2,
@@ -50637,6 +50717,15 @@ self.onmessage = function (e) {
         const collapsedMessages = reactExports.useMemo(() => {
           return resolveMessages(messages);
         }, [messages]);
+        const initialMessageIndex = reactExports.useMemo(() => {
+          if (initialMessageId === null || initialMessageId === void 0) {
+            return void 0;
+          }
+          const index2 = collapsedMessages.findIndex((message2) => {
+            return message2.message.id === initialMessageId;
+          });
+          return index2 !== -1 ? index2 : void 0;
+        }, [initialMessageId, collapsedMessages]);
         const renderRow = (index2, item2) => {
           const number2 = collapsedMessages.length > 1 && numbered ? index2 + 1 : void 0;
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -50659,6 +50748,7 @@ self.onmessage = function (e) {
             scrollRef,
             data: collapsedMessages,
             renderRow,
+            initialTopMostItemIndex: initialMessageIndex,
             live: running2,
             showProgress: running2
           }
@@ -60531,6 +60621,7 @@ ${events}
         );
       }
       const running2 = isRunning(sampleSummary, runningSampleData);
+      const sampleDetailNavigation = useSampleDetailNavigation();
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         sample2 || sampleSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleSummaryView, { parent_id: id, sample: sample2 || sampleSummary }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -60577,6 +60668,7 @@ ${events}
                     {
                       id: `${baseId}-chat-${id}`,
                       messages: sampleMessages,
+                      initialMessageId: sampleDetailNavigation.message,
                       indented: true,
                       scrollRef,
                       toolCallStyle: "complete",
