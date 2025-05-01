@@ -58,7 +58,8 @@ EvalConfig: ImportSpec = {
 
 EvalResults: ImportSpec = {
     "status": ("$.status", {"required": True}),
-    "error": ("$.error.message"),
+    "error_message": ("$.error.message"),
+    "error_traceback": ("$.error.traceback"),
     "total_samples": ("$.results.total_samples", {"required": True}),
     "completed_samples": ("$.results.completed_samples", {"required": True}),
     "scorer_name": "$.results.scores[0].scorer",

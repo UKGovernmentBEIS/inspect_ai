@@ -95,7 +95,7 @@ def test_predefined_spec() -> None:
     task_args = json.loads(str(result["task_args"]))
     assert task_args["foo"] == 42
     assert task_args["bar"] == 84
-    assert result["error"] is None  # This is optional in EvalBase spec
+    assert result["error_message"] is None
 
 
 # ======== Type Coercion Tests ========
