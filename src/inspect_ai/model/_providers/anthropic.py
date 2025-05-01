@@ -75,6 +75,7 @@ class AnthropicAPI(ModelAPI):
         base_url: str | None = None,
         api_key: str | None = None,
         config: GenerateConfig = GenerateConfig(),
+        streaming: bool | Literal["auto"] = "auto",
         **model_args: Any,
     ):
         # extract any service prefix from model name
@@ -83,6 +84,9 @@ class AnthropicAPI(ModelAPI):
             self.service: str | None = parts[0]
         else:
             self.service = None
+
+        # record steraming pref
+        self.streaming = streaming
 
         # collect generate model_args (then delete them so we can pass the rest on)
         def collect_model_arg(name: str) -> Any | None:
@@ -223,8 +227,13 @@ class AnthropicAPI(ModelAPI):
             if self.extra_body is not None:
                 request["extra_body"] = self.extra_body
 
-            # make request (stream if we are using reasoning)
-            if self.is_using_thinking(config):
+            # make request (unless overrideen, stream if we are using reasoning)
+            streaming = (
+                self.is_using_thinking(config)
+                if self.streaming == "auto"
+                else self.streaming
+            )
+            if streaming:
                 async with self.client.messages.stream(**request) as stream:
                     message = await stream.get_final_message()
             else:
