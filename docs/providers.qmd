@@ -464,15 +464,6 @@ model = get_model("hf/local", model_path="./my-model")
 
 ## vLLM {#vllm}
 
-::: callout-note
-The vLLM provider as described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
-
 The [vLLM](https://docs.vllm.ai/) provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. To use the vLLM provider, install the `vllm` package and specify a model using the `--model` option:
 
 ``` bash
@@ -537,14 +528,6 @@ $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct --model-b
 See the vLLM documentation on [Server Mode](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html) for additional details.
 
 ## SGLang {#sglang}
-
-::: callout-note
-The SGLang provider as described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 To use the [SGLang](https://docs.sglang.ai/index.html) provider, install the `sglang` package and specify a model using the `--model` option:
 
