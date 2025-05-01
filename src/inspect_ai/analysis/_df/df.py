@@ -10,12 +10,13 @@ from inspect_ai._display import display
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.json import jsonable_python
-from inspect_ai._util.path import pretty_path
+from inspect_ai._util.path import native_path, pretty_path
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.analysis._df.record import import_record
 from inspect_ai.log._file import read_eval_log
 
-from .spec import EvalDefault, FieldType, ImportSpec
+from .spec import FieldType, ImportSpec
+from .spec_eval import EvalDefault
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -74,7 +75,9 @@ def evals_df(
     with display().progress(total=len(log_paths)) as p:
         for log_path in log_paths:
             log = read_eval_log(log_path, header_only=True)
-            log_data: dict[str, JsonValue] = jsonable_python(log)
+            log_data: dict[str, JsonValue] = jsonable_python(log) | {
+                "log": native_path(log.location)
+            }
             if strict:
                 records.append(import_record(log_data, import_spec, True))
             else:

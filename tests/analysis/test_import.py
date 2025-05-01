@@ -1,15 +1,24 @@
+import json
 from datetime import date, datetime, time, timezone
 
 import pytest
 from pydantic import JsonValue
 
+from inspect_ai.analysis import EvalDefault, ImportSpec
 from inspect_ai.analysis._df.record import _resolve_value, import_record
-from inspect_ai.analysis._df.spec import EvalDefault, ImportSpec
 
 # ======== Test Data ========
 test_record: dict[str, JsonValue] = {
     "status": "complete",
-    "eval": {"model": "openai/gpt-4o", "task_args": {"foo": 42, "bar": 84}},
+    "eval": {
+        "run_id": "foo",
+        "task_id": "bar",
+        "task": "foo",
+        "task_version": 0,
+        "created": 1714640400,
+        "model": "openai/gpt-4o",
+        "task_args": {"foo": 42, "bar": 84},
+    },
     "data": {
         "timestamps": {
             "unix": 1714640400,  # 2024-05-01T09:00:00Z
@@ -20,6 +29,7 @@ test_record: dict[str, JsonValue] = {
         "extra": "extra",
         "null_value": None,
     },
+    "results": {"total_samples": 10, "completed_samples": 10},
     "error": {"message": "Some error occurred"},
 }
 
@@ -82,8 +92,9 @@ def test_predefined_spec() -> None:
 
     assert result["status"] == "complete"
     assert result["model"] == "openai/gpt-4o"
-    assert result["task_arg_foo"] == 42
-    assert result["task_arg_bar"] == 84
+    task_args = json.loads(str(result["task_args"]))
+    assert task_args["foo"] == 42
+    assert task_args["bar"] == 84
     assert result["error"] is None  # This is optional in EvalBase spec
 
 

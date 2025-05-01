@@ -72,9 +72,7 @@ def import_record(
 
     # merge import specs
     if isinstance(spec, list):
-        merged_specs: ImportSpec = {}
-        for s in spec:
-            merged_specs.update(s)
+        merged_specs: ImportSpec = {k: v for d in spec for k, v in d.items()}
     else:
         merged_specs = spec
 
@@ -118,7 +116,7 @@ def import_record(
                         set_result(col_name, value, options.get("type", None))
                 else:
                     field_not_found(field_name, json_path, "dict")
-            else:
+            elif options["required"]:
                 field_not_found(field_name, json_path)
         else:
             if matches:

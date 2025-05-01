@@ -111,6 +111,15 @@ def pretty_path(file: str) -> str:
         return file
 
 
+def native_path(file: str) -> str:
+    fs = filesystem(file)
+    if fs.is_local():
+        file = LocalFileSystem._strip_protocol(file)
+        return file
+    else:
+        return file
+
+
 # A slightly modified implementation of task_path.relative(d, walk_up=True)
 # since that wasn't introduced until python 3.12
 def relative_walk(from_path: PurePath, to_path: PurePath) -> str:
