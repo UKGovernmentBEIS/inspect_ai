@@ -4,9 +4,15 @@ from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Sequence, TypeAlias
 
+from inspect_ai._display import display
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import filesystem
+from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.analysis._df.record import import_record
+from inspect_ai.log._file import read_eval_log
+
+from .spec import EvalBase, FieldType, ImportSpec
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -14,14 +20,29 @@ if TYPE_CHECKING:
 LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 
 
-def evals_df(logs: LogPaths, recursive: bool = True) -> "pd.DataFrame":
+def evals_df(
+    logs: LogPaths,
+    import_spec: ImportSpec | list[ImportSpec] = EvalBase,
+    recursive: bool = True,
+    dry_run: bool = False,
+) -> "pd.DataFrame":
     _verify_prerequisites()
     import pyarrow as pa
 
     # resolve logs
-    logs = resolve_logs(logs, recursive=recursive)
+    log_paths = resolve_logs(logs, recursive=recursive)
 
-    return pa.Table.from_pydict({"log": logs}).to_pandas()
+    # read logs
+    records: list[dict[str, FieldType]] = []
+    with display().progress(total=len(log_paths)) as p:
+        for log_path in log_paths:
+            log = read_eval_log(log_path, header_only=True)
+            log_data = jsonable_python(log)
+            records.append(import_record(log_data, import_spec))
+            p.update()
+
+    # return table
+    return pa.Table.from_pylist(records).to_pandas()
 
 
 def samples_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:

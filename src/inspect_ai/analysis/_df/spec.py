@@ -18,7 +18,7 @@ ImportSpec: TypeAlias = dict[str, FieldSpec]
 
 EvalBase: ImportSpec = {
     "status": "$.status",
-    "error": ("$.error.message", {"required": False}),
+    "error": ("$.error.message"),
     "model": "$.eval.model",
     "task_arg_*": "$.eval.task_args",
 }
