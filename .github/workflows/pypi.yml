@@ -3,6 +3,14 @@ name: Publish to PyPI
 on:
   workflow_dispatch:
     inputs:
+      package-name:
+        description: "Package to publish"
+        required: true
+        type: choice
+        options:
+          - inspect_ai
+          - inspect_tool_support
+        default: "inspect_ai"
       publish-release:
         description: "Production Release"
         required: false
@@ -33,6 +41,9 @@ jobs:
           pip install
           build
           --user
+      - name: Set working directory for inspect_tool_support
+        if: ${{ inputs.package-name == 'inspect_tool_support' }}
+        run: cd src/inspect_tool_support
       - name: Build
         run: python -m build
       - name: Publish package to TestPyPI
@@ -40,6 +51,9 @@ jobs:
         if: ${{ ! inputs.publish-release }}
         with:
           repository-url: https://test.pypi.org/legacy/
+          packages-dir: ${{ inputs.package-name == 'inspect_tool_support' && 'src/inspect_tool_support/dist/' || 'dist/' }}
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         if: ${{ inputs.publish-release }}
+        with:
+          packages-dir: ${{ inputs.package-name == 'inspect_tool_support' && 'src/inspect_tool_support/dist/' || 'dist/' }}
