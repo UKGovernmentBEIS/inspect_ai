@@ -4,7 +4,7 @@ import pytest
 from pydantic import JsonValue
 
 from inspect_ai.analysis._df.record import _resolve_value, import_record
-from inspect_ai.analysis._df.spec import EvalBase, ImportSpec
+from inspect_ai.analysis._df.spec import EvalDefault, ImportSpec
 
 # ======== Test Data ========
 test_record: dict[str, JsonValue] = {
@@ -78,7 +78,7 @@ def test_field_options() -> None:
 
 def test_predefined_spec() -> None:
     """Test using the predefined EvalBase spec."""
-    result = import_record(test_record_no_error, EvalBase)
+    result = import_record(test_record_no_error, EvalDefault)
 
     assert result["status"] == "complete"
     assert result["model"] == "openai/gpt-4o"

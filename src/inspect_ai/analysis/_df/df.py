@@ -2,17 +2,20 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Sequence, TypeAlias
+from typing import TYPE_CHECKING, Literal, Sequence, TypeAlias, overload
+
+from pydantic import JsonValue
 
 from inspect_ai._display import display
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.json import jsonable_python
+from inspect_ai._util.path import pretty_path
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.analysis._df.record import import_record
 from inspect_ai.log._file import read_eval_log
 
-from .spec import EvalBase, FieldType, ImportSpec
+from .spec import EvalDefault, FieldType, ImportSpec
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -20,29 +23,72 @@ if TYPE_CHECKING:
 LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 
 
+@overload
 def evals_df(
     logs: LogPaths,
-    import_spec: ImportSpec | list[ImportSpec] = EvalBase,
+    import_spec: ImportSpec | list[ImportSpec] = EvalDefault,
     recursive: bool = True,
-    dry_run: bool = False,
-) -> "pd.DataFrame":
+    strict: Literal[True] = True,
+) -> "pd.DataFrame": ...
+
+
+@overload
+def evals_df(
+    logs: LogPaths,
+    import_spec: ImportSpec | list[ImportSpec] = EvalDefault,
+    recursive: bool = True,
+    strict: Literal[False] = False,
+) -> tuple["pd.DataFrame", dict[str, list[str]]]: ...
+
+
+def evals_df(
+    logs: LogPaths,
+    import_spec: ImportSpec | list[ImportSpec] = EvalDefault,
+    recursive: bool = True,
+    strict: bool = True,
+) -> "pd.DataFrame" | tuple["pd.DataFrame", dict[str, list[str]]]:
+    """Read a dataframe containing evals.
+
+    Args:
+       logs: One or more paths to log files or log directories.
+       import_spec: Specification for what fields to read from the log file.
+       recursive: Include recursive contents of directories (defaults to `True`)
+       strict: Fail immediately if an error (e.g. missing field) occurs. Defaults to `True`.
+
+    Returns:
+       For `strict`, a Pandas `DataFrame` with information for the specified logs.
+       For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
+       encountered (by log file) during import.
+    """
     _verify_prerequisites()
     import pyarrow as pa
 
     # resolve logs
     log_paths = resolve_logs(logs, recursive=recursive)
 
+    # accumulate errors for strict=False
+    all_errors: dict[str, list[str]] = {}
+
     # read logs
     records: list[dict[str, FieldType]] = []
     with display().progress(total=len(log_paths)) as p:
         for log_path in log_paths:
             log = read_eval_log(log_path, header_only=True)
-            log_data = jsonable_python(log)
-            records.append(import_record(log_data, import_spec))
+            log_data: dict[str, JsonValue] = jsonable_python(log)
+            if strict:
+                records.append(import_record(log_data, import_spec, True))
+            else:
+                record, errors = import_record(log_data, import_spec, False)
+                records.append(record)
+                all_errors[pretty_path(log_path)] = errors
             p.update()
 
-    # return table
-    return pa.Table.from_pylist(records).to_pandas()
+    # return table (+errors if strict=False)
+    evals_table = pa.Table.from_pylist(records).to_pandas()
+    if strict:
+        return evals_table
+    else:
+        return evals_table, all_errors
 
 
 def samples_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:

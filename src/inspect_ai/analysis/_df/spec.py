@@ -16,7 +16,7 @@ FieldSpec: TypeAlias = str | JSONPath | tuple[str | JSONPath, FieldOptions]
 ImportSpec: TypeAlias = dict[str, FieldSpec]
 
 
-EvalBase: ImportSpec = {
+EvalDefault: ImportSpec = {
     "status": "$.status",
     "error": ("$.error.message"),
     "model": "$.eval.model",

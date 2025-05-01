@@ -6,6 +6,10 @@ from copy import deepcopy
 from pathlib import PurePath
 from typing import Any, Iterator, overload
 
+from fsspec.implementations.local import LocalFileSystem  # type: ignore
+
+from inspect_ai._util.file import filesystem
+
 
 @contextmanager
 def add_to_path(p: str) -> Iterator[None]:
@@ -96,6 +100,15 @@ def cwd_relative_path(file: str | None, walk_up: bool = False) -> str | None:
             return file
     else:
         return None
+
+
+def pretty_path(file: str) -> str:
+    fs = filesystem(file)
+    if fs.is_local():
+        file = LocalFileSystem._strip_protocol(file)
+        return cwd_relative_path(file)
+    else:
+        return file
 
 
 # A slightly modified implementation of task_path.relative(d, walk_up=True)

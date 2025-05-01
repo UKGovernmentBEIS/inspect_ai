@@ -61,7 +61,9 @@ def import_record(
         field_name: str, json_path: JSONPath, required_type: str | None = None
     ) -> None:
         condition = f"of type {required_type}" if required_type else "found"
-        error = f"Required field '{field_name}' not {condition} at '{json_path}'"
+        error = (
+            f"IMPORT: Required field '{field_name}' not {condition} at '{json_path}'"
+        )
         if strict:
             raise ValueError(error)
         else:
@@ -91,7 +93,7 @@ def import_record(
             try:
                 json_path = parse(path_spec)
             except Exception as ex:
-                error = f"Error parsing JSON path expression: {path_spec}: {ex}"
+                error = f"IMPORT: Error parsing JSON path expression: {path_spec}: {ex}"
                 if strict:
                     raise ValueError(error)
                 else:
@@ -189,7 +191,7 @@ def _resolve_value(
 
     # give up
     raise ValueError(
-        f"Field {field_name!r}: cannot coerce {value!r} "
+        f"IMPORT: Field {field_name!r}: cannot coerce {value!r} "
         f"(type {type(value).__name__}) to {type_.__name__}"
     )
 
