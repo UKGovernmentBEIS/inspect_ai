@@ -4,7 +4,7 @@ Note that we provide type annotations for both arguments:
 async def execute(x: int, y: int)
 ```
 
-Further, we provide descriptions for each parameter in the documention comment:
+Further, we provide descriptions for each parameter in the documentation comment:
 
 ```python
 Args:

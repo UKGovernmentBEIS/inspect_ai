@@ -34,7 +34,7 @@ from inspect_ai.tool import ToolFunction, bash_session, text_editor, web_browser
 def web_surfer() -> Agent:
     async def execute(state: AgentState) -> AgentState:
         """Web research assistant."""
-        # some general guideance for the agent
+        # some general guidance for the agent
         state.messages.append(
             ChatMessageSystem(
                 content="Use the web browser tools for every question, "

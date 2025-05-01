@@ -22,7 +22,7 @@ def main():
     source_url = f"https://github.com/UKGovernmentBEIS/inspect_ai/blob/{sha}/src"
     parse_options = DocParseOptions(module=module, source_url=source_url)
 
-    # python api -- convert h3 into refererence
+    # python api -- convert h3 into reference
     def python_api(elem: pf.Element, doc: pf.Doc):
         if isinstance(elem, pf.Header) and elem.level == 3:
             title = pf.stringify(doc.metadata["title"])
