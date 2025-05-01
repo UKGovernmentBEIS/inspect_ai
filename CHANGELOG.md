@@ -5,6 +5,7 @@
 - [read_eval_log_sample_summaries()](https://inspect.aisi.org.uk/eval-logs.html#summaries) function for reading sample summaries (including scoring) from eval logs.
 - Updated [vLLM](https://inspect.aisi.org.uk/providers.html#vllm) provider to use local server rather than in process `vllm` package (improved concurrency and resource utilization).
 - New [SGLang](https://inspect.aisi.org.uk/providers.html#sglang) provider (using similar local server architecture as vLLM provider).
+- Anthropic: Added `streaming` model argument to control whether streaming API is used (by default, streams when using extended thinking).
 - `--sample-id` option can now include task prefixes (e.g. `--sample-id=popularity:10,security:5)`).
 - Improved write performance for realtime event logging.
 - `--no-log-realtime` option for disabling realtime event logging (live viewing of logs is disabled when this is specified).
