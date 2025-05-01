@@ -95,7 +95,7 @@ The `max_tokens` for any given request is determined as follows:
 1.  If you only specify `reasoning_tokens`, then the `max_tokens` will be set to `4096 + reasoning_tokens` (as 4096 is the standard Inspect default for Anthropic max tokens).
 2.  If you explicitly specify a `max_tokens`, that value will be used as the max tokens without modification (so should accommodate sufficient space for both your `reasoning_tokens` and normal output).
 
-Inspect will automatically use [response streaming](https://docs.anthropic.com/en/api/messages-streaming) whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests. You can overide the default behavior using the `streaming` model argument. For example:
+Inspect will automatically use [response streaming](https://docs.anthropic.com/en/api/messages-streaming) whenever extended thinking is enabled to mitigate against networking issue that can occur for long running requests. You can override the default behavior using the `streaming` model argument. For example:
 
 ``` bash
 inspect eval math.py \
