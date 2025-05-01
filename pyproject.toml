@@ -121,6 +121,7 @@ dev = [
     "griffe",
     "groq", 
     "ipython",
+    "jsonpath-ng",
     "markdown",
     "mcp",
     "mistralai",
