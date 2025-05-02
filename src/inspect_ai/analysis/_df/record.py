@@ -56,7 +56,7 @@ def import_record(
         name: str, json_path: JSONPath, required_type: str | None = None
     ) -> None:
         message = (
-            f"filed not of type {required_type}" if required_type else "field not found"
+            f"field not of type {required_type}" if required_type else "field not found"
         )
         error = ColumnError(name, path=str(json_path), message=f"{message}")
         if dry_run:
@@ -93,12 +93,11 @@ def import_record(
             if matches and matches[0].value is not None:
                 match = matches[0]
                 value = column.value(match.value)
-                if isinstance(value, dict):
+                values = value if isinstance(value, list) else [value]
+                for value in values:
                     expanded = _expand_fields(name, value)
                     for k, v in expanded.items():
                         set_result(k, json_path, v, column.type)
-                else:
-                    field_not_found(name, json_path, "dict")
             elif column.required:
                 field_not_found(name, json_path)
         else:
