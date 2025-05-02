@@ -65,6 +65,7 @@ def evals_df(
     """
     _verify_prerequisites()
     import pyarrow as pa
+    import pandas as pd
 
     # resolve logs
     log_paths = _resolve_logs(logs, recursive=recursive)
@@ -90,8 +91,7 @@ def evals_df(
 
             p.update()
 
-    # return table (+errors if strict=False)
-    table = pa.Table.from_pylist(records).to_pandas()
+    table = pd.DataFrame(records)
     if strict:
         return table
     else:
