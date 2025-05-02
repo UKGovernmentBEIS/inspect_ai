@@ -39,20 +39,13 @@ def list_as_str(x: JsonValue) -> str:
     return ",".join([str(e) for e in (x if isinstance(x, list) else [x])])
 
 
-def extract_scores(scores: JsonValue) -> JsonValue:
+def extract_scores(x: JsonValue) -> JsonValue:
     from inspect_ai.log._log import EvalScore
 
-    eval_scores = [
-        EvalScore.model_validate(score) for score in cast(list[JsonValue], scores)
+    # convert to native EvalScore then extract metrics
+    scores = [EvalScore.model_validate(score) for score in cast(list[JsonValue], x)]
+    metrics: JsonValue = [
+        {score.name: {metric.name: metric.value for metric in score.metrics.values()}}
+        for score in scores
     ]
-
-    extracted: list[dict[str, JsonValue]] = []
-    for eval_score in eval_scores:
-        metrics: dict[str, JsonValue] = {}
-        for metric in eval_score.metrics.values():
-            metrics[metric.name] = metric.value
-        score: dict[str, JsonValue] = {}
-        score[eval_score.name] = metrics
-        extracted.append(score)
-
-    return cast(JsonValue, extracted)
+    return metrics
