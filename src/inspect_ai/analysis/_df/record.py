@@ -55,8 +55,10 @@ def import_record(
     def field_not_found(
         name: str, json_path: JSONPath, required_type: str | None = None
     ) -> None:
-        condition = f"of type {required_type}" if required_type else "found"
-        error = ColumnError(name, path=str(json_path), message=f"not {condition}")
+        message = (
+            f"filed not of type {required_type}" if required_type else "field not found"
+        )
+        error = ColumnError(name, path=str(json_path), message=f"{message}")
         if dry_run:
             errors.append(error)
         else:

@@ -24,18 +24,11 @@ if TYPE_CHECKING:
 
 LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 
-# str method for ColumnErrors
-
-# compile path expression once in constructor
 
 # score_match_accuracy
 # score_match_stderr
 
 #    "score_*_*":
-
-# dry_run instead of strict (only returns error)
-
-# ColumnErrors: dict[str, list[ColumnError]]]
 
 # .value(lambda x: ",".join(x))
 

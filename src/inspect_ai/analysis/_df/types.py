@@ -72,4 +72,13 @@ class ColumnError:
 
 
 class ColumnErrors(dict[str, list[ColumnError]]):
-    pass
+    """Dictionary of column errors keyed by log file."""
+
+    def __str__(self) -> str:
+        lines: list[str] = [""]
+        for file, errors in self.items():
+            lines.append(file)
+            for error in errors:
+                lines.append(f" - {error}")
+            lines.append("")
+        return "\n".join(lines)
