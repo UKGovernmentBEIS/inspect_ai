@@ -4,10 +4,8 @@ from logging import getLogger
 from typing import Any, Callable, Literal, Type, cast, overload
 
 import yaml
-from jsonpath_ng import (  # type: ignore
-    JSONPath,  # type: ignore
-    parse,
-)
+from jsonpath_ng import JSONPath  # type: ignore
+from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
 
 from .spec import Columns, ColumnType
