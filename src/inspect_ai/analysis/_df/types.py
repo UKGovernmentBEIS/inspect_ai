@@ -29,3 +29,26 @@ class Column:
 
 Columns: TypeAlias = dict[str, Column]
 """Specification of columns to read from eval log into data frame."""
+
+
+@dataclass
+class ColumnError:
+    """Error which occurred parsing a column."""
+
+    column: str
+    """Target column name."""
+
+    _: KW_ONLY
+
+    path: str
+    """Path to select column value. """
+
+    message: str
+    """Error message."""
+
+    def __str__(self) -> str:
+        return f"Error reading column '{self.column}' from path '{self.path}': {self.message}"
+
+
+class ColumnErrors(dict[str, list[ColumnError]]):
+    pass

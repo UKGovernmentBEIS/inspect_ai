@@ -1,6 +1,5 @@
 import json
 from datetime import date, datetime, time, timezone
-from logging import getLogger
 from typing import Any, Callable, Literal, Type, cast, overload
 
 import yaml
@@ -8,16 +7,14 @@ from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
 
-from .spec import Columns, ColumnType
-
-logger = getLogger(__name__)
+from .types import ColumnError, Columns, ColumnType
 
 
 @overload
 def import_record(
     record: dict[str, JsonValue],
     columns: Columns,
-    strict: Literal[True] = True,
+    dry_run: Literal[False] = False,
 ) -> dict[str, ColumnType]: ...
 
 
@@ -25,46 +22,45 @@ def import_record(
 def import_record(
     record: dict[str, JsonValue],
     columns: Columns,
-    strict: Literal[False],
-) -> tuple[dict[str, ColumnType], list[str]]: ...
+    dry_run: Literal[True],
+) -> list[ColumnError]: ...
 
 
 def import_record(
     record: dict[str, JsonValue],
     columns: Columns,
-    strict: bool = True,
-) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[str]]:
+    dry_run: bool = False,
+) -> dict[str, ColumnType] | list[ColumnError]:
     # return values
     result: dict[str, ColumnType] = {}
-    errors: list[str] = []
+    errors: list[ColumnError] = []
 
     # helper to record a field w/ optional type checking/coercion
     def set_result(
         name: str,
+        path: JSONPath,
         value: JsonValue,
         type_: Type[ColumnType] | None = None,
     ) -> None:
         try:
-            result[name] = _resolve_value(name, value, type_)
+            result[name] = _resolve_value(value, type_)
         except ValueError as ex:
-            if strict:
-                raise
-            else:
-                error = str(ex)
-                logger.warning(error)
+            error = ColumnError(name, path=path, message=str(ex))
+            if dry_run:
                 errors.append(error)
+            else:
+                raise ValueError(str(error))
 
     # helper to raise or record errror
     def field_not_found(
         name: str, json_path: JSONPath, required_type: str | None = None
     ) -> None:
         condition = f"of type {required_type}" if required_type else "found"
-        error = f"IMPORT: Required field '{name}' not {condition} at '{json_path}'"
-        if strict:
-            raise ValueError(error)
-        else:
-            logger.warning(error)
+        error = ColumnError(name, path=str(json_path), message=f"not {condition}")
+        if dry_run:
             errors.append(error)
+        else:
+            raise ValueError(str(error))
 
     # process each column
     for name, column in columns.items():
@@ -73,15 +69,17 @@ def import_record(
             try:
                 json_path = parse(column.path)
             except Exception as ex:
-                error = (
-                    f"IMPORT: Error parsing JSON path expression: {column.path}: {ex}"
+                error = ColumnError(
+                    name,
+                    path=column.path,
+                    message=f"Error parsing JSON path expression: {ex}",
                 )
-                if strict:
-                    raise ValueError(error)
-                else:
-                    logger.warning(error)
+                if dry_run:
                     errors.append(error)
                     continue
+                else:
+                    raise ValueError(str(error))
+
         else:
             json_path = column.path
 
@@ -96,27 +94,26 @@ def import_record(
                     # flatten dictionary keys into separate fields
                     base_name = name.replace("*", "")
                     for key, value in match.value.items():
-                        set_result(f"{base_name}{key}", value, column.type)
+                        set_result(f"{base_name}{key}", json_path, value, column.type)
                 else:
                     field_not_found(name, json_path, "dict")
             elif column.required:
                 field_not_found(name, json_path)
         else:
             if matches:
-                set_result(name, matches[0].value, column.type)
+                set_result(name, json_path, matches[0].value, column.type)
             elif column.required:
                 field_not_found(name, json_path)
             else:
                 result[name] = None
 
-    if strict:
-        return result
+    if dry_run:
+        return errors
     else:
-        return result, errors
+        return result
 
 
 def _resolve_value(
-    column: str,
     value: JsonValue,
     type_: Type[ColumnType] | None = None,
 ) -> ColumnType:
@@ -172,8 +169,7 @@ def _resolve_value(
 
     # give up
     raise ValueError(
-        f"IMPORT: Field {column!r}: cannot coerce {value!r} "
-        f"(type {type(value).__name__}) to {type_.__name__}"
+        f"Cannot coerce {value} from type {type(value).__name__}) to {type_.__name__}"
     )
 
 

@@ -1,4 +1,3 @@
-import json
 from datetime import date, datetime, time, timezone
 
 import pytest
@@ -6,7 +5,7 @@ from pydantic import JsonValue
 
 from inspect_ai.analysis import Columns, EvalDefault
 from inspect_ai.analysis._df.record import _resolve_value, import_record
-from inspect_ai.analysis._df.spec import Column
+from inspect_ai.analysis._df.types import Column
 
 # ======== Test Data ========
 test_record: dict[str, JsonValue] = {
@@ -94,9 +93,8 @@ def test_predefined_spec() -> None:
 
     assert result["status"] == "complete"
     assert result["model"] == "openai/gpt-4o"
-    task_args = json.loads(str(result["task_args"]))
-    assert task_args["foo"] == 42
-    assert task_args["bar"] == 84
+    assert result["task_arg_foo"] == 42
+    assert result["task_arg_bar"] == 84
     assert result["error_message"] is None
 
 
@@ -121,7 +119,7 @@ def test_type_coercion_failure() -> None:
         )  # Will fail - string can't convert to int
     }
 
-    with pytest.raises(ValueError, match="cannot coerce"):
+    with pytest.raises(ValueError, match="Cannot coerce"):
         print(import_record(test_record, spec))
 
 
@@ -182,7 +180,7 @@ def test_required_field_missing() -> None:
         "missing": Column("$.not.existing", required=True),
     }
 
-    with pytest.raises(ValueError, match="Required field 'missing' not found"):
+    with pytest.raises(ValueError, match="not found"):
         import_record(test_record, spec)
 
 
@@ -194,12 +192,12 @@ def test_collect_errors() -> None:
         "bad_type": Column("$.data.extra", type=int),  # str to int will fail
     }
 
-    result, errors = import_record(test_record, spec, strict=False)
+    errors = import_record(test_record, spec, dry_run=True)
 
-    assert result["status"] == "complete"
     assert len(errors) == 2
-    assert any("missing" in error for error in errors)
-    assert any("cannot coerce" in error for error in errors)
+
+    assert any("not found" in error.message for error in errors)
+    assert any("Cannot coerce" in error.message for error in errors)
 
 
 def test_invalid_jsonpath() -> None:
@@ -263,62 +261,62 @@ def test_multiple_import_specs() -> None:
 def test_resolve_value_compound_types() -> None:
     """Test resolving compound values."""
     # List to string
-    assert _resolve_value("list_field", [1, 2, 3], str) == "[1, 2, 3]"
+    assert _resolve_value([1, 2, 3], str) == "[1, 2, 3]"
 
     # dict to string
-    assert _resolve_value("dict_field", {"a": 1}, str) == '{"a": 1}'
+    assert _resolve_value({"a": 1}, str) == '{"a": 1}'
 
     # None handling
-    assert _resolve_value("none_field", None, int) is None
+    assert _resolve_value(None, int) is None
 
 
 def test_resolve_value_type_coercion() -> None:
     """Test various type coercions in _resolve_value."""
     # Simple types
-    assert _resolve_value("int_field", 42, int) == 42
-    assert _resolve_value("str_field", "hello", str) == "hello"
-    assert _resolve_value("bool_field", True, bool) is True
+    assert _resolve_value(42, int) == 42
+    assert _resolve_value("hello", str) == "hello"
+    assert _resolve_value(True, bool) is True
 
     # Constructor coercion
-    assert _resolve_value("str_to_int", "42", int) == 42
-    assert _resolve_value("int_to_str", 42, str) == "42"
+    assert _resolve_value("42", int) == 42
+    assert _resolve_value(42, str) == "42"
 
     # YAML string coercion
-    assert _resolve_value("yaml_bool", "true", bool) is True
-    assert _resolve_value("yaml_int", "42", int) == 42
-    assert _resolve_value("yaml_float", "3.14", float) == 3.14
+    assert _resolve_value("true", bool) is True
+    assert _resolve_value("42", int) == 42
+    assert _resolve_value("3.14", float) == 3.14
 
     # Timestamp to temporal
-    ts_dt = _resolve_value("ts_to_dt", 1714640400, datetime)
+    ts_dt = _resolve_value(1714640400, datetime)
     assert isinstance(ts_dt, datetime)
     assert ts_dt.year == 2024
 
-    ts_date = _resolve_value("ts_to_date", 1714640400, date)
+    ts_date = _resolve_value(1714640400, date)
     assert isinstance(ts_date, date)
     assert ts_date.year == 2024
 
-    ts_time = _resolve_value("ts_to_time", 1714640400, time)
+    ts_time = _resolve_value(1714640400, time)
     assert isinstance(ts_time, time)
 
     # ISO string to temporal
     iso_str = "2024-05-01T12:00:00Z"
-    iso_dt = _resolve_value("iso_to_dt", iso_str, datetime)
+    iso_dt = _resolve_value(iso_str, datetime)
     assert isinstance(iso_dt, datetime)
 
     # Numeric string timestamp
-    str_ts = _resolve_value("str_ts_to_dt", "1714640400", datetime)
+    str_ts = _resolve_value("1714640400", datetime)
     assert isinstance(str_ts, datetime)
 
 
 def test_resolve_value_errors() -> None:
     """Test error handling in _resolve_value."""
     # Type mismatch
-    with pytest.raises(ValueError, match="cannot coerce"):
-        _resolve_value("str_to_time", "str", time)
+    with pytest.raises(ValueError, match="Cannot coerce"):
+        _resolve_value("str", time)
 
     # Incompatible conversion
-    with pytest.raises(ValueError, match="cannot coerce"):
-        _resolve_value("str_to_int", "not a bool", int)
+    with pytest.raises(ValueError, match="Cannot coerce"):
+        _resolve_value("not a bool", int)
 
 
 # ======== Complex Tests ========

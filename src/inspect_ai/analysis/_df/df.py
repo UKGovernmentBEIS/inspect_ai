@@ -16,18 +16,22 @@ from inspect_ai.analysis._df.record import import_record
 from inspect_ai.analysis._df.util import eval_id
 from inspect_ai.log._file import read_eval_log
 
-from .spec import Columns, ColumnType
 from .spec_eval import EvalDefault
+from .types import ColumnErrors, Columns, ColumnType
 
 if TYPE_CHECKING:
     import pandas as pd
 
 LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 
+# str method for ColumnErrors
+
+# compile path expression once in constructor
 
 # score_match_accuracy
 # score_match_stderr
 
+#    "score_*_*":
 
 # dry_run instead of strict (only returns error)
 
@@ -41,7 +45,7 @@ def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
-    strict: Literal[True] = True,
+    dry_run: Literal[False] = False,
 ) -> "pd.DataFrame": ...
 
 
@@ -50,23 +54,23 @@ def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
-    strict: Literal[False] = False,
-) -> tuple["pd.DataFrame", dict[str, list[str]]]: ...
+    dry_run: Literal[True] = True,
+) -> ColumnErrors: ...
 
 
 def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
-    strict: bool = True,
-) -> "pd.DataFrame" | tuple["pd.DataFrame", dict[str, list[str]]]:
+    dry_run: bool = False,
+) -> "pd.DataFrame" | ColumnErrors:
     """Read a dataframe containing evals.
 
     Args:
        logs: One or more paths to log files or log directories.
        columns: Specification for what columns to read from the log file.
        recursive: Include recursive contents of directories (defaults to `True`)
-       strict: Fail immediately if an error (e.g. missing field) occurs. Defaults to `True`.
+       dry_run: Attempt to read data frame and report errors that occur. Defaults to `False`.
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
@@ -80,7 +84,7 @@ def evals_df(
     log_paths = _resolve_logs(logs, recursive=recursive)
 
     # accumulate errors for strict=False
-    all_errors: dict[str, list[str]] = {}
+    all_errors = ColumnErrors()
 
     # read logs
     records: list[dict[str, ColumnType]] = []
@@ -91,20 +95,19 @@ def evals_df(
                 "id": eval_id(log.eval.run_id, log.eval.task_id),
                 "log": native_path(log.location),
             }
-            if strict:
-                records.append(import_record(log_data, columns, True))
-            else:
-                record, errors = import_record(log_data, columns, False)
-                records.append(record)
+            if dry_run:
+                errors = import_record(log_data, columns, dry_run=True)
                 all_errors[pretty_path(log_path)] = errors
+            else:
+                record = import_record(log_data, columns, dry_run=False)
+                records.append(record)
             p.update()
 
     # return table (+errors if strict=False)
-    evals_table = pa.Table.from_pylist(records).to_pandas()
-    if strict:
-        return evals_table
+    if dry_run:
+        return all_errors
     else:
-        return evals_table, all_errors
+        return pa.Table.from_pylist(records).to_pandas()
 
 
 def samples_df(

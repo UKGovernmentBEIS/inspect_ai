@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from .spec import Column, Columns
+from .types import Column, Columns
 
 EvalId: Columns = {
     "eval_id": Column("id", required=True),
