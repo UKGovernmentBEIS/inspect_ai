@@ -30,7 +30,7 @@ def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
-    dry_run: Literal[False] = False,
+    strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
 
@@ -39,23 +39,24 @@ def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
-    dry_run: Literal[True] = True,
-) -> ColumnErrors: ...
+    strict: Literal[False] = False,
+) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
 
 def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
-    dry_run: bool = False,
-) -> "pd.DataFrame" | ColumnErrors:
+    strict: bool = True,
+) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing evals.
 
     Args:
        logs: One or more paths to log files or log directories.
        columns: Specification for what columns to read from the log file.
        recursive: Include recursive contents of directories (defaults to `True`)
-       dry_run: Attempt to read data frame and report errors that occur. Defaults to `False`.
+       strict: Raise import errors immediately. Defaults to `True`.
+          If `False` then a tuple of `DataFrame` and errors is returned.
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
@@ -80,19 +81,21 @@ def evals_df(
                 "id": eval_id(log.eval.run_id, log.eval.task_id),
                 "log": native_path(log.location),
             }
-            if dry_run:
-                errors = import_record(log_data, columns, dry_run=True)
-                all_errors[pretty_path(log_path)] = errors
+            if strict:
+                record = import_record(log_data, columns, strict=True)
             else:
-                record = import_record(log_data, columns, dry_run=False)
-                records.append(record)
+                record, errors = import_record(log_data, columns, strict=False)
+                all_errors[pretty_path(log_path)] = errors
+            records.append(record)
+
             p.update()
 
     # return table (+errors if strict=False)
-    if dry_run:
-        return all_errors
+    table = pa.Table.from_pylist(records).to_pandas()
+    if strict:
+        return table
     else:
-        return pa.Table.from_pylist(records).to_pandas()
+        return table, all_errors
 
 
 def samples_df(

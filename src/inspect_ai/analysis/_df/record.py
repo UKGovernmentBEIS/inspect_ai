@@ -14,7 +14,7 @@ from .types import ColumnError, Columns, ColumnType
 def import_record(
     record: dict[str, JsonValue],
     columns: Columns,
-    dry_run: Literal[False] = False,
+    strict: Literal[True] = True,
 ) -> dict[str, ColumnType]: ...
 
 
@@ -22,15 +22,15 @@ def import_record(
 def import_record(
     record: dict[str, JsonValue],
     columns: Columns,
-    dry_run: Literal[True],
-) -> list[ColumnError]: ...
+    strict: Literal[False],
+) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
 
 
 def import_record(
     record: dict[str, JsonValue],
     columns: Columns,
-    dry_run: bool = False,
-) -> dict[str, ColumnType] | list[ColumnError]:
+    strict: bool = True,
+) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
     # return values
     result: dict[str, ColumnType] = {}
     errors: list[ColumnError] = []
@@ -46,10 +46,10 @@ def import_record(
             result[name] = _resolve_value(value, type_)
         except ValueError as ex:
             error = ColumnError(name, path=path, message=str(ex))
-            if dry_run:
-                errors.append(error)
-            else:
+            if strict:
                 raise ValueError(str(error))
+            else:
+                errors.append(error)
 
     # helper to raise or record errror
     def field_not_found(
@@ -59,10 +59,10 @@ def import_record(
             f"field not of type {required_type}" if required_type else "field not found"
         )
         error = ColumnError(name, path=str(json_path), message=f"{message}")
-        if dry_run:
-            errors.append(error)
-        else:
+        if strict:
             raise ValueError(str(error))
+        else:
+            errors.append(error)
 
     # process each column
     for name, column in columns.items():
@@ -76,11 +76,11 @@ def import_record(
                     path=column.path,
                     message=f"Error parsing JSON path expression: {ex}",
                 )
-                if dry_run:
+                if strict:
+                    raise ValueError
+                else:
                     errors.append(error)
                     continue
-                else:
-                    raise ValueError(str(error))
 
         else:
             json_path = column.path
@@ -109,10 +109,10 @@ def import_record(
             else:
                 result[name] = None
 
-    if dry_run:
-        return errors
-    else:
+    if strict:
         return result
+    else:
+        return result, errors
 
 
 def _resolve_value(

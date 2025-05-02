@@ -192,7 +192,7 @@ def test_collect_errors() -> None:
         "bad_type": Column("$.data.extra", type=int),  # str to int will fail
     }
 
-    errors = import_record(test_record, spec, dry_run=True)
+    _, errors = import_record(test_record, spec, strict=False)
 
     assert len(errors) == 2
 
