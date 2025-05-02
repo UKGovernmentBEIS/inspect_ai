@@ -220,7 +220,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
           <StepEventView
             id={node.id}
             event={node.event}
-            children={[]}
+            children={node.children}
             className={className}
           />
         );
