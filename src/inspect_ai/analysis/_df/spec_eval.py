@@ -1,76 +1,77 @@
 from datetime import datetime
 
-from .spec import ImportSpec
+from .spec import Column, Columns
 
-EvalId: ImportSpec = {
-    "eval_id": ("$.id", {"required": True}),
-    "run_id": ("$.eval.run_id", {"required": True}),
-    "task_id": ("$.eval.task_id", {"required": True}),
-    "log": "$.log",
-    "created": ("$.eval.created", {"type": datetime, "required": True}),
-    "git_origin": "$.eval.revision.origin",
-    "git_commit": "$.eval.revision.commit",
-    "tags": "$.eval.tags",
-    "packages": "$.eval.packages",
-    "metadata": "$.eval.metadata",
+EvalId: Columns = {
+    "eval_id": Column("$.id", required=True),
+    "run_id": Column("$.eval.run_id", required=True),
+    "task_id": Column("$.eval.task_id", required=True),
+    "log": Column("$.log"),
+    "created": Column("$.eval.created", type=datetime, required=True),
+    "git_origin": Column("$.eval.revision.origin"),
+    "git_commit": Column("$.eval.revision.commit"),
+    "tags": Column("$.eval.tags"),
+    "packages": Column("$.eval.packages"),
+    "metadata": Column("$.eval.metadata"),
 }
-"""Import spec for eval identifiying fields."""
+"""Eval identifiying columns."""
 
-EvalTask: ImportSpec = {
-    "task_name": ("$.eval.task", {"required": True}),
-    "task_version": ("$.eval.task_version", {"required": True}),
-    "task_file": "$.eval.task_file",
-    "task_attribs": "$.eval.task_attribs",
-    "task_args": "$.eval.task_args",
-    "solver": "$.eval.solver",
-    "solver_args": "$.eval.solver_args",
-    "sandbox_type": "$.eval.sandbox.type",
-    "sandbox_config": "$.eval.sandbox.config",
+EvalTask: Columns = {
+    "task_name": Column("$.eval.task", required=True),
+    "task_version": Column("$.eval.task_version", required=True),
+    "task_file": Column("$.eval.task_file"),
+    "task_attribs": Column("$.eval.task_attribs"),
+    "task_args": Column("$.eval.task_args"),
+    "solver": Column("$.eval.solver"),
+    "solver_args": Column("$.eval.solver_args"),
+    "sandbox_type": Column("$.eval.sandbox.type"),
+    "sandbox_config": Column("$.eval.sandbox.config"),
 }
-"""Import spec for eval task configuration."""
+"""Eval task configuration columns."""
 
-EvalModel: ImportSpec = {
-    "model": ("$.eval.model", {"required": True}),
-    "model_base_url": "$.eval.model_base_url",
-    "model_args": "$.eval.model_base_url",
-    "model_generate_config": ("$.eval.model_generate_config"),
-    "model_roles": "$.eval.model_roles",
+EvalModel: Columns = {
+    "model": Column("$.eval.model", required=True),
+    "model_base_url": Column("$.eval.model_base_url"),
+    "model_args": Column("$.eval.model_base_url"),
+    "model_generate_config": Column("$.eval.model_generate_config"),
+    "model_roles": Column("$.eval.model_roles"),
 }
-"""Import spec for eval model information."""
+"""Eval model columns."""
 
-EvalDataset: ImportSpec = {
-    "dataset_name": "$.eval.dataset.name",
-    "dataset_location": "$.eval.dataset.location",
-    "dataset_samples": "$.eval.dataset.samples",
-    "dataset_sample_ids": "$.eval.dataset.sample_ids",
-    "dataset_shuffled": "$.eval.dataset.shuffled",
+EvalDataset: Columns = {
+    "dataset_name": Column("$.eval.dataset.name"),
+    "dataset_location": Column("$.eval.dataset.location"),
+    "dataset_samples": Column("$.eval.dataset.samples"),
+    "dataset_sample_ids": Column("$.eval.dataset.sample_ids"),
+    "dataset_shuffled": Column("$.eval.dataset.shuffled"),
 }
+"""Eval dataset columns."""
 
-EvalConfig: ImportSpec = {
-    "epochs": "$.eval.config.epochs",
-    "epochs_reducer": "$.eval.config.epochs_reducer",
-    "approval": "$.eval.config.approval",
-    "message_limit": "$.eval.config.message_limit",
-    "token_limit": "$.eval.config.token_limit",
-    "time_limit": "$.eval.config.time_limit",
-    "working_limit": "$.eval.config.working_limit",
+EvalConfig: Columns = {
+    "epochs": Column("$.eval.config.epochs"),
+    "epochs_reducer": Column("$.eval.config.epochs_reducer"),
+    "approval": Column("$.eval.config.approval"),
+    "message_limit": Column("$.eval.config.message_limit"),
+    "token_limit": Column("$.eval.config.token_limit"),
+    "time_limit": Column("$.eval.config.time_limit"),
+    "working_limit": Column("$.eval.config.working_limit"),
 }
-"""Import spec for eval configuration."""
+"""Eval configuration columns."""
 
-EvalResults: ImportSpec = {
-    "status": ("$.status", {"required": True}),
-    "error_message": ("$.error.message"),
-    "error_traceback": ("$.error.traceback"),
-    "total_samples": ("$.results.total_samples", {"required": True}),
-    "completed_samples": ("$.results.completed_samples", {"required": True}),
-    "scorer_name": "$.results.scores[0].scorer",
-    "scorer_metric": "$.results.scores[0].metrics.*.name",
-    "scorer_value": "$.results.scores[0].metrics.*.value",
+EvalResults: Columns = {
+    "status": Column("$.status", required=True),
+    "error_message": Column("$.error.message"),
+    "error_traceback": Column("$.error.traceback"),
+    "total_samples": Column("$.results.total_samples", required=True),
+    "completed_samples": Column("$.results.completed_samples", required=True),
+    "scorer_name": Column("$.results.scores[0].scorer"),
+    "scorer_metric": Column("$.results.scores[0].metrics.*.name"),
+    "scorer_value": Column("$.results.scores[0].metrics.*.value"),
 }
-"""Import spec for eval results."""
+"""Eval results columns."""
 
 
-EvalDefault: ImportSpec = (
+EvalDefault: Columns = (
     EvalId | EvalTask | EvalModel | EvalDataset | EvalConfig | EvalResults
 )
 """Default fields to import for `evals_df()`."""

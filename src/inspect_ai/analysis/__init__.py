@@ -1,5 +1,5 @@
 from ._df.df import evals_df, events_df, samples_df
-from ._df.spec import FieldOptions, FieldSpec, FieldType, ImportSpec
+from ._df.spec import Column, Columns, ColumnType
 from ._df.spec_eval import (
     EvalConfig,
     EvalDefault,
@@ -19,8 +19,7 @@ __all__ = [
     "EvalResults",
     "samples_df",
     "events_df",
-    "ImportSpec",
-    "FieldOptions",
-    "FieldSpec",
-    "FieldType",
+    "Column",
+    "Columns",
+    "ColumnType",
 ]

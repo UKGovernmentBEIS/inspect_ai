@@ -10,7 +10,7 @@ from jsonpath_ng import (  # type: ignore
 )
 from pydantic import JsonValue
 
-from .spec import FieldOptions, FieldType, ImportSpec
+from .spec import Columns, ColumnType
 
 logger = getLogger(__name__)
 
@@ -18,36 +18,36 @@ logger = getLogger(__name__)
 @overload
 def import_record(
     record: dict[str, JsonValue],
-    spec: ImportSpec | list[ImportSpec],
+    columns: Columns | list[Columns],
     strict: Literal[True] = True,
-) -> dict[str, FieldType]: ...
+) -> dict[str, ColumnType]: ...
 
 
 @overload
 def import_record(
     record: dict[str, JsonValue],
-    spec: ImportSpec | list[ImportSpec],
+    columns: Columns | list[Columns],
     strict: Literal[False],
-) -> tuple[dict[str, FieldType], list[str]]: ...
+) -> tuple[dict[str, ColumnType], list[str]]: ...
 
 
 def import_record(
     record: dict[str, JsonValue],
-    spec: ImportSpec | list[ImportSpec],
+    columns: Columns | list[Columns],
     strict: bool = True,
-) -> dict[str, FieldType] | tuple[dict[str, FieldType], list[str]]:
+) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[str]]:
     # return values
-    result: dict[str, FieldType] = {}
+    result: dict[str, ColumnType] = {}
     errors: list[str] = []
 
     # helper to record a field w/ optional type checking/coercion
     def set_result(
-        field_name: str,
+        name: str,
         value: JsonValue,
-        type_: Type[FieldType] | None = None,
+        type_: Type[ColumnType] | None = None,
     ) -> None:
         try:
-            result[field_name] = _resolve_value(field_name, value, type_)
+            result[name] = _resolve_value(name, value, type_)
         except ValueError as ex:
             if strict:
                 raise
@@ -58,40 +58,32 @@ def import_record(
 
     # helper to raise or record errror
     def field_not_found(
-        field_name: str, json_path: JSONPath, required_type: str | None = None
+        name: str, json_path: JSONPath, required_type: str | None = None
     ) -> None:
         condition = f"of type {required_type}" if required_type else "found"
-        error = (
-            f"IMPORT: Required field '{field_name}' not {condition} at '{json_path}'"
-        )
+        error = f"IMPORT: Required field '{name}' not {condition} at '{json_path}'"
         if strict:
             raise ValueError(error)
         else:
             logger.warning(error)
             errors.append(error)
 
-    # merge import specs
-    if isinstance(spec, list):
-        merged_specs: ImportSpec = {k: v for d in spec for k, v in d.items()}
+    # merge column definitions
+    if isinstance(columns, list):
+        merged_columns: Columns = {k: v for d in columns for k, v in d.items()}
     else:
-        merged_specs = spec
+        merged_columns = columns
 
     # process each field in turn
-    for field_name, field_spec in merged_specs.items():
-        # resolve options
-        options: FieldOptions = {"required": False, "type": None}
-        if isinstance(field_spec, tuple):
-            path_spec, opts = field_spec
-            options.update(opts)
-        else:
-            path_spec = field_spec
-
+    for name, column in merged_columns.items():
         # resolve path
-        if isinstance(path_spec, str):
+        if isinstance(column.path, str):
             try:
-                json_path = parse(path_spec)
+                json_path = parse(column.path)
             except Exception as ex:
-                error = f"IMPORT: Error parsing JSON path expression: {path_spec}: {ex}"
+                error = (
+                    f"IMPORT: Error parsing JSON path expression: {column.path}: {ex}"
+                )
                 if strict:
                     raise ValueError(error)
                 else:
@@ -99,32 +91,31 @@ def import_record(
                     errors.append(error)
                     continue
         else:
-            json_path = path_spec
+            json_path = column.path
 
         # find matches
         matches = json_path.find(record)
 
         # handle wildcard vs. no wildcard
-        if field_name.endswith("*"):
+        if name.endswith("*"):
             if matches and matches[0].value is not None:
                 match = matches[0]
                 if isinstance(match.value, dict):
                     # flatten dictionary keys into separate fields
-                    base_name = field_name.replace("*", "")
+                    base_name = name.replace("*", "")
                     for key, value in match.value.items():
-                        col_name = f"{base_name}{key}"
-                        set_result(col_name, value, options.get("type", None))
+                        set_result(f"{base_name}{key}", value, column.type)
                 else:
-                    field_not_found(field_name, json_path, "dict")
-            elif options["required"]:
-                field_not_found(field_name, json_path)
+                    field_not_found(name, json_path, "dict")
+            elif column.required:
+                field_not_found(name, json_path)
         else:
             if matches:
-                set_result(field_name, matches[0].value, options.get("type", None))
-            elif options["required"]:
-                field_not_found(field_name, json_path)
+                set_result(name, matches[0].value, column.type)
+            elif column.required:
+                field_not_found(name, json_path)
             else:
-                result[field_name] = None
+                result[name] = None
 
     if strict:
         return result
@@ -133,10 +124,10 @@ def import_record(
 
 
 def _resolve_value(
-    field_name: str,
+    column: str,
     value: JsonValue,
-    type_: Type[FieldType] | None = None,
-) -> FieldType:
+    type_: Type[ColumnType] | None = None,
+) -> ColumnType:
     """
     Coerce *value* to *type_* (if supplied).
 
@@ -189,17 +180,17 @@ def _resolve_value(
 
     # give up
     raise ValueError(
-        f"IMPORT: Field {field_name!r}: cannot coerce {value!r} "
+        f"IMPORT: Field {column!r}: cannot coerce {value!r} "
         f"(type {type(value).__name__}) to {type_.__name__}"
     )
 
 
-def _is_bool_int_mismatch(tp: Type[FieldType], obj: Any) -> bool:
+def _is_bool_int_mismatch(tp: Type[ColumnType], obj: Any) -> bool:
     """True when an *int* coercion would silently produce a *bool* (undesired)."""
     return tp is int and isinstance(obj, bool)
 
 
-def _try_constructor(tp: Type[FieldType], obj: Any) -> FieldType:
+def _try_constructor(tp: Type[ColumnType], obj: Any) -> ColumnType:
     """Run `tp(obj)` but swallow any exception, return None on failure."""
     # Constructors of date / time / datetime require ≥3 positional ints, so don’t even try them.
     if tp in (date, time, datetime):
@@ -216,7 +207,7 @@ def _try_constructor(tp: Type[FieldType], obj: Any) -> FieldType:
     return None if _is_bool_int_mismatch(tp, coerced) else coerced
 
 
-def _from_timestamp(tp: Type[FieldType], ts: int | float) -> FieldType | None:
+def _from_timestamp(tp: Type[ColumnType], ts: int | float) -> ColumnType | None:
     """Convert POSIX timestamp to the requested temporal type, UTC zone."""
     if tp is datetime:
         return datetime.fromtimestamp(ts, tz=timezone.utc)
@@ -227,7 +218,7 @@ def _from_timestamp(tp: Type[FieldType], ts: int | float) -> FieldType | None:
     return None
 
 
-def _coerce_from_str(tp: Type[FieldType], text: str) -> FieldType:
+def _coerce_from_str(tp: Type[ColumnType], text: str) -> ColumnType:
     """
     Best-effort coercion from *text* to *tp*:
 
@@ -245,7 +236,7 @@ def _coerce_from_str(tp: Type[FieldType], text: str) -> FieldType:
     if parsed is not None:
         # exact match?
         if isinstance(parsed, tp) and not _is_bool_int_mismatch(tp, parsed):
-            return cast(FieldType, parsed)
+            return cast(ColumnType, parsed)
         # try constructor on the YAML result (e.g. str→float via YAML "1.5")
         coerced = _try_constructor(tp, parsed)
         if coerced is not None:

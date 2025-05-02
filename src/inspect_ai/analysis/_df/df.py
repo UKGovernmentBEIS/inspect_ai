@@ -16,7 +16,7 @@ from inspect_ai.analysis._df.record import import_record
 from inspect_ai.analysis._df.util import eval_id
 from inspect_ai.log._file import read_eval_log
 
-from .spec import FieldType, ImportSpec
+from .spec import Columns, ColumnType
 from .spec_eval import EvalDefault
 
 if TYPE_CHECKING:
@@ -28,7 +28,7 @@ LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 @overload
 def evals_df(
     logs: LogPaths,
-    import_spec: ImportSpec | list[ImportSpec] = EvalDefault,
+    columns: Columns | list[Columns] = EvalDefault,
     recursive: bool = True,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
@@ -37,7 +37,7 @@ def evals_df(
 @overload
 def evals_df(
     logs: LogPaths,
-    import_spec: ImportSpec | list[ImportSpec] = EvalDefault,
+    columns: Columns | list[Columns] = EvalDefault,
     recursive: bool = True,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", dict[str, list[str]]]: ...
@@ -45,7 +45,7 @@ def evals_df(
 
 def evals_df(
     logs: LogPaths,
-    import_spec: ImportSpec | list[ImportSpec] = EvalDefault,
+    columns: Columns | list[Columns] = EvalDefault,
     recursive: bool = True,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", dict[str, list[str]]]:
@@ -53,7 +53,7 @@ def evals_df(
 
     Args:
        logs: One or more paths to log files or log directories.
-       import_spec: Specification for what fields to read from the log file.
+       columns: Specification for what columns to read from the log file.
        recursive: Include recursive contents of directories (defaults to `True`)
        strict: Fail immediately if an error (e.g. missing field) occurs. Defaults to `True`.
 
@@ -72,7 +72,7 @@ def evals_df(
     all_errors: dict[str, list[str]] = {}
 
     # read logs
-    records: list[dict[str, FieldType]] = []
+    records: list[dict[str, ColumnType]] = []
     with display().progress(total=len(log_paths)) as p:
         for log_path in log_paths:
             log = read_eval_log(log_path, header_only=True)
@@ -81,9 +81,9 @@ def evals_df(
                 "log": native_path(log.location),
             }
             if strict:
-                records.append(import_record(log_data, import_spec, True))
+                records.append(import_record(log_data, columns, True))
             else:
-                record, errors = import_record(log_data, import_spec, False)
+                record, errors = import_record(log_data, columns, False)
                 records.append(record)
                 all_errors[pretty_path(log_path)] = errors
             p.update()
