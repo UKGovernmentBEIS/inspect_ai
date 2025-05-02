@@ -18,18 +18,33 @@ type TreeifyFunction = (
 export function treeifyEvents(events: Events, depth: number): EventNode[] {
   const useSpans = hasSpans(events);
   const treeFn = useSpans ? treeifyFnSpan : treeifyFnStep;
+  const pathIndices: number[] = [];
 
   const rootNodes: EventNode[] = [];
   const stack: EventNode[] = [];
 
   const addNode = (event: EventType): EventNode => {
-    const node = new EventNode(event, stack.length + depth);
+    const currentDepth = stack.length;
+
+    // Track sibling count for the parent node
+    if (pathIndices.length <= currentDepth) {
+      pathIndices.push(0);
+    } else {
+      pathIndices[currentDepth]++;
+      // Reset deeper levels if coming back up the stack
+      pathIndices.length = currentDepth + 1;
+    }
+
+    // Create a new node
+    const idPath = pathIndices.slice(0, currentDepth + 1).join(".");
+    const node = new EventNode(idPath, event, currentDepth + depth);
     if (stack.length > 0) {
       const parentNode = stack[stack.length - 1];
       parentNode.children.push(node);
     } else {
       rootNodes.push(node);
     }
+
     return node;
   };
 
@@ -38,9 +53,8 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
   };
 
   const popStack = (): void => {
-    if (stack.length > 0) {
-      stack.pop();
-    }
+    stack.pop();
+    pathIndices.pop();
   };
 
   events.forEach((event) => {

@@ -60177,11 +60177,19 @@ ${events}
       node,
       attached
     };
-    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2 }) => {
+    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2, initialEventId }) => {
+      const initialEventIndex = reactExports.useMemo(() => {
+        if (initialEventId === null || initialEventId === void 0) {
+          return void 0;
+        }
+        const result2 = eventNodes.findIndex((event) => {
+          return event.id === initialEventId;
+        });
+        return result2 === -1 ? void 0 : result2;
+      }, [initialEventId]);
       const renderRow = reactExports.useCallback((index2, item2) => {
         const bgClass = item2.depth % 2 == 0 ? styles$d.darkenedBg : styles$d.normalBg;
         const paddingClass = index2 === 0 ? styles$d.first : void 0;
-        const eventId = `${id}-event-${index2}`;
         const previousIndex = index2 - 1;
         const previous = previousIndex > 0 && previousIndex <= eventNodes.length ? eventNodes[previousIndex] : void 0;
         const attached2 = item2.event.event === "tool" && ((previous == null ? void 0 : previous.event.event) === "tool" || (previous == null ? void 0 : previous.event.event) === "model");
@@ -60189,11 +60197,12 @@ ${events}
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
+            id: item2.id,
             className: clsx(styles$d.node, paddingClass, attachedClass),
             style: { paddingLeft: `${item2.depth}em` },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) })
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: item2.id, node: item2, className: clsx(bgClass) })
           },
-          eventId
+          item2.id
         );
       }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -60202,16 +60211,19 @@ ${events}
           id,
           scrollRef,
           data: eventNodes,
+          initialTopMostItemIndex: initialEventIndex,
           renderRow,
           live: running2
         }
       );
     };
     class EventNode {
-      constructor(event, depth) {
+      constructor(id, event, depth) {
+        __publicField(this, "id");
         __publicField(this, "event");
         __publicField(this, "children", []);
         __publicField(this, "depth");
+        this.id = id;
         this.event = event;
         this.depth = depth;
       }
@@ -60219,10 +60231,19 @@ ${events}
     function treeifyEvents(events, depth) {
       const useSpans = hasSpans(events);
       const treeFn = useSpans ? treeifyFnSpan : treeifyFnStep;
+      const pathIndices = [];
       const rootNodes = [];
       const stack2 = [];
       const addNode = (event) => {
-        const node2 = new EventNode(event, stack2.length + depth);
+        const currentDepth = stack2.length;
+        if (pathIndices.length <= currentDepth) {
+          pathIndices.push(0);
+        } else {
+          pathIndices[currentDepth]++;
+          pathIndices.length = currentDepth + 1;
+        }
+        const idPath = pathIndices.slice(0, currentDepth + 1).join(".");
+        const node2 = new EventNode(idPath, event, currentDepth + depth);
         if (stack2.length > 0) {
           const parentNode = stack2[stack2.length - 1];
           parentNode.children.push(node2);
@@ -60235,9 +60256,8 @@ ${events}
         stack2.push(node2);
       };
       const popStack = () => {
-        if (stack2.length > 0) {
-          stack2.pop();
-        }
+        stack2.pop();
+        pathIndices.pop();
       };
       events.forEach((event) => {
         treeFn(event, addNode, pushStack, popStack);
@@ -60386,7 +60406,7 @@ ${events}
     };
     const TranscriptVirtualList = reactExports.memo(
       (props) => {
-        let { id, scrollRef, events, depth, running: running2 } = props;
+        let { id, scrollRef, events, depth, running: running2, initialEventId } = props;
         const eventNodes = reactExports.useMemo(() => {
           const resolvedEvents = fixupEventStream(events, !running2);
           const eventTree = treeifyEvents(resolvedEvents, depth || 0);
@@ -60398,6 +60418,7 @@ ${events}
           {
             id,
             eventNodes,
+            initialEventId,
             scrollRef,
             running: running2
           }
@@ -60652,6 +60673,7 @@ ${events}
                     {
                       id: `${baseId}-transcript-display-${id}`,
                       events: sampleEvents || [],
+                      initialEventId: sampleDetailNavigation.event,
                       running: running2,
                       scrollRef
                     },

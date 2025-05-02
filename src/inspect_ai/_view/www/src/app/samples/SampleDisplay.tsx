@@ -184,6 +184,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
+            initialEventId={sampleDetailNavigation.event}
             running={running}
             scrollRef={scrollRef}
           />
