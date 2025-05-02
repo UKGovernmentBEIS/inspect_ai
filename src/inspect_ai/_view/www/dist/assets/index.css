@@ -15580,24 +15580,24 @@ pre[class*="language-"] {
   background-color: var(--bs-light-bg-subtle);
   border-radius: var(--bs-border-radius);
 }
-._toolImage_18gxl_1 {
+._toolImage_bv5nm_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
 }
 
-._output_18gxl_6 {
+._output_bv5nm_6 {
   display: grid;
 }
 
-._textOutput_18gxl_10 {
+._textOutput_bv5nm_10 {
   padding-left: 2px;
   padding: 0.5em 0.5em 0.5em 0.5em;
   white-space: pre-wrap;
   margin-bottom: 0;
-  font-size: 1em !important;
+  font-size: 0.8rem !important;
 }
 
-._textCode_18gxl_18 {
+._textCode_bv5nm_18 {
   word-wrap: anywhere;
 }
 ._output_1tv9l_1 {
