@@ -17,7 +17,6 @@ type TreeifyFunction = (
 
 export function treeifyEvents(events: Events, depth: number): EventNode[] {
   const useSpans = hasSpans(events);
-  const treeFn = useSpans ? treeifyFnSpan : treeifyFnStep;
   const pathIndices: number[] = [];
 
   const rootNodes: EventNode[] = [];
@@ -58,7 +57,7 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
   };
 
   events.forEach((event) => {
-    treeFn(event, addNode, pushStack, popStack);
+    treeifyFn(event, addNode, pushStack, popStack);
   });
 
   if (useSpans) {
@@ -68,7 +67,7 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
   }
 }
 
-const treeifyFnStep: TreeifyFunction = (
+const treeifyFn: TreeifyFunction = (
   event: EventType,
   addNode: (event: EventType) => EventNode,
   pushStack: (node: EventNode) => void,
@@ -84,31 +83,6 @@ const treeifyFnStep: TreeifyFunction = (
         // An ending step
         popStack();
       }
-      break;
-    case ET_SPAN_BEGIN: {
-      // These shoudn't be here, but throw away
-      break;
-    }
-    case ET_SPAN_END: {
-      // These shoudn't be here, but throw away
-      break;
-    }
-    default:
-      // An event
-      addNode(event);
-      break;
-  }
-};
-
-const treeifyFnSpan: TreeifyFunction = (
-  event: EventType,
-  addNode: (event: EventType) => EventNode,
-  pushStack: (node: EventNode) => void,
-  popStack: () => void,
-): void => {
-  switch (event.event) {
-    case ET_STEP:
-      // strip steps
       break;
     case ET_SPAN_BEGIN: {
       const node = addNode(event);
