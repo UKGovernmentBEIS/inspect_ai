@@ -143,6 +143,55 @@ def test_docker_sandbox_setup_fail_on_error():
     assert log.samples[0].error
 
 
+@solver
+def write_and_check() -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        file_path = state.metadata["file"]
+        owner = state.metadata["owner"]
+
+        # write the file into the sandbox
+        await sandbox().write_file(file_path, "Hello", owner)
+
+        # get the file owner
+        result = await sandbox().exec(["stat", "-c", "'%U'", file_path])
+
+        state.output = ModelOutput.from_content("mockllm/model", result.stdout.strip())
+        return state
+
+    return solve
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_docker_sandbox_write_file_with_owner():
+    def sample(file: str, owner_arg: str | None, expected_owner: str) -> Sample:
+        return Sample(
+            input=f"Write to '{file}' as '{owner_arg}' and then check its owner",
+            target=expected_owner,
+            metadata={"file": file, "owner": owner_arg},
+            setup="useradd test_user",
+        )
+
+    dataset = [
+        sample("/tmp/root1.txt", None, "root"),
+        sample("/tmp/root2.txt", "root", "root"),
+        sample("/tmp/test_user.txt", "test_user", "test_user"),
+    ]
+
+    task = Task(
+        dataset=dataset,
+        solver=write_and_check(),
+        scorer=includes(),
+        sandbox="docker",
+    )
+
+    log = eval(task, model="mockllm/model")[0]
+
+    assert log.samples, "No samples were run"
+    for sample in log.samples:
+        assert sample.scores["includes"].value == CORRECT
+
+
 def test_is_dockerfile():
     assert is_dockerfile("/path/to/Dockerfile")
     assert is_dockerfile("/path/to/name.Dockerfile")

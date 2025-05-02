@@ -79,13 +79,18 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         return result
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self,
+        file: str,
+        contents: str | bytes,
+        owner: str | None = None,
+    ) -> None:
         from inspect_ai.log._transcript import SandboxEvent, transcript
 
         timestamp = datetime.now()
 
         # make call
-        await self._sandbox.write_file(file, contents)
+        await self._sandbox.write_file(file, contents, owner)
 
         # yield event
         if self._events:

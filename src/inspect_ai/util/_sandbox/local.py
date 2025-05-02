@@ -1,3 +1,4 @@
+import shutil
 import tempfile
 import warnings
 from pathlib import Path
@@ -79,7 +80,12 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         return result
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self,
+        file: str,
+        contents: str | bytes,
+        owner: str | None = None,
+    ) -> None:
         # resolve file and ensure the parent dir exists
         file = self._resolve_file(file)
         Path(file).parent.mkdir(parents=True, exist_ok=True)
@@ -90,6 +96,9 @@ class LocalSandboxEnvironment(SandboxEnvironment):
         else:
             with open(file, "wb") as f:
                 f.write(contents)
+
+        if owner is not None:
+            shutil.chown(file, owner)
 
     @overload
     async def read_file(self, file: str, text: Literal[True] = True) -> str: ...

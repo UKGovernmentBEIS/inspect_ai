@@ -45,7 +45,12 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         return ExecResult(success=True, returncode=0, stdout="Hello!", stderr="")
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self,
+        file: str,
+        contents: str | bytes,
+        owner: str | None = None,
+    ) -> None:
         pass
 
     @overload

@@ -319,8 +319,13 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         return exec_result
 
     @override
-    async def write_file(self, file: str, contents: str | bytes) -> None:
-        # defualt timeout for write_file operations
+    async def write_file(
+        self,
+        file: str,
+        contents: str | bytes,
+        owner: str | None = None,
+    ) -> None:
+        # default timeout for write_file operations
         TIMEOUT = 180
 
         # resolve relative file paths
@@ -347,6 +352,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 ],
                 input=contents,
                 timeout=TIMEOUT,
+                user=owner,
             )
         else:
             base64_contents = base64.b64encode(contents).decode("US-ASCII")
@@ -361,6 +367,7 @@ class DockerSandboxEnvironment(SandboxEnvironment):
                 ],
                 input=base64_contents,
                 timeout=TIMEOUT,
+                user=owner,
             )
         if result.returncode != 0:
             if "permission denied" in result.stderr.casefold():

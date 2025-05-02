@@ -135,7 +135,12 @@ class SandboxEnvironment(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def write_file(self, file: str, contents: str | bytes) -> None:
+    async def write_file(
+        self,
+        file: str,
+        contents: str | bytes,
+        owner: str | None = None,
+    ) -> None:
         """Write a file into the sandbox environment.
 
         If the parent directories of the file path do not exist they
@@ -145,6 +150,8 @@ class SandboxEnvironment(abc.ABC):
           file: Path to file (relative file paths will resolve to the
             per-sample working directory).
           contents: Text or binary file contents.
+          owner: Optional username or UID that will be the file's owner.
+
 
         Raises:
           PermissionError: If the current user does not have permission to
