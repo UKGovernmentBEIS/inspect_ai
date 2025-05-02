@@ -65,7 +65,6 @@ def evals_df(
     """
     _verify_prerequisites()
     import pyarrow as pa
-    import pandas as pd
 
     # resolve logs
     log_paths = _resolve_logs(logs, recursive=recursive)
@@ -91,7 +90,10 @@ def evals_df(
 
             p.update()
 
-    table = pd.DataFrame(records)
+    # return table (+errors if strict=False)
+    records = _normalize_records(records)
+    table = pa.Table.from_pylist(records).to_pandas()
+
     if strict:
         return table
     else:
@@ -170,3 +172,21 @@ def _verify_prerequisites() -> None:
     verify_required_version("inspect_ai.analysis", "pandas", "2.0.0")
     verify_required_version("inspect_ai.analysis", "pyarrow", "10.0.1")
     verify_required_version("inspect_ai.analysis", "jsonpath-ng", "1.7.0")
+
+
+def _normalize_records(
+    records: list[dict[str, ColumnType]],
+) -> list[dict[str, ColumnType]]:
+    all_keys = _get_all_keys(records)
+    normalized_records = []
+    for record in records:
+        normalized_record = {key: record.get(key, None) for key in all_keys}
+        normalized_records.append(normalized_record)
+    return normalized_records
+
+
+def _get_all_keys(records: list[dict[str, ColumnType]]) -> set[str]:
+    all_keys: set[str] = set()
+    for record in records:
+        all_keys.update(record.keys())
+    return all_keys
