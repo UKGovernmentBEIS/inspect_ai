@@ -23732,6 +23732,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   sampleSummary.id,
                   sampleSummary.epoch
                 ));
+                log$3.debug(
+                  `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
+                );
                 if (sample2) {
                   const migratedSample = resolveSample$1(sample2);
                   sampleActions.setSelectedSample(migratedSample);
@@ -50670,7 +50673,6 @@ self.onmessage = function (e) {
     );
     const tabPanel = "_tabPanel_1p5e1_1";
     const fullWidth$1 = "_fullWidth_1p5e1_5";
-    const metadataPanel = "_metadataPanel_1p5e1_9";
     const padded = "_padded_1p5e1_18";
     const error = "_error_1p5e1_23";
     const ansi = "_ansi_1p5e1_27";
@@ -50680,7 +50682,6 @@ self.onmessage = function (e) {
     const styles$A = {
       tabPanel,
       fullWidth: fullWidth$1,
-      metadataPanel,
       padded,
       error,
       ansi,
@@ -51262,10 +51263,11 @@ self.onmessage = function (e) {
       text: text2,
       icon: icon2,
       collapse,
-      children: children2
+      children: children2,
+      childIds
     }) => {
       const [collapsed, setCollapsed] = useCollapsedState(id, collapse, "events");
-      const [visible2, _setVisible] = useVisibility(id, "events", true);
+      const [visible2, setVisible] = useVisibility(id, "events", true);
       const hasCollapse = collapse !== void 0;
       const pillId = (index2) => {
         return `${id}-nav-pill-${index2}`;
@@ -51291,6 +51293,9 @@ self.onmessage = function (e) {
       gridColumns2.push("minmax(0, max-content)");
       const toggleCollapse = reactExports.useCallback(() => {
         setCollapsed(!collapsed);
+        for (const childID of childIds || []) {
+          setVisible(childID, "events", !collapsed);
+        }
       }, [setCollapsed, collapsed]);
       const titleEl = title2 || icon2 || filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
@@ -60095,6 +60100,7 @@ ${events}
           "div",
           {
             className: clsx(styles$d.node, paddingClass, attachedClass),
+            style: { paddingLeft: `${item2.depth}em` },
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) })
           },
           eventId
@@ -60268,6 +60274,14 @@ ${events}
         return node2;
       });
     };
+    const flatTree = (eventNodes) => {
+      const result2 = [];
+      for (const node2 of eventNodes) {
+        result2.push(node2);
+        result2.push(...flatTree(node2.children));
+      }
+      return result2;
+    };
     const TranscriptView = ({
       id,
       events,
@@ -60285,7 +60299,8 @@ ${events}
         let { id, scrollRef, events, depth, running: running2 } = props;
         const eventNodes = reactExports.useMemo(() => {
           const resolvedEvents = fixupEventStream(events, !running2);
-          const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
+          const eventTree = treeifyEvents(resolvedEvents, depth || 0);
+          const eventNodes2 = flatTree(eventTree);
           return eventNodes2;
         }, [events, depth]);
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -60328,6 +60343,7 @@ ${events}
                 i2 === eventNodes.length - 1 ? styles$e.noBottom : void 0,
                 containerClz
               ),
+              style: { paddingLeft: `${eventNode2.depth * 1}em` },
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 RenderedEventNode,
                 {
@@ -60391,7 +60407,7 @@ ${events}
               {
                 id,
                 event: node2.event,
-                children: node2.children,
+                children: [],
                 className: className2
               }
             );
@@ -60401,7 +60417,7 @@ ${events}
               {
                 id,
                 event: node2.event,
-                children: node2.children,
+                children: [],
                 className: className2
               }
             );
@@ -60500,7 +60516,7 @@ ${events}
           setSelectedTab
         ]
       );
-      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
+      metadataViewsForSample(`${baseId}-${id}`, sample2);
       const tabsetId = `task-sample-details-tab-${id}`;
       const targetId = `${tabsetId}-content`;
       const handlePrintClick = reactExports.useCallback(() => {
@@ -60597,7 +60613,7 @@ ${events}
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleMetdataTabId,
-                  children: sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.metadataPanel), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
               (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) && (sample2 == null ? void 0 : sample2.error_retries.length) > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(

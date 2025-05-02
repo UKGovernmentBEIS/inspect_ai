@@ -249,3 +249,19 @@ const reduceDepth = (nodes: EventNode[], depth: number = 1): EventNode[] => {
     return node;
   });
 };
+
+/**
+ * Flatten the tree structure into a flat array of EventNode objects
+ * Each node in the result will have its children set properly
+ * @param events - The events to flatten
+ * @param depth - The current depth in the tree
+ * @returns An array of EventNode objects
+ */
+export const flatTree = (eventNodes: EventNode[]): EventNode[] => {
+  const result: EventNode[] = [];
+  for (const node of eventNodes) {
+    result.push(node);
+    result.push(...flatTree(node.children));
+  }
+  return result;
+};

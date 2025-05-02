@@ -25,7 +25,7 @@ interface EventPanelProps {
   icon?: string;
   collapse?: boolean;
   children?: ReactNode | ReactNode[];
-  running?: boolean;
+  childIds?: string[];
 }
 
 interface ChildProps {
@@ -44,9 +44,10 @@ export const EventPanel: FC<EventPanelProps> = ({
   icon,
   collapse,
   children,
+  childIds,
 }) => {
   const [collapsed, setCollapsed] = useCollapsedState(id, collapse, "events");
-  const [visible, _setVisible] = useVisibility(id, "events", true);
+  const [visible, setVisible] = useVisibility(id, "events", true);
 
   const hasCollapse = collapse !== undefined;
 
@@ -86,6 +87,9 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const toggleCollapse = useCallback(() => {
     setCollapsed(!collapsed);
+    for (const childID of childIds || []) {
+      setVisible(childID, "events", !collapsed);
+    }
   }, [setCollapsed, collapsed]);
 
   const titleEl =
