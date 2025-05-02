@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from .types import Column, Columns
-from .util import list_as_str
+from .util import extract_scores, list_as_str
 
 EvalId: Columns = {
     "eval_id": Column("id", required=True),
@@ -68,6 +68,7 @@ EvalResults: Columns = {
     "score_headline_name": Column("results.scores[0].scorer"),
     "score_headline_metric": Column("results.scores[0].metrics.*.name"),
     "score_headline_value": Column("results.scores[0].metrics.*.value"),
+    "score_*_*": Column("results.scores", value=extract_scores),
 }
 """Eval results columns."""
 
