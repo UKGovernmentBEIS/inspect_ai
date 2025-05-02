@@ -61,6 +61,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
+from inspect_ai.util._span import span
 
 from ._chat_message import (
     ChatMessage,
@@ -109,26 +110,18 @@ async def execute_tools(
     """
     message = messages[-1]
     if isinstance(message, ChatMessageAssistant) and message.tool_calls:
-        from inspect_ai.log._transcript import (
-            ToolEvent,
-            Transcript,
-            init_transcript,
-            track_store_changes,
-            transcript,
-        )
+        from inspect_ai.log._transcript import ToolEvent, transcript
 
         tdefs = await tool_defs(tools)
 
         async def call_tool_task(
             call: ToolCall,
+            event: ToolEvent,
             conversation: list[ChatMessage],
             send_stream: MemoryObjectSendStream[
                 tuple[ExecuteToolsResult, ToolEvent, Exception | None]
             ],
         ) -> None:
-            # create a transript for this call
-            init_transcript(Transcript(name=call.function))
-
             result: ToolResult = ""
             messages: list[ChatMessage] = []
             output: ModelOutput | None = None
@@ -136,15 +129,14 @@ async def execute_tools(
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
             try:
-                with track_store_changes():
-                    try:
-                        result, messages, output, agent = await call_tool(
-                            tdefs, message.text, call, conversation
-                        )
-                    # unwrap exception group
-                    except Exception as ex:
-                        inner_ex = inner_exception(ex)
-                        raise inner_ex.with_traceback(inner_ex.__traceback__)
+                try:
+                    result, messages, output, agent = await call_tool(
+                        tdefs, message.text, call, event, conversation
+                    )
+                # unwrap exception group
+                except Exception as ex:
+                    inner_ex = inner_exception(ex)
+                    raise inner_ex.with_traceback(inner_ex.__traceback__)
 
             except TimeoutError:
                 tool_error = ToolCallError(
@@ -227,7 +219,6 @@ async def execute_tools(
                 truncated=truncated,
                 view=call.view,
                 error=tool_error,
-                events=list(transcript().events),
                 agent=agent,
             )
 
@@ -270,7 +261,6 @@ async def execute_tools(
                 internal=call.internal,
                 pending=True,
             )
-            transcript()._event(event)
 
             # execute the tool call. if the operator cancels the
             # tool call then synthesize the appropriate message/event
@@ -280,7 +270,7 @@ async def execute_tools(
 
             result_exception = None
             async with anyio.create_task_group() as tg:
-                tg.start_soon(call_tool_task, call, messages, send_stream)
+                tg.start_soon(call_tool_task, call, event, messages, send_stream)
                 event._set_cancel_fn(tg.cancel_scope.cancel)
                 async with receive_stream:
                     (
@@ -306,7 +296,6 @@ async def execute_tools(
                     truncated=None,
                     view=call.view,
                     error=tool_message.error,
-                    events=[],
                 )
                 transcript().info(
                     f"Tool call '{call.function}' was cancelled by operator."
@@ -326,7 +315,6 @@ async def execute_tools(
                 result=result_event.result,
                 truncated=result_event.truncated,
                 error=result_event.error,
-                events=result_event.events,
                 waiting_time=waiting_time_end - waiting_time_start,
                 agent=result_event.agent,
                 failed=True if result_exception else None,
@@ -347,10 +335,17 @@ async def execute_tools(
 
 
 async def call_tool(
-    tools: list[ToolDef], message: str, call: ToolCall, conversation: list[ChatMessage]
+    tools: list[ToolDef],
+    message: str,
+    call: ToolCall,
+    event: BaseModel,
+    conversation: list[ChatMessage],
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str | None]:
     from inspect_ai.agent._handoff import AgentTool
-    from inspect_ai.log._transcript import SampleLimitEvent, transcript
+    from inspect_ai.log._transcript import SampleLimitEvent, ToolEvent, transcript
+
+    # dodge circular import
+    assert isinstance(event, ToolEvent)
 
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
@@ -391,14 +386,18 @@ async def call_tool(
     with trace_action(
         logger, "Tool Call", format_function_call(tool_def.name, arguments, width=1000)
     ):
-        # agent tools get special handling
         if isinstance(tool_def.tool, AgentTool):
-            return await agent_handoff(tool_def, call, conversation)
+            async with span(tool_def.tool.name, type="handoff"):
+                async with span(name=call.function, type="tool"):
+                    transcript()._event(event)
+                    return await agent_handoff(tool_def, call, conversation)
 
         # normal tool call
         else:
-            result: ToolResult = await tool_def.tool(**arguments)
-            return result, [], None, None
+            async with span(name=call.function, type="tool"):
+                transcript()._event(event)
+                result: ToolResult = await tool_def.tool(**arguments)
+                return result, [], None, None
 
 
 async def agent_handoff(
@@ -463,7 +462,8 @@ async def agent_handoff(
     agent_state = AgentState(messages=copy(agent_conversation))
     try:
         with apply_limits(agent_tool.limits):
-            agent_state = await agent_tool.agent(agent_state, **arguments)
+            async with span(name=agent_name, type="agent"):
+                agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex
 

@@ -1,3 +1,10 @@
+## Unreleased
+
+- [span()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for grouping transcript events.
+- [collect()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for enclosing parallel tasks in spans.
+- [Event tree](https://inspect.aisi.org.uk/reference/inspect_ai.log.html#event-tree) functions for organising transcript events into a a tree of spans.
+- Task display: Realtime display of events that occur within tool calls and subtasks.
+
 ## v0.3.93 (01 May 2025)
 
 - [Scoped Limits](https://inspect.aisi.org.uk/errors-and-limits.html#scoped-limits) for enforcing token and message limits using a context manager.

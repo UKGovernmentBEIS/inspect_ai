@@ -17,6 +17,7 @@ import { ToolEventView } from "./ToolEventView";
 import { EventNode } from "./types";
 
 import clsx from "clsx";
+import { SpanEventView } from "./SpanEventView";
 import styles from "./TranscriptView.module.css";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
 import { fixupEventStream } from "./transform/fixups";
@@ -64,7 +65,6 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
     const eventNodes = useMemo(() => {
       const resolvedEvents = fixupEventStream(events, !running);
       const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
-
       return eventNodes;
     }, [events, depth]);
 
@@ -201,6 +201,16 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
           <StateEventView id={id} event={node.event} className={className} />
         );
 
+      case "span_begin":
+        return (
+          <SpanEventView
+            id={id}
+            event={node.event}
+            children={node.children}
+            className={className}
+          />
+        );
+
       case "step":
         return (
           <StepEventView
@@ -237,7 +247,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
             id={id}
             event={node.event}
             className={className}
-            depth={node.depth}
+            children={node.children}
           />
         );
 

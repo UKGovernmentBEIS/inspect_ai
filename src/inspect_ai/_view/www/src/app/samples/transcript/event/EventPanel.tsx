@@ -9,7 +9,6 @@ import {
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import { ProgressBar } from "../../../../components/ProgressBar";
 import { useProperty } from "../../../../state/hooks";
 import styles from "./EventPanel.module.css";
 
@@ -41,7 +40,6 @@ export const EventPanel: FC<EventPanelProps> = ({
   icon,
   collapse,
   children,
-  running,
 }) => {
   const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
     defaultValue: !!collapse,
@@ -191,7 +189,6 @@ export const EventPanel: FC<EventPanelProps> = ({
           })}
         </div>
       </div>
-      <ProgressBar animating={!!running} />
     </>
   );
   return card;

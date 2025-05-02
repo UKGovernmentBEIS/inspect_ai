@@ -24,7 +24,6 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai._util.constants import (
     DEFAULT_EPOCHS,
     DEFAULT_MAX_CONNECTIONS,
-    SAMPLE_SUBTASK,
 )
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
@@ -65,8 +64,8 @@ from inspect_ai.log._transcript import (
     SampleInitEvent,
     SampleLimitEvent,
     ScoreEvent,
-    StepEvent,
     Transcript,
+    init_transcript,
     transcript,
 )
 from inspect_ai.model import (
@@ -91,7 +90,8 @@ from inspect_ai.solver._task_state import sample_state, set_sample_state, state_
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
-from inspect_ai.util._subtask import init_subtask
+from inspect_ai.util._span import span
+from inspect_ai.util._store import init_subtask_store
 
 from ..context import init_task_context
 from ..task import Task
@@ -558,7 +558,9 @@ async def task_run_sample(
     # initialise subtask and scoring context
     init_sample_model_usage()
     set_sample_state(state)
-    sample_transcript: Transcript = init_subtask(SAMPLE_SUBTASK, state.store)
+    sample_transcript = Transcript()
+    init_transcript(sample_transcript)
+    init_subtask_store(state.store)
     if logger:
         sample_transcript._subscribe(
             lambda event: logger.log_sample_event(sample_id, state.epoch, event)
@@ -617,7 +619,8 @@ async def task_run_sample(
         results: dict[str, SampleScore] = {}
         try:
             # begin init
-            transcript()._event(StepEvent(action="begin", name="init"))
+            init_span = span("init", type="init")
+            await init_span.__aenter__()
 
             # sample init event (remove file bodies as they have content or absolute paths)
             event_sample = sample.model_copy(
@@ -639,7 +642,7 @@ async def task_run_sample(
                     active.sandboxes = await sandbox_connections()
 
                     # end init
-                    transcript()._event(StepEvent(action="end", name="init"))
+                    await init_span.__aexit__(None, None, None)
 
                     # initialise timeout context manager
                     timeout_cm = (
@@ -742,7 +745,7 @@ async def task_run_sample(
                                 scorer_name = unique_scorer_name(
                                     scorer, list(results.keys())
                                 )
-                                with transcript().step(name=scorer_name, type="scorer"):
+                                async with span(name=scorer_name, type="scorer"):
                                     score_result = (
                                         await scorer(state, Target(sample.target))
                                         if scorer

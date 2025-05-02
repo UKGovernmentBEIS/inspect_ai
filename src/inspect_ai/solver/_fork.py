@@ -73,7 +73,7 @@ async def solver_subtask(state: TaskState, solver: Solver) -> TaskState:
     @subtask(name=name, store=state.store, type="fork", input=input)  # type: ignore
     async def solve() -> TaskState:
         if not isinstance(solver, Chain):
-            with solver_transcript(solver, state) as st:
+            async with solver_transcript(solver, state) as st:
                 new_state = await solver(state, generate)
                 st.complete(new_state)
             return new_state
