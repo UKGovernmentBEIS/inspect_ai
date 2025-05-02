@@ -259,15 +259,18 @@ export const useLogSelection = () => {
 export const useCollapsedState = (
   id: string,
   defaultValue?: boolean,
+  scope?: string,
 ): [boolean, (value: boolean) => void] => {
+  const stateId = scope ? `${scope}-${id}` : id;
+
   const collapsed = useStore((state) =>
-    state.appActions.getCollapsed(id, defaultValue),
+    state.appActions.getCollapsed(stateId, defaultValue),
   );
   const setCollapsed = useStore((state) => state.appActions.setCollapsed);
   return useMemo(() => {
     const set = (value: boolean) => {
-      log.debug("Set collapsed", id, value);
-      setCollapsed(id, value);
+      log.debug("Set collapsed", id, scope, value);
+      setCollapsed(stateId, value);
     };
     return [collapsed, set];
   }, [collapsed, setCollapsed]);
