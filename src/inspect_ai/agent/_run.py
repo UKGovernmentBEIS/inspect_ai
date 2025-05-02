@@ -1,8 +1,10 @@
 from copy import copy
 from typing import Any
 
+from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.util._limit import Limit, apply_limits
+from inspect_ai.util._span import span
 
 from ._agent import Agent, AgentState
 
@@ -52,4 +54,7 @@ async def run(
 
     # run the agent with limits
     with apply_limits(limits):
-        return await agent(state, **agent_kwargs)
+        # run the agent
+        agent_name = registry_unqualified_name(agent)
+        async with span(name=agent_name, type="agent"):
+            return await agent(state, **agent_kwargs)

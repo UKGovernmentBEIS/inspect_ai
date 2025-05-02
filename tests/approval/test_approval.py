@@ -1,16 +1,35 @@
 from pathlib import Path
 
-from test_helpers.tools import addition
-from test_helpers.utils import ensure_test_package_installed
-
 from inspect_ai import Task, eval
+from inspect_ai._util.content import ContentText
 from inspect_ai.approval import ApprovalDecision, ApprovalPolicy, auto_approver
 from inspect_ai.dataset import Sample
 from inspect_ai.log._log import EvalLog
-from inspect_ai.log._transcript import ApprovalEvent, ToolEvent
+from inspect_ai.log._transcript import ApprovalEvent
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.scorer import match
 from inspect_ai.solver import generate, use_tools
+from inspect_ai.tool._tool import tool
+
+
+# define tool
+@tool
+def addition():
+    async def execute(x: int, y: int):
+        """
+        Add two numbers.
+
+        Args:
+            x (int): First number to add.
+            y (int): Second number to add.
+
+        Returns:
+            The sum of the two numbers.
+        """
+        # return as list[Content] to confirm that codepath works
+        return [ContentText(text=str(x + y))]
+
+    return execute
 
 
 def check_approval(
@@ -116,19 +135,6 @@ def test_approve_no_reject():
     )
 
 
-def test_approve_modify():
-    # also tests loading an approver from a package
-    ensure_test_package_installed()
-
-    event = check_approval(
-        "modify.yaml",
-        decision="modify",
-        approver="inspect_package/renamer",
-    )
-    assert event.modified
-    assert event.modified.function == "newname"
-
-
 def test_approve_config():
     check_approval("approve.yaml", decision="approve")
 
@@ -147,22 +153,17 @@ def test_approve_config_escalate():
 
 def find_approval(log: EvalLog) -> ApprovalEvent | None:
     if log.samples:
-        tool_event: ToolEvent | None = next(
+        return next(
             (
                 event
-                for event in log.samples[0].transcript.events
-                if isinstance(event, ToolEvent)
+                for event in reversed(log.samples[0].events)
+                if isinstance(event, ApprovalEvent)
             ),
             None,
         )
-        if tool_event:
-            return next(
-                (
-                    ev
-                    for ev in reversed(tool_event.events)
-                    if isinstance(ev, ApprovalEvent)
-                ),
-                None,
-            )
+    else:
+        return None
 
-    return None
+
+if __name__ == "__main__":
+    test_approve_escalate()

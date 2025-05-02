@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from inspect_ai.util._limit import Limit, apply_limits
+from inspect_ai.util._span import span
 
 if TYPE_CHECKING:
     from inspect_ai.solver._solver import Solver
@@ -61,7 +62,8 @@ def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> So
             try:
                 # run the agent with limits
                 with apply_limits(limits):
-                    agent_state = await agent(agent_state, **agent_kwargs)
+                    async with span(name=agent_name, type="agent"):
+                        agent_state = await agent(agent_state, **agent_kwargs)
             # if an exception occurs, we still want to update the TaskState with the
             # AgentState's messages + output so that it appears in the log and is scored
             finally:

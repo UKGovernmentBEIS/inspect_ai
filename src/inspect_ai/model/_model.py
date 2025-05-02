@@ -19,6 +19,7 @@ from typing import (
     cast,
 )
 
+from pydantic import BaseModel
 from pydantic_core import to_jsonable_python
 from tenacity import (
     RetryCallState,
@@ -402,36 +403,32 @@ class Model:
         start_time = datetime.now()
         working_start = sample_working_time()
         async with self._connection_concurrency(config):
-            from inspect_ai.log._samples import track_active_sample_retries
-
             # generate
-            with track_active_sample_retries():
-                output = await self._generate(
-                    input=input,
-                    tools=tools,
-                    tool_choice=tool_choice,
-                    config=config,
-                    cache=cache,
-                )
+            output, event = await self._generate(
+                input=input,
+                tools=tools,
+                tool_choice=tool_choice,
+                config=config,
+                cache=cache,
+            )
 
             # update the most recent ModelEvent with the actual start/completed
             # times as well as a computation of working time (events are
             # created _after_ the call to _generate, potentially in response
             # to retries, so they need their timestamp updated so it accurately
             # reflects the full start/end time which we know here)
-            from inspect_ai.log._transcript import ModelEvent, transcript
+            from inspect_ai.log._transcript import ModelEvent
 
-            last_model_event = transcript().find_last_event(ModelEvent)
-            if last_model_event:
-                last_model_event.timestamp = start_time
-                last_model_event.working_start = working_start
-                completed = datetime.now()
-                last_model_event.completed = completed
-                last_model_event.working_time = (
-                    output.time
-                    if output.time is not None
-                    else (completed - start_time).total_seconds()
-                )
+            assert isinstance(event, ModelEvent)
+            event.timestamp = start_time
+            event.working_start = working_start
+            completed = datetime.now()
+            event.completed = completed
+            event.working_time = (
+                output.time
+                if output.time is not None
+                else (completed - start_time).total_seconds()
+            )
 
             # return output
             return output
@@ -492,9 +489,12 @@ class Model:
         tool_choice: ToolChoice | None,
         config: GenerateConfig,
         cache: bool | CachePolicy = False,
-    ) -> ModelOutput:
+    ) -> tuple[ModelOutput, BaseModel]:
+        from inspect_ai.log._samples import track_active_model_event
+        from inspect_ai.log._transcript import ModelEvent
+
         # default to 'auto' for tool_choice (same as underlying model apis)
-        tool_choice = tool_choice if tool_choice else "auto"
+        tool_choice = tool_choice if tool_choice is not None else "auto"
 
         # resolve top level tool source
         if isinstance(tools, ToolSource):
@@ -581,7 +581,10 @@ class Model:
             stop=stop,
             before_sleep=functools.partial(log_model_retry, self.api.model_name),
         )
-        async def generate() -> ModelOutput:
+        async def generate() -> tuple[ModelOutput, BaseModel]:
+            # type-checker can't see that we made sure tool_choice is not none in the outer frame
+            assert tool_choice is not None
+
             check_sample_interrupt()
 
             cache_entry: CacheEntry | None
@@ -602,7 +605,7 @@ class Model:
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
-                    self._record_model_interaction(
+                    _, event = self._record_model_interaction(
                         input=input,
                         tools=tools_info,
                         tool_choice=tool_choice,
@@ -611,7 +614,7 @@ class Model:
                         output=existing,
                         call=None,
                     )
-                    return existing
+                    return existing, event
             else:
                 cache_entry = None
 
@@ -620,7 +623,7 @@ class Model:
 
             # record the interaction before the call to generate
             # (we'll update it with the results once we have them)
-            complete = self._record_model_interaction(
+            complete, event = self._record_model_interaction(
                 input=input,
                 tools=tools_info,
                 tool_choice=tool_choice,
@@ -631,12 +634,14 @@ class Model:
             with trace_action(logger, "Model", f"generate ({str(self)})"):
                 time_start = time.monotonic()
                 try:
-                    result = await self.api.generate(
-                        input=input,
-                        tools=tools_info,
-                        tool_choice=tool_choice,
-                        config=config,
-                    )
+                    assert isinstance(event, ModelEvent)
+                    with track_active_model_event(event):
+                        result = await self.api.generate(
+                            input=input,
+                            tools=tools_info,
+                            tool_choice=tool_choice,
+                            config=config,
+                        )
                 finally:
                     time_elapsed = time.monotonic() - time_start
 
@@ -686,18 +691,18 @@ class Model:
             if cache and cache_entry:
                 cache_store(entry=cache_entry, output=output)
 
-            return output
+            return output, event
 
         # call the model (this will so retries, etc., so report waiting time
         # as elapsed time - actual time for successful model call)
         time_start = time.monotonic()
-        model_output = await generate()
+        model_output, event = await generate()
         total_time = time.monotonic() - time_start
         if model_output.time:
             report_sample_waiting_time(total_time - model_output.time)
 
         # return results
-        return model_output
+        return model_output, event
 
     def should_retry(self, ex: BaseException) -> bool:
         if isinstance(ex, Exception):
@@ -769,7 +774,7 @@ class Model:
         cache: Literal["read", "write"] | None,
         output: ModelOutput | None = None,
         call: ModelCall | None = None,
-    ) -> Callable[[ModelOutput | Exception, ModelCall | None], None]:
+    ) -> tuple[Callable[[ModelOutput | Exception, ModelCall | None], None], BaseModel]:
         from inspect_ai.log._transcript import ModelEvent, transcript
 
         # create event and add it to the transcript
@@ -809,7 +814,7 @@ class Model:
         if output:
             complete(output, call)
 
-        return complete
+        return complete, event
 
 
 class ModelName:

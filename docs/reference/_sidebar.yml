@@ -415,6 +415,16 @@ website:
           href: reference/inspect_ai.log.qmd#transcript
         - text: Event
           href: reference/inspect_ai.log.qmd#event
+        - text: event_tree
+          href: reference/inspect_ai.log.qmd#event_tree
+        - text: event_sequence
+          href: reference/inspect_ai.log.qmd#event_sequence
+        - text: EventTree
+          href: reference/inspect_ai.log.qmd#eventtree
+        - text: EventNode
+          href: reference/inspect_ai.log.qmd#eventnode
+        - text: SpanNode
+          href: reference/inspect_ai.log.qmd#spannode
         - text: SampleInitEvent
           href: reference/inspect_ai.log.qmd#sampleinitevent
         - text: SampleLimitEvent
@@ -433,8 +443,6 @@ website:
           href: reference/inspect_ai.log.qmd#approvalevent
         - text: InputEvent
           href: reference/inspect_ai.log.qmd#inputevent
-        - text: StoreEvent
-          href: reference/inspect_ai.log.qmd#storeevent
         - text: ErrorEvent
           href: reference/inspect_ai.log.qmd#errorevent
         - text: LoggerEvent
@@ -445,8 +453,10 @@ website:
           href: reference/inspect_ai.log.qmd#loggingmessage
         - text: InfoEvent
           href: reference/inspect_ai.log.qmd#infoevent
-        - text: StepEvent
-          href: reference/inspect_ai.log.qmd#stepevent
+        - text: SpanBeginEvent
+          href: reference/inspect_ai.log.qmd#spanbeginevent
+        - text: SpanEndEvent
+          href: reference/inspect_ai.log.qmd#spanendevent
         - text: SubtaskEvent
           href: reference/inspect_ai.log.qmd#subtaskevent
       - section: inspect_ai.util
@@ -488,6 +498,10 @@ website:
           href: reference/inspect_ai.util.qmd#subtask
         - text: Subtask
           href: reference/inspect_ai.util.qmd#subtask
+        - text: span
+          href: reference/inspect_ai.util.qmd#span
+        - text: gather
+          href: reference/inspect_ai.util.qmd#gather
         - text: resource
           href: reference/inspect_ai.util.qmd#resource
         - text: throttle

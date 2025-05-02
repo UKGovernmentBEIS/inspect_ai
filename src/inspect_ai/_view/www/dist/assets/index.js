@@ -51205,8 +51205,7 @@ self.onmessage = function (e) {
       text: text2,
       icon: icon2,
       collapse,
-      children: children2,
-      running: running2
+      children: children2
     }) => {
       const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
         defaultValue: !!collapse
@@ -51302,35 +51301,32 @@ self.onmessage = function (e) {
           ]
         }
       ) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$s.card), children: [
-          titleEl,
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "tab-content",
-                styles$s.cardContent,
-                hasCollapse && isCollapsed ? styles$s.hidden : void 0
-              ),
-              children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
-                const id2 = pillId(index2);
-                const isSelected = id2 === selectedNav;
-                return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  "div",
-                  {
-                    id: id2,
-                    className: clsx("tab-pane", "show", isSelected ? "active" : ""),
-                    children: child
-                  },
-                  `children-${id2}-${index2}`
-                );
-              })
-            }
-          )
-        ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: !!running2 })
-      ] });
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$s.card), children: [
+        titleEl,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "tab-content",
+              styles$s.cardContent,
+              hasCollapse && isCollapsed ? styles$s.hidden : void 0
+            ),
+            children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
+              const id2 = pillId(index2);
+              const isSelected = id2 === selectedNav;
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  id: id2,
+                  className: clsx("tab-pane", "show", isSelected ? "active" : ""),
+                  children: child
+                },
+                `children-${id2}-${index2}`
+              );
+            })
+          }
+        )
+      ] }) });
       return card2;
     };
     function hasDataDefault(node2) {
@@ -51839,11 +51835,11 @@ self.onmessage = function (e) {
       const icon2 = resolve_icon(event.type);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(EventPanel, { id, title: title2, icon: icon2, className: className2, children: event.message });
     };
-    const twoColumn = "_twoColumn_iwnfd_9";
-    const exec = "_exec_iwnfd_15";
-    const result = "_result_iwnfd_19";
-    const fileLabel = "_fileLabel_iwnfd_23";
-    const wrapPre = "_wrapPre_iwnfd_28";
+    const twoColumn = "_twoColumn_1irga_9";
+    const exec = "_exec_1irga_15";
+    const result = "_result_1irga_19";
+    const fileLabel = "_fileLabel_1irga_23";
+    const wrapPre = "_wrapPre_1irga_28";
     const styles$l = {
       twoColumn,
       exec,
@@ -59404,6 +59400,13 @@ ${events}
     function initializeObject(current2) {
       return current2 ?? {};
     }
+    const ET_STEP = "step";
+    const ACTION_BEGIN = "begin";
+    const ET_SPAN_BEGIN = "span_begin";
+    const ET_SPAN_END = "span_end";
+    const hasSpans = (events) => {
+      return events.some((event) => event.event === ET_SPAN_BEGIN);
+    };
     const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
     const fixupEventStream = (events, filterPending = true) => {
       const collapsed = processPendingEvents(events, filterPending);
@@ -59426,44 +59429,65 @@ ${events}
       }, []);
     };
     const collapseSampleInit = (events) => {
+      const hasSpans2 = events.some((e) => {
+        return e.event === "span_begin" || e.event === "span_end";
+      });
+      if (hasSpans2) {
+        return events;
+      }
       const hasInitStep = events.findIndex((e) => {
         return e.event === "step" && e.name === "init";
       }) !== -1;
+      if (hasInitStep) {
+        return events;
+      }
       const initEventIndex = events.findIndex((e) => {
         return e.event === "sample_init";
       });
       const initEvent = events[initEventIndex];
-      const fixedUp = [...events];
-      if (!hasInitStep && initEvent) {
-        fixedUp.splice(initEventIndex, 0, {
-          timestamp: initEvent.timestamp,
-          event: "step",
-          action: "begin",
-          type: null,
-          name: "sample_init",
-          pending: false,
-          working_start: 0
-        });
-        fixedUp.splice(initEventIndex + 2, 0, {
-          timestamp: initEvent.timestamp,
-          event: "step",
-          action: "end",
-          type: null,
-          name: "sample_init",
-          pending: false,
-          working_start: 0
-        });
+      if (!initEvent) {
+        return events;
       }
+      const fixedUp = [...events];
+      fixedUp.splice(initEventIndex, 0, {
+        timestamp: initEvent.timestamp,
+        event: "step",
+        action: "begin",
+        type: null,
+        name: "sample_init",
+        pending: false,
+        working_start: 0,
+        span_id: initEvent.span_id
+      });
+      fixedUp.splice(initEventIndex + 2, 0, {
+        timestamp: initEvent.timestamp,
+        event: "step",
+        action: "end",
+        type: null,
+        name: "sample_init",
+        pending: false,
+        working_start: 0,
+        span_id: initEvent.span_id
+      });
       return fixedUp;
     };
     const groupSandboxEvents = (events) => {
       const result2 = [];
       const pendingSandboxEvents = [];
+      const useSpans = hasSpans(events);
       const pushPendingSandboxEvents = () => {
         const timestamp = pendingSandboxEvents[pendingSandboxEvents.length - 1].timestamp;
-        result2.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
+        if (useSpans) {
+          result2.push(createSpanBegin(kSandboxSignalName, timestamp, null));
+        } else {
+          result2.push(createStepEvent(kSandboxSignalName, timestamp, "begin"));
+        }
         result2.push(...pendingSandboxEvents);
-        result2.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
+        if (useSpans) {
+          result2.push(createSpanEnd(kSandboxSignalName, timestamp));
+        } else {
+          result2.push(createStepEvent(kSandboxSignalName, timestamp, "end"));
+        }
         pendingSandboxEvents.length = 0;
       };
       for (const event of events) {
@@ -59488,8 +59512,32 @@ ${events}
       type: null,
       name: name2,
       pending: false,
-      working_start: 0
+      working_start: 0,
+      span_id: null
     });
+    const createSpanBegin = (name2, timestamp, parent_id) => {
+      return {
+        name: name2,
+        id: `${name2}-begin`,
+        span_id: name2,
+        parent_id,
+        timestamp,
+        event: "span_begin",
+        type: null,
+        pending: false,
+        working_start: 0
+      };
+    };
+    const createSpanEnd = (name2, timestamp) => {
+      return {
+        id: `${name2}-end`,
+        timestamp,
+        event: "span_end",
+        pending: false,
+        working_start: 0,
+        span_id: name2
+      };
+    };
     const StepEventView = ({
       id,
       event,
@@ -59498,7 +59546,7 @@ ${events}
     }) => {
       const descriptor = stepDescriptor(event);
       const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
-      const text2 = summarize(children2);
+      const text2 = summarize$1(children2);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
@@ -59519,7 +59567,7 @@ ${events}
         }
       );
     };
-    const summarize = (children2) => {
+    const summarize$1 = (children2) => {
       if (children2.length === 0) {
         return "(no events)";
       }
@@ -59736,7 +59784,7 @@ ${events}
     const ToolEventView = ({
       id,
       event,
-      depth,
+      children: children2,
       className: className2
     }) => {
       var _a2, _b2;
@@ -59794,19 +59842,156 @@ ${events}
               ) : "",
               event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$f.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
             ] }),
-            event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-              TranscriptView,
+            children2.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              TranscriptComponent,
               {
-                id: `${id}-subtask`,
                 "data-name": "Transcript",
-                "data-default": event.failed || event.agent ? true : null,
-                events: event.events,
-                depth: depth + 1
+                id: `${id}-subtask`,
+                eventNodes: children2,
+                "data-default": event.failed || event.agent ? true : null
               }
             ) : ""
           ]
         }
       );
+    };
+    const SpanEventView = ({
+      id,
+      event,
+      children: children2,
+      className: className2
+    }) => {
+      const descriptor = spanDescriptor(event);
+      const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
+      const text2 = summarize(children2);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        EventPanel,
+        {
+          id: `span-${event.name}-${id}`,
+          className: clsx("transcript-span", className2),
+          title: title2,
+          subTitle: formatDateTime(new Date(event.timestamp)),
+          text: text2,
+          collapse: descriptor.collapse,
+          icon: descriptor.icon,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            TranscriptComponent,
+            {
+              id: `span|${event.name}|${id}`,
+              eventNodes: children2
+            }
+          )
+        }
+      );
+    };
+    const summarize = (children2) => {
+      if (children2.length === 0) {
+        return "(no events)";
+      }
+      const formatEvent = (event, count) => {
+        if (count === 1) {
+          return `${count} ${event} event`;
+        } else {
+          return `${count} ${event} events`;
+        }
+      };
+      const typeCount = {};
+      children2.forEach((child) => {
+        const currentCount = typeCount[child.event.event] || 0;
+        typeCount[child.event.event] = currentCount + 1;
+      });
+      const numberOfTypes = Object.keys(typeCount).length;
+      if (numberOfTypes < 3) {
+        return Object.keys(typeCount).map((key2) => {
+          return formatEvent(key2, typeCount[key2]);
+        }).join(", ");
+      }
+      if (children2.length === 1) {
+        return "1 event";
+      } else {
+        return `${children2.length} events`;
+      }
+    };
+    const spanDescriptor = (event) => {
+      const rootStepDescriptor = {
+        endSpace: true
+      };
+      if (event.type === "solver") {
+        switch (event.name) {
+          case "chain_of_thought":
+            return {
+              ...rootStepDescriptor,
+              collapse: false
+            };
+          case "generate":
+            return {
+              ...rootStepDescriptor,
+              collapse: false
+            };
+          case "self_critique":
+            return {
+              ...rootStepDescriptor,
+              collapse: false
+            };
+          case "system_message":
+            return {
+              ...rootStepDescriptor,
+              collapse: true
+            };
+          case "use_tools":
+            return {
+              ...rootStepDescriptor,
+              collapse: false
+            };
+          case "multiple_choice":
+            return {
+              ...rootStepDescriptor,
+              collapse: false
+            };
+          default:
+            return {
+              ...rootStepDescriptor,
+              collapse: false
+            };
+        }
+      } else if (event.type === "scorer") {
+        return {
+          ...rootStepDescriptor,
+          collapse: false
+        };
+      } else if (event.event === "span_begin") {
+        if (event.span_id === kSandboxSignalName) {
+          return {
+            ...rootStepDescriptor,
+            name: "Sandbox Events",
+            collapse: true
+          };
+        } else if (event.name === "init") {
+          return {
+            ...rootStepDescriptor,
+            name: "Init",
+            collapse: true
+          };
+        } else {
+          return {
+            ...rootStepDescriptor,
+            collapse: false
+          };
+        }
+      } else {
+        switch (event.name) {
+          case "sample_init":
+            return {
+              ...rootStepDescriptor,
+              name: "Sample Init",
+              collapse: true
+            };
+          default:
+            return {
+              endSpace: false
+            };
+        }
+      }
     };
     const transcriptComponent = "_transcriptComponent_171gc_19";
     const eventNode = "_eventNode_171gc_25";
@@ -59824,10 +60009,10 @@ ${events}
       noBottom,
       attached: attached$1
     };
-    const darkenedBg = "_darkenedBg_1sie6_1";
-    const normalBg = "_normalBg_1sie6_5";
-    const node = "_node_1sie6_9";
-    const attached = "_attached_1sie6_14";
+    const darkenedBg = "_darkenedBg_u9na2_1";
+    const normalBg = "_normalBg_u9na2_5";
+    const node = "_node_u9na2_9";
+    const attached = "_attached_u9na2_14";
     const styles$d = {
       darkenedBg,
       normalBg,
@@ -59873,9 +60058,11 @@ ${events}
       }
     }
     function treeifyEvents(events, depth) {
+      const useSpans = hasSpans(events);
+      const treeFn = useSpans ? treeifyFnSpan : treeifyFnStep;
       const rootNodes = [];
       const stack2 = [];
-      const pushNode = (event) => {
+      const addNode = (event) => {
         const node2 = new EventNode(event, stack2.length + depth);
         if (stack2.length > 0) {
           const parentNode = stack2[stack2.length - 1];
@@ -59885,20 +60072,139 @@ ${events}
         }
         return node2;
       };
-      events.forEach((event) => {
-        if (event.event === "step" && event.action === "begin") {
-          const node2 = pushNode(event);
-          stack2.push(node2);
-        } else if (event.event === "step" && event.action === "end") {
-          if (stack2.length > 0) {
-            stack2.pop();
-          }
-        } else {
-          pushNode(event);
+      const pushStack = (node2) => {
+        stack2.push(node2);
+      };
+      const popStack = () => {
+        if (stack2.length > 0) {
+          stack2.pop();
         }
+      };
+      events.forEach((event) => {
+        treeFn(event, addNode, pushStack, popStack);
       });
-      return rootNodes;
+      if (useSpans) {
+        return transformTree(rootNodes);
+      } else {
+        return rootNodes;
+      }
     }
+    const treeifyFnStep = (event, addNode, pushStack, popStack) => {
+      switch (event.event) {
+        case ET_STEP:
+          if (event.action === ACTION_BEGIN) {
+            const node2 = addNode(event);
+            pushStack(node2);
+          } else {
+            popStack();
+          }
+          break;
+        case ET_SPAN_BEGIN: {
+          break;
+        }
+        case ET_SPAN_END: {
+          break;
+        }
+        default:
+          addNode(event);
+          break;
+      }
+    };
+    const treeifyFnSpan = (event, addNode, pushStack, popStack) => {
+      switch (event.event) {
+        case ET_STEP:
+          break;
+        case ET_SPAN_BEGIN: {
+          const node2 = addNode(event);
+          pushStack(node2);
+          break;
+        }
+        case ET_SPAN_END: {
+          popStack();
+          break;
+        }
+        default:
+          addNode(event);
+          break;
+      }
+    };
+    const treeNodeTransformers = [
+      {
+        name: "unwrap_tools",
+        matches: (node2) => node2.event.event === "span_begin" && node2.event.type === "tool",
+        process: (node2) => elevateChildNode(node2, "tool") || node2
+      },
+      {
+        name: "unwrap_subtasks",
+        matches: (node2) => node2.event.event === "span_begin" && node2.event.type === "subtask",
+        process: (node2) => elevateChildNode(node2, "subtask") || node2
+      },
+      {
+        name: "unwrap_agent_solver",
+        matches: (node2) => node2.event.event === "span_begin" && node2.event["type"] === "solver" && node2.children.length === 2 && node2.children[0].event.event === "span_begin" && node2.children[0].event.type === "agent" && node2.children[1].event.event === "state",
+        process: (node2) => skipFirstChildNode(node2)
+      },
+      {
+        name: "unwrap_agent_solver w/store",
+        matches: (node2) => node2.event.event === "span_begin" && node2.event["type"] === "solver" && node2.children.length === 3 && node2.children[0].event.event === "span_begin" && node2.children[0].event.type === "agent" && node2.children[1].event.event === "state" && node2.children[2].event.event === "store",
+        process: (node2) => skipFirstChildNode(node2)
+      },
+      {
+        name: "unwrap_handoff",
+        matches: (node2) => node2.event.event === "span_begin" && node2.event["type"] === "handoff" && node2.children.length === 2 && node2.children[0].event.event === "tool" && node2.children[1].event.event === "store" && node2.children[0].children.length === 2 && node2.children[0].children[0].event.event === "span_begin" && node2.children[0].children[0].event.type === "agent",
+        process: (node2) => skipThisNode(node2)
+      }
+    ];
+    const transformTree = (roots) => {
+      const visitNode = (node2) => {
+        let processedNode = node2;
+        processedNode.children = processedNode.children.map(visitNode);
+        for (const transformer of treeNodeTransformers) {
+          if (transformer.matches(processedNode)) {
+            processedNode = transformer.process(processedNode);
+            break;
+          }
+        }
+        return processedNode;
+      };
+      return roots.map(visitNode);
+    };
+    const elevateChildNode = (node2, childEventType) => {
+      const targetIndex = node2.children.findIndex(
+        (child) => child.event.event === childEventType
+      );
+      if (targetIndex === -1) {
+        console.log(
+          `No ${childEventType} event found in a span, this is very unexpected.`
+        );
+        return null;
+      }
+      const targetNode = { ...node2.children[targetIndex] };
+      const remainingChildren = node2.children.filter((_, i2) => i2 !== targetIndex);
+      targetNode.depth = node2.depth;
+      targetNode.children = reduceDepth(remainingChildren);
+      return targetNode;
+    };
+    const skipFirstChildNode = (node2) => {
+      const agentSpan = node2.children.splice(0, 1)[0];
+      node2.children.unshift(...reduceDepth(agentSpan.children));
+      return node2;
+    };
+    const skipThisNode = (node2) => {
+      const newNode = { ...node2.children[0] };
+      newNode.depth = node2.depth;
+      newNode.children = reduceDepth(newNode.children[0].children, 2);
+      return newNode;
+    };
+    const reduceDepth = (nodes, depth = 1) => {
+      return nodes.map((node2) => {
+        if (node2.children.length > 0) {
+          node2.children = reduceDepth(node2.children, 1);
+        }
+        node2.depth = node2.depth - depth;
+        return node2;
+      });
+    };
     const TranscriptView = ({
       id,
       events,
@@ -60016,6 +60322,16 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreEventView, { id, event: node2.event, className: className2 });
           case "state":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(StateEventView, { id, event: node2.event, className: className2 });
+          case "span_begin":
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SpanEventView,
+              {
+                id,
+                event: node2.event,
+                children: node2.children,
+                className: className2
+              }
+            );
           case "step":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               StepEventView,
@@ -60053,7 +60369,7 @@ ${events}
                 id,
                 event: node2.event,
                 className: className2,
-                depth: node2.depth
+                children: node2.children
               }
             );
           case "input":

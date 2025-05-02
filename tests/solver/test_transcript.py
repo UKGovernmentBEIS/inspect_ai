@@ -8,13 +8,14 @@ from inspect_ai.solver import (
     generate,
     solver,
 )
+from inspect_ai.util._span import span
 
 
 def test_sample_transcript():
     @solver
     def transcript_solver():
         async def solve(state: TaskState, generate: Generate):
-            with transcript().step("info"):
+            async with span("info"):
                 state.metadata["foo"] = "bar"
                 transcript().info(str(state.sample_id))
             return state
@@ -39,4 +40,4 @@ def test_sample_transcript():
     # )
     assert log.samples[0].transcript.events[3].type == "solver"
     assert log.samples[0].transcript.events[5].data == "1"
-    assert log.samples[0].transcript.events[8].event == "state"
+    assert log.samples[0].transcript.events[7].event == "state"

@@ -11,6 +11,7 @@ from inspect_ai.tool._tool_def import ToolDef, validate_tool_parameters
 from inspect_ai.tool._tool_info import ToolInfo, parse_tool_info
 from inspect_ai.tool._tool_params import ToolParam
 from inspect_ai.util._limit import Limit, apply_limits
+from inspect_ai.util._span import span
 
 from ._agent import AGENT_DESCRIPTION, Agent, AgentState
 
@@ -49,13 +50,17 @@ def as_tool(
             "Agent passed to as_tool was not created by an @agent decorated function"
         )
 
+    # get tool_info
+    tool_info = agent_tool_info(agent, description, **agent_kwargs)
+
     async def execute(input: str, *args: Any, **kwargs: Any) -> ToolResult:
         # prepare state
         state = AgentState(messages=[ChatMessageUser(content=input, source="input")])
 
         # run the agent with limits
         with apply_limits(limits):
-            state = await agent(state, *args, **(agent_kwargs | kwargs))
+            async with span(name=tool_info.name, type="agent"):
+                state = await agent(state, *args, **(agent_kwargs | kwargs))
 
         # find assistant message to read content from (prefer output)
         if not state.output.empty:
@@ -66,9 +71,6 @@ def as_tool(
             return state.messages[-1].content
         else:
             return ""
-
-    # get tool_info
-    tool_info = agent_tool_info(agent, description, **agent_kwargs)
 
     # add "input" param
     tool_info.parameters.properties = {

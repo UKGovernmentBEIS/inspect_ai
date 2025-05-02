@@ -45,6 +45,11 @@ title: "inspect_ai.log"
 ### transcript
 ### Transcript
 ### Event
+### event_tree
+### event_sequence
+### EventTree
+### EventNode
+### SpanNode
 ### SampleInitEvent
 ### SampleLimitEvent
 ### StateEvent
@@ -54,14 +59,15 @@ title: "inspect_ai.log"
 ### SandboxEvent
 ### ApprovalEvent
 ### InputEvent
-### StoreEvent
 ### ErrorEvent
 ### LoggerEvent
 ### LoggingLevel
 ### LoggingMessage
 ### InfoEvent
-### StepEvent
+### SpanBeginEvent
+### SpanEndEvent
 ### SubtaskEvent
+
 
 
 

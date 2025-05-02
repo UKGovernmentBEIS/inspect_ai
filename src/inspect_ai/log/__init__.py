@@ -48,6 +48,8 @@ from ._transcript import (
     SampleLimitEvent,
     SandboxEvent,
     ScoreEvent,
+    SpanBeginEvent,
+    SpanEndEvent,
     StateEvent,
     StepEvent,
     StoreEvent,
@@ -56,6 +58,7 @@ from ._transcript import (
     Transcript,
     transcript,
 )
+from ._tree import EventNode, EventTree, SpanNode, event_sequence, event_tree
 
 __all__ = [
     "EvalConfig",
@@ -92,6 +95,8 @@ __all__ = [
     "SampleLimitEvent",
     "SandboxEvent",
     "ScoreEvent",
+    "SpanBeginEvent",
+    "SpanEndEvent",
     "StateEvent",
     "StepEvent",
     "StoreEvent",
@@ -111,4 +116,9 @@ __all__ = [
     "write_log_dir_manifest",
     "retryable_eval_logs",
     "bundle_log_dir",
+    "event_tree",
+    "event_sequence",
+    "EventTree",
+    "EventNode",
+    "SpanNode",
 ]

@@ -23,9 +23,10 @@ from pydantic import (
 )
 from shortuuid import uuid
 
-from inspect_ai._util.constants import SAMPLE_SUBTASK
+from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.json import JsonChange, json_changes
+from inspect_ai._util.json import JsonChange
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.working import sample_working_time
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._message import LoggingMessage
@@ -34,7 +35,6 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
-from inspect_ai.solver._task_state import state_jsonable
 from inspect_ai.tool._tool import ToolResult
 from inspect_ai.tool._tool_call import (
     ToolCall,
@@ -44,6 +44,7 @@ from inspect_ai.tool._tool_call import (
 )
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._span import current_span_id
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 logger = getLogger(__name__)
@@ -57,6 +58,9 @@ class BaseEvent(BaseModel):
     }
     id_: str = Field(default_factory=lambda: str(uuid()), exclude=True)
 
+    span_id: str | None = Field(default=None)
+    """Span the event occurred within."""
+
     timestamp: datetime = Field(default_factory=datetime.now)
     """Clock time at which event occurred."""
 
@@ -65,6 +69,17 @@ class BaseEvent(BaseModel):
 
     pending: bool | None = Field(default=None)
     """Is this event pending?"""
+
+    def model_post_init(self, __context: Any) -> None:
+        # check if deserializing
+        is_deserializing = isinstance(__context, dict) and __context.get(
+            DESERIALIZING, False
+        )
+
+        # Generate context id fields if not deserializing
+        if not is_deserializing:
+            if self.span_id is None:
+                self.span_id = current_span_id()
 
     @field_serializer("timestamp")
     def serialize_timestamp(self, dt: datetime) -> str:
@@ -147,6 +162,9 @@ class ModelEvent(BaseEvent):
     output: ModelOutput
     """Output from model."""
 
+    retries: int | None = Field(default=None)
+    """Retries for the model API request."""
+
     error: str | None = Field(default=None)
     """Error which occurred during model call."""
 
@@ -203,7 +221,13 @@ class ToolEvent(BaseEvent):
     """Error that occurred during tool call."""
 
     events: list["Event"] = Field(default_factory=list)
-    """Transcript of events for tool."""
+    """Transcript of events for tool.
+
+    Note that events are no longer recorded separately within
+    tool events but rather all events are recorded in the main
+    transcript. This field is deprecated and here for backwards
+    compatibility with transcripts that have sub-events.
+    """
 
     completed: datetime | None = Field(default=None)
     """Time that tool call completed (see `timestamp` for started)"""
@@ -222,7 +246,6 @@ class ToolEvent(BaseEvent):
         result: ToolResult,
         truncated: tuple[int, int] | None,
         error: ToolCallError | None,
-        events: list["Event"],
         waiting_time: float,
         agent: str | None,
         failed: bool | None,
@@ -230,7 +253,6 @@ class ToolEvent(BaseEvent):
         self.result = result
         self.truncated = truncated
         self.error = error
-        self.events = events
         self.pending = None
         completed = datetime.now()
         self.completed = completed
@@ -402,6 +424,35 @@ class ScoreEvent(BaseEvent):
     """Was this an intermediate scoring?"""
 
 
+class SpanBeginEvent(BaseEvent):
+    """Mark the beginning of a transcript span."""
+
+    event: Literal["span_begin"] = Field(default="span_begin")
+    """Event type."""
+
+    id: str
+    """Unique identifier for span."""
+
+    parent_id: str | None = Field(default=None)
+    """Identifier for parent span."""
+
+    type: str | None = Field(default=None)
+    """Optional 'type' field for span."""
+
+    name: str
+    """Span name."""
+
+
+class SpanEndEvent(BaseEvent):
+    """Mark the end of a transcript span."""
+
+    event: Literal["span_end"] = Field(default="span_end")
+    """Event type."""
+
+    id: str
+    """Unique identifier for span."""
+
+
 class StepEvent(BaseEvent):
     """Step within current sample or subtask."""
 
@@ -437,7 +488,13 @@ class SubtaskEvent(BaseEvent):
     """Subtask function result."""
 
     events: list["Event"] = Field(default_factory=list)
-    """Transcript of events for subtask."""
+    """Transcript of events for subtask.
+
+    Note that events are no longer recorded separately within
+    subtasks but rather all events are recorded in the main
+    transcript. This field is deprecated and here for backwards
+    compatibility with transcripts that have sub-events.
+    """
 
     completed: datetime | None = Field(default=None)
     """Time that subtask completed (see `timestamp` for started)"""
@@ -467,6 +524,8 @@ Event: TypeAlias = Union[
     | ErrorEvent
     | LoggerEvent
     | InfoEvent
+    | SpanBeginEvent
+    | SpanEndEvent
     | StepEvent
     | SubtaskEvent,
 ]
@@ -480,8 +539,7 @@ class Transcript:
 
     _event_logger: Callable[[Event], None] | None
 
-    def __init__(self, name: str = "") -> None:
-        self.name = name
+    def __init__(self) -> None:
         self._event_logger = None
         self._events: list[Event] = []
 
@@ -498,19 +556,20 @@ class Transcript:
     def step(self, name: str, type: str | None = None) -> Iterator[None]:
         """Context manager for recording StepEvent.
 
+        The `step()` context manager is deprecated and will be removed in a future version.
+        Please use the `span()` context manager instead.
+
         Args:
             name (str): Step name.
             type (str | None): Optional step type.
         """
-        # step event
-        self._event(StepEvent(action="begin", name=name, type=type))
-
-        # run the step (tracking state/store changes)
-        with track_state_changes(type), track_store_changes():
-            yield
-
-        # end step event
-        self._event(StepEvent(action="end", name=name, type=type))
+        warn_once(
+            logger,
+            "The `transcript().step()` context manager is deprecated and will "
+            + "be removed in a future version. Please replace the call to step() "
+            + "with a call to span().",
+        )
+        yield
 
     @property
     def events(self) -> Sequence[Event]:
@@ -549,23 +608,6 @@ def track_store_changes() -> Iterator[None]:
     changes = store_changes(before, after)
     if changes:
         transcript()._event(StoreEvent(changes=changes))
-
-
-@contextlib.contextmanager
-def track_state_changes(type: str | None = None) -> Iterator[None]:
-    # we only want to track for step() inside the the sample
-    # (solver level tracking is handled already and there are
-    # no state changes in subtasks)
-    if transcript().name == SAMPLE_SUBTASK and type != "solver":
-        before = state_jsonable()
-        yield
-        after = state_jsonable()
-
-        changes = json_changes(before, after)
-        if changes:
-            transcript()._event(StateEvent(changes=changes))
-    else:
-        yield
 
 
 def init_transcript(transcript: Transcript) -> None:

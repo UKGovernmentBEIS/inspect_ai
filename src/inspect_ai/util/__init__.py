@@ -8,6 +8,7 @@ from inspect_ai.util._limit import (
     token_limit,
 )
 
+from ._collect import collect
 from ._concurrency import concurrency
 from ._console import input_screen
 from ._display import DisplayType, display_counter, display_type
@@ -28,6 +29,7 @@ from ._sandbox import (
     sandbox_with,
     sandboxenv,
 )
+from ._span import span
 from ._store import Store, store
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
@@ -71,6 +73,8 @@ __all__ = [
     "store",
     "StoreModel",
     "store_as",
+    "span",
+    "collect",
     "Subtask",
     "subtask",
     "throttle",
