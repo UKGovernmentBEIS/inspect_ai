@@ -38,6 +38,9 @@ export interface AppSlice {
     getCollapsed: (name: string, defaultValue?: boolean) => boolean;
     setCollapsed: (name: string, value: boolean) => void;
 
+    getVisible: (name: string, defaultValue?: boolean) => boolean;
+    setVisible: (name: string, value: boolean) => void;
+
     getMessageVisible: (name: string, defaultValue?: boolean) => boolean;
     setMessageVisible: (name: string, value: boolean) => void;
     clearMessageVisible: (name: string) => void;

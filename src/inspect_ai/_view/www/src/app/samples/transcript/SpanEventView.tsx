@@ -3,7 +3,6 @@ import { FC } from "react";
 import { SpanBeginEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptComponent } from "./TranscriptView";
 import { kSandboxSignalName } from "./transform/fixups";
 import { EventNode } from "./types";
 
@@ -31,19 +30,15 @@ export const SpanEventView: FC<SpanEventViewProps> = ({
 
   return (
     <EventPanel
-      id={`span-${event.name}-${id}`}
+      id={id}
+      childIds={children.map((child) => child.id)}
       className={clsx("transcript-span", className)}
       title={title}
       subTitle={formatDateTime(new Date(event.timestamp))}
       text={text}
       collapse={descriptor.collapse}
       icon={descriptor.icon}
-    >
-      <TranscriptComponent
-        id={`span|${event.name}|${id}`}
-        eventNodes={children}
-      />
-    </EventPanel>
+    />
   );
 };
 
