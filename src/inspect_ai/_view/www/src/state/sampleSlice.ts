@@ -95,6 +95,9 @@ export const createSampleSlice = (
               sampleSummary.id,
               sampleSummary.epoch,
             );
+            log.debug(
+              `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`,
+            );
             if (sample) {
               const migratedSample = resolveSample(sample);
               sampleActions.setSelectedSample(migratedSample);

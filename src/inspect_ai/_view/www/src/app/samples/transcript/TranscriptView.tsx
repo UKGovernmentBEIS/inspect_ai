@@ -21,7 +21,7 @@ import { SpanEventView } from "./SpanEventView";
 import styles from "./TranscriptView.module.css";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
 import { fixupEventStream } from "./transform/fixups";
-import { treeifyEvents } from "./transform/treeify";
+import { flatTree, treeifyEvents } from "./transform/treeify";
 
 interface TranscriptViewProps {
   id: string;
@@ -64,7 +64,8 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
     // Normalize Events themselves
     const eventNodes = useMemo(() => {
       const resolvedEvents = fixupEventStream(events, !running);
-      const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
+      const eventTree = treeifyEvents(resolvedEvents, depth || 0);
+      const eventNodes = flatTree(eventTree);
       return eventNodes;
     }, [events, depth]);
 
@@ -123,6 +124,7 @@ export const TranscriptComponent: FC<TranscriptComponentProps> = memo(
             i === eventNodes.length - 1 ? styles.noBottom : undefined,
             containerClz,
           )}
+          style={{ paddingLeft: `${eventNode.depth * 1}em` }}
         >
           <RenderedEventNode
             id={eventId}
@@ -206,7 +208,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
           <SpanEventView
             id={id}
             event={node.event}
-            children={node.children}
+            children={[]}
             className={className}
           />
         );
@@ -216,7 +218,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
           <StepEventView
             id={id}
             event={node.event}
-            children={node.children}
+            children={[]}
             className={className}
           />
         );
