@@ -92,11 +92,11 @@ def import_record(
         if name.endswith("*"):
             if matches and matches[0].value is not None:
                 match = matches[0]
-                if isinstance(match.value, dict):
-                    # flatten dictionary keys into separate fields
-                    base_name = name.replace("*", "")
-                    for key, value in match.value.items():
-                        set_result(f"{base_name}{key}", json_path, value, column.type)
+                value = column.value(match.value)
+                if isinstance(value, dict):
+                    expanded = _expand_fields(name, value)
+                    for k, v in expanded.items():
+                        set_result(k, json_path, v, column.type)
                 else:
                     field_not_found(name, json_path, "dict")
             elif column.required:
@@ -253,3 +253,39 @@ def _coerce_from_str(tp: Type[ColumnType], text: str) -> ColumnType:
 
     # 4) plain constructor last
     return _try_constructor(tp, text)
+
+
+def _expand_fields(name: str, value: JsonValue) -> dict[str, JsonValue]:
+    result: dict[str, JsonValue] = {}
+
+    # Base case: no asterisks in the field name
+    if "*" not in name:
+        result[name] = value
+        return result
+
+    # If there's an asterisk but value isn't a dictionary, we can't expand
+    if not isinstance(value, dict):
+        # Handle this case - either return empty dict, skip it, or use a default name
+        # For now, I'll just return an empty dict
+        return result
+
+    # Get the position of the first asterisk
+    asterisk_pos = name.find("*")
+    prefix = name[:asterisk_pos]
+    suffix = name[asterisk_pos + 1 :]
+
+    # recursive case: expand each key in the dictionary
+    for key, val in value.items():
+        new_field = prefix + key + suffix
+        # recursively expand any remaining asterisks
+        if "*" in suffix:
+            if isinstance(val, dict):
+                expanded = _expand_fields(new_field, val)
+                result.update(expanded)
+            # If suffix has '*' but val is not a dict, skip it
+            else:
+                pass
+        else:
+            result[new_field] = val
+
+    return result
