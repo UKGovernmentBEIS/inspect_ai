@@ -500,8 +500,8 @@ website:
           href: reference/inspect_ai.util.qmd#subtask
         - text: span
           href: reference/inspect_ai.util.qmd#span
-        - text: gather
-          href: reference/inspect_ai.util.qmd#gather
+        - text: collect
+          href: reference/inspect_ai.util.qmd#collect
         - text: resource
           href: reference/inspect_ai.util.qmd#resource
         - text: throttle
