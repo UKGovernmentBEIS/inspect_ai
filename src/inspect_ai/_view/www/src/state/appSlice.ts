@@ -67,6 +67,7 @@ const initialState: AppState = {
   scrollPositions: {},
   listPositions: {},
   collapsed: {},
+  visible: {},
   messages: {},
   propertyBags: {},
 };
@@ -212,6 +213,14 @@ export const createAppSlice = (
       setCollapsed: (name: string, value: boolean) => {
         set((state) => {
           state.app.collapsed[name] = value;
+        });
+      },
+      getVisible: (name: string, defaultValue?: boolean) => {
+        return getBoolRecord(get().app.visible, name, defaultValue);
+      },
+      setVisible: (name: string, value: boolean) => {
+        set((state) => {
+          state.app.visible[name] = value;
         });
       },
       getMessageVisible: (name: string, defaultValue?: boolean) => {

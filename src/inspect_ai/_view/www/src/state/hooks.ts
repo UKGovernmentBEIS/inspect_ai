@@ -276,6 +276,26 @@ export const useCollapsedState = (
   }, [collapsed, setCollapsed]);
 };
 
+export const useVisibility = (
+  id: string,
+  scope: string,
+  defaultValue?: boolean,
+) => {
+  const stateId = scope ? `${scope}-${id}` : id;
+
+  const visible = useStore((state) =>
+    state.appActions.getVisible(stateId, defaultValue),
+  );
+  const setVisible = useStore((state) => state.appActions.setVisible);
+  return useMemo(() => {
+    const set = (value: boolean) => {
+      log.debug("Set visibility", id, scope, value);
+      setVisible(stateId, value);
+    };
+    return [visible, set];
+  }, [visible, setVisible]);
+};
+
 export const useMessageVisibility = (
   id: string,
   scope: "sample" | "eval",

@@ -42,6 +42,7 @@ export interface AppState {
   scrollPositions: Record<string, number>;
   listPositions: Record<string, StateSnapshot>;
   collapsed: Record<string, boolean>;
+  visible: Record<string, boolean>;
   messages: Record<string, boolean>;
   propertyBags: Record<string, Record<string, unknown>>;
   urlHash?: string;
