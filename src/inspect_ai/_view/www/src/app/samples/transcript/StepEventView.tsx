@@ -31,7 +31,8 @@ export const StepEventView: FC<StepEventViewProps> = ({
 
   return (
     <EventPanel
-      id={`step-${event.name}-${id}`}
+      id={id}
+      childIds={children.map((child) => child.id)}
       className={clsx("transcript-step", className)}
       title={title}
       subTitle={formatDateTime(new Date(event.timestamp))}

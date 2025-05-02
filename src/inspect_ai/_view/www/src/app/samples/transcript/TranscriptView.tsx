@@ -208,9 +208,9 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
       case "span_begin":
         return (
           <SpanEventView
-            id={id}
+            id={node.id}
             event={node.event}
-            children={[]}
+            children={node.children}
             className={className}
           />
         );
@@ -218,7 +218,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
       case "step":
         return (
           <StepEventView
-            id={id}
+            id={node.id}
             event={node.event}
             children={[]}
             className={className}

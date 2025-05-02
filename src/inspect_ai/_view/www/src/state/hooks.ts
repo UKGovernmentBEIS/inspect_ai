@@ -280,17 +280,17 @@ export const useVisibility = (
   id: string,
   scope: string,
   defaultValue?: boolean,
-) => {
-  const stateId = scope ? `${scope}-${id}` : id;
+): [boolean, (value: boolean, elementId?: string) => void] => {
+  const stateId = `${scope}-${id}`;
 
   const visible = useStore((state) =>
     state.appActions.getVisible(stateId, defaultValue),
   );
   const setVisible = useStore((state) => state.appActions.setVisible);
   return useMemo(() => {
-    const set = (value: boolean) => {
-      log.debug("Set visibility", id, scope, value);
-      setVisible(stateId, value);
+    const set = (value: boolean, elementId?: string) => {
+      const setStateId = `${scope}-${elementId || id}`;
+      setVisible(setStateId, value);
     };
     return [visible, set];
   }, [visible, setVisible]);

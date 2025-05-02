@@ -42576,9 +42576,9 @@ categories: ${categories.join(" ")}`;
       );
       const setVisible = useStore((state) => state.appActions.setVisible);
       return reactExports.useMemo(() => {
-        const set2 = (value2) => {
-          log$1.debug("Set visibility", id, scope, value2);
-          setVisible(stateId, value2);
+        const set2 = (value2, elementId) => {
+          const setStateId = `${scope}-${elementId || id}`;
+          setVisible(setStateId, value2);
         };
         return [visible2, set2];
       }, [visible2, setVisible]);
@@ -51327,11 +51327,11 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$4 = "_label_7z797_1";
-    const navs = "_navs_7z797_6";
-    const card = "_card_7z797_12";
-    const cardContent = "_cardContent_7z797_18";
-    const hidden$1 = "_hidden_7z797_23";
+    const label$4 = "_label_k00v4_1";
+    const navs = "_navs_k00v4_6";
+    const card = "_card_k00v4_12";
+    const cardContent = "_cardContent_k00v4_18";
+    const hidden$1 = "_hidden_k00v4_23";
     const styles$s = {
       label: label$4,
       navs,
@@ -51377,10 +51377,12 @@ self.onmessage = function (e) {
       gridColumns2.push("minmax(0, max-content)");
       const toggleCollapse = reactExports.useCallback(() => {
         setCollapsed(!collapsed);
-        for (const childID of childIds || []) {
-          setVisible(childID, "events", !collapsed);
+      }, [setCollapsed, collapsed, setVisible, childIds]);
+      reactExports.useEffect(() => {
+        for (const childId of childIds || []) {
+          setVisible(!collapsed, childId);
         }
-      }, [setCollapsed, collapsed]);
+      }, [collapsed]);
       const titleEl = title2 || icon2 || filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -51450,7 +51452,11 @@ self.onmessage = function (e) {
         "div",
         {
           id,
-          className: clsx(className2, styles$s.card, !visible2 && styles$s.hidden),
+          className: clsx(
+            className2,
+            styles$s.card,
+            !visible2 ? styles$s.hidden : void 0
+          ),
           children: [
             titleEl,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -59702,7 +59708,8 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: `step-${event.name}-${id}`,
+          id,
+          childIds: children2.map((child) => child.id),
           className: clsx("transcript-step", className2),
           title: title2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -60019,20 +60026,14 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: `span-${event.name}-${id}`,
+          id,
+          childIds: children2.map((child) => child.id),
           className: clsx("transcript-span", className2),
           title: title2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           text: text2,
           collapse: descriptor.collapse,
-          icon: descriptor.icon,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            TranscriptComponent,
-            {
-              id: `span|${event.name}|${id}`,
-              eventNodes: children2
-            }
-          )
+          icon: descriptor.icon
         }
       );
     };
@@ -60510,9 +60511,9 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SpanEventView,
               {
-                id,
+                id: node2.id,
                 event: node2.event,
-                children: [],
+                children: node2.children,
                 className: className2
               }
             );
@@ -60520,7 +60521,7 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               StepEventView,
               {
-                id,
+                id: node2.id,
                 event: node2.event,
                 children: [],
                 className: className2

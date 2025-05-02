@@ -5,6 +5,7 @@ import {
   ReactElement,
   ReactNode,
   useCallback,
+  useEffect,
 } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
@@ -87,10 +88,13 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const toggleCollapse = useCallback(() => {
     setCollapsed(!collapsed);
-    for (const childID of childIds || []) {
-      setVisible(childID, "events", !collapsed);
+  }, [setCollapsed, collapsed, setVisible, childIds]);
+
+  useEffect(() => {
+    for (const childId of childIds || []) {
+      setVisible(!collapsed, childId);
     }
-  }, [setCollapsed, collapsed]);
+  }, [collapsed]);
 
   const titleEl =
     title || icon || filteredArrChildren.length > 1 ? (
@@ -172,7 +176,11 @@ export const EventPanel: FC<EventPanelProps> = ({
   const card = (
     <div
       id={id}
-      className={clsx(className, styles.card, !visible && styles.hidden)}
+      className={clsx(
+        className,
+        styles.card,
+        !visible ? styles.hidden : undefined,
+      )}
     >
       {titleEl}
       <div
