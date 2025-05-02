@@ -9,7 +9,11 @@ import {
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import { useCollapsedState, useProperty } from "../../../../state/hooks";
+import {
+  useCollapsedState,
+  useProperty,
+  useVisibility,
+} from "../../../../state/hooks";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -42,6 +46,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   children,
 }) => {
   const [collapsed, setCollapsed] = useCollapsedState(id, collapse, "events");
+  const [visible, _setVisible] = useVisibility(id, "events", true);
 
   const hasCollapse = collapse !== undefined;
 
@@ -161,33 +166,34 @@ export const EventPanel: FC<EventPanelProps> = ({
     );
 
   const card = (
-    <>
-      <div id={id} className={clsx(className, styles.card)}>
-        {titleEl}
-        <div
-          className={clsx(
-            "tab-content",
-            styles.cardContent,
-            hasCollapse && collapsed ? styles.hidden : undefined,
-          )}
-        >
-          {filteredArrChildren?.map((child, index) => {
-            const id = pillId(index);
-            const isSelected = id === selectedNav;
+    <div
+      id={id}
+      className={clsx(className, styles.card, !visible && styles.hidden)}
+    >
+      {titleEl}
+      <div
+        className={clsx(
+          "tab-content",
+          styles.cardContent,
+          hasCollapse && collapsed ? styles.hidden : undefined,
+        )}
+      >
+        {filteredArrChildren?.map((child, index) => {
+          const id = pillId(index);
+          const isSelected = id === selectedNav;
 
-            return (
-              <div
-                key={`children-${id}-${index}`}
-                id={id}
-                className={clsx("tab-pane", "show", isSelected ? "active" : "")}
-              >
-                {child}
-              </div>
-            );
-          })}
-        </div>
+          return (
+            <div
+              key={`children-${id}-${index}`}
+              id={id}
+              className={clsx("tab-pane", "show", isSelected ? "active" : "")}
+            >
+              {child}
+            </div>
+          );
+        })}
       </div>
-    </>
+    </div>
   );
   return card;
 };
