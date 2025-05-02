@@ -23,29 +23,6 @@ import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent
 import { fixupEventStream } from "./transform/fixups";
 import { flatTree, treeifyEvents } from "./transform/treeify";
 
-interface TranscriptViewProps {
-  id: string;
-  events: Events;
-  depth: number;
-}
-
-/**
- * Renders the TranscriptView component.
- */
-export const TranscriptView: FC<TranscriptViewProps> = ({
-  id,
-  events,
-  depth,
-}) => {
-  // Normalize Events themselves
-  const resolvedEvents = fixupEventStream(events);
-  const eventNodes = treeifyEvents(
-    resolvedEvents,
-    depth !== undefined ? depth : 0,
-  );
-  return <TranscriptComponent id={id} eventNodes={eventNodes} />;
-};
-
 interface TranscriptVirtualListProps {
   id: string;
   events: Events;
@@ -237,12 +214,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
 
       case "subtask":
         return (
-          <SubtaskEventView
-            id={id}
-            event={node.event}
-            className={className}
-            depth={node.depth}
-          />
+          <SubtaskEventView id={id} event={node.event} className={className} />
         );
 
       case "tool":

@@ -6,12 +6,10 @@ import { MetaDataView } from "../../content/MetaDataView";
 import { EventPanel } from "./event/EventPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
-import { TranscriptView } from "./TranscriptView";
 
 interface SubtaskEventViewProps {
   id: string;
   event: SubtaskEvent;
-  depth: number;
   className?: string | string[];
 }
 
@@ -21,7 +19,6 @@ interface SubtaskEventViewProps {
 export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
   id,
   event,
-  depth,
   className,
 }) => {
   const body: ReactNode[] = [];
@@ -32,17 +29,6 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
         <div className={clsx(styles.summaryRendered)}>
           <Rendered values={event.input} />
         </div>
-        <div className={clsx("text-style-label")}>Transcript</div>
-        {event.events.length > 0 ? (
-          <TranscriptView
-            id={`${id}-subtask`}
-            data-name="Transcript"
-            events={event.events}
-            depth={depth + 1}
-          />
-        ) : (
-          <None />
-        )}
       </div>,
     );
   } else {
