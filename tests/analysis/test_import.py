@@ -1,11 +1,15 @@
 from datetime import date, datetime, time, timezone
+from pathlib import Path
 
 import pytest
 from pydantic import JsonValue
 
+from inspect_ai._util.datetime import iso_now
 from inspect_ai.analysis import Columns, EvalDefault
 from inspect_ai.analysis._df.record import _resolve_value, import_record
 from inspect_ai.analysis._df.types import Column
+from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._log import EvalLog, EvalSpec
 
 # ======== Test Data ========
 test_record: dict[str, JsonValue] = {
@@ -70,6 +74,17 @@ def test_wildcard_fields() -> None:
 
     assert result["task_arg_foo"] == 42
     assert result["task_arg_bar"] == 84
+
+
+def test_extract_function() -> None:
+    log = read_eval_log(
+        Path(__file__).parent.parent / "log" / "test_eval_log" / "log_formats.eval"
+    )
+    spec: Columns = {
+        "status": Column(lambda log: log.status, required=True),
+    }
+    result = import_record(log, spec)
+    assert result["status"] == "success"
 
 
 def test_field_options() -> None:

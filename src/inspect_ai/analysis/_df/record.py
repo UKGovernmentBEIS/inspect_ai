@@ -4,15 +4,19 @@ from typing import Any, Callable, Literal, Type, cast, overload
 
 import yaml
 from jsonpath_ng import JSONPath  # type: ignore
-from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
+
+from inspect_ai._util.json import jsonable_python
+from inspect_ai._util.path import native_path
+from inspect_ai.analysis._df.util import eval_id
+from inspect_ai.log._log import EvalLog
 
 from .types import ColumnError, Columns, ColumnType
 
 
 @overload
 def import_record(
-    record: dict[str, JsonValue],
+    log: EvalLog | dict[str, JsonValue],
     columns: Columns,
     strict: Literal[True] = True,
 ) -> dict[str, ColumnType]: ...
@@ -20,17 +24,26 @@ def import_record(
 
 @overload
 def import_record(
-    record: dict[str, JsonValue],
+    log: EvalLog | dict[str, JsonValue],
     columns: Columns,
     strict: Literal[False],
 ) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
 
 
 def import_record(
-    record: dict[str, JsonValue],
+    log: EvalLog | dict[str, JsonValue],
     columns: Columns,
     strict: bool = True,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
+    # create record from log
+    if isinstance(log, EvalLog):
+        record: dict[str, JsonValue] = jsonable_python(log) | {
+            "id": eval_id(log.eval.run_id, log.eval.task_id),
+            "log": native_path(log.location),
+        }
+    else:
+        record = log
+
     # return values
     result: dict[str, ColumnType] = {}
     errors: list[ColumnError] = []
@@ -53,12 +66,12 @@ def import_record(
 
     # helper to raise or record errror
     def field_not_found(
-        name: str, json_path: JSONPath, required_type: str | None = None
+        name: str, path: JSONPath | None, required_type: str | None = None
     ) -> None:
         message = (
             f"field not of type {required_type}" if required_type else "field not found"
         )
-        error = ColumnError(name, path=str(json_path), message=f"{message}")
+        error = ColumnError(name, path=path, message=f"{message}")
         if strict:
             raise ValueError(str(error))
         else:
@@ -66,48 +79,49 @@ def import_record(
 
     # process each column
     for name, column in columns.items():
+        # start with none
+        value: JsonValue = None
+
         # resolve path
-        if isinstance(column.path, str):
-            try:
-                json_path = parse(column.path)
-            except Exception as ex:
-                error = ColumnError(
-                    name,
-                    path=column.path,
-                    message=f"Error parsing JSON path expression: {ex}",
-                )
-                if strict:
-                    raise ValueError
-                else:
-                    errors.append(error)
-                    continue
+        try:
+            # read by path or extract function
+            if column.path is not None:
+                matches = column.path.find(record)
+                if matches:
+                    value = matches[0].value
+            elif column.extract is not None and isinstance(log, EvalLog):
+                value = column.extract(log)
+            else:
+                assert False, "column must have path or extract function"
 
-        else:
-            json_path = column.path
+            # call value function on column
+            value = column.value(value)
 
-        # find matches
-        matches = json_path.find(record)
+        except Exception as ex:
+            error = ColumnError(
+                name,
+                path=str(column.path) if column.path else None,
+                message=str(ex),
+            )
+            if strict:
+                raise ValueError(str(error))
+            else:
+                errors.append(error)
+                continue
+
+        # check for required
+        if column.required and value is None:
+            field_not_found(name, column.path)
 
         # handle wildcard vs. no wildcard
         if name.endswith("*"):
-            if matches and matches[0].value is not None:
-                match = matches[0]
-                value = column.value(match.value)
-                values = value if isinstance(value, list) else [value]
-                for value in values:
-                    expanded = _expand_fields(name, value)
-                    for k, v in expanded.items():
-                        set_result(k, json_path, v, column.type)
-            elif column.required:
-                field_not_found(name, json_path)
+            values = value if isinstance(value, list) else [value]
+            for value in values:
+                expanded = _expand_fields(name, value)
+                for k, v in expanded.items():
+                    set_result(k, column.path, v, column.type)
         else:
-            if matches:
-                value = column.value(matches[0].value)
-                set_result(name, json_path, value, column.type)
-            elif column.required:
-                field_not_found(name, json_path)
-            else:
-                result[name] = None
+            set_result(name, column.path, value, column.type)
 
     if strict:
         return result

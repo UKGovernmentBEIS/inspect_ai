@@ -6,6 +6,8 @@ from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
 
+from inspect_ai.log._log import EvalLog
+
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
 """Valid types for columns.
 
@@ -22,23 +24,32 @@ class Column:
 
     def __init__(
         self,
-        path: str | JSONPath,
+        extract: str | JSONPath | Callable[[EvalLog], JsonValue],
         *,
         required: bool = False,
         type: Type[ColumnType] | None = None,
         value: Callable[[JsonValue], JsonValue] | None = None,
     ) -> None:
-        self._path = path
+        if isinstance(extract, str | JSONPath):
+            self._path: str | JSONPath | None = extract
+            self._extract: Callable[[EvalLog], JsonValue] | None = None
+        else:
+            self._path = None
+            self._extract = extract
         self._required = required
         self._type = type
         self._value = value
 
     @property
-    def path(self) -> JSONPath:
+    def path(self) -> JSONPath | None:
         """Path to column in `EvalLog`"""
         if isinstance(self._path, str):
             self._path = parse(self._path)
         return self._path
+
+    @property
+    def extract(self) -> Callable[[EvalLog], JsonValue] | None:
+        return self._extract
 
     @property
     def required(self) -> bool:
@@ -71,14 +82,17 @@ class ColumnError:
 
     _: KW_ONLY
 
-    path: str
+    path: str | None
     """Path to select column value. """
 
     message: str
     """Error message."""
 
     def __str__(self) -> str:
-        return f"Error reading column '{self.column}' from path '{self.path}': {self.message}"
+        msg = f"Error reading column '{self.column}'"
+        if self.path:
+            msg = f"{msg} from path '{self.path}'"
+        return f"{msg}: {self.message}"
 
 
 class ColumnErrors(dict[str, list[ColumnError]]):

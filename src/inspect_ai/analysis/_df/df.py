@@ -4,16 +4,12 @@ from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Sequence, TypeAlias, overload
 
-from pydantic import JsonValue
-
 from inspect_ai._display import display
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import filesystem
-from inspect_ai._util.json import jsonable_python
-from inspect_ai._util.path import native_path, pretty_path
+from inspect_ai._util.path import pretty_path
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.analysis._df.record import import_record
-from inspect_ai.analysis._df.util import eval_id
 from inspect_ai.log._file import read_eval_log
 
 from .eval import EvalDefault
@@ -77,14 +73,10 @@ def evals_df(
     with display().progress(total=len(log_paths)) as p:
         for log_path in log_paths:
             log = read_eval_log(log_path, header_only=True)
-            log_data: dict[str, JsonValue] = jsonable_python(log) | {
-                "id": eval_id(log.eval.run_id, log.eval.task_id),
-                "log": native_path(log.location),
-            }
             if strict:
-                record = import_record(log_data, columns, strict=True)
+                record = import_record(log, columns, strict=True)
             else:
-                record, errors = import_record(log_data, columns, strict=False)
+                record, errors = import_record(log, columns, strict=False)
                 all_errors[pretty_path(log_path)] = errors
             records.append(record)
 
