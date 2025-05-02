@@ -18,7 +18,7 @@ logger = getLogger(__name__)
 @overload
 def import_record(
     record: dict[str, JsonValue],
-    columns: Columns | list[Columns],
+    columns: Columns,
     strict: Literal[True] = True,
 ) -> dict[str, ColumnType]: ...
 
@@ -26,14 +26,14 @@ def import_record(
 @overload
 def import_record(
     record: dict[str, JsonValue],
-    columns: Columns | list[Columns],
+    columns: Columns,
     strict: Literal[False],
 ) -> tuple[dict[str, ColumnType], list[str]]: ...
 
 
 def import_record(
     record: dict[str, JsonValue],
-    columns: Columns | list[Columns],
+    columns: Columns,
     strict: bool = True,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[str]]:
     # return values
@@ -68,14 +68,8 @@ def import_record(
             logger.warning(error)
             errors.append(error)
 
-    # merge column definitions
-    if isinstance(columns, list):
-        merged_columns: Columns = {k: v for d in columns for k, v in d.items()}
-    else:
-        merged_columns = columns
-
-    # process each field in turn
-    for name, column in merged_columns.items():
+    # process each column
+    for name, column in columns.items():
         # resolve path
         if isinstance(column.path, str):
             try:

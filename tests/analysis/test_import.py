@@ -253,7 +253,7 @@ def test_multiple_import_specs() -> None:
         "model": Column("$.eval.model"),
     }
 
-    result = import_record(test_record, [spec1, spec2])
+    result = import_record(test_record, spec1 | spec2)
 
     assert result["status"] == "complete"
     assert result["model"] == "openai/gpt-4o"

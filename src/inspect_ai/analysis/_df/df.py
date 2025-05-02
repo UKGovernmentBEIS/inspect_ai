@@ -28,7 +28,7 @@ LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 @overload
 def evals_df(
     logs: LogPaths,
-    columns: Columns | list[Columns] = EvalDefault,
+    columns: Columns = EvalDefault,
     recursive: bool = True,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
@@ -37,7 +37,7 @@ def evals_df(
 @overload
 def evals_df(
     logs: LogPaths,
-    columns: Columns | list[Columns] = EvalDefault,
+    columns: Columns = EvalDefault,
     recursive: bool = True,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", dict[str, list[str]]]: ...
@@ -45,7 +45,7 @@ def evals_df(
 
 def evals_df(
     logs: LogPaths,
-    columns: Columns | list[Columns] = EvalDefault,
+    columns: Columns = EvalDefault,
     recursive: bool = True,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", dict[str, list[str]]]:
