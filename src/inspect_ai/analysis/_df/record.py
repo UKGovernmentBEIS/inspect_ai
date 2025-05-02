@@ -103,7 +103,8 @@ def import_record(
                 field_not_found(name, json_path)
         else:
             if matches:
-                set_result(name, json_path, matches[0].value, column.type)
+                value = column.value(matches[0].value)
+                set_result(name, json_path, value, column.type)
             elif column.required:
                 field_not_found(name, json_path)
             else:

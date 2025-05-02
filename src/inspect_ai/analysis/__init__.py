@@ -1,5 +1,5 @@
 from ._df.df import evals_df, events_df, samples_df
-from ._df.spec_eval import (
+from ._df.eval import (
     EvalConfig,
     EvalDefault,
     EvalId,

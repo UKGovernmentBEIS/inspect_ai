@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from .types import Column, Columns
+from .util import list_as_str
 
 EvalId: Columns = {
     "eval_id": Column("id", required=True),
@@ -10,7 +11,7 @@ EvalId: Columns = {
     "created": Column("eval.created", type=datetime, required=True),
     "git_origin": Column("eval.revision.origin"),
     "git_commit": Column("eval.revision.commit"),
-    "tags": Column("eval.tags"),
+    "tags": Column("eval.tags", value=list_as_str),
     "packages": Column("eval.packages"),
     "metadata": Column("eval.metadata"),
 }

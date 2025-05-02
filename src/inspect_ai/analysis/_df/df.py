@@ -16,7 +16,7 @@ from inspect_ai.analysis._df.record import import_record
 from inspect_ai.analysis._df.util import eval_id
 from inspect_ai.log._file import read_eval_log
 
-from .spec_eval import EvalDefault
+from .eval import EvalDefault
 from .types import ColumnErrors, Columns, ColumnType
 
 if TYPE_CHECKING:

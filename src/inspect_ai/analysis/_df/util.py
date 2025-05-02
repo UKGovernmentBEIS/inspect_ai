@@ -1,6 +1,8 @@
 import hashlib
 import string
 
+from pydantic import JsonValue
+
 
 def eval_id(run_id: str, task_id: str) -> str:
     """Generate unique eval_id based on hash of run_id and task_id.
@@ -30,3 +32,7 @@ def to_base62(n: int, length: int) -> str:
     # Pad with '0's at the beginning after reversing
     result = "".join(reversed(out))
     return result.rjust(length, "0")
+
+
+def list_as_str(x: JsonValue) -> str:
+    return ",".join([str(e) for e in (x if isinstance(x, list) else [x])])

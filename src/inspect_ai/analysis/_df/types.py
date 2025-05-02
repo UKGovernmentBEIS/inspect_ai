@@ -1,9 +1,10 @@
 from dataclasses import KW_ONLY, dataclass
 from datetime import date, datetime, time
-from typing import Type, TypeAlias
+from typing import Callable, Type, TypeAlias
 
 from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
+from pydantic import JsonValue
 
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
 """Valid types for columns.
@@ -25,10 +26,12 @@ class Column:
         *,
         required: bool = False,
         type: Type[ColumnType] | None = None,
+        value: Callable[[JsonValue], JsonValue] | None = None,
     ) -> None:
         self._path = path
         self._required = required
         self._type = type
+        self._value = value
 
     @property
     def path(self) -> JSONPath:
@@ -46,6 +49,13 @@ class Column:
     def type(self) -> Type[ColumnType] | None:
         """Column type (import will attempt to coerce to the specified type)."""
         return self._type
+
+    def value(self, x: JsonValue) -> JsonValue:
+        """Convert extracted value into a column value (defaults to identity function)."""
+        if self._value:
+            return self._value(x)
+        else:
+            return x
 
 
 Columns: TypeAlias = dict[str, Column]
