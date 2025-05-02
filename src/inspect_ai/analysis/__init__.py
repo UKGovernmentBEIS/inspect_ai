@@ -5,6 +5,7 @@ from ._df.eval import (
     EvalId,
     EvalModel,
     EvalResults,
+    EvalScores,
     EvalTask,
 )
 from ._df.types import Column, ColumnError, ColumnErrors, Columns, ColumnType
@@ -17,6 +18,7 @@ __all__ = [
     "EvalDefault",
     "EvalConfig",
     "EvalResults",
+    "EvalScores",
     "samples_df",
     "events_df",
     "Column",

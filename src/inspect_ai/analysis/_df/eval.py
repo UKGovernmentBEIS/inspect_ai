@@ -68,10 +68,13 @@ EvalResults: Columns = {
     "score_headline_name": Column("results.scores[0].scorer"),
     "score_headline_metric": Column("results.scores[0].metrics.*.name"),
     "score_headline_value": Column("results.scores[0].metrics.*.value"),
-    "score_*_*": Column("results.scores", value=extract_scores),
 }
 """Eval results columns."""
 
+EvalScores: Columns = {
+    "score_*_*": Column("results.scores", value=extract_scores),
+}
+"""Eval scores (one score/metric per-columns)."""
 
 EvalDefault: Columns = (
     EvalId | EvalTask | EvalModel | EvalDataset | EvalConfig | EvalResults
