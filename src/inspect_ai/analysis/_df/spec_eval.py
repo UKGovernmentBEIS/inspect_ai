@@ -64,9 +64,9 @@ EvalResults: Columns = {
     "error_traceback": Column("error.traceback"),
     "total_samples": Column("results.total_samples", required=True),
     "completed_samples": Column("results.completed_samples", required=True),
-    "scorer_name": Column("results.scores[0].scorer"),
-    "scorer_metric": Column("results.scores[0].metrics.*.name"),
-    "scorer_value": Column("results.scores[0].metrics.*.value"),
+    "score_headline_name": Column("results.scores[0].scorer"),
+    "score_headline_metric": Column("results.scores[0].metrics.*.name"),
+    "score_headline_value": Column("results.scores[0].metrics.*.value"),
 }
 """Eval results columns."""
 

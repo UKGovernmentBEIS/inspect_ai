@@ -25,6 +25,17 @@ if TYPE_CHECKING:
 LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 
 
+# score_match_accuracy
+# score_match_stderr
+
+
+# dry_run instead of strict (only returns error)
+
+# ColumnErrors: dict[str, list[ColumnError]]]
+
+# .value(lambda x: ",".join(x))
+
+
 @overload
 def evals_df(
     logs: LogPaths,
