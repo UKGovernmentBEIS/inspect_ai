@@ -49,6 +49,7 @@ export const TranscriptView: FC<TranscriptViewProps> = ({
 interface TranscriptVirtualListProps {
   id: string;
   events: Events;
+  initialEventId: string | null;
   depth?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
   running?: boolean;
@@ -59,7 +60,7 @@ interface TranscriptVirtualListProps {
  */
 export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
   (props) => {
-    let { id, scrollRef, events, depth, running } = props;
+    let { id, scrollRef, events, depth, running, initialEventId } = props;
 
     // Normalize Events themselves
     const eventNodes = useMemo(() => {
@@ -73,6 +74,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       <TranscriptVirtualListComponent
         id={id}
         eventNodes={eventNodes}
+        initialEventId={initialEventId}
         scrollRef={scrollRef}
         running={running}
       />

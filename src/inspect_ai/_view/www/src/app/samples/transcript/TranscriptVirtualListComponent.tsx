@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, RefObject, useCallback } from "react";
+import { FC, RefObject, useCallback, useMemo } from "react";
 import { RenderedEventNode } from "./TranscriptView";
 import { EventNode } from "./types";
 
@@ -9,6 +9,7 @@ import styles from "./TranscriptVirtualListComponent.module.css";
 interface TranscriptVirtualListComponentProps {
   id: string;
   eventNodes: EventNode[];
+  initialEventId?: string | null;
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
 }
@@ -18,12 +19,21 @@ interface TranscriptVirtualListComponentProps {
  */
 export const TranscriptVirtualListComponent: FC<
   TranscriptVirtualListComponentProps
-> = ({ id, eventNodes, scrollRef, running }) => {
+> = ({ id, eventNodes, scrollRef, running, initialEventId }) => {
+  const initialEventIndex = useMemo(() => {
+    if (initialEventId === null || initialEventId === undefined) {
+      return undefined;
+    }
+    const result = eventNodes.findIndex((event) => {
+      return event.id === initialEventId;
+    });
+    return result === -1 ? undefined : result;
+  }, [initialEventId]);
+
   const renderRow = useCallback((index: number, item: EventNode) => {
     const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
     const paddingClass = index === 0 ? styles.first : undefined;
 
-    const eventId = `${id}-event-${index}`;
     const previousIndex = index - 1;
     const previous =
       previousIndex > 0 && previousIndex <= eventNodes.length
@@ -36,11 +46,12 @@ export const TranscriptVirtualListComponent: FC<
 
     return (
       <div
-        key={eventId}
+        id={item.id}
+        key={item.id}
         className={clsx(styles.node, paddingClass, attachedClass)}
         style={{ paddingLeft: `${item.depth}em` }}
       >
-        <RenderedEventNode id={eventId} node={item} className={clsx(bgClass)} />
+        <RenderedEventNode id={item.id} node={item} className={clsx(bgClass)} />
       </div>
     );
   }, []);
@@ -50,6 +61,7 @@ export const TranscriptVirtualListComponent: FC<
       id={id}
       scrollRef={scrollRef}
       data={eventNodes}
+      initialTopMostItemIndex={initialEventIndex}
       renderRow={renderRow}
       live={running}
     />
