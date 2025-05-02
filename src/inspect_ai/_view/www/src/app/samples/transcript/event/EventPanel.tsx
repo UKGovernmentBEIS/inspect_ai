@@ -9,7 +9,7 @@ import {
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import { useProperty } from "../../../../state/hooks";
+import { useCollapsedState, useProperty } from "../../../../state/hooks";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -41,9 +41,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   collapse,
   children,
 }) => {
-  const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
-    defaultValue: !!collapse,
-  });
+  const [collapsed, setCollapsed] = useCollapsedState(id, collapse, "events");
 
   const hasCollapse = collapse !== undefined;
 
@@ -82,8 +80,8 @@ export const EventPanel: FC<EventPanelProps> = ({
   gridColumns.push("minmax(0, max-content)");
 
   const toggleCollapse = useCallback(() => {
-    setCollapsed(!isCollapsed);
-  }, [setCollapsed, isCollapsed]);
+    setCollapsed(!collapsed);
+  }, [setCollapsed, collapsed]);
 
   const titleEl =
     title || icon || filteredArrChildren.length > 1 ? (
@@ -101,7 +99,7 @@ export const EventPanel: FC<EventPanelProps> = ({
           <i
             onClick={toggleCollapse}
             className={
-              isCollapsed
+              collapsed
                 ? ApplicationIcons.chevron.right
                 : ApplicationIcons.chevron.down
             }
@@ -131,10 +129,10 @@ export const EventPanel: FC<EventPanelProps> = ({
           className={clsx("text-style-secondary", styles.label)}
           onClick={toggleCollapse}
         >
-          {isCollapsed ? text : ""}
+          {collapsed ? text : ""}
         </div>
         <div className={styles.navs}>
-          {(!hasCollapse || !isCollapsed) &&
+          {(!hasCollapse || !collapsed) &&
           filteredArrChildren &&
           filteredArrChildren.length > 1 ? (
             <EventNavs
@@ -170,7 +168,7 @@ export const EventPanel: FC<EventPanelProps> = ({
           className={clsx(
             "tab-content",
             styles.cardContent,
-            hasCollapse && isCollapsed ? styles.hidden : undefined,
+            hasCollapse && collapsed ? styles.hidden : undefined,
           )}
         >
           {filteredArrChildren?.map((child, index) => {
