@@ -21,7 +21,7 @@ EvalTask: Columns = {
     "task_version": Column("$.eval.task_version", required=True),
     "task_file": Column("$.eval.task_file"),
     "task_attribs": Column("$.eval.task_attribs"),
-    "task_args": Column("$.eval.task_args"),
+    "task_arg_*": Column("$.eval.task_args"),
     "solver": Column("$.eval.solver"),
     "solver_args": Column("$.eval.solver_args"),
     "sandbox_type": Column("$.eval.sandbox.type"),
