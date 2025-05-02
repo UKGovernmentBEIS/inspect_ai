@@ -53,16 +53,6 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
         result={event.result}
       />,
     );
-    if (event.events.length > 0) {
-      body.push(
-        <TranscriptView
-          id={`${id}-subtask`}
-          data-name="Transcript"
-          events={event.events}
-          depth={depth + 1}
-        />,
-      );
-    }
   }
 
   // Is this a traditional subtask or a fork?
