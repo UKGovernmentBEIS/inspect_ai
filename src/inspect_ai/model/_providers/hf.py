@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import concurrent
 import concurrent.futures
 import copy
@@ -26,7 +28,12 @@ from transformers import (  # type: ignore
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -85,6 +92,7 @@ class HuggingFaceAPI(ModelAPI):
         self.batch_size = collect_model_arg("batch_size")
         self.chat_template = collect_model_arg("chat_template")
         self.tokenizer_call_args = collect_model_arg("tokenizer_call_args")
+        self.enable_thinking = collect_model_arg("enable_thinking")
         if self.tokenizer_call_args is None:
             self.tokenizer_call_args = {}
 
@@ -263,6 +271,7 @@ class HuggingFaceAPI(ModelAPI):
             elif "qwen" in self.model_name.lower():
                 hf_messages = inspect_tools_to_string(hf_messages)
 
+        hf_messages = message_content_to_string(hf_messages)
         # apply chat template
         if self.tokenizer.chat_template is not None:
             chat = self.tokenizer.apply_chat_template(
@@ -270,6 +279,7 @@ class HuggingFaceAPI(ModelAPI):
                 add_generation_prompt=True,
                 tokenize=False,
                 tools=tools_list if len(tools_list) > 0 else None,
+                enable_thinking=self.enable_thinking,  # not all models use this, check if it is supported
             )
         else:
             chat = ""
@@ -277,6 +287,22 @@ class HuggingFaceAPI(ModelAPI):
                 chat += f"{message.role}: {message.content}\n"
         # return
         return cast(str, chat)
+
+
+def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Convert list of content in `ChatMessageAssistant`, `ChatMessageUser` or `ChatMessageSystem` to a string."""
+    for message in messages:
+        if isinstance(message.content, list):
+            is_multimodal = any(
+                isinstance(item, ContentAudio | ContentImage | ContentVideo)
+                for item in message.content
+            )
+            if is_multimodal:
+                raise NotImplementedError(
+                    "HuggingFace provider does not support multimodal content, please provide text inputs only."
+                )
+            message.content = message.text
+    return messages
 
 
 def shorten_tool_id(messages: list[ChatMessage]) -> list[ChatMessage]:
