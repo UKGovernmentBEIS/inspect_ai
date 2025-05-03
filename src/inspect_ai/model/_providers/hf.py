@@ -285,7 +285,7 @@ class HuggingFaceAPI(ModelAPI):
 
 
 def assistant_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
-    """Convert list of content in `ChatMessageAssistant` to a string, usually when `ChatMessageAssistant` contains `ContentReasoning`."""
+    """Convert list of content in `ChatMessageAssistant` to a string, usually when `ChatMessageAssistant` contains `ContentReasoning`, `ContentText`, `ContentAudio`, `ContentImage` or  `ContentVideo`."""
     for message in messages:
         if message.role == "assistant":
             # check if the message contains reasoning content
@@ -293,15 +293,18 @@ def assistant_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage
                 content = ""
                 for content_item in message.content:
                     if isinstance(content_item, ContentReasoning):
-                        content += f"<think>{content_item.reasoning}</think>"
+                        content += f'<think>{content_item.reasoning}</think>'
                     elif isinstance(content_item, ContentText):
-                        content += f"{content_item.text}"
+                        if ContentAudio in content_item or ContentImage in content_item or ContentVideo in content_item:
+                            content += f'<text>\n{content_item.text}\n</text>'
+                        else:
+                            content += f'{content_item.text}'
                     elif isinstance(content_item, ContentAudio):
-                        content += f"<audio>{content_item.audio}</audio>"
+                        content += f'<audio src="{content_item.audio}" />'
                     elif isinstance(content_item, ContentImage):
-                        content += f"<image>{content_item.image}</image>"
+                        content += f'<image src="{content_item.image}" />'
                     elif isinstance(content_item, ContentVideo):
-                        content += f"<video>{content_item.video}</video>"
+                        content += f'<video src="{content_item.video}" />'
                 message.content = content
     return messages
 
