@@ -9,11 +9,12 @@ from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.analysis._dataframe.columns.samples import SamplesColumns
 from inspect_ai.analysis._dataframe.validate import eval_log_schema
 from inspect_ai.log._file import log_files_from_ls, read_eval_log
 
-from .columns import ColumnErrors, Columns, ColumnType
-from .columns_eval import EvalDefault
+from .columns.columns import ColumnErrors, Columns, ColumnType
+from .columns.eval import EvalDefault
 from .record import import_record
 
 if TYPE_CHECKING:
@@ -104,7 +105,7 @@ def evals_df(
 
 
 def samples_df(
-    logs: LogPaths, summaries: bool = True, recursive: bool = True
+    logs: LogPaths, columns: Columns | SamplesColumns, recursive: bool = True
 ) -> pd.DataFrame:
     _verify_prerequisites()
     import pandas as pd
@@ -113,6 +114,13 @@ def samples_df(
 
     # resolve logs
     logs = _resolve_logs(logs, recursive=recursive, reverse=False)
+
+    return pd.DataFrame()
+
+
+def messages_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:
+    _verify_prerequisites()
+    import pandas as pd
 
     return pd.DataFrame()
 
