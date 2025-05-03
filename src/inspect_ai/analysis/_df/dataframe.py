@@ -2,23 +2,21 @@ from __future__ import annotations
 
 from os import PathLike
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Sequence, TypeAlias, overload
+from typing import TYPE_CHECKING, Literal, overload
 
 from inspect_ai._display import display
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.version import verify_required_version
-from inspect_ai.analysis._df.record import import_record
+from inspect_ai.analysis._df.import_record import import_record
 from inspect_ai.log._file import read_eval_log
 
-from .eval import EvalDefault
-from .types import ColumnErrors, Columns, ColumnType
+from .columns_eval import EvalDefault
+from .types import ColumnErrors, Columns, ColumnType, LogPaths
 
 if TYPE_CHECKING:
     import pandas as pd
-
-LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 
 
 @overload

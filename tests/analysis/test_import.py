@@ -5,7 +5,7 @@ import pytest
 from pydantic import JsonValue
 
 from inspect_ai.analysis import Columns, EvalDefault
-from inspect_ai.analysis._df.record import _resolve_value, import_record
+from inspect_ai.analysis._df.import_record import _resolve_value, import_record
 from inspect_ai.analysis._df.types import Column
 from inspect_ai.log._file import read_eval_log
 

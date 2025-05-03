@@ -1,6 +1,7 @@
 from dataclasses import KW_ONLY, dataclass
 from datetime import date, datetime, time
-from typing import Callable, Type, TypeAlias
+from os import PathLike
+from typing import Callable, Sequence, Type, TypeAlias
 
 from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
@@ -106,3 +107,6 @@ class ColumnErrors(dict[str, list[ColumnError]]):
                 lines.append(f" - {error}")
             lines.append("")
         return "\n".join(lines)
+
+
+LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
