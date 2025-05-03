@@ -270,7 +270,11 @@ def start_local_server(
         for key, value in server_args.items():
             # Convert Python style args (underscore) to CLI style (dash)
             cli_key = key.replace("_", "-")
-            full_command.extend([f"--{cli_key}", str(value)])
+            if value == "":
+                # If the value is empty, just add the flag
+                full_command.extend([f"--{cli_key}"])
+            else:
+                full_command.extend([f"--{cli_key}", str(value)])
 
     try:
         server_process, found_port, full_command = launch_server_cmd(
@@ -350,19 +354,20 @@ def configure_devices(
     elif "device" in result:
         devices = result.pop("device")
 
-    # Convert device list to comma-separated string if needed
-    if isinstance(devices, list):
-        device_str = ",".join(map(str, devices))
-    else:
-        device_str = str(devices)
+    if devices is not None:
+        # Convert device list to comma-separated string if needed
+        if isinstance(devices, list):
+            device_str = ",".join(map(str, devices))
+        else:
+            device_str = str(devices)
 
-    # Set CUDA_VISIBLE_DEVICES environment variable
-    os.environ["CUDA_VISIBLE_DEVICES"] = device_str
+        # Set CUDA_VISIBLE_DEVICES environment variable
+        os.environ["CUDA_VISIBLE_DEVICES"] = device_str
 
-    device_count = len(device_str.split(","))
+        device_count = len(device_str.split(","))
 
-    # Set parallel size parameter if not explicitly provided
-    if parallel_size_param not in result:
-        result[parallel_size_param] = device_count
+        # Set parallel size parameter if not explicitly provided
+        if parallel_size_param not in result:
+            result[parallel_size_param] = device_count
 
     return result
