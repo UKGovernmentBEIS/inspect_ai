@@ -10,7 +10,7 @@ from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.analysis._dataframe.validate import eval_log_schema
-from inspect_ai.log._file import is_log_file, log_files_from_ls, read_eval_log
+from inspect_ai.log._file import log_files_from_ls, read_eval_log
 
 from .columns import ColumnErrors, Columns, ColumnType
 from .columns_eval import EvalDefault
