@@ -112,7 +112,7 @@ def samples_df(
     # use *.samples as branch point to look in summaries
 
     # resolve logs
-    logs = _resolve_logs(logs, recursive=recursive)
+    logs = _resolve_logs(logs, recursive=recursive, reverse=False)
 
     return pd.DataFrame()
 
