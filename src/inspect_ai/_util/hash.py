@@ -12,7 +12,7 @@ def mm3_hash(message: str) -> str:
 
 
 def base57_id_hash(content: str) -> str:
-    """Generate unique eval_id based on hash of run_id, task_id, and created
+    """Generate base67 hash for content.
 
     Hash the content, truncate to 128 bits, and then further truncate to 93 bits,
     returning a 22-character Base-57-URL string. Collision probability reaches 50%
