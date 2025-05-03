@@ -285,7 +285,7 @@ class HuggingFaceAPI(ModelAPI):
 
 
 def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
-    """Convert list of content in `ChatMessageAssistant` to a string, usually when `ChatMessageAssistant` contains `ContentReasoning`, `ContentText`, `ContentAudio`, `ContentImage` or  `ContentVideo`."""
+    """Convert list of content in `ChatMessageAssistant`, `ChatMessageUser` or `ChatMessageSystem` to a string, usually when they contain `ContentReasoning`, `ContentText`, `ContentAudio`, `ContentImage` or `ContentVideo`."""
     for message in messages:
         if isinstance(message.content, list):
             content = ""
