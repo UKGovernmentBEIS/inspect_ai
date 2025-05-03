@@ -17,9 +17,11 @@ from pydantic import (
 )
 from rich.console import Console, RenderableType
 from rich.traceback import Traceback
+from shortuuid import uuid
 
-from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, PKG_NAME
+from inspect_ai._util.constants import CONSOLE_DISPLAY_WIDTH, DESERIALIZING, PKG_NAME
 from inspect_ai._util.error import EvalError, exception_message
+from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.logger import warn_once
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.dataset._dataset import MT, metadata_as
@@ -677,6 +679,9 @@ class EvalModelConfig(BaseModel):
 class EvalSpec(BaseModel):
     """Eval target and configuration."""
 
+    eval_id: str = Field(default_factory=str)
+    """Globally unique id for eval."""
+
     run_id: str = Field(default_factory=str)
     """Unique run id"""
 
@@ -756,6 +761,21 @@ class EvalSpec(BaseModel):
 
     # allow field model_args
     model_config = ConfigDict(protected_namespaces=())
+
+    def model_post_init(self, __context: Any) -> None:
+        # check if deserializing
+        is_deserializing = isinstance(__context, dict) and __context.get(
+            DESERIALIZING, False
+        )
+
+        # Generate eval_id if needed
+        if self.eval_id == "":
+            if is_deserializing:
+                # we want the eval_id to be stable across reads of the eval log so we compose it
+                # as a hash that matches the size/apperance of shortuuid-based uuids
+                self.eval_id = base57_id_hash(self.run_id + self.task_id + self.created)
+            else:
+                self.eval_id = uuid()
 
     @model_validator(mode="before")
     @classmethod

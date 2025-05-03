@@ -1,10 +1,10 @@
 from datetime import datetime
 
 from .columns import Column, Columns
-from .extract import eval_id, eval_log_location, list_as_str, scores_dict
+from .extract import eval_log_location, list_as_str, scores_dict
 
 EvalId: Columns = {
-    "eval_id": Column(eval_id, required=True),
+    "eval_id": Column("eval.eval_id", required=True),
     "run_id": Column("eval.run_id", required=True),
     "task_id": Column("eval.task_id", required=True),
     "log": Column(eval_log_location),
