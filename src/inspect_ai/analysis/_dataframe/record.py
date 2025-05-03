@@ -88,8 +88,9 @@ def import_record(
             else:
                 assert False, "column must have path or extract function"
 
-            # call value function on column
-            value = column.value(value)
+            # call value function on column if its not None
+            if value is not None:
+                value = column.value(value)
 
         except Exception as ex:
             error = ColumnError(
@@ -102,6 +103,10 @@ def import_record(
             else:
                 errors.append(error)
                 continue
+
+        # provide default if None
+        if value is None and column.default is not None:
+            value = column.default
 
         # check for required
         if column.required and value is None:

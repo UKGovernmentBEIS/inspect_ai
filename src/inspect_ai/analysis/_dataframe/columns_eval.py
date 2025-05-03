@@ -9,9 +9,9 @@ EvalId: Columns = {
     "task_id": Column("eval.task_id", required=True),
     "log": Column("log"),
     "created": Column("eval.created", type=datetime, required=True),
+    "tags": Column("eval.tags", default="", value=list_as_str),
     "git_origin": Column("eval.revision.origin"),
     "git_commit": Column("eval.revision.commit"),
-    "tags": Column("eval.tags", value=list_as_str),
     "packages": Column("eval.packages"),
     "metadata": Column("eval.metadata"),
 }
