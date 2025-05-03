@@ -28,7 +28,7 @@ from transformers import (  # type: ignore
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import ContentText, ContentReasoning
+from inspect_ai._util.content import ContentReasoning, ContentText, ContentAudio, ContentImage, ContentVideo
 from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -274,7 +274,7 @@ class HuggingFaceAPI(ModelAPI):
                 add_generation_prompt=True,
                 tokenize=False,
                 tools=tools_list if len(tools_list) > 0 else None,
-                enable_thinking=self.enable_thinking, #not all models use this, check if it is supported
+                enable_thinking=self.enable_thinking,  # not all models use this, check if it is supported
             )
         else:
             chat = ""
@@ -282,6 +282,7 @@ class HuggingFaceAPI(ModelAPI):
                 chat += f"{message.role}: {message.content}\n"
         # return
         return cast(str, chat)
+
 
 def assistant_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Convert list of content in `ChatMessageAssistant` to a string, usually when `ChatMessageAssistant` contains `ContentReasoning`."""
@@ -292,18 +293,18 @@ def assistant_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage
                 content = ""
                 for content_item in message.content:
                     if isinstance(content_item, ContentReasoning):
-                        content+= f"<think>{content_item.text}</think>"
+                        content += f"<think>{content_item.reasoning}</think>"
                     elif isinstance(content_item, ContentText):
-                        content+= f"{content_item.text}"
-                    else:
-                        try:
-                            content += f"{content_item.text}"
-                        except Exception as e:
-                            raise ValueError(
-                                f"Invalid content type: {type(content_item)}. Waiting usually for an object with a `text`field.\n Error: {e}"
-                            )
+                        content += f"{content_item.text}"
+                    elif isinstance(content_item, ContentAudio):
+                        content += f"<audio>{content_item.audio}</audio>"
+                    elif isinstance(content_item, ContentImage):
+                        content += f"<image>{content_item.image}</image>"
+                    elif isinstance(content_item, ContentVideo):
+                        content += f"<video>{content_item.video}</video>"
                 message.content = content
     return messages
+
 
 def shorten_tool_id(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Shorten the tool_call_id in the messages to the last 9 characters for Mistral."""
