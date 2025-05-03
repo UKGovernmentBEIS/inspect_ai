@@ -28,7 +28,12 @@ from transformers import (  # type: ignore
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import ContentReasoning, ContentText, ContentAudio, ContentImage, ContentVideo
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentImage,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -283,18 +288,19 @@ class HuggingFaceAPI(ModelAPI):
         # return
         return cast(str, chat)
 
+
 def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Convert list of content in `ChatMessageAssistant`, `ChatMessageUser` or `ChatMessageSystem` to a string."""
     for message in messages:
         if isinstance(message.content, list):
             is_multimodal = any(
-                isinstance(item, (ContentAudio, ContentImage, ContentVideo))
+                isinstance(item, ContentAudio | ContentImage | ContentVideo)
                 for item in message.content
             )
             if is_multimodal:
                 raise NotImplementedError(
                     "HuggingFace provider does not support multimodal content, please provide text inputs only."
-                    )
+                )
             message.content = message.text
     return messages
 
