@@ -77,6 +77,6 @@ EvalScores: Columns = {
 """Eval scores (one score/metric per-columns)."""
 
 EvalDefault: Columns = (
-    EvalId | EvalTask | EvalModel | EvalDataset | EvalConfig | EvalResults
+    EvalId | EvalTask | EvalModel | EvalDataset | EvalConfig | EvalResults | EvalScores
 )
 """Default fields to import for `evals_df()`."""
