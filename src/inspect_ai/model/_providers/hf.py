@@ -284,28 +284,30 @@ class HuggingFaceAPI(ModelAPI):
         return cast(str, chat)
 
 
-def assistant_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
+def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Convert list of content in `ChatMessageAssistant` to a string, usually when `ChatMessageAssistant` contains `ContentReasoning`, `ContentText`, `ContentAudio`, `ContentImage` or  `ContentVideo`."""
     for message in messages:
-        if message.role == "assistant":
-            # check if the message contains reasoning content
-            if isinstance(message.content, list):
-                content = ""
-                for content_item in message.content:
-                    if isinstance(content_item, ContentReasoning):
-                        content += f'<think>{content_item.reasoning}</think>\n'
-                    elif isinstance(content_item, ContentText):
-                        if ContentAudio in content_item or ContentImage in content_item or ContentVideo in content_item:
-                            content += f'<text>\n{content_item.text}\n</text>\n'
-                        else:
-                            content += f'{content_item.text}'
-                    elif isinstance(content_item, ContentAudio):
-                        content += f'<audio src="{content_item.audio}" />\n'
-                    elif isinstance(content_item, ContentImage):
-                        content += f'<image src="{content_item.image}" />\n'
-                    elif isinstance(content_item, ContentVideo):
-                        content += f'<video src="{content_item.video}" />\n'
-                message.content = content
+        if isinstance(message.content, list):
+            content = ""
+            is_multimodal = any(
+            isinstance(item, (ContentAudio, ContentImage, ContentVideo))
+            for item in message.content
+            )
+            for content_item in message.content:
+                if isinstance(content_item, ContentReasoning):
+                    content += f'<think>{content_item.reasoning}</think>\n'
+                elif isinstance(content_item, ContentText):
+                    if is_multimodal:
+                        content += f'<text>\n{content_item.text}\n</text>\n'
+                    else:
+                        content += f'{content_item.text}\n'
+                elif isinstance(content_item, ContentAudio):
+                    content += f'<audio src="{content_item.audio}" />\n'
+                elif isinstance(content_item, ContentImage):
+                    content += f'<image src="{content_item.image}" />\n'
+                elif isinstance(content_item, ContentVideo):
+                    content += f'<video src="{content_item.video}" />\n'
+            message.content = content
     return messages
 
 
