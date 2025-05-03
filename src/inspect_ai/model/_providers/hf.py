@@ -283,31 +283,19 @@ class HuggingFaceAPI(ModelAPI):
         # return
         return cast(str, chat)
 
-
 def message_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
-    """Convert list of content in `ChatMessageAssistant`, `ChatMessageUser` or `ChatMessageSystem` to a string, usually when they contain `ContentReasoning`, `ContentText`, `ContentAudio`, `ContentImage` or `ContentVideo`."""
+    """Convert list of content in `ChatMessageAssistant`, `ChatMessageUser` or `ChatMessageSystem` to a string."""
     for message in messages:
         if isinstance(message.content, list):
-            content = ""
             is_multimodal = any(
-            isinstance(item, (ContentAudio, ContentImage, ContentVideo))
-            for item in message.content
+                isinstance(item, (ContentAudio, ContentImage, ContentVideo))
+                for item in message.content
             )
-            for content_item in message.content:
-                if isinstance(content_item, ContentReasoning):
-                    content += f'<think>{content_item.reasoning}</think>\n'
-                elif isinstance(content_item, ContentText):
-                    if is_multimodal:
-                        content += f'<text>\n{content_item.text}\n</text>\n'
-                    else:
-                        content += f'{content_item.text}\n'
-                elif isinstance(content_item, ContentAudio):
-                    content += f'<audio src="{content_item.audio}" />\n'
-                elif isinstance(content_item, ContentImage):
-                    content += f'<image src="{content_item.image}" />\n'
-                elif isinstance(content_item, ContentVideo):
-                    content += f'<video src="{content_item.video}" />\n'
-            message.content = content
+            if is_multimodal:
+                raise NotImplementedError(
+                    "HuggingFace provider does not support multimodal content, please provide text inputs only."
+                    )
+            message.content = message.text
     return messages
 
 
