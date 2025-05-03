@@ -1,5 +1,4 @@
 import hashlib
-import string
 from typing import cast
 
 from pydantic import JsonValue
@@ -39,28 +38,36 @@ def eval_log_location(log: EvalLog) -> str:
 def eval_id(log: EvalLog) -> str:
     """Generate unique eval_id based on hash of run_id and task_id.
 
-    Hash the concatenation of *u1* and *u2* with Blake2s, truncate to 96 bits,
-    and return a 22-character Base-62-URL string (no padding).
-    Collision risk reaches 50% fator 73 quintillion rows.
+    Hash the concatenation of *run_id* and *task_id* with Blake2s, truncate to 128 bits,
+    and then further truncate to 93 bits, returning a 22-character Base-57-URL string.
+    Collision probability reaches 50% at approximately 70 trillion records.
     """
     msg = (log.eval.run_id + log.eval.task_id).encode()
-    digest_136 = hashlib.blake2s(msg, digest_size=17).digest()
-    as_int = int.from_bytes(digest_136, "big")
-    return to_base62(as_int, 22)  # 136 bits ⇒ ceil(136 / log₂62) = 22
+    digest_size = 16  # 128 bits
+    digest = hashlib.blake2s(msg, digest_size=digest_size).digest()
+
+    # Truncate to ~93 bits (log₂57^22 ≈ 128.3)
+    as_int = int.from_bytes(digest, "big")
+    base57_str = to_base57(as_int)
+    if len(base57_str) > 22:
+        return base57_str[-22:]  # Take last 22 chars if longer
+    else:
+        # This is unlikely with a 128-bit input
+        return base57_str.rjust(22, ALPHABET57[0])
 
 
-ALPHABET62 = string.digits + string.ascii_letters  # 0-9 A-Z a-z  (62 symbols)
+# shortuuid uses these 57 characters (excluding similar-looking characters like 0/O, 1/I/l, etc.)
+ALPHABET57 = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 
-def to_base62(n: int, length: int) -> str:
+def to_base57(n: int) -> str:
     if n == 0:
-        return "0" * length
+        return ALPHABET57[0]
 
     out = []
     while n:
-        n, rem = divmod(n, 62)
-        out.append(ALPHABET62[rem])
+        n, rem = divmod(n, 57)
+        out.append(ALPHABET57[rem])
 
-    # Pad with '0's at the beginning after reversing
-    result = "".join(reversed(out))
-    return result.rjust(length, "0")
+    # reverse and return
+    return "".join(reversed(out))
