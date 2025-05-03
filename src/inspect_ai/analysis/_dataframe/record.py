@@ -6,9 +6,7 @@ import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
-from inspect_ai._util.json import jsonable_python
-from inspect_ai._util.path import native_path
-from inspect_ai.analysis._dataframe.util import eval_id
+from inspect_ai.analysis._dataframe.extract import log_to_record
 from inspect_ai.log._log import EvalLog
 
 from .types import ColumnError, Columns, ColumnType
@@ -35,12 +33,8 @@ def import_record(
     columns: Columns,
     strict: bool = True,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
-    # create record from log
     if isinstance(log, EvalLog):
-        record: dict[str, JsonValue] = jsonable_python(log) | {
-            "id": eval_id(log.eval.run_id, log.eval.task_id),
-            "log": native_path(log.location),
-        }
+        record = log_to_record(log)
     else:
         record = log
 

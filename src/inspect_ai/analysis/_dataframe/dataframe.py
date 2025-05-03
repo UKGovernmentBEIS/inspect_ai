@@ -12,7 +12,7 @@ from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._file import read_eval_log
 
 from .columns_eval import EvalDefault
-from .import_record import import_record
+from .record import import_record
 from .types import ColumnErrors, Columns, ColumnType, LogPaths
 
 if TYPE_CHECKING:
