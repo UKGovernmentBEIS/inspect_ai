@@ -8,7 +8,7 @@ from pydantic import JsonValue
 
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.path import native_path
-from inspect_ai.analysis._df.util import eval_id
+from inspect_ai.analysis._dataframe.util import eval_id
 from inspect_ai.log._log import EvalLog
 
 from .types import ColumnError, Columns, ColumnType
