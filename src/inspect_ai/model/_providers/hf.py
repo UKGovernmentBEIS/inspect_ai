@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import concurrent
 import concurrent.futures
 import copy
@@ -26,7 +28,7 @@ from transformers import (  # type: ignore
 from typing_extensions import override
 
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
-from inspect_ai._util.content import ContentText
+from inspect_ai._util.content import ContentText, ContentReasoning
 from inspect_ai._util.trace import trace_action
 from inspect_ai.tool import ToolChoice, ToolInfo
 
@@ -85,6 +87,7 @@ class HuggingFaceAPI(ModelAPI):
         self.batch_size = collect_model_arg("batch_size")
         self.chat_template = collect_model_arg("chat_template")
         self.tokenizer_call_args = collect_model_arg("tokenizer_call_args")
+        self.enable_thinking = collect_model_arg("enable_thinking")
         if self.tokenizer_call_args is None:
             self.tokenizer_call_args = {}
 
@@ -263,6 +266,7 @@ class HuggingFaceAPI(ModelAPI):
             elif "qwen" in self.model_name.lower():
                 hf_messages = inspect_tools_to_string(hf_messages)
 
+        hf_messages = assistant_content_to_string(hf_messages)
         # apply chat template
         if self.tokenizer.chat_template is not None:
             chat = self.tokenizer.apply_chat_template(
@@ -270,6 +274,7 @@ class HuggingFaceAPI(ModelAPI):
                 add_generation_prompt=True,
                 tokenize=False,
                 tools=tools_list if len(tools_list) > 0 else None,
+                enable_thinking=self.enable_thinking, #not all models use this, check if it is supported
             )
         else:
             chat = ""
@@ -278,6 +283,27 @@ class HuggingFaceAPI(ModelAPI):
         # return
         return cast(str, chat)
 
+def assistant_content_to_string(messages: list[ChatMessage]) -> list[ChatMessage]:
+    """Convert list of content in `ChatMessageAssistant` to a string, usually when `ChatMessageAssistant` contains `ContentReasoning`."""
+    for message in messages:
+        if message.role == "assistant":
+            # check if the message contains reasoning content
+            if isinstance(message.content, list):
+                content = ""
+                for content_item in message.content:
+                    if isinstance(content_item, ContentReasoning):
+                        content+= f"<think>{content_item.text}</think>"
+                    elif isinstance(content_item, ContentText):
+                        content+= f"{content_item.text}"
+                    else:
+                        try:
+                            content += f"{content_item.text}"
+                        except Exception as e:
+                            raise ValueError(
+                                f"Invalid content type: {type(content_item)}. Waiting usually for an object with a `text`field.\n Error: {e}"
+                            )
+                message.content = content
+    return messages
 
 def shorten_tool_id(messages: list[ChatMessage]) -> list[ChatMessage]:
     """Shorten the tool_call_id in the messages to the last 9 characters for Mistral."""
