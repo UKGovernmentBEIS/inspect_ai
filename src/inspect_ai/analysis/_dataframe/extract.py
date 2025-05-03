@@ -1,5 +1,6 @@
 import hashlib
 import string
+from typing import cast
 
 from pydantic import JsonValue
 
@@ -28,21 +29,21 @@ def list_as_str(x: JsonValue) -> str:
 
 
 def log_to_record(log: EvalLog) -> dict[str, JsonValue]:
-    record: dict[str, JsonValue] = jsonable_python(log) | {
-        "id": eval_id(log.eval.run_id, log.eval.task_id),
-        "log": native_path(log.location),
-    }
-    return record
+    return cast(dict[str, JsonValue], jsonable_python(log))
 
 
-def eval_id(run_id: str, task_id: str) -> str:
+def eval_log_location(log: EvalLog) -> str:
+    return native_path(log.location)
+
+
+def eval_id(log: EvalLog) -> str:
     """Generate unique eval_id based on hash of run_id and task_id.
 
     Hash the concatenation of *u1* and *u2* with Blake2s, truncate to 96 bits,
     and return a 22-character Base-62-URL string (no padding).
     Collision risk reaches 50% fator 73 quintillion rows.
     """
-    msg = (run_id + task_id).encode()
+    msg = (log.eval.run_id + log.eval.task_id).encode()
     digest_136 = hashlib.blake2s(msg, digest_size=17).digest()
     as_int = int.from_bytes(digest_136, "big")
     return to_base62(as_int, 22)  # 136 bits ⇒ ceil(136 / log₂62) = 22

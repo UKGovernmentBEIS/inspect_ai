@@ -1,13 +1,13 @@
 from datetime import datetime
 
 from .columns import Column, Columns
-from .extract import list_as_str, scores_dict
+from .extract import eval_id, eval_log_location, list_as_str, scores_dict
 
 EvalId: Columns = {
-    "eval_id": Column("id", required=True),
+    "eval_id": Column(eval_id, required=True),
     "run_id": Column("eval.run_id", required=True),
     "task_id": Column("eval.task_id", required=True),
-    "log": Column("log"),
+    "log": Column(eval_log_location),
     "created": Column("eval.created", type=datetime, required=True),
     "tags": Column("eval.tags", default="", value=list_as_str),
     "git_origin": Column("eval.revision.origin"),

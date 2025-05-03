@@ -6,10 +6,11 @@ import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
-from inspect_ai.analysis._dataframe.extract import log_to_record
 from inspect_ai.log._log import EvalLog
 
 from .columns import ColumnError, Columns, ColumnType
+from .extract import log_to_record
+from .validate import Schema
 
 
 @overload
@@ -17,6 +18,7 @@ def import_record(
     log: EvalLog | dict[str, JsonValue],
     columns: Columns,
     strict: Literal[True] = True,
+    schema: Schema | None = None,
 ) -> dict[str, ColumnType]: ...
 
 
@@ -25,6 +27,7 @@ def import_record(
     log: EvalLog | dict[str, JsonValue],
     columns: Columns,
     strict: Literal[False],
+    schema: Schema | None = None,
 ) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
 
 
@@ -32,6 +35,7 @@ def import_record(
     log: EvalLog | dict[str, JsonValue],
     columns: Columns,
     strict: bool = True,
+    schema: Schema | None = None,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
     if isinstance(log, EvalLog):
         record = log_to_record(log)
@@ -80,6 +84,11 @@ def import_record(
         try:
             # read by path or extract function
             if column.path is not None:
+                if schema is not None:
+                    # validate path
+                    if not column.validate_path(schema):
+                        raise ValueError("Specified path is not valid for EvalLog")
+
                 matches = column.path.find(record)
                 if matches:
                     value = matches[0].value

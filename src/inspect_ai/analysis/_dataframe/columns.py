@@ -1,11 +1,12 @@
 from dataclasses import KW_ONLY, dataclass
 from datetime import date, datetime, time
-from typing import Callable, Type, TypeAlias
+from typing import Any, Callable, Mapping, Type, TypeAlias
 
 from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
 
+from inspect_ai.analysis._dataframe.validate import jsonpath_in_schema
 from inspect_ai.log._log import EvalLog
 
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
@@ -31,6 +32,9 @@ class Column:
 
     The `value` function provides an additional hook for transformation of the value read
     from the log before it is realized as a column (e.g. list to a comma-separated string).
+
+    The `validate` flag controls whether the specified JSONPath is validated against the
+    log file schema.
     """
 
     def __init__(
@@ -41,6 +45,7 @@ class Column:
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
         value: Callable[[JsonValue], JsonValue] | None = None,
+        validate: bool = True,
     ) -> None:
         if isinstance(extract, str | JSONPath):
             self._path: str | JSONPath | None = extract
@@ -52,6 +57,8 @@ class Column:
         self._default = default
         self._type = type
         self._value = value
+        self._validate = validate
+        self._validated: bool | None = None
 
     @property
     def path(self) -> JSONPath | None:
@@ -86,6 +93,14 @@ class Column:
             return self._value(x)
         else:
             return x
+
+    def validate_path(self, schema: Mapping[str, Any]) -> bool:
+        if self._validate and self.path is not None:
+            if self._validated is None:
+                self._validated = jsonpath_in_schema(self.path, schema)
+            return self._validated
+        else:
+            return True
 
 
 Columns: TypeAlias = dict[str, Column]

@@ -9,6 +9,7 @@ from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.version import verify_required_version
+from inspect_ai.analysis._dataframe.validate import eval_log_schema
 from inspect_ai.log._file import read_eval_log
 
 from .columns import ColumnErrors, Columns, ColumnType
@@ -68,15 +69,20 @@ def evals_df(
     # accumulate errors for strict=False
     all_errors = ColumnErrors()
 
+    # prepare schema for validation of jsonpath expressions
+    schema = eval_log_schema()
+
     # read logs
     records: list[dict[str, ColumnType]] = []
     with display().progress(total=len(log_paths)) as p:
         for log_path in log_paths:
             log = read_eval_log(log_path, header_only=True)
             if strict:
-                record = import_record(log, columns, strict=True)
+                record = import_record(log, columns, strict=True, schema=schema)
             else:
-                record, errors = import_record(log, columns, strict=False)
+                record, errors = import_record(
+                    log, columns, strict=False, schema=schema
+                )
                 all_errors[pretty_path(log_path)] = errors
             records.append(record)
 
@@ -152,18 +158,12 @@ def _verify_prerequisites() -> None:
     except ImportError:
         required_packages.append("pyarrow")
 
-    try:
-        import jsonpath_ng  # type: ignore  # noqa: F401
-    except ImportError:
-        required_packages.append("jsonpath-ng")
-
     if len(required_packages) > 0:
         raise pip_dependency_error("inspect_ai.analysis", required_packages)
 
     # enforce version constraints
     verify_required_version("inspect_ai.analysis", "pandas", "2.0.0")
     verify_required_version("inspect_ai.analysis", "pyarrow", "10.0.1")
-    verify_required_version("inspect_ai.analysis", "jsonpath-ng", "1.7.0")
 
 
 def _normalize_records(
