@@ -5,8 +5,8 @@ import pytest
 from pydantic import JsonValue
 
 from inspect_ai.analysis import Columns, EvalDefault
+from inspect_ai.analysis._dataframe.columns import Column
 from inspect_ai.analysis._dataframe.record import _resolve_value, import_record
-from inspect_ai.analysis._dataframe.types import Column
 from inspect_ai.log._file import read_eval_log
 
 # ======== Test Data ========
@@ -101,13 +101,14 @@ def test_field_options() -> None:
 
 
 def test_predefined_spec() -> None:
-    """Test using the predefined EvalBase spec."""
-    result = import_record(test_record_no_error, EvalDefault)
+    """Test using the predefined EvalDefault spec."""
+    log = read_eval_log(
+        Path(__file__).parent.parent / "log" / "test_eval_log" / "log_formats.eval"
+    )
+    result = import_record(log, EvalDefault)
 
-    assert result["status"] == "complete"
-    assert result["model"] == "openai/gpt-4o"
-    assert result["task_arg_foo"] == 42
-    assert result["task_arg_bar"] == 84
+    assert result["status"] == "success"
+    assert result["model"] == "ollama/llama3.1"
     assert result["error_message"] is None
 
 

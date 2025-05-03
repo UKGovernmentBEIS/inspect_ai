@@ -9,7 +9,7 @@ from pydantic import JsonValue
 from inspect_ai.analysis._dataframe.extract import log_to_record
 from inspect_ai.log._log import EvalLog
 
-from .types import ColumnError, Columns, ColumnType
+from .columns import ColumnError, Columns, ColumnType
 
 
 @overload

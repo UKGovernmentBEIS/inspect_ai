@@ -1,3 +1,4 @@
+from ._dataframe.columns import Column, ColumnError, ColumnErrors, Columns, ColumnType
 from ._dataframe.columns_eval import (
     EvalConfig,
     EvalDefault,
@@ -8,7 +9,6 @@ from ._dataframe.columns_eval import (
     EvalTask,
 )
 from ._dataframe.dataframe import evals_df, events_df, samples_df
-from ._dataframe.types import Column, ColumnError, ColumnErrors, Columns, ColumnType
 
 __all__ = [
     "evals_df",
