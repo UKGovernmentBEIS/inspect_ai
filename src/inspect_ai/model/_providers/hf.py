@@ -266,7 +266,7 @@ class HuggingFaceAPI(ModelAPI):
             elif "qwen" in self.model_name.lower():
                 hf_messages = inspect_tools_to_string(hf_messages)
 
-        hf_messages = assistant_content_to_string(hf_messages)
+        hf_messages = message_content_to_string(hf_messages)
         # apply chat template
         if self.tokenizer.chat_template is not None:
             chat = self.tokenizer.apply_chat_template(
