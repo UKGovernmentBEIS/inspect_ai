@@ -6,11 +6,11 @@ from typing import TYPE_CHECKING, Literal, Sequence, TypeAlias, overload
 
 from inspect_ai._display import display
 from inspect_ai._util.error import pip_dependency_error
-from inspect_ai._util.file import filesystem
+from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.analysis._dataframe.validate import eval_log_schema
-from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._file import is_log_file, log_files_from_ls, read_eval_log
 
 from .columns import ColumnErrors, Columns, ColumnType
 from .columns_eval import EvalDefault
@@ -27,6 +27,7 @@ def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
+    reverse: bool = False,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
@@ -36,6 +37,7 @@ def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
+    reverse: bool = False,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
@@ -44,6 +46,7 @@ def evals_df(
     logs: LogPaths,
     columns: Columns = EvalDefault,
     recursive: bool = True,
+    reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing evals.
@@ -52,6 +55,8 @@ def evals_df(
        logs: One or more paths to log files or log directories.
        columns: Specification for what columns to read from the log file.
        recursive: Include recursive contents of directories (defaults to `True`)
+       reverse: Reverse the order of the data frame (by default, items
+          are ordered from oldest to newest).
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
 
@@ -64,7 +69,7 @@ def evals_df(
     import pyarrow as pa
 
     # resolve logs
-    log_paths = _resolve_logs(logs, recursive=recursive)
+    log_paths = _resolve_logs(logs, recursive=recursive, reverse=reverse)
 
     # accumulate errors for strict=False
     all_errors = ColumnErrors()
@@ -119,13 +124,13 @@ def events_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-def _resolve_logs(logs: LogPaths, recursive: bool) -> list[str]:
+def _resolve_logs(logs: LogPaths, recursive: bool, reverse: bool) -> list[str]:
     # normalize to list of str
     logs = [logs] if isinstance(logs, str | PathLike[str]) else logs
     logs = [Path(log).as_posix() if isinstance(log, PathLike) else log for log in logs]
 
     # expand directories
-    log_paths: list[str] = []
+    log_paths: list[FileInfo] = []
     for log in logs:
         if isinstance(log, PathLike):
             log = Path(log).as_posix()
@@ -134,15 +139,16 @@ def _resolve_logs(logs: LogPaths, recursive: bool) -> list[str]:
         if info.type == "directory":
             log_paths.extend(
                 [
-                    fi.name
+                    fi
                     for fi in fs.ls(info.name, recursive=recursive)
                     if fi.type == "file"
                 ]
             )
         else:
-            log_paths.append(log)
+            log_paths.append(info)
 
-    return log_paths
+    log_files = log_files_from_ls(log_paths, descending=reverse)
+    return [log_file.name for log_file in log_files]
 
 
 def _verify_prerequisites() -> None:
