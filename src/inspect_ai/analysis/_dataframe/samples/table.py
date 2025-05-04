@@ -10,11 +10,12 @@ from inspect_ai.log._file import (
 
 from ..columns import ColumnErrors, Columns, ColumnType
 from ..evals.columns import EvalId
-from ..evals.table import evals_df
+from ..evals.table import EVAL_ID, EVAL_SUFFIX, evals_df
 from ..extract import auto_sample_id, model_to_record
 from ..record import import_record
 from ..util import (
     LogPaths,
+    add_unreferenced_columns,
     normalize_records,
     resolve_columns,
     resolve_logs,
@@ -31,8 +32,6 @@ if TYPE_CHECKING:
 
 SAMPLE_ID = "sample_id"
 SAMPLE_SUFFIX = "_sample"
-EVAL_ID = "eval_id"
-EVAL_SUFFIX = "_eval"
 
 
 @overload
@@ -168,13 +167,8 @@ def reorder_samples_df_columns(
             resolve_columns(col_pattern, SAMPLE_SUFFIX, actual_columns, ordered_columns)
         )
 
-    # Add any remaining columns
-    remaining_cols = sorted([c for c in actual_columns if c not in ordered_columns])
-    ordered_columns.extend(remaining_cols)
+    # add any unreferenced columns
+    ordered_columns = add_unreferenced_columns(actual_columns, ordered_columns)
 
-    # Make sure we haven't missed any columns
-    assert len(ordered_columns) == len(actual_columns), "Column count mismatch"
-    assert set(ordered_columns) == set(actual_columns), "Column set mismatch"
-
-    # Reorder the DataFrame
+    # reorder the DataFrame
     return df[ordered_columns]

@@ -12,7 +12,9 @@ from ..columns import ColumnErrors, Columns, ColumnType
 from ..record import import_record
 from ..util import (
     LogPaths,
+    add_unreferenced_columns,
     normalize_records,
+    resolve_columns,
     resolve_logs,
     verify_prerequisites,
 )
@@ -23,6 +25,9 @@ from .columns import EvalDefault
 
 if TYPE_CHECKING:
     import pandas as pd
+
+EVAL_ID = "eval_id"
+EVAL_SUFFIX = "_eval"
 
 
 @overload
@@ -99,8 +104,35 @@ def evals_df(
     # return table (+errors if strict=False)
     records = normalize_records(records)
     evals_table = pa.Table.from_pylist(records).to_pandas()
+    evals_table = reorder_evals_df_columns(evals_table, columns)
 
     if strict:
         return evals_table
     else:
         return evals_table, all_errors
+
+
+def reorder_evals_df_columns(
+    df: "pd.DataFrame", eval_columns: Columns
+) -> "pd.DataFrame":
+    actual_columns = list(df.columns)
+    ordered_columns: list[str] = []
+
+    # eval_id first
+    if EVAL_ID in actual_columns:
+        ordered_columns.append(EVAL_ID)
+
+    # eval columns
+    for col_pattern in eval_columns:
+        if col_pattern == EVAL_ID:
+            continue  # Already handled
+
+        ordered_columns.extend(
+            resolve_columns(col_pattern, EVAL_SUFFIX, actual_columns, ordered_columns)
+        )
+
+    # add any unreferenced columns
+    ordered_columns = add_unreferenced_columns(actual_columns, ordered_columns)
+
+    # reorder the DataFrame
+    return df[ordered_columns]

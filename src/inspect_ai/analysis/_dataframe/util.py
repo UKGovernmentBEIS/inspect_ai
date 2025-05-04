@@ -119,3 +119,10 @@ def _col_pattern_to_regex(pattern: str) -> Pattern[str]:
         else:
             parts.append(re.escape(part))
     return re.compile("^" + "".join(parts) + "$")
+
+
+def add_unreferenced_columns(
+    columns: list[str], referenced_columns: list[str]
+) -> list[str]:
+    unreferenced_columns = sorted([c for c in columns if c not in referenced_columns])
+    return referenced_columns + unreferenced_columns
