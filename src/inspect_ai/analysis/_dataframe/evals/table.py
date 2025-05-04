@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal, overload
+
+from inspect_ai._display import display
+from inspect_ai._util.path import pretty_path
+from inspect_ai.log._file import (
+    read_eval_log,
+)
+
+from ..columns import ColumnErrors, Columns, ColumnType
+from ..record import import_record
+from ..util import (
+    LogPaths,
+    normalize_records,
+    resolve_logs,
+    verify_prerequisites,
+)
+from ..validate import (
+    eval_log_schema,
+)
+from .columns import EvalDefault
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+
+@overload
+def evals_df(
+    logs: LogPaths,
+    columns: Columns = EvalDefault,
+    recursive: bool = True,
+    reverse: bool = False,
+    strict: Literal[True] = True,
+) -> "pd.DataFrame": ...
+
+
+@overload
+def evals_df(
+    logs: LogPaths,
+    columns: Columns = EvalDefault,
+    recursive: bool = True,
+    reverse: bool = False,
+    strict: Literal[False] = False,
+) -> tuple["pd.DataFrame", ColumnErrors]: ...
+
+
+def evals_df(
+    logs: LogPaths,
+    columns: Columns = EvalDefault,
+    recursive: bool = True,
+    reverse: bool = False,
+    strict: bool = True,
+) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
+    """Read a dataframe containing evals.
+
+    Args:
+       logs: One or more paths to log files or log directories.
+       columns: Specification for what columns to read from the log file.
+       recursive: Include recursive contents of directories (defaults to `True`)
+       reverse: Reverse the order of the data frame (by default, items
+          are ordered from oldest to newest).
+       strict: Raise import errors immediately. Defaults to `True`.
+          If `False` then a tuple of `DataFrame` and errors is returned.
+
+    Returns:
+       For `strict`, a Pandas `DataFrame` with information for the specified logs.
+       For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
+       encountered (by log file) during import.
+    """
+    verify_prerequisites()
+    import pyarrow as pa
+
+    # resolve logs
+    log_paths = resolve_logs(logs, recursive=recursive, reverse=reverse)
+
+    # accumulate errors for strict=False
+    all_errors = ColumnErrors()
+
+    # prepare schema for validation of jsonpath expressions
+    schema = eval_log_schema()
+
+    # read logs
+    records: list[dict[str, ColumnType]] = []
+    with display().progress(total=len(log_paths)) as p:
+        for log_path in log_paths:
+            log = read_eval_log(log_path, header_only=True)
+            if strict:
+                record = import_record(log, columns, strict=True, schema=schema)
+            else:
+                record, errors = import_record(
+                    log, columns, strict=False, schema=schema
+                )
+                all_errors[pretty_path(log_path)] = errors
+            records.append(record)
+
+            p.update()
+
+    # return table (+errors if strict=False)
+    records = normalize_records(records)
+    evals_table = pa.Table.from_pylist(records).to_pandas()
+
+    if strict:
+        return evals_table
+    else:
+        return evals_table, all_errors

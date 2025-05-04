@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 
+from ..columns import Column, Columns
 from ..extract import input_as_str, list_as_str, score_values
-from .columns import Column, Columns
 
 
 @dataclass

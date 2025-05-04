@@ -8,7 +8,7 @@ from pydantic import JsonValue
 
 from inspect_ai.log._log import EvalLog
 
-from ..validate import jsonpath_in_schema
+from .validate import jsonpath_in_schema
 
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
 """Valid types for columns.

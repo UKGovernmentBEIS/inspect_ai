@@ -1,7 +1,7 @@
 from datetime import datetime
 
+from ..columns import Column, Columns
 from ..extract import eval_log_location, list_as_str, scores_dict
-from .columns import Column, Columns
 
 EvalId: Columns = {
     "eval_id": Column("eval.eval_id", required=True),

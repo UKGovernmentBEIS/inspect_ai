@@ -8,7 +8,7 @@ from pydantic import JsonValue
 
 from inspect_ai.log._log import EvalLog
 
-from .columns.columns import ColumnError, Columns, ColumnType
+from .columns import ColumnError, Columns, ColumnType
 from .extract import model_to_record
 from .validate import Schema
 
