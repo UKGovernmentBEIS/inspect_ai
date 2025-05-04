@@ -2,7 +2,7 @@ import os
 from typing import Literal
 
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import copy_file, exists, filesystem
+from inspect_ai._util.file import exists, filesystem
 from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log,
