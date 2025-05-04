@@ -14,4 +14,27 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ## Evals
 
 ### evals_df
+### EvalDefault
+### EvalId
+### EvalInfo
+### EvalTask
+### EvalModel
+### EvalConfig
+### EvalResults
+### EvalScores
+
+## Samples
+
+### samples_df
+### SampleDefault
+### SampleColumns
+### SampleSummary
+
+## Columns
+
+### Column
+### Columns
+### ColumnType
+### ColumnError
+### ColumnErrors
 

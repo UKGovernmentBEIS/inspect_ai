@@ -89,7 +89,14 @@ class Column:
         return self._type
 
     def value(self, x: JsonValue) -> JsonValue:
-        """Convert extracted value into a column value (defaults to identity function)."""
+        """Convert extracted value into a column value (defaults to identity function).
+
+        Params:
+            x: Value to convert.
+
+        Returns:
+            Converted value.
+        """
         if self._value:
             return self._value(x)
         else:

@@ -61,6 +61,22 @@ def samples_df(
     reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
+    """Read a dataframe containing samples from a set of evals.
+
+    Args:
+       logs: One or more paths to log files or log directories.
+       columns: Specification for what columns to read from log files.
+       recursive: Include recursive contents of directories (defaults to `True`)
+       reverse: Reverse the order of the data frame (by default, items
+          are ordered from oldest to newest).
+       strict: Raise import errors immediately. Defaults to `True`.
+          If `False` then a tuple of `DataFrame` and errors is returned.
+
+    Returns:
+       For `strict`, a Pandas `DataFrame` with information for the specified logs.
+       For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
+       encountered (by log file) during import.
+    """
     verify_prerequisites()
     import pyarrow as pa
 

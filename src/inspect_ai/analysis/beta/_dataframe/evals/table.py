@@ -61,7 +61,7 @@ def evals_df(
 
     Args:
        logs: One or more paths to log files or log directories.
-       columns: Specification for what columns to read from the log file.
+       columns: Specification for what columns to read from log files.
        recursive: Include recursive contents of directories (defaults to `True`)
        reverse: Reverse the order of the data frame (by default, items
           are ordered from oldest to newest).

@@ -464,6 +464,40 @@ website:
         contents:
         - text: evals_df
           href: reference/inspect_ai.analysis.qmd#evals_df
+        - text: EvalDefault
+          href: reference/inspect_ai.analysis.qmd#evaldefault
+        - text: EvalId
+          href: reference/inspect_ai.analysis.qmd#evalid
+        - text: EvalInfo
+          href: reference/inspect_ai.analysis.qmd#evalinfo
+        - text: EvalTask
+          href: reference/inspect_ai.analysis.qmd#evaltask
+        - text: EvalModel
+          href: reference/inspect_ai.analysis.qmd#evalmodel
+        - text: EvalConfig
+          href: reference/inspect_ai.analysis.qmd#evalconfig
+        - text: EvalResults
+          href: reference/inspect_ai.analysis.qmd#evalresults
+        - text: EvalScores
+          href: reference/inspect_ai.analysis.qmd#evalscores
+        - text: samples_df
+          href: reference/inspect_ai.analysis.qmd#samples_df
+        - text: SampleDefault
+          href: reference/inspect_ai.analysis.qmd#sampledefault
+        - text: SampleColumns
+          href: reference/inspect_ai.analysis.qmd#samplecolumns
+        - text: SampleSummary
+          href: reference/inspect_ai.analysis.qmd#samplesummary
+        - text: Column
+          href: reference/inspect_ai.analysis.qmd#column
+        - text: Columns
+          href: reference/inspect_ai.analysis.qmd#columns
+        - text: ColumnType
+          href: reference/inspect_ai.analysis.qmd#columntype
+        - text: ColumnError
+          href: reference/inspect_ai.analysis.qmd#columnerror
+        - text: ColumnErrors
+          href: reference/inspect_ai.analysis.qmd#columnerrors
       - section: inspect_ai.util
         href: reference/inspect_ai.util.qmd
         contents:

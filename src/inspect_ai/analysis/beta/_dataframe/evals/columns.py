@@ -6,6 +6,7 @@ from ..extract import eval_log_location, list_as_str, scores_dict
 EvalId: Columns = {
     "eval_id": Column("eval.eval_id", required=True),
 }
+"""Eval id column."""
 
 EvalInfo: Columns = {
     "run_id": Column("eval.run_id", required=True),
@@ -18,7 +19,7 @@ EvalInfo: Columns = {
     "packages": Column("eval.packages"),
     "metadata": Column("eval.metadata"),
 }
-"""Eval identifiying columns."""
+"""Eval basic information columns."""
 
 EvalTask: Columns = {
     "task_name": Column("eval.task", required=True),
@@ -89,4 +90,4 @@ EvalDefault: Columns = (
     | EvalResults
     | EvalScores
 )
-"""Default fields to import for `evals_df()`."""
+"""Default columns to import for `evals_df()`."""
