@@ -459,6 +459,11 @@ website:
           href: reference/inspect_ai.log.qmd#spanendevent
         - text: SubtaskEvent
           href: reference/inspect_ai.log.qmd#subtaskevent
+      - section: inspect_ai.analysis
+        href: reference/inspect_ai.analysis.qmd
+        contents:
+        - text: evals_df
+          href: reference/inspect_ai.analysis.qmd#evals_df
       - section: inspect_ai.util
         href: reference/inspect_ai.util.qmd
         contents:
