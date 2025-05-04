@@ -1,5 +1,7 @@
+import re
 from os import PathLike
 from pathlib import Path
+from re import Pattern
 from typing import Sequence, TypeAlias
 
 from inspect_ai._util.error import pip_dependency_error
@@ -62,7 +64,9 @@ def resolve_logs(logs: LogPaths, recursive: bool, reverse: bool) -> list[str]:
 def normalize_records(
     records: list[dict[str, ColumnType]],
 ) -> list[dict[str, ColumnType]]:
-    all_keys = _get_all_keys(records)
+    all_keys: set[str] = set()
+    for record in records:
+        all_keys.update(record.keys())
     normalized_records = []
     for record in records:
         normalized_record = {key: record.get(key, None) for key in all_keys}
@@ -70,8 +74,48 @@ def normalize_records(
     return normalized_records
 
 
-def _get_all_keys(records: list[dict[str, ColumnType]]) -> set[str]:
-    all_keys: set[str] = set()
-    for record in records:
-        all_keys.update(record.keys())
-    return all_keys
+def resolve_columns(
+    col_pattern: str, suffix: str, columns: list[str], processed_columns: list[str]
+) -> list[str]:
+    resolved_columns: list[str] = []
+
+    if "*" not in col_pattern:
+        # Regular column - check with suffix
+        col_with_suffix = f"{col_pattern}{suffix}"
+        if col_with_suffix in columns and col_with_suffix not in processed_columns:
+            resolved_columns.append(col_with_suffix)
+        # Then without suffix
+        elif col_pattern in columns and col_pattern not in processed_columns:
+            resolved_columns.append(col_pattern)
+    else:
+        # Wildcard pattern - check both with and without suffix
+        suffix_pattern = col_pattern + suffix
+        matching_with_suffix = match_col_pattern(
+            suffix_pattern, columns, processed_columns
+        )
+        matching_without_suffix = match_col_pattern(
+            col_pattern, columns, processed_columns
+        )
+
+        # Add all matches
+        matched_columns = sorted(set(matching_with_suffix + matching_without_suffix))
+        resolved_columns.extend(matched_columns)
+
+    return resolved_columns
+
+
+def match_col_pattern(
+    pattern: str, columns: list[str], processed_columns: list[str]
+) -> list[str]:
+    regex = _col_pattern_to_regex(pattern)
+    return [c for c in columns if regex.match(c) and c not in processed_columns]
+
+
+def _col_pattern_to_regex(pattern: str) -> Pattern[str]:
+    parts = []
+    for part in re.split(r"(\*)", pattern):
+        if part == "*":
+            parts.append(".*")
+        else:
+            parts.append(re.escape(part))
+    return re.compile("^" + "".join(parts) + "$")

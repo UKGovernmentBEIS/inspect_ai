@@ -16,6 +16,7 @@ from ..record import import_record
 from ..util import (
     LogPaths,
     normalize_records,
+    resolve_columns,
     resolve_logs,
     verify_prerequisites,
 )
@@ -115,7 +116,9 @@ def samples_df(
     )
 
     # re-order based on original specification
-    samples_table = reorder_df_columns(samples_table, columns_eval, columns_sample)
+    samples_table = reorder_samples_df_columns(
+        samples_table, columns_eval, columns_sample
+    )
 
     # return
     if strict:
@@ -124,7 +127,7 @@ def samples_df(
         return samples_table, all_errors
 
 
-def reorder_df_columns(
+def reorder_samples_df_columns(
     df: "pd.DataFrame", eval_columns: Columns, sample_columns: Columns
 ) -> "pd.DataFrame":
     """Reorder columns in the merged DataFrame.
@@ -132,115 +135,41 @@ def reorder_df_columns(
     Order with:
     1. sample_id first
     2. eval_id second
-    3. eval fields (from EvalColumns)
-    4. sample fields (from SampleColumns)
+    3. eval columns
+    4. sample columns
     5. any remaining columns
-
-    Args:
-        df: The merged DataFrame
-        sample_columns: The SampleColumns dictionary
-        eval_columns: The EvalColumns dictionary
-
-    Returns:
-        DataFrame with reordered columns
     """
     actual_columns = list(df.columns)
     ordered_columns: list[str] = []
-    processed_columns = set[str]()
 
-    def pattern_to_regex(pattern: str) -> str:
-        """Convert a wildcard pattern to regex pattern."""
-        import re
-
-        parts = []
-        for part in re.split(r"(\*)", pattern):
-            if part == "*":
-                parts.append(".*")
-            else:
-                parts.append(re.escape(part))
-        return "^" + "".join(parts) + "$"
-
-    def match_pattern(pattern: str, columns: list[str]) -> list[str]:
-        """Find columns matching the pattern."""
-        import re
-
-        regex = re.compile(pattern_to_regex(pattern))
-        return [c for c in columns if regex.match(c) and c not in processed_columns]
-
-    # Always put sample_id first
-    if "sample_id" in actual_columns:
+    # sample_id first
+    if SAMPLE_ID in actual_columns:
         ordered_columns.append(SAMPLE_ID)
-        processed_columns.add(SAMPLE_ID)
 
-    # Handle join key next
-    if EVAL_ID in actual_columns and EVAL_ID not in processed_columns:
+    # eval_id next
+    if EVAL_ID in actual_columns:
         ordered_columns.append(EVAL_ID)
-        processed_columns.add(EVAL_ID)
 
-    # eval columsn first
+    # eval columns
     for col_pattern in eval_columns:
         if col_pattern == EVAL_ID or col_pattern == SAMPLE_ID:
             continue  # Already handled
 
-        if "*" not in col_pattern:
-            # Regular column - check with suffix
-            col_with_suffix = f"{col_pattern}_eval"
-            if (
-                col_with_suffix in actual_columns
-                and col_with_suffix not in processed_columns
-            ):
-                ordered_columns.append(col_with_suffix)
-                processed_columns.add(col_with_suffix)
-            # Then without suffix
-            elif col_pattern in actual_columns and col_pattern not in processed_columns:
-                ordered_columns.append(col_pattern)
-                processed_columns.add(col_pattern)
-        else:
-            # Wildcard pattern - check both with and without suffix
-            suffix_pattern = col_pattern + EVAL_SUFFIX
-            matching_with_suffix = match_pattern(suffix_pattern, actual_columns)
-            matching_without_suffix = match_pattern(col_pattern, actual_columns)
-
-            # Add all matches
-            matched_columns = sorted(
-                set(matching_with_suffix + matching_without_suffix)
-            )
-            ordered_columns.extend(matched_columns)
-            processed_columns.update(matched_columns)
+        ordered_columns.extend(
+            resolve_columns(col_pattern, EVAL_SUFFIX, actual_columns, ordered_columns)
+        )
 
     # then sample columns
     for col_pattern in sample_columns:
         if col_pattern == EVAL_ID or col_pattern == SAMPLE_ID:
             continue  # Already handled
 
-        if "*" not in col_pattern:
-            # Regular column - check with suffix
-            col_with_suffix = f"{col_pattern}_sample"
-            if (
-                col_with_suffix in actual_columns
-                and col_with_suffix not in processed_columns
-            ):
-                ordered_columns.append(col_with_suffix)
-                processed_columns.add(col_with_suffix)
-            # Then without suffix
-            elif col_pattern in actual_columns and col_pattern not in processed_columns:
-                ordered_columns.append(col_pattern)
-                processed_columns.add(col_pattern)
-        else:
-            # Wildcard pattern - check both with and without suffix
-            suffix_pattern = col_pattern + SAMPLE_SUFFIX
-            matching_with_suffix = match_pattern(suffix_pattern, actual_columns)
-            matching_without_suffix = match_pattern(col_pattern, actual_columns)
-
-            # Add all matches
-            matched_columns = sorted(
-                set(matching_with_suffix + matching_without_suffix)
-            )
-            ordered_columns.extend(matched_columns)
-            processed_columns.update(matched_columns)
+        ordered_columns.extend(
+            resolve_columns(col_pattern, SAMPLE_SUFFIX, actual_columns, ordered_columns)
+        )
 
     # Add any remaining columns
-    remaining_cols = sorted([c for c in actual_columns if c not in processed_columns])
+    remaining_cols = sorted([c for c in actual_columns if c not in ordered_columns])
     ordered_columns.extend(remaining_cols)
 
     # Make sure we haven't missed any columns
