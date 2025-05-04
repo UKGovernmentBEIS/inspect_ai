@@ -132,7 +132,7 @@ def _make_title_basic(ctx: click.Context, depth: int) -> Iterator[str]:
 def _make_title_full_command_path(ctx: click.Context, depth: int) -> Iterator[str]:
     """Create the markdown heading for a command, showing the full command path.
 
-    This style accomodates nested commands by showing:
+    This style accommodates nested commands by showing:
     * The full command path for headers and permalinks (eg `# git commit` and `http://localhost:8000/#git-commit`)
     * The command leaf name only for TOC entries (eg `* commit`).
 

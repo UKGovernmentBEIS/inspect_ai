@@ -22,7 +22,7 @@ The following providers currently have support for multimodal inputs:
 
 : {tbl-colwidths=\[40,20,20,20\]}
 
-Note that model providers only support multimodal inputs for a subset of their models. In the sections below on images, audio, and video we'll enumerate which models can handle these input types. It's also always a good idea to check the provider documentation for the most up to date compatiblity matrix.
+Note that model providers only support multimodal inputs for a subset of their models. In the sections below on images, audio, and video we'll enumerate which models can handle these input types. It's also always a good idea to check the provider documentation for the most up to date compatibility matrix.
 
 ## Images {#provider-notes}
 

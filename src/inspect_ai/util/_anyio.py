@@ -1,6 +1,10 @@
 import itertools
 import sys
 
+import anyio
+
+from inspect_ai._util._async import current_async_backend
+
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
 
@@ -36,3 +40,10 @@ def _flatten_exception(exc: Exception) -> list[Exception]:
     ]
 
     return maybe_this_exception + other_exceptions
+
+
+def safe_current_task_id() -> int | None:
+    if current_async_backend() is not None:
+        return anyio.get_current_task().id
+    else:
+        return None

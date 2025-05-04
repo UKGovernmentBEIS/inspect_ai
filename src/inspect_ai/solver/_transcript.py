@@ -1,8 +1,9 @@
 import contextlib
-from typing import Iterator
+from typing import AsyncIterator
 
 from inspect_ai._util.json import json_changes
 from inspect_ai._util.registry import registry_log_name
+from inspect_ai.util._span import span
 
 from ._solver import Solver
 from ._task_state import TaskState, state_jsonable
@@ -22,12 +23,10 @@ class SolverTranscript:
             transcript()._event(StateEvent(changes=changes))
 
 
-@contextlib.contextmanager
-def solver_transcript(
+@contextlib.asynccontextmanager
+async def solver_transcript(
     solver: Solver, state: TaskState, name: str | None = None
-) -> Iterator[SolverTranscript]:
-    from inspect_ai.log._transcript import transcript
-
+) -> AsyncIterator[SolverTranscript]:
     name = registry_log_name(name or solver)
-    with transcript().step(name=name, type="solver"):
+    async with span(name=name, type="solver"):
         yield SolverTranscript(name, state)

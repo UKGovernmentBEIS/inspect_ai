@@ -591,10 +591,10 @@ class SampleToolbar(Horizontal):
                 )
                 if isinstance(last_event, ModelEvent):
                     # see if there are retries in play
-                    if sample.retry_count > 0:
-                        suffix = "retry" if sample.retry_count == 1 else "retries"
+                    if last_event.retries:
+                        suffix = "retry" if last_event.retries == 1 else "retries"
                         pending_caption_text = (
-                            f"Generating ({sample.retry_count:,} {suffix})..."
+                            f"Generating ({last_event.retries:,} {suffix})..."
                         )
                     else:
                         pending_caption_text = "Generating..."

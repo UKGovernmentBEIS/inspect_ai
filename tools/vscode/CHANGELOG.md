@@ -98,7 +98,7 @@
 
 ## 0.3.39
 
-- Fix an issue that would cause view to be unable to display when using VSCode extension with Inpsect version 0.3.42
+- Fix an issue that would cause view to be unable to display when using VSCode extension with Inspect version 0.3.42
 
 ## 0.3.38
 
@@ -106,7 +106,7 @@
 
 ## 0.3.37
 
-This version includes a signficant rework of the overall workflow for interacting with Inspect. Changes include:
+This version includes a significant rework of the overall workflow for interacting with Inspect. Changes include:
 
 - The Inspect sidebar now includes a section which allows you to browse and open log files in the viewer.
 - The Inspect Viewer is no longer opened automatically when an evaluation is completed. Instead a notification is available to open the viewer.
@@ -206,7 +206,7 @@ This version includes a signficant rework of the overall workflow for interactin
 
 ## 0.3.14
 
-- Fix issue where the run/debug task option would be disabled for the task configuration pane if a file containing no tasks was being editted.
+- Fix issue where the run/debug task option would be disabled for the task configuration pane if a file containing no tasks was being edited.
 - Improve Inspect binary detection on Linux platforms
 
 ## 0.3.13

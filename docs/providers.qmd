@@ -62,7 +62,7 @@ inspect eval math.py --model openai/o4-mini \
 
 ### OpenAI on Azure {#openai-on-azure}
 
-The `openai` provider supports OpenAI models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
+The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use OpenAI models on Azure AI, specify the following environment variables:
 
 -   `AZUREAI_OPENAI_API_KEY`
 -   `AZUREAI_OPENAI_BASE_URL`
@@ -232,7 +232,7 @@ The following environment variables are supported by the Mistral provider
 
 ### Mistral on Azure AI {#mistral-on-azure-ai}
 
-The `mistral` provider supports Mistral models deployed on the [Azure AI Foundary](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
+The `mistral` provider supports Mistral models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Mistral models on Azure AI, specify the following environment variables:
 
 -   `AZURE_MISTRAL_API_KEY`
 -   `AZUREAI_MISTRAL_BASE_URL`
@@ -296,7 +296,7 @@ If you are using Anthropic models on Bedrock, you can alternatively use the [Ant
 
 ## Azure AI {#azure-ai}
 
-The `azureai` provider supports models deployed on the [Azure AI Foundary](https://ai.azure.com/).
+The `azureai` provider supports models deployed on the [Azure AI Foundry](https://ai.azure.com/).
 
 To use the `azureai` provider, install the `azure-ai-inference` package, set your credentials and base URL, and specify the name of the model you have deployed (e.g. `Llama-3.3-70B-Instruct`). For example:
 
@@ -464,15 +464,6 @@ model = get_model("hf/local", model_path="./my-model")
 
 ## vLLM {#vllm}
 
-::: callout-note
-The vLLM provider as described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
-
 The [vLLM](https://docs.vllm.ai/) provider also implements support for Hugging Face models using the [vllm](https://github.com/vllm-project/vllm/) package. To use the vLLM provider, install the `vllm` package and specify a model using the `--model` option:
 
 ``` bash
@@ -537,14 +528,6 @@ $ inspect eval arc.py --model vllm/meta-llama/Meta-Llama-3-8B-Instruct --model-b
 See the vLLM documentation on [Server Mode](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html) for additional details.
 
 ## SGLang {#sglang}
-
-::: callout-note
-The SGLang provider as described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 To use the [SGLang](https://docs.sglang.ai/index.html) provider, install the `sglang` package and specify a model using the `--model` option:
 

@@ -57,7 +57,9 @@ def handoff(
     tool_info = agent_tool_info(agent, description, **agent_kwargs)
 
     # AgentTool calls will be intercepted by execute_tools
-    agent_tool = AgentTool(agent, input_filter, output_filter, limits, **agent_kwargs)
+    agent_tool = AgentTool(
+        agent, tool_info.name, input_filter, output_filter, limits, **agent_kwargs
+    )
     tool_name = tool_name or f"transfer_to_{tool_info.name}"
     set_registry_info(agent_tool, RegistryInfo(type="tool", name=tool_name))
     set_tool_description(
@@ -75,12 +77,14 @@ class AgentTool(Tool):
     def __init__(
         self,
         agent: Agent,
+        name: str,
         input_filter: MessageFilter | None = None,
         output_filter: MessageFilter | None = None,
         limits: list[Limit] = [],
         **kwargs: Any,
     ):
         self.agent = agent
+        self.name = name
         self.input_filter = input_filter
         self.output_filter = output_filter
         self.limits = limits

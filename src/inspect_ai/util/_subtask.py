@@ -16,6 +16,7 @@ from inspect_ai._util._async import is_callable_coroutine, tg_collect
 from inspect_ai._util.content import Content
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
+from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, dict_jsonable, init_subtask_store
 
 SubtaskResult = str | int | float | bool | list[Content]
@@ -85,9 +86,7 @@ def subtask(
 
     def create_subtask_wrapper(func: Subtask, name: str | None = None) -> Subtask:
         from inspect_ai.log._transcript import (
-            Event,
             SubtaskEvent,
-            track_store_changes,
             transcript,
         )
 
@@ -118,43 +117,41 @@ def subtask(
                 log_input = dict_jsonable(log_input | kwargs)
 
             # create coroutine so we can provision a subtask contextvars
-            async def run() -> tuple[RT, list[Event]]:
+            async def run() -> RT:
                 # initialise subtask (provisions store and transcript)
-                init_subtask(subtask_name, store if store else Store())
+                init_subtask_store(store if store else Store())
 
                 # run the subtask
                 with trace_action(logger, "Subtask", subtask_name):
-                    with track_store_changes():  # type: ignore
+                    async with span(name=subtask_name, type="subtask"):
+                        # create subtask event
+                        waiting_time_start = sample_waiting_time()
+                        event = SubtaskEvent(
+                            name=subtask_name, input=log_input, type=type, pending=True
+                        )
+                        transcript()._event(event)
+
+                        # run the subtask
                         result = await func(*args, **kwargs)
 
-                # return result and event
-                return result, list(transcript().events)
+                        # time accounting
+                        completed = datetime.now()
+                        waiting_time_end = sample_waiting_time()
+                        event.completed = completed
+                        event.working_time = (
+                            completed - event.timestamp
+                        ).total_seconds() - (waiting_time_end - waiting_time_start)
 
-            # create subtask event
-            waiting_time_start = sample_waiting_time()
-            event = SubtaskEvent(
-                name=subtask_name, input=log_input, type=type, pending=True
-            )
-            transcript()._event(event)
+                        # update event
+                        event.result = result
+                        event.pending = None
+                        transcript()._event_updated(event)
+
+                        # return result
+                        return result  # type: ignore[no-any-return]
 
             # create and run the task as a coroutine
-            result, events = (await tg_collect([run]))[0]
-
-            # time accounting
-            completed = datetime.now()
-            waiting_time_end = sample_waiting_time()
-            event.completed = completed
-            event.working_time = (completed - event.timestamp).total_seconds() - (
-                waiting_time_end - waiting_time_start
-            )
-
-            # update event
-            event.result = result
-            event.events = events
-            event.pending = None
-            transcript()._event_updated(event)
-
-            # return result
+            result = (await tg_collect([run]))[0]
             return result
 
         return run_subtask
@@ -167,15 +164,3 @@ def subtask(
         return wrapper
     else:
         return create_subtask_wrapper(name)
-
-
-def init_subtask(name: str, store: Store) -> Any:
-    from inspect_ai.log._transcript import (
-        Transcript,
-        init_transcript,
-    )
-
-    init_subtask_store(store)
-    transcript = Transcript(name=name)
-    init_transcript(transcript)
-    return transcript

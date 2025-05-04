@@ -261,20 +261,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN npm install -g @modelcontextprotocol/server-filesystem
 ```
 
-Note that we install the `@modelcontextprotocol/server-filesystem` package globally so it is availale to sandbox users and can be run even when the container is disconnected from the Internet.
+Note that we install the `@modelcontextprotocol/server-filesystem` package globally so it is available to sandbox users and can be run even when the container is disconnected from the Internet.
 
 You are not required to inherit from the `aisiuk/inspect-tool-support` base image. If you want to use another base image please see **Custom Base Image** below for details on how to do this.
 
 ::: {.callout-note collapse="true"}
 #### Custom Base Image
 
-If you are inheriting from a different base image then you can equivalently satisfiy the `inspect-tool-support` dependency by adding this to your Dockerfile:
+If you are inheriting from a different base image then you can equivalently satisfy the `inspect-tool-support` dependency by adding this to your Dockerfile:
 
 ``` dockerfile
-ENV PATH="$PATH:/opt/inspect_tool_support/bin"
-RUN python -m venv /opt/inspect_tool_support && \
-    /opt/inspect_tool_support/bin/pip install inspect-tool-support && \
-    /opt/inspect_tool_support/bin/inspect-tool-support post-install
+RUN apt-get update && apt-get install -y pipx && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* && \
+    pipx ensurepath
+ENV PATH="$PATH:/root/.local/bin"
+RUN pipx install inspect-tool-support && inspect-tool-support post-install
 ```
 :::
 

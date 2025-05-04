@@ -102,7 +102,7 @@ class Plan(Solver):
             # execute steps
             for index, solver in enumerate(self.steps):
                 # run solver
-                with solver_transcript(solver, state) as st:
+                async with solver_transcript(solver, state) as st:
                     state = await solver(state, generate)
                     st.complete(state)
 
@@ -113,7 +113,7 @@ class Plan(Solver):
 
             # execute finish
             if self.finish:
-                with solver_transcript(self.finish, state) as st:
+                async with solver_transcript(self.finish, state) as st:
                     state = await self.finish(state, generate)
                     st.complete(state)
                 check_sample_interrupt()

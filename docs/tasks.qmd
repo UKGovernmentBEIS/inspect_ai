@@ -19,7 +19,7 @@ Tasks provide a recipe for an evaluation consisting minimally of a dataset, a so
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.dataset import json_datasets
+from inspect_ai.dataset import json_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import chain_of_thought, generate
 
@@ -111,7 +111,7 @@ inspect eval security.py \
    -T system="researcher.txt" -T grader="hacker.txt"
 ```
 
-If you have several task paramaters you want to specify together, you can put them in a YAML or JSON file and use the `--task-config` CLI option. For example:
+If you have several task parameters you want to specify together, you can put them in a YAML or JSON file and use the `--task-config` CLI option. For example:
 
 ``` {.yaml filename="config.yaml"}
 system: "researcher.txt"
@@ -329,7 +329,7 @@ A convenient way to distribute tasks is to include them in a Python package. Thi
 Tasks in packages can be _registered_ such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes a suite of tasks that can be run as follows:
 
 ```bash
-insepct eval inspect_evals/gaia 
+inspect eval inspect_evals/gaia 
 inspect eval inspect_evals/swe_bench
 ```
 

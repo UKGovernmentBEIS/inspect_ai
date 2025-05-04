@@ -38,58 +38,50 @@ class WebBrowserSessionController(SessionController[PlaywrightCrawler]):
         return await self.create_new_session(DEFAULT_SESSION_NAME, factory)
 
     async def go_to_url(self, session_name: str, url: str) -> CrawlerResult:
-        async def handler(page: PageCrawler) -> None:
-            await page.go_to_url(url)
-
-        return await self._execute_crawler_command(session_name, handler)
+        return await self._execute_crawler_command(
+            session_name, lambda page: page.go_to_url(url)
+        )
 
     async def click(self, session_name: str, element_id: int) -> CrawlerResult:
-        async def handler(page: PageCrawler) -> None:
-            await page.click(element_id)
-
-        return await self._execute_crawler_command(session_name, handler)
+        return await self._execute_crawler_command(
+            session_name, lambda page: page.click(element_id)
+        )
 
     async def scroll(
         self, session_name: str, direction: Literal["up", "down"]
     ) -> CrawlerResult:
-        async def handler(page: PageCrawler) -> None:
-            await page.scroll(direction)
-
-        return await self._execute_crawler_command(session_name, handler)
+        return await self._execute_crawler_command(
+            session_name, lambda page: page.scroll(direction)
+        )
 
     async def forward(self, session_name: str) -> CrawlerResult:
-        async def handler(page: PageCrawler) -> None:
-            await page.forward()
-
-        return await self._execute_crawler_command(session_name, handler)
+        return await self._execute_crawler_command(
+            session_name, lambda page: page.forward()
+        )
 
     async def back(self, session_name: str) -> CrawlerResult:
-        async def handler(page: PageCrawler) -> None:
-            await page.back()
-
-        return await self._execute_crawler_command(session_name, handler)
+        return await self._execute_crawler_command(
+            session_name, lambda page: page.back()
+        )
 
     async def refresh(self, session_name: str) -> CrawlerResult:
-        async def handler(page: PageCrawler) -> None:
-            await page.refresh()
-
-        return await self._execute_crawler_command(session_name, handler)
+        return await self._execute_crawler_command(
+            session_name, lambda page: page.refresh()
+        )
 
     async def type_text(
         self, session_name: str, element_id: int, text: str
     ) -> CrawlerResult:
-        async def handler(page: PageCrawler) -> None:
-            await page.type(element_id, text)
-
-        return await self._execute_crawler_command(session_name, handler)
+        return await self._execute_crawler_command(
+            session_name, lambda page: page.type(element_id, text)
+        )
 
     async def type_submit(
         self, session_name: str, element_id: int, text: str
     ) -> CrawlerResult:
-        async def handler(page: PageCrawler) -> None:
-            await page.submit(element_id, text)
-
-        return await self._execute_crawler_command(session_name, handler)
+        return await self._execute_crawler_command(
+            session_name, lambda page: page.submit(element_id, text)
+        )
 
     async def _execute_crawler_command(
         self, session_name: str, handler: Callable[[PageCrawler], Awaitable[None]]

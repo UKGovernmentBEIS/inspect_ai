@@ -198,7 +198,9 @@ def test_agent_handoff_tool_event():
         (event for event in log.samples[0].events if event.event == "tool")
     )
     assert tool_event
-    model_event = next((event for event in tool_event.events if event.event == "model"))
+    model_event = next(
+        (event for event in reversed(log.samples[0].events) if event.event == "model")
+    )
     assert model_event
     assert model_event.input[0].text == "What time is it?"
 

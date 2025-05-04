@@ -63,7 +63,7 @@ inspect trace anomalies --all
 
 Note that errors and timeouts are not by themselves evidence of problems, since both occur in the normal course of running evaluations (e.g. model generate calls can return errors that are retried and Docker or S3 can also return retryable errors or timeout when they are under heavy load).
 
-As with the `inspect trace dump` command, you can apply a filter when listing anomolies. For example:
+As with the `inspect trace dump` command, you can apply a filter when listing anomalies. For example:
 
 ```bash
 inspect trace anomalies --filter model
