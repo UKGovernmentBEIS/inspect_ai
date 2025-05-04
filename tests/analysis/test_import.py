@@ -4,9 +4,8 @@ from pathlib import Path
 import pytest
 from pydantic import JsonValue
 
-from inspect_ai.analysis import Columns, EvalDefault
-from inspect_ai.analysis._dataframe.columns import Column
-from inspect_ai.analysis._dataframe.record import _resolve_value, import_record
+from inspect_ai.analysis.beta import Column, Columns, EvalDefault
+from inspect_ai.analysis.beta._dataframe.record import _resolve_value, import_record
 from inspect_ai.log._file import read_eval_log
 
 # ======== Test Data ========

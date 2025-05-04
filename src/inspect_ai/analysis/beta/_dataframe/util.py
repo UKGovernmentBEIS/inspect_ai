@@ -7,8 +7,9 @@ from typing import Sequence, TypeAlias
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
-from inspect_ai.analysis._dataframe.columns import ColumnType
 from inspect_ai.log._file import log_files_from_ls
+
+from .columns import ColumnType
 
 LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
 
