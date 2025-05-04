@@ -20,7 +20,7 @@ from .columns.eval import EvalDefault, EvalId
 from .columns.sample import (
     SampleColumns,
     SampleDefault,
-    SampleSummaryDefault,
+    SampleSummary,
 )
 from .extract import auto_sample_id, model_to_record
 from .record import import_record
@@ -153,7 +153,7 @@ def samples_df(
     columns_eval = columns.eval or SampleDefault.eval or EvalId
     if "eval_id" not in columns_eval:
         raise ValueError("eval_id must be inclueed in the columns for a samples_df.")
-    columns_sample = columns.sample or SampleDefault.sample or SampleSummaryDefault
+    columns_sample = columns.sample or SampleDefault.sample or SampleSummary
 
     # read samples from each log
     schema = sample_summary_schema()

@@ -10,7 +10,7 @@ class SampleColumns:
     sample: Columns | None = field(default=None)
 
 
-SampleSummaryDefault: Columns = {
+SampleSummary: Columns = {
     "id": Column("id", required=True, type=str),
     "epoch": Column("epoch", required=True),
     "input": Column("input", required=True, value=input_as_str),
@@ -27,5 +27,5 @@ SampleSummaryDefault: Columns = {
 
 SampleDefault = SampleColumns(
     eval={"eval_id": Column("eval.eval_id", required=True)},
-    sample=SampleSummaryDefault,
+    sample=SampleSummary,
 )
