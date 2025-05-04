@@ -2,3 +2,12 @@
 title: Data Frames
 ---
 
+::: callout-note
+The data frame functions described below are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+

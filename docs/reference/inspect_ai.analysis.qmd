@@ -1,8 +1,17 @@
 ---
-title: "inspect_ai.analysis"
+title: "inspect_ai.analysis.beta"
 ---
+
+::: callout-note
+The `inspect_ai.analysis.beta` module is available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
 
 ## Evals
 
-### beta.evals_df
+### evals_df
 
