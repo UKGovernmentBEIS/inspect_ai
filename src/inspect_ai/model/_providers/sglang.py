@@ -125,7 +125,9 @@ class SGLangAPI(OpenAICompatibleAPI):
             api_key = "inspectai"  # Create a default API key if not provided
 
         # Handle device configuration
-        self.server_args = configure_devices(self.server_args, parallel_size_param="tp")
+        self.server_args, env_vars = configure_devices(
+            self.server_args, parallel_size_param="tp"
+        )
 
         timeout = self.server_args.pop("timeout", None)
         host = self.server_args.pop("host", "0.0.0.0")
@@ -149,6 +151,7 @@ class SGLangAPI(OpenAICompatibleAPI):
             server_type="SGLang",
             timeout=timeout,
             server_args=self.server_args,
+            env=env_vars,
         )
 
         # Register cleanup function to run when Python exits

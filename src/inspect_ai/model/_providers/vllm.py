@@ -131,7 +131,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             raise pip_dependency_error("vLLM Server", ["vllm"])
 
         # Handle device configuration
-        self.server_args = configure_devices(
+        self.server_args, env_vars = configure_devices(
             self.server_args, parallel_size_param="tensor_parallel_size"
         )
 
@@ -152,6 +152,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             server_type="vLLM",
             timeout=timeout,
             server_args=self.server_args,
+            env=env_vars,
         )
 
         # Register cleanup function to run when Python exits

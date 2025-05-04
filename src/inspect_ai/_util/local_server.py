@@ -62,16 +62,24 @@ def release_port(lock_socket: socket.socket) -> None:
         logger.error(f"Error closing socket: {e}")
 
 
-def execute_shell_command(command: list[str]) -> subprocess.Popen[str]:
+def execute_shell_command(
+    command: list[str], env: Optional[dict[str, str]] = None
+) -> subprocess.Popen[str]:
     """
     Execute a command and return its process handle.
 
     Args:
         command: List of command arguments
+        env: Optional environment variables to pass to the subprocess
 
     Returns:
         A subprocess.Popen object representing the running process
     """
+    # Create a process environment by copying current environment and updating with new values
+    process_env = os.environ.copy()
+    if env:
+        process_env.update(env)
+
     # Create a process that redirects output to pipes so we can capture it
     process = subprocess.Popen(
         command,
@@ -79,6 +87,7 @@ def execute_shell_command(command: list[str]) -> subprocess.Popen[str]:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         bufsize=1,  # Line buffered
+        env=process_env,  # Pass the environment variables
     )
 
     # Set up background thread to read and log stdout
@@ -134,7 +143,10 @@ def kill_process_tree(pid: int) -> None:
 
 
 def launch_server_cmd(
-    command: list[str], host: str = "0.0.0.0", port: Optional[int] = None
+    command: list[str],
+    host: str = "0.0.0.0",
+    port: Optional[int] = None,
+    env: Optional[dict[str, str]] = None,
 ) -> Tuple[subprocess.Popen[str], int, list[str]]:
     """
     Launch a server process with the given base command and return the process, port, and full command.
@@ -143,6 +155,7 @@ def launch_server_cmd(
         command: Base command to execute
         host: Host to bind to
         port: Port to bind to. If None, a free port is reserved.
+        env: Optional environment variables to pass to the subprocess
 
     Returns:
         Tuple of (process, port, full_command)
@@ -155,7 +168,7 @@ def launch_server_cmd(
     full_command = command + ["--port", str(port)]
     logger.info(f"Launching server on port {port}")
 
-    process = execute_shell_command(full_command)
+    process = execute_shell_command(full_command, env=env)
 
     if lock_socket is not None:
         process_socket_map[process] = lock_socket
@@ -245,6 +258,7 @@ def start_local_server(
     server_type: str = "server",
     timeout: Optional[int] = DEFAULT_TIMEOUT,
     server_args: Optional[dict[str, Any]] = None,
+    env: Optional[dict[str, str]] = None,
 ) -> Tuple[str, subprocess.Popen[str], int]:
     """
     Start a server with the given command and handle potential errors.
@@ -257,6 +271,7 @@ def start_local_server(
         server_type: Type of server being started (for error messages)
         timeout: Maximum time to wait for server to become ready
         server_args: Additional server arguments to pass to the command
+        env: Optional environment variables to pass to the subprocess
     Returns:
         Tuple of (base_url, process, port)
 
@@ -265,6 +280,9 @@ def start_local_server(
     """
     full_command = base_cmd
     server_process = None
+
+    # Initialize environment variables if not provided
+    process_env = {} if env is None else env.copy()
 
     if server_args:
         for key, value in server_args.items():
@@ -278,7 +296,7 @@ def start_local_server(
 
     try:
         server_process, found_port, full_command = launch_server_cmd(
-            full_command, host=host, port=port
+            full_command, host=host, port=port, env=process_env
         )
         base_url = f"http://localhost:{found_port}/v1"
         wait_for_server(
@@ -334,17 +352,18 @@ def merge_env_server_args(
 
 def configure_devices(
     server_args: dict[str, Any], parallel_size_param: str = "tensor_parallel_size"
-) -> dict[str, Any]:
-    """Configure device settings and return updated server args.
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Configure device settings and return updated server args and environment variables.
 
     Args:
         server_args: Dictionary of server arguments
         parallel_size_param: Name of parameter to set with device count if not specified
 
     Returns:
-        Updated server arguments dict
+        Tuple of (updated server arguments dict, environment variables dict)
     """
     result = server_args.copy()
+    env_vars = {}
 
     devices = None
     if "device" in result and "devices" in result:
@@ -361,8 +380,8 @@ def configure_devices(
         else:
             device_str = str(devices)
 
-        # Set CUDA_VISIBLE_DEVICES environment variable
-        os.environ["CUDA_VISIBLE_DEVICES"] = device_str
+        # Add to env_vars instead of setting os.environ directly
+        env_vars["CUDA_VISIBLE_DEVICES"] = device_str
 
         device_count = len(device_str.split(","))
 
@@ -370,4 +389,4 @@ def configure_devices(
         if parallel_size_param not in result:
             result[parallel_size_param] = device_count
 
-    return result
+    return result, env_vars
