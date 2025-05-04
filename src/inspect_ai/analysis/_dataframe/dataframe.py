@@ -22,7 +22,7 @@ from .columns.sample import (
     SampleDefault,
     SampleSummaryDefault,
 )
-from .extract import model_to_record
+from .extract import auto_sample_id, model_to_record
 from .record import import_record
 from .validate import (
     eval_log_schema,
@@ -164,7 +164,7 @@ def samples_df(
         # read samples from sample summary
         for eval_id, log in zip(evals_table["eval_id"].to_list(), logs):
             sample_summaries = read_eval_log_sample_summaries(log)
-            for sample_summary in sample_summaries:
+            for index, sample_summary in enumerate(sample_summaries):
                 sample_record = model_to_record(sample_summary)
                 if strict:
                     record = import_record(
@@ -177,7 +177,14 @@ def samples_df(
                     error_key = f"{pretty_path(log)} [{sample_summary.id}, {sample_summary.epoch}]"
                     all_errors[error_key] = errors
 
-                records.append({"eval_id": eval_id} | record)
+                # inject ids
+                ids: dict[str, ColumnType] = {
+                    "eval_id": eval_id,
+                    "sample_id": sample_summary.uuid
+                    or auto_sample_id(eval_id, sample_summary),
+                }
+
+                records.append(ids | record)
             p.update()
 
     # normalize records and produce samples table
@@ -198,16 +205,14 @@ def samples_df(
 
 def messages_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:
     _verify_prerequisites()
-    import pandas as pd
 
-    return pd.DataFrame()
+    raise NotImplementedError("messages_df has not been implemented yet.")
 
 
 def events_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:
     _verify_prerequisites()
-    import pandas as pd
 
-    return pd.DataFrame()
+    raise NotImplementedError("events_df has not been implemented yet.")
 
 
 def _resolve_logs(logs: LogPaths, recursive: bool, reverse: bool) -> list[str]:

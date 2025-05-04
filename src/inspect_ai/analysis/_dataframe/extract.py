@@ -1,10 +1,13 @@
+import hashlib
+import uuid
 from typing import Any, cast
 
+import shortuuid
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.path import native_path
-from inspect_ai.log._log import EvalLog
+from inspect_ai.log._log import EvalLog, EvalSampleSummary
 
 
 def scores_dict(log: EvalLog) -> JsonValue:
@@ -63,3 +66,10 @@ def content_as_str(content: str | list[dict[str, Any]]) -> str:
         return content
     else:
         return "\n".join([c["text"] if c["type"] == "text" else "" for c in content])
+
+
+def auto_sample_id(eval_id: str, sample: EvalSampleSummary) -> str:
+    seed = f"{eval_id}_{sample.id}_{sample.epoch}"
+    hash_bytes = hashlib.md5(seed.encode("utf-8")).digest()
+    long_uuid = uuid.UUID(bytes=hash_bytes)
+    return shortuuid.encode(long_uuid)
