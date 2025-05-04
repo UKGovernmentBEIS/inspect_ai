@@ -66,14 +66,9 @@ def convert_eval_logs(
                 "Output file {output_file} already exists (use --overwrite to overwrite existing files)"
             )
 
-        # if the input and output files have the same format just copy
-        if input_file.endswith(f".{to}"):
-            copy_file(input_file, output_file)
-
-        # otherwise do a full read/write
-        else:
-            log = read_eval_log(input_file)
-            write_eval_log(log, output_file)
+        # do a full read/write (normalized deprecated constructs and adds sample summaries)
+        log = read_eval_log(input_file)
+        write_eval_log(log, output_file)
 
     if fs.info(path).type == "file":
         convert_file(path)
