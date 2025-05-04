@@ -60,7 +60,7 @@ def samples_df(
     recursive: bool = True,
     reverse: bool = False,
     strict: bool = True,
-) -> pd.DataFrame | tuple["pd.DataFrame", ColumnErrors]:
+) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     verify_prerequisites()
     import pyarrow as pa
 
