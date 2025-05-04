@@ -9,6 +9,7 @@ from ._dataframe.columns.eval import (
     EvalConfig,
     EvalDefault,
     EvalId,
+    EvalInfo,
     EvalModel,
     EvalResults,
     EvalScores,
@@ -19,6 +20,7 @@ from ._dataframe.dataframe import evals_df, events_df, messages_df, samples_df
 __all__ = [
     "evals_df",
     "EvalId",
+    "EvalInfo",
     "EvalTask",
     "EvalModel",
     "EvalDefault",

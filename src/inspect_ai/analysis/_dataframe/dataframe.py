@@ -9,13 +9,25 @@ from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.path import pretty_path
 from inspect_ai._util.version import verify_required_version
-from inspect_ai.analysis._dataframe.columns.samples import SamplesColumns
-from inspect_ai.analysis._dataframe.validate import eval_log_schema
-from inspect_ai.log._file import log_files_from_ls, read_eval_log
+from inspect_ai.log._file import (
+    log_files_from_ls,
+    read_eval_log,
+    read_eval_log_sample_summaries,
+)
 
 from .columns.columns import ColumnErrors, Columns, ColumnType
-from .columns.eval import EvalDefault
+from .columns.eval import EvalDefault, EvalId
+from .columns.sample import (
+    SampleColumns,
+    SampleDefault,
+    SampleSummaryDefault,
+)
+from .extract import model_to_record
 from .record import import_record
+from .validate import (
+    eval_log_schema,
+    sample_summary_schema,
+)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -96,26 +108,92 @@ def evals_df(
 
     # return table (+errors if strict=False)
     records = _normalize_records(records)
-    table = pa.Table.from_pylist(records).to_pandas()
+    evals_table = pa.Table.from_pylist(records).to_pandas()
 
     if strict:
-        return table
+        return evals_table
     else:
-        return table, all_errors
+        return evals_table, all_errors
+
+
+@overload
+def samples_df(
+    logs: LogPaths,
+    columns: SampleColumns = SampleDefault,
+    recursive: bool = True,
+    reverse: bool = False,
+    strict: Literal[True] = True,
+) -> "pd.DataFrame": ...
+
+
+@overload
+def samples_df(
+    logs: LogPaths,
+    columns: SampleColumns = SampleDefault,
+    recursive: bool = True,
+    reverse: bool = False,
+    strict: Literal[False] = False,
+) -> "pd.DataFrame": ...
 
 
 def samples_df(
-    logs: LogPaths, columns: Columns | SamplesColumns, recursive: bool = True
-) -> pd.DataFrame:
+    logs: LogPaths,
+    columns: SampleColumns = SampleDefault,
+    recursive: bool = True,
+    reverse: bool = False,
+    strict: bool = True,
+) -> pd.DataFrame | tuple["pd.DataFrame", ColumnErrors]:
     _verify_prerequisites()
-    import pandas as pd
-
-    # use *.samples as branch point to look in summaries
+    import pyarrow as pa
 
     # resolve logs
-    logs = _resolve_logs(logs, recursive=recursive, reverse=False)
+    logs = _resolve_logs(logs, recursive=recursive, reverse=reverse)
 
-    return pd.DataFrame()
+    # get eval records (column spec must include eval_id)
+    columns_eval = columns.eval or SampleDefault.eval or EvalId
+    if "eval_id" not in columns_eval:
+        raise ValueError("eval_id must be inclueed in the columns for a samples_df.")
+    columns_sample = columns.sample or SampleDefault.sample or SampleSummaryDefault
+
+    # read samples from each log
+    schema = sample_summary_schema()
+    records: list[dict[str, ColumnType]] = []
+    all_errors = ColumnErrors()
+    evals_table = evals_df(logs, columns=columns_eval)
+    with display().progress(total=len(evals_table)) as p:
+        # read samples from sample summary
+        for eval_id, log in zip(evals_table["eval_id"].to_list(), logs):
+            sample_summaries = read_eval_log_sample_summaries(log)
+            for sample_summary in sample_summaries:
+                sample_record = model_to_record(sample_summary)
+                if strict:
+                    record = import_record(
+                        sample_record, columns_sample, strict=True, schema=schema
+                    )
+                else:
+                    record, errors = import_record(
+                        sample_record, columns_sample, strict=False, schema=schema
+                    )
+                    error_key = f"{pretty_path(log)} [{sample_summary.id}, {sample_summary.epoch}]"
+                    all_errors[error_key] = errors
+
+                records.append({"eval_id": eval_id} | record)
+            p.update()
+
+    # normalize records and produce samples table
+    records = _normalize_records(records)
+    samples_table = pa.Table.from_pylist(records).to_pandas()
+
+    # join eval_records
+    samples_table = samples_table.merge(
+        evals_table, on="eval_id", how="left", suffixes=("_sample", "_eval")
+    )
+
+    # return
+    if strict:
+        return samples_table
+    else:
+        return samples_table, all_errors
 
 
 def messages_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:
@@ -134,7 +212,7 @@ def events_df(logs: LogPaths, recursive: bool = True) -> pd.DataFrame:
 
 def _resolve_logs(logs: LogPaths, recursive: bool, reverse: bool) -> list[str]:
     # normalize to list of str
-    logs = [logs] if isinstance(logs, str | PathLike[str]) else logs
+    logs = [logs] if isinstance(logs, str | PathLike) else logs
     logs = [Path(log).as_posix() if isinstance(log, PathLike) else log for log in logs]
 
     # expand directories

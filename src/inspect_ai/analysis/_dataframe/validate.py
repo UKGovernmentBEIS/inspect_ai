@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from logging import getLogger
-from typing import Any, Iterator, Mapping
+from typing import Any, Iterator, Mapping, Type
 
 import jsonref  # type: ignore
 from jsonpath_ng import Fields, Index, JSONPath, Slice, Where, WhereNot  # type: ignore
 from jsonpath_ng.ext.filter import Filter  # type: ignore
+from pydantic import BaseModel
 
-from inspect_ai.log._log import EvalLog
+from inspect_ai.log._log import EvalLog, EvalSampleSummary
 
 logger = getLogger(__name__)
 
@@ -15,9 +16,16 @@ Schema = Mapping[str, Any]
 
 
 def eval_log_schema() -> Schema:
-    # prepare schema for validation of jsonpath expressions
-    schema_dict = EvalLog.model_json_schema()
-    base = "file:///memory/eval_log_schema.json"
+    return resolved_schema(EvalLog)
+
+
+def sample_summary_schema() -> Schema:
+    return resolved_schema(EvalSampleSummary)
+
+
+def resolved_schema(model: Type[BaseModel]) -> Schema:
+    schema_dict = model.model_json_schema()
+    base = "file:///memory/inspect_schema.json"
     schema: Schema = jsonref.replace_refs(
         schema_dict, base_uri=base, jsonschema=True, proxies=False
     )

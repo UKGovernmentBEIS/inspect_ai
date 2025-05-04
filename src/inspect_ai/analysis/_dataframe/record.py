@@ -9,7 +9,7 @@ from pydantic import JsonValue
 from inspect_ai.log._log import EvalLog
 
 from .columns.columns import ColumnError, Columns, ColumnType
-from .extract import log_to_record
+from .extract import model_to_record
 from .validate import Schema
 
 
@@ -38,7 +38,7 @@ def import_record(
     schema: Schema | None = None,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
     if isinstance(log, EvalLog):
-        record = log_to_record(log)
+        record = model_to_record(log)
     else:
         record = log
 

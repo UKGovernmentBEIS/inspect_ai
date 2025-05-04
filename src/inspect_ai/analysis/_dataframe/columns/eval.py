@@ -5,6 +5,9 @@ from .columns import Column, Columns
 
 EvalId: Columns = {
     "eval_id": Column("eval.eval_id", required=True),
+}
+
+EvalInfo: Columns = {
     "run_id": Column("eval.run_id", required=True),
     "task_id": Column("eval.task_id", required=True),
     "log": Column(eval_log_location),
@@ -77,6 +80,13 @@ EvalScores: Columns = {
 """Eval scores (one score/metric per-columns)."""
 
 EvalDefault: Columns = (
-    EvalId | EvalTask | EvalModel | EvalDataset | EvalConfig | EvalResults | EvalScores
+    EvalId
+    | EvalInfo
+    | EvalTask
+    | EvalModel
+    | EvalDataset
+    | EvalConfig
+    | EvalResults
+    | EvalScores
 )
 """Default fields to import for `evals_df()`."""
