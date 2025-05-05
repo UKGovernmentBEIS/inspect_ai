@@ -6,6 +6,7 @@ from typing import Match, TypedDict
 
 from typing_extensions import Unpack
 
+from inspect_ai._util.answer import answer_character, answer_index
 from inspect_ai._util.logger import warn_once
 from inspect_ai.util import resource
 
@@ -64,31 +65,13 @@ def answer_options(choices: Choices) -> str:
     indexes = list(range(len(choices)))
 
     return "\n".join(
-        [f"{chr(65 + i)}) {choices[j].value}" for i, j in enumerate(indexes)]
+        [f"{answer_character(i)}) {choices[j].value}" for i, j in enumerate(indexes)]
     )
-
-
-def answer_character(index: int) -> str:
-    r"""
-    Helper to go from array index to char, for example:
-
-        0 -> 'A', 1 -> 'B', etc
-    """
-    return chr(ord("A") + index)
-
-
-def answer_index(char: str) -> int:
-    r"""
-    Helper to go from char to array index, for example:
-
-        'A' -> 0, 'B' -> 1, etc
-    """
-    return ord(char.upper()) - ord("A")
 
 
 def prompt(question: str, choices: Choices, template: str) -> str:
     choices_text = answer_options(choices)
-    letters = ",".join(chr(65 + i) for i in range(len(choices)))
+    letters = ",".join(answer_character(i) for i in range(len(choices)))
 
     return template.format(
         choices=choices_text,
@@ -112,7 +95,7 @@ def parse_answers(state: TaskState) -> Match[str] | None:
     # In this case, we're looking for a single line which contains the expected
     # ANSWER: B,C string with only whitespace after it
     match = re.search(
-        r"(?i)^ANSWER\s*:\s*([A-Za-z ,]+)\s*(?:$|\n)",
+        r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n)",
         state.output.completion,
         flags=re.MULTILINE,
     )
@@ -121,7 +104,7 @@ def parse_answers(state: TaskState) -> Match[str] | None:
     # version for backward compatibility
     if match is None:
         return re.search(
-            r"(?i)ANSWER\s*:\s*([A-Za-z ,]+)(?:[^\w]|\n|$)", state.output.completion
+            r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$)", state.output.completion
         )
     else:
         return match

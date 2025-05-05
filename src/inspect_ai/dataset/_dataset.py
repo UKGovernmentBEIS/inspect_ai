@@ -16,6 +16,7 @@ from typing import (
 from pydantic import BaseModel, Field, ValidationError
 from typing_extensions import override
 
+from inspect_ai._util.answer import answer_character, answer_index
 from inspect_ai.model import ChatMessage
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
 from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
@@ -328,7 +329,9 @@ class MemoryDataset(Dataset):
             shuffled_choices = [sample.choices[i] for i in positions]
 
             # Map of original position / target letter
-            position_map = {i: chr(65 + new_i) for new_i, i in enumerate(positions)}
+            position_map = {
+                i: answer_character(new_i) for new_i, i in enumerate(positions)
+            }
 
             # Update to the shuffled choices and target
             sample.choices = shuffled_choices
@@ -338,9 +341,9 @@ class MemoryDataset(Dataset):
         self, target: str | list[str], position_map: dict[int, str]
     ) -> str | list[str]:
         if isinstance(target, list):
-            return [position_map[ord(t) - 65] for t in target]
+            return [position_map[answer_index(t)] for t in target]
         else:
-            return position_map[ord(target) - 65]
+            return position_map[answer_index(target)]
 
     @override
     def sort(
