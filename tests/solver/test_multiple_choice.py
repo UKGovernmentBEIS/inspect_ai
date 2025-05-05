@@ -3,7 +3,10 @@ from random import Random
 import pytest
 from test_helpers.utils import simple_task_state
 
+from inspect_ai import Task, eval
+from inspect_ai.dataset._dataset import MemoryDataset, Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser, ModelOutput
+from inspect_ai.model._model import get_model
 from inspect_ai.scorer._choice import choice
 from inspect_ai.scorer._metric import CORRECT
 from inspect_ai.scorer._target import Target
@@ -74,6 +77,31 @@ async def test_maps_choices_without_shuffling():
         False,
         False,
     ]
+
+
+def test_more_than_26_choices():
+    dataset = MemoryDataset(
+        samples=[
+            Sample(
+                input="Please make the right choice",
+                choices=[chr(i) for i in range(ord("A"), ord("Z") + 1)]
+                + [str(i) for i in range(1, 10)],
+                target="5",
+            )
+        ]
+    )
+    dataset.shuffle_choices(seed=42)
+    task = Task(dataset=dataset, solver=multiple_choice(), scorer=choice())
+    log = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[ModelOutput.from_content("mockllm/model", "ANSWER: Q")],
+        ),
+    )[0]
+    assert log.status == "success"
+    assert log.results
+    assert log.results.scores[0].metrics["accuracy"].value == 1.0
 
 
 @pytest.mark.anyio

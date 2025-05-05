@@ -6,6 +6,7 @@
 - `inspect convert` now always fully re-writes log files even of the same format (so that e.g. sample summaries always exist in the converted logs).
 - React agent: `answer_only` and `answer_delimiter` to control how submitted answers are reflected in the assistant message content. 
 - Task display: Realtime display of events that occur within tool calls and subtasks.
+- Multiple choice: Support for more than 26 choices.
 - Bugfix: Ensure that each MCP server gets its own cached tool list.
 
 ## v0.3.93 (01 May 2025)
