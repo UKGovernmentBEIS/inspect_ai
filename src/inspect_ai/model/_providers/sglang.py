@@ -71,6 +71,7 @@ class SGLangAPI(OpenAICompatibleAPI):
             SGLANG_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
+        self.server_found = True
         try:
             # Try to initialize with existing server
             super().__init__(
@@ -83,7 +84,9 @@ class SGLangAPI(OpenAICompatibleAPI):
             )
             logger.info(f"Using existing SGLang server at {self.base_url}")
         except PrerequisiteError:
-            # No existing server found, start a new one
+            self.server_found = False
+
+        if not self.server_found:
             logger.warning(
                 f"Existing SGLang server not found. Starting new server for {model_name}."
             )

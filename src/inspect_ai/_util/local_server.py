@@ -194,6 +194,7 @@ def wait_for_server(
     base_url: str,
     process: subprocess.Popen[str],
     full_command: Optional[list[str]] = None,
+    env: Optional[dict[str, str]] = None,
     timeout: Optional[int] = None,
     api_key: Optional[str] = None,
 ) -> None:
@@ -204,6 +205,7 @@ def wait_for_server(
         base_url: The base URL of the server
         process: The subprocess running the server
         full_command: The full command used to launch the server
+        env: The environment variables to use for the request
         timeout: Maximum time to wait in seconds. None means wait forever.
         api_key: The API key to use for the request
     """
@@ -211,7 +213,10 @@ def wait_for_server(
     start_time = time.time()
     debug_advice = "Try rerunning with '--log-level debug' to see the full traceback."
     if full_command:
-        debug_advice += f" Alternatively, you can run the following launch command manually to see the full traceback:\n\n{' '.join(full_command)}\n\n"
+        debug_advice += " Alternatively, you can run the following launch command manually to see the full traceback:\n\n"
+        if env:
+            debug_advice += " ".join([f"{k}={v}" for k, v in env.items()]) + " "
+        debug_advice += " ".join(full_command) + "\n\n"
 
     while True:
         # Check for timeout first
@@ -305,6 +310,7 @@ def start_local_server(
             api_key=api_key,
             timeout=timeout,
             full_command=full_command,
+            env=process_env,
         )
         return base_url, server_process, found_port
     except Exception as e:
