@@ -51,7 +51,7 @@ export const TranscriptVirtualListComponent: FC<
           className={clsx(styles.node, paddingClass, attachedClass)}
           style={{ paddingLeft: `${item.depth * 0.5}em` }}
         >
-          <RenderedEventNode id={item.id} node={item} />
+          <RenderedEventNode node={item} />
         </div>
       );
     },
