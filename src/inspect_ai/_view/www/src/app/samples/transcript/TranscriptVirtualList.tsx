@@ -133,7 +133,6 @@ const collapseFilters: Array<(event: StepEvent | SpanBeginEvent) => boolean> = [
 ];
 
 interface RenderedEventNodeProps {
-  id: string;
   node: EventNode;
   className?: string | string[];
 }
@@ -141,7 +140,7 @@ interface RenderedEventNodeProps {
  * Renders the event based on its type.
  */
 export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
-  ({ id, node, className }) => {
+  ({ node, className }) => {
     switch (node.event.event) {
       case "sample_init":
         return (
