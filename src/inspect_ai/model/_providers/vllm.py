@@ -150,12 +150,17 @@ class VLLMAPI(ModelAPI):
         # convert to chat template input format
         chat_messages = chat_api_input(messages, tools, ChatAPIHandler(self.model_name))
         # apply chat template
-        chat = self.tokenizer.apply_chat_template(
-            chat_messages,
-            add_generation_prompt=True,
-            tokenize=False,
-            chat_template=self.chat_template,
-        )
+        if self.tokenizer.chat_template is not None:
+            chat = self.tokenizer.apply_chat_template(
+                chat_messages,
+                add_generation_prompt=True,
+                tokenize=False,
+                chat_template=self.chat_template,
+            )
+        else:
+            chat = ""
+            for message in chat_messages:
+                chat += f"{message['role']}: {message['content']}\n"
         return cast(str, chat)
 
     @override
