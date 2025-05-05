@@ -61,6 +61,7 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
       className={className}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
+      childIds={children.map((child) => child.id)}
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView
