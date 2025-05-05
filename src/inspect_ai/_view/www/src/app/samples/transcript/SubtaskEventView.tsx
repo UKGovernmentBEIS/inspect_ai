@@ -6,10 +6,11 @@ import { MetaDataView } from "../../content/MetaDataView";
 import { EventPanel } from "./event/EventPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
-import { EventNode } from "./types";
+import { EventNode, EventType } from "./types";
 
 interface SubtaskEventViewProps {
   eventNode: EventNode<SubtaskEvent>;
+  children: EventNode<EventType>[];
   className?: string | string[];
 }
 
@@ -18,6 +19,7 @@ interface SubtaskEventViewProps {
  */
 export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
   eventNode,
+  children,
   className,
 }) => {
   const event = eventNode.event;
@@ -54,6 +56,7 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
         event.working_time,
       )}
       subTitle={formatTiming(event.timestamp, event.working_start)}
+      childIds={children.map((child) => child.id)}
     >
       {body}
     </EventPanel>
@@ -71,9 +74,9 @@ const SubtaskSummary: FC<SubtaskSummaryProps> = ({ input, result }) => {
   const output = typeof result === "object" ? result : { result };
   return (
     <div className={clsx(styles.subtaskSummary)}>
-      <div className={clsx("text-style-label")}>Input</div>
+      <div className={clsx("text-style-label", "text-size-small")}>Input</div>
       <div className={clsx("text-size-large", styles.subtaskLabel)}></div>
-      <div className={clsx("text-style-label")}>Output</div>
+      <div className={clsx("text-style-label", "text-size-small")}>Output</div>
       {input ? <Rendered values={input} /> : undefined}
       <div className={clsx("text-size-title-secondary", styles.subtaskLabel)}>
         <i className={ApplicationIcons.arrows.right} />
