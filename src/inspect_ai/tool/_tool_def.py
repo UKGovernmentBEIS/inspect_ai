@@ -82,6 +82,7 @@ class ToolDef:
             self.parallel = parallel if parallel is not None else tdef.parallel
             self.viewer = viewer or tdef.viewer
             self.model_input = model_input or tdef.model_input
+            self.temp_hack = tdef.temp_hack
 
         # if its not a tool then extract tool_info if all fields have not
         # been provided explicitly
@@ -133,6 +134,8 @@ class ToolDef:
 
     model_input: ToolCallModelInput | None
     """Custom model input presenter for tool calls."""
+
+    temp_hack: object | None = None
 
     def as_tool(self) -> Tool:
         """Convert a ToolDef to a Tool."""
@@ -189,6 +192,7 @@ class ToolDefFields(NamedTuple):
     parallel: bool
     viewer: ToolCallViewer | None
     model_input: ToolCallModelInput | None
+    temp_hack: object | None
 
 
 def tool_def_fields(tool: Tool) -> ToolDefFields:
@@ -234,6 +238,7 @@ def tool_def_fields(tool: Tool) -> ToolDefFields:
         parallel=parallel,
         viewer=viewer,
         model_input=model_input,
+        temp_hack=tool_info.temp_hack,
     )
 
 

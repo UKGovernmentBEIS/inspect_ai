@@ -547,6 +547,7 @@ def tools_info(
                     name=tool.name,
                     description=tool.description,
                     parameters=tool.parameters,
+                    temp_hack=tool.temp_hack,
                 )
             )
     return tools_info

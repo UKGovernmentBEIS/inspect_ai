@@ -1,4 +1,5 @@
-from typing import Literal
+from dataclasses import dataclass
+from typing import Literal, Tuple, TypeAlias
 
 from inspect_ai._util.deprecation import deprecation_warning
 
@@ -6,10 +7,33 @@ from ..._tool import Tool, ToolResult, tool
 from ._google import google_search_provider, maybe_get_google_api_keys
 from ._tavily import tavily_search_provider
 
+SupportedProvider: TypeAlias = Literal["tavily", "google"]
+
+
+@dataclass
+class GoogleOptions:
+    num_results: int = 3
+    max_provider_calls: int = 3
+    max_connections: int = 10
+    model: str | None = None
+
+
+@dataclass
+class TavilyOptions:
+    num_results: int = 3
+    max_connections: int = 10
+
+
+SupportedProviderOptions: TypeAlias = TavilyOptions | GoogleOptions
+InternalOptions: TypeAlias = dict[str, dict[str, object]]
+
 
 @tool
 def web_search(
-    provider: Literal["tavily", "google"] | None,
+    provider: SupportedProvider | Tuple[Literal["internal"], SupportedProvider] | None,
+    provider_options: SupportedProviderOptions
+    | Tuple[InternalOptions, SupportedProviderOptions]
+    | None = None,
     num_results: int = 3,
     max_provider_calls: int = 3,
     max_connections: int = 10,
@@ -47,16 +71,9 @@ def web_search(
     Returns:
        A tool that can be registered for use by models to search the web.
     """
-    if provider is None:
-        if maybe_get_google_api_keys():
-            deprecation_warning(
-                "The `google` `web_search` provider was inferred based on the presence of environment variables. Please specify the provider explicitly to avoid this warning."
-            )
-            provider = "google"
-        else:
-            raise ValueError(
-                "Omitting `provider` is no longer supported. Please specify the `web_search` provider explicitly to avoid this error."
-            )
+    provider = provider or _google_hack()
+
+    _validate_options(provider, provider_options)
 
     search_provider = (
         google_search_provider(num_results, max_provider_calls, max_connections, model)
@@ -83,3 +100,41 @@ def web_search(
         )
 
     return execute
+
+
+def _google_hack() -> SupportedProvider:
+    if maybe_get_google_api_keys():
+        deprecation_warning(
+            "The `google` `web_search` provider was inferred based on the presence of environment variables. Please specify the provider explicitly to avoid this warning."
+        )
+        return "google"
+    else:
+        raise ValueError(
+            "Omitting `provider` is no longer supported. Please specify the `web_search` provider explicitly to avoid this error."
+        )
+
+
+def _validate_options(
+    provider: SupportedProvider | Tuple[Literal["internal"], SupportedProvider],
+    provider_options: SupportedProviderOptions
+    | Tuple[InternalOptions, SupportedProviderOptions]
+    | None,
+) -> None:
+    if provider_options:
+        if isinstance(provider, tuple) != isinstance(provider_options, tuple):
+            raise ValueError(
+                f"provider_options ({type(provider_options)}) must match the shape of provider ({type(provider)}) "
+            )
+        # It would be nice to just do the `isinstance`'s once, but the inference
+        # engine can't handle that
+        if (
+            isinstance(provider, tuple)
+            and isinstance(provider_options, tuple)
+            and not isinstance(
+                provider_options[1],
+                TavilyOptions if provider[1] == "tavily" else GoogleOptions,
+            )
+        ):
+            raise ValueError(
+                f"{type(provider_options[1])} must correlate to {provider[1]}"
+            )
