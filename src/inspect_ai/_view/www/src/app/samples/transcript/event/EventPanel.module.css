@@ -10,6 +10,7 @@
 }
 
 .card {
+  background-color: var(--bs-body-bg);
   padding: 0.625rem;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);

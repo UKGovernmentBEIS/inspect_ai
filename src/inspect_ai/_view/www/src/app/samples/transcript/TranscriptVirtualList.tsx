@@ -1,4 +1,4 @@
-import { FC, JSX, memo, RefObject, useEffect, useMemo } from "react";
+import { FC, memo, RefObject, useEffect, useMemo } from "react";
 import {
   ApprovalEvent,
   ErrorEvent,
@@ -34,10 +34,8 @@ import { SubtaskEventView } from "./SubtaskEventView";
 import { ToolEventView } from "./ToolEventView";
 import { EventNode } from "./types";
 
-import clsx from "clsx";
 import { useStore } from "../../../state/store";
 import { SpanEventView } from "./SpanEventView";
-import styles from "./TranscriptView.module.css";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
 import { fixupEventStream, kSandboxSignalName } from "./transform/fixups";
 import { flatTree, treeifyEvents } from "./transform/treeify";
@@ -133,77 +131,6 @@ const collapseFilters: Array<(event: StepEvent | SpanBeginEvent) => boolean> = [
     return false;
   },
 ];
-
-interface TranscriptComponentProps {
-  id: string;
-  eventNodes: EventNode[];
-}
-/**
- * Renders the Transcript component.
- */
-export const TranscriptComponent: FC<TranscriptComponentProps> = memo(
-  ({ id, eventNodes }) => {
-    const rows: JSX.Element[] = [];
-
-    let attached = false;
-    for (let i = 0; i < eventNodes.length; i++) {
-      const eventNode = eventNodes[i];
-      const clz = [styles.eventNode];
-      const containerClz = [];
-
-      if (eventNode.event.event !== "tool") {
-        attached = false;
-      }
-
-      // Special handling for toggling color
-      if (eventNode.depth % 2 == 0) {
-        clz.push(styles.darkenBg);
-      }
-
-      // Note last node
-      if (i === eventNodes.length - 1) {
-        clz.push(styles.lastNode);
-      }
-
-      if (attached) {
-        containerClz.push(styles.attached);
-      }
-
-      const eventId = `${id}|event|${i}`;
-      const row = (
-        <div
-          key={eventId}
-          className={clsx(
-            styles.eventNodeContainer,
-            i === eventNodes.length - 1 ? styles.noBottom : undefined,
-            containerClz,
-          )}
-          style={{ paddingLeft: `${eventNode.depth * 1}em` }}
-        >
-          <RenderedEventNode
-            id={eventId}
-            node={eventNode}
-            className={clsx(clz)}
-          />
-        </div>
-      );
-      rows.push(row);
-
-      if (eventNode.event.event === "model") {
-        attached = true;
-      }
-    }
-
-    return (
-      <div
-        id={id}
-        className={clsx("text-size-small", styles.transcriptComponent)}
-      >
-        {rows}
-      </div>
-    );
-  },
-);
 
 interface RenderedEventNodeProps {
   id: string;

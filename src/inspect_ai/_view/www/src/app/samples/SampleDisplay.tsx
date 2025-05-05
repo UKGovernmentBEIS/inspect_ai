@@ -44,7 +44,7 @@ import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 import { SampleScoresView } from "./scores/SampleScoresView";
-import { TranscriptVirtualList } from "./transcript/TranscriptView";
+import { TranscriptVirtualList } from "./transcript/TranscriptVirtualList";
 
 interface SampleDisplayProps {
   id: string;
