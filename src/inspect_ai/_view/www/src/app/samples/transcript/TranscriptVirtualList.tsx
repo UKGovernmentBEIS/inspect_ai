@@ -75,9 +75,10 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
         for (const node of nodes) {
           if (
             (node.event.event === "step" ||
-              node.event.event === "span_begin") &&
+              node.event.event === "span_begin" ||
+              node.event.event === "tool") &&
             collapseFilters.some((filter) =>
-              filter(node.event as StepEvent | SpanBeginEvent),
+              filter(node.event as StepEvent | SpanBeginEvent | ToolEvent),
             )
           ) {
             defaultCollapsedIds.add(node.id);
@@ -119,17 +120,22 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
   },
 );
 
-const collapseFilters: Array<(event: StepEvent | SpanBeginEvent) => boolean> = [
-  (event: StepEvent | SpanBeginEvent) => {
-    if (event.type === "solver" && event.name === "system_message") {
-      return true;
-    } else if (kSandboxSignalName === event.name) {
-      return true;
-    } else if (event.name === "init" || event.name === "sample_init") {
-      return true;
+const collapseFilters: Array<
+  (event: StepEvent | SpanBeginEvent | ToolEvent) => boolean
+> = [
+  (event: StepEvent | SpanBeginEvent | ToolEvent) =>
+    event.type === "solver" && event.name === "system_message",
+  (event: StepEvent | SpanBeginEvent | ToolEvent) => {
+    if (event.event === "step" || event.event === "span_begin") {
+      return (
+        event.name === kSandboxSignalName ||
+        event.name === "init" ||
+        event.name === "sample_init"
+      );
     }
     return false;
   },
+  (event: StepEvent | SpanBeginEvent | ToolEvent) => event.event === "tool",
 ];
 
 interface RenderedEventNodeProps {

@@ -51614,10 +51614,11 @@ self.onmessage = function (e) {
       text: text2,
       icon: icon2,
       children: children2,
-      childIds
+      childIds,
+      collapsibleContent
     }) => {
       const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
-      const isCollapsible = (childIds || []).length > 0;
+      const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
       const pillId = (index2) => {
         return `${id}-nav-pill-${index2}`;
       };
@@ -51689,7 +51690,7 @@ self.onmessage = function (e) {
                 children: collapsed ? text2 : ""
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$r.navs, children: (!isCollapsible || !collapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$r.navs, children: isCollapsible && collapsibleContent && collapsed ? "" : filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index2) => {
@@ -51716,7 +51717,7 @@ self.onmessage = function (e) {
             className: clsx(
               "tab-content",
               styles$r.cardContent,
-              isCollapsible && collapsed ? styles$r.hidden : void 0
+              isCollapsible && collapsed && collapsibleContent ? styles$r.hidden : void 0
             ),
             children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
               const id2 = pillId(index2);
@@ -52357,6 +52358,7 @@ self.onmessage = function (e) {
           className: clsx(className2, "text-size-small"),
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.scorer,
+          collapsibleContent: true,
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$j.explanation), children: [
               event.target ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -59607,7 +59609,7 @@ ${events}
         if (changePreview === void 0) {
           collapseEvent(id, true);
         }
-      }, [changePreview]);
+      }, [changePreview, collapseEvent]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
@@ -59616,6 +59618,7 @@ ${events}
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           text: !changePreview ? summary2 : void 0,
+          collapsibleContent: true,
           children: [
             changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$g.summary), children: changePreview }) : void 0,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -60205,6 +60208,7 @@ ${events}
           className: className2,
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.solvers.use_tools,
+          childIds: children2.map((child) => child.id),
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$e.summary, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolCallView,
@@ -60388,7 +60392,7 @@ ${events}
               id: item2.id,
               className: clsx(styles$d.node, paddingClass, attachedClass),
               style: { paddingLeft: `${item2.depth * 0.5}em` },
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: item2.id, node: item2 })
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { node: item2 })
             },
             item2.id
           );
@@ -60535,7 +60539,7 @@ ${events}
       const targetNode = { ...node2.children[targetIndex] };
       const remainingChildren = node2.children.filter((_, i2) => i2 !== targetIndex);
       targetNode.depth = node2.depth;
-      targetNode.children = reduceDepth(remainingChildren);
+      targetNode.children = setDepth(remainingChildren, node2.depth + 1);
       return targetNode;
     };
     const skipFirstChildNode = (node2) => {
@@ -60555,6 +60559,15 @@ ${events}
           node2.children = reduceDepth(node2.children, 1);
         }
         node2.depth = node2.depth - depth;
+        return node2;
+      });
+    };
+    const setDepth = (nodes, depth) => {
+      return nodes.map((node2) => {
+        if (node2.children.length > 0) {
+          node2.children = setDepth(node2.children, depth + 1);
+        }
+        node2.depth = depth;
         return node2;
       });
     };
@@ -60581,7 +60594,7 @@ ${events}
           const defaultCollapsedIds2 = /* @__PURE__ */ new Set();
           const findCollapsibleEvents = (nodes) => {
             for (const node2 of nodes) {
-              if ((node2.event.event === "step" || node2.event.event === "span_begin") && collapseFilters.some(
+              if ((node2.event.event === "step" || node2.event.event === "span_begin" || node2.event.event === "tool") && collapseFilters.some(
                 (filter) => filter(node2.event)
               )) {
                 defaultCollapsedIds2.add(node2.id);
@@ -60614,19 +60627,17 @@ ${events}
       }
     );
     const collapseFilters = [
+      (event) => event.type === "solver" && event.name === "system_message",
       (event) => {
-        if (event.type === "solver" && event.name === "system_message") {
-          return true;
-        } else if (kSandboxSignalName === event.name) {
-          return true;
-        } else if (event.name === "init" || event.name === "sample_init") {
-          return true;
+        if (event.event === "step" || event.event === "span_begin") {
+          return event.name === kSandboxSignalName || event.name === "init" || event.name === "sample_init";
         }
         return false;
-      }
+      },
+      (event) => event.event === "tool"
     ];
     const RenderedEventNode = reactExports.memo(
-      ({ id, node: node2, className: className2 }) => {
+      ({ node: node2, className: className2 }) => {
         switch (node2.event.event) {
           case "sample_init":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
