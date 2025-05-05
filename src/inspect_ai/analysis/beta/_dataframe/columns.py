@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass
 from datetime import date, datetime, time
 from typing import Any, Callable, Mapping, Type, TypeAlias
@@ -5,6 +6,7 @@ from typing import Any, Callable, Mapping, Type, TypeAlias
 from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
+from typing_extensions import Literal
 
 from inspect_ai.log._log import EvalLog
 
@@ -34,8 +36,10 @@ class Column:
     The `value` function provides an additional hook for transformation of the value read
     from the log before it is realized as a column (e.g. list to a comma-separated string).
 
-    The `validate` flag controls whether the specified JSONPath is validated against the
+    The `validate` option controls whether the specified JSONPath is validated against the
     log file schema.
+
+    The `root` option indicates which root eval log context the columns select from.
     """
 
     def __init__(
@@ -47,6 +51,7 @@ class Column:
         type: Type[ColumnType] | None = None,
         value: Callable[[JsonValue], JsonValue] | None = None,
         validate: bool = True,
+        root: Literal["eval", "sample", "message", "event"] = "eval",
     ) -> None:
         if isinstance(extract, str | JSONPath):
             self._path: str | JSONPath | None = extract
@@ -60,6 +65,7 @@ class Column:
         self._value = value
         self._validate = validate
         self._validated: bool | None = None
+        self._root = root
 
     @property
     def path(self) -> JSONPath | None:
@@ -109,6 +115,29 @@ class Column:
             return self._validated
         else:
             return True
+
+
+class ColumnsSet(dict[str, Column]):
+    def __init__(
+        self,
+        root: Literal["eval", "sample", "message", "event"],
+        columns: dict[str, Column] | None = None,
+    ) -> None:
+        self._root = root
+        columns_with_root: dict[str, Column] = {}
+        if columns:
+            for key, value in columns.items():
+                column = deepcopy(value)
+                column._root = root
+                columns_with_root[key] = column
+        super().__init__(columns_with_root)
+
+    # def __or__(self, other: dict[str, Column]) -> dict[str, Column]:
+    #     result = ColumnsSet(self._root)
+    #     result.update(self)
+    #     result.update(other)
+
+    #     return result
 
 
 Columns: TypeAlias = dict[str, Column]
