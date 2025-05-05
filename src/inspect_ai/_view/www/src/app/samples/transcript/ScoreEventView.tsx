@@ -36,6 +36,7 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
       className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.scorer}
+      collapsibleContent={true}
     >
       <div data-name="Explanation" className={clsx(styles.explanation)}>
         {event.target ? (

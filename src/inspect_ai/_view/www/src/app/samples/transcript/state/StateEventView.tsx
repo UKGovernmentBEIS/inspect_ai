@@ -69,7 +69,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
     if (changePreview === undefined) {
       collapseEvent(id, true);
     }
-  }, [changePreview]);
+  }, [changePreview, collapseEvent]);
 
   return (
     <EventPanel
@@ -78,6 +78,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
       text={!changePreview ? summary : undefined}
+      collapsibleContent={true}
     >
       {changePreview ? (
         <div data-name="Summary" className={clsx(styles.summary)}>
