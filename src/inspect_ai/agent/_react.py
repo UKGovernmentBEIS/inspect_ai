@@ -195,9 +195,10 @@ def react(
                     answer = submission(messages)
                     if answer is not None:
                         # set the output to the answer for scoring
-                        state.output.completion = (
-                            f"{state.output.completion}\n\n{answer}".strip()
-                        )
+                        if submit.answer_only:
+                            state.output.completion = answer
+                        else:
+                            state.output.completion = f"{state.output.completion}{submit.answer_delimiter}{answer}".strip()
 
                         # exit if we are at max_attempts
                         attempt_count += 1
