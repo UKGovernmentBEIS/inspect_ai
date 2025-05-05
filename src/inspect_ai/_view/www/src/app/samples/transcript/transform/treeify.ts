@@ -205,7 +205,7 @@ const elevateChildNode = (
 
   // Process the remaining children
   targetNode.depth = node.depth;
-  targetNode.children = reduceDepth(remainingChildren);
+  targetNode.children = setDepth(remainingChildren, node.depth + 1);
 
   // No need to update the event itself (events have been deprecated
   // and more importantly we drive children / transcripts using the tree structure itself
@@ -234,6 +234,16 @@ const reduceDepth = (nodes: EventNode[], depth: number = 1): EventNode[] => {
       node.children = reduceDepth(node.children, 1);
     }
     node.depth = node.depth - depth;
+    return node;
+  });
+};
+
+const setDepth = (nodes: EventNode[], depth: number): EventNode[] => {
+  return nodes.map((node) => {
+    if (node.children.length > 0) {
+      node.children = setDepth(node.children, depth + 1);
+    }
+    node.depth = depth;
     return node;
   });
 };
