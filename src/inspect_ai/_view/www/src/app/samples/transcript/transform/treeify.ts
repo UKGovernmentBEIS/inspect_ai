@@ -245,11 +245,16 @@ const reduceDepth = (nodes: EventNode[], depth: number = 1): EventNode[] => {
  * @param depth - The current depth in the tree
  * @returns An array of EventNode objects
  */
-export const flatTree = (eventNodes: EventNode[]): EventNode[] => {
+export const flatTree = (
+  eventNodes: EventNode[],
+  collapsed: Set<string>,
+): EventNode[] => {
   const result: EventNode[] = [];
   for (const node of eventNodes) {
     result.push(node);
-    result.push(...flatTree(node.children));
+    if (!collapsed.has(node.id)) {
+      result.push(...flatTree(node.children, collapsed));
+    }
   }
   return result;
 };

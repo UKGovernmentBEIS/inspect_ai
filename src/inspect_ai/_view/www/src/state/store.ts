@@ -1,3 +1,4 @@
+import { enableMapSet } from "immer";
 import { create, StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -52,6 +53,8 @@ export const initializeStore = (
   capabilities: Capabilities,
   storage?: ClientStorage,
 ) => {
+  enableMapSet();
+
   // Create the storage implementation
   const storageImplementation = {
     getItem: <T>(name: string): T | null => {

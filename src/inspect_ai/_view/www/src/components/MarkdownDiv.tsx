@@ -65,7 +65,7 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
   },
 );
 
-const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
+const kLetterListPattern = /^([a-zA-Z0-9][).]\s.*?)$/gm;
 const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 
 const protectBackslashesInLatex = (content: string): string => {

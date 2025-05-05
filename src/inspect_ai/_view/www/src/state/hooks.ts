@@ -256,6 +256,22 @@ export const useLogSelection = () => {
   }, [selectedLogFile, selectedSampleSummary]);
 };
 
+export const useCollapseSampleEvent = (
+  id: string,
+): [boolean, (collapsed: boolean) => void] => {
+  const collapsed = useStore((state) => state.sample.collapsedEvents);
+  const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+
+  return useMemo(() => {
+    const isCollapsed = !!collapsed && collapsed.has(id);
+    const set = (value: boolean) => {
+      log.debug("Set collapsed", id, value);
+      collapseEvent(id, value);
+    };
+    return [isCollapsed, set];
+  }, [collapsed, collapseEvent, id]);
+};
+
 export const useCollapsedState = (
   id: string,
   defaultValue?: boolean,
@@ -274,26 +290,6 @@ export const useCollapsedState = (
     };
     return [collapsed, set];
   }, [collapsed, setCollapsed]);
-};
-
-export const useVisibility = (
-  id: string,
-  scope: string,
-  defaultValue?: boolean,
-): [boolean, (value: boolean, elementId?: string) => void] => {
-  const stateId = `${scope}-${id}`;
-
-  const visible = useStore((state) =>
-    state.appActions.getVisible(stateId, defaultValue),
-  );
-  const setVisible = useStore((state) => state.appActions.setVisible);
-  return useMemo(() => {
-    const set = (value: boolean, elementId?: string) => {
-      const setStateId = `${scope}-${elementId || id}`;
-      setVisible(setStateId, value);
-    };
-    return [visible, set];
-  }, [visible, setVisible]);
 };
 
 export const useMessageVisibility = (
@@ -449,13 +445,22 @@ export const useSetSelectedLogIndex = () => {
   const clearSelectedLogSummary = useStore(
     (state) => state.logActions.clearSelectedLogSummary,
   );
+  const clearCollapsedEvents = useStore(
+    (state) => state.sampleActions.clearCollapsedEvents,
+  );
 
   return useCallback(
     (index: number) => {
+      clearCollapsedEvents();
       clearSelectedSample();
       clearSelectedLogSummary();
       setSelectedLogIndex(index);
     },
-    [setSelectedLogIndex, clearSelectedLogSummary, clearSelectedSample],
+    [
+      setSelectedLogIndex,
+      clearSelectedLogSummary,
+      clearSelectedSample,
+      clearCollapsedEvents,
+    ],
   );
 };

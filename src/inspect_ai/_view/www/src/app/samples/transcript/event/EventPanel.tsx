@@ -5,16 +5,11 @@ import {
   ReactElement,
   ReactNode,
   useCallback,
-  useEffect,
 } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import {
-  useCollapsedState,
-  useProperty,
-  useVisibility,
-} from "../../../../state/hooks";
+import { useCollapseSampleEvent, useProperty } from "../../../../state/hooks";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -24,7 +19,6 @@ interface EventPanelProps {
   subTitle?: string;
   text?: string;
   icon?: string;
-  collapse?: boolean;
   children?: ReactNode | ReactNode[];
   childIds?: string[];
 }
@@ -43,14 +37,11 @@ export const EventPanel: FC<EventPanelProps> = ({
   subTitle,
   text,
   icon,
-  collapse,
   children,
   childIds,
 }) => {
-  const [collapsed, setCollapsed] = useCollapsedState(id, collapse, "events");
-  const [visible, setVisible] = useVisibility(id, "events", true);
-
-  const hasCollapse = collapse !== undefined;
+  const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
+  const isCollapsible = (childIds || []).length > 0;
 
   const pillId = (index: number) => {
     return `${id}-nav-pill-${index}`;
@@ -71,7 +62,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   const gridColumns = [];
 
   // chevron
-  if (hasCollapse) {
+  if (isCollapsible) {
     gridColumns.push("minmax(0, max-content)");
   }
 
@@ -88,13 +79,7 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   const toggleCollapse = useCallback(() => {
     setCollapsed(!collapsed);
-  }, [setCollapsed, collapsed, setVisible, childIds]);
-
-  useEffect(() => {
-    for (const childId of childIds || []) {
-      setVisible(!collapsed, childId);
-    }
-  }, [collapsed]);
+  }, [setCollapsed, collapsed, childIds]);
 
   const titleEl =
     title || icon || filteredArrChildren.length > 1 ? (
@@ -105,10 +90,10 @@ export const EventPanel: FC<EventPanelProps> = ({
           display: "grid",
           gridTemplateColumns: gridColumns.join(" "),
           columnGap: "0.3em",
-          cursor: hasCollapse ? "pointer" : undefined,
+          cursor: isCollapsible ? "pointer" : undefined,
         }}
       >
-        {hasCollapse ? (
+        {isCollapsible ? (
           <i
             onClick={toggleCollapse}
             className={
@@ -145,7 +130,7 @@ export const EventPanel: FC<EventPanelProps> = ({
           {collapsed ? text : ""}
         </div>
         <div className={styles.navs}>
-          {(!hasCollapse || !collapsed) &&
+          {(!isCollapsible || !collapsed) &&
           filteredArrChildren &&
           filteredArrChildren.length > 1 ? (
             <EventNavs
@@ -174,20 +159,13 @@ export const EventPanel: FC<EventPanelProps> = ({
     );
 
   const card = (
-    <div
-      id={id}
-      className={clsx(
-        className,
-        styles.card,
-        !visible ? styles.hidden : undefined,
-      )}
-    >
+    <div id={id} className={clsx(className, styles.card)}>
       {titleEl}
       <div
         className={clsx(
           "tab-content",
           styles.cardContent,
-          hasCollapse && collapsed ? styles.hidden : undefined,
+          isCollapsible && collapsed ? styles.hidden : undefined,
         )}
       >
         {filteredArrChildren?.map((child, index) => {

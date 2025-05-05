@@ -11,10 +11,10 @@ import { EventSection } from "./event/EventSection";
 import clsx from "clsx";
 import { FC } from "react";
 import styles from "./SampleInitEventView.module.css";
+import { EventNode } from "./types";
 
 interface SampleInitEventViewProps {
-  id: string;
-  event: SampleInitEvent;
+  eventNode: EventNode<SampleInitEvent>;
   className?: string | string[];
 }
 
@@ -22,17 +22,17 @@ interface SampleInitEventViewProps {
  * Renders the SampleInitEventView component.
  */
 export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
   const stateObj = event.state as Record<string, unknown>;
 
   const sections = [];
 
   if (event.sample.files && Object.keys(event.sample.files).length > 0) {
     sections.push(
-      <EventSection title="Files" key={`sample-${id}-init-files`}>
+      <EventSection title="Files" key={`event-${eventNode.id}`}>
         {Object.keys(event.sample.files).map((file) => {
           return (
             <pre key={`sample-init-file-${file}`} className={styles.noMargin}>
@@ -46,7 +46,7 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
 
   if (event.sample.setup) {
     sections.push(
-      <EventSection title="Setup" key={`sample-${id}-init-setup`}>
+      <EventSection title="Setup" key={`${eventNode.id}-section-setup`}>
         <pre className={styles.code}>
           <code className="sourceCode">{event.sample.setup}</code>
         </pre>
@@ -56,7 +56,7 @@ export const SampleInitEventView: FC<SampleInitEventViewProps> = ({
 
   return (
     <EventPanel
-      id={id}
+      id={eventNode.id}
       className={className}
       title="Sample"
       icon={ApplicationIcons.sample}

@@ -6,10 +6,10 @@ import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";
 import styles from "./InfoEventView.module.css";
+import { EventNode } from "./types";
 
 interface InfoEventViewProps {
-  id: string;
-  event: InfoEvent;
+  eventNode: EventNode<InfoEvent>;
   className?: string | string[];
 }
 
@@ -17,10 +17,10 @@ interface InfoEventViewProps {
  * Renders the InfoEventView component.
  */
 export const InfoEventView: FC<InfoEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
   const panels = [];
   if (typeof event.data === "string") {
     panels.push(<MarkdownDiv markdown={event.data} className={styles.panel} />);
@@ -30,7 +30,7 @@ export const InfoEventView: FC<InfoEventViewProps> = ({
 
   return (
     <EventPanel
-      id={id}
+      id={eventNode.id}
       title={"Info" + (event.source ? ": " + event.source : "")}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
