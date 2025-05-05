@@ -43690,13 +43690,13 @@ categories: ${categories.join(" ")}`;
     const EmptyPanel = ({ children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
     };
-    const tabs$1 = "_tabs_1qj7d_1";
-    const tabContents = "_tabContents_1qj7d_5";
-    const scrollable = "_scrollable_1qj7d_10";
-    const tab$1 = "_tab_1qj7d_1";
-    const tabItem = "_tabItem_1qj7d_24";
-    const tabIcon = "_tabIcon_1qj7d_28";
-    const tabTools = "_tabTools_1qj7d_32";
+    const tabs$1 = "_tabs_16tmn_1";
+    const tabContents = "_tabContents_16tmn_5";
+    const scrollable = "_scrollable_16tmn_10";
+    const tab$1 = "_tab_16tmn_1";
+    const tabItem = "_tabItem_16tmn_24";
+    const tabIcon = "_tabIcon_16tmn_28";
+    const tabTools = "_tabTools_16tmn_32";
     const moduleStyles = {
       tabs: tabs$1,
       tabContents,
