@@ -226,7 +226,13 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           onSelected={onSelectedTab}
           selected={effectiveSelectedTab === kSampleMetdataTabId}
         >
-          <NoContentsPanel text="No metadata" />
+          {sampleMetadatas.length > 0 ? (
+            <div className={clsx(styles.padded, styles.fullWidth)}>
+              {sampleMetadatas}
+            </div>
+          ) : (
+            <NoContentsPanel text="No metadata" />
+          )}
         </TabPanel>
         {sample?.error ||
         (sample?.error_retries && sample?.error_retries.length > 0) ? (
