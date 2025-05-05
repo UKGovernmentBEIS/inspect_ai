@@ -21,6 +21,7 @@ interface EventPanelProps {
   icon?: string;
   children?: ReactNode | ReactNode[];
   childIds?: string[];
+  collapsibleContent?: boolean;
 }
 
 interface ChildProps {
@@ -39,9 +40,10 @@ export const EventPanel: FC<EventPanelProps> = ({
   icon,
   children,
   childIds,
+  collapsibleContent,
 }) => {
   const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
-  const isCollapsible = (childIds || []).length > 0;
+  const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
 
   const pillId = (index: number) => {
     return `${id}-nav-pill-${index}`;
@@ -130,9 +132,9 @@ export const EventPanel: FC<EventPanelProps> = ({
           {collapsed ? text : ""}
         </div>
         <div className={styles.navs}>
-          {(!isCollapsible || !collapsed) &&
-          filteredArrChildren &&
-          filteredArrChildren.length > 1 ? (
+          {isCollapsible && collapsibleContent && collapsed ? (
+            ""
+          ) : filteredArrChildren && filteredArrChildren.length > 1 ? (
             <EventNavs
               navs={filteredArrChildren.map((child, index) => {
                 const defaultTitle = `Tab ${index}`;
@@ -165,7 +167,9 @@ export const EventPanel: FC<EventPanelProps> = ({
         className={clsx(
           "tab-content",
           styles.cardContent,
-          isCollapsible && collapsed ? styles.hidden : undefined,
+          isCollapsible && collapsed && collapsibleContent
+            ? styles.hidden
+            : undefined,
         )}
       >
         {filteredArrChildren?.map((child, index) => {
