@@ -38,9 +38,6 @@ export interface AppSlice {
     getCollapsed: (name: string, defaultValue?: boolean) => boolean;
     setCollapsed: (name: string, value: boolean) => void;
 
-    getVisible: (name: string, defaultValue?: boolean) => boolean;
-    setVisible: (name: string, value: boolean) => void;
-
     getMessageVisible: (name: string, defaultValue?: boolean) => boolean;
     setMessageVisible: (name: string, value: boolean) => void;
     clearMessageVisible: (name: string) => void;
@@ -70,7 +67,6 @@ const initialState: AppState = {
   scrollPositions: {},
   listPositions: {},
   collapsed: {},
-  visible: {},
   messages: {},
   propertyBags: {},
 };
@@ -216,14 +212,6 @@ export const createAppSlice = (
       setCollapsed: (name: string, value: boolean) => {
         set((state) => {
           state.app.collapsed[name] = value;
-        });
-      },
-      getVisible: (name: string, defaultValue?: boolean) => {
-        return getBoolRecord(get().app.visible, name, defaultValue);
-      },
-      setVisible: (name: string, value: boolean) => {
-        set((state) => {
-          state.app.visible[name] = value;
         });
       },
       getMessageVisible: (name: string, defaultValue?: boolean) => {

@@ -1,5 +1,23 @@
-import { FC, JSX, memo, RefObject, useMemo } from "react";
-import { Events } from "../../../@types/log";
+import { FC, JSX, memo, RefObject, useEffect, useMemo } from "react";
+import {
+  ApprovalEvent,
+  ErrorEvent,
+  Events,
+  InfoEvent,
+  InputEvent,
+  LoggerEvent,
+  ModelEvent,
+  SampleInitEvent,
+  SampleLimitEvent,
+  SandboxEvent,
+  ScoreEvent,
+  SpanBeginEvent,
+  StateEvent,
+  StepEvent,
+  StoreEvent,
+  SubtaskEvent,
+  ToolEvent,
+} from "../../../@types/log";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { ErrorEventView } from "./ErrorEventView";
 import { InfoEventView } from "./InfoEventView";
@@ -17,17 +35,17 @@ import { ToolEventView } from "./ToolEventView";
 import { EventNode } from "./types";
 
 import clsx from "clsx";
+import { useStore } from "../../../state/store";
 import { SpanEventView } from "./SpanEventView";
 import styles from "./TranscriptView.module.css";
 import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
-import { fixupEventStream } from "./transform/fixups";
+import { fixupEventStream, kSandboxSignalName } from "./transform/fixups";
 import { flatTree, treeifyEvents } from "./transform/treeify";
 
 interface TranscriptVirtualListProps {
   id: string;
   events: Events;
   initialEventId: string | null;
-  depth?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
   running?: boolean;
 }
@@ -37,15 +55,59 @@ interface TranscriptVirtualListProps {
  */
 export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
   (props) => {
-    let { id, scrollRef, events, depth, running, initialEventId } = props;
+    let { id, scrollRef, events, running, initialEventId } = props;
 
-    // Normalize Events themselves
-    const eventNodes = useMemo(() => {
+    // The list of events that have been collapsed
+    const collapsedEvents = useStore((state) => state.sample.collapsedEvents);
+    const setCollapsedEvents = useStore(
+      (state) => state.sampleActions.setCollapsedEvents,
+    );
+
+    // Normalize Events in a flattened filtered list
+    const { eventNodes, defaultCollapsedIds } = useMemo(() => {
+      // Apply fixups to the event string
       const resolvedEvents = fixupEventStream(events, !running);
-      const eventTree = treeifyEvents(resolvedEvents, depth || 0);
-      const eventNodes = flatTree(eventTree);
-      return eventNodes;
-    }, [events, depth]);
+
+      // Build the event tree
+      const eventTree = treeifyEvents(resolvedEvents, 0);
+
+      // Apply collapse filters to the event tree
+      const defaultCollapsedIds = new Set<string>();
+      const findCollapsibleEvents = (nodes: EventNode[]) => {
+        for (const node of nodes) {
+          if (
+            (node.event.event === "step" ||
+              node.event.event === "span_begin") &&
+            collapseFilters.some((filter) =>
+              filter(node.event as StepEvent | SpanBeginEvent),
+            )
+          ) {
+            defaultCollapsedIds.add(node.id);
+          }
+
+          // Recursively check children
+          findCollapsibleEvents(node.children);
+        }
+      };
+      findCollapsibleEvents(eventTree);
+
+      // flattten the event tree
+      const eventNodes = flatTree(
+        eventTree,
+        collapsedEvents || defaultCollapsedIds,
+      );
+
+      return { eventNodes, defaultCollapsedIds };
+    }, [events, running, collapsedEvents]);
+
+    // Update the collapsed events when the default collapsed IDs change
+    // This effect only depends on defaultCollapsedIds, not eventNodes
+    useEffect(() => {
+      // Only initialize collapsedEvents if it's empty
+      if (!collapsedEvents && defaultCollapsedIds.size > 0) {
+        setCollapsedEvents(defaultCollapsedIds);
+      }
+    }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
     return (
       <TranscriptVirtualListComponent
@@ -58,6 +120,19 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
     );
   },
 );
+
+const collapseFilters: Array<(event: StepEvent | SpanBeginEvent) => boolean> = [
+  (event: StepEvent | SpanBeginEvent) => {
+    if (event.type === "solver" && event.name === "system_message") {
+      return true;
+    } else if (kSandboxSignalName === event.name) {
+      return true;
+    } else if (event.name === "init" || event.name === "sample_init") {
+      return true;
+    }
+    return false;
+  },
+];
 
 interface TranscriptComponentProps {
   id: string;
@@ -144,8 +219,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
       case "sample_init":
         return (
           <SampleInitEventView
-            id={id}
-            event={node.event}
+            eventNode={node as EventNode<SampleInitEvent>}
             className={className}
           />
         );
@@ -153,40 +227,55 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
       case "sample_limit":
         return (
           <SampleLimitEventView
-            id={id}
-            event={node.event}
+            eventNode={node as EventNode<SampleLimitEvent>}
             className={className}
           />
         );
 
       case "info":
         return (
-          <InfoEventView id={id} event={node.event} className={className} />
+          <InfoEventView
+            eventNode={node as EventNode<InfoEvent>}
+            className={className}
+          />
         );
 
       case "logger":
-        return <LoggerEventView event={node.event} className={className} />;
+        return (
+          <LoggerEventView
+            eventNode={node as EventNode<LoggerEvent>}
+            className={className}
+          />
+        );
 
       case "model":
         return (
-          <ModelEventView id={id} event={node.event} className={className} />
+          <ModelEventView
+            eventNode={node as EventNode<ModelEvent>}
+            className={className}
+          />
         );
 
       case "score":
         return (
-          <ScoreEventView id={id} event={node.event} className={className} />
+          <ScoreEventView
+            eventNode={node as EventNode<ScoreEvent>}
+            className={className}
+          />
         );
 
       case "state":
         return (
-          <StateEventView id={id} event={node.event} className={className} />
+          <StateEventView
+            eventNode={node as EventNode<StateEvent>}
+            className={className}
+          />
         );
 
       case "span_begin":
         return (
           <SpanEventView
-            id={node.id}
-            event={node.event}
+            eventNode={node as EventNode<SpanBeginEvent>}
             children={node.children}
             className={className}
           />
@@ -195,8 +284,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
       case "step":
         return (
           <StepEventView
-            id={node.id}
-            event={node.event}
+            eventNode={node as EventNode<StepEvent>}
             children={node.children}
             className={className}
           />
@@ -205,23 +293,23 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
       case "store":
         return (
           <StateEventView
-            id={id}
-            event={node.event}
+            eventNode={node as EventNode<StoreEvent>}
             className={className}
-            isStore={true}
           />
         );
 
       case "subtask":
         return (
-          <SubtaskEventView id={id} event={node.event} className={className} />
+          <SubtaskEventView
+            eventNode={node as EventNode<SubtaskEvent>}
+            className={className}
+          />
         );
 
       case "tool":
         return (
           <ToolEventView
-            id={id}
-            event={node.event}
+            eventNode={node as EventNode<ToolEvent>}
             className={className}
             children={node.children}
           />
@@ -229,20 +317,34 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
 
       case "input":
         return (
-          <InputEventView id={id} event={node.event} className={className} />
+          <InputEventView
+            eventNode={node as EventNode<InputEvent>}
+            className={className}
+          />
         );
 
       case "error":
         return (
-          <ErrorEventView id={id} event={node.event} className={className} />
+          <ErrorEventView
+            eventNode={node as EventNode<ErrorEvent>}
+            className={className}
+          />
         );
 
       case "approval":
-        return <ApprovalEventView event={node.event} className={className} />;
+        return (
+          <ApprovalEventView
+            eventNode={node as EventNode<ApprovalEvent>}
+            className={className}
+          />
+        );
 
       case "sandbox":
         return (
-          <SandboxEventView id={id} event={node.event} className={className} />
+          <SandboxEventView
+            eventNode={node as EventNode<SandboxEvent>}
+            className={className}
+          />
         );
 
       default:

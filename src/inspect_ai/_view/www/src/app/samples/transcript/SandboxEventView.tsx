@@ -10,10 +10,10 @@ import clsx from "clsx";
 import { FC } from "react";
 import styles from "./SandboxEventView.module.css";
 import { formatTiming } from "./event/utils";
+import { EventNode } from "./types";
 
 interface SandboxEventViewProps {
-  id: string;
-  event: SandboxEvent;
+  eventNode: EventNode<SandboxEvent>;
   className?: string | string[];
 }
 
@@ -21,10 +21,11 @@ interface SandboxEventViewProps {
  * Renders the SandboxEventView component.
  */
 export const SandboxEventView: FC<SandboxEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
+  const id = eventNode.id;
   return (
     <EventPanel
       id={id}

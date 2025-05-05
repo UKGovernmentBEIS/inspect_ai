@@ -6,10 +6,10 @@ import { MetaDataView } from "../../content/MetaDataView";
 import { EventPanel } from "./event/EventPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
+import { EventNode } from "./types";
 
 interface SubtaskEventViewProps {
-  id: string;
-  event: SubtaskEvent;
+  eventNode: EventNode<SubtaskEvent>;
   className?: string | string[];
 }
 
@@ -17,10 +17,11 @@ interface SubtaskEventViewProps {
  * Renders the StateEventView component.
  */
 export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
+  const id = eventNode.id;
   const body: ReactNode[] = [];
   if (event.type === "fork") {
     body.push(
@@ -53,7 +54,6 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
         event.working_time,
       )}
       subTitle={formatTiming(event.timestamp, event.working_start)}
-      collapse={false}
     >
       {body}
     </EventPanel>

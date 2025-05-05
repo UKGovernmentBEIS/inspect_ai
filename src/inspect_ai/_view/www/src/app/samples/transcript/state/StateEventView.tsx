@@ -16,12 +16,13 @@ import {
   StoreSpecificRenderableTypes,
 } from "./StateEventRenderers";
 
-import { FC, useMemo } from "react";
+import { FC, useEffect, useMemo } from "react";
+import { useStore } from "../../../../state/store";
+import { EventNode } from "../types";
 import styles from "./StateEventView.module.css";
 
 interface StateEventViewProps {
-  id: string;
-  event: StateEvent | StoreEvent;
+  eventNode: EventNode<StateEvent | StoreEvent>;
   isStore?: boolean;
   className?: string | string[];
 }
@@ -30,11 +31,12 @@ interface StateEventViewProps {
  * Renders the StateEventView component.
  */
 export const StateEventView: FC<StateEventViewProps> = ({
-  id,
-  event,
-  isStore = false,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
+  const id = eventNode.id;
+
   const summary = useMemo(() => {
     return summarizeChanges(event.changes);
   }, [event.changes]);
@@ -56,10 +58,18 @@ export const StateEventView: FC<StateEventViewProps> = ({
   // and as a result may be decorated with additional properties, etc..., resulting in DOM elements
   // appearing attached to state.
   const changePreview = useMemo(() => {
+    const isStore = eventNode.event.event === "store";
     return generatePreview(event.changes, structuredClone(after), isStore);
-  }, [event.changes, after, isStore]);
+  }, [event.changes, after]);
   // Compute the title
   const title = event.event === "state" ? "State Updated" : "Store Updated";
+
+  const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+  useEffect(() => {
+    if (changePreview === undefined) {
+      collapseEvent(id, true);
+    }
+  }, [changePreview]);
 
   return (
     <EventPanel
@@ -68,7 +78,6 @@ export const StateEventView: FC<StateEventViewProps> = ({
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
       text={!changePreview ? summary : undefined}
-      collapse={changePreview === undefined ? true : undefined}
     >
       {changePreview ? (
         <div data-name="Summary" className={clsx(styles.summary)}>

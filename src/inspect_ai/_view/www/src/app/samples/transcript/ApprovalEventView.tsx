@@ -2,9 +2,10 @@ import { FC } from "react";
 import { ApprovalEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventRow } from "./event/EventRow";
+import { EventNode } from "./types";
 
 interface ApprovalEventViewProps {
-  event: ApprovalEvent;
+  eventNode: EventNode<ApprovalEvent>;
   className?: string | string[];
 }
 
@@ -12,9 +13,10 @@ interface ApprovalEventViewProps {
  * Renders the ApprovalEventView component.
  */
 export const ApprovalEventView: FC<ApprovalEventViewProps> = ({
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
   return (
     <EventRow
       title={decisionLabel(event.decision)}

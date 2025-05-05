@@ -4,10 +4,10 @@ import { ANSIDisplay } from "../../../components/AnsiDisplay";
 import { formatDateTime } from "../../../utils/format";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";
+import { EventNode } from "./types";
 
 interface ErrorEventViewProps {
-  id: string;
-  event: ErrorEvent;
+  eventNode: EventNode<ErrorEvent>;
   className?: string | string[];
 }
 
@@ -15,10 +15,11 @@ interface ErrorEventViewProps {
  * Renders the ErrorEventView component.
  */
 export const ErrorEventView: FC<ErrorEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
+  const id = eventNode.id;
   return (
     <EventPanel
       id={id}

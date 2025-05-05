@@ -18,6 +18,10 @@ export interface SampleSlice {
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
+    setCollapsedEvents: (collapsed: Set<string>) => void;
+    collapseEvent: (id: string, collapsed: boolean) => void;
+    clearCollapsedEvents: () => void;
+
     // Loading
     loadSample: (
       logFile: string,
@@ -38,6 +42,7 @@ const initialState: SampleState = {
 
   // The resolved events
   runningEvents: [],
+  collapsedEvents: undefined,
 };
 
 export const createSampleSlice = (
@@ -73,6 +78,28 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.sampleError = error;
         }),
+      setCollapsedEvents: (collapsed: Set<string>) => {
+        set((state) => {
+          state.sample.collapsedEvents = collapsed;
+        });
+      },
+      clearCollapsedEvents: () => {
+        set((state) => {
+          state.sample.collapsedEvents = undefined;
+        });
+      },
+      collapseEvent: (id: string, collapsed: boolean) => {
+        set((state) => {
+          if (!state.sample.collapsedEvents) {
+            state.sample.collapsedEvents = new Set<string>();
+          }
+          if (collapsed) {
+            state.sample.collapsedEvents.add(id);
+          } else {
+            state.sample.collapsedEvents.delete(id);
+          }
+        });
+      },
       pollSample: async (logFile: string, sampleSummary: SampleSummary) => {
         // Poll running sample
         const state = get();
@@ -100,6 +127,7 @@ export const createSampleSlice = (
             );
             if (sample) {
               const migratedSample = resolveSample(sample);
+              sampleActions.clearCollapsedEvents();
               sampleActions.setSelectedSample(migratedSample);
               sampleActions.setSampleStatus("ok");
             } else {

@@ -21578,439 +21578,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function RouterProvider2(props) {
       return /* @__PURE__ */ reactExports.createElement(RouterProvider, { flushSync: reactDomExports.flushSync, ...props });
     }
-    const createStoreImpl = (createState) => {
-      let state;
-      const listeners = /* @__PURE__ */ new Set();
-      const setState = (partial, replace2) => {
-        const nextState = typeof partial === "function" ? partial(state) : partial;
-        if (!Object.is(nextState, state)) {
-          const previousState = state;
-          state = (replace2 != null ? replace2 : typeof nextState !== "object" || nextState === null) ? nextState : Object.assign({}, state, nextState);
-          listeners.forEach((listener) => listener(state, previousState));
-        }
-      };
-      const getState = () => state;
-      const getInitialState = () => initialState2;
-      const subscribe = (listener) => {
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-      };
-      const api2 = { setState, getState, getInitialState, subscribe };
-      const initialState2 = state = createState(setState, getState, api2);
-      return api2;
-    };
-    const createStore$1 = (createState) => createState ? createStoreImpl(createState) : createStoreImpl;
-    const identity = (arg) => arg;
-    function useStore$1(api2, selector = identity) {
-      const slice = H.useSyncExternalStore(
-        api2.subscribe,
-        () => selector(api2.getState()),
-        () => selector(api2.getInitialState())
-      );
-      H.useDebugValue(slice);
-      return slice;
-    }
-    const createImpl = (createState) => {
-      const api2 = createStore$1(createState);
-      const useBoundStore = (selector) => useStore$1(api2, selector);
-      Object.assign(useBoundStore, api2);
-      return useBoundStore;
-    };
-    const create$2 = (createState) => createImpl;
-    const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": false, "MODE": "development", "PROD": true, "SSR": false };
-    const trackedConnections = /* @__PURE__ */ new Map();
-    const getTrackedConnectionState = (name2) => {
-      const api2 = trackedConnections.get(name2);
-      if (!api2) return {};
-      return Object.fromEntries(
-        Object.entries(api2.stores).map(([key2, api22]) => [key2, api22.getState()])
-      );
-    };
-    const extractConnectionInformation = (store, extensionConnector, options2) => {
-      if (store === void 0) {
-        return {
-          type: "untracked",
-          connection: extensionConnector.connect(options2)
-        };
-      }
-      const existingConnection = trackedConnections.get(options2.name);
-      if (existingConnection) {
-        return { type: "tracked", store, ...existingConnection };
-      }
-      const newConnection = {
-        connection: extensionConnector.connect(options2),
-        stores: {}
-      };
-      trackedConnections.set(options2.name, newConnection);
-      return { type: "tracked", store, ...newConnection };
-    };
-    const devtoolsImpl = (fn2, devtoolsOptions = {}) => (set2, get2, api2) => {
-      const { enabled, anonymousActionType, store, ...options2 } = devtoolsOptions;
-      let extensionConnector;
-      try {
-        extensionConnector = (enabled != null ? enabled : (__vite_import_meta_env__ ? "development" : void 0) !== "production") && window.__REDUX_DEVTOOLS_EXTENSION__;
-      } catch (e) {
-      }
-      if (!extensionConnector) {
-        return fn2(set2, get2, api2);
-      }
-      const { connection, ...connectionInformation } = extractConnectionInformation(store, extensionConnector, options2);
-      let isRecording = true;
-      api2.setState = (state, replace2, nameOrAction) => {
-        const r2 = set2(state, replace2);
-        if (!isRecording) return r2;
-        const action = nameOrAction === void 0 ? { type: anonymousActionType || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
-        if (store === void 0) {
-          connection == null ? void 0 : connection.send(action, get2());
-          return r2;
-        }
-        connection == null ? void 0 : connection.send(
-          {
-            ...action,
-            type: `${store}/${action.type}`
-          },
-          {
-            ...getTrackedConnectionState(options2.name),
-            [store]: api2.getState()
-          }
-        );
-        return r2;
-      };
-      const setStateFromDevtools = (...a) => {
-        const originalIsRecording = isRecording;
-        isRecording = false;
-        set2(...a);
-        isRecording = originalIsRecording;
-      };
-      const initialState2 = fn2(api2.setState, get2, api2);
-      if (connectionInformation.type === "untracked") {
-        connection == null ? void 0 : connection.init(initialState2);
-      } else {
-        connectionInformation.stores[connectionInformation.store] = api2;
-        connection == null ? void 0 : connection.init(
-          Object.fromEntries(
-            Object.entries(connectionInformation.stores).map(([key2, store2]) => [
-              key2,
-              key2 === connectionInformation.store ? initialState2 : store2.getState()
-            ])
-          )
-        );
-      }
-      if (api2.dispatchFromDevtools && typeof api2.dispatch === "function") {
-        let didWarnAboutReservedActionType = false;
-        const originalDispatch = api2.dispatch;
-        api2.dispatch = (...a) => {
-          if ((__vite_import_meta_env__ ? "development" : void 0) !== "production" && a[0].type === "__setState" && !didWarnAboutReservedActionType) {
-            console.warn(
-              '[zustand devtools middleware] "__setState" action type is reserved to set state from the devtools. Avoid using it.'
-            );
-            didWarnAboutReservedActionType = true;
-          }
-          originalDispatch(...a);
-        };
-      }
-      connection.subscribe((message2) => {
-        var _a2;
-        switch (message2.type) {
-          case "ACTION":
-            if (typeof message2.payload !== "string") {
-              console.error(
-                "[zustand devtools middleware] Unsupported action format"
-              );
-              return;
-            }
-            return parseJsonThen(
-              message2.payload,
-              (action) => {
-                if (action.type === "__setState") {
-                  if (store === void 0) {
-                    setStateFromDevtools(action.state);
-                    return;
-                  }
-                  if (Object.keys(action.state).length !== 1) {
-                    console.error(
-                      `
-                    [zustand devtools middleware] Unsupported __setState action format.
-                    When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
-                    and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
-                    `
-                    );
-                  }
-                  const stateFromDevtools = action.state[store];
-                  if (stateFromDevtools === void 0 || stateFromDevtools === null) {
-                    return;
-                  }
-                  if (JSON.stringify(api2.getState()) !== JSON.stringify(stateFromDevtools)) {
-                    setStateFromDevtools(stateFromDevtools);
-                  }
-                  return;
-                }
-                if (!api2.dispatchFromDevtools) return;
-                if (typeof api2.dispatch !== "function") return;
-                api2.dispatch(action);
-              }
-            );
-          case "DISPATCH":
-            switch (message2.payload.type) {
-              case "RESET":
-                setStateFromDevtools(initialState2);
-                if (store === void 0) {
-                  return connection == null ? void 0 : connection.init(api2.getState());
-                }
-                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
-              case "COMMIT":
-                if (store === void 0) {
-                  connection == null ? void 0 : connection.init(api2.getState());
-                  return;
-                }
-                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
-              case "ROLLBACK":
-                return parseJsonThen(message2.state, (state) => {
-                  if (store === void 0) {
-                    setStateFromDevtools(state);
-                    connection == null ? void 0 : connection.init(api2.getState());
-                    return;
-                  }
-                  setStateFromDevtools(state[store]);
-                  connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
-                });
-              case "JUMP_TO_STATE":
-              case "JUMP_TO_ACTION":
-                return parseJsonThen(message2.state, (state) => {
-                  if (store === void 0) {
-                    setStateFromDevtools(state);
-                    return;
-                  }
-                  if (JSON.stringify(api2.getState()) !== JSON.stringify(state[store])) {
-                    setStateFromDevtools(state[store]);
-                  }
-                });
-              case "IMPORT_STATE": {
-                const { nextLiftedState } = message2.payload;
-                const lastComputedState = (_a2 = nextLiftedState.computedStates.slice(-1)[0]) == null ? void 0 : _a2.state;
-                if (!lastComputedState) return;
-                if (store === void 0) {
-                  setStateFromDevtools(lastComputedState);
-                } else {
-                  setStateFromDevtools(lastComputedState[store]);
-                }
-                connection == null ? void 0 : connection.send(
-                  null,
-                  // FIXME no-any
-                  nextLiftedState
-                );
-                return;
-              }
-              case "PAUSE_RECORDING":
-                return isRecording = !isRecording;
-            }
-            return;
-        }
-      });
-      return initialState2;
-    };
-    const devtools = devtoolsImpl;
-    const parseJsonThen = (stringified, f) => {
-      let parsed;
-      try {
-        parsed = JSON.parse(stringified);
-      } catch (e) {
-        console.error(
-          "[zustand devtools middleware] Could not parse the received json",
-          e
-        );
-      }
-      if (parsed !== void 0) f(parsed);
-    };
-    function createJSONStorage(getStorage, options2) {
-      let storage2;
-      try {
-        storage2 = getStorage();
-      } catch (e) {
-        return;
-      }
-      const persistStorage = {
-        getItem: (name2) => {
-          var _a2;
-          const parse2 = (str22) => {
-            if (str22 === null) {
-              return null;
-            }
-            return JSON.parse(str22, void 0);
-          };
-          const str2 = (_a2 = storage2.getItem(name2)) != null ? _a2 : null;
-          if (str2 instanceof Promise) {
-            return str2.then(parse2);
-          }
-          return parse2(str2);
-        },
-        setItem: (name2, newValue) => storage2.setItem(
-          name2,
-          JSON.stringify(newValue, void 0)
-        ),
-        removeItem: (name2) => storage2.removeItem(name2)
-      };
-      return persistStorage;
-    }
-    const toThenable = (fn2) => (input2) => {
-      try {
-        const result2 = fn2(input2);
-        if (result2 instanceof Promise) {
-          return result2;
-        }
-        return {
-          then(onFulfilled) {
-            return toThenable(onFulfilled)(result2);
-          },
-          catch(_onRejected) {
-            return this;
-          }
-        };
-      } catch (e) {
-        return {
-          then(_onFulfilled) {
-            return this;
-          },
-          catch(onRejected) {
-            return toThenable(onRejected)(e);
-          }
-        };
-      }
-    };
-    const persistImpl = (config2, baseOptions) => (set2, get2, api2) => {
-      let options2 = {
-        storage: createJSONStorage(() => localStorage),
-        partialize: (state) => state,
-        version: 0,
-        merge: (persistedState, currentState) => ({
-          ...currentState,
-          ...persistedState
-        }),
-        ...baseOptions
-      };
-      let hasHydrated = false;
-      const hydrationListeners = /* @__PURE__ */ new Set();
-      const finishHydrationListeners = /* @__PURE__ */ new Set();
-      let storage2 = options2.storage;
-      if (!storage2) {
-        return config2(
-          (...args) => {
-            console.warn(
-              `[zustand persist middleware] Unable to update item '${options2.name}', the given storage is currently unavailable.`
-            );
-            set2(...args);
-          },
-          get2,
-          api2
-        );
-      }
-      const setItem = () => {
-        const state = options2.partialize({ ...get2() });
-        return storage2.setItem(options2.name, {
-          state,
-          version: options2.version
-        });
-      };
-      const savedSetState = api2.setState;
-      api2.setState = (state, replace2) => {
-        savedSetState(state, replace2);
-        void setItem();
-      };
-      const configResult = config2(
-        (...args) => {
-          set2(...args);
-          void setItem();
-        },
-        get2,
-        api2
-      );
-      api2.getInitialState = () => configResult;
-      let stateFromStorage;
-      const hydrate = () => {
-        var _a2, _b2;
-        if (!storage2) return;
-        hasHydrated = false;
-        hydrationListeners.forEach((cb) => {
-          var _a22;
-          return cb((_a22 = get2()) != null ? _a22 : configResult);
-        });
-        const postRehydrationCallback = ((_b2 = options2.onRehydrateStorage) == null ? void 0 : _b2.call(options2, (_a2 = get2()) != null ? _a2 : configResult)) || void 0;
-        return toThenable(storage2.getItem.bind(storage2))(options2.name).then((deserializedStorageValue) => {
-          if (deserializedStorageValue) {
-            if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options2.version) {
-              if (options2.migrate) {
-                const migration = options2.migrate(
-                  deserializedStorageValue.state,
-                  deserializedStorageValue.version
-                );
-                if (migration instanceof Promise) {
-                  return migration.then((result2) => [true, result2]);
-                }
-                return [true, migration];
-              }
-              console.error(
-                `State loaded from storage couldn't be migrated since no migrate function was provided`
-              );
-            } else {
-              return [false, deserializedStorageValue.state];
-            }
-          }
-          return [false, void 0];
-        }).then((migrationResult) => {
-          var _a22;
-          const [migrated, migratedState] = migrationResult;
-          stateFromStorage = options2.merge(
-            migratedState,
-            (_a22 = get2()) != null ? _a22 : configResult
-          );
-          set2(stateFromStorage, true);
-          if (migrated) {
-            return setItem();
-          }
-        }).then(() => {
-          postRehydrationCallback == null ? void 0 : postRehydrationCallback(stateFromStorage, void 0);
-          stateFromStorage = get2();
-          hasHydrated = true;
-          finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
-        }).catch((e) => {
-          postRehydrationCallback == null ? void 0 : postRehydrationCallback(void 0, e);
-        });
-      };
-      api2.persist = {
-        setOptions: (newOptions) => {
-          options2 = {
-            ...options2,
-            ...newOptions
-          };
-          if (newOptions.storage) {
-            storage2 = newOptions.storage;
-          }
-        },
-        clearStorage: () => {
-          storage2 == null ? void 0 : storage2.removeItem(options2.name);
-        },
-        getOptions: () => options2,
-        rehydrate: () => hydrate(),
-        hasHydrated: () => hasHydrated,
-        onHydrate: (cb) => {
-          hydrationListeners.add(cb);
-          return () => {
-            hydrationListeners.delete(cb);
-          };
-        },
-        onFinishHydration: (cb) => {
-          finishHydrationListeners.add(cb);
-          return () => {
-            finishHydrationListeners.delete(cb);
-          };
-        }
-      };
-      if (!options2.skipHydration) {
-        hydrate();
-      }
-      return stateFromStorage || configResult;
-    };
-    const persist = persistImpl;
     var NOTHING = Symbol.for("immer-nothing");
     var DRAFTABLE = Symbol.for("immer-draftable");
     var DRAFT_STATE = Symbol.for("immer-state");
@@ -22147,6 +21714,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         die(0, pluginKey);
       }
       return plugin;
+    }
+    function loadPlugin(pluginKey, implementation) {
+      if (!plugins[pluginKey])
+        plugins[pluginKey] = implementation;
     }
     var currentScope;
     function getCurrentScope() {
@@ -22628,6 +22199,254 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return copy;
     }
+    function enableMapSet() {
+      class DraftMap extends Map {
+        constructor(target2, parent) {
+          super();
+          this[DRAFT_STATE] = {
+            type_: 2,
+            parent_: parent,
+            scope_: parent ? parent.scope_ : getCurrentScope(),
+            modified_: false,
+            finalized_: false,
+            copy_: void 0,
+            assigned_: void 0,
+            base_: target2,
+            draft_: this,
+            isManual_: false,
+            revoked_: false
+          };
+        }
+        get size() {
+          return latest(this[DRAFT_STATE]).size;
+        }
+        has(key2) {
+          return latest(this[DRAFT_STATE]).has(key2);
+        }
+        set(key2, value2) {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (!latest(state).has(key2) || latest(state).get(key2) !== value2) {
+            prepareMapCopy(state);
+            markChanged(state);
+            state.assigned_.set(key2, true);
+            state.copy_.set(key2, value2);
+            state.assigned_.set(key2, true);
+          }
+          return this;
+        }
+        delete(key2) {
+          if (!this.has(key2)) {
+            return false;
+          }
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          prepareMapCopy(state);
+          markChanged(state);
+          if (state.base_.has(key2)) {
+            state.assigned_.set(key2, false);
+          } else {
+            state.assigned_.delete(key2);
+          }
+          state.copy_.delete(key2);
+          return true;
+        }
+        clear() {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (latest(state).size) {
+            prepareMapCopy(state);
+            markChanged(state);
+            state.assigned_ = /* @__PURE__ */ new Map();
+            each(state.base_, (key2) => {
+              state.assigned_.set(key2, false);
+            });
+            state.copy_.clear();
+          }
+        }
+        forEach(cb, thisArg) {
+          const state = this[DRAFT_STATE];
+          latest(state).forEach((_value, key2, _map2) => {
+            cb.call(thisArg, this.get(key2), key2, this);
+          });
+        }
+        get(key2) {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          const value2 = latest(state).get(key2);
+          if (state.finalized_ || !isDraftable(value2)) {
+            return value2;
+          }
+          if (value2 !== state.base_.get(key2)) {
+            return value2;
+          }
+          const draft = createProxy(value2, state);
+          prepareMapCopy(state);
+          state.copy_.set(key2, draft);
+          return draft;
+        }
+        keys() {
+          return latest(this[DRAFT_STATE]).keys();
+        }
+        values() {
+          const iterator = this.keys();
+          return {
+            [Symbol.iterator]: () => this.values(),
+            next: () => {
+              const r2 = iterator.next();
+              if (r2.done)
+                return r2;
+              const value2 = this.get(r2.value);
+              return {
+                done: false,
+                value: value2
+              };
+            }
+          };
+        }
+        entries() {
+          const iterator = this.keys();
+          return {
+            [Symbol.iterator]: () => this.entries(),
+            next: () => {
+              const r2 = iterator.next();
+              if (r2.done)
+                return r2;
+              const value2 = this.get(r2.value);
+              return {
+                done: false,
+                value: [r2.value, value2]
+              };
+            }
+          };
+        }
+        [Symbol.iterator]() {
+          return this.entries();
+        }
+      }
+      function proxyMap_(target2, parent) {
+        return new DraftMap(target2, parent);
+      }
+      function prepareMapCopy(state) {
+        if (!state.copy_) {
+          state.assigned_ = /* @__PURE__ */ new Map();
+          state.copy_ = new Map(state.base_);
+        }
+      }
+      class DraftSet extends Set {
+        constructor(target2, parent) {
+          super();
+          this[DRAFT_STATE] = {
+            type_: 3,
+            parent_: parent,
+            scope_: parent ? parent.scope_ : getCurrentScope(),
+            modified_: false,
+            finalized_: false,
+            copy_: void 0,
+            base_: target2,
+            draft_: this,
+            drafts_: /* @__PURE__ */ new Map(),
+            revoked_: false,
+            isManual_: false
+          };
+        }
+        get size() {
+          return latest(this[DRAFT_STATE]).size;
+        }
+        has(value2) {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (!state.copy_) {
+            return state.base_.has(value2);
+          }
+          if (state.copy_.has(value2))
+            return true;
+          if (state.drafts_.has(value2) && state.copy_.has(state.drafts_.get(value2)))
+            return true;
+          return false;
+        }
+        add(value2) {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (!this.has(value2)) {
+            prepareSetCopy(state);
+            markChanged(state);
+            state.copy_.add(value2);
+          }
+          return this;
+        }
+        delete(value2) {
+          if (!this.has(value2)) {
+            return false;
+          }
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          prepareSetCopy(state);
+          markChanged(state);
+          return state.copy_.delete(value2) || (state.drafts_.has(value2) ? state.copy_.delete(state.drafts_.get(value2)) : (
+            /* istanbul ignore next */
+            false
+          ));
+        }
+        clear() {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (latest(state).size) {
+            prepareSetCopy(state);
+            markChanged(state);
+            state.copy_.clear();
+          }
+        }
+        values() {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          prepareSetCopy(state);
+          return state.copy_.values();
+        }
+        entries() {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          prepareSetCopy(state);
+          return state.copy_.entries();
+        }
+        keys() {
+          return this.values();
+        }
+        [Symbol.iterator]() {
+          return this.values();
+        }
+        forEach(cb, thisArg) {
+          const iterator = this.values();
+          let result2 = iterator.next();
+          while (!result2.done) {
+            cb.call(thisArg, result2.value, result2.value, this);
+            result2 = iterator.next();
+          }
+        }
+      }
+      function proxySet_(target2, parent) {
+        return new DraftSet(target2, parent);
+      }
+      function prepareSetCopy(state) {
+        if (!state.copy_) {
+          state.copy_ = /* @__PURE__ */ new Set();
+          state.base_.forEach((value2) => {
+            if (isDraftable(value2)) {
+              const draft = createProxy(value2, state);
+              state.drafts_.set(value2, draft);
+              state.copy_.add(draft);
+            } else {
+              state.copy_.add(value2);
+            }
+          });
+        }
+      }
+      function assertUnrevoked(state) {
+        if (state.revoked_)
+          die(3, JSON.stringify(latest(state)));
+      }
+      loadPlugin("MapSet", { proxyMap_, proxySet_ });
+    }
     var immer$1 = new Immer2();
     var produce = immer$1.produce;
     immer$1.produceWithPatches.bind(
@@ -22638,6 +22457,439 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     immer$1.applyPatches.bind(immer$1);
     immer$1.createDraft.bind(immer$1);
     immer$1.finishDraft.bind(immer$1);
+    const createStoreImpl = (createState) => {
+      let state;
+      const listeners = /* @__PURE__ */ new Set();
+      const setState = (partial, replace2) => {
+        const nextState = typeof partial === "function" ? partial(state) : partial;
+        if (!Object.is(nextState, state)) {
+          const previousState = state;
+          state = (replace2 != null ? replace2 : typeof nextState !== "object" || nextState === null) ? nextState : Object.assign({}, state, nextState);
+          listeners.forEach((listener) => listener(state, previousState));
+        }
+      };
+      const getState = () => state;
+      const getInitialState = () => initialState2;
+      const subscribe = (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      };
+      const api2 = { setState, getState, getInitialState, subscribe };
+      const initialState2 = state = createState(setState, getState, api2);
+      return api2;
+    };
+    const createStore$1 = (createState) => createState ? createStoreImpl(createState) : createStoreImpl;
+    const identity = (arg) => arg;
+    function useStore$1(api2, selector = identity) {
+      const slice = H.useSyncExternalStore(
+        api2.subscribe,
+        () => selector(api2.getState()),
+        () => selector(api2.getInitialState())
+      );
+      H.useDebugValue(slice);
+      return slice;
+    }
+    const createImpl = (createState) => {
+      const api2 = createStore$1(createState);
+      const useBoundStore = (selector) => useStore$1(api2, selector);
+      Object.assign(useBoundStore, api2);
+      return useBoundStore;
+    };
+    const create$2 = (createState) => createImpl;
+    const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": false, "MODE": "development", "PROD": true, "SSR": false };
+    const trackedConnections = /* @__PURE__ */ new Map();
+    const getTrackedConnectionState = (name2) => {
+      const api2 = trackedConnections.get(name2);
+      if (!api2) return {};
+      return Object.fromEntries(
+        Object.entries(api2.stores).map(([key2, api22]) => [key2, api22.getState()])
+      );
+    };
+    const extractConnectionInformation = (store, extensionConnector, options2) => {
+      if (store === void 0) {
+        return {
+          type: "untracked",
+          connection: extensionConnector.connect(options2)
+        };
+      }
+      const existingConnection = trackedConnections.get(options2.name);
+      if (existingConnection) {
+        return { type: "tracked", store, ...existingConnection };
+      }
+      const newConnection = {
+        connection: extensionConnector.connect(options2),
+        stores: {}
+      };
+      trackedConnections.set(options2.name, newConnection);
+      return { type: "tracked", store, ...newConnection };
+    };
+    const devtoolsImpl = (fn2, devtoolsOptions = {}) => (set2, get2, api2) => {
+      const { enabled, anonymousActionType, store, ...options2 } = devtoolsOptions;
+      let extensionConnector;
+      try {
+        extensionConnector = (enabled != null ? enabled : (__vite_import_meta_env__ ? "development" : void 0) !== "production") && window.__REDUX_DEVTOOLS_EXTENSION__;
+      } catch (e) {
+      }
+      if (!extensionConnector) {
+        return fn2(set2, get2, api2);
+      }
+      const { connection, ...connectionInformation } = extractConnectionInformation(store, extensionConnector, options2);
+      let isRecording = true;
+      api2.setState = (state, replace2, nameOrAction) => {
+        const r2 = set2(state, replace2);
+        if (!isRecording) return r2;
+        const action = nameOrAction === void 0 ? { type: anonymousActionType || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
+        if (store === void 0) {
+          connection == null ? void 0 : connection.send(action, get2());
+          return r2;
+        }
+        connection == null ? void 0 : connection.send(
+          {
+            ...action,
+            type: `${store}/${action.type}`
+          },
+          {
+            ...getTrackedConnectionState(options2.name),
+            [store]: api2.getState()
+          }
+        );
+        return r2;
+      };
+      const setStateFromDevtools = (...a) => {
+        const originalIsRecording = isRecording;
+        isRecording = false;
+        set2(...a);
+        isRecording = originalIsRecording;
+      };
+      const initialState2 = fn2(api2.setState, get2, api2);
+      if (connectionInformation.type === "untracked") {
+        connection == null ? void 0 : connection.init(initialState2);
+      } else {
+        connectionInformation.stores[connectionInformation.store] = api2;
+        connection == null ? void 0 : connection.init(
+          Object.fromEntries(
+            Object.entries(connectionInformation.stores).map(([key2, store2]) => [
+              key2,
+              key2 === connectionInformation.store ? initialState2 : store2.getState()
+            ])
+          )
+        );
+      }
+      if (api2.dispatchFromDevtools && typeof api2.dispatch === "function") {
+        let didWarnAboutReservedActionType = false;
+        const originalDispatch = api2.dispatch;
+        api2.dispatch = (...a) => {
+          if ((__vite_import_meta_env__ ? "development" : void 0) !== "production" && a[0].type === "__setState" && !didWarnAboutReservedActionType) {
+            console.warn(
+              '[zustand devtools middleware] "__setState" action type is reserved to set state from the devtools. Avoid using it.'
+            );
+            didWarnAboutReservedActionType = true;
+          }
+          originalDispatch(...a);
+        };
+      }
+      connection.subscribe((message2) => {
+        var _a2;
+        switch (message2.type) {
+          case "ACTION":
+            if (typeof message2.payload !== "string") {
+              console.error(
+                "[zustand devtools middleware] Unsupported action format"
+              );
+              return;
+            }
+            return parseJsonThen(
+              message2.payload,
+              (action) => {
+                if (action.type === "__setState") {
+                  if (store === void 0) {
+                    setStateFromDevtools(action.state);
+                    return;
+                  }
+                  if (Object.keys(action.state).length !== 1) {
+                    console.error(
+                      `
+                    [zustand devtools middleware] Unsupported __setState action format.
+                    When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
+                    and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
+                    `
+                    );
+                  }
+                  const stateFromDevtools = action.state[store];
+                  if (stateFromDevtools === void 0 || stateFromDevtools === null) {
+                    return;
+                  }
+                  if (JSON.stringify(api2.getState()) !== JSON.stringify(stateFromDevtools)) {
+                    setStateFromDevtools(stateFromDevtools);
+                  }
+                  return;
+                }
+                if (!api2.dispatchFromDevtools) return;
+                if (typeof api2.dispatch !== "function") return;
+                api2.dispatch(action);
+              }
+            );
+          case "DISPATCH":
+            switch (message2.payload.type) {
+              case "RESET":
+                setStateFromDevtools(initialState2);
+                if (store === void 0) {
+                  return connection == null ? void 0 : connection.init(api2.getState());
+                }
+                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+              case "COMMIT":
+                if (store === void 0) {
+                  connection == null ? void 0 : connection.init(api2.getState());
+                  return;
+                }
+                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+              case "ROLLBACK":
+                return parseJsonThen(message2.state, (state) => {
+                  if (store === void 0) {
+                    setStateFromDevtools(state);
+                    connection == null ? void 0 : connection.init(api2.getState());
+                    return;
+                  }
+                  setStateFromDevtools(state[store]);
+                  connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+                });
+              case "JUMP_TO_STATE":
+              case "JUMP_TO_ACTION":
+                return parseJsonThen(message2.state, (state) => {
+                  if (store === void 0) {
+                    setStateFromDevtools(state);
+                    return;
+                  }
+                  if (JSON.stringify(api2.getState()) !== JSON.stringify(state[store])) {
+                    setStateFromDevtools(state[store]);
+                  }
+                });
+              case "IMPORT_STATE": {
+                const { nextLiftedState } = message2.payload;
+                const lastComputedState = (_a2 = nextLiftedState.computedStates.slice(-1)[0]) == null ? void 0 : _a2.state;
+                if (!lastComputedState) return;
+                if (store === void 0) {
+                  setStateFromDevtools(lastComputedState);
+                } else {
+                  setStateFromDevtools(lastComputedState[store]);
+                }
+                connection == null ? void 0 : connection.send(
+                  null,
+                  // FIXME no-any
+                  nextLiftedState
+                );
+                return;
+              }
+              case "PAUSE_RECORDING":
+                return isRecording = !isRecording;
+            }
+            return;
+        }
+      });
+      return initialState2;
+    };
+    const devtools = devtoolsImpl;
+    const parseJsonThen = (stringified, f) => {
+      let parsed;
+      try {
+        parsed = JSON.parse(stringified);
+      } catch (e) {
+        console.error(
+          "[zustand devtools middleware] Could not parse the received json",
+          e
+        );
+      }
+      if (parsed !== void 0) f(parsed);
+    };
+    function createJSONStorage(getStorage, options2) {
+      let storage2;
+      try {
+        storage2 = getStorage();
+      } catch (e) {
+        return;
+      }
+      const persistStorage = {
+        getItem: (name2) => {
+          var _a2;
+          const parse2 = (str22) => {
+            if (str22 === null) {
+              return null;
+            }
+            return JSON.parse(str22, void 0);
+          };
+          const str2 = (_a2 = storage2.getItem(name2)) != null ? _a2 : null;
+          if (str2 instanceof Promise) {
+            return str2.then(parse2);
+          }
+          return parse2(str2);
+        },
+        setItem: (name2, newValue) => storage2.setItem(
+          name2,
+          JSON.stringify(newValue, void 0)
+        ),
+        removeItem: (name2) => storage2.removeItem(name2)
+      };
+      return persistStorage;
+    }
+    const toThenable = (fn2) => (input2) => {
+      try {
+        const result2 = fn2(input2);
+        if (result2 instanceof Promise) {
+          return result2;
+        }
+        return {
+          then(onFulfilled) {
+            return toThenable(onFulfilled)(result2);
+          },
+          catch(_onRejected) {
+            return this;
+          }
+        };
+      } catch (e) {
+        return {
+          then(_onFulfilled) {
+            return this;
+          },
+          catch(onRejected) {
+            return toThenable(onRejected)(e);
+          }
+        };
+      }
+    };
+    const persistImpl = (config2, baseOptions) => (set2, get2, api2) => {
+      let options2 = {
+        storage: createJSONStorage(() => localStorage),
+        partialize: (state) => state,
+        version: 0,
+        merge: (persistedState, currentState) => ({
+          ...currentState,
+          ...persistedState
+        }),
+        ...baseOptions
+      };
+      let hasHydrated = false;
+      const hydrationListeners = /* @__PURE__ */ new Set();
+      const finishHydrationListeners = /* @__PURE__ */ new Set();
+      let storage2 = options2.storage;
+      if (!storage2) {
+        return config2(
+          (...args) => {
+            console.warn(
+              `[zustand persist middleware] Unable to update item '${options2.name}', the given storage is currently unavailable.`
+            );
+            set2(...args);
+          },
+          get2,
+          api2
+        );
+      }
+      const setItem = () => {
+        const state = options2.partialize({ ...get2() });
+        return storage2.setItem(options2.name, {
+          state,
+          version: options2.version
+        });
+      };
+      const savedSetState = api2.setState;
+      api2.setState = (state, replace2) => {
+        savedSetState(state, replace2);
+        void setItem();
+      };
+      const configResult = config2(
+        (...args) => {
+          set2(...args);
+          void setItem();
+        },
+        get2,
+        api2
+      );
+      api2.getInitialState = () => configResult;
+      let stateFromStorage;
+      const hydrate = () => {
+        var _a2, _b2;
+        if (!storage2) return;
+        hasHydrated = false;
+        hydrationListeners.forEach((cb) => {
+          var _a22;
+          return cb((_a22 = get2()) != null ? _a22 : configResult);
+        });
+        const postRehydrationCallback = ((_b2 = options2.onRehydrateStorage) == null ? void 0 : _b2.call(options2, (_a2 = get2()) != null ? _a2 : configResult)) || void 0;
+        return toThenable(storage2.getItem.bind(storage2))(options2.name).then((deserializedStorageValue) => {
+          if (deserializedStorageValue) {
+            if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options2.version) {
+              if (options2.migrate) {
+                const migration = options2.migrate(
+                  deserializedStorageValue.state,
+                  deserializedStorageValue.version
+                );
+                if (migration instanceof Promise) {
+                  return migration.then((result2) => [true, result2]);
+                }
+                return [true, migration];
+              }
+              console.error(
+                `State loaded from storage couldn't be migrated since no migrate function was provided`
+              );
+            } else {
+              return [false, deserializedStorageValue.state];
+            }
+          }
+          return [false, void 0];
+        }).then((migrationResult) => {
+          var _a22;
+          const [migrated, migratedState] = migrationResult;
+          stateFromStorage = options2.merge(
+            migratedState,
+            (_a22 = get2()) != null ? _a22 : configResult
+          );
+          set2(stateFromStorage, true);
+          if (migrated) {
+            return setItem();
+          }
+        }).then(() => {
+          postRehydrationCallback == null ? void 0 : postRehydrationCallback(stateFromStorage, void 0);
+          stateFromStorage = get2();
+          hasHydrated = true;
+          finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
+        }).catch((e) => {
+          postRehydrationCallback == null ? void 0 : postRehydrationCallback(void 0, e);
+        });
+      };
+      api2.persist = {
+        setOptions: (newOptions) => {
+          options2 = {
+            ...options2,
+            ...newOptions
+          };
+          if (newOptions.storage) {
+            storage2 = newOptions.storage;
+          }
+        },
+        clearStorage: () => {
+          storage2 == null ? void 0 : storage2.removeItem(options2.name);
+        },
+        getOptions: () => options2,
+        rehydrate: () => hydrate(),
+        hasHydrated: () => hasHydrated,
+        onHydrate: (cb) => {
+          hydrationListeners.add(cb);
+          return () => {
+            hydrationListeners.delete(cb);
+          };
+        },
+        onFinishHydration: (cb) => {
+          finishHydrationListeners.add(cb);
+          return () => {
+            finishHydrationListeners.delete(cb);
+          };
+        }
+      };
+      if (!options2.skipHydration) {
+        hydrate();
+      }
+      return stateFromStorage || configResult;
+    };
+    const persist = persistImpl;
     const immerImpl = (initializer) => (set2, get2, store) => {
       store.setState = (updater, replace2, ...a) => {
         const nextState = typeof updater === "function" ? produce(updater) : updater;
@@ -22756,7 +23008,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       scrollPositions: {},
       listPositions: {},
       collapsed: {},
-      visible: {},
       messages: {},
       propertyBags: {}
     };
@@ -22877,14 +23128,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setCollapsed: (name2, value2) => {
             set2((state) => {
               state.app.collapsed[name2] = value2;
-            });
-          },
-          getVisible: (name2, defaultValue) => {
-            return getBoolRecord(get2().app.visible, name2, defaultValue);
-          },
-          setVisible: (name2, value2) => {
-            set2((state) => {
-              state.app.visible[name2] = value2;
             });
           },
           getMessageVisible: (name2, defaultValue) => {
@@ -23736,7 +23979,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       sampleStatus: "ok",
       sampleError: void 0,
       // The resolved events
-      runningEvents: []
+      runningEvents: [],
+      collapsedEvents: void 0
     };
     const createSampleSlice = (set2, get2, _store) => {
       const samplePolling = createSamplePolling(get2, set2);
@@ -23761,6 +24005,28 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setSampleError: (error2) => set2((state) => {
             state.sample.sampleError = error2;
           }),
+          setCollapsedEvents: (collapsed) => {
+            set2((state) => {
+              state.sample.collapsedEvents = collapsed;
+            });
+          },
+          clearCollapsedEvents: () => {
+            set2((state) => {
+              state.sample.collapsedEvents = void 0;
+            });
+          },
+          collapseEvent: (id, collapsed) => {
+            set2((state) => {
+              if (!state.sample.collapsedEvents) {
+                state.sample.collapsedEvents = /* @__PURE__ */ new Set();
+              }
+              if (collapsed) {
+                state.sample.collapsedEvents.add(id);
+              } else {
+                state.sample.collapsedEvents.delete(id);
+              }
+            });
+          },
           pollSample: async (logFile, sampleSummary) => {
             const state = get2();
             if (state.log.loadedLog && state.sample.selectedSample) {
@@ -23787,6 +24053,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 );
                 if (sample2) {
                   const migratedSample = resolveSample$1(sample2);
+                  sampleActions.clearCollapsedEvents();
                   sampleActions.setSelectedSample(migratedSample);
                   sampleActions.setSampleStatus("ok");
                 } else {
@@ -23916,6 +24183,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return selector ? storeImplementation(selector) : storeImplementation();
     };
     const initializeStore = (api2, capabilities2, storage2) => {
+      enableMapSet();
       const storageImplementation = {
         getItem: (name2) => {
           return storage2 ? storage2.getItem(name2) : null;
@@ -36561,7 +36829,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         );
       }
     );
-    const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
+    const kLetterListPattern = /^([a-zA-Z0-9][).]\s.*?)$/gm;
     const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
     const protectBackslashesInLatex = (content2) => {
       if (!content2) return content2;
@@ -42555,8 +42823,20 @@ categories: ${categories.join(" ")}`;
         };
       }, [selectedLogFile, selectedSampleSummary]);
     };
+    const useCollapseSampleEvent = (id) => {
+      const collapsed = useStore((state) => state.sample.collapsedEvents);
+      const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+      return reactExports.useMemo(() => {
+        const isCollapsed = !!collapsed && collapsed.has(id);
+        const set2 = (value2) => {
+          log$1.debug("Set collapsed", id, value2);
+          collapseEvent(id, value2);
+        };
+        return [isCollapsed, set2];
+      }, [collapsed, collapseEvent, id]);
+    };
     const useCollapsedState = (id, defaultValue, scope) => {
-      const stateId = scope ? `${scope}-${id}` : id;
+      const stateId = id;
       const collapsed = useStore(
         (state) => state.appActions.getCollapsed(stateId, defaultValue)
       );
@@ -42568,20 +42848,6 @@ categories: ${categories.join(" ")}`;
         };
         return [collapsed, set2];
       }, [collapsed, setCollapsed]);
-    };
-    const useVisibility = (id, scope, defaultValue) => {
-      const stateId = `${scope}-${id}`;
-      const visible2 = useStore(
-        (state) => state.appActions.getVisible(stateId, defaultValue)
-      );
-      const setVisible = useStore((state) => state.appActions.setVisible);
-      return reactExports.useMemo(() => {
-        const set2 = (value2, elementId) => {
-          const setStateId = `${scope}-${elementId || id}`;
-          setVisible(setStateId, value2);
-        };
-        return [visible2, set2];
-      }, [visible2, setVisible]);
     };
     const useMessageVisibility = (id, scope) => {
       const visible2 = useStore(
@@ -51219,9 +51485,10 @@ self.onmessage = function (e) {
       return card2;
     };
     const ApprovalEventView = ({
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventRow,
         {
@@ -51346,13 +51613,11 @@ self.onmessage = function (e) {
       subTitle,
       text: text2,
       icon: icon2,
-      collapse,
       children: children2,
       childIds
     }) => {
-      const [collapsed, setCollapsed] = useCollapsedState(id, collapse, "events");
-      const [visible2, setVisible] = useVisibility(id, "events", true);
-      const hasCollapse = collapse !== void 0;
+      const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
+      const isCollapsible = (childIds || []).length > 0;
       const pillId = (index2) => {
         return `${id}-nav-pill-${index2}`;
       };
@@ -51365,7 +51630,7 @@ self.onmessage = function (e) {
         defaultValue: defaultPillId
       });
       const gridColumns2 = [];
-      if (hasCollapse) {
+      if (isCollapsible) {
         gridColumns2.push("minmax(0, max-content)");
       }
       if (icon2) {
@@ -51377,12 +51642,7 @@ self.onmessage = function (e) {
       gridColumns2.push("minmax(0, max-content)");
       const toggleCollapse = reactExports.useCallback(() => {
         setCollapsed(!collapsed);
-      }, [setCollapsed, collapsed, setVisible, childIds]);
-      reactExports.useEffect(() => {
-        for (const childId of childIds || []) {
-          setVisible(!collapsed, childId);
-        }
-      }, [collapsed]);
+      }, [setCollapsed, collapsed, childIds]);
       const titleEl = title2 || icon2 || filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -51392,10 +51652,10 @@ self.onmessage = function (e) {
             display: "grid",
             gridTemplateColumns: gridColumns2.join(" "),
             columnGap: "0.3em",
-            cursor: hasCollapse ? "pointer" : void 0
+            cursor: isCollapsible ? "pointer" : void 0
           },
           children: [
-            hasCollapse ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            isCollapsible ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               "i",
               {
                 onClick: toggleCollapse,
@@ -51429,7 +51689,7 @@ self.onmessage = function (e) {
                 children: collapsed ? text2 : ""
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.navs, children: (!hasCollapse || !collapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.navs, children: (!isCollapsible || !collapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index2) => {
@@ -51448,53 +51708,43 @@ self.onmessage = function (e) {
           ]
         }
       ) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          id,
-          className: clsx(
-            className2,
-            styles$s.card,
-            !visible2 ? styles$s.hidden : void 0
-          ),
-          children: [
-            titleEl,
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx(
-                  "tab-content",
-                  styles$s.cardContent,
-                  hasCollapse && collapsed ? styles$s.hidden : void 0
-                ),
-                children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
-                  const id2 = pillId(index2);
-                  const isSelected = id2 === selectedNav;
-                  return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                    "div",
-                    {
-                      id: id2,
-                      className: clsx("tab-pane", "show", isSelected ? "active" : ""),
-                      children: child
-                    },
-                    `children-${id2}-${index2}`
-                  );
-                })
-              }
-            )
-          ]
-        }
-      );
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$s.card), children: [
+        titleEl,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(
+              "tab-content",
+              styles$s.cardContent,
+              isCollapsible && collapsed ? styles$s.hidden : void 0
+            ),
+            children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
+              const id2 = pillId(index2);
+              const isSelected = id2 === selectedNav;
+              return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  id: id2,
+                  className: clsx("tab-pane", "show", isSelected ? "active" : ""),
+                  children: child
+                },
+                `children-${id2}-${index2}`
+              );
+            })
+          }
+        )
+      ] });
       return card2;
     };
     function hasDataDefault(node2) {
       return reactExports.isValidElement(node2) && node2.props !== null && typeof node2.props === "object" && "data-default" in node2.props;
     }
     const ErrorEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
+      const id = eventNode2.id;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
@@ -51521,10 +51771,10 @@ self.onmessage = function (e) {
       panel: panel$1
     };
     const InfoEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
       const panels = [];
       if (typeof event.data === "string") {
         panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.data, className: styles$r.panel }));
@@ -51534,7 +51784,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id,
+          id: eventNode2.id,
           title: "Info" + (event.source ? ": " + event.source : ""),
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -51544,10 +51794,11 @@ self.onmessage = function (e) {
       );
     };
     const InputEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
+      const id = eventNode2.id;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
@@ -51571,9 +51822,10 @@ self.onmessage = function (e) {
       grid: grid$2
     };
     const LoggerEventView = ({
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
       const obj = parsedJson(event.message.message);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventRow,
@@ -51748,11 +52000,11 @@ self.onmessage = function (e) {
       return `${title2}${subtitle}`;
     };
     const ModelEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
       var _a2, _b2;
+      const event = eventNode2.event;
       const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
       const callTime = event.output.time;
       const outputMessages = (_b2 = event.output.choices) == null ? void 0 : _b2.map((choice) => {
@@ -51772,7 +52024,7 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id,
+          id: eventNode2.id,
           className: className2,
           title: formatTitle(panelTitle, totalUsage, callTime),
           subTitle: formatTiming(event.timestamp, event.working_start),
@@ -51782,7 +52034,7 @@ self.onmessage = function (e) {
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
                 {
-                  id: `${id}-model-output`,
+                  id: `${eventNode2.id}-model-output`,
                   messages: [...userMessages, ...outputMessages || []],
                   numbered: false,
                   toolCallStyle: "omit"
@@ -51814,7 +52066,7 @@ self.onmessage = function (e) {
               /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Messages", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
                 {
-                  id: `${id}-model-input-full`,
+                  id: `${eventNode2.id}-model-input-full`,
                   messages: [...event.input, ...outputMessages || []]
                 }
               ) })
@@ -51897,28 +52149,28 @@ self.onmessage = function (e) {
       metadata: metadata$1
     };
     const SampleInitEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
       const stateObj = event.state;
       const sections = [];
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
         sections.push(
           /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$m.noMargin, children: file }, `sample-init-file-${file}`);
-          }) }, `sample-${id}-init-files`)
+          }) }, `event-${eventNode2.id}`)
         );
       }
       if (event.sample.setup) {
         sections.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$m.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `sample-${id}-init-setup`)
+          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$m.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `${eventNode2.id}-section-setup`)
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id,
+          id: eventNode2.id,
           className: className2,
           title: "Sample",
           icon: ApplicationIcons.sample,
@@ -51953,8 +52205,7 @@ self.onmessage = function (e) {
       );
     };
     const SampleLimitEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
       const resolve_title = (type) => {
@@ -51989,9 +52240,18 @@ self.onmessage = function (e) {
             return ApplicationIcons.limits.execution;
         }
       };
-      const title2 = resolve_title(event.type);
-      const icon2 = resolve_icon(event.type);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(EventPanel, { id, title: title2, icon: icon2, className: className2, children: event.message });
+      const title2 = resolve_title(eventNode2.event.type);
+      const icon2 = resolve_icon(eventNode2.event.type);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        EventPanel,
+        {
+          id: eventNode2.id,
+          title: title2,
+          icon: icon2,
+          className: className2,
+          children: eventNode2.event.message
+        }
+      );
     };
     const twoColumn = "_twoColumn_1irga_9";
     const exec = "_exec_1irga_15";
@@ -52006,10 +52266,11 @@ self.onmessage = function (e) {
       wrapPre
     };
     const SandboxEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
+      const id = eventNode2.id;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
@@ -52083,15 +52344,15 @@ self.onmessage = function (e) {
       metadata
     };
     const ScoreEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
       const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id,
+          id: eventNode2.id,
           title: (event.intermediate ? "Intermediate " : "") + "Score",
           className: clsx(className2, "text-size-small"),
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -59317,11 +59578,11 @@ ${events}
       summary: summary$2
     };
     const StateEventView = ({
-      id,
-      event,
-      isStore = false,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
+      const id = eventNode2.id;
       const summary2 = reactExports.useMemo(() => {
         return summarizeChanges(event.changes);
       }, [event.changes]);
@@ -59337,9 +59598,16 @@ ${events}
         }
       }, [event.changes]);
       const changePreview = reactExports.useMemo(() => {
+        const isStore = eventNode2.event.event === "store";
         return generatePreview(event.changes, structuredClone(after), isStore);
-      }, [event.changes, after, isStore]);
+      }, [event.changes, after]);
       const title2 = event.event === "state" ? "State Updated" : "Store Updated";
+      const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+      reactExports.useEffect(() => {
+        if (changePreview === void 0) {
+          collapseEvent(id, true);
+        }
+      }, [changePreview]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
@@ -59348,7 +59616,6 @@ ${events}
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           text: !changePreview ? summary2 : void 0,
-          collapse: changePreview === void 0 ? true : void 0,
           children: [
             changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$h.summary), children: changePreview }) : void 0,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -59697,11 +59964,12 @@ ${events}
       };
     };
     const StepEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       children: children2,
       className: className2
     }) => {
+      const event = eventNode2.event;
+      const id = eventNode2.id;
       const descriptor = stepDescriptor(event);
       const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize$1(children2);
@@ -59714,7 +59982,6 @@ ${events}
           title: title2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: descriptor.icon,
-          collapse: descriptor.collapse,
           text: text2,
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             TranscriptComponent,
@@ -59774,8 +60041,7 @@ ${events}
             };
           case "system_message":
             return {
-              ...rootStepDescriptor,
-              collapse: true
+              ...rootStepDescriptor
             };
           case "use_tools":
             return {
@@ -59798,14 +60064,12 @@ ${events}
         if (event.name === kSandboxSignalName) {
           return {
             ...rootStepDescriptor,
-            name: "Sandbox Events",
-            collapse: true
+            name: "Sandbox Events"
           };
         } else if (event.name === "init") {
           return {
             ...rootStepDescriptor,
-            name: "Init",
-            collapse: true
+            name: "Init"
           };
         } else {
           return {
@@ -59817,8 +60081,7 @@ ${events}
           case "sample_init":
             return {
               ...rootStepDescriptor,
-              name: "Sample Init",
-              collapse: true
+              name: "Sample Init"
             };
           default:
             return {
@@ -59838,10 +60101,11 @@ ${events}
       subtaskLabel
     };
     const SubtaskEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       className: className2
     }) => {
+      const event = eventNode2.event;
+      const id = eventNode2.id;
       const body2 = [];
       if (event.type === "fork") {
         body2.push(
@@ -59874,7 +60138,6 @@ ${events}
             event.working_time
           ),
           subTitle: formatTiming(event.timestamp, event.working_start),
-          collapse: false,
           children: body2
         }
       );
@@ -59917,24 +60180,28 @@ ${events}
       progress
     };
     const ToolEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       children: children2,
       className: className2
     }) => {
       var _a2, _b2;
+      const event = eventNode2.event;
+      const id = eventNode2.id;
       const { input: input2, functionCall, highlightLanguage } = reactExports.useMemo(
         () => resolveToolInput(event.function, event.arguments),
         [event.function, event.arguments]
       );
-      const { approvalEvent, lastModelEvent } = reactExports.useMemo(() => {
-        const approvalEvent2 = event.events.find((e) => {
-          return e.event === "approval";
+      const { approvalNode, lastModelNode } = reactExports.useMemo(() => {
+        const approvalNode2 = children2.find((e) => {
+          return e.event.event === "approval";
         });
-        const lastModelEvent2 = [...event.events].reverse().find((e) => {
-          return e.event === "model";
+        const lastModelNode2 = children2.findLast((e) => {
+          return e.event.event === "model";
         });
-        return { approvalEvent: approvalEvent2, lastModelEvent: lastModelEvent2 };
+        return {
+          approvalNode: approvalNode2,
+          lastModelNode: lastModelNode2
+        };
       }, [event.events]);
       const title2 = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -59959,19 +60226,19 @@ ${events}
                   view: event.view ? event.view : void 0
                 }
               ),
-              lastModelEvent && lastModelEvent.event === "model" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              lastModelNode ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
                 {
                   id: `${id}-toolcall-chatmessage`,
-                  messages: lastModelEvent.output.choices.map((m) => m.message),
+                  messages: lastModelNode.event.output.choices.map((m) => m.message),
                   numbered: false,
                   toolCallStyle: "compact"
                 }
               ) : void 0,
-              approvalEvent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              approvalNode ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ApprovalEventView,
                 {
-                  event: approvalEvent,
+                  eventNode: approvalNode,
                   className: styles$f.approval
                 }
               ) : "",
@@ -59991,11 +60258,12 @@ ${events}
       );
     };
     const SpanEventView = ({
-      id,
-      event,
+      eventNode: eventNode2,
       children: children2,
       className: className2
     }) => {
+      const event = eventNode2.event;
+      const id = eventNode2.id;
       const descriptor = spanDescriptor(event);
       const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize(children2);
@@ -60008,7 +60276,6 @@ ${events}
           title: title2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           text: text2,
-          collapse: descriptor.collapse,
           icon: descriptor.icon
         }
       );
@@ -60049,62 +60316,51 @@ ${events}
         switch (event.name) {
           case "chain_of_thought":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           case "generate":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           case "self_critique":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           case "system_message":
             return {
-              ...rootStepDescriptor,
-              collapse: true
+              ...rootStepDescriptor
             };
           case "use_tools":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           case "multiple_choice":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           default:
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
         }
       } else if (event.type === "scorer") {
         return {
-          ...rootStepDescriptor,
-          collapse: false
+          ...rootStepDescriptor
         };
       } else if (event.event === "span_begin") {
         if (event.span_id === kSandboxSignalName) {
           return {
             ...rootStepDescriptor,
-            name: "Sandbox Events",
-            collapse: true
+            name: "Sandbox Events"
           };
         } else if (event.name === "init") {
           return {
             ...rootStepDescriptor,
-            name: "Init",
-            collapse: true
+            name: "Init"
           };
         } else {
           return {
-            ...rootStepDescriptor,
-            collapse: false
+            ...rootStepDescriptor
           };
         }
       } else {
@@ -60112,8 +60368,7 @@ ${events}
           case "sample_init":
             return {
               ...rootStepDescriptor,
-              name: "Sample Init",
-              collapse: true
+              name: "Sample Init"
             };
           default:
             return {
@@ -60339,23 +60594,49 @@ ${events}
         return node2;
       });
     };
-    const flatTree = (eventNodes) => {
+    const flatTree = (eventNodes, collapsed) => {
       const result2 = [];
       for (const node2 of eventNodes) {
         result2.push(node2);
-        result2.push(...flatTree(node2.children));
+        if (!collapsed.has(node2.id)) {
+          result2.push(...flatTree(node2.children, collapsed));
+        }
       }
       return result2;
     };
     const TranscriptVirtualList = reactExports.memo(
       (props) => {
-        let { id, scrollRef, events, depth, running: running2, initialEventId } = props;
-        const eventNodes = reactExports.useMemo(() => {
+        let { id, scrollRef, events, running: running2, initialEventId } = props;
+        const collapsedEvents = useStore((state) => state.sample.collapsedEvents);
+        const setCollapsedEvents = useStore(
+          (state) => state.sampleActions.setCollapsedEvents
+        );
+        const { eventNodes, defaultCollapsedIds } = reactExports.useMemo(() => {
           const resolvedEvents = fixupEventStream(events, !running2);
-          const eventTree = treeifyEvents(resolvedEvents, depth || 0);
-          const eventNodes2 = flatTree(eventTree);
-          return eventNodes2;
-        }, [events, depth]);
+          const eventTree = treeifyEvents(resolvedEvents, 0);
+          const defaultCollapsedIds2 = /* @__PURE__ */ new Set();
+          const findCollapsibleEvents = (nodes) => {
+            for (const node2 of nodes) {
+              if ((node2.event.event === "step" || node2.event.event === "span_begin") && collapseFilters.some(
+                (filter) => filter(node2.event)
+              )) {
+                defaultCollapsedIds2.add(node2.id);
+              }
+              findCollapsibleEvents(node2.children);
+            }
+          };
+          findCollapsibleEvents(eventTree);
+          const eventNodes2 = flatTree(
+            eventTree,
+            collapsedEvents || defaultCollapsedIds2
+          );
+          return { eventNodes: eventNodes2, defaultCollapsedIds: defaultCollapsedIds2 };
+        }, [events, running2, collapsedEvents]);
+        reactExports.useEffect(() => {
+          if (!collapsedEvents && defaultCollapsedIds.size > 0) {
+            setCollapsedEvents(defaultCollapsedIds);
+          }
+        }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           TranscriptVirtualListComponent,
           {
@@ -60368,6 +60649,18 @@ ${events}
         );
       }
     );
+    const collapseFilters = [
+      (event) => {
+        if (event.type === "solver" && event.name === "system_message") {
+          return true;
+        } else if (kSandboxSignalName === event.name) {
+          return true;
+        } else if (event.name === "init" || event.name === "sample_init") {
+          return true;
+        }
+        return false;
+      }
+    ];
     const TranscriptComponent = reactExports.memo(
       ({ id, eventNodes }) => {
         const rows = [];
@@ -60431,8 +60724,7 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SampleInitEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 className: className2
               }
             );
@@ -60440,27 +60732,55 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SampleLimitEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 className: className2
               }
             );
           case "info":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(InfoEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              InfoEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "logger":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(LoggerEventView, { event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              LoggerEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "model":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(ModelEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ModelEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "score":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ScoreEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "state":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(StateEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              StateEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "span_begin":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SpanEventView,
               {
-                id: node2.id,
-                event: node2.event,
+                eventNode: node2,
                 children: node2.children,
                 className: className2
               }
@@ -60469,8 +60789,7 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               StepEventView,
               {
-                id: node2.id,
-                event: node2.event,
+                eventNode: node2,
                 children: node2.children,
                 className: className2
               }
@@ -60479,32 +60798,59 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               StateEventView,
               {
-                id,
-                event: node2.event,
-                className: className2,
-                isStore: true
+                eventNode: node2,
+                className: className2
               }
             );
           case "subtask":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(SubtaskEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SubtaskEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "tool":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 className: className2,
                 children: node2.children
               }
             );
           case "input":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(InputEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              InputEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "error":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ErrorEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "approval":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalEventView, { event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ApprovalEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "sandbox":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(SandboxEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SandboxEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           default:
             return null;
         }
