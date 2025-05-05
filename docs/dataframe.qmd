@@ -10,4 +10,43 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
+## Overview
 
+Inspect eval logs have a hierarchical structure which is well suited to flexibility capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into [data frames](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for flexibly extracting [Pandas](https://pandas.pydata.org/) data frames from logs, including:
+
+| Function | Description |
+|------------------------------------|------------------------------------|
+| `evals_df()` | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
+| `samples_df()` | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
+| `messages_df()` | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
+| `events_df()` | Event level data (e.g. model event, tool event, etc.). One row per message, where each samples contains many events. |
+
+: {tbl-colwidths=\[40, 60\]}
+
+Each function extracts a default set of columns however you can tailor column reading to work in whatever way you need for your analysis. Extracted data frames can either be normalised (e.g. if you are importing them into a SQL database) or denormalized (e.g. if you want to immediately summarise or plot them).
+
+For example, here we read eval and sample level data from a log directory and immediately import into a DuckDb database:
+
+``` python
+import duckdb
+from inspect_ai.analysis.beta import evals_df, samples_df
+
+con = duckdb.connect()
+con.regsiter('evals', evals_df("logs"))
+con.register('samples', samples_df("logs"))
+```
+
+The samples table automatically includes an `eval_id` column that can be used to join it with evals.
+
+Here we we read samples and conjoin them with eval data so we can summarise and plot directly from the extracted data frame. In this case we extract only the subset of eval-level columns we need for our analysis:
+
+``` python
+from inspect_ai.analysis.beta import (
+    samples_df, EvalId, EvalModel, EvalResults, 
+    SampleColumns, SampleDefault
+)
+
+samples = samples_df("logs", 
+    columns = EvalId | EvalModel | EvalResults | SampleDefault                    
+)
+```
