@@ -2,9 +2,18 @@ import { Events } from "../../../../@types/log";
 import { EventNode, EventType } from "../types";
 import {
   ACTION_BEGIN,
-  ET_SPAN_BEGIN,
-  ET_SPAN_END,
-  ET_STEP,
+  SPAN_BEGIN,
+  SPAN_END,
+  STATE,
+  STEP,
+  STORE,
+  SUBTASK,
+  TOOL,
+  TYPE_AGENT,
+  TYPE_HANDOFF,
+  TYPE_SOLVER,
+  TYPE_SUBTASK,
+  TYPE_TOOL,
   hasSpans,
 } from "./utils";
 
@@ -74,7 +83,7 @@ const treeifyFn: TreeifyFunction = (
   popStack: () => void,
 ): void => {
   switch (event.event) {
-    case ET_STEP:
+    case STEP:
       if (event.action === ACTION_BEGIN) {
         // Starting a new step
         const node = addNode(event);
@@ -84,15 +93,55 @@ const treeifyFn: TreeifyFunction = (
         popStack();
       }
       break;
-    case ET_SPAN_BEGIN: {
+    case SPAN_BEGIN: {
       const node = addNode(event);
       pushStack(node);
       break;
     }
-    case ET_SPAN_END: {
+    case SPAN_END: {
       popStack();
       break;
     }
+    case TOOL:
+      {
+        const node = addNode(event);
+
+        // In the span world, the first child will be a span of type tool
+        if (
+          event.events.length > 0 &&
+          (event.events[0].event !== SPAN_BEGIN ||
+            event.events[0].type !== TYPE_TOOL)
+        ) {
+          // Expand the children
+          pushStack(node);
+          for (const child of event.events) {
+            treeifyFn(child, addNode, pushStack, popStack);
+          }
+          popStack();
+        }
+      }
+
+      break;
+    case SUBTASK:
+      {
+        const node = addNode(event);
+
+        // In the span world, the first child will be a span of type tool
+        if (
+          event.events.length > 0 &&
+          (event.events[0].event !== SPAN_BEGIN ||
+            event.events[0].type !== TYPE_SUBTASK)
+        ) {
+          // Expand the children
+          pushStack(node);
+          for (const child of event.events) {
+            treeifyFn(child, addNode, pushStack, popStack);
+          }
+          popStack();
+        }
+      }
+
+      break;
     default:
       // An event
       addNode(event);
@@ -110,50 +159,50 @@ const treeNodeTransformers: TreeNodeTransformer[] = [
   {
     name: "unwrap_tools",
     matches: (node) =>
-      node.event.event === "span_begin" && node.event.type === "tool",
-    process: (node) => elevateChildNode(node, "tool") || node,
+      node.event.event === SPAN_BEGIN && node.event.type === TYPE_TOOL,
+    process: (node) => elevateChildNode(node, TYPE_TOOL) || node,
   },
   {
     name: "unwrap_subtasks",
     matches: (node) =>
-      node.event.event === "span_begin" && node.event.type === "subtask",
-    process: (node) => elevateChildNode(node, "subtask") || node,
+      node.event.event === SPAN_BEGIN && node.event.type === TYPE_SUBTASK,
+    process: (node) => elevateChildNode(node, TYPE_SUBTASK) || node,
   },
   {
     name: "unwrap_agent_solver",
     matches: (node) =>
-      node.event.event === "span_begin" &&
-      node.event["type"] === "solver" &&
+      node.event.event === SPAN_BEGIN &&
+      node.event["type"] === TYPE_SOLVER &&
       node.children.length === 2 &&
-      node.children[0].event.event === "span_begin" &&
-      node.children[0].event.type === "agent" &&
-      node.children[1].event.event === "state",
+      node.children[0].event.event === SPAN_BEGIN &&
+      node.children[0].event.type === TYPE_AGENT &&
+      node.children[1].event.event === STATE,
 
     process: (node) => skipFirstChildNode(node),
   },
   {
     name: "unwrap_agent_solver w/store",
     matches: (node) =>
-      node.event.event === "span_begin" &&
-      node.event["type"] === "solver" &&
+      node.event.event === SPAN_BEGIN &&
+      node.event["type"] === TYPE_SOLVER &&
       node.children.length === 3 &&
-      node.children[0].event.event === "span_begin" &&
-      node.children[0].event.type === "agent" &&
-      node.children[1].event.event === "state" &&
-      node.children[2].event.event === "store",
+      node.children[0].event.event === SPAN_BEGIN &&
+      node.children[0].event.type === TYPE_AGENT &&
+      node.children[1].event.event === STATE &&
+      node.children[2].event.event === STORE,
     process: (node) => skipFirstChildNode(node),
   },
   {
     name: "unwrap_handoff",
     matches: (node) =>
-      node.event.event === "span_begin" &&
-      node.event["type"] === "handoff" &&
+      node.event.event === SPAN_BEGIN &&
+      node.event["type"] === TYPE_HANDOFF &&
       node.children.length === 2 &&
-      node.children[0].event.event === "tool" &&
-      node.children[1].event.event === "store" &&
+      node.children[0].event.event === TOOL &&
+      node.children[1].event.event === STORE &&
       node.children[0].children.length === 2 &&
-      node.children[0].children[0].event.event === "span_begin" &&
-      node.children[0].children[0].event.type === "agent",
+      node.children[0].children[0].event.event === SPAN_BEGIN &&
+      node.children[0].children[0].event.type === TYPE_AGENT,
     process: (node) => skipThisNode(node),
   },
 ];
