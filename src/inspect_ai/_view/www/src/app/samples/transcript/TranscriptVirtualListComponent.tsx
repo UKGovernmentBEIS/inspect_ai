@@ -28,7 +28,7 @@ export const TranscriptVirtualListComponent: FC<
       return event.id === initialEventId;
     });
     return result === -1 ? undefined : result;
-  }, [initialEventId]);
+  }, [initialEventId, eventNodes]);
 
   const renderRow = useCallback(
     (index: number, item: EventNode) => {

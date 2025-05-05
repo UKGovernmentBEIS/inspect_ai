@@ -60374,7 +60374,7 @@ ${events}
           return event.id === initialEventId;
         });
         return result2 === -1 ? void 0 : result2;
-      }, [initialEventId]);
+      }, [initialEventId, eventNodes]);
       const renderRow = reactExports.useCallback(
         (index2, item2) => {
           const paddingClass = index2 === 0 ? styles$d.first : void 0;
