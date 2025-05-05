@@ -60098,6 +60098,7 @@ ${events}
     };
     const SubtaskEventView = ({
       eventNode,
+      children: children2,
       className: className2
     }) => {
       const event = eventNode.event;
@@ -60134,6 +60135,7 @@ ${events}
             event.working_time
           ),
           subTitle: formatTiming(event.timestamp, event.working_start),
+          childIds: children2.map((child) => child.id),
           children: body2
         }
       );
@@ -60141,9 +60143,9 @@ ${events}
     const SubtaskSummary = ({ input: input2, result: result2 }) => {
       const output2 = typeof result2 === "object" ? result2 : { result: result2 };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$f.subtaskSummary), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Input" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-size-small"), children: "Input" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$f.subtaskLabel) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Output" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-size-small"), children: "Output" }),
         input2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$f.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: output2 }) })
@@ -60594,8 +60596,10 @@ ${events}
           const defaultCollapsedIds2 = /* @__PURE__ */ new Set();
           const findCollapsibleEvents = (nodes) => {
             for (const node2 of nodes) {
-              if ((node2.event.event === "step" || node2.event.event === "span_begin" || node2.event.event === "tool") && collapseFilters.some(
-                (filter) => filter(node2.event)
+              if ((node2.event.event === "step" || node2.event.event === "span_begin" || node2.event.event === "tool" || node2.event.event === "subtask") && collapseFilters.some(
+                (filter) => filter(
+                  node2.event
+                )
               )) {
                 defaultCollapsedIds2.add(node2.id);
               }
@@ -60634,7 +60638,8 @@ ${events}
         }
         return false;
       },
-      (event) => event.event === "tool"
+      (event) => event.event === "tool",
+      (event) => event.event === "subtask"
     ];
     const RenderedEventNode = reactExports.memo(
       ({ node: node2, className: className2 }) => {
@@ -60726,7 +60731,8 @@ ${events}
               SubtaskEventView,
               {
                 eventNode: node2,
-                className: className2
+                className: className2,
+                children: node2.children
               }
             );
           case "tool":

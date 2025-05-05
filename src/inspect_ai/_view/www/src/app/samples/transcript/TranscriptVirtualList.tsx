@@ -76,9 +76,16 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
           if (
             (node.event.event === "step" ||
               node.event.event === "span_begin" ||
-              node.event.event === "tool") &&
+              node.event.event === "tool" ||
+              node.event.event === "subtask") &&
             collapseFilters.some((filter) =>
-              filter(node.event as StepEvent | SpanBeginEvent | ToolEvent),
+              filter(
+                node.event as
+                  | StepEvent
+                  | SpanBeginEvent
+                  | ToolEvent
+                  | SubtaskEvent,
+              ),
             )
           ) {
             defaultCollapsedIds.add(node.id);
@@ -121,11 +128,11 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
 );
 
 const collapseFilters: Array<
-  (event: StepEvent | SpanBeginEvent | ToolEvent) => boolean
+  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) => boolean
 > = [
-  (event: StepEvent | SpanBeginEvent | ToolEvent) =>
+  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) =>
     event.type === "solver" && event.name === "system_message",
-  (event: StepEvent | SpanBeginEvent | ToolEvent) => {
+  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) => {
     if (event.event === "step" || event.event === "span_begin") {
       return (
         event.name === kSandboxSignalName ||
@@ -135,7 +142,10 @@ const collapseFilters: Array<
     }
     return false;
   },
-  (event: StepEvent | SpanBeginEvent | ToolEvent) => event.event === "tool",
+  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) =>
+    event.event === "tool",
+  (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) =>
+    event.event === "subtask",
 ];
 
 interface RenderedEventNodeProps {
@@ -235,6 +245,7 @@ export const RenderedEventNode: FC<RenderedEventNodeProps> = memo(
           <SubtaskEventView
             eventNode={node as EventNode<SubtaskEvent>}
             className={className}
+            children={node.children}
           />
         );
 
