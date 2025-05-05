@@ -4,7 +4,6 @@ import { resolveToolInput } from "../chat/tools/tool";
 import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptComponent } from "./TranscriptView";
 
 import clsx from "clsx";
 import { FC, useMemo } from "react";
@@ -97,16 +96,6 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
           </div>
         ) : undefined}
       </div>
-      {children.length > 0 ? (
-        <TranscriptComponent
-          data-name="Transcript"
-          id={`${id}-subtask`}
-          eventNodes={children}
-          data-default={event.failed || event.agent ? true : null}
-        />
-      ) : (
-        ""
-      )}
     </EventPanel>
   );
 };

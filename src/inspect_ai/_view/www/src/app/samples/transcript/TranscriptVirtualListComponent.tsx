@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { FC, RefObject, useCallback, useMemo } from "react";
-import { RenderedEventNode } from "./TranscriptView";
+import { RenderedEventNode } from "./TranscriptVirtualList";
 import { EventNode } from "./types";
 
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
@@ -30,31 +30,33 @@ export const TranscriptVirtualListComponent: FC<
     return result === -1 ? undefined : result;
   }, [initialEventId]);
 
-  const renderRow = useCallback((index: number, item: EventNode) => {
-    const bgClass = item.depth % 2 == 0 ? styles.darkenedBg : styles.normalBg;
-    const paddingClass = index === 0 ? styles.first : undefined;
+  const renderRow = useCallback(
+    (index: number, item: EventNode) => {
+      const paddingClass = index === 0 ? styles.first : undefined;
 
-    const previousIndex = index - 1;
-    const previous =
-      previousIndex > 0 && previousIndex <= eventNodes.length
-        ? eventNodes[previousIndex]
-        : undefined;
-    const attached =
-      item.event.event === "tool" &&
-      (previous?.event.event === "tool" || previous?.event.event === "model");
-    const attachedClass = attached ? styles.attached : undefined;
+      const previousIndex = index - 1;
+      const previous =
+        previousIndex > 0 && previousIndex <= eventNodes.length
+          ? eventNodes[previousIndex]
+          : undefined;
+      const attached =
+        item.event.event === "tool" &&
+        (previous?.event.event === "tool" || previous?.event.event === "model");
+      const attachedClass = attached ? styles.attached : undefined;
 
-    return (
-      <div
-        id={item.id}
-        key={item.id}
-        className={clsx(styles.node, paddingClass, attachedClass)}
-        style={{ paddingLeft: `${item.depth}em` }}
-      >
-        <RenderedEventNode id={item.id} node={item} className={clsx(bgClass)} />
-      </div>
-    );
-  }, []);
+      return (
+        <div
+          id={item.id}
+          key={item.id}
+          className={clsx(styles.node, paddingClass, attachedClass)}
+          style={{ paddingLeft: `${item.depth * 0.5}em` }}
+        >
+          <RenderedEventNode id={item.id} node={item} />
+        </div>
+      );
+    },
+    [eventNodes],
+  );
 
   return (
     <LiveVirtualList<EventNode>

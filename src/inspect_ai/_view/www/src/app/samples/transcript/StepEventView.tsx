@@ -3,7 +3,6 @@ import { FC } from "react";
 import { StepEvent } from "../../../@types/log";
 import { formatDateTime } from "../../../utils/format";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptComponent } from "./TranscriptView";
 import { kSandboxSignalName } from "./transform/fixups";
 import { EventNode, EventType } from "./types";
 
@@ -39,12 +38,7 @@ export const StepEventView: FC<StepEventViewProps> = ({
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={descriptor.icon}
       text={text}
-    >
-      <TranscriptComponent
-        id={`step|${event.name}|${id}`}
-        eventNodes={children}
-      />
-    </EventPanel>
+    />
   );
 };
 
