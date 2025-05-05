@@ -548,6 +548,7 @@ def tools_info(
                     name=tool.name,
                     description=tool.description,
                     parameters=tool.parameters,
+                    options=tool.options,
                 )
             )
     return tools_info

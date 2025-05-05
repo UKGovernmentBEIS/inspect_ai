@@ -16,6 +16,7 @@ from inspect_ai._util.registry import (
 
 from ._tool import (
     TOOL_MODEL_INPUT,
+    TOOL_OPTIONS,
     TOOL_PARALLEL,
     TOOL_PROMPT,
     TOOL_VIEWER,
@@ -44,6 +45,7 @@ class ToolDef:
         parallel: bool | None = None,
         viewer: ToolCallViewer | None = None,
         model_input: ToolCallModelInput | None = None,
+        options: dict[str, object] | None = None,
     ) -> None:
         """Create a tool definition.
 
@@ -59,6 +61,8 @@ class ToolDef:
           viewer: Optional tool call viewer implementation.
           model_input: Optional function that determines how
               tool call results are played back as model input.
+          options: Optional property bag that can be used by the model provider
+              to customize the implementation of the tool
 
         Returns:
           Tool definition.
@@ -82,6 +86,7 @@ class ToolDef:
             self.parallel = parallel if parallel is not None else tdef.parallel
             self.viewer = viewer or tdef.viewer
             self.model_input = model_input or tdef.model_input
+            self.options = options or tdef.options
 
         # if its not a tool then extract tool_info if all fields have not
         # been provided explicitly
@@ -112,6 +117,7 @@ class ToolDef:
             self.parallel = parallel is not False
             self.viewer = viewer
             self.model_input = model_input
+            self.options = options
 
     tool: Callable[..., Any]
     """Callable to execute tool."""
@@ -134,13 +140,20 @@ class ToolDef:
     model_input: ToolCallModelInput | None
     """Custom model input presenter for tool calls."""
 
+    options: dict[str, object] | None = None
+    """Optional property bag that can be used by the model provider to customize the implementation of the tool"""
+
     def as_tool(self) -> Tool:
         """Convert a ToolDef to a Tool."""
         tool = self.tool
         info = RegistryInfo(
             type="tool",
             name=self.name,
-            metadata={TOOL_PARALLEL: self.parallel, TOOL_VIEWER: self.viewer},
+            metadata={
+                TOOL_PARALLEL: self.parallel,
+                TOOL_VIEWER: self.viewer,
+                TOOL_OPTIONS: self.options,
+            },
         )
         set_registry_info(tool, info)
         set_registry_params(tool, {})
@@ -189,11 +202,12 @@ class ToolDefFields(NamedTuple):
     parallel: bool
     viewer: ToolCallViewer | None
     model_input: ToolCallModelInput | None
+    options: dict[str, object] | None
 
 
 def tool_def_fields(tool: Tool) -> ToolDefFields:
     # get tool_info
-    name, prompt, parallel, viewer, model_input = tool_registry_info(tool)
+    name, prompt, parallel, viewer, model_input, options = tool_registry_info(tool)
     tool_info = parse_tool_info(tool)
 
     # if there is a description then append any prompt to the
@@ -234,19 +248,28 @@ def tool_def_fields(tool: Tool) -> ToolDefFields:
         parallel=parallel,
         viewer=viewer,
         model_input=model_input,
+        options=options,
     )
 
 
 def tool_registry_info(
     tool: Tool,
-) -> tuple[str, str | None, bool, ToolCallViewer | None, ToolCallModelInput | None]:
+) -> tuple[
+    str,
+    str | None,
+    bool,
+    ToolCallViewer | None,
+    ToolCallModelInput | None,
+    dict[str, object] | None,
+]:
     info = registry_info(tool)
     name = info.name.split("/")[-1]
     prompt = info.metadata.get(TOOL_PROMPT, None)
     parallel = info.metadata.get(TOOL_PARALLEL, True)
     viewer = info.metadata.get(TOOL_VIEWER, None)
     model_input = info.metadata.get(TOOL_MODEL_INPUT, None)
-    return name, prompt, parallel, viewer, model_input
+    options = info.metadata.get(TOOL_OPTIONS, None)
+    return name, prompt, parallel, viewer, model_input, options
 
 
 def validate_tool_parameters(tool_name: str, parameters: dict[str, ToolParam]) -> None:
