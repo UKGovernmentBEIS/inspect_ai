@@ -76,6 +76,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             VLLM_DEFAULT_SERVER_ARGS, server_args, logger
         )
 
+        self.server_found = True
         try:
             # Try to initialize with existing server
             super().__init__(
@@ -88,7 +89,9 @@ class VLLMAPI(OpenAICompatibleAPI):
             )
             logger.info(f"Using existing vLLM server at {self.base_url}")
         except PrerequisiteError:
-            # No existing server found, start a new one
+            self.server_found = False
+
+        if not self.server_found:
             logger.warning(
                 f"Existing vLLM server not found. Starting new server for {model_name}."
             )
@@ -131,7 +134,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             raise pip_dependency_error("vLLM Server", ["vllm"])
 
         # Handle device configuration
-        self.server_args = configure_devices(
+        self.server_args, env_vars = configure_devices(
             self.server_args, parallel_size_param="tensor_parallel_size"
         )
 
@@ -152,6 +155,7 @@ class VLLMAPI(OpenAICompatibleAPI):
             server_type="vLLM",
             timeout=timeout,
             server_args=self.server_args,
+            env=env_vars,
         )
 
         # Register cleanup function to run when Python exits

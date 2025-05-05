@@ -1,6 +1,5 @@
+from inspect_ai._util.answer import answer_character, answer_index
 from inspect_ai.solver._multiple_choice import (
-    answer_character,
-    answer_index,
     answer_options,
     unshuffle_choices,
 )

@@ -96,3 +96,12 @@ class AgentSubmit(NamedTuple):
 
     The tool should return the `answer` provided to it for scoring.
     """
+
+    answer_only: bool = False
+    """Set the completion to only the answer provided by the submit tool.
+
+    By default, the answer is appended (with `answer_delimiter`) to whatever
+    other content the model generated along with the call to `submit()`."""
+
+    answer_delimiter: str = "\n\n"
+    """Delimter used when appending submit tool answer to other content the model generated along with the call to `submit()`."""
