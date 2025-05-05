@@ -5,6 +5,7 @@
 - [Event tree](https://inspect.aisi.org.uk/reference/inspect_ai.log.html#event-tree) functions for organising transcript events into a tree of spans.
 - `inspect convert` now always fully re-writes log files even of the same format (so that e.g. sample summaries always exist in the converted logs).
 - Task display: Realtime display of events that occur within tool calls and subtasks.
+- Bugfix: Ensure that each MCP server gets its own cached tool list.
 
 ## v0.3.93 (01 May 2025)
 

@@ -61,16 +61,17 @@ class MCPServerImpl(MCPServer):
     ) -> list[Tool]:
         return await self._task_session()._list_tools(tools)
 
-    # create a separate MCPServer session per async task
-    _task_sessions: dict[int, "MCPServerSession"] = {}
+    # create a separate MCPServer session per async task / server name
+    _task_sessions: dict[str, "MCPServerSession"] = {}
 
     def _task_session(self) -> "MCPServerSession":
         task_id = anyio.get_current_task().id
-        if task_id not in self._task_sessions:
-            MCPServerImpl._task_sessions[task_id] = MCPServerSession(
+        session_key = f"{task_id}_{self._name}"
+        if session_key not in self._task_sessions:
+            MCPServerImpl._task_sessions[session_key] = MCPServerSession(
                 self._client, name=self._name, events=self._events
             )
-        return MCPServerImpl._task_sessions[task_id]
+        return MCPServerImpl._task_sessions[session_key]
 
 
 class MCPServerSession(MCPServer):
