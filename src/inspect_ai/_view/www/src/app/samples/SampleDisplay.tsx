@@ -229,7 +229,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           onSelected={onSelectedTab}
           selected={effectiveSelectedTab === kSampleScoringTabId}
         >
-          <SampleScoresView sample={sample} />
+          <SampleScoresView sample={sample} className={styles.padded} />
         </TabPanel>
         <TabPanel
           id={kSampleMetdataTabId}

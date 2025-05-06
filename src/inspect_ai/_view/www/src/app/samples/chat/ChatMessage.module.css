@@ -5,10 +5,6 @@
   white-space: normal;
 }
 
-.padded {
-  padding-bottom: 1em;
-}
-
 .systemRole {
   opacity: 0.7;
 }
@@ -27,7 +23,7 @@
 }
 
 .messageContents.indented {
-  margin-left: 1.1rem;
+  margin-left: 0rem;
   padding-bottom: 0.8rem;
 }
 

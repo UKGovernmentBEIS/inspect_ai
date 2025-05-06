@@ -11,7 +11,6 @@ import ExpandablePanel from "../../../components/ExpandablePanel";
 import { ApplicationIcons } from "../../appearance/icons";
 import styles from "./ChatMessage.module.css";
 import { MessageContents } from "./MessageContents";
-import { iconForMsg } from "./messages";
 import { ChatViewToolCallStyle } from "./types";
 
 interface ChatMessageProps {
@@ -20,7 +19,6 @@ interface ChatMessageProps {
   toolMessages: ChatMessageTool[];
   indented?: boolean;
   toolCallStyle: ChatViewToolCallStyle;
-  padded?: boolean;
   getMessageUrl?: (id: string) => string | undefined;
 }
 
@@ -30,7 +28,6 @@ export const ChatMessage: FC<ChatMessageProps> = ({
   toolMessages,
   indented,
   toolCallStyle,
-  padded,
   getMessageUrl,
 }) => {
   const messageUrl =
@@ -43,12 +40,11 @@ export const ChatMessage: FC<ChatMessageProps> = ({
         message.role,
         "text-size-base",
         styles.message,
-        padded ? styles.padded : undefined,
         message.role === "system" ? styles.systemRole : undefined,
+        message.role === "user" ? styles.userRole : undefined,
       )}
     >
       <div className={clsx(styles.messageGrid, "text-style-label")}>
-        <i className={iconForMsg(message)} />
         {message.role}
         {messageUrl ? (
           <CopyButton

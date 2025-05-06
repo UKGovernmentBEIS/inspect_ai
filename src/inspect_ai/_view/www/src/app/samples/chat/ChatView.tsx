@@ -40,7 +40,6 @@ export const ChatView: FC<ChatViewProps> = ({
             resolvedMessage={msg}
             indented={indented}
             toolCallStyle={toolCallStyle}
-            padded={index < collapsedMessages.length - 1}
           />
         );
       })}

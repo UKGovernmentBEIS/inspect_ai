@@ -1,5 +1,6 @@
 .expandableBordered {
   border: solid var(--bs-light-border-subtle) 1px;
+  padding: 0.5em;
 }
 
 .expandableTogglable {
