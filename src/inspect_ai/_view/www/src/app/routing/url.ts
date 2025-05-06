@@ -76,7 +76,7 @@ export const logUrlRaw = (log_segment: string, tabId?: string) => {
 };
 
 export const supportsLinking = () => {
-  return location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
+  return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:";
 };
 
 export const toFullUrl = (path: string) => {
