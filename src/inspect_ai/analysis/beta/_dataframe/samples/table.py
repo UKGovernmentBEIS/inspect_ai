@@ -9,7 +9,7 @@ from inspect_ai.log._file import (
 )
 
 from ..columns import Column, ColumnErrors, ColumnType
-from ..evals.columns import EvalColumn, EvalId
+from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
 from ..extract import auto_sample_id, model_to_record
 from ..record import import_record

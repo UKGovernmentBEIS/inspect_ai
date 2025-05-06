@@ -4,7 +4,7 @@ import re
 from os import PathLike
 from pathlib import Path
 from re import Pattern
-from typing import TYPE_CHECKING, Any, Sequence, TypeAlias
+from typing import TYPE_CHECKING, Sequence, TypeAlias
 
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
