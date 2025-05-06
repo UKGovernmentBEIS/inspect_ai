@@ -15895,9 +15895,9 @@ var require_assets = __commonJS({
         }
         return href2 + "#" + (typeof to2 === "string" ? to2 : createPath(to2));
       }
-      function validateHashLocation(location, to2) {
+      function validateHashLocation(location2, to2) {
         warning(
-          location.pathname.charAt(0) === "/",
+          location2.pathname.charAt(0) === "/",
           `relative pathnames are not supported in hash history.push(${JSON.stringify(
             to2
           )})`
@@ -15927,15 +15927,15 @@ var require_assets = __commonJS({
     function createKey() {
       return Math.random().toString(36).substring(2, 10);
     }
-    function getHistoryState(location, index2) {
+    function getHistoryState(location2, index2) {
       return {
-        usr: location.state,
-        key: location.key,
+        usr: location2.state,
+        key: location2.key,
         idx: index2
       };
     }
     function createLocation(current2, to2, state = null, key2) {
-      let location = {
+      let location2 = {
         pathname: typeof current2 === "string" ? current2 : current2.pathname,
         search: "",
         hash: "",
@@ -15947,7 +15947,7 @@ var require_assets = __commonJS({
         // keep as is for the time being and just let any incoming keys take precedence
         key: to2 && to2.key || key2 || createKey()
       };
-      return location;
+      return location2;
     }
     function createPath({
       pathname = "/",
@@ -16004,11 +16004,11 @@ var require_assets = __commonJS({
       }
       function push2(to2, state) {
         action = "PUSH";
-        let location = createLocation(history2.location, to2, state);
-        if (validateLocation) validateLocation(location, to2);
+        let location2 = createLocation(history2.location, to2, state);
+        if (validateLocation) validateLocation(location2, to2);
         index2 = getIndex() + 1;
-        let historyState = getHistoryState(location, index2);
-        let url = history2.createHref(location);
+        let historyState = getHistoryState(location2, index2);
+        let url = history2.createHref(location2);
         try {
           globalHistory.pushState(historyState, "", url);
         } catch (error2) {
@@ -16023,11 +16023,11 @@ var require_assets = __commonJS({
       }
       function replace2(to2, state) {
         action = "REPLACE";
-        let location = createLocation(history2.location, to2, state);
-        if (validateLocation) validateLocation(location, to2);
+        let location2 = createLocation(history2.location, to2, state);
+        if (validateLocation) validateLocation(location2, to2);
         index2 = getIndex();
-        let historyState = getHistoryState(location, index2);
-        let url = history2.createHref(location);
+        let historyState = getHistoryState(location2, index2);
+        let url = history2.createHref(location2);
         globalHistory.replaceState(historyState, "", url);
         if (v5Compat && listener) {
           listener({ action, location: history2.location, delta: 0 });
@@ -16179,8 +16179,8 @@ var require_assets = __commonJS({
       return matchRoutesImpl(routes, locationArg, basename, false);
     }
     function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
-      let location = typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg;
-      let pathname = stripBasename(location.pathname || "/", basename);
+      let location2 = typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg;
+      let pathname = stripBasename(location2.pathname || "/", basename);
       if (pathname == null) {
         return null;
       }
@@ -16720,7 +16720,7 @@ var require_assets = __commonJS({
       let pendingRevalidationDfd = null;
       function initialize() {
         unlistenHistory = init.history.listen(
-          ({ action: historyAction, location, delta }) => {
+          ({ action: historyAction, location: location2, delta }) => {
             if (unblockBlockerHistoryUpdate) {
               unblockBlockerHistoryUpdate();
               unblockBlockerHistoryUpdate = void 0;
@@ -16732,7 +16732,7 @@ var require_assets = __commonJS({
             );
             let blockerKey = shouldBlockNavigation({
               currentLocation: state.location,
-              nextLocation: location,
+              nextLocation: location2,
               historyAction
             });
             if (blockerKey && delta != null) {
@@ -16742,13 +16742,13 @@ var require_assets = __commonJS({
               init.history.go(delta * -1);
               updateBlocker(blockerKey, {
                 state: "blocked",
-                location,
+                location: location2,
                 proceed() {
                   updateBlocker(blockerKey, {
                     state: "proceeding",
                     proceed: void 0,
                     reset: void 0,
-                    location
+                    location: location2
                   });
                   nextHistoryUpdatePromise.then(() => init.history.go(delta));
                 },
@@ -16760,7 +16760,7 @@ var require_assets = __commonJS({
               });
               return;
             }
-            return startNavigation(historyAction, location);
+            return startNavigation(historyAction, location2);
           }
         );
         if (isBrowser2) {
@@ -16823,9 +16823,9 @@ var require_assets = __commonJS({
         unmountedFetchers.forEach((key2) => deleteFetcher(key2));
         mountedFetchers.forEach((key2) => state.fetchers.delete(key2));
       }
-      function completeNavigation(location, newState, { flushSync } = {}) {
+      function completeNavigation(location2, newState, { flushSync } = {}) {
         var _a2, _b2;
-        let isActionReload = state.actionData != null && state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && state.navigation.state === "loading" && ((_a2 = location.state) == null ? void 0 : _a2._isRedirect) !== true;
+        let isActionReload = state.actionData != null && state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && state.navigation.state === "loading" && ((_a2 = location2.state) == null ? void 0 : _a2._isRedirect) !== true;
         let actionData;
         if (newState.actionData) {
           if (Object.keys(newState.actionData).length > 0) {
@@ -16849,7 +16849,7 @@ var require_assets = __commonJS({
           blockers = new Map(blockers);
           blockers.forEach((_, k) => blockers.set(k, IDLE_BLOCKER));
         }
-        let preventScrollReset = pendingPreventScrollReset === true || state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && ((_b2 = location.state) == null ? void 0 : _b2._isRedirect) !== true;
+        let preventScrollReset = pendingPreventScrollReset === true || state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && ((_b2 = location2.state) == null ? void 0 : _b2._isRedirect) !== true;
         if (inFlightDataRoutes) {
           dataRoutes = inFlightDataRoutes;
           inFlightDataRoutes = void 0;
@@ -16857,35 +16857,35 @@ var require_assets = __commonJS({
         if (isUninterruptedRevalidation) ;
         else if (pendingAction === "POP") ;
         else if (pendingAction === "PUSH") {
-          init.history.push(location, location.state);
+          init.history.push(location2, location2.state);
         } else if (pendingAction === "REPLACE") {
-          init.history.replace(location, location.state);
+          init.history.replace(location2, location2.state);
         }
         let viewTransitionOpts;
         if (pendingAction === "POP") {
           let priorPaths = appliedViewTransitions.get(state.location.pathname);
-          if (priorPaths && priorPaths.has(location.pathname)) {
+          if (priorPaths && priorPaths.has(location2.pathname)) {
             viewTransitionOpts = {
               currentLocation: state.location,
-              nextLocation: location
+              nextLocation: location2
             };
-          } else if (appliedViewTransitions.has(location.pathname)) {
+          } else if (appliedViewTransitions.has(location2.pathname)) {
             viewTransitionOpts = {
-              currentLocation: location,
+              currentLocation: location2,
               nextLocation: state.location
             };
           }
         } else if (pendingViewTransitionEnabled) {
           let toPaths = appliedViewTransitions.get(state.location.pathname);
           if (toPaths) {
-            toPaths.add(location.pathname);
+            toPaths.add(location2.pathname);
           } else {
-            toPaths = /* @__PURE__ */ new Set([location.pathname]);
+            toPaths = /* @__PURE__ */ new Set([location2.pathname]);
             appliedViewTransitions.set(state.location.pathname, toPaths);
           }
           viewTransitionOpts = {
             currentLocation: state.location,
-            nextLocation: location
+            nextLocation: location2
           };
         }
         updateState(
@@ -16895,12 +16895,12 @@ var require_assets = __commonJS({
             actionData,
             loaderData,
             historyAction: pendingAction,
-            location,
+            location: location2,
             initialized: true,
             navigation: IDLE_NAVIGATION,
             revalidation: "idle",
             restoreScrollPosition: getSavedScrollPosition(
-              location,
+              location2,
               newState.matches || state.matches
             ),
             preventScrollReset,
@@ -17017,7 +17017,7 @@ var require_assets = __commonJS({
         );
         return promise;
       }
-      async function startNavigation(historyAction, location, opts) {
+      async function startNavigation(historyAction, location2, opts) {
         pendingNavigationController && pendingNavigationController.abort();
         pendingNavigationController = null;
         pendingAction = historyAction;
@@ -17030,22 +17030,22 @@ var require_assets = __commonJS({
         let matches = (opts == null ? void 0 : opts.initialHydration) && state.matches && state.matches.length > 0 && !initialMatchesIsFOW ? (
           // `matchRoutes()` has already been called if we're in here via `router.initialize()`
           state.matches
-        ) : matchRoutes(routesToUse, location, basename);
+        ) : matchRoutes(routesToUse, location2, basename);
         let flushSync = (opts && opts.flushSync) === true;
-        if (matches && state.initialized && !isRevalidationRequired && isHashChangeOnly(state.location, location) && !(opts && opts.submission && isMutationMethod(opts.submission.formMethod))) {
-          completeNavigation(location, { matches }, { flushSync });
+        if (matches && state.initialized && !isRevalidationRequired && isHashChangeOnly(state.location, location2) && !(opts && opts.submission && isMutationMethod(opts.submission.formMethod))) {
+          completeNavigation(location2, { matches }, { flushSync });
           return;
         }
-        let fogOfWar = checkFogOfWar(matches, routesToUse, location.pathname);
+        let fogOfWar = checkFogOfWar(matches, routesToUse, location2.pathname);
         if (fogOfWar.active && fogOfWar.matches) {
           matches = fogOfWar.matches;
         }
         if (!matches) {
           let { error: error2, notFoundMatches, route } = handleNavigational404(
-            location.pathname
+            location2.pathname
           );
           completeNavigation(
-            location,
+            location2,
             {
               matches: notFoundMatches,
               loaderData: {},
@@ -17060,7 +17060,7 @@ var require_assets = __commonJS({
         pendingNavigationController = new AbortController();
         let request = createClientSideRequest(
           init.history,
-          location,
+          location2,
           pendingNavigationController.signal,
           opts && opts.submission
         );
@@ -17076,7 +17076,7 @@ var require_assets = __commonJS({
         } else if (opts && opts.submission && isMutationMethod(opts.submission.formMethod)) {
           let actionResult = await handleAction(
             request,
-            location,
+            location2,
             opts.submission,
             matches,
             scopedContext,
@@ -17091,7 +17091,7 @@ var require_assets = __commonJS({
             let [routeId, result2] = actionResult.pendingActionResult;
             if (isErrorResult(result2) && isRouteErrorResponse(result2.error) && result2.error.status === 404) {
               pendingNavigationController = null;
-              completeNavigation(location, {
+              completeNavigation(location2, {
                 matches: actionResult.matches,
                 loaderData: {},
                 errors: {
@@ -17103,7 +17103,7 @@ var require_assets = __commonJS({
           }
           matches = actionResult.matches || matches;
           pendingActionResult = actionResult.pendingActionResult;
-          loadingNavigation = getLoadingNavigation(location, opts.submission);
+          loadingNavigation = getLoadingNavigation(location2, opts.submission);
           flushSync = false;
           fogOfWar.active = false;
           request = createClientSideRequest(
@@ -17119,7 +17119,7 @@ var require_assets = __commonJS({
           errors: errors2
         } = await handleLoaders(
           request,
-          location,
+          location2,
           matches,
           scopedContext,
           fogOfWar.active,
@@ -17135,21 +17135,21 @@ var require_assets = __commonJS({
           return;
         }
         pendingNavigationController = null;
-        completeNavigation(location, {
+        completeNavigation(location2, {
           matches: updatedMatches || matches,
           ...getActionDataForCommit(pendingActionResult),
           loaderData,
           errors: errors2
         });
       }
-      async function handleAction(request, location, submission, matches, scopedContext, isFogOfWar, initialHydration, opts = {}) {
+      async function handleAction(request, location2, submission, matches, scopedContext, isFogOfWar, initialHydration, opts = {}) {
         interruptActiveLoads();
-        let navigation = getSubmittingNavigation(location, submission);
+        let navigation = getSubmittingNavigation(location2, submission);
         updateState({ navigation }, { flushSync: opts.flushSync === true });
         if (isFogOfWar) {
           let discoverResult = await discoverRoutes(
             matches,
-            location.pathname,
+            location2.pathname,
             request.signal
           );
           if (discoverResult.type === "aborted") {
@@ -17168,7 +17168,7 @@ var require_assets = __commonJS({
             };
           } else if (!discoverResult.matches) {
             let { notFoundMatches, error: error2, route } = handleNavigational404(
-              location.pathname
+              location2.pathname
             );
             return {
               matches: notFoundMatches,
@@ -17185,13 +17185,13 @@ var require_assets = __commonJS({
           }
         }
         let result2;
-        let actionMatch = getTargetMatch(matches, location);
+        let actionMatch = getTargetMatch(matches, location2);
         if (!actionMatch.route.action && !actionMatch.route.lazy) {
           result2 = {
             type: "error",
             error: getInternalRouterError(405, {
               method: request.method,
-              pathname: location.pathname,
+              pathname: location2.pathname,
               routeId: actionMatch.route.id
             })
           };
@@ -17229,12 +17229,12 @@ var require_assets = __commonJS({
           if (opts && opts.replace != null) {
             replace2 = opts.replace;
           } else {
-            let location2 = normalizeRedirectLocation(
+            let location22 = normalizeRedirectLocation(
               result2.response.headers.get("Location"),
               new URL(request.url),
               basename
             );
-            replace2 = location2 === state.location.pathname + state.location.search;
+            replace2 = location22 === state.location.pathname + state.location.search;
           }
           await startRedirectNavigation(request, result2, true, {
             submission,
@@ -17257,8 +17257,8 @@ var require_assets = __commonJS({
           pendingActionResult: [actionMatch.route.id, result2]
         };
       }
-      async function handleLoaders(request, location, matches, scopedContext, isFogOfWar, overrideNavigation, submission, fetcherSubmission, replace2, initialHydration, flushSync, pendingActionResult) {
-        let loadingNavigation = overrideNavigation || getLoadingNavigation(location, submission);
+      async function handleLoaders(request, location2, matches, scopedContext, isFogOfWar, overrideNavigation, submission, fetcherSubmission, replace2, initialHydration, flushSync, pendingActionResult) {
+        let loadingNavigation = overrideNavigation || getLoadingNavigation(location2, submission);
         let activeSubmission = submission || fetcherSubmission || getSubmissionFromNavigation(loadingNavigation);
         let shouldUpdateNavigationState = !isUninterruptedRevalidation && !initialHydration;
         if (isFogOfWar) {
@@ -17276,7 +17276,7 @@ var require_assets = __commonJS({
           }
           let discoverResult = await discoverRoutes(
             matches,
-            location.pathname,
+            location2.pathname,
             request.signal
           );
           if (discoverResult.type === "aborted") {
@@ -17292,7 +17292,7 @@ var require_assets = __commonJS({
             };
           } else if (!discoverResult.matches) {
             let { error: error2, notFoundMatches, route } = handleNavigational404(
-              location.pathname
+              location2.pathname
             );
             return {
               matches: notFoundMatches,
@@ -17315,7 +17315,7 @@ var require_assets = __commonJS({
           state,
           matches,
           activeSubmission,
-          location,
+          location2,
           initialHydration ? [] : hydrationRouteProperties2,
           initialHydration === true,
           isRevalidationRequired,
@@ -17331,7 +17331,7 @@ var require_assets = __commonJS({
         if (!init.dataStrategy && !dsMatches.some((m) => m.shouldLoad) && revalidatingFetchers.length === 0) {
           let updatedFetchers2 = markFetchRedirectsDone();
           completeNavigation(
-            location,
+            location2,
             {
               matches,
               loaderData: {},
@@ -17842,31 +17842,31 @@ var require_assets = __commonJS({
         if (redirect2.response.headers.has("X-Remix-Revalidate")) {
           isRevalidationRequired = true;
         }
-        let location = redirect2.response.headers.get("Location");
-        invariant(location, "Expected a Location header on the redirect Response");
-        location = normalizeRedirectLocation(
-          location,
+        let location2 = redirect2.response.headers.get("Location");
+        invariant(location2, "Expected a Location header on the redirect Response");
+        location2 = normalizeRedirectLocation(
+          location2,
           new URL(request.url),
           basename
         );
-        let redirectLocation = createLocation(state.location, location, {
+        let redirectLocation = createLocation(state.location, location2, {
           _isRedirect: true
         });
         if (isBrowser2) {
           let isDocumentReload = false;
           if (redirect2.response.headers.has("X-Remix-Reload-Document")) {
             isDocumentReload = true;
-          } else if (ABSOLUTE_URL_REGEX.test(location)) {
-            const url = init.history.createURL(location);
+          } else if (ABSOLUTE_URL_REGEX.test(location2)) {
+            const url = init.history.createURL(location2);
             isDocumentReload = // Hard reload if it's an absolute URL to a new origin
             url.origin !== routerWindow.location.origin || // Hard reload if it's an absolute URL that does not match our basename
             stripBasename(url.pathname, basename) == null;
           }
           if (isDocumentReload) {
             if (replace2) {
-              routerWindow.location.replace(location);
+              routerWindow.location.replace(location2);
             } else {
-              routerWindow.location.assign(location);
+              routerWindow.location.assign(location2);
             }
             return;
           }
@@ -17882,7 +17882,7 @@ var require_assets = __commonJS({
           await startNavigation(redirectNavigationType, redirectLocation, {
             submission: {
               ...activeSubmission,
-              formAction: location
+              formAction: location2
             },
             // Preserve these flags across redirects
             preventScrollReset: preventScrollReset || pendingPreventScrollReset,
@@ -18153,25 +18153,25 @@ var require_assets = __commonJS({
           getScrollRestorationKey2 = null;
         };
       }
-      function getScrollKey(location, matches) {
+      function getScrollKey(location2, matches) {
         if (getScrollRestorationKey2) {
           let key2 = getScrollRestorationKey2(
-            location,
+            location2,
             matches.map((m) => convertRouteMatchToUiMatch(m, state.loaderData))
           );
-          return key2 || location.key;
+          return key2 || location2.key;
         }
-        return location.key;
+        return location2.key;
       }
-      function saveScrollPosition(location, matches) {
+      function saveScrollPosition(location2, matches) {
         if (savedScrollPositions2 && getScrollPosition) {
-          let key2 = getScrollKey(location, matches);
+          let key2 = getScrollKey(location2, matches);
           savedScrollPositions2[key2] = getScrollPosition();
         }
       }
-      function getSavedScrollPosition(location, matches) {
+      function getSavedScrollPosition(location2, matches) {
         if (savedScrollPositions2) {
-          let key2 = getScrollKey(location, matches);
+          let key2 = getScrollKey(location2, matches);
           let y2 = savedScrollPositions2[key2];
           if (typeof y2 === "number") {
             return y2;
@@ -18323,7 +18323,7 @@ var require_assets = __commonJS({
     function isSubmissionNavigation(opts) {
       return opts != null && ("formData" in opts && opts.formData != null || "body" in opts && opts.body !== void 0);
     }
-    function normalizeTo(location, matches, basename, to2, fromRouteId, relative) {
+    function normalizeTo(location2, matches, basename, to2, fromRouteId, relative) {
       let contextualMatches;
       let activeRouteMatch;
       if (fromRouteId) {
@@ -18342,12 +18342,12 @@ var require_assets = __commonJS({
       let path = resolveTo(
         to2 ? to2 : ".",
         getResolveToMatches(contextualMatches),
-        stripBasename(location.pathname, basename) || location.pathname,
+        stripBasename(location2.pathname, basename) || location2.pathname,
         relative === "path"
       );
       if (to2 == null) {
-        path.search = location.search;
-        path.hash = location.hash;
+        path.search = location2.search;
+        path.hash = location2.hash;
       }
       if ((to2 == null || to2 === "" || to2 === ".") && activeRouteMatch) {
         let nakedIndex = hasNakedIndexQuery(path.search);
@@ -18474,11 +18474,11 @@ var require_assets = __commonJS({
       parsedPath.search = `?${searchParams}`;
       return { path: createPath(parsedPath), submission };
     }
-    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, pendingActionResult) {
+    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location2, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, pendingActionResult) {
       var _a2;
       let actionResult = pendingActionResult ? isErrorResult(pendingActionResult[1]) ? pendingActionResult[1].error : pendingActionResult[1].data : void 0;
       let currentUrl = history2.createURL(state.location);
-      let nextUrl = history2.createURL(location);
+      let nextUrl = history2.createURL(location2);
       let maxIdx;
       if (initialHydration && state.errors) {
         let boundaryId = Object.keys(state.errors)[0];
@@ -19300,39 +19300,39 @@ var require_assets = __commonJS({
       return { type: "data", data: result2 };
     }
     function normalizeRelativeRoutingRedirectResponse(response, request, routeId, matches, basename) {
-      let location = response.headers.get("Location");
+      let location2 = response.headers.get("Location");
       invariant(
-        location,
+        location2,
         "Redirects returned/thrown from loaders/actions must have a Location header"
       );
-      if (!ABSOLUTE_URL_REGEX.test(location)) {
+      if (!ABSOLUTE_URL_REGEX.test(location2)) {
         let trimmedMatches = matches.slice(
           0,
           matches.findIndex((m) => m.route.id === routeId) + 1
         );
-        location = normalizeTo(
+        location2 = normalizeTo(
           new URL(request.url),
           trimmedMatches,
           basename,
-          location
+          location2
         );
-        response.headers.set("Location", location);
+        response.headers.set("Location", location2);
       }
       return response;
     }
-    function normalizeRedirectLocation(location, currentUrl, basename) {
-      if (ABSOLUTE_URL_REGEX.test(location)) {
-        let normalizedLocation = location;
+    function normalizeRedirectLocation(location2, currentUrl, basename) {
+      if (ABSOLUTE_URL_REGEX.test(location2)) {
+        let normalizedLocation = location2;
         let url = normalizedLocation.startsWith("//") ? new URL(currentUrl.protocol + normalizedLocation) : new URL(normalizedLocation);
         let isSameBasename = stripBasename(url.pathname, basename) != null;
         if (url.origin === currentUrl.origin && isSameBasename) {
           return url.pathname + url.search + url.hash;
         }
       }
-      return location;
+      return location2;
     }
-    function createClientSideRequest(history2, location, signal, submission) {
-      let url = history2.createURL(stripHashFromPath(location)).toString();
+    function createClientSideRequest(history2, location2, signal, submission) {
+      let url = history2.createURL(stripHashFromPath(location2)).toString();
       let init = { signal };
       if (submission && isMutationMethod(submission.formMethod)) {
         let { formMethod, formEncType } = submission;
@@ -19593,8 +19593,8 @@ var require_assets = __commonJS({
     function hasNakedIndexQuery(search) {
       return new URLSearchParams(search).getAll("index").some((v) => v === "");
     }
-    function getTargetMatch(matches, location) {
-      let search = typeof location === "string" ? parsePath$1(location).search : location.search;
+    function getTargetMatch(matches, location2) {
+      let search = typeof location2 === "string" ? parsePath$1(location2).search : location2.search;
       if (matches[matches.length - 1].route.index && hasNakedIndexQuery(search || "")) {
         return matches[matches.length - 1];
       }
@@ -19635,11 +19635,11 @@ var require_assets = __commonJS({
         };
       }
     }
-    function getLoadingNavigation(location, submission) {
+    function getLoadingNavigation(location2, submission) {
       if (submission) {
         let navigation = {
           state: "loading",
-          location,
+          location: location2,
           formMethod: submission.formMethod,
           formAction: submission.formAction,
           formEncType: submission.formEncType,
@@ -19651,7 +19651,7 @@ var require_assets = __commonJS({
       } else {
         let navigation = {
           state: "loading",
-          location,
+          location: location2,
           formMethod: void 0,
           formAction: void 0,
           formEncType: void 0,
@@ -19662,10 +19662,10 @@ var require_assets = __commonJS({
         return navigation;
       }
     }
-    function getSubmittingNavigation(location, submission) {
+    function getSubmittingNavigation(location2, submission) {
       let navigation = {
         state: "submitting",
-        location,
+        location: location2,
         formMethod: submission.formMethod,
         formAction: submission.formAction,
         formEncType: submission.formEncType,
@@ -19959,11 +19959,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         );
       }
       let locationFromContext = useLocation();
-      let location;
+      let location2;
       {
-        location = locationFromContext;
+        location2 = locationFromContext;
       }
-      let pathname = location.pathname || "/";
+      let pathname = location2.pathname || "/";
       let remainingPathname = pathname;
       if (parentPathnameBase !== "/") {
         let parentSegments = parentPathnameBase.replace(/^\//, "").split("/");
@@ -19974,11 +19974,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       {
         warning(
           parentRoute || matches != null,
-          `No routes matched location "${location.pathname}${location.search}${location.hash}" `
+          `No routes matched location "${location2.pathname}${location2.search}${location2.hash}" `
         );
         warning(
           matches == null || matches[matches.length - 1].route.element !== void 0 || matches[matches.length - 1].route.Component !== void 0 || matches[matches.length - 1].route.lazy !== void 0,
-          `Matched leaf route at location "${location.pathname}${location.search}${location.hash}" does not have an element or Component. This means it will render an <Outlet /> with a null value by default resulting in an "empty" page.`
+          `Matched leaf route at location "${location2.pathname}${location2.search}${location2.hash}" does not have an element or Component. This means it will render an <Outlet /> with a null value by default resulting in an "empty" page.`
         );
       }
       let renderedMatches = _renderMatches(
@@ -20800,7 +20800,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         )
       );
     }
-    function getNewMatchesForLinks(page, nextMatches, currentMatches, manifest, location, mode) {
+    function getNewMatchesForLinks(page, nextMatches, currentMatches, manifest, location2, mode) {
       let isNew = (match, index2) => {
         if (!currentMatches[index2]) return true;
         return match.route.id !== currentMatches[index2].route.id;
@@ -20832,7 +20832,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (match.route.shouldRevalidate) {
             let routeChoice = match.route.shouldRevalidate({
               currentUrl: new URL(
-                location.pathname + location.search + location.hash,
+                location2.pathname + location2.search + location2.hash,
                 window.origin
               ),
               currentParams: ((_a2 = currentMatches[0]) == null ? void 0 : _a2.params) || {},
@@ -21040,7 +21040,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       matches: nextMatches,
       ...linkProps
     }) {
-      let location = useLocation();
+      let location2 = useLocation();
       let { manifest, routeModules } = useFrameworkContext();
       let { basename } = useDataRouterContext2();
       let { loaderData, matches } = useDataRouterStateContext();
@@ -21050,10 +21050,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           nextMatches,
           matches,
           manifest,
-          location,
+          location2,
           "data"
         ),
-        [page, nextMatches, matches, manifest, location]
+        [page, nextMatches, matches, manifest, location2]
       );
       let newMatchesForAssets = reactExports.useMemo(
         () => getNewMatchesForLinks(
@@ -21061,13 +21061,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           nextMatches,
           matches,
           manifest,
-          location,
+          location2,
           "assets"
         ),
-        [page, nextMatches, matches, manifest, location]
+        [page, nextMatches, matches, manifest, location2]
       );
       let dataHrefs = reactExports.useMemo(() => {
-        if (page === location.pathname + location.search + location.hash) {
+        if (page === location2.pathname + location2.search + location2.hash) {
           return [];
         }
         let routesParams = /* @__PURE__ */ new Set();
@@ -21100,7 +21100,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [
         basename,
         loaderData,
-        location,
+        location2,
         manifest,
         newMatchesForData,
         nextMatches,
@@ -21287,14 +21287,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         ...rest
       }, ref) {
         let path = useResolvedPath(to2, { relative: rest.relative });
-        let location = useLocation();
+        let location2 = useLocation();
         let routerState = reactExports.useContext(DataRouterStateContext);
         let { navigator: navigator2, basename } = reactExports.useContext(NavigationContext);
         let isTransitioning = routerState != null && // Conditional usage is OK here because the usage of a data router is static
         // eslint-disable-next-line react-hooks/rules-of-hooks
         useViewTransitionState(path) && viewTransition === true;
         let toPathname = navigator2.encodeLocation ? navigator2.encodeLocation(path).pathname : path.pathname;
-        let locationPathname = location.pathname;
+        let locationPathname = location2.pathname;
         let nextLocationPathname = routerState && routerState.navigation && routerState.navigation.location ? routerState.navigation.location.pathname : null;
         if (!caseSensitive) {
           locationPathname = locationPathname.toLowerCase();
@@ -21409,13 +21409,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       viewTransition
     } = {}) {
       let navigate = useNavigate();
-      let location = useLocation();
+      let location2 = useLocation();
       let path = useResolvedPath(to2, { relative });
       return reactExports.useCallback(
         (event) => {
           if (shouldProcessLinkClick(event, target2)) {
             event.preventDefault();
-            let replace2 = replaceProp !== void 0 ? replaceProp : createPath(location) === createPath(path);
+            let replace2 = replaceProp !== void 0 ? replaceProp : createPath(location2) === createPath(path);
             navigate(to2, {
               replace: replace2,
               state,
@@ -21426,7 +21426,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         },
         [
-          location,
+          location2,
           navigate,
           path,
           replaceProp,
@@ -21446,18 +21446,18 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       );
       let defaultSearchParamsRef = reactExports.useRef(createSearchParams(defaultInit));
       let hasSetSearchParamsRef = reactExports.useRef(false);
-      let location = useLocation();
+      let location2 = useLocation();
       let searchParams = reactExports.useMemo(
         () => (
           // Only merge in the defaults if we haven't yet called setSearchParams.
           // Once we call that we want those to take precedence, otherwise you can't
           // remove a param with setSearchParams({}) if it has an initial value
           getSearchParamsForLocation(
-            location.search,
+            location2.search,
             hasSetSearchParamsRef.current ? null : defaultSearchParamsRef.current
           )
         ),
-        [location.search]
+        [location2.search]
       );
       let navigate = useNavigate();
       let setSearchParams = reactExports.useCallback(
@@ -21521,9 +21521,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       invariant(routeContext, "useFormAction must be used inside a RouteContext");
       let [match] = routeContext.matches.slice(-1);
       let path = { ...useResolvedPath(action ? action : ".", { relative }) };
-      let location = useLocation();
+      let location2 = useLocation();
       if (action == null) {
-        path.search = location.search;
+        path.search = location2.search;
         let params2 = new URLSearchParams(path.search);
         let indexValues = params2.getAll("index");
         let hasNakedIndexParam = indexValues.some((v) => v === "");
@@ -24330,6 +24330,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         time: "bi bi-clock",
         execution: "bi bi-stopwatch"
       },
+      link: "bi-link-45deg",
       logging: loggingIcons,
       menu: "bi bi-list",
       metadata: "bi bi-table",
@@ -42985,6 +42986,15 @@ categories: ${categories.join(" ")}`;
         return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
       }
     };
+    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleTranscriptTabId
+      );
+      return `${baseUrl2}?event=${eventId}`;
+    };
     const logUrl = (log_file, log_dir, tabId) => {
       const pathSegment = directoryRelativeUrl(log_file, log_dir);
       return logUrlRaw(pathSegment, tabId);
@@ -42995,6 +43005,12 @@ categories: ${categories.join(" ")}`;
       } else {
         return `/logs/${encodeURIComponent(log_segment)}`;
       }
+    };
+    const supportsLinking = () => {
+      return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" || true;
+    };
+    const toFullUrl = (path) => {
+      return `${window.location.origin}${window.location.pathname}#${path}`;
     };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
@@ -43826,6 +43842,7 @@ categories: ${categories.join(" ")}`;
       copyButton
     };
     const CopyButton = ({
+      icon: icon2 = ApplicationIcons.copy,
       value: value2,
       onCopySuccess,
       onCopyError,
@@ -43858,7 +43875,7 @@ categories: ${categories.join(" ")}`;
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "i",
             {
-              className: isCopied ? `${ApplicationIcons.confirm} primary` : ApplicationIcons.copy,
+              className: isCopied ? `${ApplicationIcons.confirm} primary` : icon2,
               "aria-hidden": "true"
             }
           )
@@ -51594,17 +51611,19 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$4 = "_label_r6hol_1";
-    const navs = "_navs_r6hol_6";
-    const card = "_card_r6hol_12";
-    const cardContent = "_cardContent_r6hol_19";
-    const hidden$1 = "_hidden_r6hol_24";
+    const label$4 = "_label_1v085_1";
+    const navs = "_navs_1v085_6";
+    const card = "_card_1v085_12";
+    const cardContent = "_cardContent_1v085_19";
+    const hidden$1 = "_hidden_1v085_24";
+    const copyLink = "_copyLink_1v085_32";
     const styles$r = {
       label: label$4,
       navs,
       card,
       cardContent,
-      hidden: hidden$1
+      hidden: hidden$1,
+      copyLink
     };
     const EventPanel = ({
       id,
@@ -51619,6 +51638,8 @@ self.onmessage = function (e) {
     }) => {
       const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
       const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
+      const { logPath, sampleId, epoch } = useParams();
+      const url = logPath && supportsLinking() ? toFullUrl(sampleEventUrl(id, logPath, sampleId, epoch)) : void 0;
       const pillId = (index2) => {
         return `${id}-nav-pill-${index2}`;
       };
@@ -51638,6 +51659,9 @@ self.onmessage = function (e) {
         gridColumns2.push("max-content");
       }
       gridColumns2.push("minmax(0, max-content)");
+      if (url) {
+        gridColumns2.push("minmax(0, max-content)");
+      }
       gridColumns2.push("auto");
       gridColumns2.push("minmax(0, max-content)");
       gridColumns2.push("minmax(0, max-content)");
@@ -51681,6 +51705,14 @@ self.onmessage = function (e) {
                 children: title2
               }
             ),
+            url ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              CopyButton,
+              {
+                value: url,
+                icon: ApplicationIcons.link,
+                className: clsx(styles$r.copyLink)
+              }
+            ) : "",
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: toggleCollapse }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
@@ -53776,14 +53808,14 @@ self.onmessage = function (e) {
           const lineOutput = {
             pieces: []
           };
-          const location = (_a2 = /^(?:@@ )?[-+]?(\d+),(\d+)/.exec(line2)) === null || _a2 === void 0 ? void 0 : _a2.slice(1);
-          if (!location) {
+          const location2 = (_a2 = /^(?:@@ )?[-+]?(\d+),(\d+)/.exec(line2)) === null || _a2 === void 0 ? void 0 : _a2.slice(1);
+          if (!location2) {
             throw new Error("invalid text diff format");
           }
-          assertArrayHasAtLeast2(location);
+          assertArrayHasAtLeast2(location2);
           lineOutput.location = {
-            line: location[0],
-            chr: location[1]
+            line: location2[0],
+            chr: location2[1]
           };
           const pieces = line2.split("\n").slice(1);
           for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
@@ -83301,12 +83333,12 @@ Supported expressions:
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
     const AppLayout = () => {
-      const location = useLocation();
+      const location2 = useLocation();
       reactExports.useEffect(() => {
         if (storeImplementation) {
-          storeImplementation.getState().appActions.setUrlHash(location.pathname);
+          storeImplementation.getState().appActions.setUrlHash(location2.pathname);
         }
-      }, [location]);
+      }, [location2]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Outlet, {}) });
     };
     const AppRouter = createHashRouter(

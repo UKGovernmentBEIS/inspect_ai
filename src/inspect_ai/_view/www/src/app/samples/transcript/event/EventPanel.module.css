@@ -28,3 +28,14 @@
 .hidden {
   display: none;
 }
+
+.copyLink {
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 2em;
+}
+
+.copyLink:hover {
+  opacity: 1;
+  display: block;
+}

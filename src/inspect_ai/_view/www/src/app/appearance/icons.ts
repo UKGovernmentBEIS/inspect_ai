@@ -62,6 +62,7 @@ export const ApplicationIcons = {
     time: "bi bi-clock",
     execution: "bi bi-stopwatch",
   },
+  link: "bi-link-45deg",
   logging: loggingIcons,
   menu: "bi bi-list",
   messages: "bi bi-chat-right-text",
