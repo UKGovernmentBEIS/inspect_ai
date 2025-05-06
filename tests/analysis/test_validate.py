@@ -5,9 +5,10 @@ from jsonpath_ng.ext import parse  # type: ignore
 
 from inspect_ai.analysis.beta._dataframe.validate import (
     Schema,
-    eval_log_schema,
     jsonpath_in_schema,
+    resolved_schema,
 )
+from inspect_ai.log import EvalLog
 
 
 @pytest.fixture(scope="session")
@@ -17,7 +18,7 @@ def expanded_schema() -> Schema:
     Uses `jsonref.replace_refs` with an explicit base URI so internal
     fragments like '#/$defs/Foo' resolve without IOError.
     """
-    return eval_log_schema()
+    return resolved_schema(EvalLog)
 
 
 def assert_valid(expr: str, schema: dict[str, Any]) -> None:

@@ -18,9 +18,6 @@ from ..util import (
     resolve_logs,
     verify_prerequisites,
 )
-from ..validate import (
-    eval_log_schema,
-)
 from .columns import EvalDefault, EvalId
 
 if TYPE_CHECKING:
@@ -81,9 +78,6 @@ def evals_df(
     # accumulate errors for strict=False
     all_errors = ColumnErrors()
 
-    # prepare schema for validation of jsonpath expressions
-    schema = eval_log_schema()
-
     # ensure eval_id
     ensure_eval_id(columns)
 
@@ -93,11 +87,9 @@ def evals_df(
         for log_path in log_paths:
             log = read_eval_log(log_path, header_only=True)
             if strict:
-                record = import_record(log, columns, strict=True, schema=schema)
+                record = import_record(log, columns, strict=True)
             else:
-                record, errors = import_record(
-                    log, columns, strict=False, schema=schema
-                )
+                record, errors = import_record(log, columns, strict=False)
                 all_errors[pretty_path(log_path)] = errors
             records.append(record)
 

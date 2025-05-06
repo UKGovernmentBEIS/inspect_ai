@@ -1,5 +1,6 @@
 from datetime import date, datetime, time, timezone
 from pathlib import Path
+from typing import override
 
 import pytest
 from pydantic import JsonValue
@@ -8,6 +9,13 @@ from inspect_ai.analysis.beta import Column, EvalDefault
 from inspect_ai.analysis.beta._dataframe.evals.columns import EvalColumn
 from inspect_ai.analysis.beta._dataframe.record import _resolve_value, import_record
 from inspect_ai.log._file import read_eval_log
+
+
+class TestColumn(Column):
+    @override
+    def path_schema(self) -> None:
+        return None
+
 
 # ======== Test Data ========
 test_record: dict[str, JsonValue] = {
@@ -52,8 +60,8 @@ yaml_record: dict[str, JsonValue] = {
 def test_basic_import() -> None:
     """Test basic field import with direct mapping."""
     spec: list[Column] = [
-        Column("status", path="$.status"),
-        Column("model", path="$.eval.model"),
+        TestColumn("status", path="$.status"),
+        TestColumn("model", path="$.eval.model"),
     ]
 
     result = import_record(test_record, spec)
@@ -65,7 +73,7 @@ def test_basic_import() -> None:
 def test_wildcard_fields() -> None:
     """Test importing wildcard fields."""
     spec: list[Column] = [
-        Column("task_arg_*", path="$.eval.task_args"),
+        TestColumn("task_arg_*", path="$.eval.task_args"),
     ]
 
     result = import_record(test_record, spec)
@@ -88,9 +96,9 @@ def test_extract_function() -> None:
 def test_field_options() -> None:
     """Test importing with field options."""
     spec: list[Column] = [
-        Column("status", path="$.status", required=True),
-        Column("error_msg", path="$.error.message", required=False),
-        Column("missing", path="$.not.existing", required=False),
+        TestColumn("status", path="$.status", required=True),
+        TestColumn("error_msg", path="$.error.message", required=False),
+        TestColumn("missing", path="$.not.existing", required=False),
     ]
 
     result = import_record(test_record, spec)
@@ -116,10 +124,10 @@ def test_predefined_spec() -> None:
 def test_type_coercion_simple() -> None:
     """Test simple type coercion."""
     spec: list[Column] = [
-        Column(
+        TestColumn(
             "flag", path="$.data.flag", type=bool
         ),  # will yaml parse bool from 'true'
-        Column("values", path="$.data.values", type=str),  # Will json.dumps
+        TestColumn("values", path="$.data.values", type=str),  # Will json.dumps
     ]
 
     result = import_record(test_record, spec)
@@ -130,7 +138,7 @@ def test_type_coercion_simple() -> None:
 def test_type_coercion_failure() -> None:
     """Test failure with incompatible type coercion."""
     spec: list[Column] = [
-        Column(
+        TestColumn(
             "status_int", path="$.status", type=int
         )  # Will fail - string can't convert to int
     ]
@@ -142,10 +150,10 @@ def test_type_coercion_failure() -> None:
 def test_date_time_coercion() -> None:
     """Test date/time coercion."""
     spec: list[Column] = [
-        Column("timestamp_dt", path="$.data.timestamps.unix", type=datetime),
-        Column("timestamp_d", path="$.data.timestamps.unix", type=date),
-        Column("timestamp_t", path="$.data.timestamps.unix", type=time),
-        Column("iso_dt", path="$.data.timestamps.iso", type=datetime),
+        TestColumn("timestamp_dt", path="$.data.timestamps.unix", type=datetime),
+        TestColumn("timestamp_d", path="$.data.timestamps.unix", type=date),
+        TestColumn("timestamp_t", path="$.data.timestamps.unix", type=time),
+        TestColumn("iso_dt", path="$.data.timestamps.iso", type=datetime),
     ]
 
     result = import_record(test_record, spec)
@@ -172,11 +180,11 @@ def test_date_time_coercion() -> None:
 def test_yaml_string_coercion() -> None:
     """Test YAML string coercion."""
     spec: list[Column] = [
-        Column("int_val", path="$.string_int", type=int),
-        Column("float_val", path="$.string_float", type=float),
-        Column("bool_val", path="$.string_bool", type=bool),
-        Column("date_val", path="$.string_date", type=date),
-        Column("array_val", path="$.string_array", type=str),  # Keep as string
+        TestColumn("int_val", path="$.string_int", type=int),
+        TestColumn("float_val", path="$.string_float", type=float),
+        TestColumn("bool_val", path="$.string_bool", type=bool),
+        TestColumn("date_val", path="$.string_date", type=date),
+        TestColumn("array_val", path="$.string_array", type=str),  # Keep as string
     ]
 
     result = import_record(yaml_record, spec)
@@ -193,7 +201,7 @@ def test_yaml_string_coercion() -> None:
 def test_required_field_missing() -> None:
     """Test error when required field is missing."""
     spec: list[Column] = [
-        Column("missing", path="$.not.existing", required=True),
+        TestColumn("missing", path="$.not.existing", required=True),
     ]
 
     with pytest.raises(ValueError, match="not found"):
@@ -203,9 +211,9 @@ def test_required_field_missing() -> None:
 def test_collect_errors() -> None:
     """Test collecting errors instead of raising."""
     spec: list[Column] = [
-        Column("status", path="$.status"),
-        Column("missing", path="$.not.existing", required=True),
-        Column("bad_type", path="$.data.extra", type=int),  # str to int will fail
+        TestColumn("status", path="$.status"),
+        TestColumn("missing", path="$.not.existing", required=True),
+        TestColumn("bad_type", path="$.data.extra", type=int),  # str to int will fail
     ]
 
     _, errors = import_record(test_record, spec, strict=False)
@@ -219,7 +227,7 @@ def test_collect_errors() -> None:
 def test_invalid_jsonpath() -> None:
     """Test handling of invalid JSONPath expressions."""
     spec: list[Column] = [
-        Column("invalid", path="$..[*"),  # Invalid JSONPath syntax
+        TestColumn("invalid", path="$..[*"),  # Invalid JSONPath syntax
     ]
 
     with pytest.raises(
@@ -234,7 +242,7 @@ def test_empty_record() -> None:
     empty_record: dict[str, JsonValue] = {}
 
     spec: list[Column] = [
-        Column("status", path="$.status", required=False),
+        TestColumn("status", path="$.status", required=False),
     ]
 
     result = import_record(empty_record, spec)
@@ -248,8 +256,8 @@ def test_none_values() -> None:
     }
 
     spec: list[Column] = [
-        Column("explicit_none", path="$.explicit_none"),
-        Column("null_value", path="$.data.null_value"),
+        TestColumn("explicit_none", path="$.explicit_none"),
+        TestColumn("null_value", path="$.data.null_value"),
     ]
 
     result = import_record({**test_record, **none_record}, spec)
@@ -260,11 +268,11 @@ def test_none_values() -> None:
 def test_multiple_import_specs() -> None:
     """Test importing with multiple import specs."""
     spec1: list[Column] = [
-        Column("status", path="$.status"),
+        TestColumn("status", path="$.status"),
     ]
 
     spec2: list[Column] = [
-        Column("model", path="$.eval.model"),
+        TestColumn("model", path="$.eval.model"),
     ]
 
     result = import_record(test_record, spec1 + spec2)
@@ -352,16 +360,16 @@ def test_complex_import_scenario() -> None:
     }
 
     spec: list[Column] = [
-        Column("record_id", path="$.id"),
-        Column("value1", path="$.metrics.value1", type=int, required=True),
-        Column("value2", path="$.metrics.value2", type=float),
-        Column("value3", path="$.metrics.value3", type=bool),
-        Column("timestamp", path="$.metrics.timestamp", type=datetime),
-        Column("tags", path="$.tags", type=str),
-        Column("deep_value", path="$.nested.level1.level2.data"),
-        Column("items", path="$.items", type=str),
+        TestColumn("record_id", path="$.id"),
+        TestColumn("value1", path="$.metrics.value1", type=int, required=True),
+        TestColumn("value2", path="$.metrics.value2", type=float),
+        TestColumn("value3", path="$.metrics.value3", type=bool),
+        TestColumn("timestamp", path="$.metrics.timestamp", type=datetime),
+        TestColumn("tags", path="$.tags", type=str),
+        TestColumn("deep_value", path="$.nested.level1.level2.data"),
+        TestColumn("items", path="$.items", type=str),
         # Test a non-existent field
-        Column("missing", path="$.not.here", required=False),
+        TestColumn("missing", path="$.not.here", required=False),
     ]
 
     result = import_record(complex_record, spec)

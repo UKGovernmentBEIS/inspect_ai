@@ -1,12 +1,14 @@
-from typing import Callable, Type
+from typing import Any, Callable, Mapping, Type
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
+from typing_extensions import override
 
 from inspect_ai.log._log import EvalSampleSummary
 
 from ..columns import Column, ColumnType
 from ..extract import input_as_str, list_as_str, score_values
+from ..validate import resolved_schema
 
 
 class SampleColumn(Column):
@@ -31,6 +33,12 @@ class SampleColumn(Column):
         )
         self._extract_sample = path if callable(path) else None
         self._full = full
+
+    @override
+    def path_schema(self) -> Mapping[str, Any]:
+        return self.summary_schema
+
+    summary_schema = resolved_schema(EvalSampleSummary)
 
 
 SampleSummary: list[Column] = [

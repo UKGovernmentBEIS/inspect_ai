@@ -8,19 +8,9 @@ from jsonpath_ng import Fields, Index, JSONPath, Slice, Where, WhereNot  # type:
 from jsonpath_ng.ext.filter import Filter  # type: ignore
 from pydantic import BaseModel
 
-from inspect_ai.log._log import EvalLog, EvalSampleSummary
-
 logger = getLogger(__name__)
 
 Schema = Mapping[str, Any]
-
-
-def eval_log_schema() -> Schema:
-    return resolved_schema(EvalLog)
-
-
-def sample_summary_schema() -> Schema:
-    return resolved_schema(EvalSampleSummary)
 
 
 def resolved_schema(model: Type[BaseModel]) -> Schema:

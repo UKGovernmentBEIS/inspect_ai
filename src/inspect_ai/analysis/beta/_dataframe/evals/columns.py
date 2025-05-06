@@ -1,13 +1,15 @@
 from datetime import datetime
-from typing import Callable, Type
+from typing import Any, Callable, Mapping, Type
 
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
+from typing_extensions import override
 
 from inspect_ai.log._log import EvalLog
 
 from ..columns import Column, ColumnType
 from ..extract import eval_log_location, list_as_str, scores_dict
+from ..validate import resolved_schema
 
 
 class EvalColumn(Column):
@@ -30,6 +32,12 @@ class EvalColumn(Column):
             value=value,
         )
         self._extract_eval = path if callable(path) else None
+
+    @override
+    def path_schema(self) -> Mapping[str, Any]:
+        return self.schema
+
+    schema = resolved_schema(EvalLog)
 
 
 EvalId: list[Column] = [

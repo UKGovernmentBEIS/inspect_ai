@@ -12,7 +12,6 @@ from inspect_ai.log._log import EvalLog, EvalSampleSummary
 from .columns import Column, ColumnError, ColumnType
 from .evals.columns import EvalColumn
 from .extract import model_to_record
-from .validate import Schema
 
 
 @overload
@@ -20,7 +19,6 @@ def import_record(
     record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
     columns: list[Column],
     strict: Literal[True] = True,
-    schema: Schema | None = None,
 ) -> dict[str, ColumnType]: ...
 
 
@@ -29,7 +27,6 @@ def import_record(
     record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
     columns: list[Column],
     strict: Literal[False],
-    schema: Schema | None = None,
 ) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
 
 
@@ -37,7 +34,6 @@ def import_record(
     record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
     columns: list[Column],
     strict: bool = True,
-    schema: Schema | None = None,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
     record_target = record
     if isinstance(record, EvalLog | EvalSampleSummary):
@@ -82,11 +78,8 @@ def import_record(
         try:
             # read by path or extract function
             if column.path is not None:
-                if schema is not None:
-                    # validate path
-                    if not column.validate_path(schema):
-                        raise ValueError("Specified path is not valid for EvalLog")
-
+                if not column.validate_path():
+                    raise ValueError("Specified path is not valid for EvalLog")
                 matches = column.path.find(record)
                 if matches:
                     value = matches[0].value

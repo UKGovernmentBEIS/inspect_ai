@@ -21,9 +21,6 @@ from ..util import (
     resolve_logs,
     verify_prerequisites,
 )
-from ..validate import (
-    sample_summary_schema,
-)
 from .columns import SampleColumn, SampleSummary
 
 if TYPE_CHECKING:
@@ -100,7 +97,6 @@ def samples_df(
     ensure_eval_id(columns_eval)
 
     # read samples from each log
-    schema = sample_summary_schema()
     records: list[dict[str, ColumnType]] = []
     all_errors = ColumnErrors()
     evals_table = evals_df(logs, columns=columns_eval)
@@ -111,12 +107,10 @@ def samples_df(
             for index, sample_summary in enumerate(sample_summaries):
                 sample_record = model_to_record(sample_summary)
                 if strict:
-                    record = import_record(
-                        sample_record, columns_sample, strict=True, schema=schema
-                    )
+                    record = import_record(sample_record, columns_sample, strict=True)
                 else:
                     record, errors = import_record(
-                        sample_record, columns_sample, strict=False, schema=schema
+                        sample_record, columns_sample, strict=False
                     )
                     error_key = f"{pretty_path(log)} [{sample_summary.id}, {sample_summary.epoch}]"
                     all_errors[error_key] = errors

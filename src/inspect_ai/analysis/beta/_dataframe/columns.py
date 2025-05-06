@@ -1,3 +1,4 @@
+import abc
 from dataclasses import KW_ONLY, dataclass
 from datetime import date, datetime, time
 from typing import Any, Callable, Mapping, Type, TypeAlias
@@ -15,7 +16,7 @@ Values of `list` and `dict` are converted into column values as JSON `str`.
 """
 
 
-class Column:
+class Column(abc.ABC):
     """
     Specification for importing a column into a data frame.
 
@@ -94,13 +95,19 @@ class Column:
         else:
             return x
 
-    def validate_path(self, schema: Mapping[str, Any]) -> bool:
+    def validate_path(self) -> bool:
         if self.path is not None:
             if self._validated is None:
-                self._validated = jsonpath_in_schema(self.path, schema)
+                schema = self.path_schema()
+                self._validated = (
+                    jsonpath_in_schema(self.path, schema) if schema else True
+                )
             return self._validated
         else:
             return True
+
+    @abc.abstractmethod
+    def path_schema(self) -> Mapping[str, Any] | None: ...
 
 
 @dataclass
