@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.94 (06 May 2025)
 
 - [span()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for grouping transcript events.
 - [collect()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for enclosing parallel tasks in spans.
