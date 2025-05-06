@@ -166,7 +166,7 @@ Columns are defined with a `name`, a `path` (location within JSON to read their 
 
 Many fields within eval logs are optional, and path expressions will automatically resolve to `None` when they include a missing field (unless the `required=True` option is specified).
 
-Heare are all of the options available for `Column` definitions:
+Here are are all of the options available for `Column` definitions:
 
 #### Column Options
 
