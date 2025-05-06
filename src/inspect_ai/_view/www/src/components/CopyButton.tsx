@@ -42,7 +42,7 @@ export const CopyButton = ({
   return (
     <button
       type="button"
-      className={clsx(styles.copyButton, className)}
+      className={clsx("copy-button", styles.copyButton, className)}
       onClick={handleClick}
       aria-label={ariaLabel}
       disabled={isCopied}

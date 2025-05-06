@@ -14483,6 +14483,7 @@ body[class^="vscode-"] .accordion-button::after {
   mask-image: var(--bs-accordion-btn-icon);
 }
 
+.copy-button i.bi,
 body[class^="vscode-"] .navbar-text i.bi {
   color: var(--vscode-editor-foreground);
 }

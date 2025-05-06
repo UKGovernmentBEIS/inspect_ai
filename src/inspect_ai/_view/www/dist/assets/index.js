@@ -24330,7 +24330,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         time: "bi bi-clock",
         execution: "bi bi-stopwatch"
       },
-      link: "bi-link-45deg",
+      link: "bi bi-link-45deg",
       logging: loggingIcons,
       menu: "bi bi-list",
       metadata: "bi bi-table",
@@ -24803,7 +24803,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "button",
         {
           type: "button",
-          className: clsx(styles$1i.copyButton, className2),
+          className: clsx("copy-button", styles$1i.copyButton, className2),
           onClick: handleClick,
           "aria-label": ariaLabel,
           disabled: isCopied,
@@ -43076,7 +43076,7 @@ categories: ${categories.join(" ")}`;
       }
     };
     const supportsLinking = () => {
-      return location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
+      return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:";
     };
     const toFullUrl = (path) => {
       return `${window.location.origin}${window.location.pathname}#${path}`;
