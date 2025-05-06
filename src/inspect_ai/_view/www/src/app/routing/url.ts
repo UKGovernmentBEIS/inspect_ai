@@ -1,4 +1,4 @@
-import { kSampleTranscriptTabId } from "../../constants";
+import { kSampleMessagesTabId, kSampleTranscriptTabId } from "../../constants";
 import { directoryRelativeUrl } from "../../utils/uri";
 
 export const kLogRouteUrlPattern = "/logs/:logPath/:tabId?/:sampleTabId?";
@@ -44,6 +44,22 @@ export const sampleEventUrl = (
   );
 
   return `${baseUrl}?event=${eventId}`;
+};
+
+export const sampleMessageUrl = (
+  messageId: string,
+  logPath: string,
+  sampleId?: string | number,
+  sampleEpoch?: string | number,
+) => {
+  const baseUrl = sampleUrl(
+    logPath,
+    sampleId,
+    sampleEpoch,
+    kSampleMessagesTabId,
+  );
+
+  return `${baseUrl}?message=${messageId}`;
 };
 
 export const logUrl = (log_file: string, log_dir?: string, tabId?: string) => {

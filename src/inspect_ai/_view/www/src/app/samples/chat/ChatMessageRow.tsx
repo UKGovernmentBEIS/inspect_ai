@@ -13,6 +13,7 @@ interface ChatMessageRowProps {
   toolCallStyle: ChatViewToolCallStyle;
   indented?: boolean;
   padded?: boolean;
+  getMessageUrl?: (id: string) => string | undefined;
 }
 
 /**
@@ -25,6 +26,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
   toolCallStyle,
   indented,
   padded,
+  getMessageUrl,
 }) => {
   if (number) {
     return (
@@ -45,6 +47,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
           indented={indented}
           toolCallStyle={toolCallStyle}
           padded={padded}
+          getMessageUrl={getMessageUrl}
         />
       </div>
     );
@@ -57,6 +60,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
         indented={indented}
         toolCallStyle={toolCallStyle}
         padded={padded}
+        getMessageUrl={getMessageUrl}
       />
     );
   }
