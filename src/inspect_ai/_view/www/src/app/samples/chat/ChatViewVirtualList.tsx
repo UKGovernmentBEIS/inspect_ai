@@ -63,6 +63,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           indented={indented}
           toolCallStyle={toolCallStyle}
           getMessageUrl={getMessageUrl}
+          highlightUserMessage={true}
         />
       );
     };

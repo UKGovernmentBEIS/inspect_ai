@@ -37535,7 +37535,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       resolvedMessage,
       toolCallStyle,
       indented: indented2,
-      getMessageUrl
+      getMessageUrl,
+      highlightUserMessage
     }) => {
       if (number2) {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
@@ -37545,7 +37546,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               className: clsx(
                 styles$19.grid,
                 styles$19.container,
-                resolvedMessage.message.role === "user" ? styles$19.user : void 0
+                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$19.user : void 0
               ),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -37582,7 +37583,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             className: clsx(
               styles$19.container,
               styles$19.simple,
-              resolvedMessage.message.role === "user" ? styles$19.user : void 0
+              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$19.user : void 0
             ),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -51060,7 +51061,8 @@ self.onmessage = function (e) {
               resolvedMessage: item2,
               indented: indented2,
               toolCallStyle,
-              getMessageUrl
+              getMessageUrl,
+              highlightUserMessage: true
             }
           );
         };
