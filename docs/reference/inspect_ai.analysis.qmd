@@ -14,6 +14,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ## Evals
 
 ### evals_df
+### EvalColumn
 ### EvalDefault
 ### EvalId
 ### EvalInfo
@@ -26,6 +27,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ## Samples
 
 ### samples_df
+### SampleColumn
 ### SampleSummary
 
 ## Columns

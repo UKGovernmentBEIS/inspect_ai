@@ -26,7 +26,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 Inspect eval logs have a hierarchical structure which is well suited to flexibility capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into [data frames](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for flexibly extracting [Pandas](https://pandas.pydata.org/) data frames from logs, including:
 
 | Function | Description |
-|-------------------------|-----------------------------------------------|
+|--------------------------|----------------------------------------------|
 | [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
 | [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
@@ -95,7 +95,7 @@ RangeIndex: 9 entries, 0 to 8
 Columns: 23 entries, eval_id to score_headline_value
 ```
 
-This data frame has 23 columns rather than the 51 we saw when using the default `evals_df()` behaviour, reflecting the explicit columns groups specified. 
+This data frame has 23 columns rather than the 51 we saw when using the default `evals_df()` behaviour, reflecting the explicit columns groups specified.
 
 You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
@@ -144,21 +144,46 @@ result = con.execute("""
 """).fetchdf()
 ```
 
-## Columns
+## Columns {#columns}
 
-### Evals
+The examples above all use built-in column specifications (e.g. `EvalModel`, `EvalResults`, `SampleSummary`, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.
 
+Column definitions specify how JSON data is mapped into a data frame columns, and are specified using the `Column` class and its subclasses (e.g. `EvalColumn`, `SampleColumn`). For example, here is the definition of the built-in `EvalTask` column group:
 
+``` python
+EvalTask: list[Column] = [
+    EvalColumn("task_name", path="eval.task", required=True),
+    EvalColumn("task_version", path="eval.task_version", required=True),
+    EvalColumn("task_file", path="eval.task_file"),
+    EvalColumn("task_attribs", path="eval.task_attribs"),
+    EvalColumn("task_arg_*", path="eval.task_args"),
+    EvalColumn("solver", path="eval.solver"),
+    EvalColumn("solver_args", path="eval.solver_args"),
+    EvalColumn("sandbox_type", path="eval.sandbox.type"),
+    EvalColumn("sandbox_config", path="eval.sandbox.config"),
+]
+```
 
-### Samples
+Columns are defined with a `name`, a `path` (location within JSON to be read from), and other options (e.g. `required`). Column paths typically use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON. Many fields within eval logs are optional, and path expressions will automatically resolve to `None` when they include a missing field (unless the `required=True` option is specified).
 
+Below we'll detail all of the options available for `Column` definitions. Then, in the sections below we'll describe data source specific considerations for defining columns (e.g. `EvalColumn`, `SampleColumn`, etc.).
 
+#### Column Options
 
-### Messages
+#### Column Merging
+
+### Evals {#evals}
+
+asdfsadf
+
+### Samples {#samples}
+
+asdfasdf
+
+### Messages {#messages}
 
 The `messages_df()` function is not yet implemented.
 
-### Events
+### Events {#events}
 
 The `events_df()` function is not yet implemented.
-
