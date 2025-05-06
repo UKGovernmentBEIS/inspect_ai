@@ -11,7 +11,7 @@ ijson>=3.2.0
 jsonlines>=3.0.0
 jsonpatch>=1.32
 jsonpath-ng>=1.7.0
-jsonref>1.1.0
+jsonref
 jsonschema>3.1.1
 mmh3>3.1.0
 nest_asyncio
