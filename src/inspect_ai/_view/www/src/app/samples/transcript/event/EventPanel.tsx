@@ -30,6 +30,7 @@ interface EventPanelProps {
   children?: ReactNode | ReactNode[];
   childIds?: string[];
   collapsibleContent?: boolean;
+  collapseControl?: "top" | "bottom";
 }
 
 interface ChildProps {
@@ -50,10 +51,11 @@ export const EventPanel: FC<EventPanelProps> = ({
   children,
   childIds,
   collapsibleContent,
+  collapseControl = "top",
 }) => {
-  console.log({ depth });
   const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
   const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
+  const useBottomDongle = isCollapsible && collapseControl === "bottom";
 
   // Get all URL parameters at component level
   const { logPath, sampleId, epoch } = useParams<{
@@ -87,7 +89,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   const gridColumns = [];
 
   // chevron
-  if (isCollapsible) {
+  if (isCollapsible && !useBottomDongle) {
     gridColumns.push("minmax(0, max-content)");
   }
 
@@ -119,10 +121,10 @@ export const EventPanel: FC<EventPanelProps> = ({
           display: "grid",
           gridTemplateColumns: gridColumns.join(" "),
           columnGap: "0.3em",
-          cursor: isCollapsible ? "pointer" : undefined,
+          cursor: isCollapsible && !useBottomDongle ? "pointer" : undefined,
         }}
       >
-        {isCollapsible ? (
+        {isCollapsible && !useBottomDongle ? (
           <i
             onClick={toggleCollapse}
             className={
@@ -230,6 +232,24 @@ export const EventPanel: FC<EventPanelProps> = ({
           );
         })}
       </div>
+
+      {isCollapsible && useBottomDongle ? (
+        <div
+          className={clsx(styles.bottomDongle, "text-size-smallest")}
+          onClick={toggleCollapse}
+        >
+          <i
+            className={clsx(
+              collapsed
+                ? ApplicationIcons.chevron.right
+                : ApplicationIcons.chevron.down,
+              styles.dongleIcon,
+            )}
+          />
+          transcript ({childIds?.length}{" "}
+          {childIds?.length === 1 ? "event" : "events"})
+        </div>
+      ) : undefined}
     </div>
   );
   return card;

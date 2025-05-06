@@ -44,3 +44,22 @@
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
+
+.bottomDongle {
+  display: block;
+  position: relative;
+  margin: 0 auto;
+  width: fit-content;
+  bottom: -11px;
+  background-color: var(--bs-body-bg);
+  border: solid 1px var(--bs-light-border-subtle);
+
+  border-top-left-radius: var(--bs-border-radius);
+  border-top-right-radius: var(--bs-border-radius);
+  padding: 0.2em 0.4em;
+  cursor: pointer;
+}
+
+.dongleIcon {
+  padding-right: 0.3em;
+}

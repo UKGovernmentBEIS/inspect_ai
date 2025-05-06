@@ -51651,13 +51651,15 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$4 = "_label_1muws_1";
-    const navs = "_navs_1muws_6";
-    const card = "_card_1muws_12";
-    const cardContent = "_cardContent_1muws_19";
-    const hidden$1 = "_hidden_1muws_24";
-    const copyLink = "_copyLink_1muws_32";
-    const root$1 = "_root_1muws_43";
+    const label$4 = "_label_jcll2_1";
+    const navs = "_navs_jcll2_6";
+    const card = "_card_jcll2_12";
+    const cardContent = "_cardContent_jcll2_19";
+    const hidden$1 = "_hidden_jcll2_24";
+    const copyLink = "_copyLink_jcll2_32";
+    const root$1 = "_root_jcll2_43";
+    const bottomDongle = "_bottomDongle_jcll2_48";
+    const dongleIcon = "_dongleIcon_jcll2_63";
     const styles$r = {
       label: label$4,
       navs,
@@ -51665,7 +51667,9 @@ self.onmessage = function (e) {
       cardContent,
       hidden: hidden$1,
       copyLink,
-      root: root$1
+      root: root$1,
+      bottomDongle,
+      dongleIcon
     };
     const EventPanel = ({
       id,
@@ -51677,11 +51681,12 @@ self.onmessage = function (e) {
       icon: icon2,
       children: children2,
       childIds,
-      collapsibleContent
+      collapsibleContent,
+      collapseControl = "top"
     }) => {
-      console.log({ depth });
       const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
       const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
+      const useBottomDongle = isCollapsible && collapseControl === "bottom";
       const { logPath, sampleId, epoch } = useParams();
       const url = logPath && supportsLinking() ? toFullUrl(sampleEventUrl(id, logPath, sampleId, epoch)) : void 0;
       const pillId = (index2) => {
@@ -51696,7 +51701,7 @@ self.onmessage = function (e) {
         defaultValue: defaultPillId
       });
       const gridColumns2 = [];
-      if (isCollapsible) {
+      if (isCollapsible && !useBottomDongle) {
         gridColumns2.push("minmax(0, max-content)");
       }
       if (icon2) {
@@ -51721,10 +51726,10 @@ self.onmessage = function (e) {
             display: "grid",
             gridTemplateColumns: gridColumns2.join(" "),
             columnGap: "0.3em",
-            cursor: isCollapsible ? "pointer" : void 0
+            cursor: isCollapsible && !useBottomDongle ? "pointer" : void 0
           },
           children: [
-            isCollapsible ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            isCollapsible && !useBottomDongle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               "i",
               {
                 onClick: toggleCollapse,
@@ -51818,7 +51823,30 @@ self.onmessage = function (e) {
                   );
                 })
               }
-            )
+            ),
+            isCollapsible && useBottomDongle ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "div",
+              {
+                className: clsx(styles$r.bottomDongle, "text-size-smallest"),
+                onClick: toggleCollapse,
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "i",
+                    {
+                      className: clsx(
+                        collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down,
+                        styles$r.dongleIcon
+                      )
+                    }
+                  ),
+                  "transcript (",
+                  childIds == null ? void 0 : childIds.length,
+                  " ",
+                  (childIds == null ? void 0 : childIds.length) === 1 ? "event" : "events",
+                  ")"
+                ]
+              }
+            ) : void 0
           ]
         }
       );
@@ -52210,7 +52238,7 @@ self.onmessage = function (e) {
         ] }, `${tool2.name}-${idx}`);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$n.toolConfig, children: toolEls }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$n.toolConfig, "text-size-small"), children: toolEls }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$n.toolChoice, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Tool Choice" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolChoiceView, { toolChoice: toolChoice2 }) })
@@ -60243,6 +60271,7 @@ ${events}
           ),
           subTitle: formatTiming(event.timestamp, event.working_start),
           childIds: children2.map((child) => child.id),
+          collapseControl: "bottom",
           children: body2
         }
       );
@@ -60319,6 +60348,7 @@ ${events}
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.solvers.use_tools,
           childIds: children2.map((child) => child.id),
+          collapseControl: "bottom",
           children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$e.summary, children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolCallView,

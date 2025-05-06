@@ -58,6 +58,7 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
       )}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       childIds={children.map((child) => child.id)}
+      collapseControl="bottom"
     >
       {body}
     </EventPanel>
