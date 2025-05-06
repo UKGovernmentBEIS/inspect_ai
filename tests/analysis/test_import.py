@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 from pydantic import JsonValue
 
-from inspect_ai.analysis.beta import Column, Columns, EvalDefault
+from inspect_ai.analysis.beta import Column, EvalDefault
+from inspect_ai.analysis.beta._dataframe.evals.columns import EvalColumn
 from inspect_ai.analysis.beta._dataframe.record import _resolve_value, import_record
 from inspect_ai.log._file import read_eval_log
 
@@ -50,10 +51,10 @@ yaml_record: dict[str, JsonValue] = {
 # ======== Basic Functionality Tests ========
 def test_basic_import() -> None:
     """Test basic field import with direct mapping."""
-    spec: Columns = {
-        "status": Column("$.status"),
-        "model": Column("$.eval.model"),
-    }
+    spec: list[Column] = [
+        Column("status", path="$.status"),
+        Column("model", path="$.eval.model"),
+    ]
 
     result = import_record(test_record, spec)
 
@@ -63,9 +64,9 @@ def test_basic_import() -> None:
 
 def test_wildcard_fields() -> None:
     """Test importing wildcard fields."""
-    spec: Columns = {
-        "task_arg_*": Column("$.eval.task_args"),
-    }
+    spec: list[Column] = [
+        Column("task_arg_*", path="$.eval.task_args"),
+    ]
 
     result = import_record(test_record, spec)
 
@@ -77,20 +78,20 @@ def test_extract_function() -> None:
     log = read_eval_log(
         Path(__file__).parent.parent / "log" / "test_eval_log" / "log_formats.eval"
     )
-    spec: Columns = {
-        "status": Column(lambda log: log.status, required=True),
-    }
+    spec: list[Column] = [
+        EvalColumn("status", path=lambda log: log.status, required=True),
+    ]
     result = import_record(log, spec)
     assert result["status"] == "success"
 
 
 def test_field_options() -> None:
     """Test importing with field options."""
-    spec: Columns = {
-        "status": Column("$.status", required=True),
-        "error_msg": Column("$.error.message", required=False),
-        "missing": Column("$.not.existing", required=False),
-    }
+    spec: list[Column] = [
+        Column("status", path="$.status", required=True),
+        Column("error_msg", path="$.error.message", required=False),
+        Column("missing", path="$.not.existing", required=False),
+    ]
 
     result = import_record(test_record, spec)
 
@@ -114,10 +115,12 @@ def test_predefined_spec() -> None:
 # ======== Type Coercion Tests ========
 def test_type_coercion_simple() -> None:
     """Test simple type coercion."""
-    spec: Columns = {
-        "flag": Column("$.data.flag", type=bool),  # will yaml parse bool from 'true'
-        "values": Column("$.data.values", type=str),  # Will json.dumps
-    }
+    spec: list[Column] = [
+        Column(
+            "flag", path="$.data.flag", type=bool
+        ),  # will yaml parse bool from 'true'
+        Column("values", path="$.data.values", type=str),  # Will json.dumps
+    ]
 
     result = import_record(test_record, spec)
     assert result["flag"] is True
@@ -126,11 +129,11 @@ def test_type_coercion_simple() -> None:
 
 def test_type_coercion_failure() -> None:
     """Test failure with incompatible type coercion."""
-    spec: Columns = {
-        "status_int": Column(
-            "$.status", type=int
+    spec: list[Column] = [
+        Column(
+            "status_int", path="$.status", type=int
         )  # Will fail - string can't convert to int
-    }
+    ]
 
     with pytest.raises(ValueError, match="Cannot coerce"):
         print(import_record(test_record, spec))
@@ -138,12 +141,12 @@ def test_type_coercion_failure() -> None:
 
 def test_date_time_coercion() -> None:
     """Test date/time coercion."""
-    spec: Columns = {
-        "timestamp_dt": Column("$.data.timestamps.unix", type=datetime),
-        "timestamp_d": Column("$.data.timestamps.unix", type=date),
-        "timestamp_t": Column("$.data.timestamps.unix", type=time),
-        "iso_dt": Column("$.data.timestamps.iso", type=datetime),
-    }
+    spec: list[Column] = [
+        Column("timestamp_dt", path="$.data.timestamps.unix", type=datetime),
+        Column("timestamp_d", path="$.data.timestamps.unix", type=date),
+        Column("timestamp_t", path="$.data.timestamps.unix", type=time),
+        Column("iso_dt", path="$.data.timestamps.iso", type=datetime),
+    ]
 
     result = import_record(test_record, spec)
 
@@ -168,13 +171,13 @@ def test_date_time_coercion() -> None:
 
 def test_yaml_string_coercion() -> None:
     """Test YAML string coercion."""
-    spec: Columns = {
-        "int_val": Column("$.string_int", type=int),
-        "float_val": Column("$.string_float", type=float),
-        "bool_val": Column("$.string_bool", type=bool),
-        "date_val": Column("$.string_date", type=date),
-        "array_val": Column("$.string_array", type=str),  # Keep as string
-    }
+    spec: list[Column] = [
+        Column("int_val", path="$.string_int", type=int),
+        Column("float_val", path="$.string_float", type=float),
+        Column("bool_val", path="$.string_bool", type=bool),
+        Column("date_val", path="$.string_date", type=date),
+        Column("array_val", path="$.string_array", type=str),  # Keep as string
+    ]
 
     result = import_record(yaml_record, spec)
 
@@ -189,9 +192,9 @@ def test_yaml_string_coercion() -> None:
 # ======== Error Handling Tests ========
 def test_required_field_missing() -> None:
     """Test error when required field is missing."""
-    spec: Columns = {
-        "missing": Column("$.not.existing", required=True),
-    }
+    spec: list[Column] = [
+        Column("missing", path="$.not.existing", required=True),
+    ]
 
     with pytest.raises(ValueError, match="not found"):
         import_record(test_record, spec)
@@ -199,11 +202,11 @@ def test_required_field_missing() -> None:
 
 def test_collect_errors() -> None:
     """Test collecting errors instead of raising."""
-    spec: Columns = {
-        "status": Column("$.status"),
-        "missing": Column("$.not.existing", required=True),
-        "bad_type": Column("$.data.extra", type=int),  # str to int will fail
-    }
+    spec: list[Column] = [
+        Column("status", path="$.status"),
+        Column("missing", path="$.not.existing", required=True),
+        Column("bad_type", path="$.data.extra", type=int),  # str to int will fail
+    ]
 
     _, errors = import_record(test_record, spec, strict=False)
 
@@ -215,9 +218,9 @@ def test_collect_errors() -> None:
 
 def test_invalid_jsonpath() -> None:
     """Test handling of invalid JSONPath expressions."""
-    spec: Columns = {
-        "invalid": Column("$..[*"),  # Invalid JSONPath syntax
-    }
+    spec: list[Column] = [
+        Column("invalid", path="$..[*"),  # Invalid JSONPath syntax
+    ]
 
     with pytest.raises(
         Exception
@@ -230,9 +233,9 @@ def test_empty_record() -> None:
     """Test importing from an empty record."""
     empty_record: dict[str, JsonValue] = {}
 
-    spec: Columns = {
-        "status": Column("$.status", required=False),
-    }
+    spec: list[Column] = [
+        Column("status", path="$.status", required=False),
+    ]
 
     result = import_record(empty_record, spec)
     assert result["status"] is None
@@ -244,10 +247,10 @@ def test_none_values() -> None:
         "explicit_none": None,
     }
 
-    spec: Columns = {
-        "explicit_none": Column("$.explicit_none"),
-        "null_value": Column("$.data.null_value"),
-    }
+    spec: list[Column] = [
+        Column("explicit_none", path="$.explicit_none"),
+        Column("null_value", path="$.data.null_value"),
+    ]
 
     result = import_record({**test_record, **none_record}, spec)
     assert result["explicit_none"] is None
@@ -256,15 +259,15 @@ def test_none_values() -> None:
 
 def test_multiple_import_specs() -> None:
     """Test importing with multiple import specs."""
-    spec1: Columns = {
-        "status": Column("$.status"),
-    }
+    spec1: list[Column] = [
+        Column("status", path="$.status"),
+    ]
 
-    spec2: Columns = {
-        "model": Column("$.eval.model"),
-    }
+    spec2: list[Column] = [
+        Column("model", path="$.eval.model"),
+    ]
 
-    result = import_record(test_record, spec1 | spec2)
+    result = import_record(test_record, spec1 + spec2)
 
     assert result["status"] == "complete"
     assert result["model"] == "openai/gpt-4o"
@@ -348,18 +351,18 @@ def test_complex_import_scenario() -> None:
         "items": [{"name": "item1", "value": 10}, {"name": "item2", "value": 20}],
     }
 
-    spec: Columns = {
-        "record_id": Column("$.id"),
-        "value1": Column("$.metrics.value1", type=int, required=True),
-        "value2": Column("$.metrics.value2", type=float),
-        "value3": Column("$.metrics.value3", type=bool),
-        "timestamp": Column("$.metrics.timestamp", type=datetime),
-        "tags": Column("$.tags", type=str),
-        "deep_value": Column("$.nested.level1.level2.data"),
-        "items": Column("$.items", type=str),
+    spec: list[Column] = [
+        Column("record_id", path="$.id"),
+        Column("value1", path="$.metrics.value1", type=int, required=True),
+        Column("value2", path="$.metrics.value2", type=float),
+        Column("value3", path="$.metrics.value3", type=bool),
+        Column("timestamp", path="$.metrics.timestamp", type=datetime),
+        Column("tags", path="$.tags", type=str),
+        Column("deep_value", path="$.nested.level1.level2.data"),
+        Column("items", path="$.items", type=str),
         # Test a non-existent field
-        "missing": Column("$.not.here", required=False),
-    }
+        Column("missing", path="$.not.here", required=False),
+    ]
 
     result = import_record(complex_record, spec)
 

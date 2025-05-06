@@ -113,7 +113,7 @@ def evals_df(
 
 
 def reorder_evals_df_columns(
-    df: "pd.DataFrame", eval_columns: Columns
+    df: "pd.DataFrame", eval_columns: list[Column]
 ) -> "pd.DataFrame":
     actual_columns = list(df.columns)
     ordered_columns: list[str] = []
@@ -123,7 +123,8 @@ def reorder_evals_df_columns(
         ordered_columns.append(EVAL_ID)
 
     # eval columns
-    for col_pattern in eval_columns:
+    for col in eval_columns:
+        col_pattern = col.name
         if col_pattern == EVAL_ID:
             continue  # Already handled
 

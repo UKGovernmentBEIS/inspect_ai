@@ -28,13 +28,12 @@ class SampleColumn(Column):
             default=default,
             type=type,
             value=value,
-            root="sample",
         )
         self._extract_sample = path if callable(path) else None
         self._full = full
 
 
-SampleSummary = [
+SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),
     SampleColumn("epoch", path="epoch", required=True),
     SampleColumn("input", path="input", required=True, value=input_as_str),

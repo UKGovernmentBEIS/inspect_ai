@@ -8,8 +8,8 @@ from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
 )
 
-from ..columns import ColumnErrors, Columns, ColumnType
-from ..evals.columns import EvalId
+from ..columns import Column, ColumnErrors, ColumnType
+from ..evals.columns import EvalColumn, EvalId
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, evals_df
 from ..extract import auto_sample_id, model_to_record
 from ..record import import_record
@@ -24,7 +24,7 @@ from ..util import (
 from ..validate import (
     sample_summary_schema,
 )
-from .columns import SampleColumns, SampleDefault, SampleSummary
+from .columns import SampleColumn, SampleSummary
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -37,7 +37,7 @@ SAMPLE_SUFFIX = "_sample"
 @overload
 def samples_df(
     logs: LogPaths,
-    columns: SampleColumns = SampleDefault,
+    columns: list[Column] = SampleSummary,
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[True] = True,
@@ -47,7 +47,7 @@ def samples_df(
 @overload
 def samples_df(
     logs: LogPaths,
-    columns: SampleColumns = SampleDefault,
+    columns: list[Column] = SampleSummary,
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[False] = False,
@@ -56,7 +56,7 @@ def samples_df(
 
 def samples_df(
     logs: LogPaths,
-    columns: SampleColumns = SampleDefault,
+    columns: list[Column] = SampleSummary,
     recursive: bool = True,
     reverse: bool = False,
     strict: bool = True,
@@ -83,11 +83,22 @@ def samples_df(
     # resolve logs
     logs = resolve_logs(logs, recursive=recursive, reverse=reverse)
 
-    # get eval records (column spec must include eval_id)
-    columns_eval = columns.eval or SampleDefault.eval or EvalId
-    if EVAL_ID not in columns_eval:
-        raise ValueError("eval_id must be inclueed in the columns for a samples_df.")
-    columns_sample = columns.sample or SampleDefault.sample or SampleSummary
+    # split columns by type
+    columns_eval: list[Column] = []
+    columns_sample: list[Column] = []
+    for column in columns:
+        if isinstance(column, EvalColumn):
+            columns_eval.append(column)
+        elif isinstance(column, SampleColumn):
+            columns_sample.append(column)
+        else:
+            raise ValueError(
+                f"Unexpected column type passed to samples_df: {type(column)}"
+            )
+
+    # make sure eval_id is present
+    if not any([column.name == EVAL_ID for column in columns_eval]):
+        columns_eval.extend(EvalId)
 
     # read samples from each log
     schema = sample_summary_schema()
@@ -143,7 +154,7 @@ def samples_df(
 
 
 def reorder_samples_df_columns(
-    df: "pd.DataFrame", eval_columns: Columns, sample_columns: Columns
+    df: "pd.DataFrame", eval_columns: list[Column], sample_columns: list[Column]
 ) -> "pd.DataFrame":
     """Reorder columns in the merged DataFrame.
 
@@ -166,21 +177,21 @@ def reorder_samples_df_columns(
         ordered_columns.append(EVAL_ID)
 
     # eval columns
-    for col_pattern in eval_columns:
-        if col_pattern == EVAL_ID or col_pattern == SAMPLE_ID:
+    for column in eval_columns:
+        if column.name == EVAL_ID or column.name == SAMPLE_ID:
             continue  # Already handled
 
         ordered_columns.extend(
-            resolve_columns(col_pattern, EVAL_SUFFIX, actual_columns, ordered_columns)
+            resolve_columns(column.name, EVAL_SUFFIX, actual_columns, ordered_columns)
         )
 
     # then sample columns
-    for col_pattern in sample_columns:
-        if col_pattern == EVAL_ID or col_pattern == SAMPLE_ID:
+    for column in sample_columns:
+        if column.name == EVAL_ID or column.name == SAMPLE_ID:
             continue  # Already handled
 
         ordered_columns.extend(
-            resolve_columns(col_pattern, SAMPLE_SUFFIX, actual_columns, ordered_columns)
+            resolve_columns(column.name, SAMPLE_SUFFIX, actual_columns, ordered_columns)
         )
 
     # add any unreferenced columns

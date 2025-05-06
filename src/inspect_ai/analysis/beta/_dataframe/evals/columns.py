@@ -28,7 +28,6 @@ class EvalColumn(Column):
             default=default,
             type=type,
             value=value,
-            root="eval",
         )
         self._extract_eval = path if callable(path) else None
 

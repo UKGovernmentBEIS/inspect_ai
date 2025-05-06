@@ -5,7 +5,6 @@ from typing import Any, Callable, Mapping, Type, TypeAlias
 from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
-from typing_extensions import Literal
 
 from .validate import jsonpath_in_schema
 
@@ -45,7 +44,6 @@ class Column:
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
         value: Callable[[JsonValue], JsonValue] | None = None,
-        root: Literal["eval", "sample", "message", "event"],
     ) -> None:
         self._name = name
         self._path: str | JSONPath | None = path
@@ -54,7 +52,6 @@ class Column:
         self._type = type
         self._value = value
         self._validated: bool | None = None
-        self._root = root
 
     @property
     def name(self) -> str:

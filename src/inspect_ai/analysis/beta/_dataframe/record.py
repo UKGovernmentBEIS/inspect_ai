@@ -6,17 +6,19 @@ import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
-from inspect_ai.log._log import EvalLog
+from inspect_ai.analysis.beta._dataframe.samples.columns import SampleColumn
+from inspect_ai.log._log import EvalLog, EvalSampleSummary
 
-from .columns import ColumnError, Columns, ColumnType
+from .columns import Column, ColumnError, ColumnType
+from .evals.columns import EvalColumn
 from .extract import model_to_record
 from .validate import Schema
 
 
 @overload
 def import_record(
-    log: EvalLog | dict[str, JsonValue],
-    columns: Columns,
+    record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
+    columns: list[Column],
     strict: Literal[True] = True,
     schema: Schema | None = None,
 ) -> dict[str, ColumnType]: ...
@@ -24,39 +26,35 @@ def import_record(
 
 @overload
 def import_record(
-    log: EvalLog | dict[str, JsonValue],
-    columns: Columns,
+    record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
+    columns: list[Column],
     strict: Literal[False],
     schema: Schema | None = None,
 ) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
 
 
 def import_record(
-    log: EvalLog | dict[str, JsonValue],
-    columns: Columns,
+    record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
+    columns: list[Column],
     strict: bool = True,
     schema: Schema | None = None,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
-    if isinstance(log, EvalLog):
-        record = model_to_record(log)
+    record_target = record
+    if isinstance(record, EvalLog | EvalSampleSummary):
+        record = model_to_record(record)
     else:
-        record = log
+        record = record
 
     # return values
     result: dict[str, ColumnType] = {}
     errors: list[ColumnError] = []
 
     # helper to record a field w/ optional type checking/coercion
-    def set_result(
-        name: str,
-        path: JSONPath,
-        value: JsonValue,
-        type_: Type[ColumnType] | None = None,
-    ) -> None:
+    def set_result(name: str, column: Column, value: JsonValue) -> None:
         try:
-            result[name] = _resolve_value(value, type_)
+            result[name] = _resolve_value(value, column.type)
         except ValueError as ex:
-            error = ColumnError(name, path=path, message=str(ex))
+            error = ColumnError(name, path=column.path, message=str(ex))
             if strict:
                 raise ValueError(str(error))
             else:
@@ -76,7 +74,7 @@ def import_record(
             errors.append(error)
 
     # process each column
-    for name, column in columns.items():
+    for column in columns:
         # start with none
         value: JsonValue = None
 
@@ -92,8 +90,18 @@ def import_record(
                 matches = column.path.find(record)
                 if matches:
                     value = matches[0].value
-            elif column.extract is not None and isinstance(log, EvalLog):
-                value = column.extract(log)
+            elif (
+                isinstance(column, EvalColumn)
+                and column._extract_eval is not None
+                and isinstance(record_target, EvalLog)
+            ):
+                value = column._extract_eval(record_target)
+            elif (
+                isinstance(column, SampleColumn)
+                and column._extract_sample is not None
+                and isinstance(record_target, EvalSampleSummary)
+            ):
+                value = column._extract_sample(record_target)
             else:
                 assert False, "column must have path or extract function"
 
@@ -103,7 +111,7 @@ def import_record(
 
         except Exception as ex:
             error = ColumnError(
-                name,
+                column.name,
                 path=str(column.path) if column.path else None,
                 message=str(ex),
             )
@@ -119,17 +127,17 @@ def import_record(
 
         # check for required
         if column.required and value is None:
-            field_not_found(name, column.path)
+            field_not_found(column.name, column.path)
 
         # handle wildcard vs. no wildcard
-        if name.endswith("*"):
+        if column.name.endswith("*"):
             values = value if isinstance(value, list) else [value]
             for value in values:
-                expanded = _expand_fields(name, value)
+                expanded = _expand_fields(column.name, value)
                 for k, v in expanded.items():
-                    set_result(k, column.path, v, column.type)
+                    set_result(k, column, v)
         else:
-            set_result(name, column.path, value, column.type)
+            set_result(column.name, column, value)
 
     if strict:
         return result
