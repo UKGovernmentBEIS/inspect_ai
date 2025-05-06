@@ -615,6 +615,11 @@ pre[class*="language-"] {
   margin-bottom: 0.75em;
 }
 
+.markdown-content p {
+  font-size: var(--inspect-font-size-small);
+  padding: 0.5em;
+}
+
 .sample-answer .markdown-content h1,
 .sample-answer .markdown-content h2,
 .sample-answer .markdown-content h3,

@@ -38,3 +38,8 @@
   flex-wrap: wrap;
   row-gap: 0.3rem;
 }
+
+.tabStyle {
+  padding-left: 0.7em;
+  padding-right: 0.7em;
+}

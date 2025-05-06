@@ -56,7 +56,13 @@ export const TabSet: FC<TabSetProps> = ({
     <Fragment>
       <ul
         id={id}
-        className={clsx("nav", `nav-${type}`, className, moduleStyles.tabs)}
+        className={clsx(
+          "nav",
+          `nav-${type}`,
+          type === "tabs" ? moduleStyles.tabStyle : undefined,
+          className,
+          moduleStyles.tabs,
+        )}
         role="tablist"
         aria-orientation="horizontal"
       >

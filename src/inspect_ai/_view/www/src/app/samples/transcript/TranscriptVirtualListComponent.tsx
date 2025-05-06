@@ -49,7 +49,10 @@ export const TranscriptVirtualListComponent: FC<
           id={item.id}
           key={item.id}
           className={clsx(styles.node, paddingClass, attachedClass)}
-          style={{ paddingLeft: `${item.depth * 0.5}em` }}
+          style={{
+            paddingLeft: `${item.depth * 0.7}em`,
+            paddingRight: `${item.depth === 0 ? undefined : ".7em"} `,
+          }}
         >
           <RenderedEventNode node={item} />
         </div>

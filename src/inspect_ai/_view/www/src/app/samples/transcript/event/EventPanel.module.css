@@ -39,3 +39,8 @@
   opacity: 1;
   display: block;
 }
+
+.root {
+  background-color: var(--bs-light-bg-subtle);
+  border-radius: unset;
+}
