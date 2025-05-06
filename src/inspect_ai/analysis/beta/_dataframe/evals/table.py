@@ -13,7 +13,7 @@ from ..record import import_record
 from ..util import (
     LogPaths,
     add_unreferenced_columns,
-    normalize_records,
+    records_to_pandas,
     resolve_columns,
     resolve_logs,
     verify_prerequisites,
@@ -21,7 +21,7 @@ from ..util import (
 from ..validate import (
     eval_log_schema,
 )
-from .columns import EvalDefault
+from .columns import EvalDefault, EvalId
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -74,7 +74,6 @@ def evals_df(
        encountered (by log file) during import.
     """
     verify_prerequisites()
-    import pyarrow as pa
 
     # resolve logs
     log_paths = resolve_logs(logs, recursive=recursive, reverse=reverse)
@@ -84,6 +83,9 @@ def evals_df(
 
     # prepare schema for validation of jsonpath expressions
     schema = eval_log_schema()
+
+    # ensure eval_id
+    ensure_eval_id(columns)
 
     # read logs
     records: list[dict[str, ColumnType]] = []
@@ -102,14 +104,18 @@ def evals_df(
             p.update()
 
     # return table (+errors if strict=False)
-    records = normalize_records(records)
-    evals_table = pa.Table.from_pylist(records).to_pandas()
+    evals_table = records_to_pandas(records)
     evals_table = reorder_evals_df_columns(evals_table, columns)
 
     if strict:
         return evals_table
     else:
         return evals_table, all_errors
+
+
+def ensure_eval_id(columns: list[Column]) -> None:
+    if not any([column.name == EVAL_ID for column in columns]):
+        columns.extend(EvalId)
 
 
 def reorder_evals_df_columns(

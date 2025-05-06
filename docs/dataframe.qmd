@@ -1,5 +1,6 @@
 ---
 title: Data Frames
+tbl-colwidths: [30,70]
 ---
 
 ::: callout-note
@@ -10,20 +11,116 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 :::
 
-## Overview
+## Overview {#overview}
+
+```{=html}
+<style type="text/css">
+#overview table a {
+    text-decoration: none;
+    font-family: monospace;
+    font-size: 0.95rem;
+}
+</style>
+```
 
 Inspect eval logs have a hierarchical structure which is well suited to flexibility capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into [data frames](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for flexibly extracting [Pandas](https://pandas.pydata.org/) data frames from logs, including:
 
 | Function | Description |
-|----------------|---------------------------------|
-| `evals_df()` | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
-| `samples_df()` | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
-| `messages_df()` | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
-| `events_df()` | Event level data (e.g. model event, tool event, etc.). One row per message, where each samples contains many events. |
+|-------------------------|-----------------------------------------------|
+| [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
+| [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
+| [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
+| [events_df()](#events) | Event level data (e.g. model event, tool event, etc.). One row per message, where each samples contains many events. |
 
 : {tbl-colwidths=\[40, 60\]}
 
-Each function extracts a default set of columns however you can tailor column reading to work in whatever way you need for your analysis. Extracted data frames can either be normalised (e.g. if you are importing them into a SQL database) or denormalized (e.g. if you want to immediately summarise or plot them).
+Each function extracts a default set of columns however you can tailor column reading to work in whatever way you need for your analysis. Extracted data frames can either be denormalized (e.g. if you want to immediately summarise or plot them) or normalised (e.g. if you are importing them into a SQL database).
+
+Below we'll walk through a few examples, then after that provide more in-depth documentation on customising how data frames are read for various scenarios.
+
+## Examples
+
+### Import Basics
+
+Use the `evals_df()` to read a data frame containing a row for each log file (note that we import from `inspect_ai.analysis.beta`, as the data frame functions are currently in design/beta phase):
+
+``` python
+from inspect_ai.analysis.beta import evals_df
+
+evals_df("logs")
+```
+
+``` default
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 9 entries, 0 to 8
+Columns: 51 entries, eval_id to score_model_graded_qa_stderr
+```
+
+The default configuration for `evals_df()` reads 51 columns. While this is the default behaviour, column reading can be heavily customized (this is covered below in [Columns](#columns)).
+
+Use the `samples_df()` function to read a data frame with a record for each sample across one log files. For example, here we read all of the samples in the "logs" directory:
+
+``` python
+from inspect_ai.analysis.beta import samples_df
+
+samples_df("logs")
+```
+
+``` default
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 408 entries, 0 to 407
+Columns: 13 entries, sample_id to retries
+```
+
+By default, samples read all of the columns in the `EvalSampleSummary` data structure (12 columns), along with the `eval_id` for linking back to their parent eval log file.
+
+### Column Groups
+
+When reading data frames, there are a number of pre-built column groups you can use to read various subsets of columns. For example:
+
+``` python
+from inspect_ai.analysis.beta import (
+    EvalInfo, EvalModel, EvalResults, evals_df
+)
+
+evals_df(
+    logs="logs", 
+    columns=EvalInfo + EvalModel + EvalResults
+)
+```
+
+``` default
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 9 entries, 0 to 8
+Columns: 23 entries, eval_id to score_headline_value
+```
+
+This data frame has 23 columns rather than the 51 we saw when using the default `evals_df()` behaviour, reflecting the explicit columns groups specified. 
+
+You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
+
+``` python
+from inspect_ai.analysis.beta import (
+    EvalInfo, EvalModel, SampleSummary, samples_df
+)
+
+samples_df(
+    logs="logs", 
+    columns=EvalInfo + EvalModel + SampleSummary
+)
+```
+
+``` default
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 408 entries, 0 to 407
+Columns: 27 entries, sample_id to retries
+```
+
+This data frame has 27 columns rather than than the 13 we saw for the default `samples_df()` behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Columns](#columns) for details).
+
+### Databases
+
+You can also read multiple data frames and combine them into a relational database. Imported data frames automatically include fields that can be used to join them (e.g. `eval_id` is in both the evals and samples tables).
 
 For example, here we read eval and sample level data from a log directory and immediately import into a DuckDb database:
 
@@ -32,20 +129,36 @@ import duckdb
 from inspect_ai.analysis.beta import evals_df, samples_df
 
 con = duckdb.connect()
-con.regsiter('evals', evals_df("logs"))
+con.register('evals', evals_df("logs"))
 con.register('samples', samples_df("logs"))
 ```
 
-The samples table automatically includes an `eval_id` column that can be used to join it with evals.
-
-Here we we read samples and conjoin them with eval data so we can summarise and plot directly from the extracted data frame. In this case we extract only the subset of eval-level columns we need for our analysis:
+We can now execute a query to find all samples generated using the `google` provider:
 
 ``` python
-from inspect_ai.analysis.beta import (
-    samples_df, EvalModel, EvalResults, SampleSummary
-)
-
-samples = samples_df("logs", 
-    columns = EvalModel + EvalResults + SampleSummary                   
-)
+result = con.execute("""
+    SELECT * 
+    FROM evals e
+    JOIN samples s ON e.eval_id = s.eval_id
+    WHERE e.model LIKE 'google/%'
+""").fetchdf()
 ```
+
+## Columns
+
+### Evals
+
+
+
+### Samples
+
+
+
+### Messages
+
+The `messages_df()` function is not yet implemented.
+
+### Events
+
+The `events_df()` function is not yet implemented.
+

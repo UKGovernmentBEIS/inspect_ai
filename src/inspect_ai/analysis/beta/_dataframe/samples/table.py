@@ -10,13 +10,13 @@ from inspect_ai.log._file import (
 
 from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn, EvalId
-from ..evals.table import EVAL_ID, EVAL_SUFFIX, evals_df
+from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
 from ..extract import auto_sample_id, model_to_record
 from ..record import import_record
 from ..util import (
     LogPaths,
     add_unreferenced_columns,
-    normalize_records,
+    records_to_pandas,
     resolve_columns,
     resolve_logs,
     verify_prerequisites,
@@ -97,8 +97,7 @@ def samples_df(
             )
 
     # make sure eval_id is present
-    if not any([column.name == EVAL_ID for column in columns_eval]):
-        columns_eval.extend(EvalId)
+    ensure_eval_id(columns_eval)
 
     # read samples from each log
     schema = sample_summary_schema()
@@ -133,7 +132,7 @@ def samples_df(
             p.update()
 
     # normalize records and produce samples table
-    records = normalize_records(records)
+    samples_table = records_to_pandas(records)
     samples_table = pa.Table.from_pylist(records).to_pandas()
 
     # join eval_records

@@ -1,13 +1,19 @@
+from __future__ import annotations
+
 import re
 from os import PathLike
 from pathlib import Path
 from re import Pattern
-from typing import Sequence, TypeAlias
+from typing import TYPE_CHECKING, Any, Sequence, TypeAlias
 
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._file import log_files_from_ls
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import pyarrow as pa
 
 from .columns import ColumnType
 
@@ -127,3 +133,25 @@ def add_unreferenced_columns(
 ) -> list[str]:
     unreferenced_columns = sorted([c for c in columns if c not in referenced_columns])
     return referenced_columns + unreferenced_columns
+
+
+def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
+    import pyarrow as pa
+
+    records = normalize_records(records)
+    table = pa.Table.from_pylist(records).to_pandas(types_mapper=arrow_types_mapper)
+    return table
+
+
+def arrow_types_mapper(
+    arrow_type: "pa.DataType",
+) -> "pd.api.extensions.ExtensionDtype" | None:
+    import pandas as pd
+    import pyarrow as pa
+
+    # convert str => str
+    if pa.types.is_string(arrow_type):
+        return pd.StringDtype()
+    # default conversion for other types
+    else:
+        return None
