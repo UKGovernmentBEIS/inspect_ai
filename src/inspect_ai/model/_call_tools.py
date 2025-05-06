@@ -347,14 +347,22 @@ async def call_tool(
     # dodge circular import
     assert isinstance(event, ToolEvent)
 
+    # this function is responsible for transcript events so that it can
+    # put them in the right enclosure (e.g. handoff/agent/tool). This
+    # means that if we throw early we need to do the enclosure when raising.
+    async def record_tool_parsing_error(error: str) -> Exception:
+        async with span(name=call.function, type="tool"):
+            transcript()._event(event)
+        return ToolParsingError(error)
+
     # if there was an error parsing the ToolCall, raise that
     if call.parse_error:
-        raise ToolParsingError(call.parse_error)
+        raise await record_tool_parsing_error(call.parse_error)
 
     # find the tool
     tool_def = next((tool for tool in tools if tool.name == call.function), None)
     if tool_def is None:
-        raise ToolParsingError(f"Tool {call.function} not found")
+        raise await record_tool_parsing_error(f"Tool {call.function} not found")
 
     # if we have a tool approver, apply it now
     from inspect_ai.approval._apply import apply_tool_approval
@@ -377,7 +385,7 @@ async def call_tool(
     # validate the schema of the passed object
     validation_errors = validate_tool_input(call.arguments, tool_def.parameters)
     if validation_errors:
-        raise ToolParsingError(validation_errors)
+        raise await record_tool_parsing_error(validation_errors)
 
     # get arguments (with creation of dataclasses, pydantic objects, etc.)
     arguments = tool_params(call.arguments, tool_def.tool)
