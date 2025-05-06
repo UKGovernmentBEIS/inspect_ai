@@ -28,7 +28,7 @@ returned from a function decorated with `@task`. For example:
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.dataset import json_datasets
+from inspect_ai.dataset import json_dataset
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import chain_of_thought, generate
 

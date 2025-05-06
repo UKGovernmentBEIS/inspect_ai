@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Inspect</title>
+<title>Data Frames – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -64,7 +64,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./tutorial.html" rel="next">
+<link href="./eval-sets.html" rel="next">
+<link href="./eval-logs.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js"></script>
 <script src="site_libs/quarto-html/popper.min.js"></script>
 <script src="site_libs/quarto-html/tippy.umd.min.js"></script>
@@ -74,9 +75,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -170,7 +168,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Basics</a></li><li class="breadcrumb-item"><a href="./index.html">Welcome</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Analysis</a></li><li class="breadcrumb-item"><a href="./dataframe.html">Data Frames</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -193,7 +191,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./index.html" class="sidebar-item-text sidebar-link active">
+  <a href="./index.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Welcome</span></a>
   </div>
 </li>
@@ -396,7 +394,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true">
- <span class="menu-text">Advanced</span></a>
+ <span class="menu-text">Analysis</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
@@ -405,9 +403,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Eval Logs</span></a>
+ <span class="menu-text">Log Files</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./dataframe.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Data Frames</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true">
+ <span class="menu-text">Advanced</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -462,22 +477,29 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#welcome" id="toc-welcome" class="nav-link active" data-scroll-target="#welcome">Welcome</a></li>
-  <li><a href="#getting-started" id="toc-getting-started" class="nav-link" data-scroll-target="#getting-started">Getting Started</a></li>
-  <li><a href="#sec-hello-inspect" id="toc-sec-hello-inspect" class="nav-link" data-scroll-target="#sec-hello-inspect">Hello, Inspect</a></li>
-  <li><a href="#evaluation-logs" id="toc-evaluation-logs" class="nav-link" data-scroll-target="#evaluation-logs">Evaluation Logs</a></li>
-  <li><a href="#eval-from-python" id="toc-eval-from-python" class="nav-link" data-scroll-target="#eval-from-python">Eval from Python</a></li>
-  <li><a href="#learning-more" id="toc-learning-more" class="nav-link" data-scroll-target="#learning-more">Learning More</a></li>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#examples" id="toc-examples" class="nav-link" data-scroll-target="#examples">Examples</a>
+  <ul class="collapse">
+  <li><a href="#import-basics" id="toc-import-basics" class="nav-link" data-scroll-target="#import-basics">Import Basics</a></li>
+  <li><a href="#column-groups" id="toc-column-groups" class="nav-link" data-scroll-target="#column-groups">Column Groups</a></li>
+  <li><a href="#databases" id="toc-databases" class="nav-link" data-scroll-target="#databases">Databases</a></li>
+  </ul></li>
+  <li><a href="#columns" id="toc-columns" class="nav-link" data-scroll-target="#columns">Columns</a>
+  <ul class="collapse">
+  <li><a href="#evals" id="toc-evals" class="nav-link" data-scroll-target="#evals">Evals</a></li>
+  <li><a href="#samples" id="toc-samples" class="nav-link" data-scroll-target="#samples">Samples</a></li>
+  <li><a href="#messages" id="toc-messages" class="nav-link" data-scroll-target="#messages">Messages</a></li>
+  <li><a href="#events" id="toc-events" class="nav-link" data-scroll-target="#events">Events</a></li>
+  </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./index.html">Basics</a></li><li class="breadcrumb-item"><a href="./index.html">Welcome</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Analysis</a></li><li class="breadcrumb-item"><a href="./dataframe.html">Data Frames</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Inspect</h1>
-<p class="subtitle lead">An open-source framework for large language model evaluations</p>
+<h1 class="title">Data Frames</h1>
 </div>
 
 
@@ -494,222 +516,176 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
-<section id="welcome" class="level2">
-<h2 class="anchored" data-anchor-id="welcome">Welcome</h2>
-<p>Welcome to Inspect, a framework for large language model evaluations created by the <a href="https://aisi.gov.uk">UK AI Security Institute</a>.</p>
-<p>Inspect provides many built-in components, including facilities for prompt engineering, tool usage, multi-turn dialog, and model graded evaluations. Extensions to Inspect (e.g.&nbsp;to support new elicitation and scoring techniques) can be provided by other Python packages.</p>
-<p><a href="images/inspect.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/inspect.png" class="border img-fluid" alt="Inspect running inside Visual Studio Code. The editor shows the ARC evaluation and the log viewer at right shows results from the evaluation."></a></p>
-<p>We’ll walk through a fairly trivial “Hello, Inspect” example below. Read on to learn the basics, then read the documentation on <a href="./options.html">Options</a>, <a href="./solvers.html">Solvers</a>, <a href="./tools.html">Tools</a>, <a href="./scorers.html">Scorers</a>, <a href="./datasets.html">Datasets</a>, and <a href="./models.html">Models</a> to learn how to create more advanced evaluations.</p>
-</section>
-<section id="getting-started" class="level2">
-<h2 class="anchored" data-anchor-id="getting-started">Getting Started</h2>
-<p>To get started using Inspect:</p>
-<ol type="1">
-<li><p>Install Inspect from PyPI with:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install inspect-ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div></li>
-<li><p>If you are using VS Code, install the <a href="./vscode.html">Inspect VS Code Extension</a> (not required but highly recommended).</p></li>
-</ol>
-<p>To develop and run evaluations, you’ll also need access to a model, which typically requires installation of a Python package as well as ensuring that the appropriate API key is available in the environment.</p>
-<p>Assuming you had written an evaluation in a script named <code>arc.py</code>, here’s how you would setup and run the eval for a few different model providers:</p>
-<div class="tabset-margin-container"></div><div class="panel-tabset code-tabset">
-<ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true">OpenAI</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false">Anthropic</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-3-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-3" role="tab" aria-controls="tabset-1-3" aria-selected="false">Google</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-4-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-4" role="tab" aria-controls="tabset-1-4" aria-selected="false">Grok</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-5-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-5" role="tab" aria-controls="tabset-1-5" aria-selected="false">Mistral</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-6-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-6" role="tab" aria-controls="tabset-1-6" aria-selected="false">HF</a></li></ul>
-<div class="tab-content code-tabset">
-<div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
-<div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">OPENAI_API_KEY</span><span class="op">=</span>your-openai-api-key</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> openai/gpt-4o</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
 </div>
-<div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
-<div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install anthropic</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">ANTHROPIC_API_KEY</span><span class="op">=</span>your-anthropic-api-key</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> anthropic/claude-3-5-sonnet-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div id="tabset-1-3" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-3-tab">
-<div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install google-genai</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GOOGLE_API_KEY</span><span class="op">=</span>your-google-api-key</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> google/gemini-1.5-pro</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div id="tabset-1-4" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-4-tab">
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install openai</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">GROK_API_KEY</span><span class="op">=</span>your-grok-api-key</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> grok/grok-beta</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div id="tabset-1-5" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-5-tab">
-<div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install mistralai</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">MISTRAL_API_KEY</span><span class="op">=</span>your-mistral-api-key</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> mistral/mistral-large-latest</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<div id="tabset-1-6" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-6-tab">
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install torch transformers</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">HF_TOKEN</span><span class="op">=</span>your-hf-token</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval arc.py <span class="at">--model</span> hf/meta-llama/Llama-2-7b-chat-hf</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="callout-title-container flex-fill">
+Note
 </div>
 </div>
+<div class="callout-body-container callout-body">
+<p>The data frame functions described below are available only in the development version of Inspect. To install the development version from GitHub:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, Vertex AI, TogetherAI, Groq, Cloudflare, and Goodfire as well as local models with vLLM, Ollama or llama-cpp-python.</p>
-</section>
-<section id="sec-hello-inspect" class="level2">
-<h2 class="anchored" data-anchor-id="sec-hello-inspect">Hello, Inspect</h2>
-<p>Inspect evaluations have three main components:</p>
-<ol type="1">
-<li><p><strong>Datasets</strong> contain a set of labelled samples. Datasets are typically just a table with <code>input</code> and <code>target</code> columns, where <code>input</code> is a prompt and <code>target</code> is either literal value(s) or grading guidance.</p></li>
-<li><p><strong>Solvers</strong> are chained together to evaluate the <code>input</code> in the dataset and produce a final result. The most elemental solver, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span>, just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, or provide an agent scaffold.</p></li>
-<li><p><strong>Scorers</strong> evaluate the final output of solvers. They may use text comparisons, model grading, or other custom schemes</p></li>
-</ol>
-<p>Let’s take a look at a simple evaluation that aims to see how models perform on the <a href="https://en.wikipedia.org/wiki/Sally%E2%80%93Anne_test">Sally-Anne</a> test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:</p>
+</div>
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<style type="text/css">
+#overview table a {
+    text-decoration: none;
+    font-family: monospace;
+    font-size: 0.95rem;
+}
+</style>
+<p>Inspect eval logs have a hierarchical structure which is well suited to flexibility capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into <a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html">data frames</a>. The <strong>inspect_ai.analysis</strong> module includes a variety of functions for flexibly extracting <a href="https://pandas.pydata.org/">Pandas</a> data frames from logs, including:</p>
 <table class="caption-top table">
 <colgroup>
-<col style="width: 62%">
-<col style="width: 37%">
+<col style="width: 30%">
+<col style="width: 70%">
 </colgroup>
 <thead>
 <tr class="header">
-<th>input</th>
-<th>target</th>
+<th>Function</th>
+<th>Description</th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
-<td>Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning?</td>
-<td>bathtub</td>
+<td><a href="#evals">evals_df()</a></td>
+<td>Evaluation level data (e.g.&nbsp;task, model, scores, etc.). One row per log file.</td>
 </tr>
 <tr class="even">
-<td>Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater?</td>
-<td>pantry</td>
+<td><a href="#samples">samples_df()</a></td>
+<td>Sample level data (e.g.&nbsp;input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples.</td>
+</tr>
+<tr class="odd">
+<td><a href="#messages">messages_df()</a></td>
+<td>Message level data (e.g.&nbsp;role, content, etc.). One row per message, where each sample contains many messages.</td>
+</tr>
+<tr class="even">
+<td><a href="#events">events_df()</a></td>
+<td>Event level data (e.g.&nbsp;model event, tool event, etc.). One row per message, where each samples contains many events.</td>
 </tr>
 </tbody>
 </table>
-<p>Here’s the code for the evaluation<span>&nbsp;(click on the numbers at right for further explanation)</span>:</p>
-<div class="code-with-filename">
-<div class="code-with-filename-file">
-<pre><strong>theory.py</strong></pre>
-</div>
-<div class="sourceCode" id="annotated-cell-1" data-filename="theory.py"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-1-1"><a href="#annotated-cell-1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
-<span id="annotated-cell-1-2"><a href="#annotated-cell-1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> example_dataset</span>
-<span id="annotated-cell-1-3"><a href="#annotated-cell-1-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.scorer <span class="im">import</span> model_graded_fact</span>
-<span id="annotated-cell-1-4"><a href="#annotated-cell-1-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.solver <span class="im">import</span> (               </span>
-<span id="annotated-cell-1-5"><a href="#annotated-cell-1-5" aria-hidden="true" tabindex="-1"></a>  chain_of_thought, generate, self_critique   </span>
-<span id="annotated-cell-1-6"><a href="#annotated-cell-1-6" aria-hidden="true" tabindex="-1"></a>)                                             </span>
-<span id="annotated-cell-1-7"><a href="#annotated-cell-1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-1-8"><a href="#annotated-cell-1-8" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
-<span id="annotated-cell-1-9"><a href="#annotated-cell-1-9" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> theory_of_mind():</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="1">1</button><span id="annotated-cell-1-10" class="code-annotation-target"><a href="#annotated-cell-1-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
-<span id="annotated-cell-1-11"><a href="#annotated-cell-1-11" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>example_dataset(<span class="st">"theory_of_mind"</span>),</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="2">2</button><span id="annotated-cell-1-12" class="code-annotation-target"><a href="#annotated-cell-1-12" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
-<span id="annotated-cell-1-13"><a href="#annotated-cell-1-13" aria-hidden="true" tabindex="-1"></a>          chain_of_thought(),</span>
-<span id="annotated-cell-1-14"><a href="#annotated-cell-1-14" aria-hidden="true" tabindex="-1"></a>          generate(),</span>
-<span id="annotated-cell-1-15"><a href="#annotated-cell-1-15" aria-hidden="true" tabindex="-1"></a>          self_critique()</span>
-<span id="annotated-cell-1-16"><a href="#annotated-cell-1-16" aria-hidden="true" tabindex="-1"></a>        ],</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-1" data-target-annotation="3">3</button><span id="annotated-cell-1-17" class="code-annotation-target"><a href="#annotated-cell-1-17" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>model_graded_fact()</span>
-<span id="annotated-cell-1-18"><a href="#annotated-cell-1-18" aria-hidden="true" tabindex="-1"></a>    )</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</div>
-<dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-1" data-target-annotation="1">1</dt>
-<dd>
-<span data-code-cell="annotated-cell-1" data-code-lines="10" data-code-annotation="1">The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> object brings together the dataset, solvers, and scorer, and is then evaluated using a model.</span>
-</dd>
-<dt data-target-cell="annotated-cell-1" data-target-annotation="2">2</dt>
-<dd>
-<span data-code-cell="annotated-cell-1" data-code-lines="12,13,14,15" data-code-annotation="2">In this example we are chaining together three standard solver components. It’s also possible to create a more complex custom solver that manages state and interactions internally.</span>
-</dd>
-<dt data-target-cell="annotated-cell-1" data-target-annotation="3">3</dt>
-<dd>
-<span data-code-cell="annotated-cell-1" data-code-lines="17" data-code-annotation="3">Since the output is likely to have pretty involved language, we use a model for scoring.</span>
-</dd>
-</dl>
-<p>Note that you can provide a <em>single</em> solver or multiple solvers chained together as we did here.</p>
-<p>The <code>@task</code> decorator applied to the <code>theory_of_mind()</code> function is what enables <code>inspect eval</code> to find and run the eval in the source file passed to it. For example, here we run the eval against GPT-4:</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval theory.py <span class="at">--model</span> openai/gpt-4</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><img src="images/running-theory.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete."></p>
+<p>Each function extracts a default set of columns however you can tailor column reading to work in whatever way you need for your analysis. Extracted data frames can either be denormalized (e.g.&nbsp;if you want to immediately summarise or plot them) or normalised (e.g.&nbsp;if you are importing them into a SQL database).</p>
+<p>Below we’ll walk through a few examples, then after that provide more in-depth documentation on customising how data frames are read for various scenarios.</p>
 </section>
-<section id="evaluation-logs" class="level2">
-<h2 class="anchored" data-anchor-id="evaluation-logs">Evaluation Logs</h2>
-<p>By default, eval logs are written to the <code>./logs</code> sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.</p>
-<p>If you are using VS Code, we recommend installing the <a href="./vscode.html">Inspect VS Code Extension</a> and using its integrated log browsing and viewing.</p>
-<p>For other editors, you can use the <code>inspect view</code> command to open a log viewer in the browser (you only need to do this once as the viewer will automatically updated when new evals are run):</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> view</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p><a href="images/inspect-view-home.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2"><img src="images/inspect-view-home.png" class="border img-fluid" alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."></a></p>
-<p>See the <a href="./log-viewer.html">Log Viewer</a> section for additional details on using Inspect View.</p>
+<section id="examples" class="level2">
+<h2 class="anchored" data-anchor-id="examples">Examples</h2>
+<section id="import-basics" class="level3">
+<h3 class="anchored" data-anchor-id="import-basics">Import Basics</h3>
+<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> to read a data frame containing a row for each log file (note that we import from <code>inspect_ai.analysis.beta</code>, as the data frame functions are currently in design/beta phase):</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> evals_df</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>evals_df(<span class="st">"logs"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 9 entries, 0 to 8</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>Columns: 51 entries, eval_id to score_model_graded_qa_stderr</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The default configuration for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> reads 51 columns. While this is the default behaviour, column reading can be heavily customized (this is covered below in <a href="#columns">Columns</a>).</p>
+<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> function to read a data frame with a record for each sample across one log files. For example, here we read all of the samples in the “logs” directory:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> samples_df</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>samples_df(<span class="st">"logs"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 408 entries, 0 to 407</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>Columns: 13 entries, sample_id to retries</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>By default, samples read all of the columns in the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span> data structure (12 columns), along with the <code>eval_id</code> for linking back to their parent eval log file.</p>
 </section>
-<section id="eval-from-python" class="level2">
-<h2 class="anchored" data-anchor-id="eval-from-python">Eval from Python</h2>
-<p>Above we demonstrated using <code>inspect eval</code> from CLI to run evaluations—you can perform all of the same operations from directly within Python using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> function. For example:</p>
-<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(theory_of_mind(), model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<section id="column-groups" class="level3">
+<h3 class="anchored" data-anchor-id="column-groups">Column Groups</h3>
+<p>When reading data frames, there are a number of pre-built column groups you can use to read various subsets of columns. For example:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> (</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    EvalInfo, EvalModel, EvalResults, evals_df</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>evals_df(</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EvalInfo <span class="op">+</span> EvalModel <span class="op">+</span> EvalResults</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 9 entries, 0 to 8</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>Columns: 23 entries, eval_id to score_headline_value</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This data frame has 23 columns rather than the 51 we saw when using the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> behaviour, reflecting the explicit columns groups specified.</p>
+<p>You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> (</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    EvalInfo, EvalModel, SampleSummary, samples_df</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>samples_df(</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    logs<span class="op">=</span><span class="st">"logs"</span>, </span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    columns<span class="op">=</span>EvalInfo <span class="op">+</span> EvalModel <span class="op">+</span> SampleSummary</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 408 entries, 0 to 407</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>Columns: 27 entries, sample_id to retries</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>This data frame has 27 columns rather than than the 13 we saw for the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see <a href="#columns">Columns</a> for details).</p>
 </section>
-<section id="learning-more" class="level2">
-<h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>
-<p>The best way to get familiar with Inspect’s core features is the <a href="./tutorial.html">Tutorial</a>, which includes several annotated examples.</p>
-<p>Next, review these articles which cover basic workflow, more sophisticated examples, and additional useful tooling:</p>
-<ul>
-<li><p><a href="./options.html">Options</a> covers the various options available for evaluations as well as how to manage model credentials.</p></li>
-<li><p><a href="./evals/index.html">Evals</a> are a set of ready to run evaluations that implement popular LLM benchmarks and papers.</p></li>
-<li><p><a href="./log-viewer.html">Log Viewer</a> goes into more depth on how to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and how to integrate it with Python’s standard logging module.</p></li>
-<li><p><a href="./vscode.html">VS Code</a> provides documentation on using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.</p></li>
-</ul>
-<p>These sections provide a more in depth treatment of the various components used in evals. Read them as required as you learn to build evaluations.</p>
-<ul>
-<li><p><a href="./tasks.html">Tasks</a> bring together datasets, solvers, and scorers to define a evaluation. This section explores strategies for creating flexible and re-usable tasks.</p></li>
-<li><p><a href="./datasets.html">Datasets</a> provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.</p></li>
-<li><p><a href="./solvers.html">Solvers</a> are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the <code>plan</code> in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.</p></li>
-<li><p><a href="./scorers.html">Scorers</a> evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.</p></li>
-</ul>
-<p>These sections cover defining custom tools as well as Inspect’s standard built-in tools:</p>
-<ul>
-<li><p><a href="./tools.html">Tool Basics</a>: Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.</p></li>
-<li><p><a href="./tools-standard.html">Standard Tools</a> describes Inspect’s built-in tools for code execution, text editing, computer use, web search, and web browsing.</p></li>
-<li><p><a href="./tools-mcp.html">MCP Tools</a> covers how to intgrate tools from the growing list of <a href="https://modelcontextprotocol.io/introduction">Model Context Protocol</a> providers.</p></li>
-<li><p><a href="./tools-custom.html">Custom Tools</a> provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.</p></li>
-<li><p><a href="./sandboxing.html">Sandboxing</a> enables you to isolate code generated by models as well as set up more complex computing environments for tasks.</p></li>
-<li><p><a href="./approval.html">Tool Approval</a> enables you to create fine-grained policies for approving tool calls made by models.</p></li>
-</ul>
-<p>These sections cover how to use various language models with Inspect:</p>
-<ul>
-<li><p><a href="./models.html">Models</a> describe various ways to specify and provide options to models in Inspect evaluations.</p></li>
-<li><p><a href="./providers.html">Providers</a> covers usage details and available options for the various supported providers.</p></li>
-<li><p><a href="./caching.html">Caching</a> explains how to cache model output to reduce the number of API calls made.</p></li>
-<li><p><a href="./multimodal.html">Multimodal</a> describes the APIs available for creating multimodal evaluations (including images, audio, and video).</p></li>
-<li><p><a href="./reasoning.html">Reasoning</a> documents the additional options and data available for reasoning models.</p></li>
-<li><p><a href="./structured.html">Structured Output</a> explains how to constrain model output to a particular JSON schema.</p></li>
-</ul>
-<p>These sections describe how to create agent evaluations with Inspect:</p>
-<ul>
-<li><p><a href="./agents.html">Agents</a> combine planning, memory, and tool usage to pursue more complex, longer horizon tasks. This articles covers the basics of using agents in evaluations.</p></li>
-<li><p><a href="./multi-agent.html">Multi Agent</a> covers various ways to compose agents together in multi-agent architectures.</p></li>
-<li><p><a href="./agent-custom.html">Custom Agents</a> describes advanced Inspect APIs available for creating custom agents.</p></li>
-<li><p><a href="./agent-bridge.html">Agent Bridge</a> enables the use of agents from 3rd party frameworks like AutoGen or LangChain with Inspect.</p></li>
-<li><p><a href="./human-agent.html">Human Agent</a> is a solver that enables human baselining on computing tasks.</p></li>
-</ul>
-<p>These sections discuss more advanced features and workflows. You don’t need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.</p>
-<ul>
-<li><p><a href="./eval-logs.html">Eval Logs</a> explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.</p></li>
-<li><p><a href="./eval-sets.html">Eval Sets</a> covers Inspect’s features for describing, running, and analysing larger sets of evaluation tasks.</p></li>
-<li><p><a href="./errors-and-limits.html">Errors and Limits</a> covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.</p></li>
-<li><p><a href="./multimodal.html">Multimodal</a> documents the APIs available for creating multimodal evaluations (including images, audio, and video).</p></li>
-<li><p><a href="./typing.html">Typing</a>: provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e.&nbsp;sample metadata and store).</p></li>
-<li><p><a href="./tracing.html">Tracing</a> Describes advanced execution tracing tools used to diagnose runtime issues.</p></li>
-<li><p><a href="./caching.html">Caching</a> enables you to cache model output to reduce the number of API calls made, saving both time and expense.</p></li>
-<li><p><a href="./parallelism.html">Parallelism</a> delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture—here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.</p></li>
-<li><p><a href="./interactivity.html">Interactivity</a> covers various ways to introduce user interaction into the implementation of tasks (for example, prompting the model dynamically based on the trajectory of the evaluation).</p></li>
-<li><p><a href="./extensions.html">Extensions</a> describes the various ways you can extend Inspect, including adding support for new Model APIs, tool execution environments, and storage platforms (for datasets, prompts, and logs).</p></li>
-</ul>
+<section id="databases" class="level3">
+<h3 class="anchored" data-anchor-id="databases">Databases</h3>
+<p>You can also read multiple data frames and combine them into a relational database. Imported data frames automatically include fields that can be used to join them (e.g.&nbsp;<code>eval_id</code> is in both the evals and samples tables).</p>
+<p>For example, here we read eval and sample level data from a log directory and immediately import into a DuckDb database:</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> duckdb</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> evals_df, samples_df</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>con <span class="op">=</span> duckdb.<span class="ex">connect</span>()</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>con.register(<span class="st">'evals'</span>, evals_df(<span class="st">"logs"</span>))</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>con.register(<span class="st">'samples'</span>, samples_df(<span class="st">"logs"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>We can now execute a query to find all samples generated using the <code>google</code> provider:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> con.execute(<span class="st">"""</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="st">    SELECT * </span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="st">    FROM evals e</span></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="st">    JOIN samples s ON e.eval_id = s.eval_id</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="st">    WHERE e.model LIKE 'google/%'</span></span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="st">"""</span>).fetchdf()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="columns" class="level2">
+<h2 class="anchored" data-anchor-id="columns">Columns</h2>
+<p>The examples above all use built-in column specifications (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalmodel">EvalModel</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalresults">EvalResults</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span>, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.</p>
+<p>Column definitions specify how JSON data is mapped into a data frame columns, and are specified using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> class and its subclasses (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplecolumn">SampleColumn</a></span>). For example, here is the definition of the built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evaltask">EvalTask</a></span> column group:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>EvalTask: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_name"</span>, path<span class="op">=</span><span class="st">"eval.task"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_version"</span>, path<span class="op">=</span><span class="st">"eval.task_version"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_file"</span>, path<span class="op">=</span><span class="st">"eval.task_file"</span>),</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_attribs"</span>, path<span class="op">=</span><span class="st">"eval.task_attribs"</span>),</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_arg_*"</span>, path<span class="op">=</span><span class="st">"eval.task_args"</span>),</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"solver"</span>, path<span class="op">=</span><span class="st">"eval.solver"</span>),</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"solver_args"</span>, path<span class="op">=</span><span class="st">"eval.solver_args"</span>),</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"sandbox_type"</span>, path<span class="op">=</span><span class="st">"eval.sandbox.type"</span>),</span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"sandbox_config"</span>, path<span class="op">=</span><span class="st">"eval.sandbox.config"</span>),</span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Columns are defined with a <code>name</code>, a <code>path</code> (location within JSON to be read from), and other options (e.g.&nbsp;<code>required</code>). Column paths typically use <a href="https://github.com/h2non/jsonpath-ng">JSON Path</a> expressions to indicate how they should be read from JSON. Many fields within eval logs are optional, and path expressions will automatically resolve to <code>None</code> when they include a missing field (unless the <code>required=True</code> option is specified).</p>
+<p>Below we’ll detail all of the options available for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> definitions. Then, in the sections below we’ll describe data source specific considerations for defining columns (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplecolumn">SampleColumn</a></span>, etc.).</p>
+<section id="column-options" class="level4">
+<h4 class="anchored" data-anchor-id="column-options">Column Options</h4>
+</section>
+<section id="column-merging" class="level4">
+<h4 class="anchored" data-anchor-id="column-merging">Column Merging</h4>
+</section>
+<section id="evals" class="level3">
+<h3 class="anchored" data-anchor-id="evals">Evals</h3>
+<p>asdfsadf</p>
+</section>
+<section id="samples" class="level3">
+<h3 class="anchored" data-anchor-id="samples">Samples</h3>
+<p>asdfasdf</p>
+</section>
+<section id="messages" class="level3">
+<h3 class="anchored" data-anchor-id="messages">Messages</h3>
+<p>The <code>messages_df()</code> function is not yet implemented.</p>
+</section>
+<section id="events" class="level3">
+<h3 class="anchored" data-anchor-id="events">Events</h3>
+<p>The <code>events_df()</code> function is not yet implemented.</p>
 
 
 </section>
+</section>
 
-<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" id="quarto-citation"><h2 class="anchored quarto-appendix-heading">Citation</h2><div><div class="quarto-appendix-secondary-label">BibTeX citation:</div><pre class="sourceCode code-with-copy quarto-appendix-bibtex"><code class="sourceCode bibtex">@software{UK_AI_Security_Institute_Inspect_AI_Framework_2024,
-  author = {AI Security Institute, UK},
-  title = {Inspect {AI:} {Framework} for {Large} {Language} {Model}
-    {Evaluations}},
-  date = {2024-05},
-  url = {https://github.com/UKGovernmentBEIS/inspect_ai},
-  langid = {en}
-}
-</code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre><div class="quarto-appendix-secondary-label">For attribution, please cite this work as:</div><div id="ref-UK_AI_Security_Institute_Inspect_AI_Framework_2024" class="csl-entry quarto-appendix-citeas" role="listitem">
-AI Security Institute, UK. 2024. <span>“Inspect AI: Framework for Large
-Language Model Evaluations.”</span> <a href="https://github.com/UKGovernmentBEIS/inspect_ai">https://github.com/UKGovernmentBEIS/inspect_ai</a>.
-</div></div></section></div></main> <!-- /main -->
+</main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
   const toggleBodyColorMode = (bsSheetEl) => {
@@ -1173,10 +1149,13 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
 </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
+      <a href="./eval-logs.html" class="pagination-link" aria-label="Log Files">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Log Files</span>
+      </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./tutorial.html" class="pagination-link" aria-label="Tutorial">
-        <span class="nav-page-text">Tutorial</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./eval-sets.html" class="pagination-link" aria-label="Eval Sets">
+        <span class="nav-page-text">Eval Sets</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
@@ -1234,38 +1213,6 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","closeEffect":"zoom","openEffect":"zoom","loop":false,"descPosition":"bottom"});
-(function() {
-  let previousOnload = window.onload;
-  window.onload = () => {
-    if (previousOnload) {
-      previousOnload();
-    }
-    lightboxQuarto.on('slide_before_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      const href = trigger.getAttribute('href');
-      if (href !== null) {
-        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-        if (imgEl !== null) {
-          const srcAttr = imgEl.getAttribute("src");
-          if (srcAttr && srcAttr.startsWith("data:")) {
-            slideConfig.href = srcAttr;
-          }
-        }
-      } 
-    });
-  
-    lightboxQuarto.on('slide_after_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      if (window.Quarto?.typesetMath) {
-        window.Quarto.typesetMath(slideNode);
-      }
-    });
-  
-  };
-  
-})();
-          </script>
 
 
 

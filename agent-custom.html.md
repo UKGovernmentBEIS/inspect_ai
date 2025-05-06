@@ -366,16 +366,6 @@ strings you can also pass arbitrary JSON serialisable objects to
 
 ### Grouping with Spans
 
-> [!NOTE]
->
-> The `span()` function described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 You can create arbitrary groupings of transcript activity using the
 `span()` context manager. For example:
 
@@ -399,16 +389,6 @@ Spans are automatically created for sample initialisation, solvers,
 scorers, subtasks, tool calls, and agent execution.
 
 ## Parallel Execution
-
-> [!NOTE]
->
-> The `collect()` function described below is available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 You can execute subtasks in parallel using the `collect()` function. For
 example, to run 3 `web_search()` coroutines in parallel:
