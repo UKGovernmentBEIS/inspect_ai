@@ -74,6 +74,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
   return (
     <EventPanel
       id={id}
+      depth={eventNode.depth}
       title={title}
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}

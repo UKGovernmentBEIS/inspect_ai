@@ -32,6 +32,7 @@ export const StepEventView: FC<StepEventViewProps> = ({
   return (
     <EventPanel
       id={id}
+      depth={eventNode.depth}
       childIds={children.map((child) => child.id)}
       className={clsx("transcript-step", className)}
       title={title}

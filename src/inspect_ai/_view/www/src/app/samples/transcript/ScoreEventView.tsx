@@ -32,6 +32,7 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
   return (
     <EventPanel
       id={eventNode.id}
+      depth={eventNode.depth}
       title={(event.intermediate ? "Intermediate " : "") + "Score"}
       className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}

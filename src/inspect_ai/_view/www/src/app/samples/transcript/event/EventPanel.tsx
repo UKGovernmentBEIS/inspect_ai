@@ -21,6 +21,7 @@ import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
   id: string;
+  depth: number;
   className?: string | string[];
   title?: string;
   subTitle?: string;
@@ -40,6 +41,7 @@ interface ChildProps {
  */
 export const EventPanel: FC<EventPanelProps> = ({
   id,
+  depth,
   className,
   title,
   subTitle,
@@ -49,6 +51,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   childIds,
   collapsibleContent,
 }) => {
+  console.log({ depth });
   const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
   const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
 
@@ -194,7 +197,14 @@ export const EventPanel: FC<EventPanelProps> = ({
     );
 
   const card = (
-    <div id={id} className={clsx(className, styles.card)}>
+    <div
+      id={id}
+      className={clsx(
+        className,
+        styles.card,
+        depth === 0 ? styles.root : undefined,
+      )}
+    >
       {titleEl}
       <div
         className={clsx(

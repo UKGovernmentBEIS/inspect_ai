@@ -2107,10 +2107,10 @@ var require_assets = __commonJS({
       } catch (e) {
         passiveBrowserEventsSupported = false;
       }
-    var root$2 = null, startText = null, fallbackText = null;
+    var root$3 = null, startText = null, fallbackText = null;
     function getData() {
       if (fallbackText) return fallbackText;
-      var start, startValue = startText, startLength = startValue.length, end, endValue = "value" in root$2 ? root$2.value : root$2.textContent, endLength = endValue.length;
+      var start, startValue = startText, startLength = startValue.length, end, endValue = "value" in root$3 ? root$3.value : root$3.textContent, endLength = endValue.length;
       for (start = 0; start < startLength && startValue[start] === endValue[start]; start++) ;
       var minEnd = startLength - start;
       for (end = 1; end <= minEnd && startValue[startLength - end] === endValue[endLength - end]; end++) ;
@@ -2363,7 +2363,7 @@ var require_assets = __commonJS({
     }
     function getFallbackBeforeInputChars(domEventName, nativeEvent) {
       if (isComposing)
-        return "compositionend" === domEventName || !canUseCompositionEvent && isFallbackCompositionEnd(domEventName, nativeEvent) ? (domEventName = getData(), fallbackText = startText = root$2 = null, isComposing = false, domEventName) : null;
+        return "compositionend" === domEventName || !canUseCompositionEvent && isFallbackCompositionEnd(domEventName, nativeEvent) ? (domEventName = getData(), fallbackText = startText = root$3 = null, isComposing = false, domEventName) : null;
       switch (domEventName) {
         case "paste":
           return null;
@@ -9795,7 +9795,7 @@ var require_assets = __commonJS({
             }
           else
             isComposing ? isFallbackCompositionEnd(domEventName, nativeEvent) && (eventType = "onCompositionEnd") : "keydown" === domEventName && 229 === nativeEvent.keyCode && (eventType = "onCompositionStart");
-          eventType && (useFallbackCompositionData && "ko" !== nativeEvent.locale && (isComposing || "onCompositionStart" !== eventType ? "onCompositionEnd" === eventType && isComposing && (fallbackData = getData()) : (root$2 = nativeEventTarget, startText = "value" in root$2 ? root$2.value : root$2.textContent, isComposing = true)), handleEventFunc = accumulateTwoPhaseListeners(targetInst, eventType), 0 < handleEventFunc.length && (eventType = new SyntheticCompositionEvent(
+          eventType && (useFallbackCompositionData && "ko" !== nativeEvent.locale && (isComposing || "onCompositionStart" !== eventType ? "onCompositionEnd" === eventType && isComposing && (fallbackData = getData()) : (root$3 = nativeEventTarget, startText = "value" in root$3 ? root$3.value : root$3.textContent, isComposing = true)), handleEventFunc = accumulateTwoPhaseListeners(targetInst, eventType), 0 < handleEventFunc.length && (eventType = new SyntheticCompositionEvent(
             eventType,
             domEventName,
             null,
@@ -12065,7 +12065,7 @@ var require_assets = __commonJS({
     let column;
     let token;
     let key$1;
-    let root$1;
+    let root$2;
     var parse$4 = function parse2(text2, reviver) {
       source = String(text2);
       parseState = "start";
@@ -12075,15 +12075,15 @@ var require_assets = __commonJS({
       column = 0;
       token = void 0;
       key$1 = void 0;
-      root$1 = void 0;
+      root$2 = void 0;
       do {
         token = lex();
         parseStates[parseState]();
       } while (token.type !== "eof");
       if (typeof reviver === "function") {
-        return internalize({ "": root$1 }, "", reviver);
+        return internalize({ "": root$2 }, "", reviver);
       }
-      return root$1;
+      return root$2;
     };
     function internalize(holder, name2, reviver) {
       const value2 = holder[name2];
@@ -12807,8 +12807,8 @@ var require_assets = __commonJS({
           value2 = token.value;
           break;
       }
-      if (root$1 === void 0) {
-        root$1 = value2;
+      if (root$2 === void 0) {
+        root$2 = value2;
       } else {
         const parent = stack[stack.length - 1];
         if (Array.isArray(parent)) {
@@ -43775,13 +43775,14 @@ categories: ${categories.join(" ")}`;
     const EmptyPanel = ({ children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
     };
-    const tabs$1 = "_tabs_16tmn_1";
-    const tabContents = "_tabContents_16tmn_5";
-    const scrollable = "_scrollable_16tmn_10";
-    const tab$1 = "_tab_16tmn_1";
-    const tabItem = "_tabItem_16tmn_24";
-    const tabIcon = "_tabIcon_16tmn_28";
-    const tabTools = "_tabTools_16tmn_32";
+    const tabs$1 = "_tabs_jdywf_1";
+    const tabContents = "_tabContents_jdywf_5";
+    const scrollable = "_scrollable_jdywf_10";
+    const tab$1 = "_tab_jdywf_1";
+    const tabItem = "_tabItem_jdywf_24";
+    const tabIcon = "_tabIcon_jdywf_28";
+    const tabTools = "_tabTools_jdywf_32";
+    const tabStyle = "_tabStyle_jdywf_42";
     const moduleStyles = {
       tabs: tabs$1,
       tabContents,
@@ -43789,7 +43790,8 @@ categories: ${categories.join(" ")}`;
       tab: tab$1,
       tabItem,
       tabIcon,
-      tabTools
+      tabTools,
+      tabStyle
     };
     const TabSet = ({
       id,
@@ -43807,7 +43809,13 @@ categories: ${categories.join(" ")}`;
           "ul",
           {
             id,
-            className: clsx("nav", `nav-${type}`, className2, moduleStyles.tabs),
+            className: clsx(
+              "nav",
+              `nav-${type}`,
+              type === "tabs" ? moduleStyles.tabStyle : void 0,
+              className2,
+              moduleStyles.tabs
+            ),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: [
@@ -51637,22 +51645,25 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$4 = "_label_1v085_1";
-    const navs = "_navs_1v085_6";
-    const card = "_card_1v085_12";
-    const cardContent = "_cardContent_1v085_19";
-    const hidden$1 = "_hidden_1v085_24";
-    const copyLink = "_copyLink_1v085_32";
+    const label$4 = "_label_1muws_1";
+    const navs = "_navs_1muws_6";
+    const card = "_card_1muws_12";
+    const cardContent = "_cardContent_1muws_19";
+    const hidden$1 = "_hidden_1muws_24";
+    const copyLink = "_copyLink_1muws_32";
+    const root$1 = "_root_1muws_43";
     const styles$r = {
       label: label$4,
       navs,
       card,
       cardContent,
       hidden: hidden$1,
-      copyLink
+      copyLink,
+      root: root$1
     };
     const EventPanel = ({
       id,
+      depth,
       className: className2,
       title: title2,
       subTitle,
@@ -51662,6 +51673,7 @@ self.onmessage = function (e) {
       childIds,
       collapsibleContent
     }) => {
+      console.log({ depth });
       const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
       const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
       const { logPath, sampleId, epoch } = useParams();
@@ -51767,32 +51779,43 @@ self.onmessage = function (e) {
           ]
         }
       ) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$r.card), children: [
-        titleEl,
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              "tab-content",
-              styles$r.cardContent,
-              isCollapsible && collapsed && collapsibleContent ? styles$r.hidden : void 0
-            ),
-            children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
-              const id2 = pillId(index2);
-              const isSelected = id2 === selectedNav;
-              return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "div",
-                {
-                  id: id2,
-                  className: clsx("tab-pane", "show", isSelected ? "active" : ""),
-                  children: child
-                },
-                `children-${id2}-${index2}`
-              );
-            })
-          }
-        )
-      ] });
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          id,
+          className: clsx(
+            className2,
+            styles$r.card,
+            depth === 0 ? styles$r.root : void 0
+          ),
+          children: [
+            titleEl,
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  "tab-content",
+                  styles$r.cardContent,
+                  isCollapsible && collapsed && collapsibleContent ? styles$r.hidden : void 0
+                ),
+                children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
+                  const id2 = pillId(index2);
+                  const isSelected = id2 === selectedNav;
+                  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "div",
+                    {
+                      id: id2,
+                      className: clsx("tab-pane", "show", isSelected ? "active" : ""),
+                      children: child
+                    },
+                    `children-${id2}-${index2}`
+                  );
+                })
+              }
+            )
+          ]
+        }
+      );
       return card2;
     };
     function hasDataDefault(node2) {
@@ -51808,6 +51831,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           title: "Error",
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -51844,6 +51868,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id: eventNode.id,
+          depth: eventNode.depth,
           title: "Info" + (event.source ? ": " + event.source : ""),
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -51862,6 +51887,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           title: "Input",
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -52084,6 +52110,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id: eventNode.id,
+          depth: eventNode.depth,
           className: className2,
           title: formatTitle(panelTitle, totalUsage, callTime),
           subTitle: formatTiming(event.timestamp, event.working_start),
@@ -52230,6 +52257,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id: eventNode.id,
+          depth: eventNode.depth,
           className: className2,
           title: "Sample",
           icon: ApplicationIcons.sample,
@@ -52305,6 +52333,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id: eventNode.id,
+          depth: eventNode.depth,
           title: title2,
           icon: icon2,
           className: className2,
@@ -52334,6 +52363,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           className: className2,
           title: `Sandbox: ${event.action}`,
           icon: ApplicationIcons.sandbox,
@@ -52412,6 +52442,7 @@ self.onmessage = function (e) {
         EventPanel,
         {
           id: eventNode.id,
+          depth: eventNode.depth,
           title: (event.intermediate ? "Intermediate " : "") + "Score",
           className: clsx(className2, "text-size-small"),
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -59672,6 +59703,7 @@ ${events}
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           title: title2,
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -60047,6 +60079,7 @@ ${events}
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           childIds: children2.map((child) => child.id),
           className: clsx("transcript-step", className2),
           title: title2,
@@ -60195,6 +60228,7 @@ ${events}
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           className: className2,
           title: formatTitle(
             `${type}: ${event.name}`,
@@ -60273,6 +60307,7 @@ ${events}
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           title: formatTitle(title2, void 0, event.working_time),
           className: className2,
           subTitle: formatTiming(event.timestamp, event.working_start),
@@ -60326,6 +60361,7 @@ ${events}
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           childIds: children2.map((child) => child.id),
           className: clsx("transcript-span", className2),
           title: title2,
@@ -60460,7 +60496,10 @@ ${events}
             {
               id: item2.id,
               className: clsx(styles$d.node, paddingClass, attachedClass),
-              style: { paddingLeft: `${item2.depth * 0.5}em` },
+              style: {
+                paddingLeft: `${item2.depth * 0.7}em`,
+                paddingRight: `${item2.depth === 0 ? void 0 : ".7em"} `
+              },
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { node: item2 })
             },
             item2.id
@@ -61226,9 +61265,9 @@ ${events}
       }
       return false;
     };
-    const container$3 = "_container_kgsc6_1";
-    const body$1 = "_body_kgsc6_7";
-    const scroller = "_scroller_kgsc6_11";
+    const container$3 = "_container_hinf1_1";
+    const body$1 = "_body_hinf1_7";
+    const scroller = "_scroller_hinf1_12";
     const styles$c = {
       container: container$3,
       body: body$1,

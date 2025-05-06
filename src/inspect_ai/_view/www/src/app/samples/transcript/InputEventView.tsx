@@ -23,6 +23,7 @@ export const InputEventView: FC<InputEventViewProps> = ({
   return (
     <EventPanel
       id={id}
+      depth={eventNode.depth}
       title="Input"
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}

@@ -23,6 +23,7 @@ export const ErrorEventView: FC<ErrorEventViewProps> = ({
   return (
     <EventPanel
       id={id}
+      depth={eventNode.depth}
       title="Error"
       className={className}
       subTitle={formatDateTime(new Date(event.timestamp))}
