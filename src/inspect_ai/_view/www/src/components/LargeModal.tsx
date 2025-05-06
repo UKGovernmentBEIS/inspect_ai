@@ -28,6 +28,9 @@ interface LargeModalProps {
   onHide: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
   children: ReactNode;
+  classNames?: {
+    body?: string | string[];
+  };
 }
 
 export const LargeModal: FC<LargeModalProps> = ({
@@ -42,6 +45,7 @@ export const LargeModal: FC<LargeModalProps> = ({
   onHide,
   showProgress,
   scrollRef,
+  classNames,
 }) => {
   // The footer
   const modalFooter = footer ? (
@@ -127,7 +131,7 @@ export const LargeModal: FC<LargeModalProps> = ({
             </button>
           </div>
           <ProgressBar animating={showProgress} />
-          <div className={"modal-body"} ref={scrollRef}>
+          <div className={clsx("modal-body", classNames?.body)} ref={scrollRef}>
             {children}
           </div>
           {modalFooter}
