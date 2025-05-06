@@ -14,6 +14,7 @@ interface ChatMessageRowProps {
   indented?: boolean;
   padded?: boolean;
   getMessageUrl?: (id: string) => string | undefined;
+  highlightUserMessage?: boolean;
 }
 
 /**
@@ -26,6 +27,7 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
   toolCallStyle,
   indented,
   getMessageUrl,
+  highlightUserMessage,
 }) => {
   if (number) {
     return (
@@ -34,7 +36,9 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
           className={clsx(
             styles.grid,
             styles.container,
-            resolvedMessage.message.role === "user" ? styles.user : undefined,
+            highlightUserMessage && resolvedMessage.message.role === "user"
+              ? styles.user
+              : undefined,
           )}
         >
           <div
@@ -67,7 +71,9 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
         className={clsx(
           styles.container,
           styles.simple,
-          resolvedMessage.message.role === "user" ? styles.user : undefined,
+          highlightUserMessage && resolvedMessage.message.role === "user"
+            ? styles.user
+            : undefined,
         )}
       >
         <ChatMessage
