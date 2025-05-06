@@ -96,7 +96,10 @@ def python(
           The output of the Python code.
         """
         result = await sandbox_env(sandbox).exec(
-            cmd=["python3"], input=code, timeout=timeout, user=user
+            cmd=["bash", "--login", "-c", "python3 -"],
+            input=code,
+            timeout=timeout,
+            user=user,
         )
         # return output (including stderr if any)
         output = ""
