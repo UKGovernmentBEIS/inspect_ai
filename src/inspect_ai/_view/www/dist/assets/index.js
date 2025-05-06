@@ -43076,7 +43076,7 @@ categories: ${categories.join(" ")}`;
       }
     };
     const supportsLinking = () => {
-      return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" || true;
+      return location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
     };
     const toFullUrl = (path) => {
       return `${window.location.origin}${window.location.pathname}#${path}`;

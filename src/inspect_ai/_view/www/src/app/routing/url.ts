@@ -76,10 +76,7 @@ export const logUrlRaw = (log_segment: string, tabId?: string) => {
 };
 
 export const supportsLinking = () => {
-  return (
-    (location.hostname !== "localhost" && location.hostname !== "127.0.0.1") ||
-    true
-  );
+  return location.hostname !== "localhost" && location.hostname !== "127.0.0.1";
 };
 
 export const toFullUrl = (path: string) => {
