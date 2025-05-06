@@ -143,7 +143,7 @@ const collapseFilters: Array<
     return false;
   },
   (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) =>
-    event.event === "tool",
+    event.event === "tool" && !event.agent && !event.failed,
   (event: StepEvent | SpanBeginEvent | ToolEvent | SubtaskEvent) =>
     event.event === "subtask",
 ];
