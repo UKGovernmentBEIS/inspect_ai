@@ -9,6 +9,8 @@ import { useStore } from "../../state/store";
 import { useSampleNavigation } from "../routing/navigationHooks";
 import { SampleDisplay } from "./SampleDisplay";
 
+import styles from "./SampleDialog.module.css";
+
 interface SampleDialogProps {
   id: string;
   title: string;
@@ -139,6 +141,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       onkeyup={handleKeyUp}
       visible={showingSampleDialog}
       onHide={onHide}
+      classNames={{
+        body: styles.modalBody,
+      }}
       showProgress={
         sampleData.status === "loading" || sampleData.status === "streaming"
       }
