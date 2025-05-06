@@ -1,38 +1,51 @@
-from dataclasses import dataclass, field
+from typing import Callable, Type
 
-from ..columns import Column, Columns
+from jsonpath_ng import JSONPath  # type: ignore
+from pydantic import JsonValue
+
+from inspect_ai.log._log import EvalSampleSummary
+
+from ..columns import Column, ColumnType
 from ..extract import input_as_str, list_as_str, score_values
 
 
-@dataclass
-class SampleColumns:
-    """Columns specification for samples data frame."""
+class SampleColumn(Column):
+    def __init__(
+        self,
+        name: str,
+        *,
+        path: str | JSONPath | Callable[[EvalSampleSummary], JsonValue],
+        required: bool = False,
+        default: JsonValue | None = None,
+        type: Type[ColumnType] | None = None,
+        value: Callable[[JsonValue], JsonValue] | None = None,
+        full: bool = False,
+    ) -> None:
+        super().__init__(
+            name=name,
+            path=path if not callable(path) else None,
+            required=required,
+            default=default,
+            type=type,
+            value=value,
+            root="sample",
+        )
+        self._extract_sample = path if callable(path) else None
+        self._full = full
 
-    eval: Columns | None = field(default=None)
-    """Columns from eval table (defaults to `eval_id`)."""
 
-    sample: Columns | None = field(default=None)
-    """Columns from samples (defaults to `SampleSummary`)"""
-
-
-SampleSummary: Columns = {
-    "id": Column("id", required=True, type=str),
-    "epoch": Column("epoch", required=True),
-    "input": Column("input", required=True, value=input_as_str),
-    "target": Column("target", required=True, value=list_as_str),
-    "metadata_*": Column("metadata"),
-    "score_*": Column("scores", value=score_values),
-    "model_usage": Column("model_usage"),
-    "total_time": Column("total_time"),
-    "working_time": Column("total_time"),
-    "error": Column("error"),
-    "limit": Column("limit"),
-    "retries": Column("retries"),
-}
+SampleSummary = [
+    SampleColumn("id", path="id", required=True, type=str),
+    SampleColumn("epoch", path="epoch", required=True),
+    SampleColumn("input", path="input", required=True, value=input_as_str),
+    SampleColumn("target", path="target", required=True, value=list_as_str),
+    SampleColumn("metadata_*", path="metadata"),
+    SampleColumn("score_*", path="scores", value=score_values),
+    SampleColumn("model_usage", path="model_usage"),
+    SampleColumn("total_time", path="total_time"),
+    SampleColumn("working_time", path="total_time"),
+    SampleColumn("error", path="error"),
+    SampleColumn("limit", path="limit"),
+    SampleColumn("retries", path="retries"),
+]
 """Sample summary columns."""
-
-SampleDefault = SampleColumns(
-    eval={"eval_id": Column("eval.eval_id", required=True)},
-    sample=SampleSummary,
-)
-"""Default columns to import for `samples_df()`."""

@@ -1,93 +1,123 @@
 from datetime import datetime
+from typing import Callable, Type
 
-from ..columns import Column, Columns
+from jsonpath_ng import JSONPath  # type: ignore
+from pydantic import JsonValue
+
+from inspect_ai.log._log import EvalLog
+
+from ..columns import Column, ColumnType
 from ..extract import eval_log_location, list_as_str, scores_dict
 
-EvalId: Columns = {
-    "eval_id": Column("eval.eval_id", required=True),
-}
+
+class EvalColumn(Column):
+    def __init__(
+        self,
+        name: str,
+        *,
+        path: str | JSONPath | Callable[[EvalLog], JsonValue],
+        required: bool = False,
+        default: JsonValue | None = None,
+        type: Type[ColumnType] | None = None,
+        value: Callable[[JsonValue], JsonValue] | None = None,
+    ) -> None:
+        super().__init__(
+            name=name,
+            path=path if not callable(path) else None,
+            required=required,
+            default=default,
+            type=type,
+            value=value,
+            root="eval",
+        )
+        self._extract_eval = path if callable(path) else None
+
+
+EvalId: list[Column] = [
+    EvalColumn("eval_id", path="eval.eval_id", required=True),
+]
 """Eval id column."""
 
-EvalInfo: Columns = {
-    "run_id": Column("eval.run_id", required=True),
-    "task_id": Column("eval.task_id", required=True),
-    "log": Column(eval_log_location),
-    "created": Column("eval.created", type=datetime, required=True),
-    "tags": Column("eval.tags", default="", value=list_as_str),
-    "git_origin": Column("eval.revision.origin"),
-    "git_commit": Column("eval.revision.commit"),
-    "packages": Column("eval.packages"),
-    "metadata": Column("eval.metadata"),
-}
+EvalInfo: list[Column] = [
+    EvalColumn("run_id", path="eval.run_id", required=True),
+    EvalColumn("task_id", path="eval.task_id", required=True),
+    EvalColumn("log", path=eval_log_location),
+    EvalColumn("created", path="eval.created", type=datetime, required=True),
+    EvalColumn("tags", path="eval.tags", default="", value=list_as_str),
+    EvalColumn("git_origin", path="eval.revision.origin"),
+    EvalColumn("git_commit", path="eval.revision.commit"),
+    EvalColumn("packages", path="eval.packages"),
+    EvalColumn("metadata", path="eval.metadata"),
+]
 """Eval basic information columns."""
 
-EvalTask: Columns = {
-    "task_name": Column("eval.task", required=True),
-    "task_version": Column("eval.task_version", required=True),
-    "task_file": Column("eval.task_file"),
-    "task_attribs": Column("eval.task_attribs"),
-    "task_arg_*": Column("eval.task_args"),
-    "solver": Column("eval.solver"),
-    "solver_args": Column("eval.solver_args"),
-    "sandbox_type": Column("eval.sandbox.type"),
-    "sandbox_config": Column("eval.sandbox.config"),
-}
+EvalTask: list[Column] = [
+    EvalColumn("task_name", path="eval.task", required=True),
+    EvalColumn("task_version", path="eval.task_version", required=True),
+    EvalColumn("task_file", path="eval.task_file"),
+    EvalColumn("task_attribs", path="eval.task_attribs"),
+    EvalColumn("task_arg_*", path="eval.task_args"),
+    EvalColumn("solver", path="eval.solver"),
+    EvalColumn("solver_args", path="eval.solver_args"),
+    EvalColumn("sandbox_type", path="eval.sandbox.type"),
+    EvalColumn("sandbox_config", path="eval.sandbox.config"),
+]
 """Eval task configuration columns."""
 
-EvalModel: Columns = {
-    "model": Column("eval.model", required=True),
-    "model_base_url": Column("eval.model_base_url"),
-    "model_args": Column("eval.model_base_url"),
-    "model_generate_config": Column("eval.model_generate_config"),
-    "model_roles": Column("eval.model_roles"),
-}
+EvalModel: list[Column] = [
+    EvalColumn("model", path="eval.model", required=True),
+    EvalColumn("model_base_url", path="eval.model_base_url"),
+    EvalColumn("model_args", path="eval.model_base_url"),
+    EvalColumn("model_generate_config", path="eval.model_generate_config"),
+    EvalColumn("model_roles", path="eval.model_roles"),
+]
 """Eval model columns."""
 
-EvalDataset: Columns = {
-    "dataset_name": Column("eval.dataset.name"),
-    "dataset_location": Column("eval.dataset.location"),
-    "dataset_samples": Column("eval.dataset.samples"),
-    "dataset_sample_ids": Column("eval.dataset.sample_ids"),
-    "dataset_shuffled": Column("eval.dataset.shuffled"),
-}
+EvalDataset: list[Column] = [
+    EvalColumn("dataset_name", path="eval.dataset.name"),
+    EvalColumn("dataset_location", path="eval.dataset.location"),
+    EvalColumn("dataset_samples", path="eval.dataset.samples"),
+    EvalColumn("dataset_sample_ids", path="eval.dataset.sample_ids"),
+    EvalColumn("dataset_shuffled", path="eval.dataset.shuffled"),
+]
 """Eval dataset columns."""
 
-EvalConfig: Columns = {
-    "epochs": Column("eval.config.epochs"),
-    "epochs_reducer": Column("eval.config.epochs_reducer"),
-    "approval": Column("eval.config.approval"),
-    "message_limit": Column("eval.config.message_limit"),
-    "token_limit": Column("eval.config.token_limit"),
-    "time_limit": Column("eval.config.time_limit"),
-    "working_limit": Column("eval.config.working_limit"),
-}
+EvalConfig: list[Column] = [
+    EvalColumn("epochs", path="eval.config.epochs"),
+    EvalColumn("epochs_reducer", path="eval.config.epochs_reducer"),
+    EvalColumn("approval", path="eval.config.approval"),
+    EvalColumn("message_limit", path="eval.config.message_limit"),
+    EvalColumn("token_limit", path="eval.config.token_limit"),
+    EvalColumn("time_limit", path="eval.config.time_limit"),
+    EvalColumn("working_limit", path="eval.config.working_limit"),
+]
 """Eval configuration columns."""
 
-EvalResults: Columns = {
-    "status": Column("status", required=True),
-    "error_message": Column("error.message"),
-    "error_traceback": Column("error.traceback"),
-    "total_samples": Column("results.total_samples", required=True),
-    "completed_samples": Column("results.completed_samples", required=True),
-    "score_headline_name": Column("results.scores[0].scorer"),
-    "score_headline_metric": Column("results.scores[0].metrics.*.name"),
-    "score_headline_value": Column("results.scores[0].metrics.*.value"),
-}
+EvalResults: list[Column] = [
+    EvalColumn("status", path="status", required=True),
+    EvalColumn("error_message", path="error.message"),
+    EvalColumn("error_traceback", path="error.traceback"),
+    EvalColumn("total_samples", path="results.total_samples", required=True),
+    EvalColumn("completed_samples", path="results.completed_samples", required=True),
+    EvalColumn("score_headline_name", path="results.scores[0].scorer"),
+    EvalColumn("score_headline_metric", path="results.scores[0].metrics.*.name"),
+    EvalColumn("score_headline_value", path="results.scores[0].metrics.*.value"),
+]
 """Eval results columns."""
 
-EvalScores: Columns = {
-    "score_*_*": Column(scores_dict),
-}
+EvalScores: list[Column] = [
+    EvalColumn("score_*_*", path=scores_dict),
+]
 """Eval scores (one score/metric per-columns)."""
 
-EvalDefault: Columns = (
+EvalDefault: list[Column] = (
     EvalId
-    | EvalInfo
-    | EvalTask
-    | EvalModel
-    | EvalDataset
-    | EvalConfig
-    | EvalResults
-    | EvalScores
+    + EvalInfo
+    + EvalTask
+    + EvalModel
+    + EvalDataset
+    + EvalConfig
+    + EvalResults
+    + EvalScores
 )
 """Default columns to import for `evals_df()`."""

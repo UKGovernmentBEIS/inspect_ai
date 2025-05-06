@@ -15,7 +15,7 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 Inspect eval logs have a hierarchical structure which is well suited to flexibility capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into [data frames](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for flexibly extracting [Pandas](https://pandas.pydata.org/) data frames from logs, including:
 
 | Function | Description |
-|------------------------------------|------------------------------------|
+|----------------|---------------------------------|
 | `evals_df()` | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
 | `samples_df()` | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
 | `messages_df()` | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
@@ -42,11 +42,10 @@ Here we we read samples and conjoin them with eval data so we can summarise and 
 
 ``` python
 from inspect_ai.analysis.beta import (
-    samples_df, EvalId, EvalModel, EvalResults, 
-    SampleColumns, SampleDefault
+    samples_df, EvalModel, EvalResults, SampleSummary
 )
 
 samples = samples_df("logs", 
-    columns = EvalId | EvalModel | EvalResults | SampleDefault                    
+    columns = EvalModel + EvalResults + SampleSummary                   
 )
 ```

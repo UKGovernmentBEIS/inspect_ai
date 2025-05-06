@@ -26,14 +26,11 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ## Samples
 
 ### samples_df
-### SampleDefault
-### SampleColumns
 ### SampleSummary
 
 ## Columns
 
 ### Column
-### Columns
 ### ColumnType
 ### ColumnError
 ### ColumnErrors

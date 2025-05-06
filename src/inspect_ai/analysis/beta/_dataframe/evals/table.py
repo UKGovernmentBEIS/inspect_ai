@@ -8,7 +8,7 @@ from inspect_ai.log._file import (
     read_eval_log,
 )
 
-from ..columns import ColumnErrors, Columns, ColumnType
+from ..columns import Column, ColumnErrors, ColumnType
 from ..record import import_record
 from ..util import (
     LogPaths,
@@ -33,7 +33,7 @@ EVAL_SUFFIX = "_eval"
 @overload
 def evals_df(
     logs: LogPaths,
-    columns: Columns = EvalDefault,
+    columns: list[Column] = EvalDefault,
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[True] = True,
@@ -43,7 +43,7 @@ def evals_df(
 @overload
 def evals_df(
     logs: LogPaths,
-    columns: Columns = EvalDefault,
+    columns: list[Column] = EvalDefault,
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[False] = False,
@@ -52,7 +52,7 @@ def evals_df(
 
 def evals_df(
     logs: LogPaths,
-    columns: Columns = EvalDefault,
+    columns: list[Column] = EvalDefault,
     recursive: bool = True,
     reverse: bool = False,
     strict: bool = True,

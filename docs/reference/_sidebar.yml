@@ -482,16 +482,10 @@ website:
           href: reference/inspect_ai.analysis.qmd#evalscores
         - text: samples_df
           href: reference/inspect_ai.analysis.qmd#samples_df
-        - text: SampleDefault
-          href: reference/inspect_ai.analysis.qmd#sampledefault
-        - text: SampleColumns
-          href: reference/inspect_ai.analysis.qmd#samplecolumns
         - text: SampleSummary
           href: reference/inspect_ai.analysis.qmd#samplesummary
         - text: Column
           href: reference/inspect_ai.analysis.qmd#column
-        - text: Columns
-          href: reference/inspect_ai.analysis.qmd#columns
         - text: ColumnType
           href: reference/inspect_ai.analysis.qmd#columntype
         - text: ColumnError

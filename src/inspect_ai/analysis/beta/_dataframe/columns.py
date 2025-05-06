@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import KW_ONLY, dataclass
 from datetime import date, datetime, time
 from typing import Any, Callable, Mapping, Type, TypeAlias
@@ -7,8 +6,6 @@ from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
 from typing_extensions import Literal
-
-from inspect_ai.log._log import EvalLog
 
 from .validate import jsonpath_in_schema
 
@@ -23,7 +20,7 @@ class Column:
     """
     Specification for importing a column into a data frame.
 
-    Extract columns from an `EvalLog` either using [JSONPath](https://github.com/h2non/jsonpath-ng) expressions
+    Extract columns from an `EvalLog` path either using [JSONPath](https://github.com/h2non/jsonpath-ng) expressions
     or a function that takes `EvalLog` and returns a value.
 
     By default, columns are not required, pass `required=True` to make them required. Non-required
@@ -36,36 +33,33 @@ class Column:
     The `value` function provides an additional hook for transformation of the value read
     from the log before it is realized as a column (e.g. list to a comma-separated string).
 
-    The `validate` option controls whether the specified JSONPath is validated against the
-    log file schema.
-
     The `root` option indicates which root eval log context the columns select from.
     """
 
     def __init__(
         self,
-        extract: str | JSONPath | Callable[[EvalLog], JsonValue],
+        name: str,
         *,
+        path: str | JSONPath | None,
         required: bool = False,
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
         value: Callable[[JsonValue], JsonValue] | None = None,
-        validate: bool = True,
-        root: Literal["eval", "sample", "message", "event"] = "eval",
+        root: Literal["eval", "sample", "message", "event"],
     ) -> None:
-        if isinstance(extract, str | JSONPath):
-            self._path: str | JSONPath | None = extract
-            self._extract: Callable[[EvalLog], JsonValue] | None = None
-        else:
-            self._path = None
-            self._extract = extract
+        self._name = name
+        self._path: str | JSONPath | None = path
         self._required = required
         self._default = default
         self._type = type
         self._value = value
-        self._validate = validate
         self._validated: bool | None = None
         self._root = root
+
+    @property
+    def name(self) -> str:
+        """Column name."""
+        return self._name
 
     @property
     def path(self) -> JSONPath | None:
@@ -73,11 +67,6 @@ class Column:
         if isinstance(self._path, str):
             self._path = parse(self._path)
         return self._path
-
-    @property
-    def extract(self) -> Callable[[EvalLog], JsonValue] | None:
-        """Function that extracts column value from `EvalLog`"""
-        return self._extract
 
     @property
     def required(self) -> bool:
@@ -109,39 +98,12 @@ class Column:
             return x
 
     def validate_path(self, schema: Mapping[str, Any]) -> bool:
-        if self._validate and self.path is not None:
+        if self.path is not None:
             if self._validated is None:
                 self._validated = jsonpath_in_schema(self.path, schema)
             return self._validated
         else:
             return True
-
-
-class ColumnsSet(dict[str, Column]):
-    def __init__(
-        self,
-        root: Literal["eval", "sample", "message", "event"],
-        columns: dict[str, Column] | None = None,
-    ) -> None:
-        self._root = root
-        columns_with_root: dict[str, Column] = {}
-        if columns:
-            for key, value in columns.items():
-                column = deepcopy(value)
-                column._root = root
-                columns_with_root[key] = column
-        super().__init__(columns_with_root)
-
-    # def __or__(self, other: dict[str, Column]) -> dict[str, Column]:
-    #     result = ColumnsSet(self._root)
-    #     result.update(self)
-    #     result.update(other)
-
-    #     return result
-
-
-Columns: TypeAlias = dict[str, Column]
-"""Specification of columns to read from eval log into data frame."""
 
 
 @dataclass
