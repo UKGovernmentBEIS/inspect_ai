@@ -144,6 +144,7 @@ dev = [
     "textual-dev>=0.86.2",
     "trio",
     "pandas-stubs",
+    "pyarrow-stubs",
     "types-Markdown",
     "types-PyYAML",
     "types-beautifulsoup4",

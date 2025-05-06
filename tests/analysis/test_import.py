@@ -1,9 +1,9 @@
 from datetime import date, datetime, time, timezone
 from pathlib import Path
-from typing import override
 
 import pytest
 from pydantic import JsonValue
+from typing_extensions import override
 
 from inspect_ai.analysis.beta import Column, EvalDefault
 from inspect_ai.analysis.beta._dataframe.evals.columns import EvalColumn
