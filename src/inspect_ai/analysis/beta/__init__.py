@@ -5,6 +5,7 @@ from ._dataframe.columns import (
     ColumnType,
 )
 from ._dataframe.evals.columns import (
+    EvalColumn,
     EvalConfig,
     EvalDefault,
     EvalId,
@@ -17,11 +18,12 @@ from ._dataframe.evals.columns import (
 from ._dataframe.evals.table import evals_df
 from ._dataframe.events.table import events_df
 from ._dataframe.messages.table import messages_df
-from ._dataframe.samples.columns import SampleSummary
+from ._dataframe.samples.columns import SampleColumn, SampleSummary
 from ._dataframe.samples.table import samples_df
 
 __all__ = [
     "evals_df",
+    "EvalColumn",
     "EvalId",
     "EvalInfo",
     "EvalTask",
@@ -31,6 +33,7 @@ __all__ = [
     "EvalResults",
     "EvalScores",
     "samples_df",
+    "SampleColumn",
     "SampleSummary",
     "messages_df",
     "events_df",

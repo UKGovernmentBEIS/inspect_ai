@@ -1,6 +1,5 @@
 ---
 title: Data Frames
-tbl-colwidths: [30,70]
 ---
 
 ::: callout-note
@@ -19,11 +18,12 @@ pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
     text-decoration: none;
     font-family: monospace;
     font-size: 0.95rem;
+    white-space: nowrap;
 }
 </style>
 ```
 
-Inspect eval logs have a hierarchical structure which is well suited to flexibility capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into [data frames](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for flexibly extracting [Pandas](https://pandas.pydata.org/) data frames from logs, including:
+Inspect eval logs have a hierarchical structure which is well suited to flexibly capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into [data frames](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for extracting [Pandas](https://pandas.pydata.org/) data frames from logs, including:
 
 | Function | Description |
 |--------------------------|----------------------------------------------|
@@ -32,9 +32,7 @@ Inspect eval logs have a hierarchical structure which is well suited to flexibil
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
 | [events_df()](#events) | Event level data (e.g. model event, tool event, etc.). One row per message, where each samples contains many events. |
 
-: {tbl-colwidths=\[40, 60\]}
-
-Each function extracts a default set of columns however you can tailor column reading to work in whatever way you need for your analysis. Extracted data frames can either be denormalized (e.g. if you want to immediately summarise or plot them) or normalised (e.g. if you are importing them into a SQL database).
+Each function extracts a default set of columns, however you can tailor column reading to work in whatever way you need for your analysis. Extracted data frames can either be denormalized (e.g. if you want to immediately summarise or plot them) or normalised (e.g. if you are importing them into a SQL database).
 
 Below we'll walk through a few examples, then after that provide more in-depth documentation on customising how data frames are read for various scenarios.
 
@@ -42,7 +40,7 @@ Below we'll walk through a few examples, then after that provide more in-depth d
 
 ### Import Basics
 
-Use the `evals_df()` to read a data frame containing a row for each log file (note that we import from `inspect_ai.analysis.beta`, as the data frame functions are currently in design/beta phase):
+Use the `evals_df()` function to read a data frame containing a row for each log file (note that we import from `inspect_ai.analysis.beta`, as the data frame functions are currently in design/beta phase):
 
 ``` python
 from inspect_ai.analysis.beta import evals_df
@@ -56,9 +54,9 @@ RangeIndex: 9 entries, 0 to 8
 Columns: 51 entries, eval_id to score_model_graded_qa_stderr
 ```
 
-The default configuration for `evals_df()` reads 51 columns. While this is the default behaviour, column reading can be heavily customized (this is covered below in [Columns](#columns)).
+The default configuration for `evals_df()` reads 51 columns. While this is the default, column reading can be customized in variety of ways (covered below in [Columns](#columns)).
 
-Use the `samples_df()` function to read a data frame with a record for each sample across one log files. For example, here we read all of the samples in the "logs" directory:
+Use the `samples_df()` function to read a data frame with a record for each sample across a set of log files. For example, here we read all of the samples in the "logs" directory:
 
 ``` python
 from inspect_ai.analysis.beta import samples_df
@@ -72,7 +70,7 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 13 entries, sample_id to retries
 ```
 
-By default, samples read all of the columns in the `EvalSampleSummary` data structure (12 columns), along with the `eval_id` for linking back to their parent eval log file.
+By default, `sample_df()` reads all of the columns in the `EvalSampleSummary` data structure (12 columns), along with the `eval_id` for linking back to the parent eval log file.
 
 ### Column Groups
 
@@ -95,7 +93,7 @@ RangeIndex: 9 entries, 0 to 8
 Columns: 23 entries, eval_id to score_headline_value
 ```
 
-This data frame has 23 columns rather than the 51 we saw when using the default `evals_df()` behaviour, reflecting the explicit columns groups specified.
+This data frame has 23 columns rather than the 51 we saw when using the default `evals_df()` congiruation, reflecting the explicit columns groups specified.
 
 You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:
 
@@ -122,7 +120,7 @@ This data frame has 27 columns rather than than the 13 we saw for the default `s
 
 You can also read multiple data frames and combine them into a relational database. Imported data frames automatically include fields that can be used to join them (e.g. `eval_id` is in both the evals and samples tables).
 
-For example, here we read eval and sample level data from a log directory and immediately import into a DuckDb database:
+For example, here we read eval and sample level data from a log directory and import both tables into a DuckDb database:
 
 ``` python
 import duckdb
@@ -148,7 +146,7 @@ result = con.execute("""
 
 The examples above all use built-in column specifications (e.g. `EvalModel`, `EvalResults`, `SampleSummary`, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.
 
-Column definitions specify how JSON data is mapped into a data frame columns, and are specified using the `Column` class and its subclasses (e.g. `EvalColumn`, `SampleColumn`). For example, here is the definition of the built-in `EvalTask` column group:
+Column definitions specify how JSON data is mapped into data frame columns, and are specified using subclasses of the `Column` class (e.g. `EvalColumn`, `SampleColumn`). For example, here is the definition of the built-in `EvalTask` column group:
 
 ``` python
 EvalTask: list[Column] = [
@@ -164,21 +162,110 @@ EvalTask: list[Column] = [
 ]
 ```
 
-Columns are defined with a `name`, a `path` (location within JSON to be read from), and other options (e.g. `required`). Column paths typically use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON. Many fields within eval logs are optional, and path expressions will automatically resolve to `None` when they include a missing field (unless the `required=True` option is specified).
+Columns are defined with a `name`, a `path` (location within JSON to read their value from), and other options (e.g. `required`, `type`, etc.) . Column paths use [JSON Path](https://github.com/h2non/jsonpath-ng) expressions to indicate how they should be read from JSON.
 
-Below we'll detail all of the options available for `Column` definitions. Then, in the sections below we'll describe data source specific considerations for defining columns (e.g. `EvalColumn`, `SampleColumn`, etc.).
+Many fields within eval logs are optional, and path expressions will automatically resolve to `None` when they include a missing field (unless the `required=True` option is specified).
+
+Heare are all of the options available for `Column` definitions:
 
 #### Column Options
 
+| Parameter | Type | Description |
+|-------------------|-------------------|----------------------------------|
+| `name` | `str` | Column name for data frame. Can include wildcard characters (e.g. `task_arg_*`) for mapping dictionaries into multiple columns. |
+| `path` | `str` \| `JSONPath` | Path into JSON to extract the column from (uses [JSON Path](https://github.com/h2non/jsonpath-ng) expressions). Subclasses also implement path handlers that take e.g. an `EvalLog` and return a value. |
+| `required` | `bool` | Is the field required (i.e. should an error occur if it not found). |
+| `default` | `JsonValue` | Default value to yield if the field or its parents are not found in JSON. |
+| `type` | `Type[ColumnType]` | Validation check and directive to attempt to coerce the data into the specified `type`. Coercion from `str` to other types is done after interpreting the string using YAML (e.g. `"true"` -\> `True`). |
+| `value` | `Callable[[JsonValue], JsonValue]` | Function used to transform the value read from JSON into a value for the data frame (e.g. converting a `list` to a comma-separated `str`). |
+
+Here are some examples that demonstrate the use of various options:
+
+``` python
+# required field
+EvalColumn("run_id", path="eval.run_id", required=True)
+
+# coerce field from int to str
+SampleColumn("id", path="id", required=True, type=str)
+
+# split metadata dict into multiple columns
+SampleColumn("metadata_*", path="metadata")
+
+# transform list[str] to str
+SampleColumn("target", path="target", value=list_as_str),
+```
+
 #### Column Merging
+
+If a column is name is repeated within a list of columns then the column definition encountered last is utilised. This makes it straightforward to override default column definitions. For example, here we override the behaviour of the default sample `metadata` columns (keeping it as JSON rather than splitting it into multiple columns):
+
+``` python
+ samples_df(
+     logs="logs",
+     columns=SampleSummary + [SampleColumn("metadata", path="metadata")]
+ )
+```
+
+#### Strict Mode
+
+By default, data frames are read in `strict` mode, which means that if fields are missing or paths are invalid an error is raised and the import is aborted. You can optionally set `strict=False`, in which case importing will proceed and a tuple containing `pd.DataFrame` and a list of any errors encountered is returned. For example:
+
+``` python
+from inspect_ai.analysis.beta import evals_df
+
+evals, errors = evals_df("logs", strict=False)
+if len(errors) > 0:
+    print(errors)
+```
 
 ### Evals {#evals}
 
-asdfsadf
+The `EvalColumn` class used with `evals_df()` provides an additional facility for reading values based on a callback function that takes an `EvalLog`. This function is specified as the `path` in the column definition.
+
+For example, here is the `path` function used to extract a simple dictionary of scores/metrics from the more complex `list[EvalScore]` type provided as `log.scores`:
+
+``` python
+def scores_dict(log: EvalLog) -> JsonValue:
+    if log.results is None:
+        return None
+    
+    metrics: JsonValue = [
+        {
+            score.name: {
+                metric.name: metric.value for metric in score.metrics.values()
+            }
+        }
+        for score in log.results.scores
+    ]
+    return metrics
+```
+
+Which is then used in the definition of the `EvalScores` column group as follows:
+
+``` python
+EvalScores: list[Column] = [
+    EvalColumn("score_*_*", path=scores_dict),
+]
+```
 
 ### Samples {#samples}
 
-asdfasdf
+The `SampleColumn` class used with `samples_df()` can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`). Note that reading from summaries is considerably higher performance than reading full sample records, so you should prefer summaries if they contain all of the data you need.
+
+`SampleColumn` will automatically determine whether it is referencing a field that requires a full sample read (for example, `messages` or `store`). There are three fields in sample summaries that have reduced footprint in the summary (`input`, `metadata`, and `scores`). For these, fields specify `full=True` to force reading from the full sample record:
+
+``` python
+SampleColumn("metadata_*", path="metadata", full=True)
+```
+
+As with `EvalColumn`, you can also extract data from a sample using a callback function passed as the `path`:
+
+``` python
+def model_reasoning_tokens(summary: EvalSampleSummary) -> JsonValue:
+    ## extract reasoning tokens from summary.model_usage
+
+SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
+```
 
 ### Messages {#messages}
 

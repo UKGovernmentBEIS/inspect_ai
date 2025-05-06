@@ -12,6 +12,8 @@ from ..validate import resolved_schema
 
 
 class SampleColumn(Column):
+    """Column which maps to `EvalSample` or `EvalSampleSummary`."""
+
     def __init__(
         self,
         name: str,

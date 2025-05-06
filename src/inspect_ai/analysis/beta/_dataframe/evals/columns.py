@@ -13,6 +13,8 @@ from ..validate import resolved_schema
 
 
 class EvalColumn(Column):
+    """Column which maps to `EvalLog`."""
+
     def __init__(
         self,
         name: str,
