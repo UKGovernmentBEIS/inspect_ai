@@ -35,6 +35,7 @@ from inspect_ai._util.registry import (
     registry_unqualified_name,
 )
 from inspect_ai._util.working import (
+    end_sample_working_limit,
     init_sample_working_limit,
     sample_waiting_time,
 )
@@ -673,6 +674,9 @@ async def task_run_sample(
 
                         # set progress for plan then run it
                         state = await plan(state, generate)
+
+                    # disable sample working limit after execution
+                    end_sample_working_limit()
 
                 except TimeoutError:
                     if time_limit is not None:

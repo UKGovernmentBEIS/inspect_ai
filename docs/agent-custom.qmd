@@ -299,14 +299,6 @@ Strings passed to `info()` will be rendered as markdown. In addition to strings 
 
 ### Grouping with Spans
 
-::: callout-note
-The `span()` function described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 You can create arbitrary groupings of transcript activity using the  `span()` context manager. For example:
 
 ``` python
@@ -325,14 +317,6 @@ Spans are automatically created for sample initialisation, solvers, scorers, sub
 
 
 ## Parallel Execution
-
-::: callout-note
-The `collect()` function described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
 
 You can execute subtasks in parallel using the `collect()` function. For example, to run 3 `web_search()` coroutines in parallel:
 
