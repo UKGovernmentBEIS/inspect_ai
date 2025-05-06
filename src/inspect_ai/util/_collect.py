@@ -15,14 +15,6 @@ T = TypeVar("T")
 async def collect(*tasks: Awaitable[T]) -> list[T]:
     """Run and collect the results of one or more async coroutines.
 
-    ::: callout-note
-    The `collect()` function described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-    ``` bash
-    pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-    ```
-    :::
-
     Similar to [`asyncio.gather()`](https://docs.python.org/3/library/asyncio-task.html#asyncio.gather),
     but also works when [Trio](https://trio.readthedocs.io/en/stable/) is the async backend.
 
