@@ -4,6 +4,7 @@ import { ApplicationIcons } from "../app/appearance/icons";
 import styles from "./CopyButton.module.css";
 
 interface CopyButtonProps {
+  icon?: string;
   value: string;
   onCopySuccess?: () => void;
   onCopyError?: (error: Error) => void;
@@ -12,6 +13,7 @@ interface CopyButtonProps {
 }
 
 export const CopyButton = ({
+  icon = ApplicationIcons.copy,
   value,
   onCopySuccess,
   onCopyError,
@@ -46,11 +48,7 @@ export const CopyButton = ({
       disabled={isCopied}
     >
       <i
-        className={
-          isCopied
-            ? `${ApplicationIcons.confirm} primary`
-            : ApplicationIcons.copy
-        }
+        className={isCopied ? `${ApplicationIcons.confirm} primary` : icon}
         aria-hidden="true"
       />
     </button>

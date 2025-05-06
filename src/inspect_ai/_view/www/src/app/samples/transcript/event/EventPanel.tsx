@@ -9,7 +9,14 @@ import {
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
+import { useParams } from "react-router-dom";
+import { CopyButton } from "../../../../components/CopyButton";
 import { useCollapseSampleEvent, useProperty } from "../../../../state/hooks";
+import {
+  sampleEventUrl,
+  supportsLinking,
+  toFullUrl,
+} from "../../../routing/url";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -45,6 +52,19 @@ export const EventPanel: FC<EventPanelProps> = ({
   const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
   const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
 
+  // Get all URL parameters at component level
+  const { logPath, sampleId, epoch } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleId?: string;
+    epoch?: string;
+  }>();
+
+  const url =
+    logPath && supportsLinking()
+      ? toFullUrl(sampleEventUrl(id, logPath, sampleId, epoch))
+      : undefined;
+
   const pillId = (index: number) => {
     return `${id}-nav-pill-${index}`;
   };
@@ -75,6 +95,10 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   // title
   gridColumns.push("minmax(0, max-content)");
+  // id
+  if (url) {
+    gridColumns.push("minmax(0, max-content)");
+  }
   gridColumns.push("auto");
   gridColumns.push("minmax(0, max-content)");
   gridColumns.push("minmax(0, max-content)");
@@ -124,6 +148,15 @@ export const EventPanel: FC<EventPanelProps> = ({
         >
           {title}
         </div>
+        {url ? (
+          <CopyButton
+            value={url}
+            icon={ApplicationIcons.link}
+            className={clsx(styles.copyLink)}
+          />
+        ) : (
+          ""
+        )}
         <div onClick={toggleCollapse}></div>
         <div
           className={clsx("text-style-secondary", styles.label)}
