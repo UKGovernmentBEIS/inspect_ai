@@ -25,43 +25,65 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
   resolvedMessage,
   toolCallStyle,
   indented,
-  padded,
   getMessageUrl,
 }) => {
   if (number) {
     return (
-      <div className={styles.grid}>
+      <>
         <div
           className={clsx(
-            "text-size-smaller",
-            "text-style-secondary",
-            styles.number,
+            styles.grid,
+            styles.container,
+            resolvedMessage.message.role === "user" ? styles.user : undefined,
           )}
         >
-          {number}
+          <div
+            className={clsx(
+              "text-size-smaller",
+              "text-style-secondary",
+              styles.number,
+            )}
+          >
+            {number}
+          </div>
+          <ChatMessage
+            id={`${parentName}-chat-messages`}
+            message={resolvedMessage.message}
+            toolMessages={resolvedMessage.toolMessages}
+            indented={indented}
+            toolCallStyle={toolCallStyle}
+            getMessageUrl={getMessageUrl}
+          />
         </div>
+
+        {resolvedMessage.message.role === "user" ? (
+          <div style={{ height: "10px" }}></div>
+        ) : undefined}
+      </>
+    );
+  } else {
+    return (
+      <div
+        className={clsx(
+          styles.container,
+          styles.simple,
+          resolvedMessage.message.role === "user" ? styles.user : undefined,
+        )}
+      >
         <ChatMessage
           id={`${parentName}-chat-messages`}
           message={resolvedMessage.message}
           toolMessages={resolvedMessage.toolMessages}
           indented={indented}
           toolCallStyle={toolCallStyle}
-          padded={padded}
           getMessageUrl={getMessageUrl}
         />
+        {/* This is here just to simulate the row gap in the grid above */}
+        <div style={{ height: "0.4em" }}></div>{" "}
+        {resolvedMessage.message.role === "user" ? (
+          <div style={{ height: "10px" }}></div>
+        ) : undefined}
       </div>
-    );
-  } else {
-    return (
-      <ChatMessage
-        id={`${parentName}-chat-messages`}
-        message={resolvedMessage.message}
-        toolMessages={resolvedMessage.toolMessages}
-        indented={indented}
-        toolCallStyle={toolCallStyle}
-        padded={padded}
-        getMessageUrl={getMessageUrl}
-      />
     );
   }
 };

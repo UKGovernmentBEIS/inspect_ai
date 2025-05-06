@@ -24340,13 +24340,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       play: "bi bi-play-fill",
       previous: "bi bi-chevron-left",
       refresh: "bi bi-arrow-clockwise",
-      role: {
-        user: "bi bi-person",
-        system: "bi bi-cpu",
-        assistant: "bi bi-robot",
-        tool: "bi bi-tools",
-        unknown: "bi bi-patch-question"
-      },
       running: "bi bi-stars",
       sample: "bi bi-database",
       sandbox: "bi bi-box-seam",
@@ -24837,12 +24830,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [callback]);
       return elementRef;
     };
-    const expandableBordered = "_expandableBordered_59eal_1";
-    const expandableCollapsed = "_expandableCollapsed_59eal_13";
-    const moreToggle = "_moreToggle_59eal_17";
-    const bordered = "_bordered_59eal_24";
-    const moreToggleContainer = "_moreToggleContainer_59eal_28";
-    const moreToggleButton = "_moreToggleButton_59eal_39";
+    const expandableBordered = "_expandableBordered_18gdn_1";
+    const expandableCollapsed = "_expandableCollapsed_18gdn_14";
+    const moreToggle = "_moreToggle_18gdn_18";
+    const bordered = "_bordered_18gdn_25";
+    const moreToggleContainer = "_moreToggleContainer_18gdn_29";
+    const moreToggleButton = "_moreToggleButton_18gdn_40";
     const styles$1i = {
       expandableBordered,
       expandableCollapsed,
@@ -24932,16 +24925,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       );
     };
-    const message$1 = "_message_1w35f_1";
-    const padded$2 = "_padded_1w35f_8";
-    const systemRole = "_systemRole_1w35f_12";
-    const messageGrid = "_messageGrid_1w35f_16";
-    const messageContents = "_messageContents_1w35f_24";
-    const indented = "_indented_1w35f_29";
-    const copyLink$1 = "_copyLink_1w35f_34";
+    const message$1 = "_message_l42k5_1";
+    const systemRole = "_systemRole_l42k5_8";
+    const messageGrid = "_messageGrid_l42k5_12";
+    const messageContents = "_messageContents_l42k5_20";
+    const indented = "_indented_l42k5_25";
+    const copyLink$1 = "_copyLink_l42k5_30";
     const styles$1h = {
       message: message$1,
-      padded: padded$2,
       systemRole,
       messageGrid,
       messageContents,
@@ -36988,12 +36979,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       reasoning
     };
     const toolImage = "_toolImage_bv5nm_1";
-    const output$1 = "_output_bv5nm_6";
+    const output = "_output_bv5nm_6";
     const textOutput = "_textOutput_bv5nm_10";
     const textCode = "_textCode_bv5nm_18";
     const styles$1e = {
       toolImage,
-      output: output$1,
+      output,
       textOutput,
       textCode
     };
@@ -37216,10 +37207,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         args: []
       };
     };
-    const output = "_output_1tv9l_1";
-    const toolCallView = "_toolCallView_1tv9l_4";
+    const toolCallView = "_toolCallView_16q6n_1";
     const styles$1d = {
-      output,
       toolCallView
     };
     const outputPre = "_outputPre_s62go_1";
@@ -37335,7 +37324,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             collapse,
             border: true,
             lines: 15,
-            className: styles$1d.output,
+            className: clsx("text-size-small"),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent })
           }
         ) : void 0
@@ -37461,96 +37450,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return result2;
       }
     };
-    const resolveMessages = (messages) => {
-      const resolvedMessages = [];
-      for (const message2 of messages) {
-        if (message2.role === "tool") {
-          if (resolvedMessages.length > 0) {
-            const msg = resolvedMessages[resolvedMessages.length - 1];
-            msg.toolMessages = msg.toolMessages || [];
-            msg.toolMessages.push(message2);
-          }
-        } else {
-          resolvedMessages.push({ message: message2, toolMessages: [] });
-        }
-      }
-      const systemMessages = [];
-      const collapsedMessages = resolvedMessages.map((resolved) => {
-        if (resolved.message.role === "system") {
-          systemMessages.push(resolved.message);
-        }
-        return resolved;
-      }).filter((resolved) => {
-        return resolved.message.role !== "system";
-      });
-      const systemContent = [];
-      for (const systemMessage2 of systemMessages) {
-        const contents2 = Array.isArray(systemMessage2.content) ? systemMessage2.content : [systemMessage2.content];
-        systemContent.push(...contents2.map(normalizeContent));
-      }
-      const systemMessage = {
-        id: "sys-message-6815A84B062A",
-        role: "system",
-        content: systemContent,
-        source: "input",
-        internal: null
-      };
-      if (systemMessage && systemMessage.content.length > 0) {
-        collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
-      }
-      return collapsedMessages;
-    };
-    const iconForMsg = (msg) => {
-      if (msg.role === "user") {
-        return ApplicationIcons.role.user;
-      } else if (msg.role === "system") {
-        return ApplicationIcons.role.system;
-      } else if (msg.role === "tool") {
-        return ApplicationIcons.role.tool;
-      } else if (msg.role === "assistant") {
-        return ApplicationIcons.role.assistant;
-      } else {
-        return ApplicationIcons.role.unknown;
-      }
-    };
-    const normalizeContent = (content2) => {
-      if (typeof content2 === "string") {
-        return {
-          type: "text",
-          text: content2,
-          refusal: null
-        };
-      } else {
-        return content2;
-      }
-    };
-    const messagesFromEvents = (runningEvents) => {
-      const messages = /* @__PURE__ */ new Map();
-      runningEvents.filter((e) => e.event === "model").forEach((e) => {
-        for (const m of e.input) {
-          const inputMessage = m;
-          if (inputMessage.id && !messages.has(inputMessage.id)) {
-            messages.set(inputMessage.id, inputMessage);
-          }
-        }
-        const outputMessage = e.output.choices[0].message;
-        if (outputMessage.id) {
-          messages.set(outputMessage.id, outputMessage);
-        }
-      });
-      if (messages.size > 0) {
-        return messages.values().toArray();
-      } else {
-        return [];
-      }
-    };
     const ChatMessage = ({
       id,
       message: message2,
       toolMessages,
       indented: indented2,
       toolCallStyle,
-      padded: padded2,
       getMessageUrl
     }) => {
       const messageUrl = message2.id && getMessageUrl ? getMessageUrl(message2.id) : void 0;
@@ -37562,12 +37467,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             message2.role,
             "text-size-base",
             styles$1h.message,
-            padded2 ? styles$1h.padded : void 0,
-            message2.role === "system" ? styles$1h.systemRole : void 0
+            message2.role === "system" ? styles$1h.systemRole : void 0,
+            message2.role === "user" ? styles$1h.userRole : void 0
           ),
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1h.messageGrid, "text-style-label"), children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: iconForMsg(message2) }),
               message2.role,
               messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                 CopyButton,
@@ -37609,11 +37513,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       );
     };
-    const grid$7 = "_grid_140x5_1";
-    const number$1 = "_number_140x5_7";
+    const grid$7 = "_grid_quqw5_1";
+    const number$1 = "_number_quqw5_7";
+    const user = "_user_quqw5_11";
+    const container$j = "_container_quqw5_16";
     const styles$19 = {
       grid: grid$7,
-      number: number$1
+      number: number$1,
+      user,
+      container: container$j
     };
     const ChatMessageRow = ({
       parentName,
@@ -37621,48 +37529,143 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       resolvedMessage,
       toolCallStyle,
       indented: indented2,
-      padded: padded2,
       getMessageUrl
     }) => {
       if (number2) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.grid, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
               className: clsx(
-                "text-size-smaller",
-                "text-style-secondary",
-                styles$19.number
+                styles$19.grid,
+                styles$19.container,
+                resolvedMessage.message.role === "user" ? styles$19.user : void 0
               ),
-              children: number2
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    className: clsx(
+                      "text-size-smaller",
+                      "text-style-secondary",
+                      styles$19.number
+                    ),
+                    children: number2
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ChatMessage,
+                  {
+                    id: `${parentName}-chat-messages`,
+                    message: resolvedMessage.message,
+                    toolMessages: resolvedMessage.toolMessages,
+                    indented: indented2,
+                    toolCallStyle,
+                    getMessageUrl
+                  }
+                )
+              ]
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ChatMessage,
-            {
-              id: `${parentName}-chat-messages`,
-              message: resolvedMessage.message,
-              toolMessages: resolvedMessage.toolMessages,
-              indented: indented2,
-              toolCallStyle,
-              padded: padded2,
-              getMessageUrl
-            }
-          )
+          resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
         ] });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          ChatMessage,
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
           {
-            id: `${parentName}-chat-messages`,
-            message: resolvedMessage.message,
-            toolMessages: resolvedMessage.toolMessages,
-            indented: indented2,
-            toolCallStyle,
-            padded: padded2,
-            getMessageUrl
+            className: clsx(
+              styles$19.container,
+              styles$19.simple,
+              resolvedMessage.message.role === "user" ? styles$19.user : void 0
+            ),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ChatMessage,
+                {
+                  id: `${parentName}-chat-messages`,
+                  message: resolvedMessage.message,
+                  toolMessages: resolvedMessage.toolMessages,
+                  indented: indented2,
+                  toolCallStyle,
+                  getMessageUrl
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "0.4em" } }),
+              " ",
+              resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
+            ]
           }
         );
+      }
+    };
+    const resolveMessages = (messages) => {
+      const resolvedMessages = [];
+      for (const message2 of messages) {
+        if (message2.role === "tool") {
+          if (resolvedMessages.length > 0) {
+            const msg = resolvedMessages[resolvedMessages.length - 1];
+            msg.toolMessages = msg.toolMessages || [];
+            msg.toolMessages.push(message2);
+          }
+        } else {
+          resolvedMessages.push({ message: message2, toolMessages: [] });
+        }
+      }
+      const systemMessages = [];
+      const collapsedMessages = resolvedMessages.map((resolved) => {
+        if (resolved.message.role === "system") {
+          systemMessages.push(resolved.message);
+        }
+        return resolved;
+      }).filter((resolved) => {
+        return resolved.message.role !== "system";
+      });
+      const systemContent = [];
+      for (const systemMessage2 of systemMessages) {
+        const contents2 = Array.isArray(systemMessage2.content) ? systemMessage2.content : [systemMessage2.content];
+        systemContent.push(...contents2.map(normalizeContent));
+      }
+      const systemMessage = {
+        id: "sys-message-6815A84B062A",
+        role: "system",
+        content: systemContent,
+        source: "input",
+        internal: null
+      };
+      if (systemMessage && systemMessage.content.length > 0) {
+        collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
+      }
+      return collapsedMessages;
+    };
+    const normalizeContent = (content2) => {
+      if (typeof content2 === "string") {
+        return {
+          type: "text",
+          text: content2,
+          refusal: null
+        };
+      } else {
+        return content2;
+      }
+    };
+    const messagesFromEvents = (runningEvents) => {
+      const messages = /* @__PURE__ */ new Map();
+      runningEvents.filter((e) => e.event === "model").forEach((e) => {
+        for (const m of e.input) {
+          const inputMessage = m;
+          if (inputMessage.id && !messages.has(inputMessage.id)) {
+            messages.set(inputMessage.id, inputMessage);
+          }
+        }
+        const outputMessage = e.output.choices[0].message;
+        if (outputMessage.id) {
+          messages.set(outputMessage.id, outputMessage);
+        }
+      });
+      if (messages.size > 0) {
+        return messages.values().toArray();
+      } else {
+        return [];
       }
     };
     const ChatView = ({
@@ -37683,8 +37686,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             number: number2,
             resolvedMessage: msg,
             indented: indented2,
-            toolCallStyle,
-            padded: index2 < collapsedMessages.length - 1
+            toolCallStyle
           },
           `${id}-msg-${index2}`
         );
@@ -43205,11 +43207,11 @@ categories: ${categories.join(" ")}`;
       ] });
     };
     const wrapper$4 = "_wrapper_1tajk_1";
-    const container$j = "_container_1tajk_12";
+    const container$i = "_container_1tajk_12";
     const animate = "_animate_1tajk_21";
     const styles$14 = {
       wrapper: wrapper$4,
-      container: container$j,
+      container: container$i,
       animate
     };
     const ProgressBar = ({ animating }) => {
@@ -43467,12 +43469,12 @@ categories: ${categories.join(" ")}`;
       return clusterValue;
     };
     const metricModifiers = [clusterMetricModifier];
-    const container$i = "_container_1frsg_1";
+    const container$h = "_container_1frsg_1";
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
     const styles$10 = {
-      container: container$i,
+      container: container$h,
       metric,
       metricName: metricName$1,
       metricReducer: metricReducer$1
@@ -43498,14 +43500,14 @@ categories: ${categories.join(" ")}`;
         ] }, metric2);
       }) });
     };
-    const container$h = "_container_5kpg1_1";
+    const container$g = "_container_5kpg1_1";
     const scoreWrapper = "_scoreWrapper_5kpg1_9";
     const metricName = "_metricName_5kpg1_16";
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
     const styles$$ = {
-      container: container$h,
+      container: container$g,
       scoreWrapper,
       metricName,
       metricReducer,
@@ -43938,7 +43940,7 @@ categories: ${categories.join(" ")}`;
       }
       return "";
     };
-    const container$g = "_container_291sb_1";
+    const container$f = "_container_291sb_1";
     const wrapper$3 = "_wrapper_291sb_8";
     const toggle = "_toggle_291sb_14";
     const body$2 = "_body_291sb_19";
@@ -43948,7 +43950,7 @@ categories: ${categories.join(" ")}`;
     const taskStatus = "_taskStatus_291sb_40";
     const secondaryContainer = "_secondaryContainer_291sb_47";
     const styles$Y = {
-      container: container$g,
+      container: container$f,
       wrapper: wrapper$3,
       toggle,
       body: body$2,
@@ -44438,10 +44440,10 @@ categories: ${categories.join(" ")}`;
         ] })
       ] });
     };
-    const container$f = "_container_q17yq_1";
+    const container$e = "_container_q17yq_1";
     const grid$6 = "_grid_q17yq_10";
     const styles$R = {
-      container: container$f,
+      container: container$e,
       grid: grid$6
     };
     const ModelRolesView = ({ roles }) => {
@@ -44602,14 +44604,14 @@ categories: ${categories.join(" ")}`;
     const justifyCenter = "_justifyCenter_xzzhl_9";
     const justifyRight = "_justifyRight_xzzhl_13";
     const valueGrid = "_valueGrid_xzzhl_17";
-    const container$e = "_container_xzzhl_25";
+    const container$d = "_container_xzzhl_25";
     const styles$Q = {
       staticCol,
       justifyLeft,
       justifyCenter,
       justifyRight,
       valueGrid,
-      container: container$e
+      container: container$d
     };
     const SecondaryBar = ({
       evalSpec,
@@ -45082,11 +45084,11 @@ categories: ${categories.join(" ")}`;
       }
     };
     const icon = "_icon_59zaz_1";
-    const container$d = "_container_59zaz_5";
+    const container$c = "_container_59zaz_5";
     const metadata$2 = "_metadata_59zaz_11";
     const styles$M = {
       icon,
-      container: container$d,
+      container: container$c,
       metadata: metadata$2
     };
     const DetailStep = ({
@@ -45127,10 +45129,10 @@ categories: ${categories.join(" ")}`;
         }
       );
     };
-    const container$c = "_container_12j2k_1";
+    const container$b = "_container_12j2k_1";
     const separator$4 = "_separator_12j2k_11";
     const styles$L = {
-      container: container$c,
+      container: container$b,
       separator: separator$4
     };
     const SolversDetailView = ({ steps }) => {
@@ -45152,13 +45154,13 @@ categories: ${categories.join(" ")}`;
     const floatingCol = "_floatingCol_1y1hk_1";
     const wideCol = "_wideCol_1y1hk_9";
     const planCol = "_planCol_1y1hk_24";
-    const container$b = "_container_1y1hk_28";
+    const container$a = "_container_1y1hk_28";
     const grid$4 = "_grid_1y1hk_34";
     const styles$K = {
       floatingCol,
       wideCol,
       planCol,
-      container: container$b,
+      container: container$a,
       grid: grid$4
     };
     const PlanDetailView = ({
@@ -47420,11 +47422,11 @@ self.onmessage = function (e) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
       }
     };
-    const container$a = "_container_304w9_1";
+    const container$9 = "_container_304w9_1";
     const modelInfo = "_modelInfo_304w9_8";
     const role = "_role_304w9_14";
     const styles$H = {
-      container: container$a,
+      container: container$9,
       modelInfo,
       role
     };
@@ -47722,10 +47724,10 @@ self.onmessage = function (e) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
     const panel$2 = "_panel_twp3v_1";
-    const container$9 = "_container_twp3v_7";
+    const container$8 = "_container_twp3v_7";
     const styles$D = {
       panel: panel$2,
-      container: container$9
+      container: container$8
     };
     const NoContentsPanel = ({ text: text2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$D.container, "text-size-smaller"), children: [
@@ -50843,7 +50845,7 @@ self.onmessage = function (e) {
     function Hn(t2, e, n) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
-    const container$8 = "_container_1rer0_2";
+    const container$7 = "_container_1rer0_2";
     const dotsContainer = "_dotsContainer_1rer0_8";
     const small = "_small_1rer0_15";
     const medium = "_medium_1rer0_19";
@@ -50853,7 +50855,7 @@ self.onmessage = function (e) {
     const primary = "_primary_1rer0_40";
     const visuallyHidden = "_visuallyHidden_1rer0_59";
     const styles$C = {
-      container: container$8,
+      container: container$7,
       dotsContainer,
       small,
       medium,
@@ -51052,7 +51054,6 @@ self.onmessage = function (e) {
               resolvedMessage: item2,
               indented: indented2,
               toolCallStyle,
-              padded: index2 < collapsedMessages.length - 1,
               getMessageUrl
             }
           );
@@ -51072,14 +51073,14 @@ self.onmessage = function (e) {
         );
       }
     );
-    const tabPanel = "_tabPanel_1p5e1_1";
-    const fullWidth$1 = "_fullWidth_1p5e1_5";
-    const padded = "_padded_1p5e1_18";
-    const error = "_error_1p5e1_23";
-    const ansi = "_ansi_1p5e1_27";
-    const noTop = "_noTop_1p5e1_31";
-    const timePanel = "_timePanel_1p5e1_35";
-    const chat = "_chat_1p5e1_43";
+    const tabPanel = "_tabPanel_yxa07_1";
+    const fullWidth$1 = "_fullWidth_yxa07_5";
+    const padded = "_padded_yxa07_18";
+    const error = "_error_yxa07_23";
+    const ansi = "_ansi_yxa07_27";
+    const noTop = "_noTop_yxa07_31";
+    const timePanel = "_timePanel_yxa07_35";
+    const chat = "_chat_yxa07_43";
     const styles$A = {
       tabPanel,
       fullWidth: fullWidth$1,
@@ -51317,14 +51318,14 @@ self.onmessage = function (e) {
       );
       return scorerDescriptor == null ? void 0 : scorerDescriptor.render(scoreData.value);
     };
-    const container$7 = "_container_8i3m0_1";
+    const container$6 = "_container_8i3m0_1";
     const cell$1 = "_cell_8i3m0_9";
     const fullWidth = "_fullWidth_8i3m0_13";
     const separator$2 = "_separator_8i3m0_25";
     const separatorPadded = "_separatorPadded_8i3m0_30";
     const headerSep = "_headerSep_8i3m0_35";
     const styles$x = {
-      container: container$7,
+      container: container$6,
       cell: cell$1,
       fullWidth,
       separator: separator$2,
@@ -51438,12 +51439,10 @@ self.onmessage = function (e) {
         })
       ] });
     };
-    const container$6 = "_container_w4jj8_1";
-    const wordBreak = "_wordBreak_w4jj8_15";
-    const scoreCard = "_scoreCard_w4jj8_56";
-    const scores = "_scores_w4jj8_60";
+    const wordBreak = "_wordBreak_las07_9";
+    const scoreCard = "_scoreCard_las07_50";
+    const scores = "_scores_las07_54";
     const styles$w = {
-      container: container$6,
       wordBreak,
       scoreCard,
       scores
@@ -59550,7 +59549,7 @@ ${events}
             const value2 = rawSessions[key2];
             const match = key2.match(/(.*)_(\d+_\d+)\.(.*)/);
             if (match) {
-              const user = match[1];
+              const user2 = match[1];
               const timestamp = match[2];
               const type = match[3];
               sessions[timestamp] = sessions[timestamp] || {};
@@ -59568,7 +59567,7 @@ ${events}
                   sessions[timestamp].name = value2;
                   break;
               }
-              sessions[timestamp].user = user;
+              sessions[timestamp].user = user2;
             }
           }
         }
@@ -61085,7 +61084,7 @@ ${events}
                   title: "Scoring",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleScoringTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(SampleScoresView, { sample: sample2 })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(SampleScoresView, { sample: sample2, className: styles$A.padded })
                 },
                 kSampleScoringTabId
               ),

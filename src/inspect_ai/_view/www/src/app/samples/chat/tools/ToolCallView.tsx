@@ -125,7 +125,7 @@ export const ToolCallView: FC<ToolCallViewProps> = ({
           collapse={collapse}
           border={true}
           lines={15}
-          className={styles.output}
+          className={clsx("text-size-small")}
         >
           <MessageContent contents={normalizedContent} />
         </ExpandablePanel>
