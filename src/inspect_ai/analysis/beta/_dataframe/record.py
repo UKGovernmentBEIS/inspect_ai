@@ -35,6 +35,10 @@ def import_record(
     columns: list[Column],
     strict: bool = True,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
+    # resolve the record BaseModel into a dict (and optionally a summary dict).
+    # summary dict will be required in the case that record is for samples.
+    # we also want to save the original BaseModel (if any) for playing back
+    # to columns that yield their value using a callable.
     record_target = record
     record_summary: dict[str, JsonValue] | None = None
     if isinstance(record, EvalSample):
@@ -87,6 +91,7 @@ def import_record(
             if column.path is not None:
                 if not column.validate_path():
                     raise ValueError("Specified path is not valid")
+                # sample columns may read from summary of full sample
                 if isinstance(column, SampleColumn):
                     matches = column.path.find(
                         record if column._full else record_summary
@@ -96,12 +101,14 @@ def import_record(
 
                 if matches:
                     value = matches[0].value
+            # some eval columns yield their value with an extract function
             elif (
                 isinstance(column, EvalColumn)
                 and column._extract_eval is not None
                 and isinstance(record_target, EvalLog)
             ):
                 value = column._extract_eval(record_target)
+            # some sample columns yield their value with an extract function
             elif (
                 isinstance(column, SampleColumn)
                 and column._extract_sample is not None
@@ -109,9 +116,9 @@ def import_record(
             ):
                 value = column._extract_sample(record_target)  # type: ignore[arg-type]
             else:
-                assert False, "column must have path or extract function"
+                raise ValueError("column must have path or extract function")
 
-            # call value function on column if its not None
+            # call value function on column if it exists
             if value is not None:
                 value = column.value(value)
 
@@ -145,6 +152,7 @@ def import_record(
         else:
             set_result(column.name, column, value)
 
+    # optionally return errors if we aren't in strict mode
     if strict:
         return result
     else:
