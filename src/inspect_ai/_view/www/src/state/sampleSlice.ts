@@ -25,7 +25,7 @@ export interface SampleSlice {
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
-    setCollapsedEvents: (collapsed: Set<string>) => void;
+    setCollapsedEvents: (collapsed: Record<string, true>) => void;
     collapseEvent: (id: string, collapsed: boolean) => void;
     clearCollapsedEvents: () => void;
 
@@ -57,7 +57,7 @@ const initialState: SampleState = {
 
   // The resolved events
   runningEvents: [],
-  collapsedEvents: new Set<string>(),
+  collapsedEvents: null,
 };
 
 export const createSampleSlice = (
@@ -124,22 +124,25 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.sampleError = error;
         }),
-      setCollapsedEvents: (collapsed: Set<string>) => {
+      setCollapsedEvents: (collapsed: Record<string, true>) => {
         set((state) => {
           state.sample.collapsedEvents = collapsed;
         });
       },
       clearCollapsedEvents: () => {
         set((state) => {
-          state.sample.collapsedEvents = new Set<string>();
+          state.sample.collapsedEvents = null;
         });
       },
       collapseEvent: (id: string, collapsed: boolean) => {
         set((state) => {
+          if (state.sample.collapsedEvents === null) {
+            state.sample.collapsedEvents = {};
+          }
           if (collapsed) {
-            state.sample.collapsedEvents.add(id);
+            state.sample.collapsedEvents[id] = true;
           } else {
-            state.sample.collapsedEvents.delete(id);
+            delete state.sample.collapsedEvents[id];
           }
         });
       },
@@ -177,7 +180,12 @@ export const createSampleSlice = (
             if (sample) {
               const migratedSample = resolveSample(sample);
 
-              sampleActions.clearCollapsedEvents();
+              if (
+                state.sample.sample_identifier?.id !== sample.id &&
+                state.sample.sample_identifier?.epoch !== sample.epoch
+              ) {
+                sampleActions.clearCollapsedEvents();
+              }
               sampleActions.setSelectedSample(migratedSample);
               sampleActions.setSampleStatus("ok");
             } else {

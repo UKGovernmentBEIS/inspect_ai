@@ -70,7 +70,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       const eventTree = treeifyEvents(resolvedEvents, 0);
 
       // Apply collapse filters to the event tree
-      const defaultCollapsedIds = new Set<string>();
+      const defaultCollapsedIds: Record<string, true> = {};
       const findCollapsibleEvents = (nodes: EventNode[]) => {
         for (const node of nodes) {
           if (
@@ -88,7 +88,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
               ),
             )
           ) {
-            defaultCollapsedIds.add(node.id);
+            defaultCollapsedIds[node.id] = true;
           }
 
           // Recursively check children
@@ -110,7 +110,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
     // This effect only depends on defaultCollapsedIds, not eventNodes
     useEffect(() => {
       // Only initialize collapsedEvents if it's empty
-      if (!collapsedEvents && defaultCollapsedIds.size > 0) {
+      if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
         setCollapsedEvents(defaultCollapsedIds);
       }
     }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
