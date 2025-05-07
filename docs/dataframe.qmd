@@ -18,11 +18,13 @@ Functions are exported from the **inspect_ai.analysis.beta** module during the p
 
 ```{=html}
 <style type="text/css">
+table a {
+    white-space: nowrap;
+}
 #overview table a {
     text-decoration: none;
     font-family: monospace;
     font-size: 0.95rem;
-    white-space: nowrap;
 }
 </style>
 ```
@@ -224,7 +226,22 @@ if len(errors) > 0:
 
 ### Evals {#evals}
 
-The `EvalColumn` class used with `evals_df()` provides an additional facility for reading values based on a callback function that takes an `EvalLog`. This function is specified as the `path` in the column definition.
+`EvalColumns` defines a default set of roughly 50 columns to read from the top level of an eval log. `EvalColumns` is in turn composed of several sets of column definitions that you can be used independently, these include:
+
+| Type | Description |
+|------------------------------------|------------------------------------|
+| [EvalId](%5BEvalId%5D(https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L45)) | Globally unique identifier for eval. |
+| [EvalInfo](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L50) | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
+| [EvalTask](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L63) | Task configuration (name, file, args, solver, etc.) |
+| [EvalModel](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L76) | Model name, args, generation config, etc. |
+| [EvalDataset](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L85) | Dataset name, location, sample ids, etc. |
+| [EvalConfig](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L94) | Epochs, approval, sample limits, etc. |
+| [EvalResults](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L105) | Status, errors, samples completed, headline metric. |
+| [EvalScores](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L117) | All scores and metrics broken into separate columns. |
+
+#### Custom Extraction
+
+The `EvalColumn` class provides an additional facility for reading values based on a callback function that takes an `EvalLog`. This function is specified as the `path` in the column definition.
 
 For example, here is the `path` function used to extract a simple dictionary of scores/metrics from the more complex `list[EvalScore]` type provided as `log.scores`:
 
@@ -254,8 +271,19 @@ EvalScores: list[Column] = [
 
 ### Samples {#samples}
 
-The `SampleColumn` class used with `samples_df()` can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`). Note that reading from summaries is considerably higher performance than reading full sample records, so you should prefer summaries if they contain all of the data you need.
+The `SampleColumn` class used with `samples_df()` can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`).
 
+Reading from summaries is considerably higher performance than reading full sample records, so you should prefer summaries if they contain all of the data you need. The [SampleSummary](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L85) column group includes a default configuration for reading all sample summary data.
+
+::: {.callout-note appearance="simple"}
+Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the `metadata`, `model_usage`, `total_time`, `working_time`, and `retries` fields. If you need to read any of these values you can update older logs with the new fields by round-tripping them through `inspect log convert`. For example:
+
+``` bash
+$ inspect log convert ./logs --to eval --output-dir ./logs-ammended
+```
+:::
+
+#### Full Samples
 
 `SampleColumn` will automatically determine whether it is referencing a field that requires a full sample read (for example, `messages` or `store`). There are five fields in sample summaries that have reduced footprint in the summary (`input`, `metadata`, and `scores`, `error`, and `limit`). For these, fields specify `full=True` to force reading from the full sample record. For example:
 
@@ -263,6 +291,8 @@ The `SampleColumn` class used with `samples_df()` can read from either sample su
 SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
 ```
+
+#### Custom Extraction
 
 As with `EvalColumn`, you can also extract data from a sample using a callback function passed as the `path`:
 
@@ -272,14 +302,6 @@ def model_reasoning_tokens(summary: EvalSampleSummary) -> JsonValue:
 
 SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 ```
-
-::: {.callout-note appearance="simple"}
-Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the `metadata`, `model_usage`, `total_time`, `working_time`, and `retries` fields. For logs written prior to this, you can ammend their summaries with the new fields by round-tripping them through `inspect log convert`. For example:
-
-```bash
-$ inspect log convert ./logs --to eval --output-dir ./logs-ammended
-```
-:::
 
 
 ### Messages {#messages}

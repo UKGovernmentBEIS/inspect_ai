@@ -3,7 +3,7 @@ title: "inspect_ai.analysis.beta"
 ---
 
 ::: callout-note
-#### Anaysis Beta
+### Analysis Beta
 
 The analysis functions described below are available only in the development version of Inspect. To install the development version from GitHub:
 
