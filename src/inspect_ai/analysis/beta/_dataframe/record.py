@@ -6,8 +6,12 @@ import yaml
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
+from inspect_ai.analysis.beta._dataframe.events.columns import EventColumn
+from inspect_ai.analysis.beta._dataframe.messages.columns import MessageColumn
 from inspect_ai.analysis.beta._dataframe.samples.columns import SampleColumn
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
+from inspect_ai.log._transcript import BaseEvent, Event
+from inspect_ai.model._chat_message import ChatMessage, ChatMessageBase
 
 from .columns import Column, ColumnError, ColumnType
 from .evals.columns import EvalColumn
@@ -16,7 +20,12 @@ from .extract import model_to_record
 
 @overload
 def import_record(
-    record: EvalLog | EvalSampleSummary | EvalSample | dict[str, JsonValue],
+    record: EvalLog
+    | EvalSampleSummary
+    | EvalSample
+    | ChatMessage
+    | Event
+    | dict[str, JsonValue],
     columns: list[Column],
     strict: Literal[True] = True,
 ) -> dict[str, ColumnType]: ...
@@ -24,14 +33,24 @@ def import_record(
 
 @overload
 def import_record(
-    record: EvalLog | EvalSampleSummary | EvalSample | dict[str, JsonValue],
+    record: EvalLog
+    | EvalSampleSummary
+    | EvalSample
+    | ChatMessage
+    | Event
+    | dict[str, JsonValue],
     columns: list[Column],
     strict: Literal[False],
 ) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
 
 
 def import_record(
-    record: EvalLog | EvalSampleSummary | EvalSample | dict[str, JsonValue],
+    record: EvalLog
+    | EvalSampleSummary
+    | EvalSample
+    | ChatMessage
+    | Event
+    | dict[str, JsonValue],
     columns: list[Column],
     strict: bool = True,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
@@ -115,6 +134,18 @@ def import_record(
                 and isinstance(record_target, EvalSample | EvalSampleSummary)
             ):
                 value = column._extract_sample(record_target)  # type: ignore[arg-type]
+            elif (
+                isinstance(column, MessageColumn)
+                and column._extract_message is not None
+                and isinstance(record_target, ChatMessageBase)
+            ):
+                value = column._extract_message(record_target)
+            elif (
+                isinstance(column, EventColumn)
+                and column._extract_event is not None
+                and isinstance(record_target, BaseEvent)
+            ):
+                value = column._extract_event(record_target)
             else:
                 raise ValueError("column must have path or extract function")
 

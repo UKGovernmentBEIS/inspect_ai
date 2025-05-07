@@ -1,14 +1,26 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Generator, Literal, overload
+from dataclasses import dataclass
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Generator,
+    Literal,
+    cast,
+    overload,
+)
 
 from inspect_ai._display import display
 from inspect_ai._util.path import pretty_path
+from inspect_ai.analysis.beta._dataframe.events.columns import EventColumn
+from inspect_ai.analysis.beta._dataframe.messages.columns import MessageColumn
 from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
     read_eval_log_samples,
 )
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
+from inspect_ai.log._transcript import Event
+from inspect_ai.model._chat_message import ChatMessage
 
 from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn
@@ -79,13 +91,25 @@ def samples_df(
     return _read_samples_df(logs, columns, recursive, reverse, strict)
 
 
-# TODO: detail spec: columns + filter
+@dataclass
+class MessagesDetail:
+    columns: list[MessageColumn]
+    filter: Callable[[ChatMessage], bool]
+
+
+@dataclass
+class EventsDetail:
+    columns: list[EventColumn]
+    filter: Callable[[Event], bool]
+
+
 def _read_samples_df(
     logs: LogPaths,
     columns: list[Column] = SampleSummary,
     recursive: bool = True,
     reverse: bool = False,
     strict: bool = True,
+    detail: MessagesDetail | EventsDetail | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     verify_prerequisites()
     import pyarrow as pa
@@ -96,6 +120,7 @@ def _read_samples_df(
     # split columns by type
     columns_eval: list[Column] = []
     columns_sample: list[Column] = []
+    columns_detail = cast(list[Column], detail.columns) if detail is not None else []
     for column in columns:
         if isinstance(column, EvalColumn):
             columns_eval.append(column)
@@ -110,9 +135,10 @@ def _read_samples_df(
     # resolve duplciates
     columns_eval = resolve_duplicate_columns(columns_eval)
     columns_sample = resolve_duplicate_columns(columns_sample)
+    columns_detail = resolve_duplicate_columns(columns_detail)
 
     # determine if we require full samples
-    require_full_samples = any(
+    require_full_samples = len(columns_detail) > 0 or any(
         [isinstance(column, SampleColumn) and column._full for column in columns_sample]
     )
 
@@ -150,12 +176,47 @@ def _read_samples_df(
                     "sample_id": sample.uuid or auto_sample_id(eval_id, sample),
                 }
 
-                records.append(ids | record)
+                # record with ids
+                record = ids | record
+
+                # if there are detail columns then we blow out these records w/ detail
+                if detail is not None:
+                    # filter detail records
+                    assert isinstance(sample, EvalSample)
+                    if isinstance(detail, MessagesDetail):
+                        detail_items: list[ChatMessage] | list[Event] = [
+                            m for m in sample.messages if detail.filter(m)
+                        ]
+                    else:
+                        detail_items = [e for e in sample.events if detail.filter(e)]
+
+                    # read detail records
+                    for item in detail_items:
+                        if strict:
+                            detail_record = import_record(
+                                item, columns_detail, strict=True
+                            )
+                            detail_record = record | detail_record
+                        else:
+                            detail_record, errors = import_record(
+                                item, columns_detail, strict=False
+                            )
+                            detail_record = record | detail_record
+                            error_key = (
+                                f"{pretty_path(log)} [{sample.id}, {sample.epoch}]"
+                            )
+                            all_errors[error_key] = errors
+
+                        # append detail record
+                        records.append(detail_record)
+
+                # otherwise just append the record
+                else:
+                    records.append(record)
             p.update()
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(records)
-    samples_table = pa.Table.from_pylist(records).to_pandas()
 
     # join eval_records
     samples_table = samples_table.merge(
