@@ -1,3 +1,9 @@
+## Unreleased
+
+- Don't enforce sample `working_limit` after solvers have completed executing (matching behavior of other sample limits).
+- Only pass `user` parameter on to sandboxes if is not `None` (eases compatibility with older sandbox providers).
+- Bugfix: Ensure that "init" span is exited in the same async context when sandbox connection errors occur.
+
 ## v0.3.94 (06 May 2025)
 
 - [span()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for grouping transcript events.

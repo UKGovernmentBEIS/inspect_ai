@@ -10,6 +10,10 @@ def init_sample_working_limit(start_time: float, working_limit: float | None) ->
     _sample_waiting_time.set(0)
 
 
+def end_sample_working_limit() -> None:
+    _sample_working_limit.set(None)
+
+
 def sample_waiting_time() -> float:
     return _sample_waiting_time.get()
 
