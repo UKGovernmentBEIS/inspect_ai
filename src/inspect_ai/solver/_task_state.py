@@ -210,7 +210,7 @@ class TaskState:
             return self._input
         else:
             input = next(
-                (message.text for message in self._input if message.role == "user"),
+                (message.text for message in reversed(self._input) if message.role == "user"),
                 None,
             )
             if input:
@@ -231,7 +231,7 @@ class TaskState:
         write access to the user chat prompt. Raises an
         exception if there is no user prompt
         """
-        prompt = next((m for m in self.messages if m.role == "user"), None)
+        prompt = next((m for m in reversed(self.messages) if m.role == "user"), None)
         if prompt:
             return prompt
         else:
