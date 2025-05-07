@@ -6,15 +6,14 @@ import shortuuid
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai._util.json import jsonable_python
-from inspect_ai.log._log import EvalSample, EvalSampleSummary
-
-
-def list_as_str(x: JsonValue) -> str:
-    return ",".join([str(e) for e in (x if isinstance(x, list) else [x])])
 
 
 def model_to_record(model: BaseModel) -> dict[str, JsonValue]:
     return cast(dict[str, JsonValue], jsonable_python(model))
+
+
+def list_as_str(x: JsonValue) -> str:
+    return ",".join([str(e) for e in (x if isinstance(x, list) else [x])])
 
 
 def score_values(x: JsonValue) -> dict[str, JsonValue]:
@@ -46,14 +45,6 @@ def content_as_str(content: str | list[dict[str, Any]]) -> str:
         return content
     else:
         return "\n".join([c["text"] if c["type"] == "text" else "" for c in content])
-
-
-def auto_sample_id(eval_id: str, sample: EvalSample | EvalSampleSummary) -> str:
-    return auto_id(eval_id, f"{sample.id}_{sample.epoch}")
-
-
-def auto_detail_id(sample_id: str, name: str, index: int) -> str:
-    return auto_id(sample_id, f"{name}_{index}")
 
 
 def auto_id(base: str, index: str) -> str:

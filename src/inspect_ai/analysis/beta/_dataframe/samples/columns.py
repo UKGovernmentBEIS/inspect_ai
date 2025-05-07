@@ -9,7 +9,7 @@ from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from ..columns import Column, ColumnType
 from ..extract import input_as_str, list_as_str, score_values
 from ..validate import resolved_schema
-from .extract import sample_path_requires_full
+from .extract import sample_messages_as_str, sample_path_requires_full
 
 
 class SampleColumn(Column):
@@ -66,3 +66,8 @@ SampleSummary: list[Column] = [
     SampleColumn("retries", path="retries"),
 ]
 """Sample summary columns."""
+
+SampleMessages: list[Column] = [
+    SampleColumn("messages", path=sample_messages_as_str, required=True, full=True)
+]
+"""Sample messages as a string."""

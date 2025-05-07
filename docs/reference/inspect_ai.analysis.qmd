@@ -18,7 +18,6 @@ Functions are exported from the **inspect_ai.analysis.beta** module during the p
 ### evals_df
 ### EvalColumn
 ### EvalColumns
-### EvalId
 ### EvalInfo
 ### EvalTask
 ### EvalModel
@@ -31,6 +30,7 @@ Functions are exported from the **inspect_ai.analysis.beta** module during the p
 ### samples_df
 ### SampleColumn
 ### SampleSummary
+### SampleMessages
 
 ## Messages
 

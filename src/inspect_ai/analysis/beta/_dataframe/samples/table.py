@@ -24,7 +24,6 @@ from inspect_ai.model._chat_message import ChatMessage
 from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
-from ..extract import auto_detail_id, auto_sample_id
 from ..record import import_record, resolve_duplicate_columns
 from ..util import (
     LogPaths,
@@ -35,6 +34,7 @@ from ..util import (
     verify_prerequisites,
 )
 from .columns import SampleColumn, SampleSummary
+from .extract import auto_detail_id, auto_sample_id
 
 if TYPE_CHECKING:
     import pandas as pd

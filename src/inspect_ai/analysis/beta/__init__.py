@@ -8,7 +8,6 @@ from ._dataframe.evals.columns import (
     EvalColumn,
     EvalColumns,
     EvalConfig,
-    EvalId,
     EvalInfo,
     EvalModel,
     EvalResults,
@@ -20,14 +19,13 @@ from ._dataframe.events.columns import EventColumn
 from ._dataframe.events.table import events_df
 from ._dataframe.messages.columns import MessageColumn, MessageColumns
 from ._dataframe.messages.table import MessageFilter, messages_df
-from ._dataframe.samples.columns import SampleColumn, SampleSummary
+from ._dataframe.samples.columns import SampleColumn, SampleMessages, SampleSummary
 from ._dataframe.samples.table import samples_df
 
 __all__ = [
     "evals_df",
     "EvalColumn",
     "EvalColumns",
-    "EvalId",
     "EvalInfo",
     "EvalTask",
     "EvalModel",
@@ -38,6 +36,7 @@ __all__ = [
     "samples_df",
     "SampleColumn",
     "SampleSummary",
+    "SampleMessages",
     "messages_df",
     "MessageColumn",
     "MessageColumns",
