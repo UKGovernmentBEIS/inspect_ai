@@ -228,7 +228,7 @@ if len(errors) > 0:
 
 | Type | Description |
 |------------------------------------|------------------------------------|
-| [EvalId](%5BEvalId%5D(https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L45)) | Globally unique identifier for eval. |
+| [EvalId](https:/github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py) | Globally unique identifier for eval. |
 | [EvalInfo](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L50) | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
 | [EvalTask](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L63) | Task configuration (name, file, args, solver, etc.) |
 | [EvalModel](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L76) | Model name, args, generation config, etc. |
@@ -304,7 +304,55 @@ SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 
 ### Messages {#messages}
 
-The `messages_df()` function is not yet implemented.
+The `messages_df()` function enables reading message level data from a set of eval logs. Each row corresponds to a message, and includes the a `sample_id` and `event_id` for linking back to its parent contexts.
+
+The `messages_df()` function takes a `filter` parameter which can either be a list of `role` designations or a function that performs filtering. For example:
+
+```python
+assistant_messages = messages_df("logs", filter=["assistant"])
+```
+
+#### Default Columns
+
+The default `MessageColumns` reads role, content (as text) and tool calling fields:
+
+```python
+MessageColumns: list[Column] = [
+    MessageColumn("role", path="role", required=True),
+    MessageColumn("content", path=message_text),
+    MessageColumn("source", path="source"),
+    MessageColumn("tool_calls", path=message_tool_calls),
+    MessageColumn("tool_call_id", path="tool_call_id"),
+    MessageColumn("tool_call_function", path="function"),
+    MessageColumn("tool_call_error", path="error.message"),
+]
+```
+
+#### Custom Extraction
+
+You'll note that two of the fields are resolved using custom extraction functions (`content` and `tool_calls`). Here is the source code for those functions:
+
+```python
+def message_text(message: ChatMessage) -> str:
+    return message.text
+
+
+def message_tool_calls(message: ChatMessage) -> str | None:
+    if isinstance(message, ChatMessageAssistant) and message.tool_calls is not None:
+        tool_calls = "\n".join(
+            [
+                format_function_call(
+                    tool_call.function, tool_call.arguments, width=1000
+                )
+                for tool_call in message.tool_calls
+            ]
+        )
+        return tool_calls
+    else:
+        return None
+```
+
+
 
 ### Events {#events}
 

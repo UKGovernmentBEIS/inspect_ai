@@ -490,6 +490,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#samplesummary
         - text: messages_df
           href: reference/inspect_ai.analysis.qmd#messages_df
+        - text: MessageFilter
+          href: reference/inspect_ai.analysis.qmd#messagefilter
         - text: MessageColumn
           href: reference/inspect_ai.analysis.qmd#messagecolumn
         - text: MessageColumns
