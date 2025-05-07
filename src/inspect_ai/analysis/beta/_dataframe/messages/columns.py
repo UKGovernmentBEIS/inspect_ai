@@ -41,13 +41,20 @@ class MessageColumn(Column):
         return None
 
 
-MessageColumns: list[Column] = [
+MessageContent: list[Column] = [
     MessageColumn("role", path="role", required=True),
     MessageColumn("content", path=message_text),
     MessageColumn("source", path="source"),
+]
+"""Message content columns."""
+
+MessageToolCalls: list[Column] = [
     MessageColumn("tool_calls", path=message_tool_calls),
     MessageColumn("tool_call_id", path="tool_call_id"),
     MessageColumn("tool_call_function", path="function"),
     MessageColumn("tool_call_error", path="error.message"),
 ]
+"""Message tool call columns."""
+
+MessageColumns: list[Column] = MessageContent + MessageToolCalls
 """Chat message columns."""

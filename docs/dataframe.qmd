@@ -268,9 +268,6 @@ EvalScores: list[Column] = [
 
 ### Samples {#samples}
 
-
-
-
 The `samples_df()` function can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`). 
 
 By default, the `SampleSummary` column group is used, which reads only from summaries, resulting in considerably higher performance than reading full samples. 
