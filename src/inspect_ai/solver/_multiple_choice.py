@@ -200,6 +200,7 @@ def multiple_choice(
     template: str | None = None,
     cot: bool = False,
     multiple_correct: bool = False,
+    max_tokens: int | None = None,
     **kwargs: Unpack[DeprecatedArgs],
 ) -> Solver:
     """Multiple choice question solver. Formats a multiple choice question prompt, then calls `generate()`.
@@ -226,6 +227,8 @@ def multiple_choice(
         squares? A) 3, B) 4, C) 9" has multiple correct answers, B and C. Leave
         as `False` if there's exactly one correct answer from the choices
         available. NOTE: this has no effect if you provide a custom template.
+      max_tokens: Default `None`. Controls the number of tokens generated through the call
+        to generate().
       **kwargs (Any): Deprecated arguments for backward compatibility.
 
     #### Shuffling
@@ -282,7 +285,7 @@ def multiple_choice(
             template=str(template),
         )
 
-        state = await generate(state)
+        state = await generate(state, max_tokens=max_tokens)
 
         answers = parse_answers(state)
         if answers and answers.group(1):
