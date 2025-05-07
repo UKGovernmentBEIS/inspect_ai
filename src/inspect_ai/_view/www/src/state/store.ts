@@ -10,6 +10,7 @@ import { createLogSlice, initalializeLogSlice, LogSlice } from "./logSlice";
 import { createLogsSlice, initializeLogsSlice, LogsSlice } from "./logsSlice";
 import {
   createSampleSlice,
+  handleRehydrate,
   initializeSampleSlice,
   SampleSlice,
 } from "./sampleSlice";
@@ -154,6 +155,7 @@ export const initializeStore = (
           version: 1,
           onRehydrateStorage: (state: StoreState) => {
             return (hydrationState, error) => {
+              handleRehydrate(state);
               log.debug("REHYDRATING STATE");
               if (error) {
                 log.debug("ERROR", { error });

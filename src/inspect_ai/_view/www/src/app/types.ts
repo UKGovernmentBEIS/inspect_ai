@@ -78,14 +78,22 @@ export interface LogState {
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";
 
+export type SampleIdentifier = {
+  id: string | number;
+  epoch: number;
+};
+
 export interface SampleState {
-  selectedSample: EvalSample | undefined;
+  sample_identifier: SampleIdentifier | undefined;
+  sampleInState: boolean;
+  selectedSampleObject?: EvalSample;
   sampleStatus: SampleStatus;
   sampleError: Error | undefined;
+  sampleNeedsReload: number;
 
   // Events and attachments
   runningEvents: Event[];
-  collapsedEvents?: Set<string>;
+  collapsedEvents: Set<string>;
 }
 
 export type Event =

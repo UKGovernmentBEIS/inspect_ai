@@ -68,7 +68,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   );
 
   const sampleData = useSampleData();
-  const sample = sampleData.sample;
+  const sample = useMemo(() => {
+    return sampleData.getSelectedSample();
+  }, [sampleData.selectedSampleIdentifier, sampleData.getSelectedSample]);
+
   const runningSampleData = sampleData.running;
 
   // Selected tab handling

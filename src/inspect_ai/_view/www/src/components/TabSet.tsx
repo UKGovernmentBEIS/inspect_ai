@@ -163,7 +163,7 @@ export const TabPanel: FC<TabPanelProps> = ({
       )}
       style={style}
     >
-      {children}
+      {selected ? children : null}
     </div>
   );
 };
