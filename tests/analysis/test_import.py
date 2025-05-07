@@ -11,7 +11,7 @@ from inspect_ai.analysis.beta._dataframe.record import _resolve_value, import_re
 from inspect_ai.log._file import read_eval_log
 
 
-class TestColumn(Column):
+class TColumn(Column):
     @override
     def path_schema(self) -> None:
         return None
@@ -60,8 +60,8 @@ yaml_record: dict[str, JsonValue] = {
 def test_basic_import() -> None:
     """Test basic field import with direct mapping."""
     spec: list[Column] = [
-        TestColumn("status", path="$.status"),
-        TestColumn("model", path="$.eval.model"),
+        TColumn("status", path="$.status"),
+        TColumn("model", path="$.eval.model"),
     ]
 
     result = import_record(test_record, spec)
@@ -73,7 +73,7 @@ def test_basic_import() -> None:
 def test_wildcard_fields() -> None:
     """Test importing wildcard fields."""
     spec: list[Column] = [
-        TestColumn("task_arg_*", path="$.eval.task_args"),
+        TColumn("task_arg_*", path="$.eval.task_args"),
     ]
 
     result = import_record(test_record, spec)
@@ -96,9 +96,9 @@ def test_extract_function() -> None:
 def test_field_options() -> None:
     """Test importing with field options."""
     spec: list[Column] = [
-        TestColumn("status", path="$.status", required=True),
-        TestColumn("error_msg", path="$.error.message", required=False),
-        TestColumn("missing", path="$.not.existing", required=False),
+        TColumn("status", path="$.status", required=True),
+        TColumn("error_msg", path="$.error.message", required=False),
+        TColumn("missing", path="$.not.existing", required=False),
     ]
 
     result = import_record(test_record, spec)
@@ -124,10 +124,10 @@ def test_predefined_spec() -> None:
 def test_type_coercion_simple() -> None:
     """Test simple type coercion."""
     spec: list[Column] = [
-        TestColumn(
+        TColumn(
             "flag", path="$.data.flag", type=bool
         ),  # will yaml parse bool from 'true'
-        TestColumn("values", path="$.data.values", type=str),  # Will json.dumps
+        TColumn("values", path="$.data.values", type=str),  # Will json.dumps
     ]
 
     result = import_record(test_record, spec)
@@ -138,7 +138,7 @@ def test_type_coercion_simple() -> None:
 def test_type_coercion_failure() -> None:
     """Test failure with incompatible type coercion."""
     spec: list[Column] = [
-        TestColumn(
+        TColumn(
             "status_int", path="$.status", type=int
         )  # Will fail - string can't convert to int
     ]
@@ -150,10 +150,10 @@ def test_type_coercion_failure() -> None:
 def test_date_time_coercion() -> None:
     """Test date/time coercion."""
     spec: list[Column] = [
-        TestColumn("timestamp_dt", path="$.data.timestamps.unix", type=datetime),
-        TestColumn("timestamp_d", path="$.data.timestamps.unix", type=date),
-        TestColumn("timestamp_t", path="$.data.timestamps.unix", type=time),
-        TestColumn("iso_dt", path="$.data.timestamps.iso", type=datetime),
+        TColumn("timestamp_dt", path="$.data.timestamps.unix", type=datetime),
+        TColumn("timestamp_d", path="$.data.timestamps.unix", type=date),
+        TColumn("timestamp_t", path="$.data.timestamps.unix", type=time),
+        TColumn("iso_dt", path="$.data.timestamps.iso", type=datetime),
     ]
 
     result = import_record(test_record, spec)
@@ -180,11 +180,11 @@ def test_date_time_coercion() -> None:
 def test_yaml_string_coercion() -> None:
     """Test YAML string coercion."""
     spec: list[Column] = [
-        TestColumn("int_val", path="$.string_int", type=int),
-        TestColumn("float_val", path="$.string_float", type=float),
-        TestColumn("bool_val", path="$.string_bool", type=bool),
-        TestColumn("date_val", path="$.string_date", type=date),
-        TestColumn("array_val", path="$.string_array", type=str),  # Keep as string
+        TColumn("int_val", path="$.string_int", type=int),
+        TColumn("float_val", path="$.string_float", type=float),
+        TColumn("bool_val", path="$.string_bool", type=bool),
+        TColumn("date_val", path="$.string_date", type=date),
+        TColumn("array_val", path="$.string_array", type=str),  # Keep as string
     ]
 
     result = import_record(yaml_record, spec)
@@ -201,7 +201,7 @@ def test_yaml_string_coercion() -> None:
 def test_required_field_missing() -> None:
     """Test error when required field is missing."""
     spec: list[Column] = [
-        TestColumn("missing", path="$.not.existing", required=True),
+        TColumn("missing", path="$.not.existing", required=True),
     ]
 
     with pytest.raises(ValueError, match="not found"):
@@ -211,9 +211,9 @@ def test_required_field_missing() -> None:
 def test_collect_errors() -> None:
     """Test collecting errors instead of raising."""
     spec: list[Column] = [
-        TestColumn("status", path="$.status"),
-        TestColumn("missing", path="$.not.existing", required=True),
-        TestColumn("bad_type", path="$.data.extra", type=int),  # str to int will fail
+        TColumn("status", path="$.status"),
+        TColumn("missing", path="$.not.existing", required=True),
+        TColumn("bad_type", path="$.data.extra", type=int),  # str to int will fail
     ]
 
     _, errors = import_record(test_record, spec, strict=False)
@@ -227,7 +227,7 @@ def test_collect_errors() -> None:
 def test_invalid_jsonpath() -> None:
     """Test handling of invalid JSONPath expressions."""
     spec: list[Column] = [
-        TestColumn("invalid", path="$..[*"),  # Invalid JSONPath syntax
+        TColumn("invalid", path="$..[*"),  # Invalid JSONPath syntax
     ]
 
     with pytest.raises(
@@ -242,7 +242,7 @@ def test_empty_record() -> None:
     empty_record: dict[str, JsonValue] = {}
 
     spec: list[Column] = [
-        TestColumn("status", path="$.status", required=False),
+        TColumn("status", path="$.status", required=False),
     ]
 
     result = import_record(empty_record, spec)
@@ -256,8 +256,8 @@ def test_none_values() -> None:
     }
 
     spec: list[Column] = [
-        TestColumn("explicit_none", path="$.explicit_none"),
-        TestColumn("null_value", path="$.data.null_value"),
+        TColumn("explicit_none", path="$.explicit_none"),
+        TColumn("null_value", path="$.data.null_value"),
     ]
 
     result = import_record({**test_record, **none_record}, spec)
@@ -268,11 +268,11 @@ def test_none_values() -> None:
 def test_multiple_import_specs() -> None:
     """Test importing with multiple import specs."""
     spec1: list[Column] = [
-        TestColumn("status", path="$.status"),
+        TColumn("status", path="$.status"),
     ]
 
     spec2: list[Column] = [
-        TestColumn("model", path="$.eval.model"),
+        TColumn("model", path="$.eval.model"),
     ]
 
     result = import_record(test_record, spec1 + spec2)
@@ -360,16 +360,16 @@ def test_complex_import_scenario() -> None:
     }
 
     spec: list[Column] = [
-        TestColumn("record_id", path="$.id"),
-        TestColumn("value1", path="$.metrics.value1", type=int, required=True),
-        TestColumn("value2", path="$.metrics.value2", type=float),
-        TestColumn("value3", path="$.metrics.value3", type=bool),
-        TestColumn("timestamp", path="$.metrics.timestamp", type=datetime),
-        TestColumn("tags", path="$.tags", type=str),
-        TestColumn("deep_value", path="$.nested.level1.level2.data"),
-        TestColumn("items", path="$.items", type=str),
+        TColumn("record_id", path="$.id"),
+        TColumn("value1", path="$.metrics.value1", type=int, required=True),
+        TColumn("value2", path="$.metrics.value2", type=float),
+        TColumn("value3", path="$.metrics.value3", type=bool),
+        TColumn("timestamp", path="$.metrics.timestamp", type=datetime),
+        TColumn("tags", path="$.tags", type=str),
+        TColumn("deep_value", path="$.nested.level1.level2.data"),
+        TColumn("items", path="$.items", type=str),
         # Test a non-existent field
-        TestColumn("missing", path="$.not.here", required=False),
+        TColumn("missing", path="$.not.here", required=False),
     ]
 
     result = import_record(complex_record, spec)
