@@ -252,6 +252,11 @@ EvalScores: list[Column] = [
 
 The `SampleColumn` class used with `samples_df()` can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`). Note that reading from summaries is considerably higher performance than reading full sample records, so you should prefer summaries if they contain all of the data you need.
 
+::: {.callout-note appearance="simple"}
+Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to provide additional 
+
+:::
+
 `SampleColumn` will automatically determine whether it is referencing a field that requires a full sample read (for example, `messages` or `store`). There are five fields in sample summaries that have reduced footprint in the summary (`input`, `metadata`, and `scores`, `error`, and `limit`). For these, fields specify `full=True` to force reading from the full sample record. For example:
 
 ``` python
