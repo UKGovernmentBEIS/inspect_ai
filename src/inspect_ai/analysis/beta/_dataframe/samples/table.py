@@ -76,6 +76,16 @@ def samples_df(
        For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
        encountered (by log file) during import.
     """
+    return _read_samples_df(logs, columns, recursive, reverse, strict)
+
+
+def _read_samples_df(
+    logs: LogPaths,
+    columns: list[Column] = SampleSummary,
+    recursive: bool = True,
+    reverse: bool = False,
+    strict: bool = True,
+) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     verify_prerequisites()
     import pyarrow as pa
 
