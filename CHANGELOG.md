@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Don't enforce sample `working_limit` after sovlers have completed executing (matching behavior of other sample limits).
+- Bugfix: Ensure that "init" span is exited in the same async context when sandbox connection errors occur.
 
 ## v0.3.94 (06 May 2025)
 

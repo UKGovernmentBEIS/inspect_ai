@@ -640,10 +640,11 @@ async def task_run_sample(
                 ) = contextlib.nullcontext()
                 try:
                     # update active sample wth sandboxes now that we are initialised
-                    active.sandboxes = await sandbox_connections()
-
-                    # end init
-                    await init_span.__aexit__(None, None, None)
+                    # (ensure that we still exit init context in presence of sandbox error)
+                    try:
+                        active.sandboxes = await sandbox_connections()
+                    finally:
+                        await init_span.__aexit__(None, None, None)
 
                     # initialise timeout context manager
                     timeout_cm = (
