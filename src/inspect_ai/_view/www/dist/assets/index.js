@@ -24091,7 +24091,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       sampleNeedsReload: 0,
       // The resolved events
       runningEvents: [],
-      collapsedEvents: /* @__PURE__ */ new Set()
+      collapsedEvents: null
     };
     const createSampleSlice = (set2, get2, _store) => {
       const samplePolling = createSamplePolling(get2, set2);
@@ -24144,15 +24144,18 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           },
           clearCollapsedEvents: () => {
             set2((state) => {
-              state.sample.collapsedEvents = /* @__PURE__ */ new Set();
+              state.sample.collapsedEvents = null;
             });
           },
           collapseEvent: (id, collapsed) => {
             set2((state) => {
+              if (state.sample.collapsedEvents === null) {
+                state.sample.collapsedEvents = {};
+              }
               if (collapsed) {
-                state.sample.collapsedEvents.add(id);
+                state.sample.collapsedEvents[id] = true;
               } else {
-                state.sample.collapsedEvents.delete(id);
+                delete state.sample.collapsedEvents[id];
               }
             });
           },
@@ -24164,11 +24167,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             }
           },
           loadSample: async (logFile, sampleSummary) => {
-            var _a2;
+            var _a2, _b2, _c;
             const sampleActions = get2().sampleActions;
             sampleActions.setSampleError(void 0);
             sampleActions.setSampleStatus("loading");
-            get2();
+            const state = get2();
             try {
               if (sampleSummary.completed !== false) {
                 log$3.debug(
@@ -24184,7 +24187,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 );
                 if (sample2) {
                   const migratedSample = resolveSample$1(sample2);
-                  sampleActions.clearCollapsedEvents();
+                  if (((_b2 = state.sample.sample_identifier) == null ? void 0 : _b2.id) !== sample2.id && ((_c = state.sample.sample_identifier) == null ? void 0 : _c.epoch) !== sample2.epoch) {
+                    sampleActions.clearCollapsedEvents();
+                  }
                   sampleActions.setSelectedSample(migratedSample);
                   sampleActions.setSampleStatus("ok");
                 } else {
@@ -42959,7 +42964,7 @@ categories: ${categories.join(" ")}`;
       const collapsed = useStore((state) => state.sample.collapsedEvents);
       const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
       return reactExports.useMemo(() => {
-        const isCollapsed = !!collapsed && collapsed.has(id);
+        const isCollapsed = collapsed !== null && collapsed[id] === true;
         const set2 = (value2) => {
           log$1.debug("Set collapsed", id, value2);
           collapseEvent(id, value2);
@@ -60825,10 +60830,11 @@ ${events}
       });
     };
     const flatTree = (eventNodes, collapsed) => {
+      console.log({ collapsed });
       const result2 = [];
       for (const node2 of eventNodes) {
         result2.push(node2);
-        if (!collapsed.has(node2.id)) {
+        if (collapsed === null || collapsed[node2.id] !== true) {
           result2.push(...flatTree(node2.children, collapsed));
         }
       }
@@ -60844,7 +60850,7 @@ ${events}
         const { eventNodes, defaultCollapsedIds } = reactExports.useMemo(() => {
           const resolvedEvents = fixupEventStream(events, !running2);
           const eventTree = treeifyEvents(resolvedEvents, 0);
-          const defaultCollapsedIds2 = /* @__PURE__ */ new Set();
+          const defaultCollapsedIds2 = {};
           const findCollapsibleEvents = (nodes) => {
             for (const node2 of nodes) {
               if ((node2.event.event === "step" || node2.event.event === "span_begin" || node2.event.event === "tool" || node2.event.event === "subtask") && collapseFilters.some(
@@ -60852,7 +60858,7 @@ ${events}
                   node2.event
                 )
               )) {
-                defaultCollapsedIds2.add(node2.id);
+                defaultCollapsedIds2[node2.id] = true;
               }
               findCollapsibleEvents(node2.children);
             }
@@ -60865,7 +60871,7 @@ ${events}
           return { eventNodes: eventNodes2, defaultCollapsedIds: defaultCollapsedIds2 };
         }, [events, running2, collapsedEvents]);
         reactExports.useEffect(() => {
-          if (!collapsedEvents && defaultCollapsedIds.size > 0) {
+          if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
             setCollapsedEvents(defaultCollapsedIds);
           }
         }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
