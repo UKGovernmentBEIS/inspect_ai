@@ -19,7 +19,7 @@ from ._dataframe.evals.table import evals_df
 from ._dataframe.events.columns import EventColumn
 from ._dataframe.events.table import events_df
 from ._dataframe.messages.columns import MessageColumn, MessageColumns
-from ._dataframe.messages.table import messages_df
+from ._dataframe.messages.table import MessageFilter, messages_df
 from ._dataframe.samples.columns import SampleColumn, SampleSummary
 from ._dataframe.samples.table import samples_df
 
@@ -41,6 +41,7 @@ __all__ = [
     "messages_df",
     "MessageColumn",
     "MessageColumns",
+    "MessageFilter",
     "events_df",
     "EventColumn",
     "Column",

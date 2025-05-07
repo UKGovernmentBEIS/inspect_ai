@@ -35,6 +35,7 @@ Functions are exported from the **inspect_ai.analysis.beta** module during the p
 ## Messages
 
 ### messages_df
+### MessageFilter
 ### MessageColumn
 ### MessageColumns
 

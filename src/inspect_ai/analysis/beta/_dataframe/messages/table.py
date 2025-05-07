@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Callable, Literal, TypeAlias
+
+from inspect_ai.model._chat_message import ChatMessage
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -12,11 +14,17 @@ from ..samples.table import MessagesDetail, _read_samples_df
 from ..util import LogPaths, verify_prerequisites
 from .columns import MessageColumns
 
+MessageFilter: TypeAlias = (
+    list[Literal["system", "user", "assistant", "tool"]] | Callable[[ChatMessage], bool]
+)
+"""Filter for `messages_df()` rows."""
+
 
 @overload
 def messages_df(
     logs: LogPaths,
     columns: list[Column] = MessageColumns,
+    filter: MessageFilter | None = None,
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[True] = True,
@@ -27,6 +35,7 @@ def messages_df(
 def messages_df(
     logs: LogPaths,
     columns: list[Column] = MessageColumns,
+    filter: MessageFilter | None = None,
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[False] = False,
@@ -36,6 +45,7 @@ def messages_df(
 def messages_df(
     logs: LogPaths,
     columns: list[Column] = MessageColumns,
+    filter: MessageFilter | None = None,
     recursive: bool = True,
     reverse: bool = False,
     strict: bool = True,
@@ -45,6 +55,7 @@ def messages_df(
     Args:
        logs: One or more paths to log files or log directories.
        columns: Specification for what columns to read from log files.
+       filter: List of message role types to include or callable that performs the filter.
        recursive: Include recursive contents of directories (defaults to `True`)
        reverse: Reverse the order of the data frame (by default, items
           are ordered from oldest to newest).
@@ -58,11 +69,19 @@ def messages_df(
     """
     verify_prerequisites()
 
+    # resolve filter/detail
+    if filter is None:
+        detail = MessagesDetail(filter=lambda m: True)
+    elif callable(filter):
+        detail = MessagesDetail(filter=filter)
+    else:
+        detail = MessagesDetail(filter=lambda m: m.role in filter)
+
     return _read_samples_df(
         logs=logs,
         columns=columns,
         recursive=recursive,
         reverse=reverse,
         strict=strict,
-        detail=MessagesDetail(),
+        detail=detail,
     )
