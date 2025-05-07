@@ -48,6 +48,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       : true,
   );
   const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
+  const prevSampleNeedsReload = usePrevious<number>(
+    sampleData.sampleNeedsReload,
+  );
 
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
@@ -58,10 +61,12 @@ export const SampleDialog: FC<SampleDialogProps> = ({
 
       if (
         (prevLogFile !== undefined && prevLogFile !== logSelection.logFile) ||
-        sampleData.sample?.id !== logSelection.sample.id ||
-        sampleData.sample?.epoch !== logSelection.sample.epoch ||
+        sampleData.selectedSampleIdentifier?.id !== logSelection.sample.id ||
+        sampleData.selectedSampleIdentifier?.epoch !==
+          logSelection.sample.epoch ||
         (prevCompleted !== undefined &&
-          currentSampleCompleted !== prevCompleted)
+          currentSampleCompleted !== prevCompleted) ||
+        prevSampleNeedsReload !== sampleData.sampleNeedsReload
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
@@ -71,8 +76,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
     logSelection.sample?.id,
     logSelection.sample?.epoch,
     logSelection.sample?.completed,
-    sampleData.sample?.id,
-    sampleData.sample?.epoch,
+    sampleData.selectedSampleIdentifier?.id,
+    sampleData.selectedSampleIdentifier?.epoch,
+    sampleData.sampleNeedsReload,
   ]);
 
   // Get sample navigation utilities

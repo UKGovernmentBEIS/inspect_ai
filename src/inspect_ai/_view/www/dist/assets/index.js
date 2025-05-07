@@ -23845,7 +23845,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 if (sample2) {
                   const migratedSample = resolveSample$1(sample2);
                   set2((state2) => {
-                    state2.sample.selectedSample = migratedSample;
+                    state2.sampleActions.setSelectedSample(migratedSample);
                     state2.sampleActions.setSampleStatus("ok");
                     state2.sample.runningEvents = [];
                   });
@@ -23973,120 +23973,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return currentMax;
     };
-    const log$3 = createLogger("sampleSlice");
-    const initialState = {
-      selectedSample: void 0,
-      sampleStatus: "ok",
-      sampleError: void 0,
-      // The resolved events
-      runningEvents: [],
-      collapsedEvents: void 0
-    };
-    const createSampleSlice = (set2, get2, _store) => {
-      const samplePolling = createSamplePolling(get2, set2);
-      const slice = {
-        // Actions
-        sample: initialState,
-        sampleActions: {
-          setSelectedSample: (sample2) => {
-            set2((state) => {
-              state.sample.selectedSample = sample2;
-            });
-            if (sample2.events.length < 1) {
-              get2().appActions.setSampleTab(kSampleMessagesTabId);
-            }
-          },
-          clearSelectedSample: () => set2((state) => {
-            state.sample.selectedSample = void 0;
-          }),
-          setSampleStatus: (status2) => set2((state) => {
-            state.sample.sampleStatus = status2;
-          }),
-          setSampleError: (error2) => set2((state) => {
-            state.sample.sampleError = error2;
-          }),
-          setCollapsedEvents: (collapsed) => {
-            set2((state) => {
-              state.sample.collapsedEvents = collapsed;
-            });
-          },
-          clearCollapsedEvents: () => {
-            set2((state) => {
-              state.sample.collapsedEvents = void 0;
-            });
-          },
-          collapseEvent: (id, collapsed) => {
-            set2((state) => {
-              if (!state.sample.collapsedEvents) {
-                state.sample.collapsedEvents = /* @__PURE__ */ new Set();
-              }
-              if (collapsed) {
-                state.sample.collapsedEvents.add(id);
-              } else {
-                state.sample.collapsedEvents.delete(id);
-              }
-            });
-          },
-          pollSample: async (logFile, sampleSummary) => {
-            const state = get2();
-            if (state.log.loadedLog && state.sample.selectedSample) {
-              samplePolling.startPolling(logFile, sampleSummary);
-            }
-          },
-          loadSample: async (logFile, sampleSummary) => {
-            var _a2;
-            const sampleActions = get2().sampleActions;
-            sampleActions.setSampleError(void 0);
-            sampleActions.setSampleStatus("loading");
-            try {
-              if (sampleSummary.completed !== false) {
-                log$3.debug(
-                  `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
-                );
-                const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
-                  logFile,
-                  sampleSummary.id,
-                  sampleSummary.epoch
-                ));
-                log$3.debug(
-                  `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
-                );
-                if (sample2) {
-                  const migratedSample = resolveSample$1(sample2);
-                  sampleActions.clearCollapsedEvents();
-                  sampleActions.setSelectedSample(migratedSample);
-                  sampleActions.setSampleStatus("ok");
-                } else {
-                  sampleActions.setSampleStatus("error");
-                  throw new Error(
-                    "Unable to load sample - an unknown error occurred"
-                  );
-                }
-              } else {
-                log$3.debug(
-                  `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
-                );
-                samplePolling.startPolling(logFile, sampleSummary);
-              }
-            } catch (e) {
-              sampleActions.setSampleError(e);
-              sampleActions.setSampleStatus("error");
-            }
-          }
-        }
-      };
-      const cleanup = () => {
-        samplePolling.cleanup();
-      };
-      return [slice, cleanup];
-    };
-    const initializeSampleSlice = (set2) => {
-      set2((state) => {
-        if (!state.sample) {
-          state.sample = initialState;
-        }
-      });
-    };
     const isJson = (text2) => {
       text2 = text2.trim();
       if (text2.startsWith("{") && text2.endsWith("}")) {
@@ -24130,28 +24016,44 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (!state) {
         return state;
       }
-      const filters = [filterLargeSample, filterLargeLogSummary];
+      const filters = [filterLargeLogSummary];
       return filters.reduce(
         (filteredState, filter) => filter(filteredState),
         state
       );
     }
-    function filterLargeSample(state) {
-      if (!state || !state.sample || !state.sample.selectedSample) {
-        return state;
+    function isLargeSample(sample2) {
+      const storeKeys = countKeys(sample2.store);
+      if (storeKeys > 5e3) {
+        return true;
       }
-      const estimatedTotalSize = estimateSize(state.sample.selectedSample.messages);
-      if (estimatedTotalSize > 25e4) {
-        return {
-          ...state,
-          sample: {
-            ...state.sample,
-            selectedSample: void 0
-          }
-        };
-      } else {
-        return state;
+      const estimatedMessageSize = estimateSize(sample2.messages);
+      if (estimatedMessageSize > 25e4) {
+        return true;
       }
+      return true;
+    }
+    function countKeys(obj, options2 = { countArrayIndices: false }) {
+      if (obj === null || typeof obj !== "object") {
+        return 0;
+      }
+      if (Array.isArray(obj)) {
+        let count2 = 0;
+        if (options2.countArrayIndices) {
+          count2 += obj.length;
+        }
+        for (const item2 of obj) {
+          count2 += countKeys(item2, options2);
+        }
+        return count2;
+      }
+      let count = Object.keys(obj).length;
+      for (const key2 in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key2)) {
+          count += countKeys(obj[key2], options2);
+        }
+      }
+      return count;
     }
     function filterLargeLogSummary(state) {
       if (!state || !state.log || !state.log.selectedLogSummary) {
@@ -24172,6 +24074,156 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return state;
       }
     }
+    const log$3 = createLogger("sampleSlice");
+    let selectedSampleRef = {
+      current: void 0
+    };
+    const initialState = {
+      // Store ID for all samples (used for triggering renders)
+      sample_identifier: void 0,
+      // Store the actual sample object for small samples
+      selectedSampleObject: void 0,
+      // Flag to indicate where the sample is stored
+      sampleInState: false,
+      sampleStatus: "ok",
+      sampleError: void 0,
+      // signals that the sample needs to be reloaded
+      sampleNeedsReload: 0,
+      // The resolved events
+      runningEvents: [],
+      collapsedEvents: /* @__PURE__ */ new Set()
+    };
+    const createSampleSlice = (set2, get2, _store) => {
+      const samplePolling = createSamplePolling(get2, set2);
+      const slice = {
+        // Actions
+        sample: initialState,
+        sampleActions: {
+          setSelectedSample: (sample2) => {
+            const isLarge = isLargeSample(sample2);
+            set2((state) => {
+              state.sample.sample_identifier = {
+                id: sample2.id,
+                epoch: sample2.epoch
+              };
+              state.sample.sampleInState = !isLarge;
+              if (!isLarge) {
+                state.sample.selectedSampleObject = sample2;
+                selectedSampleRef.current = void 0;
+              } else {
+                state.sample.selectedSampleObject = void 0;
+                selectedSampleRef.current = sample2;
+              }
+            });
+            if (sample2.events.length < 1) {
+              get2().appActions.setSampleTab(kSampleMessagesTabId);
+            }
+          },
+          getSelectedSample: () => {
+            const state = get2().sample;
+            return state.sampleInState ? state.selectedSampleObject : selectedSampleRef.current;
+          },
+          clearSelectedSample: () => {
+            selectedSampleRef.current = void 0;
+            set2((state) => {
+              state.sample.sample_identifier = void 0;
+              state.sample.selectedSampleObject = void 0;
+              state.sample.sampleInState = false;
+            });
+          },
+          setSampleStatus: (status2) => set2((state) => {
+            state.sample.sampleStatus = status2;
+          }),
+          setSampleError: (error2) => set2((state) => {
+            state.sample.sampleError = error2;
+          }),
+          setCollapsedEvents: (collapsed) => {
+            set2((state) => {
+              state.sample.collapsedEvents = collapsed;
+            });
+          },
+          clearCollapsedEvents: () => {
+            set2((state) => {
+              state.sample.collapsedEvents = /* @__PURE__ */ new Set();
+            });
+          },
+          collapseEvent: (id, collapsed) => {
+            set2((state) => {
+              if (collapsed) {
+                state.sample.collapsedEvents.add(id);
+              } else {
+                state.sample.collapsedEvents.delete(id);
+              }
+            });
+          },
+          pollSample: async (logFile, sampleSummary) => {
+            const state = get2();
+            const sampleExists = state.sample.sampleInState ? !!state.sample.selectedSampleObject : !!selectedSampleRef.current;
+            if (state.log.loadedLog && sampleExists) {
+              samplePolling.startPolling(logFile, sampleSummary);
+            }
+          },
+          loadSample: async (logFile, sampleSummary) => {
+            var _a2;
+            const sampleActions = get2().sampleActions;
+            sampleActions.setSampleError(void 0);
+            sampleActions.setSampleStatus("loading");
+            get2();
+            try {
+              if (sampleSummary.completed !== false) {
+                log$3.debug(
+                  `LOADING COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
+                );
+                const sample2 = await ((_a2 = get2().api) == null ? void 0 : _a2.get_log_sample(
+                  logFile,
+                  sampleSummary.id,
+                  sampleSummary.epoch
+                ));
+                log$3.debug(
+                  `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
+                );
+                if (sample2) {
+                  const migratedSample = resolveSample$1(sample2);
+                  sampleActions.clearCollapsedEvents();
+                  sampleActions.setSelectedSample(migratedSample);
+                  sampleActions.setSampleStatus("ok");
+                } else {
+                  sampleActions.setSampleStatus("error");
+                  throw new Error(
+                    "Unable to load sample - an unknown error occurred"
+                  );
+                }
+              } else {
+                log$3.debug(
+                  `POLLING RUNNING SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
+                );
+                samplePolling.startPolling(logFile, sampleSummary);
+              }
+            } catch (e) {
+              sampleActions.setSampleError(e);
+              sampleActions.setSampleStatus("error");
+            }
+          }
+        }
+      };
+      const cleanup = () => {
+        samplePolling.cleanup();
+        selectedSampleRef.current = void 0;
+      };
+      return [slice, cleanup];
+    };
+    const handleRehydrate = (state) => {
+      if (!state.sample.sampleInState) {
+        state.sample.sampleNeedsReload = state.sample.sampleNeedsReload + 1;
+      }
+    };
+    const initializeSampleSlice = (set2) => {
+      set2((state) => {
+        if (!state.sample) {
+          state.sample = initialState;
+        }
+      });
+    };
     const log$2 = createLogger("store");
     let storeImplementation = null;
     const useStore = (selector) => {
@@ -24270,6 +24322,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               version: 1,
               onRehydrateStorage: (state) => {
                 return (hydrationState, error2) => {
+                  handleRehydrate(state);
                   log$2.debug("REHYDRATING STATE");
                   if (error2) {
                     log$2.debug("ERROR", { error: error2 });
@@ -42860,18 +42913,33 @@ categories: ${categories.join(" ")}`;
     const useSampleData = () => {
       const sampleStatus = useStore((state) => state.sample.sampleStatus);
       const sampleError = useStore((state) => state.sample.sampleError);
-      const selectedSample = useStore((state) => state.sample.selectedSample);
+      const getSelectedSample = useStore(
+        (state) => state.sampleActions.getSelectedSample
+      );
+      const selectedSampleIdentifier = useStore(
+        (state) => state.sample.sample_identifier
+      );
+      const sampleNeedsReload = useStore((state) => state.sample.sampleNeedsReload);
       const runningEvents = useStore(
         (state) => state.sample.runningEvents
       );
       return reactExports.useMemo(() => {
         return {
+          selectedSampleIdentifier,
           status: sampleStatus,
+          sampleNeedsReload,
           error: sampleError,
-          sample: selectedSample,
+          getSelectedSample,
           running: runningEvents
         };
-      }, [sampleStatus, sampleError, selectedSample, runningEvents]);
+      }, [
+        sampleStatus,
+        sampleError,
+        getSelectedSample,
+        selectedSampleIdentifier,
+        sampleNeedsReload,
+        runningEvents
+      ]);
     };
     const useLogSelection = () => {
       const selectedSampleSummary = useSelectedSampleSummary();
@@ -43269,11 +43337,33 @@ categories: ${categories.join(" ")}`;
         const savedPosition = getScrollPosition(elementKey);
         if (savedPosition !== void 0) {
           log.debug(`Restoring scroll position`, savedPosition);
-          requestAnimationFrame(() => {
-            if (element.scrollTop !== savedPosition) {
-              element.scrollTop = savedPosition;
+          const tryRestoreScroll = () => {
+            if (element.scrollHeight > element.clientHeight) {
+              if (element.scrollTop !== savedPosition) {
+                element.scrollTop = savedPosition;
+                log.debug(`Scroll position restored to ${savedPosition}`);
+              }
+              return true;
             }
-          });
+            return false;
+          };
+          if (!tryRestoreScroll()) {
+            let attempts = 0;
+            const maxAttempts = 5;
+            const pollForRender = () => {
+              if (tryRestoreScroll() || attempts >= maxAttempts) {
+                if (attempts >= maxAttempts) {
+                  log.debug(
+                    `Failed to restore scroll after ${maxAttempts} attempts`
+                  );
+                }
+                return;
+              }
+              attempts++;
+              setTimeout(pollForRender, 1e3);
+            };
+            setTimeout(pollForRender, 1e3);
+          }
         }
         if (element.addEventListener) {
           element.addEventListener("scroll", handleScroll);
@@ -43894,7 +43984,7 @@ categories: ${categories.join(" ")}`;
             scrollable2 && moduleStyles.scrollable
           ),
           style: style2,
-          children: children2
+          children: selected2 ? children2 : null
         }
       );
     };
@@ -60799,7 +60889,7 @@ ${events}
         }
         return false;
       },
-      (event) => event.event === "tool",
+      (event) => event.event === "tool" && !event.agent && !event.failed,
       (event) => event.event === "subtask"
     ];
     const RenderedEventNode = reactExports.memo(
@@ -60950,7 +61040,9 @@ ${events}
         (state) => state.log.selectedSampleIndex
       );
       const sampleData = useSampleData();
-      const sample2 = sampleData.sample;
+      const sample2 = reactExports.useMemo(() => {
+        return sampleData.getSelectedSample();
+      }, [sampleData.selectedSampleIdentifier, sampleData.getSelectedSample]);
       const runningSampleData = sampleData.running;
       const selectedTab = useStore((state) => state.app.tabs.sample);
       const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
@@ -61319,21 +61411,25 @@ ${events}
         ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
       );
       const prevLogFile = usePrevious(logSelection.loadedLog);
+      const prevSampleNeedsReload = usePrevious(
+        sampleData.sampleNeedsReload
+      );
       reactExports.useEffect(() => {
-        var _a3, _b3, _c2;
+        var _a3, _b3;
         if (logSelection.logFile && logSelection.sample) {
-          const currentSampleCompleted = ((_a3 = logSelection.sample) == null ? void 0 : _a3.completed) !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== void 0 && prevLogFile !== logSelection.loadedLog || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
+          const currentSampleCompleted = logSelection.sample.completed !== void 0 ? logSelection.sample.completed : true;
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_a3 = sampleData.selectedSampleIdentifier) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.selectedSampleIdentifier) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted || prevSampleNeedsReload !== sampleData.sampleNeedsReload) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
       }, [
-        logSelection.loadedLog,
+        logSelection.logFile,
         (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
         (_c = logSelection.sample) == null ? void 0 : _c.epoch,
         (_d = logSelection.sample) == null ? void 0 : _d.completed,
-        (_e2 = sampleData.sample) == null ? void 0 : _e2.id,
-        (_f = sampleData.sample) == null ? void 0 : _f.epoch
+        (_e2 = sampleData.selectedSampleIdentifier) == null ? void 0 : _e2.id,
+        (_f = sampleData.selectedSampleIdentifier) == null ? void 0 : _f.epoch,
+        sampleData.sampleNeedsReload
       ]);
       const scrollRef = reactExports.useRef(null);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$d.container, children: [
@@ -61506,11 +61602,14 @@ ${events}
         ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
       );
       const prevLogFile = usePrevious(logSelection.logFile);
+      const prevSampleNeedsReload = usePrevious(
+        sampleData.sampleNeedsReload
+      );
       reactExports.useEffect(() => {
         var _a3, _b3;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = logSelection.sample.completed !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.sample) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_a3 = sampleData.selectedSampleIdentifier) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.selectedSampleIdentifier) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted || prevSampleNeedsReload !== sampleData.sampleNeedsReload) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
@@ -61519,8 +61618,9 @@ ${events}
         (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
         (_c = logSelection.sample) == null ? void 0 : _c.epoch,
         (_d = logSelection.sample) == null ? void 0 : _d.completed,
-        (_e2 = sampleData.sample) == null ? void 0 : _e2.id,
-        (_f = sampleData.sample) == null ? void 0 : _f.epoch
+        (_e2 = sampleData.selectedSampleIdentifier) == null ? void 0 : _e2.id,
+        (_f = sampleData.selectedSampleIdentifier) == null ? void 0 : _f.epoch,
+        sampleData.sampleNeedsReload
       ]);
       const sampleNavigation = useSampleNavigation();
       const tools2 = reactExports.useMemo(() => {
@@ -82927,7 +83027,9 @@ Supported expressions:
       const groupBy = useGroupBy();
       const groupByOrder = useGroupByOrder();
       const currentScore = useScore();
-      const selectedSample = useStore((state) => state.sample.selectedSample);
+      const selectedSampleIdentifier = useStore(
+        (state) => state.sample.sample_identifier
+      );
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
       const sampleListHandle = reactExports.useRef(null);
@@ -83007,7 +83109,7 @@ Supported expressions:
           showingSampleDialog && /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleDialog,
             {
-              id: String((selectedSample == null ? void 0 : selectedSample.id) || ""),
+              id: selectedSampleIdentifier ? `${selectedSampleIdentifier.id}_${selectedSampleIdentifier.epoch}` : "",
               title: title2,
               showingSampleDialog
             }

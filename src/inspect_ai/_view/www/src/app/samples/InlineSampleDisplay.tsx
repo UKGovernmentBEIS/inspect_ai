@@ -31,30 +31,37 @@ export const InlineSampleDisplay: FC = () => {
       : true,
   );
   const prevLogFile = usePrevious<string | undefined>(logSelection.loadedLog);
+  const prevSampleNeedsReload = usePrevious<number>(
+    sampleData.sampleNeedsReload,
+  );
+
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
       const currentSampleCompleted =
-        logSelection.sample?.completed !== undefined
+        logSelection.sample.completed !== undefined
           ? logSelection.sample.completed
           : true;
 
       if (
-        (prevLogFile !== undefined && prevLogFile !== logSelection.loadedLog) ||
-        sampleData.sample?.id !== logSelection.sample.id ||
-        sampleData.sample?.epoch !== logSelection.sample.epoch ||
+        (prevLogFile !== undefined && prevLogFile !== logSelection.logFile) ||
+        sampleData.selectedSampleIdentifier?.id !== logSelection.sample.id ||
+        sampleData.selectedSampleIdentifier?.epoch !==
+          logSelection.sample.epoch ||
         (prevCompleted !== undefined &&
-          currentSampleCompleted !== prevCompleted)
+          currentSampleCompleted !== prevCompleted) ||
+        prevSampleNeedsReload !== sampleData.sampleNeedsReload
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
     }
   }, [
-    logSelection.loadedLog,
+    logSelection.logFile,
     logSelection.sample?.id,
     logSelection.sample?.epoch,
     logSelection.sample?.completed,
-    sampleData.sample?.id,
-    sampleData.sample?.epoch,
+    sampleData.selectedSampleIdentifier?.id,
+    sampleData.selectedSampleIdentifier?.epoch,
+    sampleData.sampleNeedsReload,
   ]);
 
   // Scroll ref

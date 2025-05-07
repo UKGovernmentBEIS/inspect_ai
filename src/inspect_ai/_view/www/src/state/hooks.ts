@@ -226,18 +226,33 @@ export const useSelectedSampleSummary = (): SampleSummary | undefined => {
 export const useSampleData = () => {
   const sampleStatus = useStore((state) => state.sample.sampleStatus);
   const sampleError = useStore((state) => state.sample.sampleError);
-  const selectedSample = useStore((state) => state.sample.selectedSample);
+  const getSelectedSample = useStore(
+    (state) => state.sampleActions.getSelectedSample,
+  );
+  const selectedSampleIdentifier = useStore(
+    (state) => state.sample.sample_identifier,
+  );
+  const sampleNeedsReload = useStore((state) => state.sample.sampleNeedsReload);
   const runningEvents = useStore(
     (state) => state.sample.runningEvents,
   ) as Events;
   return useMemo(() => {
     return {
+      selectedSampleIdentifier,
       status: sampleStatus,
+      sampleNeedsReload,
       error: sampleError,
-      sample: selectedSample,
+      getSelectedSample,
       running: runningEvents,
     };
-  }, [sampleStatus, sampleError, selectedSample, runningEvents]);
+  }, [
+    sampleStatus,
+    sampleError,
+    getSelectedSample,
+    selectedSampleIdentifier,
+    sampleNeedsReload,
+    runningEvents,
+  ]);
 };
 
 export const useLogSelection = () => {

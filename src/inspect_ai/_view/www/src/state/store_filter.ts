@@ -1,3 +1,4 @@
+import { EvalSample } from "../@types/log";
 import { estimateSize } from "../utils/json";
 import { PersistedState } from "./store";
 
@@ -7,31 +8,60 @@ export function filterState(state: PersistedState) {
   }
 
   // When saving state, we can't store vast amounts of data (like a large sample)
-  const filters = [filterLargeSample, filterLargeLogSummary];
+  const filters = [filterLargeLogSummary];
   return filters.reduce(
     (filteredState, filter) => filter(filteredState),
     state,
   );
 }
 
-// Filters the selected Sample if it is large
-function filterLargeSample(state: PersistedState): PersistedState {
-  if (!state || !state.sample || !state.sample.selectedSample) {
-    return state;
+export function isLargeSample(sample: EvalSample): boolean {
+  const storeKeys = countKeys(sample.store);
+  if (storeKeys > 5000) {
+    return true;
   }
 
-  const estimatedTotalSize = estimateSize(state.sample.selectedSample.messages);
-  if (estimatedTotalSize > 250000) {
-    return {
-      ...state,
-      sample: {
-        ...state.sample,
-        selectedSample: undefined,
-      },
-    };
-  } else {
-    return state;
+  const estimatedMessageSize = estimateSize(sample.messages);
+  if (estimatedMessageSize > 250000) {
+    return true;
   }
+
+  return true;
+}
+
+function countKeys(obj: unknown, options = { countArrayIndices: false }) {
+  // Base case: not an object or null
+  if (obj === null || typeof obj !== "object") {
+    return 0;
+  }
+
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    let count = 0;
+    // Count array indices as keys if option is set
+    if (options.countArrayIndices) {
+      count += obj.length;
+    }
+    // Count keys in array elements that are objects
+    for (const item of obj) {
+      count += countKeys(item, options);
+    }
+    return count;
+  }
+
+  // For regular objects, count all own properties
+  let count = Object.keys(obj).length;
+
+  // Recursively count keys in nested objects
+  for (const key in obj) {
+    // Use type assertion to tell TypeScript that the key is valid
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      // Use type assertion (obj as Record<string, unknown>)
+      count += countKeys((obj as Record<string, unknown>)[key], options);
+    }
+  }
+
+  return count;
 }
 
 // Filters the selectedlog if it is too large
