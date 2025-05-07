@@ -35,3 +35,10 @@ class MessageColumn(Column):
     @override
     def path_schema(self) -> Mapping[str, Any] | None:
         return None
+
+
+MessageColumns: list[Column] = [
+    MessageColumn("content", path="content"),
+    MessageColumn("source", path="source"),
+]
+"""Chat message columns."""

@@ -3,15 +3,13 @@ title: "inspect_ai.analysis.beta"
 ---
 
 ::: callout-note
-### Analysis Beta
-
 The analysis functions described below are available only in the development version of Inspect. To install the development version from GitHub:
 
 ``` bash
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 
-Functions are exported from the **inspect_ai.analysis.beta** module during the period of initial community review. They will be moved to the main namespace (with aliases preserved) before the next PyPI release.
+Functions are exported from the **inspect_ai.analysis.beta** module during the period of initial community review. They will be moved to the main namespace (with aliases preserved) before release to PyPI.
 :::
 
 
@@ -33,6 +31,12 @@ Functions are exported from the **inspect_ai.analysis.beta** module during the p
 ### samples_df
 ### SampleColumn
 ### SampleSummary
+
+## Messages
+
+### messages_df
+### MessageColumn
+### MessageColumns
 
 ## Columns
 

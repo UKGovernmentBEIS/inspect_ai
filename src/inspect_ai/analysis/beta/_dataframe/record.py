@@ -66,7 +66,7 @@ def import_record(
     elif isinstance(record, EvalSampleSummary):
         record_summary = model_to_record(record)
         record = record_summary
-    elif isinstance(record, EvalLog):
+    elif isinstance(record, EvalLog | ChatMessageBase | BaseEvent):
         record = model_to_record(record)
     else:
         record = record

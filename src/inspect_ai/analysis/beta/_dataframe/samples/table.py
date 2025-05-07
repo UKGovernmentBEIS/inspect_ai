@@ -6,7 +6,6 @@ from typing import (
     Callable,
     Generator,
     Literal,
-    cast,
     overload,
 )
 
@@ -19,13 +18,13 @@ from inspect_ai.log._file import (
     read_eval_log_samples,
 )
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.log._transcript import Event
+from inspect_ai.log._transcript import BaseEvent, Event
 from inspect_ai.model._chat_message import ChatMessage
 
 from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
-from ..extract import auto_sample_id
+from ..extract import auto_detail_id, auto_sample_id
 from ..record import import_record, resolve_duplicate_columns
 from ..util import (
     LogPaths,
@@ -62,7 +61,7 @@ def samples_df(
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[False] = False,
-) -> "pd.DataFrame": ...
+) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
 
 def samples_df(
@@ -88,31 +87,35 @@ def samples_df(
        For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
        encountered (by log file) during import.
     """
-    return _read_samples_df(logs, columns, recursive, reverse, strict)
+    return _read_samples_df(
+        logs, columns, recursive=recursive, reverse=reverse, strict=strict
+    )
 
 
 @dataclass
 class MessagesDetail:
-    columns: list[MessageColumn]
-    filter: Callable[[ChatMessage], bool]
+    name: str = "message"
+    col_type = MessageColumn
+    filter: Callable[[ChatMessage], bool] = lambda m: True
 
 
 @dataclass
 class EventsDetail:
-    columns: list[EventColumn]
-    filter: Callable[[Event], bool]
+    name: str = "message"
+    col_type = EventColumn
+    filter: Callable[[BaseEvent], bool] = lambda e: True
 
 
 def _read_samples_df(
     logs: LogPaths,
-    columns: list[Column] = SampleSummary,
+    columns: list[Column],
+    *,
     recursive: bool = True,
     reverse: bool = False,
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     verify_prerequisites()
-    import pyarrow as pa
 
     # resolve logs
     logs = resolve_logs(logs, recursive=recursive, reverse=reverse)
@@ -120,7 +123,7 @@ def _read_samples_df(
     # split columns by type
     columns_eval: list[Column] = []
     columns_sample: list[Column] = []
-    columns_detail = cast(list[Column], detail.columns) if detail is not None else []
+    columns_detail: list[Column] = []
     for column in columns:
         if isinstance(column, EvalColumn):
             columns_eval.append(column)
@@ -128,6 +131,8 @@ def _read_samples_df(
             columns_sample.append(column)
             if column._full:
                 require_full_samples = True
+        elif detail and isinstance(column, detail.col_type):
+            columns_detail.append(column)
         else:
             raise ValueError(
                 f"Unexpected column type passed to samples_df: {type(column)}"
@@ -146,7 +151,8 @@ def _read_samples_df(
     ensure_eval_id(columns_eval)
 
     # read samples from each log
-    records: list[dict[str, ColumnType]] = []
+    sample_records: list[dict[str, ColumnType]] = []
+    detail_records: list[dict[str, ColumnType]] = []
     all_errors = ColumnErrors()
     evals_table = evals_df(logs, columns=columns_eval)
     with display().progress(total=len(evals_table)) as p:
@@ -171,9 +177,10 @@ def _read_samples_df(
                     all_errors[error_key] = errors
 
                 # inject ids
+                sample_id = sample.uuid or auto_sample_id(eval_id, sample)
                 ids: dict[str, ColumnType] = {
                     EVAL_ID: eval_id,
-                    "sample_id": sample.uuid or auto_sample_id(eval_id, sample),
+                    SAMPLE_ID: sample_id,
                 }
 
                 # record with ids
@@ -187,36 +194,52 @@ def _read_samples_df(
                         detail_items: list[ChatMessage] | list[Event] = [
                             m for m in sample.messages if detail.filter(m)
                         ]
-                    else:
+                    elif isinstance(detail, EventsDetail):
                         detail_items = [e for e in sample.events if detail.filter(e)]
+                    else:
+                        detail_items = []
 
-                    # read detail records
-                    for item in detail_items:
+                    # read detail records (provide auto-ids)
+                    for index, item in enumerate(detail_items):
                         if strict:
                             detail_record = import_record(
                                 item, columns_detail, strict=True
                             )
-                            detail_record = record | detail_record
                         else:
                             detail_record, errors = import_record(
                                 item, columns_detail, strict=False
                             )
-                            detail_record = record | detail_record
                             error_key = (
                                 f"{pretty_path(log)} [{sample.id}, {sample.epoch}]"
                             )
                             all_errors[error_key] = errors
 
-                        # append detail record
-                        records.append(detail_record)
+                        # inject ids
+                        detail_id = detail_record.get(
+                            "id", auto_detail_id(sample_id, detail.name, index)
+                        )
+                        ids = {SAMPLE_ID: sample_id, f"{detail.name}_id": detail_id}
+                        detail_record = ids | detail_record
 
-                # otherwise just append the record
-                else:
-                    records.append(record)
+                        # append detail record
+                        detail_records.append(detail_record)
+
+                # record sample record
+                sample_records.append(record)
             p.update()
 
     # normalize records and produce samples table
-    samples_table = records_to_pandas(records)
+    samples_table = records_to_pandas(sample_records)
+
+    # if we have detail records then join them into the samples table
+    if detail is not None:
+        details_table = records_to_pandas(detail_records)
+        samples_table = details_table.merge(
+            samples_table,
+            on=SAMPLE_ID,
+            how="left",
+            suffixes=(f"_{detail.name}", SAMPLE_SUFFIX),
+        )
 
     # join eval_records
     samples_table = samples_table.merge(
@@ -225,7 +248,11 @@ def _read_samples_df(
 
     # re-order based on original specification
     samples_table = reorder_samples_df_columns(
-        samples_table, columns_eval, columns_sample
+        samples_table,
+        columns_eval,
+        columns_sample,
+        columns_detail,
+        detail.name if detail else "",
     )
 
     # return
@@ -236,7 +263,11 @@ def _read_samples_df(
 
 
 def reorder_samples_df_columns(
-    df: "pd.DataFrame", eval_columns: list[Column], sample_columns: list[Column]
+    df: "pd.DataFrame",
+    eval_columns: list[Column],
+    sample_columns: list[Column],
+    detail_columns: list[Column],
+    details_name: str,
 ) -> "pd.DataFrame":
     """Reorder columns in the merged DataFrame.
 
@@ -249,6 +280,10 @@ def reorder_samples_df_columns(
     """
     actual_columns = list(df.columns)
     ordered_columns: list[str] = []
+
+    # detail first if we have detail
+    if details_name:
+        ordered_columns.append(f"{details_name}_id")
 
     # sample_id first
     if SAMPLE_ID in actual_columns:
@@ -274,6 +309,17 @@ def reorder_samples_df_columns(
 
         ordered_columns.extend(
             resolve_columns(column.name, SAMPLE_SUFFIX, actual_columns, ordered_columns)
+        )
+
+    # then detail columns
+    for column in detail_columns:
+        if column.name == EVAL_ID or column.name == SAMPLE_ID:
+            continue  # Already handled
+
+        ordered_columns.extend(
+            resolve_columns(
+                column.name, f"_{details_name}", actual_columns, ordered_columns
+            )
         )
 
     # add any unreferenced columns

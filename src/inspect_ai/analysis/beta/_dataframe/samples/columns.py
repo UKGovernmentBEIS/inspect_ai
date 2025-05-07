@@ -79,8 +79,6 @@ def sample_path_requires_full(
             ]
         )
 
-    return False
-
 
 SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),

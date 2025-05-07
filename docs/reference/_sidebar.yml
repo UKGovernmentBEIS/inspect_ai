@@ -488,6 +488,12 @@ website:
           href: reference/inspect_ai.analysis.qmd#samplecolumn
         - text: SampleSummary
           href: reference/inspect_ai.analysis.qmd#samplesummary
+        - text: messages_df
+          href: reference/inspect_ai.analysis.qmd#messages_df
+        - text: MessageColumn
+          href: reference/inspect_ai.analysis.qmd#messagecolumn
+        - text: MessageColumns
+          href: reference/inspect_ai.analysis.qmd#messagecolumns
         - text: Column
           href: reference/inspect_ai.analysis.qmd#column
         - text: ColumnType

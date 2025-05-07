@@ -69,7 +69,15 @@ def content_as_str(content: str | list[dict[str, Any]]) -> str:
 
 
 def auto_sample_id(eval_id: str, sample: EvalSample | EvalSampleSummary) -> str:
-    seed = f"{eval_id}_{sample.id}_{sample.epoch}"
+    return auto_id(eval_id, f"{sample.id}_{sample.epoch}")
+
+
+def auto_detail_id(sample_id: str, name: str, index: int) -> str:
+    return auto_id(sample_id, f"{name}_{index}")
+
+
+def auto_id(base: str, index: str) -> str:
+    seed = f"{base}_{index}"
     hash_bytes = hashlib.md5(seed.encode("utf-8")).digest()
     long_uuid = uuid.UUID(bytes=hash_bytes)
     return shortuuid.encode(long_uuid)
