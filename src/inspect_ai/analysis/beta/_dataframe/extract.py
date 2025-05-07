@@ -6,23 +6,7 @@ import shortuuid
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai._util.json import jsonable_python
-from inspect_ai._util.path import native_path
-from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
-
-
-def scores_dict(log: EvalLog) -> JsonValue:
-    if log.results is not None:
-        metrics: JsonValue = [
-            {
-                score.name: {
-                    metric.name: metric.value for metric in score.metrics.values()
-                }
-            }
-            for score in log.results.scores
-        ]
-        return metrics
-    else:
-        return None
+from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
 
 def list_as_str(x: JsonValue) -> str:
@@ -31,10 +15,6 @@ def list_as_str(x: JsonValue) -> str:
 
 def model_to_record(model: BaseModel) -> dict[str, JsonValue]:
     return cast(dict[str, JsonValue], jsonable_python(model))
-
-
-def eval_log_location(log: EvalLog) -> str:
-    return native_path(log.location)
 
 
 def score_values(x: JsonValue) -> dict[str, JsonValue]:

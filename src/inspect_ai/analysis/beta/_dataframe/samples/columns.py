@@ -9,6 +9,7 @@ from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from ..columns import Column, ColumnType
 from ..extract import input_as_str, list_as_str, score_values
 from ..validate import resolved_schema
+from .extract import sample_path_requires_full
 
 
 class SampleColumn(Column):
@@ -48,36 +49,6 @@ class SampleColumn(Column):
 
     summary_schema = resolved_schema(EvalSampleSummary)
     full_schema = resolved_schema(EvalSample)
-
-
-def sample_path_requires_full(
-    path: str
-    | JSONPath
-    | Callable[[EvalSampleSummary], JsonValue]
-    | Callable[[EvalSample], JsonValue],
-) -> bool:
-    if callable(path):
-        return False
-    else:
-        path = str(path)
-        return any(
-            [
-                path.startswith(prefix)
-                for prefix in [
-                    "choices",
-                    "sandbox",
-                    "files",
-                    "setup",
-                    "messages",
-                    "output",
-                    "store",
-                    "events",
-                    "uuid",
-                    "error_retries",
-                    "attachments",
-                ]
-            ]
-        )
 
 
 SampleSummary: list[Column] = [

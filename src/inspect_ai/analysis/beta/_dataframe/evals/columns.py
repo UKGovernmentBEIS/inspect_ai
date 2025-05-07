@@ -8,8 +8,9 @@ from typing_extensions import override
 from inspect_ai.log._log import EvalLog
 
 from ..columns import Column, ColumnType
-from ..extract import eval_log_location, list_as_str, scores_dict
+from ..extract import list_as_str
 from ..validate import resolved_schema
+from .extract import eval_log_location, eval_log_scores_dict
 
 
 class EvalColumn(Column):
@@ -115,7 +116,7 @@ EvalResults: list[Column] = [
 """Eval results columns."""
 
 EvalScores: list[Column] = [
-    EvalColumn("score_*_*", path=scores_dict),
+    EvalColumn("score_*_*", path=eval_log_scores_dict),
 ]
 """Eval scores (one score/metric per-columns)."""
 

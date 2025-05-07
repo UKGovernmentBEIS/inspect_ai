@@ -4,10 +4,13 @@ from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai._util.format import format_function_call
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
+from inspect_ai.model._chat_message import ChatMessage
 
 from ..columns import Column, ColumnType
+from .extract import (
+    message_text,
+    message_tool_calls,
+)
 
 
 class MessageColumn(Column):
@@ -35,25 +38,6 @@ class MessageColumn(Column):
 
     @override
     def path_schema(self) -> Mapping[str, Any] | None:
-        return None
-
-
-def message_text(message: ChatMessage) -> str:
-    return message.text
-
-
-def message_tool_calls(message: ChatMessage) -> str | None:
-    if isinstance(message, ChatMessageAssistant) and message.tool_calls is not None:
-        tool_calls = "\n".join(
-            [
-                format_function_call(
-                    tool_call.function, tool_call.arguments, width=1000
-                )
-                for tool_call in message.tool_calls
-            ]
-        )
-        return tool_calls
-    else:
         return None
 
 
