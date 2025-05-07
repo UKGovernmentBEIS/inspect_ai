@@ -79,6 +79,7 @@ def samples_df(
     return _read_samples_df(logs, columns, recursive, reverse, strict)
 
 
+# TODO: detail spec: columns + filter
 def _read_samples_df(
     logs: LogPaths,
     columns: list[Column] = SampleSummary,
@@ -128,30 +129,25 @@ def _read_samples_df(
             # get a generator for the samples (might require reading the full log
             # or might be fine to just read the summaries)
             if require_full_samples:
-                sample_summaries: Generator[
-                    EvalSample | EvalSampleSummary, None, None
-                ] = read_eval_log_samples(
-                    log, all_samples_required=False, resolve_attachments=True
+                samples: Generator[EvalSample | EvalSampleSummary, None, None] = (
+                    read_eval_log_samples(
+                        log, all_samples_required=False, resolve_attachments=True
+                    )
                 )
             else:
-                sample_summaries = (
-                    summary for summary in read_eval_log_sample_summaries(log)
-                )
-            for sample_summary in sample_summaries:
+                samples = (summary for summary in read_eval_log_sample_summaries(log))
+            for sample in samples:
                 if strict:
-                    record = import_record(sample_summary, columns_sample, strict=True)
+                    record = import_record(sample, columns_sample, strict=True)
                 else:
-                    record, errors = import_record(
-                        sample_summary, columns_sample, strict=False
-                    )
-                    error_key = f"{pretty_path(log)} [{sample_summary.id}, {sample_summary.epoch}]"
+                    record, errors = import_record(sample, columns_sample, strict=False)
+                    error_key = f"{pretty_path(log)} [{sample.id}, {sample.epoch}]"
                     all_errors[error_key] = errors
 
                 # inject ids
                 ids: dict[str, ColumnType] = {
                     EVAL_ID: eval_id,
-                    "sample_id": sample_summary.uuid
-                    or auto_sample_id(eval_id, sample_summary),
+                    "sample_id": sample.uuid or auto_sample_id(eval_id, sample),
                 }
 
                 records.append(ids | record)
