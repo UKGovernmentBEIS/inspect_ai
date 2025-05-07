@@ -468,8 +468,6 @@ website:
           href: reference/inspect_ai.analysis.qmd#evalcolumn
         - text: EvalColumns
           href: reference/inspect_ai.analysis.qmd#evalcolumns
-        - text: EvalId
-          href: reference/inspect_ai.analysis.qmd#evalid
         - text: EvalInfo
           href: reference/inspect_ai.analysis.qmd#evalinfo
         - text: EvalTask
@@ -488,6 +486,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#samplecolumn
         - text: SampleSummary
           href: reference/inspect_ai.analysis.qmd#samplesummary
+        - text: SampleMessages
+          href: reference/inspect_ai.analysis.qmd#samplemessages
         - text: messages_df
           href: reference/inspect_ai.analysis.qmd#messages_df
         - text: MessageFilter

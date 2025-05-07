@@ -268,17 +268,45 @@ EvalScores: list[Column] = [
 
 ### Samples {#samples}
 
-The `SampleColumn` class used with `samples_df()` can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`).
 
-Reading from summaries is considerably higher performance than reading full sample records, so you should prefer summaries if they contain all of the data you need. The [SampleSummary](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L85) column group includes a default configuration for reading all sample summary data.
 
-::: {.callout-note appearance="simple"}
-Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the `metadata`, `model_usage`, `total_time`, `working_time`, and `retries` fields. If you need to read any of these values you can update older logs with the new fields by round-tripping them through `inspect log convert`. For example:
 
-``` bash
-$ inspect log convert ./logs --to eval --output-dir ./logs-ammended
+The `samples_df()` function can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`). 
+
+By default, the `SampleSummary` column group is used, which reads only from summaries, resulting in considerably higher performance than reading full samples. 
+
+```python
+SampleSummary: list[Column] = [
+    SampleColumn("id", path="id", required=True, type=str),
+    SampleColumn("epoch", path="epoch", required=True),
+    SampleColumn("input", path="input", required=True, value=input_as_str),
+    SampleColumn("target", path="target", required=True, value=list_as_str),
+    SampleColumn("metadata_*", path="metadata"),
+    SampleColumn("score_*", path="scores", value=score_values),
+    SampleColumn("model_usage", path="model_usage"),
+    SampleColumn("total_time", path="total_time"),
+    SampleColumn("working_time", path="total_time"),
+    SampleColumn("error", path="error"),
+    SampleColumn("limit", path="limit"),
+    SampleColumn("retries", path="retries"),
+]
 ```
-:::
+
+If you want to read all of the messages contained in a sample into a string column, use the `SampleMessages` column group. For example, here we read the summary field and the messages:
+
+```python
+from inspect_ai.analysis.beta import (
+    SampleMessages, SampleSummary, samples_df
+)
+
+samples_df(
+    logs="logs", 
+    columns = SampleSummary + SampleMessages
+)
+```
+
+Note that reading `SampleMessages` requires reading full sample content, so will take considerably longer than reading only summaries.
+
 
 #### Full Samples
 
@@ -299,6 +327,15 @@ def model_reasoning_tokens(summary: EvalSampleSummary) -> JsonValue:
 
 SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 ```
+
+
+::: {.callout-note appearance="simple"}
+Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the `metadata`, `model_usage`, `total_time`, `working_time`, and `retries` fields. If you need to read any of these values you can update older logs with the new fields by round-tripping them through `inspect log convert`. For example:
+
+``` bash
+$ inspect log convert ./logs --to eval --output-dir ./logs-ammended
+```
+:::
 
 
 ### Messages {#messages}
