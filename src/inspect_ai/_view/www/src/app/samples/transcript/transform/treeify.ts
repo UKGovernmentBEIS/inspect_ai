@@ -308,7 +308,6 @@ export const flatTree = (
   eventNodes: EventNode[],
   collapsed: Record<string, true> | null,
 ): EventNode[] => {
-  console.log({ collapsed });
   const result: EventNode[] = [];
   for (const node of eventNodes) {
     result.push(node);

@@ -60830,7 +60830,6 @@ ${events}
       });
     };
     const flatTree = (eventNodes, collapsed) => {
-      console.log({ collapsed });
       const result2 = [];
       for (const node2 of eventNodes) {
         result2.push(node2);
