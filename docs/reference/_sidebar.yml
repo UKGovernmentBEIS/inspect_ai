@@ -466,8 +466,8 @@ website:
           href: reference/inspect_ai.analysis.qmd#evals_df
         - text: EvalColumn
           href: reference/inspect_ai.analysis.qmd#evalcolumn
-        - text: EvalDefault
-          href: reference/inspect_ai.analysis.qmd#evaldefault
+        - text: EvalColumns
+          href: reference/inspect_ai.analysis.qmd#evalcolumns
         - text: EvalId
           href: reference/inspect_ai.analysis.qmd#evalid
         - text: EvalInfo

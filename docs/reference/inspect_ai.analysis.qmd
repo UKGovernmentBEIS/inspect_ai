@@ -19,7 +19,7 @@ Functions are exported from the **inspect_ai.analysis.beta** module during the p
 
 ### evals_df
 ### EvalColumn
-### EvalDefault
+### EvalColumns
 ### EvalId
 ### EvalInfo
 ### EvalTask

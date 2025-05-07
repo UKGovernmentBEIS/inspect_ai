@@ -5,7 +5,7 @@ import pytest
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai.analysis.beta import Column, EvalDefault
+from inspect_ai.analysis.beta import Column, EvalColumns
 from inspect_ai.analysis.beta._dataframe.evals.columns import EvalColumn
 from inspect_ai.analysis.beta._dataframe.record import _resolve_value, import_record
 from inspect_ai.log._file import read_eval_log
@@ -109,11 +109,11 @@ def test_field_options() -> None:
 
 
 def test_predefined_spec() -> None:
-    """Test using the predefined EvalDefault spec."""
+    """Test using the predefined EvalColumns spec."""
     log = read_eval_log(
         Path(__file__).parent.parent / "log" / "test_eval_log" / "log_formats.eval"
     )
-    result = import_record(log, EvalDefault)
+    result = import_record(log, EvalColumns)
 
     assert result["status"] == "success"
     assert result["model"] == "ollama/llama3.1"

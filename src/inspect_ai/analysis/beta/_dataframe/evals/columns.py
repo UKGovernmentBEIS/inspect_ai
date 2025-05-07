@@ -119,7 +119,7 @@ EvalScores: list[Column] = [
 ]
 """Eval scores (one score/metric per-columns)."""
 
-EvalDefault: list[Column] = (
+EvalColumns: list[Column] = (
     EvalId
     + EvalInfo
     + EvalTask

@@ -6,8 +6,8 @@ from ._dataframe.columns import (
 )
 from ._dataframe.evals.columns import (
     EvalColumn,
+    EvalColumns,
     EvalConfig,
-    EvalDefault,
     EvalId,
     EvalInfo,
     EvalModel,
@@ -24,11 +24,12 @@ from ._dataframe.samples.table import samples_df
 __all__ = [
     "evals_df",
     "EvalColumn",
+    "EvalColumns",
     "EvalId",
     "EvalInfo",
     "EvalTask",
     "EvalModel",
-    "EvalDefault",
+    "EvalColumns",
     "EvalConfig",
     "EvalResults",
     "EvalScores",

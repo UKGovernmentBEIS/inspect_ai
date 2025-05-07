@@ -18,7 +18,7 @@ from ..util import (
     resolve_logs,
     verify_prerequisites,
 )
-from .columns import EvalDefault, EvalId
+from .columns import EvalColumns, EvalId
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -30,7 +30,7 @@ EVAL_SUFFIX = "_eval"
 @overload
 def evals_df(
     logs: LogPaths,
-    columns: list[Column] = EvalDefault,
+    columns: list[Column] = EvalColumns,
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[True] = True,
@@ -40,7 +40,7 @@ def evals_df(
 @overload
 def evals_df(
     logs: LogPaths,
-    columns: list[Column] = EvalDefault,
+    columns: list[Column] = EvalColumns,
     recursive: bool = True,
     reverse: bool = False,
     strict: Literal[False] = False,
@@ -49,7 +49,7 @@ def evals_df(
 
 def evals_df(
     logs: LogPaths,
-    columns: list[Column] = EvalDefault,
+    columns: list[Column] = EvalColumns,
     recursive: bool = True,
     reverse: bool = False,
     strict: bool = True,
