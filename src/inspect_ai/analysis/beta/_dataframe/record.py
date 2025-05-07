@@ -7,7 +7,7 @@ from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
 from inspect_ai.analysis.beta._dataframe.samples.columns import SampleColumn
-from inspect_ai.log._log import EvalLog, EvalSampleSummary
+from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary
 
 from .columns import Column, ColumnError, ColumnType
 from .evals.columns import EvalColumn
@@ -16,7 +16,7 @@ from .extract import model_to_record
 
 @overload
 def import_record(
-    record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
+    record: EvalLog | EvalSampleSummary | EvalSample | dict[str, JsonValue],
     columns: list[Column],
     strict: Literal[True] = True,
 ) -> dict[str, ColumnType]: ...
@@ -24,19 +24,26 @@ def import_record(
 
 @overload
 def import_record(
-    record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
+    record: EvalLog | EvalSampleSummary | EvalSample | dict[str, JsonValue],
     columns: list[Column],
     strict: Literal[False],
 ) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
 
 
 def import_record(
-    record: EvalLog | EvalSampleSummary | dict[str, JsonValue],
+    record: EvalLog | EvalSampleSummary | EvalSample | dict[str, JsonValue],
     columns: list[Column],
     strict: bool = True,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
     record_target = record
-    if isinstance(record, EvalLog | EvalSampleSummary):
+    record_summary: dict[str, JsonValue] | None = None
+    if isinstance(record, EvalSample):
+        record_summary = model_to_record(record.summary())
+        record = model_to_record(record)
+    elif isinstance(record, EvalSampleSummary):
+        record_summary = model_to_record(record)
+        record = record_summary
+    elif isinstance(record, EvalLog):
         record = model_to_record(record)
     else:
         record = record
@@ -79,8 +86,14 @@ def import_record(
             # read by path or extract function
             if column.path is not None:
                 if not column.validate_path():
-                    raise ValueError("Specified path is not valid for EvalLog")
-                matches = column.path.find(record)
+                    raise ValueError("Specified path is not valid")
+                if isinstance(column, SampleColumn):
+                    matches = column.path.find(
+                        record if column._full else record_summary
+                    )
+                else:
+                    matches = column.path.find(record)
+
                 if matches:
                     value = matches[0].value
             elif (
@@ -92,9 +105,9 @@ def import_record(
             elif (
                 isinstance(column, SampleColumn)
                 and column._extract_sample is not None
-                and isinstance(record_target, EvalSampleSummary)
+                and isinstance(record_target, EvalSample | EvalSampleSummary)
             ):
-                value = column._extract_sample(record_target)
+                value = column._extract_sample(record_target)  # type: ignore[arg-type]
             else:
                 assert False, "column must have path or extract function"
 

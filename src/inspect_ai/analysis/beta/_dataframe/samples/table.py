@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Generator, Literal, overload
 
 from inspect_ai._display import display
 from inspect_ai._util.path import pretty_path
 from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
+    read_eval_log_samples,
 )
+from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
 from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
-from ..extract import auto_sample_id, model_to_record
+from ..extract import auto_sample_id
 from ..record import import_record
 from ..util import (
     LogPaths,
@@ -81,6 +83,7 @@ def samples_df(
     logs = resolve_logs(logs, recursive=recursive, reverse=reverse)
 
     # split columns by type
+    require_full_samples = False
     columns_eval: list[Column] = []
     columns_sample: list[Column] = []
     for column in columns:
@@ -88,6 +91,8 @@ def samples_df(
             columns_eval.append(column)
         elif isinstance(column, SampleColumn):
             columns_sample.append(column)
+            if column._full:
+                require_full_samples = True
         else:
             raise ValueError(
                 f"Unexpected column type passed to samples_df: {type(column)}"
@@ -103,14 +108,24 @@ def samples_df(
     with display().progress(total=len(evals_table)) as p:
         # read samples from sample summary
         for eval_id, log in zip(evals_table[EVAL_ID].to_list(), logs):
-            sample_summaries = read_eval_log_sample_summaries(log)
-            for index, sample_summary in enumerate(sample_summaries):
-                sample_record = model_to_record(sample_summary)
+            # get a generator for the samples (might require reading the full log
+            # or might be find to just read the summaries)
+            if require_full_samples:
+                sample_summaries: Generator[
+                    EvalSample | EvalSampleSummary, None, None
+                ] = read_eval_log_samples(
+                    log, all_samples_required=False, resolve_attachments=True
+                )
+            else:
+                sample_summaries = (
+                    summary for summary in read_eval_log_sample_summaries(log)
+                )
+            for sample_summary in sample_summaries:
                 if strict:
-                    record = import_record(sample_record, columns_sample, strict=True)
+                    record = import_record(sample_summary, columns_sample, strict=True)
                 else:
                     record, errors = import_record(
-                        sample_record, columns_sample, strict=False
+                        sample_summary, columns_sample, strict=False
                     )
                     error_key = f"{pretty_path(log)} [{sample_summary.id}, {sample_summary.epoch}]"
                     all_errors[error_key] = errors

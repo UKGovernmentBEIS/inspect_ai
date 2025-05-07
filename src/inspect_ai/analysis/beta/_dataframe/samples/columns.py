@@ -4,7 +4,7 @@ from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 from typing_extensions import override
 
-from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
 from ..columns import Column, ColumnType
 from ..extract import input_as_str, list_as_str, score_values
@@ -18,7 +18,10 @@ class SampleColumn(Column):
         self,
         name: str,
         *,
-        path: str | JSONPath | Callable[[EvalSampleSummary], JsonValue],
+        path: str
+        | JSONPath
+        | Callable[[EvalSampleSummary], JsonValue]
+        | Callable[[EvalSample], JsonValue],
         required: bool = False,
         default: JsonValue | None = None,
         type: Type[ColumnType] | None = None,
@@ -34,13 +37,51 @@ class SampleColumn(Column):
             value=value,
         )
         self._extract_sample = path if callable(path) else None
-        self._full = full
+        self._full = full or sample_path_requires_full(path)
 
     @override
     def path_schema(self) -> Mapping[str, Any]:
-        return self.summary_schema
+        if self._full:
+            return self.full_schema
+        else:
+            return self.summary_schema
 
     summary_schema = resolved_schema(EvalSampleSummary)
+    full_schema = resolved_schema(EvalSample)
+
+
+def sample_path_requires_full(
+    path: str
+    | JSONPath
+    | Callable[[EvalSampleSummary], JsonValue]
+    | Callable[[EvalSample], JsonValue],
+) -> bool:
+    if callable(path):
+        return False
+    else:
+        path = str(path)
+        return any(
+            [
+                path.startswith(prefix)
+                for prefix in [
+                    "choices",
+                    "target",
+                    "sandbox",
+                    "files",
+                    "setup",
+                    "messages",
+                    "output",
+                    "store",
+                    "events",
+                    "model_usage",
+                    "uuid",
+                    "error_retries",
+                    "attachments",
+                ]
+            ]
+        )
+
+    return False
 
 
 SampleSummary: list[Column] = [
