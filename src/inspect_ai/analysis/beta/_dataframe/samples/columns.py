@@ -65,7 +65,6 @@ def sample_path_requires_full(
                 path.startswith(prefix)
                 for prefix in [
                     "choices",
-                    "target",
                     "sandbox",
                     "files",
                     "setup",
@@ -73,7 +72,6 @@ def sample_path_requires_full(
                     "output",
                     "store",
                     "events",
-                    "model_usage",
                     "uuid",
                     "error_retries",
                     "attachments",

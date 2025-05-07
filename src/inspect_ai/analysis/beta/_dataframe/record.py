@@ -151,6 +151,18 @@ def import_record(
         return result, errors
 
 
+def resolve_duplicate_columns(columns: list[Column]) -> list[Column]:
+    """Remove duplicate columns (with the later columns winning)"""
+    seen = set[str]()
+    deduped: list[Column] = []
+    for col in reversed(columns):
+        if col.name not in seen:
+            deduped.append(col)
+            seen.add(col.name)
+    deduped.reverse()
+    return deduped
+
+
 def _resolve_value(
     value: JsonValue,
     type_: Type[ColumnType] | None = None,

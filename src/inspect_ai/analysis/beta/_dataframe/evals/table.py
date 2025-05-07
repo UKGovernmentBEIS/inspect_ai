@@ -9,7 +9,7 @@ from inspect_ai.log._file import (
 )
 
 from ..columns import Column, ColumnErrors, ColumnType
-from ..record import import_record
+from ..record import import_record, resolve_duplicate_columns
 from ..util import (
     LogPaths,
     add_unreferenced_columns,
@@ -74,6 +74,9 @@ def evals_df(
 
     # resolve logs
     log_paths = resolve_logs(logs, recursive=recursive, reverse=reverse)
+
+    # resolve duplicate columns
+    columns = resolve_duplicate_columns(columns)
 
     # accumulate errors for strict=False
     all_errors = ColumnErrors()

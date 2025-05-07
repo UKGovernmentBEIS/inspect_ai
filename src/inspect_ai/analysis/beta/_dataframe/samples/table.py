@@ -14,7 +14,7 @@ from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
 from ..extract import auto_sample_id
-from ..record import import_record
+from ..record import import_record, resolve_duplicate_columns
 from ..util import (
     LogPaths,
     add_unreferenced_columns,
@@ -83,7 +83,6 @@ def samples_df(
     logs = resolve_logs(logs, recursive=recursive, reverse=reverse)
 
     # split columns by type
-    require_full_samples = False
     columns_eval: list[Column] = []
     columns_sample: list[Column] = []
     for column in columns:
@@ -97,6 +96,14 @@ def samples_df(
             raise ValueError(
                 f"Unexpected column type passed to samples_df: {type(column)}"
             )
+    # resolve duplciates
+    columns_eval = resolve_duplicate_columns(columns_eval)
+    columns_sample = resolve_duplicate_columns(columns_sample)
+
+    # determine if we require full samples
+    require_full_samples = any(
+        [isinstance(column, SampleColumn) and column._full for column in columns_sample]
+    )
 
     # make sure eval_id is present
     ensure_eval_id(columns_eval)
@@ -109,7 +116,7 @@ def samples_df(
         # read samples from sample summary
         for eval_id, log in zip(evals_table[EVAL_ID].to_list(), logs):
             # get a generator for the samples (might require reading the full log
-            # or might be find to just read the summaries)
+            # or might be fine to just read the summaries)
             if require_full_samples:
                 sample_summaries: Generator[
                     EvalSample | EvalSampleSummary, None, None
