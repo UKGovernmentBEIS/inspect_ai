@@ -3,7 +3,7 @@
 - [span()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for grouping transcript events.
 - [collect()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for enclosing parallel tasks in spans.
 - [Event tree](https://inspect.aisi.org.uk/reference/inspect_ai.log.html#event-tree) functions for organising transcript events into a tree of spans.
-- `inspect convert` now always fully re-writes log files even of the same format (so that e.g. sample summaries always exist in the converted logs).
+- `inspect log convert` now always fully re-writes log files even of the same format (so that e.g. sample summaries always exist in the converted logs).
 - React agent: `answer_only` and `answer_delimiter` to control how submitted answers are reflected in the assistant message content. 
 - Python tool: Execute using a bash login shell for consistency of Python versions across `bash()` and `python()` tools.
 - Task display: Realtime display of events that occur within tool calls and subtasks.

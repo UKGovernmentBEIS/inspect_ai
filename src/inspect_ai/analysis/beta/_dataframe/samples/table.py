@@ -113,7 +113,7 @@ def samples_df(
     all_errors = ColumnErrors()
     evals_table = evals_df(logs, columns=columns_eval)
     with display().progress(total=len(evals_table)) as p:
-        # read samples from sample summary
+        # read samples
         for eval_id, log in zip(evals_table[EVAL_ID].to_list(), logs):
             # get a generator for the samples (might require reading the full log
             # or might be fine to just read the summaries)

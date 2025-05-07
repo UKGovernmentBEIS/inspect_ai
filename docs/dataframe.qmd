@@ -274,7 +274,7 @@ SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 ```
 
 ::: {.callout-note appearance="simple"}
-Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the `metadata`, `model_usage`, `total_time`, `working_time`, and `retries` fields. For logs written prior to this, you can ammend their summaries with the new fields by round-tripping them through `inspect convert`. For example:
+Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the `metadata`, `model_usage`, `total_time`, `working_time`, and `retries` fields. For logs written prior to this, you can ammend their summaries with the new fields by round-tripping them through `inspect log convert`. For example:
 
 ```bash
 $ inspect log convert ./logs --to eval --output-dir ./logs-ammended
