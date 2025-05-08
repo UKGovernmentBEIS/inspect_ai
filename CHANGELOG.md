@@ -1,7 +1,7 @@
 ## Unreleased
 
 - Added support for [Tavily](https://tavily.com/)'s Research API to the `web_search` tool.
-- [DataFrame](https://inspect.aisi.org.uk/dataframe.html) functions for reading data frames from log files.
+- [DataFrame](https://inspect.aisi.org.uk/dataframe.html) functions for reading dataframes from log files.
 - Multiple choice: `max_tokens` option to control tokens used for `generate()`.
 - Don't enforce sample `working_limit` after solvers have completed executing (matching behavior of other sample limits).
 - Only pass `user` parameter on to sandboxes if is not `None` (eases compatibility with older sandbox providers).
