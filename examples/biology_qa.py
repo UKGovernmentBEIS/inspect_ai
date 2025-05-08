@@ -12,6 +12,9 @@ def biology_qa() -> Task:
             name="biology_qa",
             sample_fields=FieldSpec(input="question", target="answer"),
         ),
-        solver=[use_tools(web_search()), generate()],
+        solver=[
+            use_tools(web_search(provider="tavily")),
+            generate(),
+        ],
         scorer=model_graded_qa(),
     )

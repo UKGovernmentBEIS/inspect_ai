@@ -57,7 +57,7 @@ def messages_df(
        columns: Specification for what columns to read from log files.
        filter: List of message role types to include or callable that performs the filter.
        recursive: Include recursive contents of directories (defaults to `True`)
-       reverse: Reverse the order of the data frame (by default, items
+       reverse: Reverse the order of the dataframe (by default, items
           are ordered from oldest to newest).
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
