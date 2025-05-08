@@ -41,7 +41,7 @@ def think(
 def think_tool_viewer() -> ToolCallViewer:
     def viewer(tool_call: ToolCall) -> ToolCallView:
         call = ToolCallContent(
-            format="markdown", content=tool_call.arguments["thought"]
+            format="markdown", content=tool_call.arguments.get("thought", "")
         )
         return ToolCallView(call=call)
 
