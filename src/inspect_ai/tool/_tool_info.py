@@ -10,7 +10,6 @@ from typing import (
 from docstring_parser import Docstring, parse
 from pydantic import BaseModel, Field
 
-from inspect_ai.tool._tool import TOOL_INIT_TOOL_DEF
 from inspect_ai.util._json import JSONType, json_schema
 
 from ._tool_description import tool_description
@@ -50,8 +49,8 @@ class ToolInfo(BaseModel):
     """Short description of tool."""
     parameters: ToolParams = Field(default_factory=ToolParams)
     """JSON Schema of tool parameters object."""
-    temp_hack: object | None = Field(default=None)
-    """Tool specific payload potentially used by the model provider."""
+    options: dict[str, object] | None = Field(default=None)
+    """Optional property bag that can be used by the model to customize the implementation of the tool"""
 
 
 def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
@@ -120,8 +119,6 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
                 [(example.description or "") for example in parsed_docstring.examples]
             )
             info.description = f"{info.description}\n\nExamples\n\n{examples}"
-
-    info.temp_hack = getattr(func, TOOL_INIT_TOOL_DEF, None)
 
     return info
 
