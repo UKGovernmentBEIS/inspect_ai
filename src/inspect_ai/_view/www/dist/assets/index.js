@@ -24370,14 +24370,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         right: "bi bi-chevron-right",
         down: "bi bi-chevron-down"
       },
-      collapse: {
-        up: "bi bi-chevron-up"
-      },
       close: "bi bi-x",
       confirm: "bi bi-check",
       copy: "bi bi-copy",
       error: "bi bi-exclamation-circle",
-      "expand-down": "bi bi-chevron-down",
       info: "bi bi-info-circle",
       input: "bi bi-terminal",
       limits: {
@@ -24888,19 +24884,21 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [callback]);
       return elementRef;
     };
-    const expandableBordered = "_expandableBordered_18gdn_1";
-    const expandableCollapsed = "_expandableCollapsed_18gdn_14";
-    const moreToggle = "_moreToggle_18gdn_18";
-    const bordered = "_bordered_18gdn_25";
-    const moreToggleContainer = "_moreToggleContainer_18gdn_29";
-    const moreToggleButton = "_moreToggleButton_18gdn_40";
+    const expandablePanel = "_expandablePanel_62z83_1";
+    const expandableBordered = "_expandableBordered_62z83_6";
+    const expandableCollapsed = "_expandableCollapsed_62z83_19";
+    const moreToggle = "_moreToggle_62z83_23";
+    const bordered = "_bordered_62z83_36";
+    const moreToggleButton = "_moreToggleButton_62z83_40";
+    const separator$5 = "_separator_62z83_46";
     const styles$1i = {
+      expandablePanel,
       expandableBordered,
       expandableCollapsed,
       moreToggle,
       bordered,
-      moreToggleContainer,
-      moreToggleButton
+      moreToggleButton,
+      separator: separator$5
     };
     const ExpandablePanel = reactExports.memo(
       ({ id, collapse, border, lines = 15, children: children2, className: className2 }) => {
@@ -24929,7 +24927,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         };
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
               style: baseStyles,
@@ -24937,19 +24935,23 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               className: clsx(
                 styles$1i.expandablePanel,
                 collapsed ? styles$1i.expandableCollapsed : void 0,
-                border ? styles$1i.expandableBordered : void 0
+                border ? styles$1i.expandableBordered : void 0,
+                showToggle ? styles$1i.padBottom : void 0
               ),
-              children: children2
+              children: [
+                children2,
+                showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MoreToggle,
+                  {
+                    collapsed,
+                    setCollapsed,
+                    border: !border
+                  }
+                ) })
+              ]
             }
           ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MoreToggle,
-            {
-              collapsed,
-              setCollapsed,
-              border: !border
-            }
-          )
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.separator) })
         ] });
       }
     );
@@ -24960,7 +24962,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       style: style2
     }) => {
       const text2 = collapsed ? "more" : "less";
-      const icon2 = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
       const handleClick = reactExports.useCallback(() => {
         setCollapsed(!collapsed);
       }, [setCollapsed, collapsed]);
@@ -24969,17 +24970,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         {
           className: clsx(styles$1i.moreToggle, border ? styles$1i.bordered : void 0),
           style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1i.moreToggleContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
               className: clsx("btn", styles$1i.moreToggleButton, "text-size-smallest"),
               onClick: handleClick,
               children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$1i.icon) }),
-                text2
+                text2,
+                "..."
               ]
             }
-          ) })
+          )
         }
       );
     };
