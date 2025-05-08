@@ -29,12 +29,9 @@ export interface SampleSlice {
     collapseEvent: (id: string, collapsed: boolean) => void;
     clearCollapsedEvents: () => void;
 
-    setCollapsedMetadata: (
-      key: string,
-      collapsed: Record<string, true>,
-    ) => void;
-    collapseMetadata: (key: string, id: string, collapsed: boolean) => void;
-    clearCollapsedMetadata: () => void;
+    setCollapsedIds: (key: string, collapsed: Record<string, true>) => void;
+    collapseId: (key: string, id: string, collapsed: boolean) => void;
+    clearCollapsedIds: () => void;
 
     // Loading
     loadSample: (
@@ -66,7 +63,7 @@ const initialState: SampleState = {
   runningEvents: [],
   collapsedEvents: null,
 
-  collapsedMetadata: {},
+  collapsedIdBuckets: {},
 };
 
 export const createSampleSlice = (
@@ -155,26 +152,26 @@ export const createSampleSlice = (
           }
         });
       },
-      setCollapsedMetadata: (key: string, collapsed: Record<string, true>) => {
+      setCollapsedIds: (key: string, collapsed: Record<string, true>) => {
         set((state) => {
-          state.sample.collapsedMetadata[key] = collapsed;
+          state.sample.collapsedIdBuckets[key] = collapsed;
         });
       },
-      collapseMetadata: (key: string, id: string, collapsed: boolean) => {
+      collapseId: (key: string, id: string, collapsed: boolean) => {
         set((state) => {
-          if (state.sample.collapsedMetadata[key] === undefined) {
-            state.sample.collapsedMetadata[key] = {};
+          if (state.sample.collapsedIdBuckets[key] === undefined) {
+            state.sample.collapsedIdBuckets[key] = {};
           }
           if (collapsed) {
-            state.sample.collapsedMetadata[key][id] = true;
+            state.sample.collapsedIdBuckets[key][id] = true;
           } else {
-            delete state.sample.collapsedMetadata[key][id];
+            delete state.sample.collapsedIdBuckets[key][id];
           }
         });
       },
-      clearCollapsedMetadata: () => {
+      clearCollapsedIds: () => {
         set((state) => {
-          state.sample.collapsedMetadata = {};
+          state.sample.collapsedIdBuckets = {};
         });
       },
 

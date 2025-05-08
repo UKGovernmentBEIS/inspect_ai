@@ -24092,7 +24092,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       // The resolved events
       runningEvents: [],
       collapsedEvents: null,
-      collapsedMetadata: {}
+      collapsedIdBuckets: {}
     };
     const createSampleSlice = (set2, get2, _store) => {
       const samplePolling = createSamplePolling(get2, set2);
@@ -24160,26 +24160,26 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               }
             });
           },
-          setCollapsedMetadata: (key2, collapsed) => {
+          setCollapsedIds: (key2, collapsed) => {
             set2((state) => {
-              state.sample.collapsedMetadata[key2] = collapsed;
+              state.sample.collapsedIdBuckets[key2] = collapsed;
             });
           },
-          collapseMetadata: (key2, id, collapsed) => {
+          collapseId: (key2, id, collapsed) => {
             set2((state) => {
-              if (state.sample.collapsedMetadata[key2] === void 0) {
-                state.sample.collapsedMetadata[key2] = {};
+              if (state.sample.collapsedIdBuckets[key2] === void 0) {
+                state.sample.collapsedIdBuckets[key2] = {};
               }
               if (collapsed) {
-                state.sample.collapsedMetadata[key2][id] = true;
+                state.sample.collapsedIdBuckets[key2][id] = true;
               } else {
-                delete state.sample.collapsedMetadata[key2][id];
+                delete state.sample.collapsedIdBuckets[key2][id];
               }
             });
           },
-          clearCollapsedMetadata: () => {
+          clearCollapsedIds: () => {
             set2((state) => {
-              state.sample.collapsedMetadata = {};
+              state.sample.collapsedIdBuckets = {};
             });
           },
           pollSample: async (logFile, sampleSummary) => {
@@ -43002,22 +43002,20 @@ categories: ${categories.join(" ")}`;
         return [isCollapsed, set2];
       }, [collapsed, collapseEvent, id]);
     };
-    const useCollapseMetadata = (key2) => {
-      const collapsedMetadata = useStore(
-        (state) => state.sample.collapsedMetadata[key2]
+    const useCollapsibleIds = (key2) => {
+      const collapsedIds = useStore(
+        (state) => state.sample.collapsedIdBuckets[key2]
       );
-      const setCollapsed = useStore(
-        (state) => state.sampleActions.collapseMetadata
-      );
-      const collapseMetadata = reactExports.useCallback(
+      const setCollapsed = useStore((state) => state.sampleActions.collapseId);
+      const collapseId = reactExports.useCallback(
         (id, value2) => {
           setCollapsed(key2, id, value2);
         },
         [setCollapsed]
       );
       return reactExports.useMemo(() => {
-        return [collapsedMetadata, collapseMetadata];
-      }, [collapsedMetadata, collapseMetadata]);
+        return [collapsedIds, collapseId];
+      }, [collapsedIds, collapseId]);
     };
     const useCollapsedState = (id, defaultValue, scope) => {
       const stateId = id;
@@ -50998,18 +50996,18 @@ self.onmessage = function (e) {
       pre,
       treeIcon
     };
-    const VirtualMetadataGrid = ({
+    const RecordTree = ({
       id,
       record,
       className: className2,
       scrollRef
     }) => {
-      const [collapsedIds, setCollapsed] = useCollapseMetadata(id);
-      const setCollapsedMetadata = useStore(
-        (state) => state.sampleActions.setCollapsedMetadata
+      const [collapsedIds, setCollapsed] = useCollapsibleIds(id);
+      const setCollapsedIds = useStore(
+        (state) => state.sampleActions.setCollapsedIds
       );
       const items = reactExports.useMemo(() => {
-        return toMetadataItems(record, collapsedIds || {});
+        return toTreeItems(record, collapsedIds || {});
       }, [record, collapsedIds]);
       reactExports.useEffect(() => {
         if (collapsedIds) {
@@ -51024,7 +51022,7 @@ self.onmessage = function (e) {
           }
           return prev;
         }, {});
-        setCollapsedMetadata(id, defaultCollapsedIds);
+        setCollapsedIds(id, defaultCollapsedIds);
       }, [collapsedIds, items]);
       const listHandle = reactExports.useRef(null);
       const { getRestoreState } = useVirtuosoState(
@@ -51103,7 +51101,7 @@ self.onmessage = function (e) {
         }
       );
     };
-    const toMetadataItems = (record, collapsedIds, currentDepth = 0, currentPath = []) => {
+    const toTreeItems = (record, collapsedIds, currentDepth = 0, currentPath = []) => {
       if (!record) {
         return [];
       }
@@ -61555,7 +61553,7 @@ ${events}
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Metadata" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              VirtualMetadataGrid,
+              RecordTree,
               {
                 id: `task-sample-metadata-${id}`,
                 record: sample2 == null ? void 0 : sample2.metadata,
@@ -61571,7 +61569,7 @@ ${events}
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Store" }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              VirtualMetadataGrid,
+              RecordTree,
               {
                 id: `task-sample-store-${id}`,
                 record: sample2 == null ? void 0 : sample2.store,

@@ -4,12 +4,12 @@ import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { useVirtuosoState } from "../../state/scrolling";
 import { RenderedContent } from "./RenderedContent";
 
-import { useCollapseMetadata } from "../../state/hooks";
+import { useCollapsibleIds } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { ApplicationIcons } from "../appearance/icons";
-import styles from "./VirtualMetadataGrid.module.css";
+import styles from "./RecordTree.module.css";
 
-interface VirtualMetadataGridProps {
+interface RecordTreeProps {
   id: string;
   record: Record<string, unknown>;
   className?: string | string[];
@@ -19,19 +19,19 @@ interface VirtualMetadataGridProps {
 /**
  * Renders the MetaDataView component.
  */
-export const VirtualMetadataGrid: FC<VirtualMetadataGridProps> = ({
+export const RecordTree: FC<RecordTreeProps> = ({
   id,
   record,
   className,
   scrollRef,
 }) => {
-  const [collapsedIds, setCollapsed] = useCollapseMetadata(id);
-  const setCollapsedMetadata = useStore(
-    (state) => state.sampleActions.setCollapsedMetadata,
+  const [collapsedIds, setCollapsed] = useCollapsibleIds(id);
+  const setCollapsedIds = useStore(
+    (state) => state.sampleActions.setCollapsedIds,
   );
 
   const items = useMemo(() => {
-    return toMetadataItems(record, collapsedIds || {});
+    return toTreeItems(record, collapsedIds || {});
   }, [record, collapsedIds]);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export const VirtualMetadataGrid: FC<VirtualMetadataGridProps> = ({
       }
       return prev;
     }, {});
-    setCollapsedMetadata(id, defaultCollapsedIds);
+    setCollapsedIds(id, defaultCollapsedIds);
   }, [collapsedIds, items]);
 
   const listHandle = useRef<VirtuosoHandle | null>(null);
@@ -138,7 +138,7 @@ interface MetadataItem {
   hasChildren: boolean;
 }
 
-export const toMetadataItems = (
+export const toTreeItems = (
   record: Record<string, unknown>,
   collapsedIds: Record<string, boolean>,
   currentDepth = 0,

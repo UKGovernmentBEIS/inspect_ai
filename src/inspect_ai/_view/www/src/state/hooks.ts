@@ -287,17 +287,15 @@ export const useCollapseSampleEvent = (
   }, [collapsed, collapseEvent, id]);
 };
 
-export const useCollapseMetadata = (
+export const useCollapsibleIds = (
   key: string,
 ): [Record<string, boolean>, (id: string, value: boolean) => void] => {
-  const collapsedMetadata = useStore(
-    (state) => state.sample.collapsedMetadata[key],
+  const collapsedIds = useStore(
+    (state) => state.sample.collapsedIdBuckets[key],
   );
 
-  const setCollapsed = useStore(
-    (state) => state.sampleActions.collapseMetadata,
-  );
-  const collapseMetadata = useCallback(
+  const setCollapsed = useStore((state) => state.sampleActions.collapseId);
+  const collapseId = useCallback(
     (id: string, value: boolean) => {
       setCollapsed(key, id, value);
     },
@@ -305,8 +303,8 @@ export const useCollapseMetadata = (
   );
 
   return useMemo(() => {
-    return [collapsedMetadata, collapseMetadata];
-  }, [collapsedMetadata, collapseMetadata]);
+    return [collapsedIds, collapseId];
+  }, [collapsedIds, collapseId]);
 };
 
 export const useCollapsedState = (
