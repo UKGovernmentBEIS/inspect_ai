@@ -67,7 +67,9 @@ export interface LogState {
   selectedLogSummary?: EvalSummary;
   pendingSampleSummaries?: PendingSamples;
 
-  filter: ScoreFilter;
+  filter: string;
+  filterError?: FilterError;
+
   epoch: string;
   sort: string;
   score?: ScoreLabel;
@@ -122,8 +124,16 @@ export interface ScoreLabel {
   scorer: string;
 }
 
-export interface ScoreFilter {
+export interface SampleFilter {
   value?: string;
+  error?: FilterError;
+}
+
+export interface FilterError {
+  from: number;
+  to: number;
+  message: string;
+  severity: "warning" | "error";
 }
 
 export type SampleMode = "none" | "single" | "many";

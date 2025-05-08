@@ -12,7 +12,7 @@ import {
   kScoreTypeOther,
   kScoreTypePassFail,
 } from "../../../../constants";
-import { ScoreFilterItem } from "../filters";
+import { SampleFilterItem } from "../filters";
 import {
   KEYWORDS,
   MATH_FUNCTIONS,
@@ -29,7 +29,7 @@ interface CompletionOptions {
 }
 
 interface CanonicalNameCompletionProps {
-  autoSpaceIf?: (item: ScoreFilterItem) => boolean;
+  autoSpaceIf?: (item: SampleFilterItem) => boolean;
 }
 
 const isLiteral = (token: Token): boolean =>
@@ -98,7 +98,7 @@ const makeLiteralCompletion = (k: string): Completion => ({
 });
 
 const makeCanonicalNameCompletion = (
-  item: ScoreFilterItem,
+  item: SampleFilterItem,
   { autoSpaceIf = () => false }: CanonicalNameCompletionProps = {},
 ): Completion => ({
   label: item.canonicalName + (autoSpaceIf(item) ? " " : ""),
@@ -107,7 +107,7 @@ const makeCanonicalNameCompletion = (
   boost: 30,
 });
 
-const makeMemberAccessCompletion = (item: ScoreFilterItem): Completion => ({
+const makeMemberAccessCompletion = (item: SampleFilterItem): Completion => ({
   label: item.qualifiedName?.split(".")[1] || "",
   type: "variable",
   info: item.tooltip,
@@ -115,9 +115,9 @@ const makeMemberAccessCompletion = (item: ScoreFilterItem): Completion => ({
 });
 
 const getMemberScoreItems = (
-  filterItems: ScoreFilterItem[],
+  filterItems: SampleFilterItem[],
   scorer: string,
-): ScoreFilterItem[] =>
+): SampleFilterItem[] =>
   filterItems.filter((item) => item?.qualifiedName?.startsWith(`${scorer}.`));
 
 /**
@@ -136,7 +136,7 @@ const getMemberScoreItems = (
  */
 export function getCompletions(
   context: CompletionContext,
-  filterItems: ScoreFilterItem[],
+  filterItems: SampleFilterItem[],
 ): CompletionResult | null {
   const keywordCompletionItems = KEYWORDS.map(makeKeywordCompletion);
   const mathFunctionCompletionItems = MATH_FUNCTIONS.map(
@@ -177,7 +177,7 @@ export function getCompletions(
   const completionStart = currentToken ? currentToken.from : context.pos;
   const completingAtEnd = context.pos === doc.length;
 
-  const findFilterItem = (endIndex: number): ScoreFilterItem | undefined => {
+  const findFilterItem = (endIndex: number): SampleFilterItem | undefined => {
     if (prevToken(endIndex)?.type !== "variable") return undefined;
 
     let name = prevToken(endIndex).text;
@@ -267,7 +267,7 @@ export function getCompletions(
 
   const variableCompletions = () => makeCompletions(variableCompletionItems);
 
-  const memberAccessCompletions = (items: ScoreFilterItem[]) =>
+  const memberAccessCompletions = (items: SampleFilterItem[]) =>
     makeCompletions(items.map(makeMemberAccessCompletion), {
       autocompleteInTheMiddle: true,
       includeDefault: false,

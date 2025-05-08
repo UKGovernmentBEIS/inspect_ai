@@ -1,4 +1,4 @@
-import { LogState, ScoreFilter, ScoreLabel } from "../app/types";
+import { FilterError, LogState, ScoreLabel } from "../app/types";
 import { EvalSummary, PendingSamples } from "../client/api/types";
 import { kDefaultSort, kLogViewInfoTabId } from "../constants";
 import { createLogger } from "../utils/logger";
@@ -23,7 +23,13 @@ export interface LogSlice {
     setPendingSampleSummaries: (samples: PendingSamples) => void;
 
     // Set filter criteria
-    setFilter: (filter: ScoreFilter) => void;
+    setFilter: (filter: string) => void;
+
+    // Set the filter error
+    setFilterError: (error: FilterError) => void;
+
+    // Clear the filter error
+    clearFilterError: () => void;
 
     // Set epoch filter
     setEpoch: (epoch: string) => void;
@@ -60,7 +66,9 @@ const initialState = {
   loadedLog: undefined,
 
   // Filter state
-  filter: {},
+  filter: "",
+  filterError: undefined,
+
   epoch: "all",
   sort: kDefaultSort,
   score: undefined,
@@ -110,10 +118,19 @@ export const createLogSlice = (
           state.log.pendingSampleSummaries = pendingSampleSummaries;
         }),
 
-      setFilter: (filter: ScoreFilter) =>
+      setFilter: (filter: string) =>
         set((state) => {
           state.log.filter = filter;
         }),
+      setFilterError: (error: FilterError) =>
+        set((state) => {
+          state.log.filterError = error;
+        }),
+      clearFilterError: () => {
+        set((state) => {
+          state.log.filterError = undefined;
+        });
+      },
       setEpoch: (epoch: string) =>
         set((state) => {
           state.log.epoch = epoch;
@@ -132,7 +149,8 @@ export const createLogSlice = (
         }),
       resetFiltering: () =>
         set((state) => {
-          state.log.filter = {};
+          state.log.filter = "";
+          state.log.filterError = undefined;
           state.log.epoch = "all";
           state.log.sort = kDefaultSort;
           state.log.score = undefined;

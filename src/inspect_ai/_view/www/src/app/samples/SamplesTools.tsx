@@ -1,6 +1,5 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
-import { SampleSummary } from "../../client/api/types";
 import { useScore, useScores } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { EpochFilter } from "./sample-tools/EpochFilter";
@@ -8,15 +7,10 @@ import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
 import { SelectScorer } from "./sample-tools/SelectScorer";
 import { SortFilter } from "./sample-tools/SortFilter";
 
-interface SampleToolsProps {
-  samples: SampleSummary[];
-}
+interface SampleToolsProps {}
 
-export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
+export const SampleTools: FC<SampleToolsProps> = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-
-  const filter = useStore((state) => state.log.filter);
-  const setFilter = useStore((state) => state.logActions.setFilter);
 
   const scores = useScores();
   const score = useScore();
@@ -29,11 +23,7 @@ export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
   const epochs = selectedLogSummary?.eval.config.epochs || 1;
   return (
     <Fragment>
-      <SampleFilter
-        samples={samples}
-        scoreFilter={filter}
-        setScoreFilter={setFilter}
-      />
+      <SampleFilter />
       {scores?.length > 1 ? (
         <SelectScorer scores={scores} score={score} setScore={setScore} />
       ) : undefined}

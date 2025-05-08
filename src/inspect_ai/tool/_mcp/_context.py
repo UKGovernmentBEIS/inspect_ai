@@ -2,13 +2,11 @@ from contextlib import _AsyncGeneratorContextManager
 from typing import TypeAlias
 
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-from mcp.types import (
-    JSONRPCMessage,
-)
+from mcp.shared.message import SessionMessage
 
 MCPServerContext: TypeAlias = _AsyncGeneratorContextManager[
     tuple[
-        MemoryObjectReceiveStream[JSONRPCMessage | Exception],
-        MemoryObjectSendStream[JSONRPCMessage],
+        MemoryObjectReceiveStream[SessionMessage | Exception],
+        MemoryObjectSendStream[SessionMessage],
     ],
 ]

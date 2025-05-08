@@ -1237,9 +1237,10 @@ def tool_result_images_as_user_message(
 
     Tool responses will have images replaced with "Image content is included below.", and the new user message will contain the images.
     """
-    init_accum: ImagesAccumulator = ([], [], [])
     chat_messages, user_message_content, tool_call_ids = functools.reduce(
-        tool_result_images_reducer, messages, init_accum
+        tool_result_images_reducer,
+        messages,
+        (list[ChatMessage](), list[Content](), list[str]()),
     )
     # if the last message was a tool result, we may need to flush the pending stuff here
     return maybe_adding_user_message(chat_messages, user_message_content, tool_call_ids)
@@ -1265,9 +1266,10 @@ def tool_result_images_reducer(
         and isinstance(message.content, list)
         and any([isinstance(c, ContentImage) for c in message.content])
     ):
-        init_accum: ImageContentAccumulator = ([], [])
         new_user_message_content, edited_tool_message_content = functools.reduce(
-            tool_result_image_content_reducer, message.content, init_accum
+            tool_result_image_content_reducer,
+            message.content,
+            (list[Content](), list[Content]()),
         )
 
         return (
