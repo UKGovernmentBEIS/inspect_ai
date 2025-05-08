@@ -35,7 +35,7 @@ import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
-import { VirtualMetadataGrid } from "../content/VirtualMetadataGrid";
+import { RecordTree } from "../content/RecordTree";
 import { useSampleDetailNavigation } from "../routing/navigationHooks";
 import {
   sampleMessageUrl,
@@ -378,7 +378,7 @@ const metadataViewsForSample = (
       <Card key={`sample-metadata-${id}`}>
         <CardHeader label="Metadata" />
         <CardBody>
-          <VirtualMetadataGrid
+          <RecordTree
             id={`task-sample-metadata-${id}`}
             record={sample?.metadata as Record<string, unknown>}
             className={clsx("tab-pane", styles.noTop)}
@@ -394,7 +394,7 @@ const metadataViewsForSample = (
       <Card key={`sample-store-${id}`}>
         <CardHeader label="Store" />
         <CardBody>
-          <VirtualMetadataGrid
+          <RecordTree
             id={`task-sample-store-${id}`}
             record={sample?.store as Record<string, unknown>}
             className={clsx("tab-pane", styles.noTop)}
