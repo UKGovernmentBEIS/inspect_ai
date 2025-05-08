@@ -1,4 +1,5 @@
 import os
+from typing import Awaitable, Callable
 
 import httpx
 from pydantic import BaseModel, Field
@@ -13,8 +14,6 @@ from tenacity import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
-
-from ._types import SearchProvider
 
 
 class TavilySearchResult(BaseModel):
@@ -32,7 +31,9 @@ class TavilySearchResponse(BaseModel):
     response_time: float
 
 
-def tavily_search_provider(num_results: int, max_connections: int) -> SearchProvider:
+def tavily_search_provider(
+    num_results: int, max_connections: int
+) -> Callable[[str], Awaitable[str | None]]:
     tavily_api_key = os.environ.get("TAVILY_API_KEY", None)
     if not tavily_api_key:
         raise PrerequisiteError(

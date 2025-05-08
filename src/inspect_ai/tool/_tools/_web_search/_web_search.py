@@ -1,7 +1,5 @@
 from typing import Literal
 
-import httpx
-
 from inspect_ai._util.deprecation import deprecation_warning
 
 from ..._tool import Tool, ToolResult, tool
@@ -63,7 +61,6 @@ def web_search(
         else tavily_search_provider(num_results, max_connections)
     )
 
-    # resolve provider (only google for now)
     async def execute(query: str) -> ToolResult:
         """
         Use the web_search tool to perform keyword searches of the web.

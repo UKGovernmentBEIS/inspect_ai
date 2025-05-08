@@ -1,4 +1,5 @@
 import os
+from typing import Awaitable, Callable
 
 import anyio
 import httpx
@@ -14,8 +15,6 @@ from tenacity import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
-
-from ._types import SearchProvider
 
 DEFAULT_RELEVANCE_PROMPT = """I am trying to answer the following question and need to find the most relevant information on the web. Please let me know if the following content is relevant to the question or not. You should just respond with "yes" or "no".
 
@@ -47,7 +46,7 @@ def google_search_provider(
     max_provider_calls: int,
     max_connections: int,
     model: str | None,
-) -> SearchProvider:
+) -> Callable[[str], Awaitable[str | None]]:
     keys = maybe_get_google_api_keys()
     if not keys:
         raise PrerequisiteError(
