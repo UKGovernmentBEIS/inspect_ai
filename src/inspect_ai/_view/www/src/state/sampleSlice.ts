@@ -29,6 +29,13 @@ export interface SampleSlice {
     collapseEvent: (id: string, collapsed: boolean) => void;
     clearCollapsedEvents: () => void;
 
+    setCollapsedMetadata: (
+      key: string,
+      collapsed: Record<string, true>,
+    ) => void;
+    collapseMetadata: (key: string, id: string, collapsed: boolean) => void;
+    clearCollapsedMetadata: () => void;
+
     // Loading
     loadSample: (
       logFile: string,
@@ -58,6 +65,8 @@ const initialState: SampleState = {
   // The resolved events
   runningEvents: [],
   collapsedEvents: null,
+
+  collapsedMetadata: {},
 };
 
 export const createSampleSlice = (
@@ -146,6 +155,29 @@ export const createSampleSlice = (
           }
         });
       },
+      setCollapsedMetadata: (key: string, collapsed: Record<string, true>) => {
+        set((state) => {
+          state.sample.collapsedMetadata[key] = collapsed;
+        });
+      },
+      collapseMetadata: (key: string, id: string, collapsed: boolean) => {
+        set((state) => {
+          if (state.sample.collapsedMetadata[key] === undefined) {
+            state.sample.collapsedMetadata[key] = {};
+          }
+          if (collapsed) {
+            state.sample.collapsedMetadata[key][id] = true;
+          } else {
+            delete state.sample.collapsedMetadata[key][id];
+          }
+        });
+      },
+      clearCollapsedMetadata: () => {
+        set((state) => {
+          state.sample.collapsedMetadata = {};
+        });
+      },
+
       pollSample: async (logFile: string, sampleSummary: SampleSummary) => {
         // Poll running sample
         const state = get();

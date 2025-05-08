@@ -287,6 +287,28 @@ export const useCollapseSampleEvent = (
   }, [collapsed, collapseEvent, id]);
 };
 
+export const useCollapseMetadata = (
+  key: string,
+): [Record<string, boolean>, (id: string, value: boolean) => void] => {
+  const collapsedMetadata = useStore(
+    (state) => state.sample.collapsedMetadata[key],
+  );
+
+  const setCollapsed = useStore(
+    (state) => state.sampleActions.collapseMetadata,
+  );
+  const collapseMetadata = useCallback(
+    (id: string, value: boolean) => {
+      setCollapsed(key, id, value);
+    },
+    [setCollapsed],
+  );
+
+  return useMemo(() => {
+    return [collapsedMetadata, collapseMetadata];
+  }, [collapsedMetadata, collapseMetadata]);
+};
+
 export const useCollapsedState = (
   id: string,
   defaultValue?: boolean,

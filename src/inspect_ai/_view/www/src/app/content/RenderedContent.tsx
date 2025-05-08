@@ -95,6 +95,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       return { rendered: <JSONPanel data={obj as Record<string, unknown>} /> };
     },
   },
+
   Model: {
     bucket: Buckets.intermediate,
     canRender: (entry) => {
@@ -138,7 +139,11 @@ const contentRenderers: Record<string, ContentRenderer> = {
     render: (_id, entry) => {
       const rendered = entry.value.trim();
       return {
-        rendered,
+        rendered: (
+          <pre className={clsx(styles.preWrap, styles.preCompact)}>
+            {rendered}
+          </pre>
+        ),
       };
     },
   },
