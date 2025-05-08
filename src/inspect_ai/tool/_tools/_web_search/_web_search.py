@@ -9,7 +9,7 @@ from ._tavily import tavily_search_provider
 
 @tool
 def web_search(
-    provider: Literal["google", "tavily"] | None,
+    provider: Literal["tavily", "google"] | None,
     num_results: int = 3,
     max_provider_calls: int = 3,
     max_connections: int = 10,
@@ -22,22 +22,25 @@ def web_search(
     `use_tools(web_search(provider="tavily"))`))
 
     A web search is conducted using the specified provider.
-    - With `google`, the results are parsed for relevance using the specified model,
-    and the top 'num_results' relevant pages are returned.
-    - With `tavily`, all logic for relevance and summarization is handled by the
-    provider itself.
+    - When using Tavily, all logic for relevance and summarization is handled by
+    the Tavily API.
+    - When using Google, the results are parsed for relevance using the specified
+    model, and the top 'num_results' relevant pages are returned.
 
     See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-search>.
 
     Args:
       provider: Search provider to use:
+        - "tavily": Uses Tavily's Research API.
         - "google": Uses Google Custom Search.
-        - "tavily": Uses Tavily's LLM tailored search engine.
-        Note: The `| None` type is only for backwards compatibility. Passing `None` is deprecated.
-      num_results: Number of web search result pages to return to the model.
-      max_provider_calls: Maximum number of search calls to make to the search provider.
-      max_connections: Maximum number of concurrent connections to API
-        endpoint of search provider.
+        Note: The `| None` type is only for backwards compatibility. Passing
+        `None` is deprecated.
+      num_results: The number of search result pages used to provide information
+      back to the model.
+      max_provider_calls: Maximum number of search calls to make to the search
+      provider.
+      max_connections: Maximum number of concurrent connections to API endpoint
+      of search provider.
       model: Model used to parse web pages for relevance - used only by the
       `google` provider.
 
