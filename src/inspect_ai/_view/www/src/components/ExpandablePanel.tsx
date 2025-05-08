@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { ApplicationIcons } from "../app/appearance/icons";
 import { useCollapsedState } from "../state/hooks";
 import { useResizeObserver } from "../utils/dom";
 import styles from "./ExpandablePanel.module.css";
@@ -64,18 +63,21 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
             styles.expandablePanel,
             collapsed ? styles.expandableCollapsed : undefined,
             border ? styles.expandableBordered : undefined,
+            showToggle ? styles.padBottom : undefined,
           )}
         >
           {children}
+          {showToggle && (
+            <>
+              <MoreToggle
+                collapsed={collapsed}
+                setCollapsed={setCollapsed}
+                border={!border}
+              />
+            </>
+          )}
         </div>
-
-        {showToggle && (
-          <MoreToggle
-            collapsed={collapsed}
-            setCollapsed={setCollapsed}
-            border={!border}
-          />
-        )}
+        {showToggle && <div className={clsx(styles.separator)}></div>}
       </div>
     );
   },
@@ -95,10 +97,6 @@ const MoreToggle: FC<MoreToggleProps> = ({
   style,
 }) => {
   const text = collapsed ? "more" : "less";
-  const icon = collapsed
-    ? ApplicationIcons["expand-down"]
-    : ApplicationIcons.collapse.up;
-
   const handleClick = useCallback(() => {
     setCollapsed(!collapsed);
   }, [setCollapsed, collapsed]);
@@ -108,15 +106,12 @@ const MoreToggle: FC<MoreToggleProps> = ({
       className={clsx(styles.moreToggle, border ? styles.bordered : undefined)}
       style={style}
     >
-      <div className={clsx(styles.moreToggleContainer)}>
-        <button
-          className={clsx("btn", styles.moreToggleButton, "text-size-smallest")}
-          onClick={handleClick}
-        >
-          <i className={clsx(icon, styles.icon)} />
-          {text}
-        </button>
-      </div>
+      <button
+        className={clsx("btn", styles.moreToggleButton, "text-size-smallest")}
+        onClick={handleClick}
+      >
+        {text}...
+      </button>
     </div>
   );
 };
