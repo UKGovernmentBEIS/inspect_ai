@@ -204,7 +204,7 @@ class TaskState:
         Convenience function for accessing the initial input from the `Sample` as a string.
 
         If the `input` is a `list[ChatMessage]`, this will return the text from
-        the first chat message
+        the last chat message
         """
         if isinstance(self._input, str):
             return self._input
