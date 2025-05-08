@@ -9,7 +9,7 @@ The analysis functions described below are available only in the development ver
 pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 ```
 
-Functions are exported from the **inspect_ai.analysis.beta** module during the period of initial community review. They will be moved to the main namespace before release to PyPI.
+Analysis functions are currently in beta and are exported from the **inspect_ai.analysis.beta** module. The beta module will be preserved after final release so that code written against it now continues to work after the beta.
 :::
 
 ## Overview {#overview}
