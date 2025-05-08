@@ -210,7 +210,11 @@ class TaskState:
             return self._input
         else:
             input = next(
-                (message.text for message in reversed(self._input) if message.role == "user"),
+                (
+                    message.text
+                    for message in reversed(self._input)
+                    if message.role == "user"
+                ),
                 None,
             )
             if input:
