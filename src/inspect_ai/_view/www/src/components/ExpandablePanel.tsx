@@ -27,19 +27,19 @@ export const ExpandablePanel: FC<ExpandablePanelProps> = memo(
     const [collapsed, setCollapsed] = useCollapsedState(id, collapse);
 
     const [showToggle, setShowToggle] = useState(false);
-    const lineHeightRef = useRef<number>(0);
+    const baseFontSizeRef = useRef<number>(0);
 
     const checkOverflow = useCallback(
       (entry: ResizeObserverEntry) => {
         const element = entry.target as HTMLDivElement;
 
         // Calculate line height if we haven't yet
-        if (!lineHeightRef.current) {
+        if (baseFontSizeRef.current === 0) {
           const computedStyle = window.getComputedStyle(element);
-          lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16; // fallback to 16px if can't get line height
+          const rootFontSize = parseFloat(computedStyle.fontSize);
+          baseFontSizeRef.current = rootFontSize;
         }
-
-        const maxCollapsedHeight = lines * lineHeightRef.current;
+        const maxCollapsedHeight = baseFontSizeRef.current * lines;
         const contentHeight = element.scrollHeight;
 
         setShowToggle(contentHeight > maxCollapsedHeight);

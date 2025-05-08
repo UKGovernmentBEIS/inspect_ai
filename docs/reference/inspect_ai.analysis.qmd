@@ -1,0 +1,50 @@
+---
+title: "inspect_ai.analysis.beta"
+---
+
+::: callout-note
+The analysis functions described below are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+
+Functions are exported from the **inspect_ai.analysis.beta** module during the period of initial community review. They will be moved to the main namespace before release to PyPI.
+:::
+
+
+## Evals
+
+### evals_df
+### EvalColumn
+### EvalColumns
+### EvalInfo
+### EvalTask
+### EvalModel
+### EvalConfig
+### EvalResults
+### EvalScores
+
+## Samples
+
+### samples_df
+### SampleColumn
+### SampleSummary
+### SampleMessages
+
+## Messages
+
+### messages_df
+### MessageFilter
+### MessageColumn
+### MessageContent
+### MessageToolCalls
+### MessageColumns
+
+## Columns
+
+### Column
+### ColumnType
+### ColumnError
+### ColumnErrors
+

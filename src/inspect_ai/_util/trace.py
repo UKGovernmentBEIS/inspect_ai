@@ -287,7 +287,7 @@ def rotate_trace_files() -> None:
         rotate_files = list_trace_files()[10:]
         for file in rotate_files:
             file.file.unlink(missing_ok=True)
-    except FileNotFoundError:
+    except (FileNotFoundError, OSError):
         pass
 
 

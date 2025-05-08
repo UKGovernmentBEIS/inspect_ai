@@ -239,9 +239,14 @@ These sections describe how to create agent evaluations with Inspect:
 
 -   [Human Agent](human-agent.qmd) is a solver that enables human baselining on computing tasks.
 
+These sections outline how to analyze data generated from evaluations:
+
+-   [Eval Logs](eval-logs.qmd) explores log viewing, log file formats, and the Python API for reading log files.
+
+-   [Data Frames](dataframe.qmd) documents the APIs available for extracting data frames of evals, samples, messages, and events from log files.
+
 These sections discuss more advanced features and workflows. You don't need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.
 
--   [Eval Logs](eval-logs.qmd) explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
 
 -   [Eval Sets](eval-sets.qmd) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 
