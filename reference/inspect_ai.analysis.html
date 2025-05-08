@@ -1583,14 +1583,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evaldefault" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalDefault</span></a>
+  <a href="../reference/inspect_ai.analysis.html#evalcolumn" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalColumn</span></a>
   </div>
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_ai.analysis.html#evalid" class="sidebar-item-text sidebar-link">
- <span class="menu-text">EvalId</span></a>
+  <a href="../reference/inspect_ai.analysis.html#evalcolumns" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EvalColumns</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1637,8 +1637,56 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#samplecolumn" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleColumn</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.analysis.html#samplesummary" class="sidebar-item-text sidebar-link">
  <span class="menu-text">SampleSummary</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#samplemessages" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">SampleMessages</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messages_df" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">messages_df</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagefilter" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageFilter</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagecolumn" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageColumn</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagecontent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageContent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagetoolcalls" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageToolCalls</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.analysis.html#messagecolumns" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MessageColumns</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1980,8 +2028,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#evals" id="toc-evals" class="nav-link active" data-scroll-target="#evals">Evals</a>
   <ul class="collapse">
   <li><a href="#evals_df" id="toc-evals_df" class="nav-link" data-scroll-target="#evals_df">evals_df</a></li>
-  <li><a href="#evaldefault" id="toc-evaldefault" class="nav-link" data-scroll-target="#evaldefault">EvalDefault</a></li>
-  <li><a href="#evalid" id="toc-evalid" class="nav-link" data-scroll-target="#evalid">EvalId</a></li>
+  <li><a href="#evalcolumn" id="toc-evalcolumn" class="nav-link" data-scroll-target="#evalcolumn">EvalColumn</a></li>
+  <li><a href="#evalcolumns" id="toc-evalcolumns" class="nav-link" data-scroll-target="#evalcolumns">EvalColumns</a></li>
   <li><a href="#evalinfo" id="toc-evalinfo" class="nav-link" data-scroll-target="#evalinfo">EvalInfo</a></li>
   <li><a href="#evaltask" id="toc-evaltask" class="nav-link" data-scroll-target="#evaltask">EvalTask</a></li>
   <li><a href="#evalmodel" id="toc-evalmodel" class="nav-link" data-scroll-target="#evalmodel">EvalModel</a></li>
@@ -1992,7 +2040,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#samples" id="toc-samples" class="nav-link" data-scroll-target="#samples">Samples</a>
   <ul class="collapse">
   <li><a href="#samples_df" id="toc-samples_df" class="nav-link" data-scroll-target="#samples_df">samples_df</a></li>
+  <li><a href="#samplecolumn" id="toc-samplecolumn" class="nav-link" data-scroll-target="#samplecolumn">SampleColumn</a></li>
   <li><a href="#samplesummary" id="toc-samplesummary" class="nav-link" data-scroll-target="#samplesummary">SampleSummary</a></li>
+  <li><a href="#samplemessages" id="toc-samplemessages" class="nav-link" data-scroll-target="#samplemessages">SampleMessages</a></li>
+  </ul></li>
+  <li><a href="#messages" id="toc-messages" class="nav-link" data-scroll-target="#messages">Messages</a>
+  <ul class="collapse">
+  <li><a href="#messages_df" id="toc-messages_df" class="nav-link" data-scroll-target="#messages_df">messages_df</a></li>
+  <li><a href="#messagefilter" id="toc-messagefilter" class="nav-link" data-scroll-target="#messagefilter">MessageFilter</a></li>
+  <li><a href="#messagecolumn" id="toc-messagecolumn" class="nav-link" data-scroll-target="#messagecolumn">MessageColumn</a></li>
+  <li><a href="#messagecontent" id="toc-messagecontent" class="nav-link" data-scroll-target="#messagecontent">MessageContent</a></li>
+  <li><a href="#messagetoolcalls" id="toc-messagetoolcalls" class="nav-link" data-scroll-target="#messagetoolcalls">MessageToolCalls</a></li>
+  <li><a href="#messagecolumns" id="toc-messagecolumns" class="nav-link" data-scroll-target="#messagecolumns">MessageColumns</a></li>
   </ul></li>
   <li><a href="#columns" id="toc-columns" class="nav-link" data-scroll-target="#columns">Columns</a>
   <ul class="collapse">
@@ -2036,8 +2095,9 @@ Note
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>The <code>inspect_ai.analysis.beta</code> module is available only in the development version of Inspect. To install the development version from GitHub:</p>
+<p>The analysis functions described below are available only in the development version of Inspect. To install the development version from GitHub:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>Functions are exported from the <strong>inspect_ai.analysis.beta</strong> module during the period of initial community review. They will be moved to the main namespace before release to PyPI.</p>
 </div>
 </div>
 <section id="evals" class="level2">
@@ -2046,11 +2106,11 @@ Note
 <h3 class="anchored" data-anchor-id="evals_df">evals_df</h3>
 <p>Read a dataframe containing evals.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/table.py#L53">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/table.py#L50">Source</a>
 </div>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> evals_df(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    logs: LogPaths,</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    columns: <span class="bu">list</span>[Column] <span class="op">=</span> EvalDefault,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    columns: <span class="bu">list</span>[Column] <span class="op">=</span> EvalColumns,</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    recursive: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    reverse: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    strict: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
@@ -2078,38 +2138,35 @@ Note
 </dd>
 </dl>
 </section>
-<section id="evaldefault" class="level3">
-<h3 class="anchored" data-anchor-id="evaldefault">EvalDefault</h3>
+<section id="evalcolumn" class="level3">
+<h3 class="anchored" data-anchor-id="evalcolumn">EvalColumn</h3>
+<p>Column which maps to <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evallog">EvalLog</a></span>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L16">Source</a>
+</div>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> EvalColumn(Column)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="evalcolumns" class="level3">
+<h3 class="anchored" data-anchor-id="evalcolumns">EvalColumns</h3>
 <p>Default columns to import for <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L112">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L123">Source</a>
 </div>
-<div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>EvalDefault: <span class="bu">list</span>[Column] <span class="op">=</span> (</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    EvalId</span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalInfo</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalTask</span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalModel</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalDataset</span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalConfig</span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalResults</span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalScores</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-</section>
-<section id="evalid" class="level3">
-<h3 class="anchored" data-anchor-id="evalid">EvalId</h3>
-<p>Eval id column.</p>
-<div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L35">Source</a>
-</div>
-<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>EvalId: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"eval_id"</span>, path<span class="op">=</span><span class="st">"eval.eval_id"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>EvalColumns: <span class="bu">list</span>[Column] <span class="op">=</span> (</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    EvalInfo</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalTask</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalModel</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalDataset</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalConfig</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalResults</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="op">+</span> EvalScores</span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="evalinfo" class="level3">
 <h3 class="anchored" data-anchor-id="evalinfo">EvalInfo</h3>
 <p>Eval basic information columns.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L40">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51">Source</a>
 </div>
 <div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>EvalInfo: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"run_id"</span>, path<span class="op">=</span><span class="st">"eval.run_id"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
@@ -2127,7 +2184,7 @@ Note
 <h3 class="anchored" data-anchor-id="evaltask">EvalTask</h3>
 <p>Eval task configuration columns.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L53">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64">Source</a>
 </div>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>EvalTask: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_name"</span>, path<span class="op">=</span><span class="st">"eval.task"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
@@ -2145,7 +2202,7 @@ Note
 <h3 class="anchored" data-anchor-id="evalmodel">EvalModel</h3>
 <p>Eval model columns.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L66">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77">Source</a>
 </div>
 <div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>EvalModel: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"model"</span>, path<span class="op">=</span><span class="st">"eval.model"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
@@ -2159,7 +2216,7 @@ Note
 <h3 class="anchored" data-anchor-id="evalconfig">EvalConfig</h3>
 <p>Eval configuration columns.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L84">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95">Source</a>
 </div>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>EvalConfig: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"epochs"</span>, path<span class="op">=</span><span class="st">"eval.config.epochs"</span>),</span>
@@ -2175,7 +2232,7 @@ Note
 <h3 class="anchored" data-anchor-id="evalresults">EvalResults</h3>
 <p>Eval results columns.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106">Source</a>
 </div>
 <div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>EvalResults: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"status"</span>, path<span class="op">=</span><span class="st">"status"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
@@ -2192,10 +2249,10 @@ Note
 <h3 class="anchored" data-anchor-id="evalscores">EvalScores</h3>
 <p>Eval scores (one score/metric per-columns).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L107">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L118">Source</a>
 </div>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>EvalScores: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"score_*_*"</span>, path<span class="op">=</span>scores_dict),</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"score_*_*"</span>, path<span class="op">=</span>eval_log_scores_dict),</span>
 <span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
@@ -2205,7 +2262,7 @@ Note
 <h3 class="anchored" data-anchor-id="samples_df">samples_df</h3>
 <p>Read a dataframe containing samples from a set of evals.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/samples/table.py#L57">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/samples/table.py#L67">Source</a>
 </div>
 <div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> samples_df(</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    logs: LogPaths,</span>
@@ -2237,26 +2294,139 @@ Note
 </dd>
 </dl>
 </section>
+<section id="samplecolumn" class="level3">
+<h3 class="anchored" data-anchor-id="samplecolumn">SampleColumn</h3>
+<p>Column which maps to <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evalsample">EvalSample</a></span> or <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.log.html#evalsamplesummary">EvalSampleSummary</a></span>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L15">Source</a>
+</div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SampleColumn(Column)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
 <section id="samplesummary" class="level3">
 <h3 class="anchored" data-anchor-id="samplesummary">SampleSummary</h3>
 <p>Sample summary columns.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L36">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L54">Source</a>
 </div>
-<div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>SampleSummary: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"id"</span>, path<span class="op">=</span><span class="st">"id"</span>, required<span class="op">=</span><span class="va">True</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>),</span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"epoch"</span>, path<span class="op">=</span><span class="st">"epoch"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"input"</span>, path<span class="op">=</span><span class="st">"input"</span>, required<span class="op">=</span><span class="va">True</span>, value<span class="op">=</span>input_as_str),</span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"target"</span>, path<span class="op">=</span><span class="st">"target"</span>, required<span class="op">=</span><span class="va">True</span>, value<span class="op">=</span>list_as_str),</span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>),</span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"score_*"</span>, path<span class="op">=</span><span class="st">"scores"</span>, value<span class="op">=</span>score_values),</span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"model_usage"</span>, path<span class="op">=</span><span class="st">"model_usage"</span>),</span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"total_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"working_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"error"</span>, path<span class="op">=</span><span class="st">"error"</span>),</span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"limit"</span>, path<span class="op">=</span><span class="st">"limit"</span>),</span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"retries"</span>, path<span class="op">=</span><span class="st">"retries"</span>),</span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>SampleSummary: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"id"</span>, path<span class="op">=</span><span class="st">"id"</span>, required<span class="op">=</span><span class="va">True</span>, <span class="bu">type</span><span class="op">=</span><span class="bu">str</span>),</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"epoch"</span>, path<span class="op">=</span><span class="st">"epoch"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"input"</span>, path<span class="op">=</span><span class="st">"input"</span>, required<span class="op">=</span><span class="va">True</span>, value<span class="op">=</span>input_as_str),</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"target"</span>, path<span class="op">=</span><span class="st">"target"</span>, required<span class="op">=</span><span class="va">True</span>, value<span class="op">=</span>list_as_str),</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"metadata_*"</span>, path<span class="op">=</span><span class="st">"metadata"</span>),</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"score_*"</span>, path<span class="op">=</span><span class="st">"scores"</span>, value<span class="op">=</span>score_values),</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"model_usage"</span>, path<span class="op">=</span><span class="st">"model_usage"</span>),</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"total_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"working_time"</span>, path<span class="op">=</span><span class="st">"total_time"</span>),</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"error"</span>, path<span class="op">=</span><span class="st">"error"</span>),</span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"limit"</span>, path<span class="op">=</span><span class="st">"limit"</span>),</span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"retries"</span>, path<span class="op">=</span><span class="st">"retries"</span>),</span>
+<span id="cb13-14"><a href="#cb13-14" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="samplemessages" class="level3">
+<h3 class="anchored" data-anchor-id="samplemessages">SampleMessages</h3>
+<p>Sample messages as a string.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L70">Source</a>
+</div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>SampleMessages: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>    SampleColumn(<span class="st">"messages"</span>, path<span class="op">=</span>sample_messages_as_str, required<span class="op">=</span><span class="va">True</span>, full<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+</section>
+<section id="messages" class="level2">
+<h2 class="anchored" data-anchor-id="messages">Messages</h2>
+<section id="messages_df" class="level3">
+<h3 class="anchored" data-anchor-id="messages_df">messages_df</h3>
+<p>Read a dataframe containing messages from a set of evals.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L45">Source</a>
+</div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> messages_df(</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    logs: LogPaths,</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>    columns: <span class="bu">list</span>[Column] <span class="op">=</span> MessageColumns,</span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="bu">filter</span>: MessageFilter <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    recursive: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>    reverse: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>    strict: <span class="bu">bool</span> <span class="op">=</span> <span class="va">True</span>,</span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> <span class="st">"pd.DataFrame"</span> <span class="op">|</span> <span class="bu">tuple</span>[<span class="st">"pd.DataFrame"</span>, ColumnErrors]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<dl>
+<dt><code class="ref-definition">logs</code> <span class="element-type"><span class="element-type-name">LogPaths</span></span></dt>
+<dd>
+<p>One or more paths to log files or log directories.</p>
+</dd>
+<dt><code class="ref-definition">columns</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.analysis.html#column">Column</a></span>]</span></dt>
+<dd>
+<p>Specification for what columns to read from log files.</p>
+</dd>
+<dt><code class="ref-definition">filter</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.analysis.html#messagefilter">MessageFilter</a></span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>List of message role types to include or callable that performs the filter.</p>
+</dd>
+<dt><code class="ref-definition">recursive</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dd>
+<p>Include recursive contents of directories (defaults to <code>True</code>)</p>
+</dd>
+<dt><code class="ref-definition">reverse</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dd>
+<p>Reverse the order of the data frame (by default, items are ordered from oldest to newest).</p>
+</dd>
+<dt><code class="ref-definition">strict</code> <span class="element-type"><span class="element-type-name">bool</span></span></dt>
+<dd>
+<p>Raise import errors immediately. Defaults to <code>True</code>. If <code>False</code> then a tuple of <code>DataFrame</code> and errors is returned.</p>
+</dd>
+</dl>
+</section>
+<section id="messagefilter" class="level3">
+<h3 class="anchored" data-anchor-id="messagefilter">MessageFilter</h3>
+<p>Filter for <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.analysis.html#messages_df">messages_df()</a></span> rows.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L17">Source</a>
+</div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>MessageFilter: TypeAlias <span class="op">=</span> (</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">list</span>[Literal[<span class="st">"system"</span>, <span class="st">"user"</span>, <span class="st">"assistant"</span>, <span class="st">"tool"</span>]] <span class="op">|</span> Callable[[ChatMessage], <span class="bu">bool</span>]</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="messagecolumn" class="level3">
+<h3 class="anchored" data-anchor-id="messagecolumn">MessageColumn</h3>
+<p>Column which maps to <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.model.html#chatmessage">ChatMessage</a></span>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L16">Source</a>
+</div>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MessageColumn(Column)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="messagecontent" class="level3">
+<h3 class="anchored" data-anchor-id="messagecontent">MessageContent</h3>
+<p>Message content columns.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L44">Source</a>
+</div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>MessageContent: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"role"</span>, path<span class="op">=</span><span class="st">"role"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"content"</span>, path<span class="op">=</span>message_text),</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"source"</span>, path<span class="op">=</span><span class="st">"source"</span>),</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="messagetoolcalls" class="level3">
+<h3 class="anchored" data-anchor-id="messagetoolcalls">MessageToolCalls</h3>
+<p>Message tool call columns.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L51">Source</a>
+</div>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>MessageToolCalls: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_calls"</span>, path<span class="op">=</span>message_tool_calls),</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_id"</span>, path<span class="op">=</span><span class="st">"tool_call_id"</span>),</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_function"</span>, path<span class="op">=</span><span class="st">"function"</span>),</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    MessageColumn(<span class="st">"tool_call_error"</span>, path<span class="op">=</span><span class="st">"error.message"</span>),</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</section>
+<section id="messagecolumns" class="level3">
+<h3 class="anchored" data-anchor-id="messagecolumns">MessageColumns</h3>
+<p>Chat message columns.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L59">Source</a>
+</div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>MessageColumns: <span class="bu">list</span>[Column] <span class="op">=</span> MessageContent <span class="op">+</span> MessageToolCalls</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 </section>
 <section id="columns" class="level2">
@@ -2270,9 +2440,9 @@ Note
 <p>The <code>value</code> function provides an additional hook for transformation of the value read from the log before it is realized as a column (e.g.&nbsp;list to a comma-separated string).</p>
 <p>The <code>root</code> option indicates which root eval log context the columns select from.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/columns.py#L18">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/columns.py#L19">Source</a>
 </div>
-<div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Column</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Column(abc.ABC)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -2305,9 +2475,9 @@ Note
 <dd>
 <p>Convert extracted value into a column value (defaults to identity function).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/columns.py#L83">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/columns.py#L84">Source</a>
 </div>
-<div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> value(<span class="va">self</span>, x: JsonValue) <span class="op">-&gt;</span> JsonValue</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> value(<span class="va">self</span>, x: JsonValue) <span class="op">-&gt;</span> JsonValue</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <dl>
 <dt><code class="ref-definition">x</code> <span class="element-type"><span class="element-type-name">JsonValue</span></span></dt>
 <dd>
@@ -2323,18 +2493,18 @@ Note
 <p>Valid types for columns.</p>
 <p>Values of <code>list</code> and <code>dict</code> are converted into column values as JSON <code>str</code>.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/columns.py#L11">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/columns.py#L12">Source</a>
 </div>
-<div class="sourceCode" id="cb15"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>ColumnType: TypeAlias <span class="op">=</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> date <span class="op">|</span> time <span class="op">|</span> datetime <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>ColumnType: TypeAlias <span class="op">=</span> <span class="bu">int</span> <span class="op">|</span> <span class="bu">float</span> <span class="op">|</span> <span class="bu">bool</span> <span class="op">|</span> <span class="bu">str</span> <span class="op">|</span> date <span class="op">|</span> time <span class="op">|</span> datetime <span class="op">|</span> <span class="va">None</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </section>
 <section id="columnerror" class="level3">
 <h3 class="anchored" data-anchor-id="columnerror">ColumnError</h3>
 <p>Error which occurred parsing a column.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/columns.py#L106">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/columns.py#L113">Source</a>
 </div>
-<div class="sourceCode" id="cb16"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ColumnError</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ColumnError</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <section class="level4">
 <h4 class="anchored" data-anchor-id="">Attributes</h4>
 <dl>
@@ -2357,9 +2527,9 @@ Note
 <h3 class="anchored" data-anchor-id="columnerrors">ColumnErrors</h3>
 <p>Dictionary of column errors keyed by log file.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/468cdc5e053ea01338a239ad393a89cc362c55ed/src/inspect_ai/analysis/beta/_dataframe/columns.py#L128">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/832dcae54ac6cdbc84dcc9d9996c346861e1efdf/src/inspect_ai/analysis/beta/_dataframe/columns.py#L135">Source</a>
 </div>
-<div class="sourceCode" id="cb17"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ColumnErrors(<span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[ColumnError]])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ColumnErrors(<span class="bu">dict</span>[<span class="bu">str</span>, <span class="bu">list</span>[ColumnError]])</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>

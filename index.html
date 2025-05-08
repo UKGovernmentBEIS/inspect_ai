@@ -396,7 +396,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true">
- <span class="menu-text">Advanced</span></a>
+ <span class="menu-text">Analysis</span></a>
           <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
@@ -405,9 +405,26 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Eval Logs</span></a>
+ <span class="menu-text">Log Files</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./dataframe.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Data Frames</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true">
+ <span class="menu-text">Advanced</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -681,9 +698,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><a href="./agent-bridge.html">Agent Bridge</a> enables the use of agents from 3rd party frameworks like AutoGen or LangChain with Inspect.</p></li>
 <li><p><a href="./human-agent.html">Human Agent</a> is a solver that enables human baselining on computing tasks.</p></li>
 </ul>
+<p>These sections outline how to analyze data generated from evaluations:</p>
+<ul>
+<li><p><a href="./eval-logs.html">Eval Logs</a> explores log viewing, log file formats, and the Python API for reading log files.</p></li>
+<li><p><a href="./dataframe.html">Data Frames</a> documents the APIs available for extracting data frames of evals, samples, messages, and events from log files.</p></li>
+</ul>
 <p>These sections discuss more advanced features and workflows. You don’t need to review them at the outset, but be sure to revisit them as you get more comfortable with the basics.</p>
 <ul>
-<li><p><a href="./eval-logs.html">Eval Logs</a> explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.</p></li>
 <li><p><a href="./eval-sets.html">Eval Sets</a> covers Inspect’s features for describing, running, and analysing larger sets of evaluation tasks.</p></li>
 <li><p><a href="./errors-and-limits.html">Errors and Limits</a> covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.</p></li>
 <li><p><a href="./multimodal.html">Multimodal</a> documents the APIs available for creating multimodal evaluations (including images, audio, and video).</p></li>
@@ -1234,7 +1255,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"selector":".lightbox","closeEffect":"zoom","openEffect":"zoom","loop":false,"descPosition":"bottom"});
+<script>var lightboxQuarto = GLightbox({"descPosition":"bottom","closeEffect":"zoom","openEffect":"zoom","loop":false,"selector":".lightbox"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

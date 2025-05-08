@@ -157,9 +157,14 @@ customised in some fashion. Built in solvers can be imported from the
 `inspect_ai.solver` module. Below is a summary of these solvers. There
 is not (yet) reference documentation on these functions so the best way
 to learn about how they can be customised, etc. is to use the **Go to
-Definition** command in your source editor. - `prompt_template()`
+Definition** command in your source editor.
 
-    Modify the user prompt by substituting the current prompt into the `{prompt}` placeholder within the specified template. Also automatically substitutes any variables defined in sample `metadata` as well as any other custom named parameters passed in `params`.
+- `prompt_template()`
+
+  Modify the user prompt by substituting the current prompt into the
+  `{prompt}` placeholder within the specified template. Also
+  automatically substitutes any variables defined in sample `metadata`
+  as well as any other custom named parameters passed in `params`.
 
 - `system_message()`
 

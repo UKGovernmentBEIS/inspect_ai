@@ -214,8 +214,8 @@ inspect eval ctf.py
 # run with the ctf agent solver
 inspect eval ctf.py --solver=ctf_agent
 
-# run with a different max_attempts
-inspect eval ctf.py --solver=ctf_agent -S max_attempts=5
+# run with a different attempts
+inspect eval ctf.py --solver=ctf_agent -S attempts=5
 ```
 
 Note the use of the `-S` CLI option to pass an alternate value for
