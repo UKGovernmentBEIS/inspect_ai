@@ -494,6 +494,10 @@ website:
           href: reference/inspect_ai.analysis.qmd#messagefilter
         - text: MessageColumn
           href: reference/inspect_ai.analysis.qmd#messagecolumn
+        - text: MessageContent
+          href: reference/inspect_ai.analysis.qmd#messagecontent
+        - text: MessageToolCalls
+          href: reference/inspect_ai.analysis.qmd#messagetoolcalls
         - text: MessageColumns
           href: reference/inspect_ai.analysis.qmd#messagecolumns
         - text: Column
