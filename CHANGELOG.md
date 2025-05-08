@@ -1,6 +1,7 @@
 ## Unreleased
 
 - [Data Frame](https://inspect.aisi.org.uk/dataframe.html) functions for reading data frames from log files.
+- Multiple choice: `max_tokens` option to control tokens used for `generate()`.
 - Don't enforce sample `working_limit` after solvers have completed executing (matching behavior of other sample limits).
 - Only pass `user` parameter on to sandboxes if is not `None` (eases compatibility with older sandbox providers).
 - Inspect View: Properly display 'more' options when content is collapsed.
