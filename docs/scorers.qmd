@@ -53,7 +53,7 @@ Inspect includes some simple text matching scorers as well as a couple of model 
 
     Have another model assess whether the model output contains a fact that is set out in `target`. This is a more narrow assessment than `model_graded_qa()`, and is used when model output is too complex to be assessed using a simple `match()` or `pattern()` scorer.
 
--   `choices()`
+-   `choice()`
 
     Specialised scorer that is used with the `multiple_choice()` solver.
 

@@ -20,6 +20,7 @@ reference_docs = ["reference/inspect_ai.qmd"] + [
         "dataset.qmd",
         "approval.qmd",
         "log.qmd",
+        "analysis.qmd",
         "util.qmd",
     ]
 ]

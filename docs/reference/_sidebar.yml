@@ -459,6 +459,55 @@ website:
           href: reference/inspect_ai.log.qmd#spanendevent
         - text: SubtaskEvent
           href: reference/inspect_ai.log.qmd#subtaskevent
+      - section: inspect_ai.analysis
+        href: reference/inspect_ai.analysis.qmd
+        contents:
+        - text: evals_df
+          href: reference/inspect_ai.analysis.qmd#evals_df
+        - text: EvalColumn
+          href: reference/inspect_ai.analysis.qmd#evalcolumn
+        - text: EvalColumns
+          href: reference/inspect_ai.analysis.qmd#evalcolumns
+        - text: EvalInfo
+          href: reference/inspect_ai.analysis.qmd#evalinfo
+        - text: EvalTask
+          href: reference/inspect_ai.analysis.qmd#evaltask
+        - text: EvalModel
+          href: reference/inspect_ai.analysis.qmd#evalmodel
+        - text: EvalConfig
+          href: reference/inspect_ai.analysis.qmd#evalconfig
+        - text: EvalResults
+          href: reference/inspect_ai.analysis.qmd#evalresults
+        - text: EvalScores
+          href: reference/inspect_ai.analysis.qmd#evalscores
+        - text: samples_df
+          href: reference/inspect_ai.analysis.qmd#samples_df
+        - text: SampleColumn
+          href: reference/inspect_ai.analysis.qmd#samplecolumn
+        - text: SampleSummary
+          href: reference/inspect_ai.analysis.qmd#samplesummary
+        - text: SampleMessages
+          href: reference/inspect_ai.analysis.qmd#samplemessages
+        - text: messages_df
+          href: reference/inspect_ai.analysis.qmd#messages_df
+        - text: MessageFilter
+          href: reference/inspect_ai.analysis.qmd#messagefilter
+        - text: MessageColumn
+          href: reference/inspect_ai.analysis.qmd#messagecolumn
+        - text: MessageContent
+          href: reference/inspect_ai.analysis.qmd#messagecontent
+        - text: MessageToolCalls
+          href: reference/inspect_ai.analysis.qmd#messagetoolcalls
+        - text: MessageColumns
+          href: reference/inspect_ai.analysis.qmd#messagecolumns
+        - text: Column
+          href: reference/inspect_ai.analysis.qmd#column
+        - text: ColumnType
+          href: reference/inspect_ai.analysis.qmd#columntype
+        - text: ColumnError
+          href: reference/inspect_ai.analysis.qmd#columnerror
+        - text: ColumnErrors
+          href: reference/inspect_ai.analysis.qmd#columnerrors
       - section: inspect_ai.util
         href: reference/inspect_ai.util.qmd
         contents:
