@@ -1,17 +1,17 @@
 ## Unreleased
 
+- [Data Frame](https://inspect.aisi.org.uk/dataframe.html) functions for reading data frames from log files.
 - Don't enforce sample `working_limit` after solvers have completed executing (matching behavior of other sample limits).
 - Only pass `user` parameter on to sandboxes if is not `None` (eases compatibility with older sandbox providers).
 - Inspect View: Properly display 'more' options when content is collapsed.
 - Bugfix: Ensure that "init" span is exited in the same async context when sandbox connection errors occur.
-
 
 ## v0.3.94 (06 May 2025)
 
 - [span()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for grouping transcript events.
 - [collect()](https://inspect.aisi.org.uk/agent-custom.html#grouping-with-spans) function for enclosing parallel tasks in spans.
 - [Event tree](https://inspect.aisi.org.uk/reference/inspect_ai.log.html#event-tree) functions for organising transcript events into a tree of spans.
-- `inspect convert` now always fully re-writes log files even of the same format (so that e.g. sample summaries always exist in the converted logs).
+- `inspect log convert` now always fully re-writes log files even of the same format (so that e.g. sample summaries always exist in the converted logs).
 - React agent: `answer_only` and `answer_delimiter` to control how submitted answers are reflected in the assistant message content. 
 - Python tool: Execute using a bash login shell for consistency of Python versions across `bash()` and `python()` tools.
 - Task display: Realtime display of events that occur within tool calls and subtasks.
