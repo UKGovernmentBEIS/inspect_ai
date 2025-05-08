@@ -15501,29 +15501,28 @@ pre[class*="language-"] {
 ._copyButton_1goi8_1:hover {
   opacity: 0.75;
 }
-._expandablePanel_62z83_1 {
+._expandablePanel_elrou_1 {
   position: relative;
-  padding-bottom: 2em;
 }
 
-._expandableBordered_62z83_6 {
+._expandableBordered_elrou_5 {
   border: solid var(--bs-light-border-subtle) 1px;
   padding: 0.5em;
 }
 
-._expandableTogglable_62z83_11 {
+._expandableTogglable_elrou_10 {
   margin-bottom: 1em;
 }
 
-._expandableContents_62z83_15 {
+._expandableContents_elrou_14 {
   font-size: var(--inspect-font-size-base);
 }
 
-._expandableCollapsed_62z83_19 {
+._expandableCollapsed_elrou_18 {
   overflow: hidden;
 }
 
-._moreToggle_62z83_23 {
+._moreToggle_elrou_22 {
   display: flex;
   margin-top: 0;
   position: absolute;
@@ -15536,17 +15535,17 @@ pre[class*="language-"] {
   color: var(--bs-link-color);
 }
 
-._moreToggle_62z83_23._bordered_62z83_36 {
+._moreToggle_elrou_22._bordered_elrou_35 {
   border-top: solid var(--bs-light-border-subtle) 1px;
 }
 
-._moreToggleButton_62z83_40 {
+._moreToggleButton_elrou_39 {
   font-size: var(--inspect-font-size-smaller);
   border: none;
   padding: 0rem 0.5rem;
 }
 
-._separator_62z83_46 {
+._separator_elrou_45 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
   margin-top: -1px;

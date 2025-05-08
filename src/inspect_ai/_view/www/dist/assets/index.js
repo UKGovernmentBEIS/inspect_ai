@@ -24884,13 +24884,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [callback]);
       return elementRef;
     };
-    const expandablePanel = "_expandablePanel_62z83_1";
-    const expandableBordered = "_expandableBordered_62z83_6";
-    const expandableCollapsed = "_expandableCollapsed_62z83_19";
-    const moreToggle = "_moreToggle_62z83_23";
-    const bordered = "_bordered_62z83_36";
-    const moreToggleButton = "_moreToggleButton_62z83_40";
-    const separator$5 = "_separator_62z83_46";
+    const expandablePanel = "_expandablePanel_elrou_1";
+    const expandableBordered = "_expandableBordered_elrou_5";
+    const expandableCollapsed = "_expandableCollapsed_elrou_18";
+    const moreToggle = "_moreToggle_elrou_22";
+    const bordered = "_bordered_elrou_35";
+    const moreToggleButton = "_moreToggleButton_elrou_39";
+    const separator$5 = "_separator_elrou_45";
     const styles$1i = {
       expandablePanel,
       expandableBordered,
