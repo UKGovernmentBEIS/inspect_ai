@@ -1,4 +1,4 @@
-# Data Frames
+# Dataframes
 
 
 > [!NOTE]
@@ -32,10 +32,10 @@ table a {
 Inspect eval logs have a hierarchical structure which is well suited to
 flexibly capturing all the elements of an evaluation. However, when
 analysing or visualising log data you will often want to transform logs
-into [data
-frames](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html).
+into
+[dataframes](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html).
 The **inspect_ai.analysis** module includes a variety of functions for
-extracting [Pandas](https://pandas.pydata.org/) data frames from logs,
+extracting [Pandas](https://pandas.pydata.org/) dataframes from logs,
 including:
 
 | Function | Description |
@@ -47,21 +47,21 @@ including:
 
 Each function extracts a default set of columns, however you can tailor
 column reading to work in whatever way you need for your analysis.
-Extracted data frames can either be denormalized (e.g. if you want to
+Extracted dataframes can either be denormalized (e.g. if you want to
 immediately summarise or plot them) or normalised (e.g. if you are
 importing them into a SQL database).
 
 Below we’ll walk through a few examples, then after that provide more
-in-depth documentation on customising how data frames are read for
+in-depth documentation on customising how dataframes are read for
 various scenarios.
 
 ## Examples
 
 ### Import Basics
 
-Use the `evals_df()` function to read a data frame containing a row for
+Use the `evals_df()` function to read a dataframe containing a row for
 each log file (note that we import from `inspect_ai.analysis.beta`, as
-the data frame functions are currently in community review):
+the dataframe functions are currently in community review):
 
 ``` python
 from inspect_ai.analysis.beta import evals_df
@@ -79,7 +79,7 @@ The default configuration for `evals_df()` reads 51 columns. While this
 is the default, column reading can be customized in variety of ways
 (covered below in [Columns](#columns)).
 
-Use the `samples_df()` function to read a data frame with a record for
+Use the `samples_df()` function to read a dataframe with a record for
 each sample across a set of log files. For example, here we read all of
 the samples in the “logs” directory:
 
@@ -101,7 +101,7 @@ By default, `sample_df()` reads all of the columns in the
 
 ### Column Groups
 
-When reading data frames, there are a number of pre-built column groups
+When reading dataframes, there are a number of pre-built column groups
 you can use to read various subsets of columns. For example:
 
 ``` python
@@ -121,7 +121,7 @@ RangeIndex: 9 entries, 0 to 8
 Columns: 23 entries, eval_id to score_headline_value
 ```
 
-This data frame has 23 columns rather than the 51 we saw when using the
+This dataframe has 23 columns rather than the 51 we saw when using the
 default `evals_df()` congiruation, reflecting the explicit columns
 groups specified.
 
@@ -146,17 +146,17 @@ RangeIndex: 408 entries, 0 to 407
 Columns: 27 entries, sample_id to retries
 ```
 
-This data frame has 27 columns rather than than the 13 we saw for the
+This dataframe has 27 columns rather than than the 13 we saw for the
 default `samples_df()` behavior, reflecting the additional eval level
 columns. You can create your own column groups and definitions to
 further customise reading (see [Columns](#columns) for details).
 
 ### Databases
 
-You can also read multiple data frames and combine them into a
-relational database. Imported data frames automatically include fields
-that can be used to join them (e.g. `eval_id` is in both the evals and
-samples tables).
+You can also read multiple dataframes and combine them into a relational
+database. Imported dataframes automatically include fields that can be
+used to join them (e.g. `eval_id` is in both the evals and samples
+tables).
 
 For example, here we read eval and sample level data from a log
 directory and import both tables into a DuckDb database:
@@ -189,7 +189,7 @@ The examples above all use built-in column specifications
 specifications exist as a convenient starting point but can be replaced
 fully or partially by your own custom definitions.
 
-Column definitions specify how JSON data is mapped into data frame
+Column definitions specify how JSON data is mapped into dataframe
 columns, and are specified using subclasses of the `Column` class
 (e.g. `EvalColumn`, `SampleColumn`). For example, here is the definition
 of the built-in `EvalTask` column group:
@@ -224,12 +224,12 @@ Here are are all of the options available for `Column` definitions:
 
 | Parameter | Type | Description |
 |----|----|----|
-| `name` | `str` | Column name for data frame. Can include wildcard characters (e.g. `task_arg_*`) for mapping dictionaries into multiple columns. |
+| `name` | `str` | Column name for dataframe. Can include wildcard characters (e.g. `task_arg_*`) for mapping dictionaries into multiple columns. |
 | `path` | `str` \| `JSONPath` | Path into JSON to extract the column from (uses [JSON Path](https://github.com/h2non/jsonpath-ng) expressions). Subclasses also implement path handlers that take e.g. an `EvalLog` and return a value. |
 | `required` | `bool` | Is the field required (i.e. should an error occur if it not found). |
 | `default` | `JsonValue` | Default value to yield if the field or its parents are not found in JSON. |
 | `type` | `Type[ColumnType]` | Validation check and directive to attempt to coerce the data into the specified `type`. Coercion from `str` to other types is done after interpreting the string using YAML (e.g. `"true"` -\> `True`). |
-| `value` | `Callable[[JsonValue], JsonValue]` | Function used to transform the value read from JSON into a value for the data frame (e.g. converting a `list` to a comma-separated `str`). |
+| `value` | `Callable[[JsonValue], JsonValue]` | Function used to transform the value read from JSON into a value for the dataframe (e.g. converting a `list` to a comma-separated `str`). |
 
 Here are some examples that demonstrate the use of various options:
 
@@ -264,7 +264,7 @@ JSON rather than splitting it into multiple columns):
 
 #### Strict Mode
 
-By default, data frames are read in `strict` mode, which means that if
+By default, dataframes are read in `strict` mode, which means that if
 fields are missing or paths are invalid an error is raised and the
 import is aborted. You can optionally set `strict=False`, in which case
 importing will proceed and a tuple containing `pd.DataFrame` and a list

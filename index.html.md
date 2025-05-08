@@ -324,8 +324,8 @@ These sections outline how to analyze data generated from evaluations:
   the Python API for reading log files.
 
 - [Data Frames](dataframe.qmd) documents the APIs available for
-  extracting data frames of evals, samples, messages, and events from
-  log files.
+  extracting dataframes of evals, samples, messages, and events from log
+  files.
 
 These sections discuss more advanced features and workflows. You don’t
 need to review them at the outset, but be sure to revisit them as you

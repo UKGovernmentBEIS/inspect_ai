@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 
-<title>Data Frames – Inspect</title>
+<title>Dataframes – Inspect</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -168,7 +168,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Analysis</a></li><li class="breadcrumb-item"><a href="./dataframe.html">Data Frames</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Analysis</a></li><li class="breadcrumb-item"><a href="./dataframe.html">Dataframes</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -409,7 +409,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./dataframe.html" class="sidebar-item-text sidebar-link active">
- <span class="menu-text">Data Frames</span></a>
+ <span class="menu-text">Dataframes</span></a>
   </div>
 </li>
       </ul>
@@ -498,9 +498,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Analysis</a></li><li class="breadcrumb-item"><a href="./dataframe.html">Data Frames</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="./eval-logs.html">Analysis</a></li><li class="breadcrumb-item"><a href="./dataframe.html">Dataframes</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">Data Frames</h1>
+<h1 class="title">Dataframes</h1>
 </div>
 
 
@@ -544,7 +544,7 @@ table a {
     font-size: 0.95rem;
 }
 </style>
-<p>Inspect eval logs have a hierarchical structure which is well suited to flexibly capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into <a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html">data frames</a>. The <strong>inspect_ai.analysis</strong> module includes a variety of functions for extracting <a href="https://pandas.pydata.org/">Pandas</a> data frames from logs, including:</p>
+<p>Inspect eval logs have a hierarchical structure which is well suited to flexibly capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into <a href="https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html">dataframes</a>. The <strong>inspect_ai.analysis</strong> module includes a variety of functions for extracting <a href="https://pandas.pydata.org/">Pandas</a> dataframes from logs, including:</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -571,14 +571,14 @@ table a {
 </tr>
 </tbody>
 </table>
-<p>Each function extracts a default set of columns, however you can tailor column reading to work in whatever way you need for your analysis. Extracted data frames can either be denormalized (e.g.&nbsp;if you want to immediately summarise or plot them) or normalised (e.g.&nbsp;if you are importing them into a SQL database).</p>
-<p>Below we’ll walk through a few examples, then after that provide more in-depth documentation on customising how data frames are read for various scenarios.</p>
+<p>Each function extracts a default set of columns, however you can tailor column reading to work in whatever way you need for your analysis. Extracted dataframes can either be denormalized (e.g.&nbsp;if you want to immediately summarise or plot them) or normalised (e.g.&nbsp;if you are importing them into a SQL database).</p>
+<p>Below we’ll walk through a few examples, then after that provide more in-depth documentation on customising how dataframes are read for various scenarios.</p>
 </section>
 <section id="examples" class="level2">
 <h2 class="anchored" data-anchor-id="examples">Examples</h2>
 <section id="import-basics" class="level3">
 <h3 class="anchored" data-anchor-id="import-basics">Import Basics</h3>
-<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> function to read a data frame containing a row for each log file (note that we import from <code>inspect_ai.analysis.beta</code>, as the data frame functions are currently in community review):</p>
+<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> function to read a dataframe containing a row for each log file (note that we import from <code>inspect_ai.analysis.beta</code>, as the dataframe functions are currently in community review):</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> evals_df</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>evals_df(<span class="st">"logs"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -586,7 +586,7 @@ table a {
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 9 entries, 0 to 8</span>
 <span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>Columns: 51 entries, eval_id to score_model_graded_qa_stderr</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>The default configuration for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> reads 51 columns. While this is the default, column reading can be customized in variety of ways (covered below in <a href="#columns">Columns</a>).</p>
-<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> function to read a data frame with a record for each sample across a set of log files. For example, here we read all of the samples in the “logs” directory:</p>
+<p>Use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> function to read a dataframe with a record for each sample across a set of log files. For example, here we read all of the samples in the “logs” directory:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> samples_df</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>samples_df(<span class="st">"logs"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -597,7 +597,7 @@ table a {
 </section>
 <section id="column-groups" class="level3">
 <h3 class="anchored" data-anchor-id="column-groups">Column Groups</h3>
-<p>When reading data frames, there are a number of pre-built column groups you can use to read various subsets of columns. For example:</p>
+<p>When reading dataframes, there are a number of pre-built column groups you can use to read various subsets of columns. For example:</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> (</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    EvalInfo, EvalModel, EvalResults, evals_df</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>)</span>
@@ -609,7 +609,7 @@ table a {
 <div class="sourceCode" id="cb7"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 9 entries, 0 to 8</span>
 <span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>Columns: 23 entries, eval_id to score_headline_value</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>This data frame has 23 columns rather than the 51 we saw when using the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> congiruation, reflecting the explicit columns groups specified.</p>
+<p>This dataframe has 23 columns rather than the 51 we saw when using the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> congiruation, reflecting the explicit columns groups specified.</p>
 <p>You can also use column groups to join columns for doing analysis or plotting. For example, here we include eval level data along with each sample:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> (</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    EvalInfo, EvalModel, SampleSummary, samples_df</span>
@@ -622,11 +622,11 @@ table a {
 <div class="sourceCode" id="cb9"><pre class="sourceCode default code-with-copy"><code class="sourceCode default"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>&lt;class 'pandas.core.frame.DataFrame'&gt;</span>
 <span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>RangeIndex: 408 entries, 0 to 407</span>
 <span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>Columns: 27 entries, sample_id to retries</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>This data frame has 27 columns rather than than the 13 we saw for the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see <a href="#columns">Columns</a> for details).</p>
+<p>This dataframe has 27 columns rather than than the 13 we saw for the default <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samples_df">samples_df()</a></span> behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see <a href="#columns">Columns</a> for details).</p>
 </section>
 <section id="databases" class="level3">
 <h3 class="anchored" data-anchor-id="databases">Databases</h3>
-<p>You can also read multiple data frames and combine them into a relational database. Imported data frames automatically include fields that can be used to join them (e.g.&nbsp;<code>eval_id</code> is in both the evals and samples tables).</p>
+<p>You can also read multiple dataframes and combine them into a relational database. Imported dataframes automatically include fields that can be used to join them (e.g.&nbsp;<code>eval_id</code> is in both the evals and samples tables).</p>
 <p>For example, here we read eval and sample level data from a log directory and import both tables into a DuckDb database:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> duckdb</span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> evals_df, samples_df</span>
@@ -646,7 +646,7 @@ table a {
 <section id="columns" class="level2">
 <h2 class="anchored" data-anchor-id="columns">Columns</h2>
 <p>The examples above all use built-in column specifications (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalmodel">EvalModel</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalresults">EvalResults</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplesummary">SampleSummary</a></span>, etc.). These specifications exist as a convenient starting point but can be replaced fully or partially by your own custom definitions.</p>
-<p>Column definitions specify how JSON data is mapped into data frame columns, and are specified using subclasses of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> class (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplecolumn">SampleColumn</a></span>). For example, here is the definition of the built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evaltask">EvalTask</a></span> column group:</p>
+<p>Column definitions specify how JSON data is mapped into dataframe columns, and are specified using subclasses of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#column">Column</a></span> class (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#samplecolumn">SampleColumn</a></span>). For example, here is the definition of the built-in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evaltask">EvalTask</a></span> column group:</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>EvalTask: <span class="bu">list</span>[Column] <span class="op">=</span> [</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_name"</span>, path<span class="op">=</span><span class="st">"eval.task"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
 <span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>    EvalColumn(<span class="st">"task_version"</span>, path<span class="op">=</span><span class="st">"eval.task_version"</span>, required<span class="op">=</span><span class="va">True</span>),</span>
@@ -675,7 +675,7 @@ table a {
 <tr class="odd">
 <td><code>name</code></td>
 <td><code>str</code></td>
-<td>Column name for data frame. Can include wildcard characters (e.g.&nbsp;<code>task_arg_*</code>) for mapping dictionaries into multiple columns.</td>
+<td>Column name for dataframe. Can include wildcard characters (e.g.&nbsp;<code>task_arg_*</code>) for mapping dictionaries into multiple columns.</td>
 </tr>
 <tr class="even">
 <td><code>path</code></td>
@@ -700,7 +700,7 @@ table a {
 <tr class="even">
 <td><code>value</code></td>
 <td><code>Callable[[JsonValue], JsonValue]</code></td>
-<td>Function used to transform the value read from JSON into a value for the data frame (e.g.&nbsp;converting a <code>list</code> to a comma-separated <code>str</code>).</td>
+<td>Function used to transform the value read from JSON into a value for the dataframe (e.g.&nbsp;converting a <code>list</code> to a comma-separated <code>str</code>).</td>
 </tr>
 </tbody>
 </table>
@@ -727,7 +727,7 @@ table a {
 </section>
 <section id="strict-mode" class="level4">
 <h4 class="anchored" data-anchor-id="strict-mode">Strict Mode</h4>
-<p>By default, data frames are read in <code>strict</code> mode, which means that if fields are missing or paths are invalid an error is raised and the import is aborted. You can optionally set <code>strict=False</code>, in which case importing will proceed and a tuple containing <code>pd.DataFrame</code> and a list of any errors encountered is returned. For example:</p>
+<p>By default, dataframes are read in <code>strict</code> mode, which means that if fields are missing or paths are invalid an error is raised and the import is aborted. You can optionally set <code>strict=False</code>, in which case importing will proceed and a tuple containing <code>pd.DataFrame</code> and a list of any errors encountered is returned. For example:</p>
 <div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> evals_df</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>evals, errors <span class="op">=</span> evals_df(<span class="st">"logs"</span>, strict<span class="op">=</span><span class="va">False</span>)</span>
