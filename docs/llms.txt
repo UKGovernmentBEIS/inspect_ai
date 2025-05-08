@@ -35,7 +35,7 @@
 - [Human Agent](https://inspect.aisi.org.uk/human-agent.html.md): This article describes the `human_cli()` agent which enables human baselining for computing tasks.
 
 - [Eval Logs](https://inspect.aisi.org.uk/eval-logs.html.md): Explores how to get the most out of evaluation logs for developing, debugging, and analyzing evaluations.
-- [Data Frames](https://inspect.aisi.org.uk/dataframe.html.md) documents the APIs available for extracting data frames of evals, samples, messages, and events from log files.
+- [Data Frames](https://inspect.aisi.org.uk/dataframe.html.md) documents the APIs available for extracting dataframes of evals, samples, messages, and events from log files.
 
 - [Eval Sets](https://inspect.aisi.org.uk/eval-sets.html.md): Covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 - [Errors and Limits](https://inspect.aisi.org.uk/errors-and-limits.html.md): This article covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples, including retrying failed evaluations, establishing a threshold of samples to tolerate errors for before failing an evaluation, and setting a maximum number of messages, tokens, or elapsed seconds in a sample before forcing the solver to give up.
@@ -56,7 +56,7 @@
 - [inspect_ai.dataset](https://inspect.aisi.org.uk/reference/inspect_ai.dataset.html.md) describes the types used to read and manipulate datasets and samples.
 - [inspect_ai.approval](https://inspect.aisi.org.uk/reference/inspect_ai.approval.html.md) covers using built in approvers as well as the types used to create custom approvers and approval policies.
 - [inspect_ai.log](https://inspect.aisi.org.uk/reference/inspect_ai.log.html.md) describes the types used to list, read, write, and traverse the contents of eval log files.
-- [inspect_ai.analysis](https://inspect.aisi.org.uk/reference/inspect_ai.analysis.html.md) covers the Python API for reading logs into data frames for analysis.
+- [inspect_ai.analysis](https://inspect.aisi.org.uk/reference/inspect_ai.analysis.html.md) covers the Python API for reading logs into dataframes for analysis.
 - [inspect_ai.util](https://inspect.aisi.org.uk/reference/inspect_ai.util.html.md) covers various utility functions for concurrency, sandboxes, the store, and more.
 
 ## Reference: Command Line 
