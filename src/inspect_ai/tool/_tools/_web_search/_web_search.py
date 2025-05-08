@@ -20,10 +20,14 @@ def web_search(
     """Web search tool.
 
     A tool that can be registered for use by models to search the web. Use
-    the `use_tools()` solver to make the tool available (e.g. `use_tools(web_search())`))
+    the `use_tools()` solver to make the tool available (e.g.
+    `use_tools(web_search(provider="tavily"))`))
 
-    A web search is conducted using the specified provider, the results are parsed for relevance
-    using the specified model, and the top 'num_results' relevant pages are returned.
+    A web search is conducted using the specified provider.
+    - With `google`, the results are parsed for relevance using the specified model,
+    and the top 'num_results' relevant pages are returned.
+    - With `tavily`, all logic for relevance and summarization is handled by the
+    provider itself.
 
     See further documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-web-search>.
 
@@ -36,7 +40,8 @@ def web_search(
       max_provider_calls: Maximum number of search calls to make to the search provider.
       max_connections: Maximum number of concurrent connections to API
         endpoint of search provider.
-      model: Model used to parse web pages for relevance.
+      model: Model used to parse web pages for relevance - used only by the
+      `google` provider.
 
     Returns:
        A tool that can be registered for use by models to search the web.
