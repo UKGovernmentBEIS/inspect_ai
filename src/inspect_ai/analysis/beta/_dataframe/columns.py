@@ -18,7 +18,7 @@ Values of `list` and `dict` are converted into column values as JSON `str`.
 
 class Column(abc.ABC):
     """
-    Specification for importing a column into a data frame.
+    Specification for importing a column into a dataframe.
 
     Extract columns from an `EvalLog` path either using [JSONPath](https://github.com/h2non/jsonpath-ng) expressions
     or a function that takes `EvalLog` and returns a value.
