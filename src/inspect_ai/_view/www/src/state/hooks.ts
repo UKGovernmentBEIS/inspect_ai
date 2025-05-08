@@ -144,18 +144,19 @@ export const useFilteredSamples = () => {
 
   return useMemo(() => {
     // Apply filters
-    const { result, error } =
+    const { result, error, allErrors } =
       evalDescriptor && filter
         ? filterSamples(evalDescriptor, sampleSummaries, filter)
-        : { result: sampleSummaries, error: undefined };
+        : { result: sampleSummaries, error: undefined, allErrors: false };
 
-    if (error) {
+    if (error && allErrors) {
       setFilterError(error);
     } else {
       clearFilterError();
     }
 
-    const prefiltered = error === undefined ? result : sampleSummaries;
+    const prefiltered =
+      error === undefined || !allErrors ? result : sampleSummaries;
 
     // Filter epochs
     const filtered =

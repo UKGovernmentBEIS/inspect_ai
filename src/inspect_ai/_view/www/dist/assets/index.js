@@ -42107,8 +42107,9 @@ categories: ${categories.join(" ")}`;
       }
     };
     const filterSamples = (evalDescriptor, samples, filterValue) => {
-      var error2 = void 0;
-      const result2 = samples.filter((sample2) => {
+      let error2 = void 0;
+      let errorCount = 0;
+      const result2 = samples.filter((sample2, index2) => {
         if (filterValue) {
           const { matches, error: sampleError } = filterExpression(
             evalDescriptor,
@@ -42116,12 +42117,15 @@ categories: ${categories.join(" ")}`;
             filterValue
           );
           error2 || (error2 = sampleError);
+          if (sampleError) {
+            errorCount++;
+          }
           return matches;
         } else {
           return true;
         }
       });
-      return { result: result2, error: error2 };
+      return { result: result2, error: error2, allErrors: errorCount === samples.length };
     };
     const flex$1 = "_flex_1kye9_1";
     const label$7 = "_label_1kye9_5";
@@ -42407,13 +42411,13 @@ categories: ${categories.join(" ")}`;
       const samplesDescriptor = useSampleDescriptor();
       const score2 = useScore();
       return reactExports.useMemo(() => {
-        const { result: result2, error: error2 } = evalDescriptor && filter ? filterSamples(evalDescriptor, sampleSummaries, filter) : { result: sampleSummaries, error: void 0 };
-        if (error2) {
+        const { result: result2, error: error2, allErrors } = evalDescriptor && filter ? filterSamples(evalDescriptor, sampleSummaries, filter) : { result: sampleSummaries, error: void 0, allErrors: false };
+        if (error2 && allErrors) {
           setFilterError(error2);
         } else {
           clearFilterError();
         }
-        const prefiltered = error2 === void 0 ? result2 : sampleSummaries;
+        const prefiltered = error2 === void 0 || !allErrors ? result2 : sampleSummaries;
         const filtered = epoch && epoch !== "all" ? prefiltered.filter((sample2) => epoch === String(sample2.epoch)) : prefiltered;
         const sorted = samplesDescriptor ? sortSamples(sort, filtered, samplesDescriptor, score2) : filtered;
         return [...sorted];

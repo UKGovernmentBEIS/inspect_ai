@@ -289,9 +289,14 @@ export const filterSamples = (
   evalDescriptor: EvalDescriptor,
   samples: SampleSummary[],
   filterValue: string,
-): { result: SampleSummary[]; error: FilterError | undefined } => {
-  var error = undefined;
-  const result = samples.filter((sample) => {
+): {
+  result: SampleSummary[];
+  error: FilterError | undefined;
+  allErrors: boolean;
+} => {
+  let error = undefined;
+  let errorCount = 0;
+  const result = samples.filter((sample, index) => {
     if (filterValue) {
       const { matches, error: sampleError } = filterExpression(
         evalDescriptor,
@@ -299,10 +304,13 @@ export const filterSamples = (
         filterValue,
       );
       error ||= sampleError;
+      if (sampleError) {
+        errorCount++;
+      }
       return matches;
     } else {
       return true;
     }
   });
-  return { result, error };
+  return { result, error, allErrors: errorCount === samples.length };
 };
