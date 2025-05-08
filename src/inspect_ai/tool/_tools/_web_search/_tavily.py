@@ -32,9 +32,7 @@ class TavilySearchResponse(BaseModel):
     response_time: float
 
 
-def tavily_search_provider(
-    client: httpx.AsyncClient, num_results: int, max_connections: int
-) -> SearchProvider:
+def tavily_search_provider(num_results: int, max_connections: int) -> SearchProvider:
     tavily_api_key = os.environ.get("TAVILY_API_KEY", None)
     if not tavily_api_key:
         raise PrerequisiteError(
@@ -45,6 +43,9 @@ def tavily_search_provider(
             "The Tavily search provider is limited to 20 results per query."
         )
 
+    # Create the client within the provider
+    client = httpx.AsyncClient(timeout=30)
+
     async def search(query: str) -> str | None:
         search_url = "https://api.tavily.com/search"
         headers = {
@@ -54,7 +55,7 @@ def tavily_search_provider(
             "query": query,
             "max_results": 10,  # num_results,
             # "search_depth": "advanced",
-            "include_answer": True,
+            "include_answer": "advanced",
         }
 
         # retry up to 5 times over a period of up to 1 minute

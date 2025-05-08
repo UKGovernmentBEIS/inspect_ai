@@ -52,15 +52,10 @@ def web_search(
                 "Omitting `provider` is no longer supported. Please specify the `web_search` provider explicitly to avoid this error."
             )
 
-    # get search client
-    client = httpx.AsyncClient()
-
     search_provider = (
-        google_search_provider(
-            client, num_results, max_provider_calls, max_connections, model
-        )
+        google_search_provider(num_results, max_provider_calls, max_connections, model)
         if provider == "google"
-        else tavily_search_provider(client, num_results, max_connections)
+        else tavily_search_provider(num_results, max_connections)
     )
 
     # resolve provider (only google for now)

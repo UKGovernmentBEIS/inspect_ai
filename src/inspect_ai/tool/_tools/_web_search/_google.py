@@ -43,7 +43,6 @@ def maybe_get_google_api_keys() -> tuple[str, str] | None:
 
 
 def google_search_provider(
-    client: httpx.AsyncClient,
     num_results: int,
     max_provider_calls: int,
     max_connections: int,
@@ -55,6 +54,9 @@ def google_search_provider(
             "GOOGLE_CSE_ID and/or GOOGLE_CSE_API_KEY not set in the environment. Please ensure these variables are defined to use Google Custom Search with the web_search tool.\n\nLearn more about the Google web search provider at https://inspect.aisi.org.uk/tools.html#google-provider"
         )
     google_api_key, google_cse_id = keys
+
+    # Create the client within the provider
+    client = httpx.AsyncClient()
 
     async def search(query: str) -> str | None:
         # limit number of concurrent searches
