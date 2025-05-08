@@ -16905,23 +16905,25 @@ pre[class*="language-"] {
   grid-template-columns: max-content max-content;
   column-gap: 0.3em;
 }
-._keyPairContainer_1ee7x_1 {
+._keyPairContainer_1pw5n_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.5em;
+  padding-top: 0.3em;
   padding-bottom: 0.3em;
+  border-bottom: solid 1px var(--bs-border-color);
 }
 
-._key_1ee7x_1 {
+._key_1pw5n_1 {
   display: grid;
   grid-template-columns: 1em auto;
 }
 
-._pre_1ee7x_13 {
+._pre_1pw5n_15 {
   margin-bottom: 0;
 }
 
-._treeIcon_1ee7x_17 {
+._treeIcon_1pw5n_19 {
   margin-top: -3px;
 }
 /* PulsingDots.module.css */
