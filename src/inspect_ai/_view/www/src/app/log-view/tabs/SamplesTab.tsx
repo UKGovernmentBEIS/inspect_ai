@@ -50,10 +50,7 @@ export const useSamplesTabConfig = (
           : totalSampleCount === 1
             ? [<ScoreFilterTools />]
             : [
-                <SampleTools
-                  samples={sampleSummaries || []}
-                  key="sample-tools"
-                />,
+                <SampleTools key="sample-tools" />,
                 evalStatus === "started" && !streamSamples && (
                   <ToolButton
                     key="refresh"

@@ -8,7 +8,7 @@ import {
   EvalStats,
 } from "../../../@types/log";
 import { EvalDescriptor } from "../../../app/samples/descriptor/types";
-import { scoreFilterItems } from "../../../app/samples/sample-tools/filters";
+import { sampleFilterItems } from "../../../app/samples/sample-tools/filters";
 import { ExpandablePanel } from "../../../components/ExpandablePanel";
 import { LabeledValue } from "../../../components/LabeledValue";
 import { useEvalDescriptor } from "../../../state/hooks";
@@ -181,7 +181,7 @@ const ScorerSummary: FC<ScoreSummaryProps> = ({ evalDescriptor }) => {
     return null;
   }
 
-  const items = scoreFilterItems(evalDescriptor);
+  const items = sampleFilterItems(evalDescriptor);
   return (
     <span style={{ position: "relative" }}>
       {Array.from(items).map((item, index, array) => (
