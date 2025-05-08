@@ -1,6 +1,5 @@
 import { FC } from "react";
 import { Fragment } from "react/jsx-runtime";
-import { SampleSummary } from "../../client/api/types";
 import { useScore, useScores } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { EpochFilter } from "./sample-tools/EpochFilter";
@@ -8,11 +7,9 @@ import { SampleFilter } from "./sample-tools/sample-filter/SampleFilter";
 import { SelectScorer } from "./sample-tools/SelectScorer";
 import { SortFilter } from "./sample-tools/SortFilter";
 
-interface SampleToolsProps {
-  samples: SampleSummary[];
-}
+interface SampleToolsProps {}
 
-export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
+export const SampleTools: FC<SampleToolsProps> = () => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
 
   const scores = useScores();

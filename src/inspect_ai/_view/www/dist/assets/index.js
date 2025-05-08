@@ -42109,7 +42109,7 @@ categories: ${categories.join(" ")}`;
     const filterSamples = (evalDescriptor, samples, filterValue) => {
       let error2 = void 0;
       let errorCount = 0;
-      const result2 = samples.filter((sample2, index2) => {
+      const result2 = samples.filter((sample2) => {
         if (filterValue) {
           const { matches, error: sampleError } = filterExpression(
             evalDescriptor,
@@ -81648,7 +81648,7 @@ Supported expressions:
     const scorerIndex = (scores2, score2) => scores2.findIndex((sc) => {
       return score2 && sc.scorer === score2.scorer;
     });
-    const SampleTools = ({ samples }) => {
+    const SampleTools = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const scores2 = useScores();
       const score2 = useScore();
@@ -82355,13 +82355,7 @@ Supported expressions:
             running: evalStatus === "started"
           },
           tools: () => !samplesDescriptor ? void 0 : totalSampleCount === 1 ? [/* @__PURE__ */ jsxRuntimeExports.jsx(ScoreFilterTools, {})] : [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              SampleTools,
-              {
-                samples: sampleSummaries || []
-              },
-              "sample-tools"
-            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(SampleTools, {}, "sample-tools"),
             evalStatus === "started" && !streamSamples && /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolButton,
               {

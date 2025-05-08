@@ -296,7 +296,7 @@ export const filterSamples = (
 } => {
   let error = undefined;
   let errorCount = 0;
-  const result = samples.filter((sample, index) => {
+  const result = samples.filter((sample) => {
     if (filterValue) {
       const { matches, error: sampleError } = filterExpression(
         evalDescriptor,
