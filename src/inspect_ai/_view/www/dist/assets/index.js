@@ -51742,15 +51742,15 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$4 = "_label_jcll2_1";
-    const navs = "_navs_jcll2_6";
-    const card = "_card_jcll2_12";
-    const cardContent = "_cardContent_jcll2_19";
-    const hidden$1 = "_hidden_jcll2_24";
-    const copyLink = "_copyLink_jcll2_32";
-    const root$1 = "_root_jcll2_43";
-    const bottomDongle = "_bottomDongle_jcll2_48";
-    const dongleIcon = "_dongleIcon_jcll2_63";
+    const label$4 = "_label_1vfw7_1";
+    const navs = "_navs_1vfw7_6";
+    const card = "_card_1vfw7_12";
+    const cardContent = "_cardContent_1vfw7_20";
+    const hidden$1 = "_hidden_1vfw7_25";
+    const copyLink = "_copyLink_1vfw7_33";
+    const root$1 = "_root_1vfw7_44";
+    const bottomDongle = "_bottomDongle_1vfw7_49";
+    const dongleIcon = "_dongleIcon_1vfw7_66";
     const styles$s = {
       label: label$4,
       navs,
