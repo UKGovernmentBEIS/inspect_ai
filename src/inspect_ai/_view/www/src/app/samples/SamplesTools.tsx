@@ -15,9 +15,6 @@ interface SampleToolsProps {
 export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
 
-  const filter = useStore((state) => state.log.filter);
-  const setFilter = useStore((state) => state.logActions.setFilter);
-
   const scores = useScores();
   const score = useScore();
   const setScore = useStore((state) => state.logActions.setScore);
@@ -29,11 +26,7 @@ export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
   const epochs = selectedLogSummary?.eval.config.epochs || 1;
   return (
     <Fragment>
-      <SampleFilter
-        samples={samples}
-        scoreFilter={filter}
-        setScoreFilter={setFilter}
-      />
+      <SampleFilter samples={samples} />
       {scores?.length > 1 ? (
         <SelectScorer scores={scores} score={score} setScore={setScore} />
       ) : undefined}

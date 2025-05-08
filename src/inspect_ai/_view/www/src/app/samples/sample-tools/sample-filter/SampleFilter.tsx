@@ -16,9 +16,9 @@ import clsx from "clsx";
 import { EditorView, minimalSetup } from "codemirror";
 import { FC, useEffect, useMemo, useRef, useState } from "react";
 
-import { ScoreFilter } from "../../../../app/types";
 import { SampleSummary } from "../../../../client/api/types";
 import { useEvalDescriptor } from "../../../../state/hooks";
+import { useStore } from "../../../../state/store";
 import { EvalDescriptor } from "../../descriptor/types";
 import { FilterError, filterSamples, scoreFilterItems } from "../filters";
 import { getCompletions } from "./completions";
@@ -33,8 +33,6 @@ interface FilteringResult {
 
 interface SampleFilterProps {
   samples: SampleSummary[];
-  scoreFilter: ScoreFilter;
-  setScoreFilter: (filter: ScoreFilter) => void;
 }
 
 // Constants
@@ -154,11 +152,7 @@ const getLints = (
 };
 
 // Main component
-export const SampleFilter: FC<SampleFilterProps> = ({
-  samples,
-  scoreFilter,
-  setScoreFilter,
-}) => {
+export const SampleFilter: FC<SampleFilterProps> = ({ samples }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView>(null);
   const linterCompartment = useRef<Compartment>(new Compartment());
@@ -170,6 +164,9 @@ export const SampleFilter: FC<SampleFilterProps> = ({
     () => (evalDescriptor ? scoreFilterItems(evalDescriptor) : []),
     [evalDescriptor],
   );
+
+  const scoreFilter = useStore((state) => state.log.filter);
+  const setScoreFilter = useStore((state) => state.logActions.setFilter);
 
   const [filteringResultInstant, setFilteringResultInstant] =
     useState<FilteringResult | null>(null);

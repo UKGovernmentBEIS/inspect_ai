@@ -81344,11 +81344,7 @@ Supported expressions:
         }
       ];
     };
-    const SampleFilter = ({
-      samples,
-      scoreFilter,
-      setScoreFilter
-    }) => {
+    const SampleFilter = ({ samples }) => {
       const editorRef = reactExports.useRef(null);
       const editorViewRef = reactExports.useRef(null);
       const linterCompartment = reactExports.useRef(new Compartment());
@@ -81359,6 +81355,8 @@ Supported expressions:
         () => evalDescriptor ? scoreFilterItems(evalDescriptor) : [],
         [evalDescriptor]
       );
+      const scoreFilter = useStore((state) => state.log.filter);
+      const setScoreFilter = useStore((state) => state.logActions.setFilter);
       const [filteringResultInstant, setFilteringResultInstant] = reactExports.useState(null);
       const handleFocus = (event, view) => {
         if (event.isTrusted && view.state.doc.toString() === "") {
@@ -81635,8 +81633,6 @@ Supported expressions:
     });
     const SampleTools = ({ samples }) => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const filter = useStore((state) => state.log.filter);
-      const setFilter = useStore((state) => state.logActions.setFilter);
       const scores2 = useScores();
       const score2 = useScore();
       const setScore = useStore((state) => state.logActions.setScore);
@@ -81646,14 +81642,7 @@ Supported expressions:
       const setSort = useStore((state) => state.logActions.setSort);
       const epochs = (selectedLogSummary == null ? void 0 : selectedLogSummary.eval.config.epochs) || 1;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          SampleFilter,
-          {
-            samples,
-            scoreFilter: filter,
-            setScoreFilter: setFilter
-          }
-        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFilter, { samples }),
         (scores2 == null ? void 0 : scores2.length) > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(SelectScorer, { scores: scores2, score: score2, setScore }) : void 0,
         epochs > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EpochFilter, { epoch, setEpoch, epochs }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsx(SortFilter, { sort, setSort, epochs })
