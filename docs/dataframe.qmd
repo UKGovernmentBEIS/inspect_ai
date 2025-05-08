@@ -228,13 +228,13 @@ if len(errors) > 0:
 
 | Type | Description |
 |------------------------------------|------------------------------------|
-| [EvalInfo](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L50) | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
-| [EvalTask](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L63) | Task configuration (name, file, args, solver, etc.) |
-| [EvalModel](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L76) | Model name, args, generation config, etc. |
-| [EvalDataset](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L85) | Dataset name, location, sample ids, etc. |
-| [EvalConfig](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L94) | Epochs, approval, sample limits, etc. |
-| [EvalResults](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L105) | Status, errors, samples completed, headline metric. |
-| [EvalScores](https://github.com/UKGovernmentBEIS/inspect_ai/blob/feature/eval-db/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L117) | All scores and metrics broken into separate columns. |
+| [EvalInfo](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51) | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
+| [EvalTask](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64) | Task configuration (name, file, args, solver, etc.) |
+| [EvalModel](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77) | Model name, args, generation config, etc. |
+| [EvalDataset](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L86) | Dataset name, location, sample ids, etc. |
+| [EvalConfig](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95) | Epochs, approval, sample limits, etc. |
+| [EvalResults](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106) | Status, errors, samples completed, headline metric. |
+| [EvalScores](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L118) | All scores and metrics broken into separate columns. |
 
 #### Custom Extraction
 
