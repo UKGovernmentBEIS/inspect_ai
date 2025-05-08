@@ -132,6 +132,11 @@ export const useFilteredSamples = () => {
   const evalDescriptor = useEvalDescriptor();
   const sampleSummaries = useSampleSummaries();
   const filter = useStore((state) => state.log.filter);
+  const setFilterError = useStore((state) => state.logActions.setFilterError);
+  const clearFilterError = useStore(
+    (state) => state.logActions.clearFilterError,
+  );
+
   const epoch = useStore((state) => state.log.epoch);
   const sort = useStore((state) => state.log.sort);
   const samplesDescriptor = useSampleDescriptor();
@@ -139,10 +144,18 @@ export const useFilteredSamples = () => {
 
   return useMemo(() => {
     // Apply filters
-    const prefiltered =
-      evalDescriptor && filter.value
-        ? filterSamples(evalDescriptor, sampleSummaries, filter.value).result
-        : sampleSummaries;
+    const { result, error } =
+      evalDescriptor && filter
+        ? filterSamples(evalDescriptor, sampleSummaries, filter)
+        : { result: sampleSummaries, error: undefined };
+
+    if (error) {
+      setFilterError(error);
+    } else {
+      clearFilterError();
+    }
+
+    const prefiltered = error === undefined ? result : sampleSummaries;
 
     // Filter epochs
     const filtered =
@@ -160,6 +173,8 @@ export const useFilteredSamples = () => {
     evalDescriptor,
     sampleSummaries,
     filter,
+    setFilterError,
+    clearFilterError,
     epoch,
     sort,
     samplesDescriptor,

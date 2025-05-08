@@ -14,26 +14,18 @@ import {
 import { tags } from "@lezer/highlight";
 import clsx from "clsx";
 import { EditorView, minimalSetup } from "codemirror";
-import { FC, useEffect, useMemo, useRef, useState } from "react";
+import { FC, useCallback, useEffect, useMemo, useRef } from "react";
 
-import { SampleSummary } from "../../../../client/api/types";
 import { useEvalDescriptor } from "../../../../state/hooks";
 import { useStore } from "../../../../state/store";
-import { EvalDescriptor } from "../../descriptor/types";
-import { FilterError, filterSamples, scoreFilterItems } from "../filters";
+import { debounce } from "../../../../utils/sync";
+import { FilterError } from "../../../types";
+import { sampleFilterItems } from "../filters";
 import { getCompletions } from "./completions";
 import styles from "./SampleFilter.module.css";
 import { language } from "./tokenize";
 
-// Types
-interface FilteringResult {
-  numSamples: number;
-  error?: FilterError;
-}
-
-interface SampleFilterProps {
-  samples: SampleSummary[];
-}
+interface SampleFilterProps {}
 
 // Constants
 const FILTER_TOOLTIP = `
@@ -103,20 +95,6 @@ const editorTheme = EditorView.theme({
   },
 });
 
-// Helper functions
-const getFilteringResult = (
-  evalDescriptor: EvalDescriptor,
-  sampleSummaries: SampleSummary[],
-  filterValue: string,
-): FilteringResult => {
-  const { result, error } = filterSamples(
-    evalDescriptor,
-    sampleSummaries,
-    filterValue,
-  );
-  return { numSamples: result.length, error };
-};
-
 const ensureOneLine = (tr: Transaction): TransactionSpec => {
   const newDoc = tr.newDoc.toString();
   if (!newDoc.includes("\n")) return tr;
@@ -152,7 +130,7 @@ const getLints = (
 };
 
 // Main component
-export const SampleFilter: FC<SampleFilterProps> = ({ samples }) => {
+export const SampleFilter: FC<SampleFilterProps> = () => {
   const editorRef = useRef<HTMLDivElement>(null);
   const editorViewRef = useRef<EditorView>(null);
   const linterCompartment = useRef<Compartment>(new Compartment());
@@ -161,46 +139,51 @@ export const SampleFilter: FC<SampleFilterProps> = ({ samples }) => {
   const evalDescriptor = useEvalDescriptor();
 
   const filterItems = useMemo(
-    () => (evalDescriptor ? scoreFilterItems(evalDescriptor) : []),
+    () => (evalDescriptor ? sampleFilterItems(evalDescriptor) : []),
     [evalDescriptor],
   );
 
-  const scoreFilter = useStore((state) => state.log.filter);
-  const setScoreFilter = useStore((state) => state.logActions.setFilter);
+  const filter = useStore((state) => state.log.filter);
+  const filterError = useStore((state) => state.log.filterError);
+  const setFilter = useStore((state) => state.logActions.setFilter);
 
-  const [filteringResultInstant, setFilteringResultInstant] =
-    useState<FilteringResult | null>(null);
-
-  const handleFocus = (event: FocusEvent, view: EditorView) => {
+  const handleFocus = useCallback((event: FocusEvent, view: EditorView) => {
     if (event.isTrusted && view.state.doc.toString() === "") {
       setTimeout(() => startCompletion(view), 0);
     }
-  };
+  }, []);
 
-  const makeAutocompletion = () =>
-    autocompletion({
-      override: [(context) => getCompletions(context, filterItems)],
-      activateOnCompletion: (c) => c.label.endsWith(" "),
-    });
+  const makeAutocompletion = useCallback(
+    () =>
+      autocompletion({
+        override: [(context) => getCompletions(context, filterItems)],
+        activateOnCompletion: (c) => c.label.endsWith(" "),
+      }),
+    [],
+  );
 
-  const makeLinter = () =>
-    linter((view) => getLints(view, filteringResultInstant?.error));
+  const makeLinter = useCallback(
+    () => linter((view) => getLints(view, filterError)),
+    [filterError],
+  );
 
-  const makeUpdateListener = () =>
-    EditorView.updateListener.of((update) => {
-      if (update.docChanged && evalDescriptor) {
-        const newValue = update.state.doc.toString();
-        const filteringResult = getFilteringResult(
-          evalDescriptor,
-          samples,
-          newValue,
-        );
-        if (!filteringResult.error) {
-          setScoreFilter({ value: newValue });
+  const debounceSetFilter = useCallback(
+    debounce((value: string) => {
+      setFilter(value);
+    }, 200),
+    [setFilter],
+  );
+
+  const makeUpdateListener = useCallback(
+    () =>
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged && evalDescriptor) {
+          const newValue = update.state.doc.toString();
+          debounceSetFilter(newValue);
         }
-        setFilteringResultInstant(filteringResult);
-      }
-    });
+      }),
+    [setFilter],
+  );
 
   // Initialize editor
   useEffect(() => {
@@ -209,7 +192,7 @@ export const SampleFilter: FC<SampleFilterProps> = ({ samples }) => {
     editorViewRef.current = new EditorView({
       parent: editorRef.current ?? undefined,
       state: EditorState.create({
-        doc: scoreFilter.value || "",
+        doc: filter || "",
         extensions: [
           minimalSetup,
           bracketMatching(),
@@ -233,21 +216,16 @@ export const SampleFilter: FC<SampleFilterProps> = ({ samples }) => {
     if (!editorViewRef.current) return;
 
     const currentValue = editorViewRef.current.state.doc.toString();
-    if (scoreFilter.value === currentValue) return;
+    if (filter === currentValue) return;
 
-    if (evalDescriptor) {
-      setFilteringResultInstant(
-        getFilteringResult(evalDescriptor, samples, scoreFilter.value || ""),
-      );
-    }
     editorViewRef.current.dispatch({
       changes: {
         from: 0,
         to: currentValue.length,
-        insert: scoreFilter.value || "",
+        insert: filter || "",
       },
     });
-  }, [evalDescriptor, scoreFilter.value]);
+  }, [filter]);
 
   // Update compartments when dependencies change
   useEffect(() => {
@@ -268,7 +246,7 @@ export const SampleFilter: FC<SampleFilterProps> = ({ samples }) => {
     editorViewRef.current?.dispatch({
       effects: linterCompartment.current.reconfigure(makeLinter()),
     });
-  }, [filteringResultInstant?.error]);
+  }, [filterError]);
 
   return (
     <div style={{ display: "flex" }}>
@@ -285,10 +263,7 @@ export const SampleFilter: FC<SampleFilterProps> = ({ samples }) => {
       </span>
       <div
         ref={editorRef}
-        className={clsx(
-          filteringResultInstant?.error && "filter-pending",
-          styles.input,
-        )}
+        className={clsx(filterError && "filter-pending", styles.input)}
       />
       <span
         className={clsx("bi", "bi-question-circle", styles.help)}

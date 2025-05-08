@@ -23086,7 +23086,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       pendingSampleSummaries: void 0,
       loadedLog: void 0,
       // Filter state
-      filter: {},
+      filter: "",
+      filterError: void 0,
       epoch: "all",
       sort: kDefaultSort,
       score: void 0,
@@ -23121,6 +23122,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setFilter: (filter) => set2((state) => {
             state.log.filter = filter;
           }),
+          setFilterError: (error2) => set2((state) => {
+            state.log.filterError = error2;
+          }),
+          clearFilterError: () => {
+            set2((state) => {
+              state.log.filterError = void 0;
+            });
+          },
           setEpoch: (epoch) => set2((state) => {
             state.log.epoch = epoch;
           }),
@@ -23134,7 +23143,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             state.log.scores = scores2;
           }),
           resetFiltering: () => set2((state) => {
-            state.log.filter = {};
+            state.log.filter = "";
+            state.log.filterError = void 0;
             state.log.epoch = "all";
             state.log.sort = kDefaultSort;
             state.log.score = void 0;
@@ -41950,7 +41960,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         has_retries: sample2.retries !== void 0 && sample2.retries > 0
       };
     };
-    const scoreFilterItems = (evalDescriptor) => {
+    const sampleFilterItems = (evalDescriptor) => {
       const items = [];
       const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
       const valueToString = (value2) => typeof value2 === "string" ? `"${value2}"` : String(value2);
@@ -42388,12 +42398,22 @@ categories: ${categories.join(" ")}`;
       const evalDescriptor = useEvalDescriptor();
       const sampleSummaries = useSampleSummaries();
       const filter = useStore((state) => state.log.filter);
+      const setFilterError = useStore((state) => state.logActions.setFilterError);
+      const clearFilterError = useStore(
+        (state) => state.logActions.clearFilterError
+      );
       const epoch = useStore((state) => state.log.epoch);
       const sort = useStore((state) => state.log.sort);
       const samplesDescriptor = useSampleDescriptor();
       const score2 = useScore();
       return reactExports.useMemo(() => {
-        const prefiltered = evalDescriptor && filter.value ? filterSamples(evalDescriptor, sampleSummaries, filter.value).result : sampleSummaries;
+        const { result: result2, error: error2 } = evalDescriptor && filter ? filterSamples(evalDescriptor, sampleSummaries, filter) : { result: sampleSummaries, error: void 0 };
+        if (error2) {
+          setFilterError(error2);
+        } else {
+          clearFilterError();
+        }
+        const prefiltered = error2 === void 0 ? result2 : sampleSummaries;
         const filtered = epoch && epoch !== "all" ? prefiltered.filter((sample2) => epoch === String(sample2.epoch)) : prefiltered;
         const sorted = samplesDescriptor ? sortSamples(sort, filtered, samplesDescriptor, score2) : filtered;
         return [...sorted];
@@ -42401,6 +42421,8 @@ categories: ${categories.join(" ")}`;
         evalDescriptor,
         sampleSummaries,
         filter,
+        setFilterError,
+        clearFilterError,
         epoch,
         sort,
         samplesDescriptor,
@@ -44318,7 +44340,7 @@ categories: ${categories.join(" ")}`;
       if (!evalDescriptor) {
         return null;
       }
-      const items = scoreFilterItems(evalDescriptor);
+      const items = sampleFilterItems(evalDescriptor);
       return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { style: { position: "relative" }, children: Array.from(items).map((item2, index2, array) => /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("span", { title: item2.tooltip, children: item2.canonicalName }),
         index2 < array.length - 1 ? ", " : ""
@@ -81308,14 +81330,6 @@ Supported expressions:
         overflow: "hidden"
       }
     });
-    const getFilteringResult = (evalDescriptor, sampleSummaries, filterValue) => {
-      const { result: result2, error: error2 } = filterSamples(
-        evalDescriptor,
-        sampleSummaries,
-        filterValue
-      );
-      return { numSamples: result2.length, error: error2 };
-    };
     const ensureOneLine = (tr2) => {
       const newDoc = tr2.newDoc.toString();
       if (!newDoc.includes("\n")) return tr2;
@@ -81344,7 +81358,7 @@ Supported expressions:
         }
       ];
     };
-    const SampleFilter = ({ samples }) => {
+    const SampleFilter = () => {
       const editorRef = reactExports.useRef(null);
       const editorViewRef = reactExports.useRef(null);
       const linterCompartment = reactExports.useRef(new Compartment());
@@ -81352,43 +81366,50 @@ Supported expressions:
       const updateListenerCompartment = reactExports.useRef(new Compartment());
       const evalDescriptor = useEvalDescriptor();
       const filterItems = reactExports.useMemo(
-        () => evalDescriptor ? scoreFilterItems(evalDescriptor) : [],
+        () => evalDescriptor ? sampleFilterItems(evalDescriptor) : [],
         [evalDescriptor]
       );
-      const scoreFilter = useStore((state) => state.log.filter);
-      const setScoreFilter = useStore((state) => state.logActions.setFilter);
-      const [filteringResultInstant, setFilteringResultInstant] = reactExports.useState(null);
-      const handleFocus = (event, view) => {
+      const filter = useStore((state) => state.log.filter);
+      const filterError = useStore((state) => state.log.filterError);
+      const setFilter = useStore((state) => state.logActions.setFilter);
+      const handleFocus = reactExports.useCallback((event, view) => {
         if (event.isTrusted && view.state.doc.toString() === "") {
           setTimeout(() => startCompletion(view), 0);
         }
-      };
-      const makeAutocompletion = () => autocompletion({
-        override: [(context) => getCompletions(context, filterItems)],
-        activateOnCompletion: (c2) => c2.label.endsWith(" ")
-      });
-      const makeLinter = () => linter((view) => getLints(view, filteringResultInstant == null ? void 0 : filteringResultInstant.error));
-      const makeUpdateListener = () => EditorView.updateListener.of((update) => {
-        if (update.docChanged && evalDescriptor) {
-          const newValue = update.state.doc.toString();
-          const filteringResult = getFilteringResult(
-            evalDescriptor,
-            samples,
-            newValue
-          );
-          if (!filteringResult.error) {
-            setScoreFilter({ value: newValue });
+      }, []);
+      const makeAutocompletion = reactExports.useCallback(
+        () => autocompletion({
+          override: [(context) => getCompletions(context, filterItems)],
+          activateOnCompletion: (c2) => c2.label.endsWith(" ")
+        }),
+        []
+      );
+      const makeLinter = reactExports.useCallback(
+        () => linter((view) => getLints(view, filterError)),
+        [filterError]
+      );
+      const debounceSetFilter = reactExports.useCallback(
+        debounce$1((value2) => {
+          setFilter(value2);
+        }, 200),
+        [setFilter]
+      );
+      const makeUpdateListener = reactExports.useCallback(
+        () => EditorView.updateListener.of((update) => {
+          if (update.docChanged && evalDescriptor) {
+            const newValue = update.state.doc.toString();
+            debounceSetFilter(newValue);
           }
-          setFilteringResultInstant(filteringResult);
-        }
-      });
+        }),
+        [setFilter]
+      );
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.destroy();
         editorViewRef.current = new EditorView({
           parent: editorRef.current ?? void 0,
           state: EditorState.create({
-            doc: scoreFilter.value || "",
+            doc: filter || "",
             extensions: [
               minimalSetup,
               bracketMatching(),
@@ -81411,20 +81432,15 @@ Supported expressions:
       reactExports.useEffect(() => {
         if (!editorViewRef.current) return;
         const currentValue = editorViewRef.current.state.doc.toString();
-        if (scoreFilter.value === currentValue) return;
-        if (evalDescriptor) {
-          setFilteringResultInstant(
-            getFilteringResult(evalDescriptor, samples, scoreFilter.value || "")
-          );
-        }
+        if (filter === currentValue) return;
         editorViewRef.current.dispatch({
           changes: {
             from: 0,
             to: currentValue.length,
-            insert: scoreFilter.value || ""
+            insert: filter || ""
           }
         });
-      }, [evalDescriptor, scoreFilter.value]);
+      }, [filter]);
       reactExports.useEffect(() => {
         var _a2;
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
@@ -81442,7 +81458,7 @@ Supported expressions:
         (_a2 = editorViewRef.current) == null ? void 0 : _a2.dispatch({
           effects: linterCompartment.current.reconfigure(makeLinter())
         });
-      }, [filteringResultInstant == null ? void 0 : filteringResultInstant.error]);
+      }, [filterError]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex" }, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
@@ -81461,10 +81477,7 @@ Supported expressions:
           "div",
           {
             ref: editorRef,
-            className: clsx(
-              (filteringResultInstant == null ? void 0 : filteringResultInstant.error) && "filter-pending",
-              styles$9.input
-            )
+            className: clsx(filterError && "filter-pending", styles$9.input)
           }
         ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -81642,7 +81655,7 @@ Supported expressions:
       const setSort = useStore((state) => state.logActions.setSort);
       const epochs = (selectedLogSummary == null ? void 0 : selectedLogSummary.eval.config.epochs) || 1;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFilter, { samples }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(SampleFilter, {}),
         (scores2 == null ? void 0 : scores2.length) > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(SelectScorer, { scores: scores2, score: score2, setScore }) : void 0,
         epochs > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(EpochFilter, { epoch, setEpoch, epochs }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsx(SortFilter, { sort, setSort, epochs })

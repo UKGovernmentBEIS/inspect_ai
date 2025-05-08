@@ -1,19 +1,12 @@
 import { compileExpression } from "filtrex";
 import { Scores1 } from "../../../@types/log";
-import { ScoreLabel } from "../../../app/types";
+import { FilterError, ScoreLabel } from "../../../app/types";
 import { SampleSummary } from "../../../client/api/types";
 import { kScoreTypeBoolean } from "../../../constants";
 import { inputString } from "../../../utils/format";
 import { EvalDescriptor, ScoreDescriptor } from "../descriptor/types";
 
-export interface FilterError {
-  from: number;
-  to: number;
-  message: string;
-  severity: "warning" | "error";
-}
-
-export interface ScoreFilterItem {
+export interface SampleFilterItem {
   shortName?: string;
   qualifiedName?: string;
   canonicalName: string;
@@ -120,10 +113,10 @@ const sampleVariables = (sample: SampleSummary): Record<string, unknown> => {
  * Child metrics are accessed using dot notation (e.g. `scorer_name.score_name`) or
  * directly by name when it is unique.
  */
-export const scoreFilterItems = (
+export const sampleFilterItems = (
   evalDescriptor: EvalDescriptor,
-): ScoreFilterItem[] => {
-  const items: ScoreFilterItem[] = [];
+): SampleFilterItem[] => {
+  const items: SampleFilterItem[] = [];
   const bannedShortNames = bannedShortScoreNames(evalDescriptor.scores);
   const valueToString = (value: unknown) =>
     typeof value === "string" ? `"${value}"` : String(value);

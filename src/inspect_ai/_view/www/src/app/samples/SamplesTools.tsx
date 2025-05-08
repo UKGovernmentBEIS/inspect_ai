@@ -26,7 +26,7 @@ export const SampleTools: FC<SampleToolsProps> = ({ samples }) => {
   const epochs = selectedLogSummary?.eval.config.epochs || 1;
   return (
     <Fragment>
-      <SampleFilter samples={samples} />
+      <SampleFilter />
       {scores?.length > 1 ? (
         <SelectScorer scores={scores} score={score} setScore={setScore} />
       ) : undefined}
