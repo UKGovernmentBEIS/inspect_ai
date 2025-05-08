@@ -393,7 +393,7 @@ The `events_df()` function is not yet implemented.
 
 ### Custom
 
-You can create custom column types that extract data based on additional paramters. For example, imagine you want to write a set of extraction functions that are passed a `ReportConfig` and an `EvalLog` (the report configuration might specify scores to extract, normalisation constraints, etc.)
+You can create custom column types that extract data based on additional parameters. For example, imagine you want to write a set of extraction functions that are passed a `ReportConfig` and an `EvalLog` (the report configuration might specify scores to extract, normalisation constraints, etc.)
 
 Here we define a new `ReportColumn` class that derives from `EvalColumn`:
 
