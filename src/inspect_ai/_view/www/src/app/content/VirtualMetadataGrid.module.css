@@ -1,0 +1,19 @@
+.keyPairContainer {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.5em;
+  padding-bottom: 0.3em;
+}
+
+.key {
+  display: grid;
+  grid-template-columns: 1em auto;
+}
+
+.pre {
+  margin-bottom: 0;
+}
+
+.treeIcon {
+  margin-top: -3px;
+}

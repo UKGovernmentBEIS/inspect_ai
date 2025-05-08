@@ -15780,17 +15780,22 @@ pre[class*="language-"] {
 .language-javascript {
   background: transparent !important;
 }
-._query_9u9bt_1 {
+._query_seqs2_1 {
   margin-bottom: 0.5rem;
   font-weight: 500;
 }
 
-._summary_9u9bt_6 {
+._summary_seqs2_6 {
   margin-bottom: 0.5rem;
 }
 
-._preWrap_9u9bt_10 {
+._preWrap_seqs2_10 {
   white-space: pre-wrap;
+  word-break: break-word;
+}
+
+._preCompact_seqs2_15 {
+  margin-bottom: 0;
 }
 ._circle_1iagp_1 {
   font-family: "Consola Regular";
@@ -16899,6 +16904,25 @@ pre[class*="language-"] {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 0.3em;
+}
+._keyPairContainer_1ee7x_1 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  column-gap: 0.5em;
+  padding-bottom: 0.3em;
+}
+
+._key_1ee7x_1 {
+  display: grid;
+  grid-template-columns: 1em auto;
+}
+
+._pre_1ee7x_13 {
+  margin-bottom: 0;
+}
+
+._treeIcon_1ee7x_17 {
+  margin-top: -3px;
 }
 /* PulsingDots.module.css */
 ._container_1rer0_2 {

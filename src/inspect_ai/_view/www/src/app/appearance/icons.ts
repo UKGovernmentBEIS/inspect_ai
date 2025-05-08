@@ -102,5 +102,9 @@ export const ApplicationIcons = {
   step: "bi bi-fast-forward-btn",
   subtask: "bi bi-subtract",
   transcript: "bi bi-list-columns-reverse",
+  tree: {
+    open: "bi bi-caret-down-fill",
+    closed: "bi bi-caret-right-fill",
+  },
   usage: "bi bi-stopwatch",
 };

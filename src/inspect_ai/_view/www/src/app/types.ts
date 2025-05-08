@@ -94,6 +94,7 @@ export interface SampleState {
   // Events and attachments
   runningEvents: Event[];
   collapsedEvents: Record<string, true> | null;
+  collapsedMetadata: Record<string, Record<string, boolean>>;
 }
 
 export type Event =

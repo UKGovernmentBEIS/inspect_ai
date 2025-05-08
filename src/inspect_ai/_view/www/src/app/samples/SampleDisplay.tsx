@@ -1,5 +1,4 @@
 import { TabPanel, TabSet } from "../../components/TabSet";
-import { MetaDataView } from "../content/MetaDataView";
 
 import { escapeSelector } from "../../utils/html";
 import { isVscode } from "../../utils/vscode";
@@ -36,6 +35,7 @@ import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
 import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
+import { VirtualMetadataGrid } from "../content/VirtualMetadataGrid";
 import { useSampleDetailNavigation } from "../routing/navigationHooks";
 import {
   sampleMessageUrl,
@@ -145,7 +145,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
     ],
   );
 
-  const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
+  const sampleMetadatas = metadataViewsForSample(
+    `${baseId}-${id}`,
+    scrollRef,
+    sample,
+  );
 
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
@@ -320,7 +324,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   );
 };
 
-const metadataViewsForSample = (id: string, sample?: EvalSample) => {
+const metadataViewsForSample = (
+  id: string,
+  scrollRef: RefObject<HTMLDivElement | null>,
+  sample?: EvalSample,
+) => {
   if (!sample) {
     return [];
   }
@@ -370,10 +378,11 @@ const metadataViewsForSample = (id: string, sample?: EvalSample) => {
       <Card key={`sample-metadata-${id}`}>
         <CardHeader label="Metadata" />
         <CardBody>
-          <MetaDataView
-            id="task-sample-metadata-${id}"
-            entries={sample?.metadata as Record<string, unknown>}
+          <VirtualMetadataGrid
+            id={`task-sample-metadata-${id}`}
+            record={sample?.metadata as Record<string, unknown>}
             className={clsx("tab-pane", styles.noTop)}
+            scrollRef={scrollRef}
           />
         </CardBody>
       </Card>,
@@ -385,10 +394,11 @@ const metadataViewsForSample = (id: string, sample?: EvalSample) => {
       <Card key={`sample-store-${id}`}>
         <CardHeader label="Store" />
         <CardBody>
-          <MetaDataView
-            id="task-sample-store-${id}"
-            entries={sample?.store as Record<string, unknown>}
+          <VirtualMetadataGrid
+            id={`task-sample-store-${id}`}
+            record={sample?.store as Record<string, unknown>}
             className={clsx("tab-pane", styles.noTop)}
+            scrollRef={scrollRef}
           />
         </CardBody>
       </Card>,
