@@ -8,6 +8,7 @@
 - Inspect View: Properly display 'more' options when content is collapsed.
 - Ignore OSError that occurs while rotating trace files.
 - Bugfix: Ensure that "init" span is exited in the same async context when sandbox connection errors occur.
+- Bugfix: Protect against no `thought` argument being passed to `think()` tool.
 
 ## v0.3.94 (06 May 2025)
 
