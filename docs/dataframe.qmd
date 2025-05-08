@@ -30,7 +30,7 @@ table a {
 Inspect eval logs have a hierarchical structure which is well suited to flexibly capturing all the elements of an evaluation. However, when analysing or visualising log data you will often want to transform logs into [data frames](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html). The **inspect_ai.analysis** module includes a variety of functions for extracting [Pandas](https://pandas.pydata.org/) data frames from logs, including:
 
 | Function | Description |
-|--------------------------|----------------------------------------------|
+|---------------------------|---------------------------------------------|
 | [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
 | [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
@@ -268,11 +268,11 @@ EvalScores: list[Column] = [
 
 ### Samples {#samples}
 
-The `samples_df()` function can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`). 
+The `samples_df()` function can read from either sample summaries (`EvalSampleSummary`) or full sample records (`EvalSample`).
 
-By default, the `SampleSummary` column group is used, which reads only from summaries, resulting in considerably higher performance than reading full samples. 
+By default, the `SampleSummary` column group is used, which reads only from summaries, resulting in considerably higher performance than reading full samples.
 
-```python
+``` python
 SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),
     SampleColumn("epoch", path="epoch", required=True),
@@ -291,7 +291,7 @@ SampleSummary: list[Column] = [
 
 If you want to read all of the messages contained in a sample into a string column, use the `SampleMessages` column group. For example, here we read the summary field and the messages:
 
-```python
+``` python
 from inspect_ai.analysis.beta import (
     SampleMessages, SampleSummary, samples_df
 )
@@ -303,7 +303,6 @@ samples_df(
 ```
 
 Note that reading `SampleMessages` requires reading full sample content, so will take considerably longer than reading only summaries.
-
 
 #### Full Samples
 
@@ -325,7 +324,6 @@ def model_reasoning_tokens(summary: EvalSampleSummary) -> JsonValue:
 SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 ```
 
-
 ::: {.callout-note appearance="simple"}
 Sample summaries were enhanced in version 0.3.93 (May 1, 2025) to include the `metadata`, `model_usage`, `total_time`, `working_time`, and `retries` fields. If you need to read any of these values you can update older logs with the new fields by round-tripping them through `inspect log convert`. For example:
 
@@ -334,38 +332,42 @@ $ inspect log convert ./logs --to eval --output-dir ./logs-ammended
 ```
 :::
 
-
 ### Messages {#messages}
 
-The `messages_df()` function enables reading message level data from a set of eval logs. Each row corresponds to a message, and includes the a `sample_id` and `event_id` for linking back to its parent contexts.
+The `messages_df()` function enables reading message level data from a set of eval logs. Each row corresponds to a message, and includes a `sample_id` and `event_id` for linking back to its parents.
 
 The `messages_df()` function takes a `filter` parameter which can either be a list of `role` designations or a function that performs filtering. For example:
 
-```python
+``` python
 assistant_messages = messages_df("logs", filter=["assistant"])
 ```
 
 #### Default Columns
 
-The default `MessageColumns` reads role, content (as text) and tool calling fields:
+The default `MessageColumns` includes `MessageContent` and `MessageToolCalls`:
 
-```python
-MessageColumns: list[Column] = [
+``` python
+MessageContent: list[Column] = [
     MessageColumn("role", path="role", required=True),
     MessageColumn("content", path=message_text),
     MessageColumn("source", path="source"),
+]
+
+MessageToolCalls: list[Column] = [
     MessageColumn("tool_calls", path=message_tool_calls),
     MessageColumn("tool_call_id", path="tool_call_id"),
     MessageColumn("tool_call_function", path="function"),
     MessageColumn("tool_call_error", path="error.message"),
 ]
+
+MessageColumns: list[Column] = MessageContent + MessageToolCalls
 ```
 
 #### Custom Extraction
 
-You'll note that two of the fields are resolved using custom extraction functions (`content` and `tool_calls`). Here is the source code for those functions:
+Two of the fields above are resolved using custom extraction functions (`content` and `tool_calls`). Here is the source code for those functions:
 
-```python
+``` python
 def message_text(message: ChatMessage) -> str:
     return message.text
 
@@ -384,8 +386,6 @@ def message_tool_calls(message: ChatMessage) -> str | None:
     else:
         return None
 ```
-
-
 
 ### Events {#events}
 
