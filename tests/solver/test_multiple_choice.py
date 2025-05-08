@@ -1,4 +1,5 @@
 from random import Random
+from typing import Any
 
 import pytest
 from test_helpers.utils import simple_task_state
@@ -14,14 +15,14 @@ from inspect_ai.solver import MultipleChoiceTemplate, TaskState, multiple_choice
 from inspect_ai.solver._task_state import Choice
 
 
-async def generate(state: TaskState) -> TaskState:
+async def generate(state: TaskState, **kwargs: Any) -> TaskState:
     state.messages.append(ChatMessageAssistant(content="ANSWER: A"))
     state.output = ModelOutput.from_content(model="model", content="ANSWER: A")
     return state
 
 
 def generate_for_multiple_correct(answers: str):
-    async def generate(state: TaskState) -> TaskState:
+    async def generate(state: TaskState, **kwargs: Any) -> TaskState:
         state.messages.append(ChatMessageAssistant(content=answers))
         state.output = ModelOutput.from_content(model="model", content=answers)
         return state
@@ -133,7 +134,7 @@ async def test_custom_template_raises_with_missing_fields():
 
 @pytest.mark.anyio
 async def test_can_shuffle_choices_when_calling_the_model():
-    async def generate_shuffled(state: TaskState):
+    async def generate_shuffled(state: TaskState, **kwargs: Any):
         # Ensure that the choices are shuffled before we call the model
         assert "A) choice 3" in state.user_prompt.text
         assert "B) choice 2" in state.user_prompt.text
@@ -237,7 +238,7 @@ async def test_multiple_shuffled_answers_one_answer():
     # Given the shuffling before calling generate, the actual answer is actually A
     actual_generate = generate_for_multiple_correct(answers="ANSWER: C")
 
-    async def generate_shuffled(state: TaskState):
+    async def generate_shuffled(state: TaskState, **kwargs: Any):
         # Ensure that the choices are shuffled before we call the model
         assert "A) choice 3" in state.user_prompt.text
         assert "B) choice 2" in state.user_prompt.text
@@ -278,7 +279,7 @@ async def test_multiple_shuffled_answers_more():
     # Given the shuffling before calling generate, the actual answers are B, C
     actual_generate = generate_for_multiple_correct(answers="ANSWER: A, D")
 
-    async def generate_shuffled(state: TaskState):
+    async def generate_shuffled(state: TaskState, **kwargs: Any):
         # Ensure that the choices are shuffled before we call the model
         assert "A) choice 3" in state.user_prompt.text
         assert "B) choice 1" in state.user_prompt.text
@@ -357,7 +358,7 @@ async def test_cot_complex_text():
         messages=[ChatMessageUser(content="What's the answer?", source="input")],
     )
 
-    async def generate_cot_text(state: TaskState) -> TaskState:
+    async def generate_cot_text(state: TaskState, **kwargs: Any) -> TaskState:
         state.messages.append(ChatMessageAssistant(content=cot_complex))
         state.output = ModelOutput.from_content(model="model", content=cot_complex)
         return state

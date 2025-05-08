@@ -15851,7 +15851,7 @@ var require_assets = __commonJS({
       return __toString.call(val) === "[object Date]";
     }
     /**
-     * react-router v7.5.1
+     * react-router v7.5.3
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -17249,7 +17249,11 @@ var require_assets = __commonJS({
           }
           return {
             matches,
-            pendingActionResult: [boundaryMatch.route.id, result2]
+            pendingActionResult: [
+              boundaryMatch.route.id,
+              result2,
+              actionMatch.route.id
+            ]
           };
         }
         return {
@@ -19418,7 +19422,9 @@ var require_assets = __commonJS({
       });
       if (pendingError !== void 0 && pendingActionResult) {
         errors2 = { [pendingActionResult[0]]: pendingError };
-        loaderData[pendingActionResult[0]] = void 0;
+        if (pendingActionResult[2]) {
+          loaderData[pendingActionResult[2]] = void 0;
+        }
       }
       return {
         loaderData,
@@ -21109,7 +21115,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
     try {
       if (isBrowser) {
-        window.__reactRouterVersion = "7.5.1";
+        window.__reactRouterVersion = "7.5.3";
       }
     } catch (e) {
     }
@@ -21510,7 +21516,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       304
     ]);
     /**
-     * react-router v7.5.1
+     * react-router v7.5.3
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -24422,12 +24428,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [callback]);
       return elementRef;
     };
-    const expandableBordered = "_expandableBordered_1wpxz_1";
-    const expandableCollapsed = "_expandableCollapsed_1wpxz_13";
-    const moreToggle = "_moreToggle_1wpxz_17";
-    const bordered = "_bordered_1wpxz_24";
-    const moreToggleContainer = "_moreToggleContainer_1wpxz_28";
-    const moreToggleButton = "_moreToggleButton_1wpxz_39";
+    const expandableBordered = "_expandableBordered_59eal_1";
+    const expandableCollapsed = "_expandableCollapsed_59eal_13";
+    const moreToggle = "_moreToggle_59eal_17";
+    const bordered = "_bordered_59eal_24";
+    const moreToggleContainer = "_moreToggleContainer_59eal_28";
+    const moreToggleButton = "_moreToggleButton_59eal_39";
     const styles$1j = {
       expandableBordered,
       expandableCollapsed,
@@ -24440,15 +24446,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       ({ id, collapse, border, lines = 15, children: children2, className: className2 }) => {
         const [collapsed, setCollapsed] = useCollapsedState(id, collapse);
         const [showToggle, setShowToggle] = reactExports.useState(false);
-        const lineHeightRef = reactExports.useRef(0);
+        const baseFontSizeRef = reactExports.useRef(0);
         const checkOverflow = reactExports.useCallback(
           (entry2) => {
             const element = entry2.target;
-            if (!lineHeightRef.current) {
+            if (baseFontSizeRef.current === 0) {
               const computedStyle = window.getComputedStyle(element);
-              lineHeightRef.current = parseInt(computedStyle.lineHeight) || 16;
+              const rootFontSize = parseFloat(computedStyle.fontSize);
+              baseFontSizeRef.current = rootFontSize;
             }
-            const maxCollapsedHeight = lines * lineHeightRef.current;
+            const maxCollapsedHeight = baseFontSizeRef.current * lines;
             const contentHeight = element.scrollHeight;
             setShowToggle(contentHeight > maxCollapsedHeight);
           },
