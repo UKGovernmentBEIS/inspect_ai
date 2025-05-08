@@ -573,7 +573,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Have another model assess whether the model output is a correct answer based on the grading guidance contained in <code>target</code>. Has a built-in template that can be customised.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span></p>
 <p>Have another model assess whether the model output contains a fact that is set out in <code>target</code>. This is a more narrow assessment than <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>, and is used when model output is too complex to be assessed using a simple <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#match">match()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#pattern">pattern()</a></span> scorer.</p></li>
-<li><p><code>choices()</code></p>
+<li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#choice">choice()</a></span></p>
 <p>Specialised scorer that is used with the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span> solver.</p></li>
 </ul>
 <p>Scorers provide one or more built-in metrics (each of the scorers above provides <code>accuracy</code> and <code>stderr</code> as a metric). You can also provide your own custom metrics in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> definitions. For example:</p>

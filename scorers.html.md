@@ -81,7 +81,7 @@ Definition** command in your source editor.
   `model_graded_qa()`, and is used when model output is too complex to
   be assessed using a simple `match()` or `pattern()` scorer.
 
-- `choices()`
+- `choice()`
 
   Specialised scorer that is used with the `multiple_choice()` solver.
 

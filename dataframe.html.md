@@ -11,9 +11,10 @@
 > pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
 > ```
 >
-> Functions are exported from the **inspect_ai.analysis.beta** module
-> during the period of initial community review. They will be moved to
-> the main namespace before release to PyPI.
+> Analysis functions are currently in beta and are exported from the
+> **inspect_ai.analysis.beta** module. The beta module will be preserved
+> after final release so that code written against it now continues to
+> work after the beta.
 
 ## Overview
 
@@ -476,3 +477,62 @@ def message_tool_calls(message: ChatMessage) -> str | None:
 ### Events
 
 The `events_df()` function is not yet implemented.
+
+### Custom
+
+You can create custom column types that extract data based on additional
+parameters. For example, imagine you want to write a set of extraction
+functions that are passed a `ReportConfig` and an `EvalLog` (the report
+configuration might specify scores to extract, normalisation
+constraints, etc.)
+
+Here we define a new `ReportColumn` class that derives from
+`EvalColumn`:
+
+``` python
+import functools
+from typing import Callable
+from pydantic import BaseModel, JsonValue
+
+from inspect_ai.log import EvalLog
+from inspect_ai.analysis.beta import EvalColumn
+
+class ReportConfig(BaseModel):
+    # config fields
+    ...
+
+class ReportColumn(EvalColumn):
+    def __init__(
+        self,
+        name: str,
+        config: ReportConfig,
+        extract: Callable[[ReportConfig, EvalLog], JsonValue],
+        *,
+        required: bool = False,
+    ) -> None:
+        super().__init__(
+            name=name,
+            path=functools.partial(extract, config),
+            required=required,
+        )
+```
+
+The key here is using
+[functools.partial](https://www.geeksforgeeks.org/partial-functions-python/)
+to adapt the function that takes `config` and `log` into a function that
+takes `log` (which is what the `EvalColumn` class works with).
+
+We can now create extraction functions that take a `ReportConfig` and an
+`EvalLog` and pass them to `ReportColumn`:
+
+``` python
+# read dict scores from log according to config
+def read_scores(config: ReportConfig, log: EvalLog) -> JsonValue:
+    ...
+
+# config for a given report
+config = ReportConfig(...)
+
+# column that reads scores from log based on config
+ReportColumn("score_*", config, read_scores)
+```

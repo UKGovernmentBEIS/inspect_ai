@@ -490,6 +490,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#samples" id="toc-samples" class="nav-link" data-scroll-target="#samples">Samples</a></li>
   <li><a href="#messages" id="toc-messages" class="nav-link" data-scroll-target="#messages">Messages</a></li>
   <li><a href="#events" id="toc-events" class="nav-link" data-scroll-target="#events">Events</a></li>
+  <li><a href="#custom" id="toc-custom" class="nav-link" data-scroll-target="#custom">Custom</a></li>
   </ul></li>
   </ul>
 <div class="toc-actions"><ul><li><a href="https://github.com/UKGovernmentBEIS/inspect_ai/issues/new" class="toc-action"><i class="bi bi-github"></i>Report an issue</a></li></ul></div></nav>
@@ -528,7 +529,7 @@ Note
 <div class="callout-body-container callout-body">
 <p>The analysis functions described below are available only in the development version of Inspect. To install the development version from GitHub:</p>
 <div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install git+https://github.com/UKGovernmentBEIS/inspect_ai</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
-<p>Functions are exported from the <strong>inspect_ai.analysis.beta</strong> module during the period of initial community review. They will be moved to the main namespace before release to PyPI.</p>
+<p>Analysis functions are currently in beta and are exported from the <strong>inspect_ai.analysis.beta</strong> module. The beta module will be preserved after final release so that code written against it now continues to work after the beta.</p>
 </div>
 </div>
 <section id="overview" class="level2">
@@ -899,6 +900,47 @@ table a {
 <section id="events" class="level3">
 <h3 class="anchored" data-anchor-id="events">Events</h3>
 <p>The <code>events_df()</code> function is not yet implemented.</p>
+</section>
+<section id="custom" class="level3">
+<h3 class="anchored" data-anchor-id="custom">Custom</h3>
+<p>You can create custom column types that extract data based on additional parameters. For example, imagine you want to write a set of extraction functions that are passed a <code>ReportConfig</code> and an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> (the report configuration might specify scores to extract, normalisation constraints, etc.)</p>
+<p>Here we define a new <code>ReportColumn</code> class that derives from <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span>:</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> functools</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> typing <span class="im">import</span> Callable</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> pydantic <span class="im">import</span> BaseModel, JsonValue</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.log <span class="im">import</span> EvalLog</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.analysis.beta <span class="im">import</span> EvalColumn</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ReportConfig(BaseModel):</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    <span class="co"># config fields</span></span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> ReportColumn(EvalColumn):</span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(</span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>,</span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>        name: <span class="bu">str</span>,</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>        config: ReportConfig,</span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>        extract: Callable[[ReportConfig, EvalLog], JsonValue],</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>        <span class="op">*</span>,</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>        required: <span class="bu">bool</span> <span class="op">=</span> <span class="va">False</span>,</span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>    ) <span class="op">-&gt;</span> <span class="va">None</span>:</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>        <span class="bu">super</span>().<span class="fu">__init__</span>(</span>
+<span id="cb26-22"><a href="#cb26-22" aria-hidden="true" tabindex="-1"></a>            name<span class="op">=</span>name,</span>
+<span id="cb26-23"><a href="#cb26-23" aria-hidden="true" tabindex="-1"></a>            path<span class="op">=</span>functools.partial(extract, config),</span>
+<span id="cb26-24"><a href="#cb26-24" aria-hidden="true" tabindex="-1"></a>            required<span class="op">=</span>required,</span>
+<span id="cb26-25"><a href="#cb26-25" aria-hidden="true" tabindex="-1"></a>        )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<p>The key here is using <a href="https://www.geeksforgeeks.org/partial-functions-python/">functools.partial</a> to adapt the function that takes <code>config</code> and <code>log</code> into a function that takes <code>log</code> (which is what the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evalcolumn">EvalColumn</a></span> class works with).</p>
+<p>We can now create extraction functions that take a <code>ReportConfig</code> and an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.log.html#evallog">EvalLog</a></span> and pass them to <code>ReportColumn</code>:</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co"># read dict scores from log according to config</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> read_scores(config: ReportConfig, log: EvalLog) <span class="op">-&gt;</span> JsonValue:</span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>    ...</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co"># config for a given report</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a>config <span class="op">=</span> ReportConfig(...)</span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="co"># column that reads scores from log based on config</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a>ReportColumn(<span class="st">"score_*"</span>, config, read_scores)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 
 
 </section>
