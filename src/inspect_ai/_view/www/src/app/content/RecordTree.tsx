@@ -43,10 +43,17 @@ export const RecordTree: FC<RecordTreeProps> = ({
   );
 
   // Collapse state
-  const [collapsedIds, setCollapsed] = useCollapsibleIds(id);
+  const [collapsedIds, setCollapsed, clearIds] = useCollapsibleIds(id);
   const setCollapsedIds = useStore(
     (state) => state.sampleActions.setCollapsedIds,
   );
+
+  // Clear the collapsed ids when the component unmounts
+  useEffect(() => {
+    return () => {
+      clearIds();
+    };
+  }, [clearIds, id]);
 
   // Tree-ify the record (creates a flat lsit of items with depth property)
   const items = useMemo(() => {
@@ -60,7 +67,7 @@ export const RecordTree: FC<RecordTreeProps> = ({
     }
 
     const defaultCollapsedIds = items.reduce((prev, item) => {
-      if (item.hasChildren) {
+      if (item.depth > 0 && item.hasChildren) {
         return {
           ...prev,
           [item.id]: true,

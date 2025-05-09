@@ -24183,9 +24183,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               }
             });
           },
-          clearCollapsedIds: () => {
+          clearCollapsedIds: (key2) => {
             set2((state) => {
-              state.sample.collapsedIdBuckets = {};
+              delete state.sample.collapsedIdBuckets[key2];
             });
           },
           pollSample: async (logFile, sampleSummary) => {
@@ -43032,9 +43032,15 @@ categories: ${categories.join(" ")}`;
         },
         [setCollapsed]
       );
+      const clearCollapsedIds = useStore(
+        (state) => state.sampleActions.clearCollapsedIds
+      );
+      const clearIds = reactExports.useCallback(() => {
+        clearCollapsedIds(key2);
+      }, [clearCollapsedIds, key2]);
       return reactExports.useMemo(() => {
-        return [collapsedIds, collapseId];
-      }, [collapsedIds, collapseId]);
+        return [collapsedIds, collapseId, clearIds];
+      }, [collapsedIds, collapseId, clearIds]);
     };
     const useCollapsedState = (id, defaultValue, scope) => {
       const stateId = id;
@@ -51043,10 +51049,15 @@ self.onmessage = function (e) {
         listHandle,
         `metadata-grid-${id}`
       );
-      const [collapsedIds, setCollapsed] = useCollapsibleIds(id);
+      const [collapsedIds, setCollapsed, clearIds] = useCollapsibleIds(id);
       const setCollapsedIds = useStore(
         (state) => state.sampleActions.setCollapsedIds
       );
+      reactExports.useEffect(() => {
+        return () => {
+          clearIds();
+        };
+      }, [clearIds, id]);
       const items = reactExports.useMemo(() => {
         return toTreeItems(record, collapsedIds || {});
       }, [record, collapsedIds]);
@@ -51055,7 +51066,7 @@ self.onmessage = function (e) {
           return;
         }
         const defaultCollapsedIds = items.reduce((prev, item2) => {
-          if (item2.hasChildren) {
+          if (item2.depth > 0 && item2.hasChildren) {
             return {
               ...prev,
               [item2.id]: true
