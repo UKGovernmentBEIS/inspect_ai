@@ -9,7 +9,7 @@ from ._tavily import tavily_search_provider
 
 @tool
 def web_search(
-    provider: Literal["tavily", "google"] | None,
+    provider: Literal["tavily", "google"] | None = None,
     num_results: int = 3,
     max_provider_calls: int = 3,
     max_connections: int = 10,
