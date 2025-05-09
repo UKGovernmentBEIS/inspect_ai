@@ -289,7 +289,11 @@ export const useCollapseSampleEvent = (
 
 export const useCollapsibleIds = (
   key: string,
-): [Record<string, boolean>, (id: string, value: boolean) => void] => {
+): [
+  Record<string, boolean>,
+  (id: string, value: boolean) => void,
+  () => void,
+] => {
   const collapsedIds = useStore(
     (state) => state.sample.collapsedIdBuckets[key],
   );
@@ -302,9 +306,16 @@ export const useCollapsibleIds = (
     [setCollapsed],
   );
 
+  const clearCollapsedIds = useStore(
+    (state) => state.sampleActions.clearCollapsedIds,
+  );
+  const clearIds = useCallback(() => {
+    clearCollapsedIds(key);
+  }, [clearCollapsedIds, key]);
+
   return useMemo(() => {
-    return [collapsedIds, collapseId];
-  }, [collapsedIds, collapseId]);
+    return [collapsedIds, collapseId, clearIds];
+  }, [collapsedIds, collapseId, clearIds]);
 };
 
 export const useCollapsedState = (

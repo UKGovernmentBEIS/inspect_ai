@@ -31,7 +31,7 @@ export interface SampleSlice {
 
     setCollapsedIds: (key: string, collapsed: Record<string, true>) => void;
     collapseId: (key: string, id: string, collapsed: boolean) => void;
-    clearCollapsedIds: () => void;
+    clearCollapsedIds: (key: string) => void;
 
     // Loading
     loadSample: (
@@ -169,9 +169,9 @@ export const createSampleSlice = (
           }
         });
       },
-      clearCollapsedIds: () => {
+      clearCollapsedIds: (key: string) => {
         set((state) => {
-          state.sample.collapsedIdBuckets = {};
+          delete state.sample.collapsedIdBuckets[key];
         });
       },
 
