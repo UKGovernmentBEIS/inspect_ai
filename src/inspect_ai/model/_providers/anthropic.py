@@ -28,6 +28,7 @@ from anthropic.types import (
     ThinkingBlockParam,
     ToolParam,
     ToolResultBlockParam,
+    ToolTextEditor20241022Param,
     ToolTextEditor20250124Param,
     ToolUseBlock,
     ToolUseBlockParam,
@@ -570,8 +571,14 @@ class AnthropicAPI(ModelAPI):
                 ]
             )
         ):
-            return ToolTextEditor20250124Param(
-                type="text_editor_20250124", name="str_replace_editor"
+            return (
+                ToolTextEditor20241022Param(
+                    type="text_editor_20241022", name="str_replace_editor"
+                )
+                if self.is_claude_3_5()
+                else ToolTextEditor20250124Param(
+                    type="text_editor_20250124", name="str_replace_editor"
+                )
             )
         # not a text_editor tool
         else:
@@ -853,6 +860,7 @@ def _names_for_tool_call(
     """
     mappings = (
         (INTERNAL_COMPUTER_TOOL_NAME, "computer_20250124", "computer"),
+        ("str_replace_editor", "text_editor_20241022", "text_editor"),
         ("str_replace_editor", "text_editor_20250124", "text_editor"),
         ("bash", "bash_20250124", "bash_session"),
     )
