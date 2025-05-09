@@ -9,7 +9,6 @@ import { MetaDataView } from "./MetaDataView";
 import clsx from "clsx";
 import { FC, Fragment, isValidElement, JSX, ReactNode } from "react";
 import JSONPanel from "../../components/JsonPanel";
-import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { isJson } from "../../utils/json";
 import styles from "./RenderedContent.module.css";
 import { Buckets, ContentRenderer, RenderOptions } from "./types";
@@ -143,12 +142,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       const rendered = entry.value.trim();
       if (options.renderString === "markdown") {
         return {
-          rendered: (
-            <MarkdownDiv
-              markdown={rendered}
-              className={clsx(styles.preWrap, styles.preCompact)}
-            />
-          ),
+          rendered: rendered,
         };
       } else {
         return {

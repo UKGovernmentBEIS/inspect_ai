@@ -39437,13 +39437,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           const rendered = entry2.value.trim();
           if (options2.renderString === "markdown") {
             return {
-              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                MarkdownDiv,
-                {
-                  markdown: rendered,
-                  className: clsx(styles$18.preWrap, styles$18.preCompact)
-                }
-              )
+              rendered
             };
           } else {
             return {
@@ -44243,19 +44237,21 @@ categories: ${categories.join(" ")}`;
       metricsSummary,
       modalScores
     };
-    const table$1 = "_table_1hgt6_1";
-    const scorer = "_scorer_1hgt6_5";
-    const value$2 = "_value_1hgt6_6";
-    const label$5 = "_label_1hgt6_11";
-    const groupSeparator = "_groupSeparator_1hgt6_28";
-    const tableBody = "_tableBody_1hgt6_33";
+    const table$1 = "_table_12koy_1";
+    const scorer = "_scorer_12koy_5";
+    const value$2 = "_value_12koy_6";
+    const label$5 = "_label_12koy_11";
+    const groupSeparator = "_groupSeparator_12koy_28";
+    const tableBody = "_tableBody_12koy_33";
+    const tableSeparator = "_tableSeparator_12koy_45";
     const styles$V = {
       table: table$1,
       scorer,
       value: value$2,
       label: label$5,
       groupSeparator,
-      tableBody
+      tableBody,
+      tableSeparator
     };
     const ScoreGrid = ({
       scoreGroups,
@@ -44291,10 +44287,10 @@ categories: ${categories.join(" ")}`;
             cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
           }
         }
-        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$V.headerRow), children: [
+        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$V.headerRow), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
           cells
-        ] });
+        ] }) });
         const rows = [];
         scoreGroup.forEach((g) => {
           const cells2 = [];
@@ -44320,13 +44316,13 @@ categories: ${categories.join(" ")}`;
         });
         subTables.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx(styles$V.tableSeparator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               "td",
               {
                 colSpan: columnCount + 1,
                 className: clsx(styles$V.groupSeparator)
               }
-            ) }) : void 0,
+            ) }) }) : void 0,
             headerRow,
             /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$V.tableBody), children: rows })
           ] })
