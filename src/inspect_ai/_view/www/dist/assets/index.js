@@ -36949,7 +36949,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ref,
             dangerouslySetInnerHTML: markup,
             style: style2,
-            className: clsx(className2, "markdown-content")
+            className: clsx(className2, "markdown-content", "text-size-base")
           }
         );
       }
@@ -37297,9 +37297,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const styles$1e = {
       toolCallView
     };
-    const outputPre = "_outputPre_s62go_1";
-    const toolView = "_toolView_s62go_7";
-    const outputCode = "_outputCode_s62go_15";
+    const outputPre = "_outputPre_1jznn_1";
+    const toolView = "_toolView_1jznn_7";
+    const outputCode = "_outputCode_1jznn_15";
     const styles$1d = {
       outputPre,
       toolView,
@@ -37677,8 +37677,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   getMessageUrl
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "0.4em" } }),
-              " ",
               resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
             ]
           }
@@ -52343,7 +52341,7 @@ self.onmessage = function (e) {
         }
       );
     };
-    const panel$1 = "_panel_8zdtn_1";
+    const panel$1 = "_panel_vz394_1";
     const styles$r = {
       panel: panel$1
     };
@@ -52354,7 +52352,15 @@ self.onmessage = function (e) {
       const event = eventNode.event;
       const panels = [];
       if (typeof event.data === "string") {
-        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.data, className: styles$r.panel }));
+        panels.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            MarkdownDiv,
+            {
+              markdown: event.data,
+              className: clsx(styles$r.panel, "text-size-base")
+            }
+          )
+        );
       } else {
         panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$r.panel }));
       }
