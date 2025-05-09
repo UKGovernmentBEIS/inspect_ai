@@ -4,7 +4,7 @@ import { Card, CardBody } from "../../../components/Card";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { inputString } from "../../../utils/format";
 
-import { FC } from "react";
+import { FC, RefObject } from "react";
 import ExpandablePanel from "../../../components/ExpandablePanel";
 import { useEvalDescriptor } from "../../../state/hooks";
 import { SampleScoresGrid } from "./SampleScoresGrid";
@@ -13,11 +13,13 @@ import styles from "./SampleScoresView.module.css";
 interface SampleScoresViewProps {
   sample?: EvalSample;
   className?: string | string[];
+  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
 export const SampleScoresView: FC<SampleScoresViewProps> = ({
   sample,
   className,
+  scrollRef,
 }) => {
   const evalDescriptor = useEvalDescriptor();
   if (!evalDescriptor) {
@@ -70,6 +72,7 @@ export const SampleScoresView: FC<SampleScoresViewProps> = ({
           <SampleScoresGrid
             evalSample={sample}
             className={clsx(styles.scores)}
+            scrollRef={scrollRef}
           />
         </CardBody>
       </Card>
