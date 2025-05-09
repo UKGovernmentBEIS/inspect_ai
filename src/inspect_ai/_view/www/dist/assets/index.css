@@ -15592,6 +15592,10 @@ pre[class*="language-"] {
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
 ._contentImage_61gdd_1 {
   max-width: 800px;
   border: solid var(--bs-border-color) 1px;
@@ -15628,21 +15632,21 @@ pre[class*="language-"] {
   display: grid;
   row-gap: 1em;
 }
-._outputPre_s62go_1 {
+._outputPre_1jznn_1 {
   padding: 0.5em;
   margin-top: 0.25em;
   margin-bottom: 0;
 }
 
-._toolView_s62go_7 {
+._toolView_1jznn_7 {
   margin-top: 0.25em;
 }
 
-._toolView_s62go_7 pre[class*="language-"] {
+._toolView_1jznn_7 {
   padding: 0.5em !important;
 }
 
-._outputCode_s62go_15 {
+._outputCode_1jznn_15 {
   font-size: 0.8rem !important;
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
@@ -17313,8 +17317,8 @@ pre[class*="language-"] {
 ._dongleIcon_1vfw7_66 {
   padding-right: 0.3em;
 }
-._panel_8zdtn_1 {
-  margin: 0.5em 0;
+._panel_vz394_1 {
+  margin: 0.2em 0;
 }
 ._grid_1eq5o_1 {
   width: 100%;

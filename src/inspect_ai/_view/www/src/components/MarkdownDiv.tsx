@@ -59,7 +59,7 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
         ref={ref}
         dangerouslySetInnerHTML={markup}
         style={style}
-        className={clsx(className, "markdown-content")}
+        className={clsx(className, "markdown-content", "text-size-base")}
       />
     );
   },

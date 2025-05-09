@@ -84,8 +84,6 @@ export const ChatMessageRow: FC<ChatMessageRowProps> = ({
           toolCallStyle={toolCallStyle}
           getMessageUrl={getMessageUrl}
         />
-        {/* This is here just to simulate the row gap in the grid above */}
-        <div style={{ height: "0.4em" }}></div>{" "}
         {resolvedMessage.message.role === "user" ? (
           <div style={{ height: "10px" }}></div>
         ) : undefined}
