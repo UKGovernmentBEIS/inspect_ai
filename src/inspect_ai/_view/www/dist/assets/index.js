@@ -51034,7 +51034,8 @@ self.onmessage = function (e) {
       id,
       record,
       className: className2,
-      scrollRef
+      scrollRef,
+      defaultExpandLevel = 1
     }) => {
       const listHandle = reactExports.useRef(null);
       const { getRestoreState } = useVirtuosoState(
@@ -51058,7 +51059,7 @@ self.onmessage = function (e) {
           return;
         }
         const defaultCollapsedIds = items.reduce((prev, item2) => {
-          if (item2.depth > 0 && item2.hasChildren) {
+          if (item2.depth >= defaultExpandLevel && item2.hasChildren) {
             return {
               ...prev,
               [item2.id]: true
@@ -51884,7 +51885,8 @@ self.onmessage = function (e) {
                 {
                   id: `${scorer2}-metadataa`,
                   scrollRef,
-                  record: metadata2
+                  record: metadata2,
+                  defaultExpandLevel: 0
                 }
               ) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(

@@ -24,6 +24,7 @@ interface RecordTreeProps {
   record: Record<string, unknown>;
   className?: string | string[];
   scrollRef?: RefObject<HTMLDivElement | null>;
+  defaultExpandLevel?: number;
 }
 
 /**
@@ -34,6 +35,7 @@ export const RecordTree: FC<RecordTreeProps> = ({
   record,
   className,
   scrollRef,
+  defaultExpandLevel = 1,
 }) => {
   // The virtual list handle and state
   const listHandle = useRef<VirtuosoHandle | null>(null);
@@ -67,7 +69,7 @@ export const RecordTree: FC<RecordTreeProps> = ({
     }
 
     const defaultCollapsedIds = items.reduce((prev, item) => {
-      if (item.depth > 0 && item.hasChildren) {
+      if (item.depth >= defaultExpandLevel && item.hasChildren) {
         return {
           ...prev,
           [item.id]: true,
