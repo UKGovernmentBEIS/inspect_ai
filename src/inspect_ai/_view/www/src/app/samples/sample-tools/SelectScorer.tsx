@@ -182,13 +182,3 @@ const ScorerSelector: FC<ScorerSelectorProps> = ({
     </select>
   );
 };
-
-const scoreIndex = (scores: ScoreLabel[], score?: ScoreLabel) =>
-  scores.findIndex((sc) => {
-    return score && sc.name === score.name && sc.scorer === score.scorer;
-  });
-
-const scorerIndex = (scores: ScoreLabel[], score?: ScoreLabel) =>
-  scores.findIndex((sc) => {
-    return score && sc.scorer === score.scorer;
-  });

@@ -15851,7 +15851,7 @@ var require_assets = __commonJS({
       return __toString.call(val) === "[object Date]";
     }
     /**
-     * react-router v7.5.3
+     * react-router v7.5.1
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -17249,11 +17249,7 @@ var require_assets = __commonJS({
           }
           return {
             matches,
-            pendingActionResult: [
-              boundaryMatch.route.id,
-              result2,
-              actionMatch.route.id
-            ]
+            pendingActionResult: [boundaryMatch.route.id, result2]
           };
         }
         return {
@@ -19422,9 +19418,7 @@ var require_assets = __commonJS({
       });
       if (pendingError !== void 0 && pendingActionResult) {
         errors2 = { [pendingActionResult[0]]: pendingError };
-        if (pendingActionResult[2]) {
-          loaderData[pendingActionResult[2]] = void 0;
-        }
+        loaderData[pendingActionResult[0]] = void 0;
       }
       return {
         loaderData,
@@ -21115,7 +21109,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
     try {
       if (isBrowser) {
-        window.__reactRouterVersion = "7.5.3";
+        window.__reactRouterVersion = "7.5.1";
       }
     } catch (e) {
     }
@@ -21516,7 +21510,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       304
     ]);
     /**
-     * react-router v7.5.3
+     * react-router v7.5.1
      *
      * Copyright (c) Remix Software Inc.
      *
