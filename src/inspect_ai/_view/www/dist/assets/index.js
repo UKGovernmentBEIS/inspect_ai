@@ -51771,7 +51771,8 @@ self.onmessage = function (e) {
     };
     const SampleScoresGrid = ({
       evalSample,
-      className: className2
+      className: className2,
+      scrollRef
     }) => {
       const evalDescriptor = useEvalDescriptor();
       if (!evalDescriptor) {
@@ -51869,7 +51870,14 @@ self.onmessage = function (e) {
                   children: "Metadata"
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$x.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: metadata2 }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$x.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                RecordTree,
+                {
+                  id: `${scorer2}-metadataa`,
+                  scrollRef,
+                  record: metadata2
+                }
+              ) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
@@ -51895,7 +51903,8 @@ self.onmessage = function (e) {
     };
     const SampleScoresView = ({
       sample: sample2,
-      className: className2
+      className: className2,
+      scrollRef
     }) => {
       const evalDescriptor = useEvalDescriptor();
       if (!evalDescriptor) {
@@ -51953,7 +51962,8 @@ self.onmessage = function (e) {
               SampleScoresGrid,
               {
                 evalSample: sample2,
-                className: clsx(styles$w.scores)
+                className: clsx(styles$w.scores),
+                scrollRef
               }
             )
           ] }) })
@@ -61536,7 +61546,14 @@ ${events}
                   title: "Scoring",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleScoringTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(SampleScoresView, { sample: sample2, className: styles$A.padded })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    SampleScoresView,
+                    {
+                      sample: sample2,
+                      className: styles$A.padded,
+                      scrollRef
+                    }
+                  )
                 },
                 kSampleScoringTabId
               ),
