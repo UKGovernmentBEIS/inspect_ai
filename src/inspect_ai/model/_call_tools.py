@@ -541,6 +541,8 @@ def tools_info(
             tools_info.append(tool)
         else:
             if isinstance(tool, Tool):
+                # TODO: Yikes. How to handle this flow. Since tool is just a
+                # function, we've lost the options.
                 tool = ToolDef(tool)
             tools_info.append(
                 ToolInfo(
