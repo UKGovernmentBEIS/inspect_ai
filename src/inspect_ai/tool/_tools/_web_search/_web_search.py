@@ -123,11 +123,8 @@ def web_search(
     return (
         ToolDef(
             execute,
-            name="web_search",  # TODO: Does this need to be specified?
-            options={
-                "use_internal": True,
-                "internal_options": internal_options,
-            },
+            name="web_search",
+            options={"use_internal": True, "internal_options": internal_options},
         ).as_tool()
         if use_internal
         else execute
