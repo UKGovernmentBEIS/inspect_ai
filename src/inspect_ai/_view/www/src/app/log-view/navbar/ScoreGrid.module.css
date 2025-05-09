@@ -33,3 +33,18 @@
 .tableBody {
   border-top-color: var(--bs-light-border-subtle);
 }
+
+thead,
+thead tr,
+thead td,
+thead th {
+  border: none !important;
+  padding: 0 !important;
+}
+
+.tableSeparator,
+.tableSeparator tr,
+.tableSeparator td,
+.tableSeparator th {
+  border: none !important;
+}

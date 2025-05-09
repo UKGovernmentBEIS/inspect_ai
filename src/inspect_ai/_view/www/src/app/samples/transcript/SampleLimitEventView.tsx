@@ -2,10 +2,10 @@ import { FC } from "react";
 import { SampleLimitEvent, Type10 } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventPanel } from "./event/EventPanel";
+import { EventNode } from "./types";
 
 interface SampleLimitEventViewProps {
-  id: string;
-  event: SampleLimitEvent;
+  eventNode: EventNode<SampleLimitEvent>;
   className?: string | string[];
 }
 
@@ -13,8 +13,7 @@ interface SampleLimitEventViewProps {
  * Renders the InfoEventView component.
  */
 export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   className,
 }) => {
   const resolve_title = (type: Type10) => {
@@ -51,12 +50,18 @@ export const SampleLimitEventView: FC<SampleLimitEventViewProps> = ({
     }
   };
 
-  const title = resolve_title(event.type);
-  const icon = resolve_icon(event.type);
+  const title = resolve_title(eventNode.event.type);
+  const icon = resolve_icon(eventNode.event.type);
 
   return (
-    <EventPanel id={id} title={title} icon={icon} className={className}>
-      {event.message}
+    <EventPanel
+      id={eventNode.id}
+      depth={eventNode.depth}
+      title={title}
+      icon={icon}
+      className={className}
+    >
+      {eventNode.event.message}
     </EventPanel>
   );
 };

@@ -57,3 +57,7 @@
   padding: 0 0.5em 0.1em 0.5em;
   font-size: var(--inspect-font-size-smaller);
 }
+
+.card-body.card-no-padding {
+  padding: 0;
+}

@@ -8,10 +8,10 @@ import { EventPanel } from "./event/EventPanel";
 
 import clsx from "clsx";
 import styles from "./ScoreEventView.module.css";
+import { EventNode } from "./types";
 
 interface ScoreEventViewProps {
-  id: string;
-  event: ScoreEvent;
+  eventNode: EventNode<ScoreEvent>;
   className?: string | string[];
 }
 
@@ -19,10 +19,10 @@ interface ScoreEventViewProps {
  * Renders the ScoreEventView component.
  */
 export const ScoreEventView: FC<ScoreEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
   const resolvedTarget = event.target
     ? Array.isArray(event.target)
       ? event.target.join("\n")
@@ -31,11 +31,13 @@ export const ScoreEventView: FC<ScoreEventViewProps> = ({
 
   return (
     <EventPanel
-      id={id}
+      id={eventNode.id}
+      depth={eventNode.depth}
       title={(event.intermediate ? "Intermediate " : "") + "Score"}
       className={clsx(className, "text-size-small")}
       subTitle={formatDateTime(new Date(event.timestamp))}
       icon={ApplicationIcons.scorer}
+      collapsibleContent={true}
     >
       <div data-name="Explanation" className={clsx(styles.explanation)}>
         {event.target ? (

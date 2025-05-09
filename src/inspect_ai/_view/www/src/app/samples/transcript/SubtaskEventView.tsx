@@ -6,12 +6,11 @@ import { MetaDataView } from "../../content/MetaDataView";
 import { EventPanel } from "./event/EventPanel";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./SubtaskEventView.module.css";
-import { TranscriptView } from "./TranscriptView";
+import { EventNode, EventType } from "./types";
 
 interface SubtaskEventViewProps {
-  id: string;
-  event: SubtaskEvent;
-  depth: number;
+  eventNode: EventNode<SubtaskEvent>;
+  children: EventNode<EventType>[];
   className?: string | string[];
 }
 
@@ -19,11 +18,12 @@ interface SubtaskEventViewProps {
  * Renders the StateEventView component.
  */
 export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
-  id,
-  event,
-  depth,
+  eventNode,
+  children,
   className,
 }) => {
+  const event = eventNode.event;
+  const id = eventNode.id;
   const body: ReactNode[] = [];
   if (event.type === "fork") {
     body.push(
@@ -32,17 +32,6 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
         <div className={clsx(styles.summaryRendered)}>
           <Rendered values={event.input} />
         </div>
-        <div className={clsx("text-style-label")}>Transcript</div>
-        {event.events.length > 0 ? (
-          <TranscriptView
-            id={`${id}-subtask`}
-            data-name="Transcript"
-            events={event.events}
-            depth={depth + 1}
-          />
-        ) : (
-          <None />
-        )}
       </div>,
     );
   } else {
@@ -53,16 +42,6 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
         result={event.result}
       />,
     );
-    if (event.events.length > 0) {
-      body.push(
-        <TranscriptView
-          id={`${id}-subtask`}
-          data-name="Transcript"
-          events={event.events}
-          depth={depth + 1}
-        />,
-      );
-    }
   }
 
   // Is this a traditional subtask or a fork?
@@ -70,6 +49,7 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
   return (
     <EventPanel
       id={id}
+      depth={eventNode.depth}
       className={className}
       title={formatTitle(
         `${type}: ${event.name}`,
@@ -77,7 +57,8 @@ export const SubtaskEventView: FC<SubtaskEventViewProps> = ({
         event.working_time,
       )}
       subTitle={formatTiming(event.timestamp, event.working_start)}
-      collapse={false}
+      childIds={children.map((child) => child.id)}
+      collapseControl="bottom"
     >
       {body}
     </EventPanel>
@@ -95,9 +76,9 @@ const SubtaskSummary: FC<SubtaskSummaryProps> = ({ input, result }) => {
   const output = typeof result === "object" ? result : { result };
   return (
     <div className={clsx(styles.subtaskSummary)}>
-      <div className={clsx("text-style-label")}>Input</div>
+      <div className={clsx("text-style-label", "text-size-small")}>Input</div>
       <div className={clsx("text-size-large", styles.subtaskLabel)}></div>
-      <div className={clsx("text-style-label")}>Output</div>
+      <div className={clsx("text-style-label", "text-size-small")}>Output</div>
       {input ? <Rendered values={input} /> : undefined}
       <div className={clsx("text-size-title-secondary", styles.subtaskLabel)}>
         <i className={ApplicationIcons.arrows.right} />

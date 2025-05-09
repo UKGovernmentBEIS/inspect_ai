@@ -1,3 +1,7 @@
 .markdown-ordered-list-item {
   margin-bottom: 0.2em;
 }
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}

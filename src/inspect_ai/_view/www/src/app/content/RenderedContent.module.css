@@ -9,4 +9,9 @@
 
 .preWrap {
   white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.preCompact {
+  margin-bottom: 0;
 }

@@ -59,13 +59,13 @@ export const MarkdownDiv = forwardRef<HTMLDivElement, MarkdownDivProps>(
         ref={ref}
         dangerouslySetInnerHTML={markup}
         style={style}
-        className={clsx(className, "markdown-content")}
+        className={clsx(className, "markdown-content", "text-size-base")}
       />
     );
   },
 );
 
-const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
+const kLetterListPattern = /^([a-zA-Z0-9][).]\s.*?)$/gm;
 const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
 
 const protectBackslashesInLatex = (content: string): string => {

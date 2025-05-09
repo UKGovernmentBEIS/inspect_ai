@@ -5,7 +5,8 @@
 }
 
 .body {
-  margin: 1em 1em 1em 1em;
+  margin-top: 1em;
+  margin-bottom: 1em;
 }
 
 .scroller {

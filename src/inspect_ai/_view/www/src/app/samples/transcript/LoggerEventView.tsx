@@ -7,9 +7,10 @@ import { FC } from "react";
 import { parsedJson as maybeParseJson } from "../../../utils/json";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import styles from "./LoggerEventView.module.css";
+import { EventNode } from "./types";
 
 interface LoggerEventViewProps {
-  event: LoggerEvent;
+  eventNode: EventNode<LoggerEvent>;
   className?: string | string[];
 }
 
@@ -17,9 +18,10 @@ interface LoggerEventViewProps {
  * Renders the LoggerEventView component.
  */
 export const LoggerEventView: FC<LoggerEventViewProps> = ({
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
   const obj = maybeParseJson(event.message.message);
   return (
     <EventRow

@@ -9,6 +9,8 @@ import { useStore } from "../../state/store";
 import { useSampleNavigation } from "../routing/navigationHooks";
 import { SampleDisplay } from "./SampleDisplay";
 
+import styles from "./SampleDialog.module.css";
+
 interface SampleDialogProps {
   id: string;
   title: string;
@@ -46,6 +48,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       : true,
   );
   const prevLogFile = usePrevious<string | undefined>(logSelection.logFile);
+  const prevSampleNeedsReload = usePrevious<number>(
+    sampleData.sampleNeedsReload,
+  );
 
   useEffect(() => {
     if (logSelection.logFile && logSelection.sample) {
@@ -56,10 +61,12 @@ export const SampleDialog: FC<SampleDialogProps> = ({
 
       if (
         (prevLogFile !== undefined && prevLogFile !== logSelection.logFile) ||
-        sampleData.sample?.id !== logSelection.sample.id ||
-        sampleData.sample?.epoch !== logSelection.sample.epoch ||
+        sampleData.selectedSampleIdentifier?.id !== logSelection.sample.id ||
+        sampleData.selectedSampleIdentifier?.epoch !==
+          logSelection.sample.epoch ||
         (prevCompleted !== undefined &&
-          currentSampleCompleted !== prevCompleted)
+          currentSampleCompleted !== prevCompleted) ||
+        prevSampleNeedsReload !== sampleData.sampleNeedsReload
       ) {
         loadSample(logSelection.logFile, logSelection.sample);
       }
@@ -69,8 +76,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
     logSelection.sample?.id,
     logSelection.sample?.epoch,
     logSelection.sample?.completed,
-    sampleData.sample?.id,
-    sampleData.sample?.epoch,
+    sampleData.selectedSampleIdentifier?.id,
+    sampleData.selectedSampleIdentifier?.epoch,
+    sampleData.sampleNeedsReload,
   ]);
 
   // Get sample navigation utilities
@@ -139,6 +147,9 @@ export const SampleDialog: FC<SampleDialogProps> = ({
       onkeyup={handleKeyUp}
       visible={showingSampleDialog}
       onHide={onHide}
+      classNames={{
+        body: styles.modalBody,
+      }}
       showProgress={
         sampleData.status === "loading" || sampleData.status === "streaming"
       }

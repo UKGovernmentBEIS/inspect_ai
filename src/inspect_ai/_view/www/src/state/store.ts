@@ -1,3 +1,4 @@
+import { enableMapSet } from "immer";
 import { create, StoreApi, UseBoundStore } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
@@ -9,6 +10,7 @@ import { createLogSlice, initalializeLogSlice, LogSlice } from "./logSlice";
 import { createLogsSlice, initializeLogsSlice, LogsSlice } from "./logsSlice";
 import {
   createSampleSlice,
+  handleRehydrate,
   initializeSampleSlice,
   SampleSlice,
 } from "./sampleSlice";
@@ -52,6 +54,8 @@ export const initializeStore = (
   capabilities: Capabilities,
   storage?: ClientStorage,
 ) => {
+  enableMapSet();
+
   // Create the storage implementation
   const storageImplementation = {
     getItem: <T>(name: string): T | null => {
@@ -151,6 +155,7 @@ export const initializeStore = (
           version: 1,
           onRehydrateStorage: (state: StoreState) => {
             return (hydrationState, error) => {
+              handleRehydrate(state);
               log.debug("REHYDRATING STATE");
               if (error) {
                 log.debug("ERROR", { error });

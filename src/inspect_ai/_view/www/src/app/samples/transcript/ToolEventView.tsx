@@ -1,10 +1,9 @@
-import { ToolEvent } from "../../../@types/log";
+import { ApprovalEvent, ModelEvent, ToolEvent } from "../../../@types/log";
 import { ApplicationIcons } from "../../appearance/icons";
 import { resolveToolInput } from "../chat/tools/tool";
 import { ToolCallView } from "../chat/tools/ToolCallView";
 import { ApprovalEventView } from "./ApprovalEventView";
 import { EventPanel } from "./event/EventPanel";
-import { TranscriptComponent } from "./TranscriptView";
 
 import clsx from "clsx";
 import { FC, useMemo } from "react";
@@ -12,12 +11,11 @@ import { PulsingDots } from "../../../components/PulsingDots";
 import { ChatView } from "../chat/ChatView";
 import { formatTiming, formatTitle } from "./event/utils";
 import styles from "./ToolEventView.module.css";
-import { EventNode } from "./types";
+import { EventNode, EventType } from "./types";
 
 interface ToolEventViewProps {
-  id: string;
-  event: ToolEvent;
-  children: EventNode[];
+  eventNode: EventNode<ToolEvent>;
+  children: EventNode<EventType>[];
   className?: string | string[];
 }
 
@@ -25,39 +23,47 @@ interface ToolEventViewProps {
  * Renders the ToolEventView component.
  */
 export const ToolEventView: FC<ToolEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   children,
   className,
 }) => {
+  const event = eventNode.event;
+  const id = eventNode.id;
+
   // Extract tool input
   const { input, functionCall, highlightLanguage } = useMemo(
     () => resolveToolInput(event.function, event.arguments),
     [event.function, event.arguments],
   );
 
-  const { approvalEvent, lastModelEvent } = useMemo(() => {
-    // Find an approval if there is one
-    const approvalEvent = event.events.find((e) => {
-      return e.event === "approval";
+  const { approvalNode, lastModelNode } = useMemo(() => {
+    const approvalNode = children.find((e) => {
+      return e.event.event === "approval";
     });
 
     // Find a model message to render, if there is one
-    const lastModelEvent = [...event.events].reverse().find((e) => {
-      return e.event === "model";
+
+    const lastModelNode = children.findLast((e) => {
+      return e.event.event === "model";
     });
 
-    return { approvalEvent, lastModelEvent };
+    return {
+      approvalNode: approvalNode as EventNode<ApprovalEvent> | undefined,
+      lastModelNode: lastModelNode as EventNode<ModelEvent> | undefined,
+    };
   }, [event.events]);
 
   const title = `Tool: ${event.view?.title || event.function}`;
   return (
     <EventPanel
       id={id}
+      depth={eventNode.depth}
       title={formatTitle(title, undefined, event.working_time)}
       className={className}
       subTitle={formatTiming(event.timestamp, event.working_start)}
       icon={ApplicationIcons.solvers.use_tools}
+      childIds={children.map((child) => child.id)}
+      collapseControl="bottom"
     >
       <div data-name="Summary" className={styles.summary}>
         <ToolCallView
@@ -70,18 +76,18 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
           view={event.view ? event.view : undefined}
         />
 
-        {lastModelEvent && lastModelEvent.event === "model" ? (
+        {lastModelNode ? (
           <ChatView
             id={`${id}-toolcall-chatmessage`}
-            messages={lastModelEvent.output.choices.map((m) => m.message)}
+            messages={lastModelNode.event.output.choices.map((m) => m.message)}
             numbered={false}
             toolCallStyle="compact"
           />
         ) : undefined}
 
-        {approvalEvent ? (
+        {approvalNode ? (
           <ApprovalEventView
-            event={approvalEvent}
+            eventNode={approvalNode}
             className={styles.approval}
           />
         ) : (
@@ -93,16 +99,6 @@ export const ToolEventView: FC<ToolEventViewProps> = ({
           </div>
         ) : undefined}
       </div>
-      {children.length > 0 ? (
-        <TranscriptComponent
-          data-name="Transcript"
-          id={`${id}-subtask`}
-          eventNodes={children}
-          data-default={event.failed || event.agent ? true : null}
-        />
-      ) : (
-        ""
-      )}
     </EventPanel>
   );
 };

@@ -41,5 +41,9 @@
 }
 
 .chat {
-  padding-top: 1em;
+  padding: 1em;
+}
+
+.padded {
+  padding: 1em;
 }

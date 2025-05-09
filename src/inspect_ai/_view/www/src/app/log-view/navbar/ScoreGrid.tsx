@@ -51,10 +51,12 @@ export const ScoreGrid: FC<ScoreGridProps> = ({
     }
 
     const headerRow = (
-      <tr className={clsx(styles.headerRow)}>
-        <td></td>
-        {cells}
-      </tr>
+      <thead>
+        <tr className={clsx(styles.headerRow)}>
+          <td></td>
+          {cells}
+        </tr>
+      </thead>
     );
     const rows: ReactNode[] = [];
     scoreGroup.forEach((g) => {
@@ -84,12 +86,14 @@ export const ScoreGrid: FC<ScoreGridProps> = ({
     subTables.push(
       <>
         {index > 0 ? (
-          <tr>
-            <td
-              colSpan={columnCount + 1}
-              className={clsx(styles.groupSeparator)}
-            ></td>
-          </tr>
+          <tbody className={clsx(styles.tableSeparator)}>
+            <tr>
+              <td
+                colSpan={columnCount + 1}
+                className={clsx(styles.groupSeparator)}
+              ></td>
+            </tr>
+          </tbody>
         ) : undefined}
         {headerRow}
         <tbody className={clsx("table-group-divider", styles.tableBody)}>

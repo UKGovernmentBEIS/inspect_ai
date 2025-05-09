@@ -11,11 +11,13 @@ interface ChatViewVirtualListProps {
   id: string;
   className?: string | string[];
   messages: Messages;
+  initialMessageId?: string | null;
   toolCallStyle: ChatViewToolCallStyle;
   indented: boolean;
   numbered?: boolean;
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
+  getMessageUrl?: (id: string) => string | undefined;
 }
 
 /**
@@ -25,16 +27,29 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
   ({
     id,
     messages,
+    initialMessageId,
     className,
     toolCallStyle,
     indented,
     numbered = true,
     scrollRef,
     running,
+    getMessageUrl,
   }) => {
     const collapsedMessages = useMemo(() => {
       return resolveMessages(messages);
     }, [messages]);
+
+    const initialMessageIndex = useMemo(() => {
+      if (initialMessageId === null || initialMessageId === undefined) {
+        return undefined;
+      }
+
+      const index = collapsedMessages.findIndex((message) => {
+        return message.message.id === initialMessageId;
+      });
+      return index !== -1 ? index : undefined;
+    }, [initialMessageId, collapsedMessages]);
 
     const renderRow = (index: number, item: ResolvedMessage): ReactNode => {
       const number =
@@ -47,7 +62,8 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
           resolvedMessage={item}
           indented={indented}
           toolCallStyle={toolCallStyle}
-          padded={index < collapsedMessages.length - 1}
+          getMessageUrl={getMessageUrl}
+          highlightUserMessage={true}
         />
       );
     };
@@ -59,6 +75,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
         scrollRef={scrollRef}
         data={collapsedMessages}
         renderRow={renderRow}
+        initialTopMostItemIndex={initialMessageIndex}
         live={running}
         showProgress={running}
       />
