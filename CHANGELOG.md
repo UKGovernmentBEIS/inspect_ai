@@ -11,6 +11,7 @@
 - TaskState: `input_text` and `user_prompt` properties now read the last rather than first user message.
 - Inspect View: Properly display 'more' options when content is collapsed.
 - Inspect View: Fix issue that prevented filtering of sample list when viewing a running evaluation.
+- Inspect View: Fix selection of specific metrics within scorers when a scorer produces more than one metric.
 - Ignore OSError that occurs while rotating trace files.
 - Bugfix: Ensure that "init" span is exited in the same async context when sandbox connection errors occur.
 - Bugfix: Protect against no `thought` argument being passed to `think()` tool.

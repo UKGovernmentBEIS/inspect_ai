@@ -1,7 +1,7 @@
 import clsx from "clsx";
 import { ScoreLabel } from "../../../app/types";
 
-import { ChangeEvent, FC, useCallback } from "react";
+import { ChangeEvent, FC, useCallback, useMemo } from "react";
 import styles from "./SelectScorer.module.css";
 
 interface SelectScorerProps {
@@ -15,23 +15,18 @@ export const SelectScorer: FC<SelectScorerProps> = ({
   score,
   setScore,
 }) => {
-  const scorers = scores.reduce((accum, scorer) => {
-    if (
-      !accum.find((sc) => {
-        return scorer.scorer === sc.scorer;
-      })
-    ) {
-      accum.push(scorer);
-    }
-    return accum;
-  }, [] as ScoreLabel[]);
-
-  const handleSelectScore = useCallback(
-    (index: number) => {
-      setScore(scores[index]);
-    },
-    [setScore, scores],
-  );
+  const scorers = useMemo(() => {
+    return scores.reduce((accum, scorer) => {
+      if (
+        !accum.find((sc) => {
+          return scorer.scorer === sc.scorer;
+        })
+      ) {
+        accum.push(scorer);
+      }
+      return accum;
+    }, [] as ScoreLabel[]);
+  }, [scores]);
 
   if (scorers.length === 1) {
     // There is only a single scorer in play, just show the list of available scores
@@ -50,8 +45,8 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         </span>
         <ScoreSelector
           scores={scores}
-          selectedIndex={scoreIndex(scores, score)}
-          setSelectedIndex={handleSelectScore}
+          selectedScore={score}
+          setSelectedScore={setScore}
         />
       </div>
     );
@@ -79,15 +74,15 @@ export const SelectScorer: FC<SelectScorerProps> = ({
         </span>
         <ScorerSelector
           scorers={scorers}
-          selectedIndex={scorerIndex(scorers, score)}
-          setSelectedIndex={handleSelectScore}
+          selectedScore={score}
+          setSelectedScore={setScore}
         />
         {scorerScores.length > 1 ? (
           <ScoreSelector
             className={clsx(styles.secondSel)}
             scores={scorerScores}
-            selectedIndex={scoreIndex(scorerScores, score)}
-            setSelectedIndex={handleSelectScore}
+            selectedScore={score}
+            setSelectedScore={setScore}
           />
         ) : undefined}
       </div>
@@ -97,24 +92,32 @@ export const SelectScorer: FC<SelectScorerProps> = ({
 
 interface ScoreSelectorProps {
   scores: ScoreLabel[];
-  selectedIndex: number;
-  setSelectedIndex: (index: number) => void;
+  selectedScore?: ScoreLabel;
+  setSelectedScore: (score: ScoreLabel) => void;
   className?: string | string[];
 }
 
 const ScoreSelector: FC<ScoreSelectorProps> = ({
   scores,
-  selectedIndex,
-  setSelectedIndex,
+  selectedScore,
+  setSelectedScore,
   className,
 }) => {
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) => {
       const sel = e.target as HTMLSelectElement;
-      setSelectedIndex(sel.selectedIndex);
+      setSelectedScore(scores[sel.selectedIndex]);
     },
-    [setSelectedIndex],
+    [setSelectedScore, scores],
   );
+
+  const index = scores.findIndex((sc) => {
+    return (
+      selectedScore &&
+      sc.name === selectedScore.name &&
+      sc.scorer === selectedScore.scorer
+    );
+  });
 
   return (
     <select
@@ -125,7 +128,7 @@ const ScoreSelector: FC<ScoreSelectorProps> = ({
         className,
       )}
       aria-label=".select-scorer-label"
-      value={scores[selectedIndex].name}
+      value={scores[index].name}
       onChange={handleChange}
     >
       {scores.map((score) => {
@@ -141,28 +144,32 @@ const ScoreSelector: FC<ScoreSelectorProps> = ({
 
 interface ScorerSelectorProps {
   scorers: ScoreLabel[];
-  selectedIndex: number;
-  setSelectedIndex: (index: number) => void;
+  selectedScore?: ScoreLabel;
+  setSelectedScore: (score: ScoreLabel) => void;
 }
 
 const ScorerSelector: FC<ScorerSelectorProps> = ({
   scorers,
-  selectedIndex,
-  setSelectedIndex,
+  selectedScore,
+  setSelectedScore,
 }) => {
   const handleChange = useCallback(
     (e: ChangeEvent<HTMLSelectElement>) => {
       const sel = e.target as HTMLSelectElement;
-      setSelectedIndex(sel.selectedIndex);
+      setSelectedScore(scorers[sel.selectedIndex]);
     },
-    [setSelectedIndex],
+    [setSelectedScore, scorers],
   );
+
+  const index = scorers.findIndex((sc) => {
+    return selectedScore && sc.scorer === selectedScore.scorer;
+  });
 
   return (
     <select
       className={clsx("form-select", "form-select-sm", "text-size-smaller")}
       aria-label=".epoch-filter-label"
-      value={scorers[selectedIndex].scorer}
+      value={scorers[index].scorer}
       onChange={handleChange}
     >
       {scorers.map((scorer) => {
