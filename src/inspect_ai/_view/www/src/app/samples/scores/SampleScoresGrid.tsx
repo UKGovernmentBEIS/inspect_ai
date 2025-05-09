@@ -112,6 +112,7 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
                     id={`${scorer}-metadataa`}
                     scrollRef={scrollRef}
                     record={metadata}
+                    defaultExpandLevel={0}
                   />
                 </div>
                 <div
