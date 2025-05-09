@@ -6,6 +6,7 @@
 - Don't enforce sample `working_limit` after solvers have completed executing (matching behavior of other sample limits).
 - Only pass `user` parameter on to sandboxes if is not `None` (eases compatibility with older sandbox providers).
 - Anthropic: Retry when `type` in the error message body is "overloaded_error". 
+- Agent Bridge: Compatibility with `request()` method in v1.78.0 of `openai` package (now the minimum required version).
 - Model Context Protocol: Update to typing changes made in v1.8.0 of `mcp` package (now the minimum required version).
 - TaskState: `input_text` and `user_prompt` properties now read the last rather than first user message.
 - Inspect View: Properly display 'more' options when content is collapsed.

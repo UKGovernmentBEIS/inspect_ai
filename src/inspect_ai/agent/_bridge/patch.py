@@ -3,7 +3,7 @@ import re
 from contextvars import ContextVar
 from functools import wraps
 from time import time
-from typing import Any, AsyncGenerator, Optional, Type, cast
+from typing import Any, AsyncGenerator, Type, cast
 
 from openai._base_client import AsyncAPIClient, _AsyncStreamT
 from openai._models import FinalRequestOptions
@@ -65,7 +65,6 @@ def init_openai_request_patch() -> None:
             *,
             stream: bool = False,
             stream_cls: type[_AsyncStreamT] | None = None,
-            remaining_retries: Optional[int] = None,
         ) -> Any:
             # we have patched the underlying request method so now need to figure out when to
             # patch and when to stand down
@@ -88,7 +87,6 @@ def init_openai_request_patch() -> None:
                 options,
                 stream=stream,
                 stream_cls=stream_cls,
-                remaining_retries=remaining_retries,
             )
 
         setattr(AsyncAPIClient, "request", patched_request)
