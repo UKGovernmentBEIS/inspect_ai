@@ -16431,40 +16431,55 @@ pre[class*="language-"] {
 ._modalScores_yha6g_103 {
   padding-bottom: 4em;
 }
-._table_1hgt6_1 {
+._table_12koy_1 {
   margin-bottom: 0;
 }
 
-._scorer_1hgt6_5,
-._value_1hgt6_6 {
+._scorer_12koy_5,
+._value_12koy_6 {
   padding-top: 0.2em !important;
   padding-bottom: 0.2em !important;
 }
 
-._label_1hgt6_11,
-._value_1hgt6_6 {
+._label_12koy_11,
+._value_12koy_6 {
   text-align: center;
   padding-left: 1em;
   padding-right: 1em;
 }
 
-._label_1hgt6_11 {
+._label_12koy_11 {
   font-weight: 400;
   padding-left: 1em;
   padding-right: 1em;
 }
 
-._scorer_1hgt6_5 {
+._scorer_12koy_5 {
   font-weight: 400;
 }
 
-._groupSeparator_1hgt6_28 {
+._groupSeparator_12koy_28 {
   padding-top: 2em;
   border-bottom: hidden;
 }
 
-._tableBody_1hgt6_33 {
+._tableBody_12koy_33 {
   border-top-color: var(--bs-light-border-subtle);
+}
+
+thead,
+thead tr,
+thead td,
+thead th {
+  border: none !important;
+  padding: 0 !important;
+}
+
+._tableSeparator_12koy_45,
+._tableSeparator_12koy_45 tr,
+._tableSeparator_12koy_45 td,
+._tableSeparator_12koy_45 th {
+  border: none !important;
 }
 ._statusContainer_1sckj_1 {
   display: inline-block;
