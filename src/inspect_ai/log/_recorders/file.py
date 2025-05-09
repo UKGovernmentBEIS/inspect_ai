@@ -37,7 +37,7 @@ class FileRecorder(Recorder):
     @override
     @classmethod
     async def read_log_sample(
-        cls, location: str, id: str | int, epoch: int = 1
+        cls, location: str, id: str | int, epoch: int = 1, validate: bool = False
     ) -> EvalSample:
         # establish the log to read from (might be cached)
         eval_log = await cls._log_file_maybe_cached(location)
