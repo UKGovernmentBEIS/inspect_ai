@@ -8,6 +8,8 @@ from openai.types.responses import (
     ResponseComputerToolCallParam,
     ResponseFunctionToolCall,
     ResponseFunctionToolCallParam,
+    ResponseFunctionWebSearch,
+    ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
     ResponseInputImageParam,
     ResponseInputItemParam,
@@ -51,6 +53,7 @@ from inspect_ai.model._openai_computer_use import (
     maybe_computer_use_preview_tool,
     tool_call_from_openai_computer_tool_call,
 )
+from inspect_ai.model._openai_web_search import maybe_web_search_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
@@ -277,6 +280,10 @@ def _chat_message_assistant_from_openai_response(
                         tool_calls.append(
                             tool_call_from_openai_computer_tool_call(output)
                         )
+                    case ResponseFunctionWebSearch():
+                        # TODO: Should we add this to the chatmessageassistant?
+                        print(f"Web search tool call: {output=}")
+                        pass
                     case _:
                         raise ValueError(f"Unexpected output type: {output.__class__}")
 
@@ -399,7 +406,7 @@ def _maybe_native_tool_param(
 ) -> ToolParam | None:
     return (
         (
-            maybe_computer_use_preview_tool(tool)
+            maybe_computer_use_preview_tool(tool) or maybe_web_search_tool(tool)
             # or self.text_editor_tool_param(tool)
             # or self.bash_tool_param(tool)
         )
@@ -454,10 +461,11 @@ def _ids_from_assistant_internal(
 
 
 _ResponseToolCallParam = (
-    ResponseFunctionToolCallParam | ResponseComputerToolCallParam
+    ResponseFunctionToolCallParam
+    | ResponseComputerToolCallParam
+    | ResponseFunctionWebSearchParam
     # | ResponseFileSearchToolCallParam
     # | ResponseFunctionToolCallParam
-    # | ResponseFunctionWebSearchParam
 )
 
 

@@ -224,13 +224,15 @@ def tool(
             tool_parallel = parallel
             tool_viewer = viewer
             tool_model_input = model_input
+            tool_options: dict[str, object] | None = None
             if is_registry_object(tool):
-                _, _, reg_parallel, reg_viewer, reg_model_input = tool_registry_info(
-                    tool
+                _, _, reg_parallel, reg_viewer, reg_model_input, options = (
+                    tool_registry_info(tool)
                 )
                 tool_parallel = parallel and reg_parallel
                 tool_viewer = viewer or reg_viewer
                 tool_model_input = model_input or reg_model_input
+                tool_options = options
 
             # tag the object
             registry_tag(
@@ -247,6 +249,7 @@ def tool(
                             tool_model_input
                             or getattr(tool, TOOL_INIT_MODEL_INPUT, None)
                         ),
+                        TOOL_OPTIONS: tool_options,
                     },
                 ),
                 *args,
@@ -267,6 +270,7 @@ TOOL_PROMPT = "prompt"
 TOOL_PARALLEL = "parallel"
 TOOL_VIEWER = "viewer"
 TOOL_MODEL_INPUT = "model_input"
+TOOL_OPTIONS = "options"
 
 
 TOOL_INIT_MODEL_INPUT = "__TOOL_INIT_MODEL_INPUT__"

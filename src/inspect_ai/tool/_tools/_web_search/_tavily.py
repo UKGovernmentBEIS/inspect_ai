@@ -1,4 +1,5 @@
 import os
+from dataclasses import dataclass
 from typing import Awaitable, Callable
 
 import httpx
@@ -14,6 +15,12 @@ from tenacity import (
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai.util._concurrency import concurrency
+
+
+@dataclass
+class TavilyOptions:
+    num_results: int | None = None
+    max_connections: int | None = None
 
 
 class TavilySearchResult(BaseModel):
@@ -32,8 +39,11 @@ class TavilySearchResponse(BaseModel):
 
 
 def tavily_search_provider(
-    num_results: int, max_connections: int
+    options: TavilyOptions | None = None,
 ) -> Callable[[str], Awaitable[str | None]]:
+    num_results = (options.num_results if options else None) or 3
+    max_connections = (options.max_connections if options else None) or 10
+
     tavily_api_key = os.environ.get("TAVILY_API_KEY", None)
     if not tavily_api_key:
         raise PrerequisiteError(
