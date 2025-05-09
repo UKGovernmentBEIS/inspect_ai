@@ -86,7 +86,7 @@ class ToolDef:
             self.parallel = parallel if parallel is not None else tdef.parallel
             self.viewer = viewer or tdef.viewer
             self.model_input = model_input or tdef.model_input
-            self.options = options
+            self.options = options or tdef.options
 
         # if its not a tool then extract tool_info if all fields have not
         # been provided explicitly
