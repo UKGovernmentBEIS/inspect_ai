@@ -357,17 +357,16 @@ const metadataViewsForSample = (
     sampleMetadatas.push(
       <Card key={`sample-time-${id}`}>
         <CardHeader label="Time" />
-        <CardBody>
-          <div className={clsx(styles.timePanel, "text-size-smaller")}>
-            <div className={clsx("text-style-label", "text-style-secondary")}>
-              Working
-            </div>
-            <div>{formatTime(sample.working_time)}</div>
-            <div className={clsx("text-style-label", "text-style-secondary")}>
-              Total
-            </div>
-            <div>{formatTime(sample.total_time)}</div>
-          </div>
+        <CardBody padded={false}>
+          <RecordTree
+            id={`task-sample-time-${id}`}
+            record={{
+              Working: formatTime(sample.working_time),
+              Total: formatTime(sample.total_time),
+            }}
+            className={clsx("tab-pane", styles.noTop)}
+            scrollRef={scrollRef}
+          />
         </CardBody>
       </Card>,
     );
@@ -377,7 +376,7 @@ const metadataViewsForSample = (
     sampleMetadatas.push(
       <Card key={`sample-metadata-${id}`}>
         <CardHeader label="Metadata" />
-        <CardBody>
+        <CardBody padded={false}>
           <RecordTree
             id={`task-sample-metadata-${id}`}
             record={sample?.metadata as Record<string, unknown>}
@@ -393,7 +392,7 @@ const metadataViewsForSample = (
     sampleMetadatas.push(
       <Card key={`sample-store-${id}`}>
         <CardHeader label="Store" />
-        <CardBody>
+        <CardBody padded={false}>
           <RecordTree
             id={`task-sample-store-${id}`}
             record={sample?.store as Record<string, unknown>}

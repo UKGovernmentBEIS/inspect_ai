@@ -39332,7 +39332,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const RenderedContent = ({
       id,
-      entry: entry2
+      entry: entry2,
+      renderOptions = { renderString: "markdown" }
     }) => {
       if (entry2.value === null) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "[null]" });
@@ -39345,7 +39346,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return renderer2.canRender(entry2);
       });
       if (renderer) {
-        const { rendered } = renderer.render(id, entry2);
+        const { rendered } = renderer.render(id, entry2, renderOptions);
         if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
           return rendered;
         }
@@ -39368,7 +39369,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
           };
@@ -39383,7 +39384,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           return false;
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           const obj = lib$1.parse(entry2.value);
           return { rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: obj }) };
         }
@@ -39393,7 +39394,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "object" && entry2.value._model;
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
@@ -39408,9 +39409,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "boolean";
         },
-        render: (id, entry2) => {
+        render: (id, entry2, options2) => {
           entry2.value = entry2.value.toString();
-          return contentRenderers.String.render(id, entry2);
+          return contentRenderers.String.render(id, entry2, options2);
         }
       },
       Number: {
@@ -39418,9 +39419,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "number";
         },
-        render: (id, entry2) => {
+        render: (id, entry2, options2) => {
           entry2.value = formatNumber(entry2.value);
-          return contentRenderers.String.render(id, entry2);
+          return contentRenderers.String.render(id, entry2, options2);
         }
       },
       String: {
@@ -39428,11 +39429,23 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "string";
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, options2) => {
           const rendered = entry2.value.trim();
-          return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$18.preWrap, styles$18.preCompact), children: rendered })
-          };
+          if (options2.renderString === "markdown") {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                MarkdownDiv,
+                {
+                  markdown: rendered,
+                  className: clsx(styles$18.preWrap, styles$18.preCompact)
+                }
+              )
+            };
+          } else {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$18.preWrap, styles$18.preCompact), children: rendered })
+            };
+          }
         }
       },
       Array: {
@@ -39453,7 +39466,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             return false;
           }
         },
-        render: (id, entry2) => {
+        render: (id, entry2, _options) => {
           const arrayMap = {};
           entry2.value.forEach((e, index2) => {
             arrayMap[`[${index2}]`] = e;
@@ -39477,7 +39490,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "object" && entry2.name === "web_search";
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           const results = [];
           results.push(
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$18.query, children: [
@@ -39507,7 +39520,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           var _a2;
           return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$18.preWrap, children: entry2.value })
           };
@@ -39518,7 +39531,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "object" && entry2.value._html;
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: entry2.value._html
           };
@@ -39529,7 +39542,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
           };
@@ -39540,7 +39553,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "object";
         },
-        render: (id, entry2) => {
+        render: (id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataView,
@@ -45130,8 +45143,24 @@ categories: ${categories.join(" ")}`;
         }
       );
     };
-    const CardBody = ({ id, children: children2, className: className2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card-body", className2), id: id || "", children: children2 });
+    const CardBody = ({
+      id,
+      children: children2,
+      className: className2,
+      padded: padded2 = true
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(
+            "card-body",
+            className2,
+            !padded2 ? "card-no-padding" : void 0
+          ),
+          id: id || "",
+          children: children2
+        }
+      );
     };
     const Card = ({ id, children: children2, className: className2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
@@ -50986,22 +51015,28 @@ self.onmessage = function (e) {
     function Hn(t2, e, n) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
-    const keyPairContainer = "_keyPairContainer_1pw5n_1";
-    const key = "_key_1pw5n_1";
-    const pre = "_pre_1pw5n_15";
-    const treeIcon = "_treeIcon_1pw5n_19";
+    const keyPairContainer = "_keyPairContainer_1adcm_1";
+    const key = "_key_1adcm_1";
+    const pre = "_pre_1adcm_16";
+    const treeIcon = "_treeIcon_1adcm_20";
     const styles$D = {
       keyPairContainer,
       key,
       pre,
       treeIcon
     };
+    const kRecordTreeKey = "record-tree-key";
     const RecordTree = ({
       id,
       record,
       className: className2,
       scrollRef
     }) => {
+      const listHandle = reactExports.useRef(null);
+      const { getRestoreState } = useVirtuosoState(
+        listHandle,
+        `metadata-grid-${id}`
+      );
       const [collapsedIds, setCollapsed] = useCollapsibleIds(id);
       const setCollapsedIds = useStore(
         (state) => state.sampleActions.setCollapsedIds
@@ -51024,10 +51059,59 @@ self.onmessage = function (e) {
         }, {});
         setCollapsedIds(id, defaultCollapsedIds);
       }, [collapsedIds, items]);
-      const listHandle = reactExports.useRef(null);
-      const { getRestoreState } = useVirtuosoState(
-        listHandle,
-        `metadata-grid-${id}`
+      const keyUpHandler = reactExports.useCallback(
+        (itemId, index2) => {
+          return (event) => {
+            switch (event.key) {
+              case "Enter":
+                event.preventDefault();
+                event.stopPropagation();
+                setCollapsed(itemId, !(collapsedIds == null ? void 0 : collapsedIds[id]));
+                break;
+              case "ArrowDown": {
+                event.preventDefault();
+                event.stopPropagation();
+                if (index2 === items.length - 1) {
+                  return;
+                }
+                const treeRoot = document.getElementById(id);
+                const nextEl = treeRoot == null ? void 0 : treeRoot.querySelector(
+                  `.${kRecordTreeKey}[data-index="${index2 + 1}"]`
+                );
+                if (nextEl) {
+                  nextEl.focus();
+                }
+                break;
+              }
+              case "ArrowUp": {
+                event.preventDefault();
+                event.stopPropagation();
+                if (index2 === 0) {
+                  return;
+                }
+                const treeRoot = document.getElementById(id);
+                const prevEl = treeRoot == null ? void 0 : treeRoot.querySelector(
+                  `.${kRecordTreeKey}[data-index="${index2 - 1}"]`
+                );
+                if (prevEl) {
+                  prevEl.focus();
+                }
+                break;
+              }
+              case "ArrowRight":
+                event.preventDefault();
+                event.stopPropagation();
+                setCollapsed(itemId, false);
+                break;
+              case "ArrowLeft":
+                event.preventDefault();
+                event.stopPropagation();
+                setCollapsed(itemId, true);
+                break;
+            }
+          };
+        },
+        [collapsedIds, items]
       );
       const renderRow = (index2) => {
         const item2 = items[index2];
@@ -51042,14 +51126,22 @@ self.onmessage = function (e) {
               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                 "div",
                 {
-                  className: clsx(styles$D.key, "font-monospace", "text-style-secondary"),
+                  "data-index": index2,
+                  className: clsx(
+                    kRecordTreeKey,
+                    styles$D.key,
+                    "font-monospace",
+                    "text-style-secondary"
+                  ),
+                  onKeyUp: keyUpHandler(item2.id, index2),
+                  tabIndex: 0,
+                  onClick: () => {
+                    setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
+                  },
                   children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$D.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                       "i",
                       {
-                        onClick: () => {
-                          setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
-                        },
                         className: clsx(
                           collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
                           styles$D.treeIcon
@@ -51070,7 +51162,8 @@ self.onmessage = function (e) {
                   entry: {
                     name: item2.key,
                     value: item2.value
-                  }
+                  },
+                  renderOptions: { renderString: "pre" }
                 }
               ) : void 0 })
             ]
@@ -51425,7 +51518,6 @@ self.onmessage = function (e) {
     const error = "_error_yxa07_23";
     const ansi = "_ansi_yxa07_27";
     const noTop = "_noTop_yxa07_31";
-    const timePanel = "_timePanel_yxa07_35";
     const chat = "_chat_yxa07_43";
     const styles$A = {
       tabPanel,
@@ -51434,7 +51526,6 @@ self.onmessage = function (e) {
       error,
       ansi,
       noTop,
-      timePanel,
       chat
     };
     const flatBody = "_flatBody_1uw6w_1";
@@ -51755,7 +51846,16 @@ self.onmessage = function (e) {
                 scorer: scorer2
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$x.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: explanation2 }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$x.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              RenderedContent,
+              {
+                id: `${scorer2}-explanation`,
+                entry: {
+                  name: "Explanation",
+                  value: explanation2
+                }
+              }
+            ) }),
             Object.keys(metadata2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
@@ -61539,12 +61639,18 @@ ${events}
         sampleMetadatas.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Time" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$A.timePanel, "text-size-smaller"), children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.working_time) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.total_time) })
-            ] }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { padded: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              RecordTree,
+              {
+                id: `task-sample-time-${id}`,
+                record: {
+                  Working: formatTime$1(sample2.working_time),
+                  Total: formatTime$1(sample2.total_time)
+                },
+                className: clsx("tab-pane", styles$A.noTop),
+                scrollRef
+              }
+            ) })
           ] }, `sample-time-${id}`)
         );
       }
@@ -61552,7 +61658,7 @@ ${events}
         sampleMetadatas.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Metadata" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { padded: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               RecordTree,
               {
                 id: `task-sample-metadata-${id}`,
@@ -61568,7 +61674,7 @@ ${events}
         sampleMetadatas.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Store" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { padded: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               RecordTree,
               {
                 id: `task-sample-store-${id}`,
