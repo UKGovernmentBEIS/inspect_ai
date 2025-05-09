@@ -9,13 +9,15 @@ import { MetaDataView } from "./MetaDataView";
 import clsx from "clsx";
 import { FC, Fragment, isValidElement, JSX, ReactNode } from "react";
 import JSONPanel from "../../components/JsonPanel";
+import { MarkdownDiv } from "../../components/MarkdownDiv";
 import { isJson } from "../../utils/json";
 import styles from "./RenderedContent.module.css";
-import { Buckets, ContentRenderer } from "./types";
+import { Buckets, ContentRenderer, RenderOptions } from "./types";
 
 interface RenderedContentProps {
   id: string;
   entry: { name: string; value: unknown };
+  renderOptions?: RenderOptions;
 }
 
 /**
@@ -24,6 +26,7 @@ interface RenderedContentProps {
 export const RenderedContent: FC<RenderedContentProps> = ({
   id,
   entry,
+  renderOptions = { renderString: "markdown" },
 }): JSX.Element => {
   // Explicitly specify return type
   if (entry.value === null) {
@@ -42,7 +45,7 @@ export const RenderedContent: FC<RenderedContentProps> = ({
     });
 
   if (renderer) {
-    const { rendered } = renderer.render(id, entry);
+    const { rendered } = renderer.render(id, entry, renderOptions);
     if (rendered !== undefined && isValidElement(rendered)) {
       return rendered;
     }
@@ -75,7 +78,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
         typeof entry.value === "string" && entry.value.indexOf("\u001b") > -1
       );
     },
-    render: (_id, entry) => {
+    render: (_id, entry, _options) => {
       return {
         rendered: <ANSIDisplay output={entry.value} />,
       };
@@ -90,7 +93,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
       }
       return false;
     },
-    render: (_id, entry) => {
+    render: (_id, entry, _options) => {
       const obj = JSON5.parse(entry.value);
       return { rendered: <JSONPanel data={obj as Record<string, unknown>} /> };
     },
@@ -101,7 +104,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
     canRender: (entry) => {
       return typeof entry.value === "object" && entry.value._model;
     },
-    render: (_id, entry) => {
+    render: (_id, entry, _options) => {
       return {
         rendered: (
           <Fragment>
@@ -116,9 +119,9 @@ const contentRenderers: Record<string, ContentRenderer> = {
     canRender: (entry) => {
       return typeof entry.value === "boolean";
     },
-    render: (id, entry) => {
+    render: (id, entry, options) => {
       entry.value = entry.value.toString();
-      return contentRenderers.String.render(id, entry);
+      return contentRenderers.String.render(id, entry, options);
     },
   },
   Number: {
@@ -126,9 +129,9 @@ const contentRenderers: Record<string, ContentRenderer> = {
     canRender: (entry) => {
       return typeof entry.value === "number";
     },
-    render: (id, entry) => {
+    render: (id, entry, options) => {
       entry.value = formatNumber(entry.value);
-      return contentRenderers.String.render(id, entry);
+      return contentRenderers.String.render(id, entry, options);
     },
   },
   String: {
@@ -136,15 +139,26 @@ const contentRenderers: Record<string, ContentRenderer> = {
     canRender: (entry) => {
       return typeof entry.value === "string";
     },
-    render: (_id, entry) => {
+    render: (_id, entry, options) => {
       const rendered = entry.value.trim();
-      return {
-        rendered: (
-          <pre className={clsx(styles.preWrap, styles.preCompact)}>
-            {rendered}
-          </pre>
-        ),
-      };
+      if (options.renderString === "markdown") {
+        return {
+          rendered: (
+            <MarkdownDiv
+              markdown={rendered}
+              className={clsx(styles.preWrap, styles.preCompact)}
+            />
+          ),
+        };
+      } else {
+        return {
+          rendered: (
+            <pre className={clsx(styles.preWrap, styles.preCompact)}>
+              {rendered}
+            </pre>
+          ),
+        };
+      }
     },
   },
   Array: {
@@ -167,7 +181,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
         return false;
       }
     },
-    render: (id, entry) => {
+    render: (id, entry, _options) => {
       const arrayMap: Record<string, unknown> = {};
       entry.value.forEach((e: unknown, index: number) => {
         arrayMap[`[${index}]`] = e;
@@ -191,7 +205,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
     canRender: (entry) => {
       return typeof entry.value === "object" && entry.name === "web_search";
     },
-    render: (_id, entry) => {
+    render: (_id, entry, _options) => {
       const results: ReactNode[] = [];
       results.push(
         <div className={styles.query}>
@@ -224,7 +238,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
         typeof entry.value === "string" && entry.name?.startsWith("web_browser")
       );
     },
-    render: (_id, entry) => {
+    render: (_id, entry, _options) => {
       return {
         rendered: <pre className={styles.preWrap}>{entry.value}</pre>,
       };
@@ -235,7 +249,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
     canRender: (entry) => {
       return typeof entry.value === "object" && entry.value._html;
     },
-    render: (_id, entry) => {
+    render: (_id, entry, _options) => {
       return {
         rendered: entry.value._html,
       };
@@ -248,7 +262,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
         typeof entry.value === "string" && entry.value.startsWith("data:image/")
       );
     },
-    render: (_id, entry) => {
+    render: (_id, entry, _options) => {
       return {
         rendered: <img src={entry.value} />,
       };
@@ -259,7 +273,7 @@ const contentRenderers: Record<string, ContentRenderer> = {
     canRender: (entry) => {
       return typeof entry.value === "object";
     },
-    render: (id, entry) => {
+    render: (id, entry, _options) => {
       return {
         rendered: (
           <MetaDataView
