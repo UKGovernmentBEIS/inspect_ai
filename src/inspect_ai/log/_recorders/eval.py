@@ -208,7 +208,6 @@ class EvalRecorder(FileRecorder):
         epoch: int = 1,
         validate: bool = False,
     ) -> EvalSample:
-        validate = False if validate == "auto" else False
         with file(location, "rb") as z:
             with ZipFile(z, mode="r") as zip:
                 try:

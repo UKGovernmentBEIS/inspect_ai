@@ -4,6 +4,7 @@ from .create import (
     create_recorder_for_location,
     recorder_type_for_format,
     recorder_type_for_location,
+    validate_for_format,
 )
 from .recorder import Recorder
 
@@ -14,4 +15,5 @@ __all__ = [
     "create_recorder_for_location",
     "recorder_type_for_format",
     "recorder_type_for_location",
+    "validate_for_format",
 ]
