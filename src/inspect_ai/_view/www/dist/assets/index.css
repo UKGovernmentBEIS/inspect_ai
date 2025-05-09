@@ -16688,6 +16688,10 @@ pre[class*="language-"] {
   padding: 0 0.5em 0.1em 0.5em;
   font-size: var(--inspect-font-size-smaller);
 }
+
+.card-body.card-no-padding {
+  padding: 0;
+}
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
@@ -16905,7 +16909,7 @@ pre[class*="language-"] {
   grid-template-columns: max-content max-content;
   column-gap: 0.3em;
 }
-._keyPairContainer_1pw5n_1 {
+._keyPairContainer_1adcm_1 {
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.5em;
@@ -16914,16 +16918,17 @@ pre[class*="language-"] {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._key_1pw5n_1 {
+._key_1adcm_1 {
   display: grid;
   grid-template-columns: 1em auto;
+  cursor: pointer;
 }
 
-._pre_1pw5n_15 {
+._pre_1adcm_16 {
   margin-bottom: 0;
 }
 
-._treeIcon_1pw5n_19 {
+._treeIcon_1adcm_20 {
   margin-top: -3px;
 }
 /* PulsingDots.module.css */

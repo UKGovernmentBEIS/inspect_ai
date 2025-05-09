@@ -10,6 +10,7 @@
 .key {
   display: grid;
   grid-template-columns: 1em auto;
+  cursor: pointer;
 }
 
 .pre {

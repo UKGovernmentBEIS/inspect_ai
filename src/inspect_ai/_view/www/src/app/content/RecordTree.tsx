@@ -1,13 +1,23 @@
 import clsx from "clsx";
-import { FC, RefObject, useEffect, useMemo, useRef } from "react";
+import {
+  FC,
+  KeyboardEvent,
+  RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
-import { useVirtuosoState } from "../../state/scrolling";
 import { RenderedContent } from "./RenderedContent";
 
 import { useCollapsibleIds } from "../../state/hooks";
+import { useVirtuosoState } from "../../state/scrolling";
 import { useStore } from "../../state/store";
 import { ApplicationIcons } from "../appearance/icons";
 import styles from "./RecordTree.module.css";
+
+const kRecordTreeKey = "record-tree-key";
 
 interface RecordTreeProps {
   id: string;
@@ -25,15 +35,25 @@ export const RecordTree: FC<RecordTreeProps> = ({
   className,
   scrollRef,
 }) => {
+  // The virtual list handle and state
+  const listHandle = useRef<VirtuosoHandle | null>(null);
+  const { getRestoreState } = useVirtuosoState(
+    listHandle,
+    `metadata-grid-${id}`,
+  );
+
+  // Collapse state
   const [collapsedIds, setCollapsed] = useCollapsibleIds(id);
   const setCollapsedIds = useStore(
     (state) => state.sampleActions.setCollapsedIds,
   );
 
+  // Tree-ify the record (creates a flat lsit of items with depth property)
   const items = useMemo(() => {
     return toTreeItems(record, collapsedIds || {});
   }, [record, collapsedIds]);
 
+  // If collapsedIds is not set, we need to set it to the default state
   useEffect(() => {
     if (collapsedIds) {
       return;
@@ -51,11 +71,62 @@ export const RecordTree: FC<RecordTreeProps> = ({
     setCollapsedIds(id, defaultCollapsedIds);
   }, [collapsedIds, items]);
 
-  const listHandle = useRef<VirtuosoHandle | null>(null);
-
-  const { getRestoreState } = useVirtuosoState(
-    listHandle,
-    `metadata-grid-${id}`,
+  // Keyboard handling for tree
+  const keyUpHandler = useCallback(
+    (itemId: string, index: number) => {
+      return (event: KeyboardEvent) => {
+        switch (event.key) {
+          case "Enter":
+            event.preventDefault();
+            event.stopPropagation();
+            setCollapsed(itemId, !collapsedIds?.[id]);
+            break;
+          case "ArrowDown": {
+            event.preventDefault();
+            event.stopPropagation();
+            // focus next
+            if (index === items.length - 1) {
+              return;
+            }
+            const treeRoot = document.getElementById(id);
+            const nextEl = treeRoot?.querySelector(
+              `.${kRecordTreeKey}[data-index="${index + 1}"]`,
+            );
+            if (nextEl) {
+              (nextEl as HTMLElement).focus();
+            }
+            break;
+          }
+          case "ArrowUp": {
+            event.preventDefault();
+            event.stopPropagation();
+            // focus previous
+            if (index === 0) {
+              return;
+            }
+            const treeRoot = document.getElementById(id);
+            const prevEl = treeRoot?.querySelector(
+              `.${kRecordTreeKey}[data-index="${index - 1}"]`,
+            );
+            if (prevEl) {
+              (prevEl as HTMLElement).focus();
+            }
+            break;
+          }
+          case "ArrowRight":
+            event.preventDefault();
+            event.stopPropagation();
+            setCollapsed(itemId, false);
+            break;
+          case "ArrowLeft":
+            event.preventDefault();
+            event.stopPropagation();
+            setCollapsed(itemId, true);
+            break;
+        }
+      };
+    },
+    [collapsedIds, items],
   );
 
   const renderRow = (index: number) => {
@@ -70,15 +141,23 @@ export const RecordTree: FC<RecordTreeProps> = ({
         }}
       >
         <div
-          className={clsx(styles.key, "font-monospace", "text-style-secondary")}
+          data-index={index}
+          className={clsx(
+            kRecordTreeKey,
+            styles.key,
+            "font-monospace",
+            "text-style-secondary",
+          )}
+          onKeyUp={keyUpHandler(item.id, index)}
+          tabIndex={0}
+          onClick={() => {
+            setCollapsed(item.id, !collapsedIds?.[item.id]);
+          }}
         >
           <div>
             {item.hasChildren ? (
               <pre className={clsx(styles.pre)}>
                 <i
-                  onClick={() => {
-                    setCollapsed(item.id, !collapsedIds?.[item.id]);
-                  }}
                   className={clsx(
                     collapsedIds && collapsedIds[item.id]
                       ? ApplicationIcons.tree.closed
@@ -100,6 +179,7 @@ export const RecordTree: FC<RecordTreeProps> = ({
                 name: item.key,
                 value: item.value,
               }}
+              renderOptions={{ renderString: "pre" }}
             />
           ) : undefined}
         </div>

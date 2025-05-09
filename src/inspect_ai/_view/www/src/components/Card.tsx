@@ -15,6 +15,7 @@ interface CardBodyProps {
   id?: string;
   children?: ReactNode;
   className?: string | string[];
+  padded?: boolean;
 }
 
 interface CardProps {
@@ -53,9 +54,21 @@ export const CardHeader: FC<CardHeaderProps> = ({
   );
 };
 
-export const CardBody: FC<CardBodyProps> = ({ id, children, className }) => {
+export const CardBody: FC<CardBodyProps> = ({
+  id,
+  children,
+  className,
+  padded = true,
+}) => {
   return (
-    <div className={clsx("card-body", className)} id={id || ""}>
+    <div
+      className={clsx(
+        "card-body",
+        className,
+        !padded ? "card-no-padding" : undefined,
+      )}
+      id={id || ""}
+    >
       {children}
     </div>
   );
