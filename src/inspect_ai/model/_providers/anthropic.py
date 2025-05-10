@@ -33,7 +33,10 @@ from anthropic.types import (
     ToolUseBlockParam,
     message_create_params,
 )
-from anthropic.types.beta import BetaToolComputerUse20250124Param
+from anthropic.types.beta import (
+    BetaToolComputerUse20250124Param,
+    BetaToolTextEditor20241022Param,
+)
 from pydantic import JsonValue
 from typing_extensions import override
 
@@ -218,6 +221,8 @@ class AnthropicAPI(ModelAPI):
                 # tools are generally available for Claude 3.5 Sonnet (new) as well and
                 # can be used without the computer use beta header.
                 betas.append("computer-use-2025-01-24")
+            if any("20241022" in str(tool.get("type", "")) for tool in tools_param):
+                betas.append("computer-use-2024-10-22")
             if len(betas) > 0:
                 extra_headers["anthropic-beta"] = ",".join(betas)
 
@@ -554,7 +559,7 @@ class AnthropicAPI(ModelAPI):
 
     def text_editor_tool_param(
         self, tool: ToolInfo
-    ) -> Optional[ToolTextEditor20250124Param]:
+    ) -> ToolTextEditor20250124Param | BetaToolTextEditor20241022Param | None:
         # check for compatible 'text editor' tool
         if tool.name == "text_editor" and (
             sorted(tool.parameters.properties.keys())
@@ -570,8 +575,14 @@ class AnthropicAPI(ModelAPI):
                 ]
             )
         ):
-            return ToolTextEditor20250124Param(
-                type="text_editor_20250124", name="str_replace_editor"
+            return (
+                BetaToolTextEditor20241022Param(
+                    type="text_editor_20241022", name="str_replace_editor"
+                )
+                if self.is_claude_3_5()
+                else ToolTextEditor20250124Param(
+                    type="text_editor_20250124", name="str_replace_editor"
+                )
             )
         # not a text_editor tool
         else:
@@ -580,7 +591,10 @@ class AnthropicAPI(ModelAPI):
 
 # tools can be either a stock tool param or a special Anthropic native use tool param
 ToolParamDef = (
-    ToolParam | BetaToolComputerUse20250124Param | ToolTextEditor20250124Param
+    ToolParam
+    | BetaToolComputerUse20250124Param
+    | ToolTextEditor20250124Param
+    | BetaToolTextEditor20241022Param
 )
 
 
@@ -589,6 +603,7 @@ def add_cache_control(
     | ToolParam
     | BetaToolComputerUse20250124Param
     | ToolTextEditor20250124Param
+    | BetaToolTextEditor20241022Param
     | dict[str, Any],
 ) -> None:
     cast(dict[str, Any], param)["cache_control"] = {"type": "ephemeral"}
@@ -853,6 +868,7 @@ def _names_for_tool_call(
     """
     mappings = (
         (INTERNAL_COMPUTER_TOOL_NAME, "computer_20250124", "computer"),
+        ("str_replace_editor", "text_editor_20241022", "text_editor"),
         ("str_replace_editor", "text_editor_20250124", "text_editor"),
         ("bash", "bash_20250124", "bash_session"),
     )
