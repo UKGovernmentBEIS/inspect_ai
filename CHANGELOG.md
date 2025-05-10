@@ -13,6 +13,7 @@
 - Inspect View: Fix issue that prevented filtering of sample list when viewing a running evaluation.
 - Inspect View: Fix selection of specific metrics within scorers when a scorer produces more than one metric.
 - Ignore OSError that occurs while rotating trace files.
+- Bugfix: Restore ability of operator to terminate the current sample in tool call approval.
 - Bugfix: Ensure that "init" span is exited in the same async context when sandbox connection errors occur.
 - Bugfix: Protect against no `thought` argument being passed to `think()` tool.
 - Bugfix: Correct handling of `text_editor()` tool for Claude Sonnet 3.5.

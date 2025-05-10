@@ -39,6 +39,7 @@ from inspect_ai._util.content import (
     ContentText,
     ContentVideo,
 )
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import registry_unqualified_name
@@ -376,7 +377,7 @@ async def call_tool(
             transcript()._event(
                 SampleLimitEvent(type="operator", limit=1, message=message)
             )
-            raise LimitExceededError("operator", value=1, limit=1, message=message)
+            raise TerminateSampleError(message)
         else:
             raise ToolApprovalError(approval.explanation if approval else None)
     if approval and approval.modified:

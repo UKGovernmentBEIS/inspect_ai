@@ -27,6 +27,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.datetime import iso_now
 from inspect_ai._util.error import exception_message
+from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.hooks import send_telemetry
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.registry import (
@@ -720,7 +721,7 @@ async def task_run_sample(
                         # handle the cancel exception
                         raise
 
-                except LimitExceededError:
+                except (LimitExceededError, TerminateSampleError):
                     # capture most recent state for scoring
                     state = sample_state() or state
 
