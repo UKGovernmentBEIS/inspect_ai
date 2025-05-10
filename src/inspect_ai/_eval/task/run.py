@@ -931,7 +931,7 @@ async def log_sample(
         input=sample.input,
         choices=sample.choices,
         target=sample.target,
-        metadata=sample.metadata or {},
+        metadata=state.metadata or {},
         sandbox=sample.sandbox,
         files=list(sample.files.keys()) if sample.files else None,
         setup=sample.setup,
