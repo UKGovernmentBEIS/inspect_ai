@@ -428,7 +428,7 @@ def solver_from_spec(spec: SolverSpec) -> Solver:
                 return as_solver(agent)
             else:
                 raise ValueError(
-                    f"Unkonwn solver {solver_name} (not registered as a @solver or @agent)"
+                    f"Unknown solver {solver_name} (not registered as a @solver or @agent)"
                 )
 
         # we do have a solver file
