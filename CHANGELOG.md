@@ -1,8 +1,8 @@
-## Unreleased
+## v0.3.95 (10 May 2025)
 
-- Added support for [Tavily](https://tavily.com/)'s Research API to the `web_search` tool.
 - [DataFrame](https://inspect.aisi.org.uk/dataframe.html) functions for reading dataframes from log files.
-- Multiple choice: `max_tokens` option to control tokens used for `generate()`.
+- Web Search: Added provider for [Tavily](https://inspect.aisi.org.uk/tools-standard.html#tavily-provider) Research API.
+- Multiple Choice: `max_tokens` option to control tokens used for `generate()`.
 - Don't enforce sample `working_limit` after solvers have completed executing (matching behavior of other sample limits).
 - Only pass `user` parameter on to sandboxes if is not `None` (eases compatibility with older sandbox providers).
 - Anthropic: Retry when `type` in the error message body is "overloaded_error". 

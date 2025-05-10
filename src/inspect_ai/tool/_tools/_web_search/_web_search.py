@@ -36,13 +36,13 @@ def web_search(
         Note: The `| None` type is only for backwards compatibility. Passing
         `None` is deprecated.
       num_results: The number of search result pages used to provide information
-      back to the model.
+        back to the model.
       max_provider_calls: Maximum number of search calls to make to the search
-      provider.
+        provider.
       max_connections: Maximum number of concurrent connections to API endpoint
-      of search provider.
+        of search provider.
       model: Model used to parse web pages for relevance - used only by the
-      `google` provider.
+        `google` provider.
 
     Returns:
        A tool that can be registered for use by models to search the web.
