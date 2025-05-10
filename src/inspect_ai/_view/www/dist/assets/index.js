@@ -15851,7 +15851,7 @@ var require_assets = __commonJS({
       return __toString.call(val) === "[object Date]";
     }
     /**
-     * react-router v7.5.3
+     * react-router v7.5.1
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -17249,11 +17249,7 @@ var require_assets = __commonJS({
           }
           return {
             matches,
-            pendingActionResult: [
-              boundaryMatch.route.id,
-              result2,
-              actionMatch.route.id
-            ]
+            pendingActionResult: [boundaryMatch.route.id, result2]
           };
         }
         return {
@@ -19422,9 +19418,7 @@ var require_assets = __commonJS({
       });
       if (pendingError !== void 0 && pendingActionResult) {
         errors2 = { [pendingActionResult[0]]: pendingError };
-        if (pendingActionResult[2]) {
-          loaderData[pendingActionResult[2]] = void 0;
-        }
+        loaderData[pendingActionResult[0]] = void 0;
       }
       return {
         loaderData,
@@ -21115,7 +21109,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
     try {
       if (isBrowser) {
-        window.__reactRouterVersion = "7.5.3";
+        window.__reactRouterVersion = "7.5.1";
       }
     } catch (e) {
     }
@@ -21516,7 +21510,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       304
     ]);
     /**
-     * react-router v7.5.3
+     * react-router v7.5.1
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -81509,20 +81503,16 @@ Supported expressions:
       score: score2,
       setScore
     }) => {
-      const scorers = scores2.reduce((accum, scorer2) => {
-        if (!accum.find((sc) => {
-          return scorer2.scorer === sc.scorer;
-        })) {
-          accum.push(scorer2);
-        }
-        return accum;
-      }, []);
-      const handleSelectScore = reactExports.useCallback(
-        (index2) => {
-          setScore(scores2[index2]);
-        },
-        [setScore, scores2]
-      );
+      const scorers = reactExports.useMemo(() => {
+        return scores2.reduce((accum, scorer2) => {
+          if (!accum.find((sc) => {
+            return scorer2.scorer === sc.scorer;
+          })) {
+            accum.push(scorer2);
+          }
+          return accum;
+        }, []);
+      }, [scores2]);
       if (scorers.length === 1) {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$8.flex, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -81542,8 +81532,8 @@ Supported expressions:
             ScoreSelector,
             {
               scores: scores2,
-              selectedIndex: scoreIndex(scores2, score2),
-              setSelectedIndex: handleSelectScore
+              selectedScore: score2,
+              setSelectedScore: setScore
             }
           )
         ] });
@@ -81570,8 +81560,8 @@ Supported expressions:
             ScorerSelector,
             {
               scorers,
-              selectedIndex: scorerIndex(scorers, score2),
-              setSelectedIndex: handleSelectScore
+              selectedScore: score2,
+              setSelectedScore: setScore
             }
           ),
           scorerScores.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -81579,8 +81569,8 @@ Supported expressions:
             {
               className: clsx(styles$8.secondSel),
               scores: scorerScores,
-              selectedIndex: scoreIndex(scorerScores, score2),
-              setSelectedIndex: handleSelectScore
+              selectedScore: score2,
+              setSelectedScore: setScore
             }
           ) : void 0
         ] });
@@ -81588,17 +81578,20 @@ Supported expressions:
     };
     const ScoreSelector = ({
       scores: scores2,
-      selectedIndex,
-      setSelectedIndex,
+      selectedScore,
+      setSelectedScore,
       className: className2
     }) => {
       const handleChange = reactExports.useCallback(
         (e) => {
           const sel = e.target;
-          setSelectedIndex(sel.selectedIndex);
+          setSelectedScore(scores2[sel.selectedIndex]);
         },
-        [setSelectedIndex]
+        [setSelectedScore, scores2]
       );
+      const index2 = scores2.findIndex((sc) => {
+        return selectedScore && sc.name === selectedScore.name && sc.scorer === selectedScore.scorer;
+      });
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "select",
         {
@@ -81609,7 +81602,7 @@ Supported expressions:
             className2
           ),
           "aria-label": ".select-scorer-label",
-          value: scores2[selectedIndex].name,
+          value: scores2[index2].name,
           onChange: handleChange,
           children: scores2.map((score2) => {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: score2.name, children: score2.name }, score2.name);
@@ -81619,22 +81612,25 @@ Supported expressions:
     };
     const ScorerSelector = ({
       scorers,
-      selectedIndex,
-      setSelectedIndex
+      selectedScore,
+      setSelectedScore
     }) => {
       const handleChange = reactExports.useCallback(
         (e) => {
           const sel = e.target;
-          setSelectedIndex(sel.selectedIndex);
+          setSelectedScore(scorers[sel.selectedIndex]);
         },
-        [setSelectedIndex]
+        [setSelectedScore, scorers]
       );
+      const index2 = scorers.findIndex((sc) => {
+        return selectedScore && sc.scorer === selectedScore.scorer;
+      });
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "select",
         {
           className: clsx("form-select", "form-select-sm", "text-size-smaller"),
           "aria-label": ".epoch-filter-label",
-          value: scorers[selectedIndex].scorer,
+          value: scorers[index2].scorer,
           onChange: handleChange,
           children: scorers.map((scorer2) => {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("option", { value: scorer2.scorer, children: scorer2.scorer }, scorer2.scorer);
@@ -81642,12 +81638,6 @@ Supported expressions:
         }
       );
     };
-    const scoreIndex = (scores2, score2) => scores2.findIndex((sc) => {
-      return score2 && sc.name === score2.name && sc.scorer === score2.scorer;
-    });
-    const scorerIndex = (scores2, score2) => scores2.findIndex((sc) => {
-      return score2 && sc.scorer === score2.scorer;
-    });
     const SampleTools = () => {
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const scores2 = useScores();
