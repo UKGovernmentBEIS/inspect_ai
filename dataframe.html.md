@@ -1,20 +1,12 @@
-# Dataframes
+# Log Dataframes
 
 
 > [!NOTE]
 >
-> The analysis functions described below are available only in the
-> development version of Inspect. To install the development version
-> from GitHub:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
->
-> Analysis functions are currently in beta and are exported from the
-> **inspect_ai.analysis.beta** module. The beta module will be preserved
-> after final release so that code written against it now continues to
-> work after the beta.
+> Log dataframe functions are currently in beta and are exported from
+> the **inspect_ai.analysis.beta** module. The beta module will be
+> preserved after final release so that code written against it now will
+> continue to work after the beta.
 
 ## Overview
 
@@ -32,8 +24,8 @@ table a {
 Inspect eval logs have a hierarchical structure which is well suited to
 flexibly capturing all the elements of an evaluation. However, when
 analysing or visualising log data you will often want to transform logs
-into
-[dataframes](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html).
+into a
+[dataframe](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html).
 The **inspect_ai.analysis** module includes a variety of functions for
 extracting [Pandas](https://pandas.pydata.org/) dataframes from logs,
 including:
@@ -43,7 +35,6 @@ including:
 | [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
 | [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
-| [events_df()](#events) | Event level data (e.g. model event, tool event, etc.). One row per message, where each samples contains many events. |
 
 Each function extracts a default set of columns, however you can tailor
 column reading to work in whatever way you need for your analysis.
@@ -60,8 +51,8 @@ various scenarios.
 ### Import Basics
 
 Use the `evals_df()` function to read a dataframe containing a row for
-each log file (note that we import from `inspect_ai.analysis.beta`, as
-the dataframe functions are currently in community review):
+each log file (note that we import from `inspect_ai.analysis.beta` since
+the dataframe functions are currently in beta):
 
 ``` python
 from inspect_ai.analysis.beta import evals_df
@@ -473,10 +464,6 @@ def message_tool_calls(message: ChatMessage) -> str | None:
     else:
         return None
 ```
-
-### Events
-
-The `events_df()` function is not yet implemented.
 
 ### Custom
 

@@ -412,7 +412,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./dataframe.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Dataframes</span></a>
+ <span class="menu-text">Log Dataframes</span></a>
   </div>
 </li>
       </ul>
@@ -995,7 +995,7 @@ Sandbox Dependencies
 <h2 class="anchored" data-anchor-id="sec-web-search">Web Search</h2>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool provides models the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> function:</p>
 <div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> web_search(</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    provider: Literal[<span class="st">"google"</span>] <span class="op">=</span> <span class="st">"google"</span>,</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    provider: Literal[<span class="st">"tavily"</span>, <span class="st">"google"</span>],</span>
 <span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    num_results: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>,</span>
 <span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    max_provider_calls: <span class="bu">int</span> <span class="op">=</span> <span class="dv">3</span>,</span>
 <span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    max_connections: <span class="bu">int</span> <span class="op">=</span> <span class="dv">10</span>,</span>
@@ -1006,24 +1006,33 @@ Sandbox Dependencies
 <div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> web_search</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>solver<span class="op">=</span>[</span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    use_tools(web_search()), </span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    use_tools(web_search(provider<span class="op">=</span><span class="st">"tavily"</span>)), </span>
 <span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    generate()</span>
 <span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>],</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <p>Web search options include:</p>
 <ul>
-<li><p><code>provider</code>—Web search provider (currently only Google is supported, see below for instructions on setup and configuration for Google).</p></li>
-<li><p><code>num_results</code>—How many search results to return to the main model (defaults to 5).</p></li>
-<li><p><code>max_provider_calls</code>—Number of times to retrieve more links from the search provider in case previous ones were irrelevant (defaults to 3).</p></li>
+<li><p><code>provider</code>—Web search provider (currently only Tavily and Google fare supported, see below for instructions on setup and configuration).</p></li>
+<li><p><code>num_results</code>—The number of search result pages used to provide information back to the model (defaults to 3).</p></li>
+<li><p><code>max_provider_calls</code>—Number of times to retrieve more links from the search provider in case previous ones were irrelevant (used only by the Google provider and defaults to 3).</p></li>
 <li><p><code>max_connections</code>—Maximum number of concurrent connections to the search API provider (defaults to 10).</p></li>
-<li><p><code>model</code>—Model to use to determine if search results are relevant (defaults to the model currently being evaluated).</p></li>
+<li><p><code>model</code>—Model to use to determine if search results are relevant (used only by the Google provider and defaults to the model currently being evaluated).</p></li>
 </ul>
+<section id="tavily-provider" class="level4">
+<h4 class="anchored" data-anchor-id="tavily-provider">Tavily Provider</h4>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool can use <a href="https://tavily.com/">Tavily</a>’s Research API. To use it you will therefore need to setup your own Tavily account . Then, ensure that the following environment variable is defined:</p>
+<ul>
+<li><code>TAVILY_API_KEY</code> — Tavily Research API key</li>
+</ul>
+<p>When using this provider, <code>num_results</code> specifies the number of webpage results used to create a summarized response to the query.</p>
+</section>
 <section id="google-provider" class="level4">
 <h4 class="anchored" data-anchor-id="google-provider">Google Provider</h4>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> tool uses <a href="https://programmablesearchengine.google.com/about/">Google Programmable Search Engine</a>. To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the <a href="https://developers.google.com/custom-search/docs/paid_element">Programmable Search Element Paid API</a>. Then, ensure that the following environment variables are defined:</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#web_search">web_search()</a></span> can use <a href="https://programmablesearchengine.google.com/about/">Google Programmable Search Engine</a>. To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the <a href="https://developers.google.com/custom-search/docs/paid_element">Programmable Search Element Paid API</a>. Then, ensure that the following environment variables are defined:</p>
 <ul>
 <li><p><code>GOOGLE_CSE_ID</code> — Google Custom Search Engine ID</p></li>
 <li><p><code>GOOGLE_CSE_API_KEY</code> — Google API key used to enable the Search API</p></li>
 </ul>
+<p>When using this provider, <code>num_results</code> specifies the number of relevant webpages whose contents are returned.</p>
 </section>
 </section>
 <section id="sec-think" class="level2">
@@ -1676,7 +1685,7 @@ window.document.addEventListener("DOMContentLoaded", function (event) {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"loop":false,"closeEffect":"zoom","openEffect":"zoom","descPosition":"bottom","selector":".lightbox"});
+<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","loop":false,"selector":".lightbox","descPosition":"bottom","openEffect":"zoom"});
 (function() {
   let previousOnload = window.onload;
   window.onload = () => {

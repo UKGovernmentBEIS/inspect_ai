@@ -585,7 +585,7 @@ model. Here is the definition of the `web_search()` function:
 
 ``` python
 def web_search(
-    provider: Literal["google"] = "google",
+    provider: Literal["tavily", "google"],
     num_results: int = 3,
     max_provider_calls: int = 3,
     max_connections: int = 10,
@@ -600,31 +600,44 @@ You can use the `web_search()` tool like this:
 from inspect_ai.tool import web_search
 
 solver=[
-    use_tools(web_search()), 
+    use_tools(web_search(provider="tavily")), 
     generate()
 ],
 ```
 
 Web search options include:
 
-- `provider`—Web search provider (currently only Google is supported,
-  see below for instructions on setup and configuration for Google).
+- `provider`—Web search provider (currently only Tavily and Google fare
+  supported, see below for instructions on setup and configuration).
 
-- `num_results`—How many search results to return to the main model
-  (defaults to 5).
+- `num_results`—The number of search result pages used to provide
+  information back to the model (defaults to 3).
 
 - `max_provider_calls`—Number of times to retrieve more links from the
-  search provider in case previous ones were irrelevant (defaults to 3).
+  search provider in case previous ones were irrelevant (used only by
+  the Google provider and defaults to 3).
 
 - `max_connections`—Maximum number of concurrent connections to the
   search API provider (defaults to 10).
 
-- `model`—Model to use to determine if search results are relevant
-  (defaults to the model currently being evaluated).
+- `model`—Model to use to determine if search results are relevant (used
+  only by the Google provider and defaults to the model currently being
+  evaluated).
+
+#### Tavily Provider
+
+The `web_search()` tool can use [Tavily](https://tavily.com/)’s Research
+API. To use it you will therefore need to setup your own Tavily account
+. Then, ensure that the following environment variable is defined:
+
+- `TAVILY_API_KEY` — Tavily Research API key
+
+When using this provider, `num_results` specifies the number of webpage
+results used to create a summarized response to the query.
 
 #### Google Provider
 
-The `web_search()` tool uses [Google Programmable Search
+The `web_search()` can use [Google Programmable Search
 Engine](https://programmablesearchengine.google.com/about/). To use it
 you will therefore need to setup your own Google Programmable Search
 Engine and also enable the [Programmable Search Element Paid
@@ -634,6 +647,9 @@ Then, ensure that the following environment variables are defined:
 - `GOOGLE_CSE_ID` — Google Custom Search Engine ID
 
 - `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
+
+When using this provider, `num_results` specifies the number of relevant
+webpages whose contents are returned.
 
 ## Think
 
