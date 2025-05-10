@@ -19,7 +19,11 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
 
 from ._log import EvalLog, EvalSample
-from ._recorders import recorder_type_for_format, recorder_type_for_location
+from ._recorders import (
+    recorder_type_for_format,
+    recorder_type_for_location,
+    validate_for_format,
+)
 
 logger = getLogger(__name__)
 
@@ -209,6 +213,7 @@ def read_eval_log(
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    validate: Literal["auto"] | bool = "auto",
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -220,6 +225,8 @@ def read_eval_log(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       validate (Literal["auto"] | bool): Validate sample data when reading. If "auto",
+          validation will be skipped for .eval files.
 
     Returns:
        EvalLog object read from file.
@@ -238,6 +245,7 @@ def read_eval_log(
             header_only,
             resolve_attachments,
             format,
+            validate,
         )
     )
 
@@ -247,6 +255,7 @@ async def read_eval_log_async(
     header_only: bool = False,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    validate: Literal["auto"] | bool = "auto",
 ) -> EvalLog:
     """Read an evaluation log.
 
@@ -258,6 +267,8 @@ async def read_eval_log_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       validate (Literal["auto"] | bool): Validate sample data when reading. If "auto",
+          validation will be skipped for .eval files.
 
     Returns:
        EvalLog object read from file.
@@ -277,7 +288,11 @@ async def read_eval_log_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    log = await recorder_type.read_log(log_file, header_only)
+
+    if validate == "auto":
+        validate = validate_for_format(recorder_type)
+
+    log = await recorder_type.read_log(log_file, header_only, validate)
 
     # resolve attachement if requested
     if resolve_attachments and log.samples:
@@ -318,6 +333,7 @@ def read_eval_log_sample(
     epoch: int = 1,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    validate: Literal["auto"] | bool = "auto",
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -329,6 +345,8 @@ def read_eval_log_sample(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       validate (Literal["auto"] | bool): Validate sample data when reading. If "auto",
+          validation will be skipped for .eval files.
 
     Returns:
        EvalSample object read from file.
@@ -345,7 +363,9 @@ def read_eval_log_sample(
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
     return run_coroutine(
-        read_eval_log_sample_async(log_file, id, epoch, resolve_attachments, format)
+        read_eval_log_sample_async(
+            log_file, id, epoch, resolve_attachments, format, validate
+        )
     )
 
 
@@ -355,6 +375,7 @@ async def read_eval_log_sample_async(
     epoch: int = 1,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    validate: Literal["auto"] | bool = "auto",
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -366,6 +387,8 @@ async def read_eval_log_sample_async(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       validate (Literal["auto"] | bool): Validate sample data when reading. If "auto",
+          validation will be skipped for .eval files.
 
     Returns:
        EvalSample object read from file.
@@ -386,7 +409,11 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
-    sample = await recorder_type.read_log_sample(log_file, id, epoch)
+
+    if validate == "auto":
+        validate = validate_for_format(recorder_type)
+
+    sample = await recorder_type.read_log_sample(log_file, id, epoch, validate)
 
     if resolve_attachments:
         sample = resolve_sample_attachments(sample)
@@ -454,6 +481,7 @@ def read_eval_log_samples(
     all_samples_required: bool = True,
     resolve_attachments: bool = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    validate: Literal["auto"] | bool = "auto",
 ) -> Generator[EvalSample, None, None]:
     """Read all samples from an evaluation log incrementally.
 
@@ -468,6 +496,8 @@ def read_eval_log_samples(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       validate (Literal["auto"] | bool): Validate sample data when reading. If "auto",
+          validation will be skipped for .eval files.
 
     Returns:
        Generator of EvalSample objects in the log file.
@@ -503,6 +533,7 @@ def read_eval_log_samples(
                     epoch=epoch_id,
                     resolve_attachments=resolve_attachments,
                     format=format,
+                    validate=validate,
                 )
                 yield sample
             except IndexError:
