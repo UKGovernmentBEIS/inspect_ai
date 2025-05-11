@@ -41,7 +41,7 @@ def verify_prerequisites() -> None:
     verify_required_version("inspect_ai.analysis", "pyarrow", "10.0.1")
 
 
-def resolve_logs(logs: LogPaths, recursive: bool, reverse: bool) -> list[str]:
+def resolve_logs(logs: LogPaths, recursive: bool) -> list[str]:
     # normalize to list of str
     logs = [logs] if isinstance(logs, str | PathLike) else logs
     logs = [Path(log).as_posix() if isinstance(log, PathLike) else log for log in logs]
@@ -64,7 +64,7 @@ def resolve_logs(logs: LogPaths, recursive: bool, reverse: bool) -> list[str]:
         else:
             log_paths.append(info)
 
-    log_files = log_files_from_ls(log_paths, descending=reverse)
+    log_files = log_files_from_ls(log_paths)
     return [log_file.name for log_file in log_files]
 
 

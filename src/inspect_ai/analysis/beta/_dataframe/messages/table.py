@@ -26,7 +26,6 @@ def messages_df(
     columns: list[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     recursive: bool = True,
-    reverse: bool = False,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
@@ -37,7 +36,6 @@ def messages_df(
     columns: list[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     recursive: bool = True,
-    reverse: bool = False,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
@@ -47,7 +45,6 @@ def messages_df(
     columns: list[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing messages from a set of evals.
@@ -57,8 +54,6 @@ def messages_df(
        columns: Specification for what columns to read from log files.
        filter: List of message role types to include or callable that performs the filter.
        recursive: Include recursive contents of directories (defaults to `True`)
-       reverse: Reverse the order of the dataframe (by default, items
-          are ordered from oldest to newest).
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
 
@@ -81,7 +76,6 @@ def messages_df(
         logs=logs,
         columns=columns,
         recursive=recursive,
-        reverse=reverse,
         strict=strict,
         detail=detail,
     )

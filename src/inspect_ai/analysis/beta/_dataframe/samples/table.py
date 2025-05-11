@@ -49,7 +49,6 @@ def samples_df(
     logs: LogPaths,
     columns: list[Column] = SampleSummary,
     recursive: bool = True,
-    reverse: bool = False,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
@@ -59,7 +58,6 @@ def samples_df(
     logs: LogPaths,
     columns: list[Column] = SampleSummary,
     recursive: bool = True,
-    reverse: bool = False,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
@@ -68,7 +66,6 @@ def samples_df(
     logs: LogPaths,
     columns: list[Column] = SampleSummary,
     recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing samples from a set of evals.
@@ -87,9 +84,7 @@ def samples_df(
        For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
        encountered (by log file) during import.
     """
-    return _read_samples_df(
-        logs, columns, recursive=recursive, reverse=reverse, strict=strict
-    )
+    return _read_samples_df(logs, columns, recursive=recursive, strict=strict)
 
 
 @dataclass
@@ -111,14 +106,13 @@ def _read_samples_df(
     columns: list[Column],
     *,
     recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     verify_prerequisites()
 
     # resolve logs
-    logs = resolve_logs(logs, recursive=recursive, reverse=reverse)
+    logs = resolve_logs(logs, recursive=recursive)
 
     # split columns by type
     columns_eval: list[Column] = []

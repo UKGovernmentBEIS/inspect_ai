@@ -32,7 +32,6 @@ def evals_df(
     logs: LogPaths,
     columns: list[Column] = EvalColumns,
     recursive: bool = True,
-    reverse: bool = False,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
@@ -42,7 +41,6 @@ def evals_df(
     logs: LogPaths,
     columns: list[Column] = EvalColumns,
     recursive: bool = True,
-    reverse: bool = False,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
@@ -51,7 +49,6 @@ def evals_df(
     logs: LogPaths,
     columns: list[Column] = EvalColumns,
     recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing evals.
@@ -60,8 +57,6 @@ def evals_df(
        logs: One or more paths to log files or log directories.
        columns: Specification for what columns to read from log files.
        recursive: Include recursive contents of directories (defaults to `True`)
-       reverse: Reverse the order of the dataframe (by default, items
-          are ordered from oldest to newest).
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
 
@@ -73,7 +68,7 @@ def evals_df(
     verify_prerequisites()
 
     # resolve logs
-    log_paths = resolve_logs(logs, recursive=recursive, reverse=reverse)
+    log_paths = resolve_logs(logs, recursive=recursive)
 
     # resolve duplicate columns
     columns = resolve_duplicate_columns(columns)
