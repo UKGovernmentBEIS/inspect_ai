@@ -70,16 +70,16 @@ async def sandbox_client(  # type: ignore
                         await read_stream_writer.send(
                             SessionMessage(
                                 message=await exec_model_request(
-                                sandbox=sandbox_environment,
-                                method="mcp_send_request",
-                                params={
-                                    "session_id": session_id,
-                                    "request": root.model_dump(),
-                                },
-                                result_type=JSONRPCMessage,
-                                timeout=timeout,
+                                    sandbox=sandbox_environment,
+                                    method="mcp_send_request",
+                                    params={
+                                        "session_id": session_id,
+                                        "request": root.model_dump(),
+                                    },
+                                    result_type=JSONRPCMessage,
+                                    timeout=timeout,
+                                )
                             )
-                        )
                         )
                     elif isinstance(root, JSONRPCNotification):
                         await exec_notification(
