@@ -229,11 +229,34 @@ if len(errors) > 0:
 | [EvalResults](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106) | Status, errors, samples completed, headline metric. |
 | [EvalScores](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L118) | All scores and metrics broken into separate columns. |
 
+#### Multi-Columns
+
+The `task_args` dictionary and eval scores data structure are both expanded into multiple columns by default:
+
+``` python
+EvalColumn("task_arg_*", path="eval.task_args")
+EvalColumn("score_*_*", path=eval_log_scores_dict)
+```
+
+Note that scores are a two-level dictionary of `score_<scorer>_<metric>` and are extracted using a custom function. If you want to handle scores a different way you can build your own set of eval columns with a custom scores handler. For example, here we take a subset of eval columns along with our own custom handler (`custom_scores_fn`) for scores:
+
+``` python
+evals_df(
+    logs="logs", 
+    columns=(
+        EvalInfo
+        + EvalModel
+        + EvalResults
+        + ([EvalColumn("score_*_*", path=custom_scores_fn)])
+    )
+)
+```
+
 #### Custom Extraction
 
-The `EvalColumn` class provides an additional facility for reading values based on a callback function that takes an `EvalLog`. This function is specified as the `path` in the column definition.
+The example above demonstrates the use of custom extraction functions, which take an `EvalLog` and return a `JsonValue`.
 
-For example, here is the `path` function used to extract a simple dictionary of scores/metrics from the more complex `list[EvalScore]` type provided as `log.scores`:
+For example, here is the default extraction function for the the dictionary of scores/metrics:
 
 ``` python
 def scores_dict(log: EvalLog) -> JsonValue:
@@ -297,6 +320,33 @@ samples_df(
 
 Note that reading `SampleMessages` requires reading full sample content, so will take considerably longer than reading only summaries.
 
+When you create a samples data frame the `eval_id` of its parent evaluation is automatically included. You can additionally include other fields from the evals table, for example:
+
+``` python
+samples_df(
+    logs="logs", 
+    columns = EvalModel + SampleSummary + SampleMessages
+)
+```
+
+#### Multi-Columns
+
+Note that the `metadata` and `score` columns are both dictionaries that are expanded into multiple columns:
+
+``` python
+SampleColumn("metadata_*", path="metadata")
+SampleColumn("score_*", path="scores", value=score_values)
+```
+
+This might or might not be what you want for your data frame. To preserve them as JSON, remove the `_*`:
+
+``` python
+SampleColumn("metadata", path="metadata")
+SampleColumn("score", path="scores")
+```
+
+You could also write a custom [extraction](#custom-extraction-1) handler to read them in some other way.
+
 #### Full Samples
 
 `SampleColumn` will automatically determine whether it is referencing a field that requires a full sample read (for example, `messages` or `store`). There are five fields in sample summaries that have reduced footprint in the summary (`input`, `metadata`, and `scores`, `error`, and `limit`). For these, fields specify `full=True` to force reading from the full sample record. For example:
@@ -306,7 +356,7 @@ SampleColumn("limit_type", path="limit.type", full=True)
 SampleColumn("limit_value", path="limit.limit", full=True)
 ```
 
-#### Custom Extraction
+#### Custom Extraction {#custom-extraction-1}
 
 As with `EvalColumn`, you can also extract data from a sample using a callback function passed as the `path`:
 
@@ -356,6 +406,15 @@ MessageToolCalls: list[Column] = [
 MessageColumns: list[Column] = MessageContent + MessageToolCalls
 ```
 
+When you create a messages data frame the parent `sample_id` and `eval_id` are automatically included in each record. You can additionally include other fields from these tables, for example:
+
+``` python
+messages = messages_df(
+    logs="logs",
+    columns=EvalModel + MessageColumns             
+)
+```
+
 #### Custom Extraction
 
 Two of the fields above are resolved using custom extraction functions (`content` and `tool_calls`). Here is the source code for those functions:
@@ -363,7 +422,6 @@ Two of the fields above are resolved using custom extraction functions (`content
 ``` python
 def message_text(message: ChatMessage) -> str:
     return message.text
-
 
 def message_tool_calls(message: ChatMessage) -> str | None:
     if isinstance(message, ChatMessageAssistant) and message.tool_calls is not None:

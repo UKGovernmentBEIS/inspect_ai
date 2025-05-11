@@ -74,8 +74,6 @@ def samples_df(
        logs: One or more paths to log files or log directories.
        columns: Specification for what columns to read from log files.
        recursive: Include recursive contents of directories (defaults to `True`)
-       reverse: Reverse the order of the dataframe (by default, items
-          are ordered from oldest to newest).
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
 
