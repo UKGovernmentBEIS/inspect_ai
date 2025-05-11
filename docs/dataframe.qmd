@@ -3,7 +3,13 @@ title: Log Dataframes
 ---
 
 ::: callout-note
-Log dataframe functions are currently in beta and are exported from the **inspect_ai.analysis.beta** module. The beta module will be preserved after final release so that code written against it now will continue to work after the beta.
+The dataframe functions described below are available only in the development version of Inspect. To install the development version from GitHub:
+
+``` bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+
+Dataframe functions are currently in beta and are exported from the **inspect_ai.analysis.beta** module. The beta module will be preserved after final release so that code written against it now will continue to work after the beta.
 :::
 
 ## Overview {#overview}
@@ -28,6 +34,7 @@ Inspect eval logs have a hierarchical structure which is well suited to flexibly
 | [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
 | [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
+| [events_df()](#events) | Event level data (type, timing, content, etc.). One row per event, where each sample contains many events. |
 
 Each function extracts a default set of columns, however you can tailor column reading to work in whatever way you need for your analysis. Extracted dataframes can either be denormalized (e.g. if you want to immediately summarise or plot them) or normalised (e.g. if you are importing them into a SQL database).
 
@@ -221,13 +228,13 @@ if len(errors) > 0:
 
 | Type | Description |
 |------------------------------------|------------------------------------|
-| [EvalInfo](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51) | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
-| [EvalTask](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64) | Task configuration (name, file, args, solver, etc.) |
-| [EvalModel](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77) | Model name, args, generation config, etc. |
-| [EvalDataset](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L86) | Dataset name, location, sample ids, etc. |
-| [EvalConfig](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95) | Epochs, approval, sample limits, etc. |
-| [EvalResults](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106) | Status, errors, samples completed, headline metric. |
-| [EvalScores](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L118) | All scores and metrics broken into separate columns. |
+| `EvalInfo` | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
+| `EvalTask` | Task configuration (name, file, args, solver, etc.) |
+| `EvalModel` | Model name, args, generation config, etc. |
+| `EvalDataset` | Dataset name, location, sample ids, etc. |
+| `EvalConfig` | Epochs, approval, sample limits, etc. |
+| `EvalResults` | Status, errors, samples completed, headline metric. |
+| `EvalScores` | All scores and metrics broken into separate columns. |
 
 #### Multi-Columns
 
@@ -377,7 +384,7 @@ $ inspect log convert ./logs --to eval --output-dir ./logs-amended
 
 ### Messages {#messages}
 
-The `messages_df()` function enables reading message level data from a set of eval logs. Each row corresponds to a message, and includes a `sample_id` and `event_id` for linking back to its parents.
+The `messages_df()` function enables reading message level data from a set of eval logs. Each row corresponds to a message, and includes a `sample_id` and `eval_id` for linking back to its parents.
 
 The `messages_df()` function takes a `filter` parameter which can either be a list of `role` designations or a function that performs filtering. For example:
 
@@ -437,6 +444,41 @@ def message_tool_calls(message: ChatMessage) -> str | None:
     else:
         return None
 ```
+
+### Events
+
+The `events_df()` function enables reading event level data from a set of eval logs. Each row corresponds to an event, and includes a `sample_id` and `eval_id` for linking back to its parents.
+
+Because events are so heterogeneous, there is no default `columns` specification for calls to `events_df()`. Rather, you can compose columns from the following pre-built groups:
+
+| Type | Description |
+|----|----|
+| `EventInfo` | Event type and span id. |
+| `EventTiming` | Start and end times (both clock time and working time) |
+| `ModelEventColumns` | Read data from model events. |
+| `ToolEventColumns` | Read data from tool events. |
+
+The `events_df()` function also takes a `filter` parameter which can either be a list of event types or a function that performs filtering. For example, to read all model events:
+
+``` python
+model_events = events_df(
+    logs="logs", 
+    columns=EventTiming + ModelEventColumns,
+    filter=["model"]
+)
+```
+
+To read all tool events:
+
+``` python
+model_events = events_df(
+    logs="logs", 
+    columns=EvalModel + EventTiming + ToolEventColumns,
+    filter=["tool"]
+)
+```
+
+Note that for tool events we also include the `EvalModel` column group as model information is not directly embedded in tool events (whereas it is within model events).
 
 ### Custom
 

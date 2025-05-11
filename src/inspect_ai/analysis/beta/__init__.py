@@ -15,7 +15,13 @@ from ._dataframe.evals.columns import (
     EvalTask,
 )
 from ._dataframe.evals.table import evals_df
-from ._dataframe.events.columns import EventColumn
+from ._dataframe.events.columns import (
+    EventColumn,
+    EventInfo,
+    EventTiming,
+    ModelEventColumns,
+    ToolEventColumns,
+)
 from ._dataframe.events.table import events_df
 from ._dataframe.messages.columns import (
     MessageColumn,
@@ -50,6 +56,10 @@ __all__ = [
     "MessageFilter",
     "events_df",
     "EventColumn",
+    "EventInfo",
+    "EventTiming",
+    "ModelEventColumns",
+    "ToolEventColumns",
     "Column",
     "ColumnType",
     "ColumnError",

@@ -18,7 +18,7 @@ from inspect_ai.log._file import (
     read_eval_log_samples,
 )
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.log._transcript import BaseEvent, Event
+from inspect_ai.log._transcript import Event
 from inspect_ai.model._chat_message import ChatMessage
 
 from ..columns import Column, ColumnErrors, ColumnType
@@ -94,9 +94,9 @@ class MessagesDetail:
 
 @dataclass
 class EventsDetail:
-    name: str = "message"
+    name: str = "event"
     col_type = EventColumn
-    filter: Callable[[BaseEvent], bool] = lambda e: True
+    filter: Callable[[Event], bool] = lambda e: True
 
 
 def _read_samples_df(
