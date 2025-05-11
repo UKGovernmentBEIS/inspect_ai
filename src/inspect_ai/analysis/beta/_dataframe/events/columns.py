@@ -57,7 +57,7 @@ EventTiming: list[Column] = [
 ModelEventColumns: list[Column] = [
     EventColumn("model_event_model", path="model"),
     EventColumn("model_event_role", path="role"),
-    EventColumn("model_event_input", path=messages_as_str),
+    EventColumn("model_event_input", path="input", value=messages_as_str),
     EventColumn("model_event_tools", path="tools"),
     EventColumn("model_event_tool_choice", path=tool_choice_as_str),
     EventColumn("model_event_config", path="config"),

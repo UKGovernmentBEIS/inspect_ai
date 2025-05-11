@@ -5,11 +5,9 @@ from typing import Any, cast
 import shortuuid
 from pydantic import BaseModel, JsonValue
 
-from inspect_ai._util.json import jsonable_python
-
 
 def model_to_record(model: BaseModel) -> dict[str, JsonValue]:
-    return cast(dict[str, JsonValue], jsonable_python(model))
+    return cast(dict[str, JsonValue], model.model_dump(mode="json", exclude_none=True))
 
 
 def list_as_str(x: JsonValue) -> str:
