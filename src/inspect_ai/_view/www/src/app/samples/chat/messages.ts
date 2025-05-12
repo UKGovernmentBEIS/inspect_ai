@@ -23,6 +23,7 @@ export const resolveMessages = (messages: Messages) => {
   // can use to lookup the tool responses
 
   const resolvedMessages: ResolvedMessage[] = [];
+  let index = 0;
   for (const message of messages) {
     if (message.role === "tool") {
       // Add this tool message onto the previous message
@@ -35,6 +36,12 @@ export const resolveMessages = (messages: Messages) => {
     } else {
       resolvedMessages.push({ message, toolMessages: [] });
     }
+
+    // Create a stable id for the item, if it doesn't have one
+    if (message.id === undefined) {
+      message.id = `msg-${index}`;
+    }
+    index++;
   }
 
   // Capture system messages (there could be multiple)
