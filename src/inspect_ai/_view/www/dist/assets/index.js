@@ -51518,7 +51518,18 @@ self.onmessage = function (e) {
           children: children2,
           ...props
         }) => {
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$B.item), ...props, children: children2 });
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(styles$B.item),
+              "data-index": props["data-index"],
+              "data-item-group-index": props["data-item-group-index"],
+              "data-item-index": props["data-item-index"],
+              "data-known-size": props["data-known-size"],
+              style: props.style,
+              children: children2
+            }
+          );
         };
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           LiveVirtualList,

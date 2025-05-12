@@ -77,7 +77,14 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
       ...props
     }: ItemProps<any> & ContextProp<any>) => {
       return (
-        <div className={clsx(styles.item)} {...props}>
+        <div
+          className={clsx(styles.item)}
+          data-index={props["data-index"]}
+          data-item-group-index={props["data-item-group-index"]}
+          data-item-index={props["data-item-index"]}
+          data-known-size={props["data-known-size"]}
+          style={props.style}
+        >
           {children}
         </div>
       );
