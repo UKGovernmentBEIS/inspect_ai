@@ -1,7 +1,11 @@
 import { FC, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
-import { useFilteredSamples, useTotalSampleCount } from "../../state/hooks";
+import {
+  useFilteredSamples,
+  usePrevious,
+  useTotalSampleCount,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { baseUrl } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
@@ -59,6 +63,8 @@ export const LogViewContainer: FC = () => {
     }
   }, [initialState]);
 
+  const prevLogPath = usePrevious<string | undefined>(logPath);
+
   useEffect(() => {
     const loadLogFromPath = async () => {
       if (logPath) {
@@ -74,9 +80,11 @@ export const LogViewContainer: FC = () => {
         }
 
         // Reset the sample
-        clearSelectedSample();
+        if (logPath !== prevLogPath) {
+          clearSelectedSample();
 
-        clearSelectedLogSummary();
+          clearSelectedLogSummary();
+        }
       } else {
         setStatus({
           loading: true,

@@ -83867,24 +83867,30 @@ Supported expressions:
     };
     const LogViewContainer = () => {
       const { logPath, tabId, sampleId, epoch, sampleTabId } = useParams();
-      const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
-      const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
-      const setShowingSampleDialog = useStore(
-        (state) => state.appActions.setShowingSampleDialog
-      );
-      const selectSample = useStore((state) => state.logActions.selectSample);
-      const setSampleTab = useStore((state) => state.appActions.setSampleTab);
-      const filteredSamples = useFilteredSamples();
-      const totalSampleCount = useTotalSampleCount();
-      const setStatus = useStore((state) => state.appActions.setStatus);
-      const setSelectedLogIndex = useStore(
-        (state) => state.logsActions.setSelectedLogIndex
-      );
       const initialState2 = useStore((state) => state.app.initialState);
       const clearInitialState = useStore(
         (state) => state.appActions.clearInitialState
       );
+      const setSampleTab = useStore((state) => state.appActions.setSampleTab);
+      const setShowingSampleDialog = useStore(
+        (state) => state.appActions.setShowingSampleDialog
+      );
+      const setStatus = useStore((state) => state.appActions.setStatus);
+      const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
+      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+      const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+      const selectSample = useStore((state) => state.logActions.selectSample);
+      const setSelectedLogIndex = useStore(
+        (state) => state.logsActions.setSelectedLogIndex
+      );
+      const clearSelectedLogSummary = useStore(
+        (state) => state.logActions.clearSelectedLogSummary
+      );
+      const clearSelectedSample = useStore(
+        (state) => state.sampleActions.clearSelectedSample
+      );
+      const filteredSamples = useFilteredSamples();
+      const totalSampleCount = useTotalSampleCount();
       const navigate = useNavigate();
       reactExports.useEffect(() => {
         if (initialState2) {
@@ -83897,6 +83903,7 @@ Supported expressions:
           navigate(url);
         }
       }, [initialState2]);
+      const prevLogPath = usePrevious(logPath);
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {
           if (logPath) {
@@ -83905,6 +83912,10 @@ Supported expressions:
               setWorkspaceTab(tabId);
             } else {
               setWorkspaceTab(kLogViewSamplesTabId);
+            }
+            if (logPath !== prevLogPath) {
+              clearSelectedSample();
+              clearSelectedLogSummary();
             }
           } else {
             setStatus({
@@ -83915,9 +83926,6 @@ Supported expressions:
             setWorkspaceTab(kLogViewSamplesTabId);
             await refreshLogs();
             setSelectedLogIndex(0);
-            if (!sampleId) {
-              selectSample(0);
-            }
             setStatus({
               loading: false,
               error: void 0
@@ -83934,9 +83942,6 @@ Supported expressions:
         setSelectedLogIndex,
         setStatus
       ]);
-      const clearSample = useStore(
-        (state) => state.sampleActions.clearSelectedSample
-      );
       reactExports.useEffect(() => {
         if (sampleId && filteredSamples) {
           const targetEpoch = epoch ? parseInt(epoch, 10) : void 0;
@@ -83956,7 +83961,7 @@ Supported expressions:
         } else {
           setShowingSampleDialog(false);
           if (totalSampleCount > 1) {
-            clearSample();
+            clearSelectedSample();
           }
         }
       }, [
@@ -83968,7 +83973,7 @@ Supported expressions:
         selectSample,
         setSampleTab,
         setShowingSampleDialog,
-        clearSample
+        clearSelectedSample
       ]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
@@ -84022,12 +84027,17 @@ Supported expressions:
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const pollLog = useStore((state) => state.logActions.pollLog);
+      const { sampleId } = useParams();
+      const selectSample = useStore((state) => state.logActions.selectSample);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile && selectedLogFile !== loadedLogFile) {
             try {
               setAppStatus({ loading: true, error: void 0 });
               await loadLog(selectedLogFile);
+              if (!sampleId) {
+                selectSample(0);
+              }
               setAppStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);

@@ -14,7 +14,7 @@ import "./App.css";
 
 import ClipboardJS from "clipboard";
 import { FC, useCallback, useEffect } from "react";
-import { RouterProvider } from "react-router-dom";
+import { RouterProvider, useParams } from "react-router-dom";
 import { ClientAPI, HostMessage } from "../client/api/types.ts";
 import { useStore } from "../state/store.ts";
 import { AppRouter } from "./routing/AppRouter.tsx";
@@ -46,6 +46,15 @@ export const App: FC<AppProps> = ({ api }) => {
   const loadLog = useStore((state) => state.logActions.loadLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
 
+  const { sampleId } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleId?: string;
+    epoch?: string;
+    sampleTabId?: string;
+  }>();
+  const selectSample = useStore((state) => state.logActions.selectSample);
+
   // Load a specific log
   useEffect(() => {
     const loadSpecificLog = async () => {
@@ -56,6 +65,10 @@ export const App: FC<AppProps> = ({ api }) => {
 
           // Then load the log
           await loadLog(selectedLogFile);
+
+          if (!sampleId) {
+            selectSample(0);
+          }
 
           // Finally set loading to false
           setAppStatus({ loading: false, error: undefined });
