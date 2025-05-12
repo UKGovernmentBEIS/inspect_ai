@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { FC, ReactNode } from "react";
+import { FC, ReactNode, useCallback, useMemo } from "react";
 import { SampleSummary } from "../../../client/api/types";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
@@ -42,10 +42,18 @@ export const SampleRow: FC<SampleRowProps> = ({
   // Get sample navigation utilities
   const sampleNavigation = useSampleNavigation();
 
+  const onClick = useCallback(() => {
+    if (isViewable) {
+      sampleNavigation.showSample(index);
+    }
+  }, [isViewable, index]);
+
   // Use sample navigation hook to get sample URL
-  const sampleUrl = isViewable
-    ? sampleNavigation.getSampleUrl(sample.id, sample.epoch)
-    : undefined;
+  const sampleUrl = useMemo(() => {
+    return isViewable
+      ? sampleNavigation.getSampleUrl(sample.id, sample.epoch)
+      : undefined;
+  }, [isViewable, sample.id, sample.epoch]);
 
   const rowContent = (
     <div
@@ -127,13 +135,5 @@ export const SampleRow: FC<SampleRowProps> = ({
   );
 
   // Render the row content either as a link or directly
-  return (
-    <div
-      onClick={
-        isViewable ? () => sampleNavigation.showSample(index) : undefined
-      }
-    >
-      {rowContent}
-    </div>
-  );
+  return <div onClick={onClick}>{rowContent}</div>;
 };
