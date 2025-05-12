@@ -1,6 +1,6 @@
 import anyio
 
-from .working import check_sample_working_limit
+from inspect_ai.util._limit import check_working_limit
 
 
 def check_sample_interrupt() -> None:
@@ -12,4 +12,4 @@ def check_sample_interrupt() -> None:
         raise anyio.get_cancelled_exc_class()
 
     # check for working_limit
-    check_sample_working_limit()
+    check_working_limit()

@@ -353,7 +353,7 @@ class TaskState:
     def completed(self) -> bool:
         """Is the task completed.
 
-        Additionally, checks message and token limits and raises if they are exceeded, and also checks for an operator interrupt of the sample.
+        Additionally, checks for an operator interrupt of the sample.
         """
         from inspect_ai.log._samples import set_active_sample_total_messages
 
