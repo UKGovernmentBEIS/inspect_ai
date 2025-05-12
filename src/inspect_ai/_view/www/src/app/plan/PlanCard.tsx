@@ -1,19 +1,25 @@
-import { FC } from "react";
+import { FC, RefObject } from "react";
 import { EvalPlan, EvalScore, EvalSpec } from "../../@types/log";
 import { Card, CardBody, CardHeader } from "../../components/Card";
-import { MetaDataView } from "../content/MetaDataView";
+import { RecordTree } from "../content/RecordTree";
 import { PlanDetailView } from "./PlanDetailView";
 
 interface PlanCardProps {
   evalSpec?: EvalSpec;
   evalPlan?: EvalPlan;
   scores?: EvalScore[];
+  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
 /**
  * Renders the plan card
  */
-export const PlanCard: FC<PlanCardProps> = ({ evalSpec, evalPlan, scores }) => {
+export const PlanCard: FC<PlanCardProps> = ({
+  evalSpec,
+  evalPlan,
+  scores,
+  scrollRef,
+}) => {
   const metadata = evalSpec?.metadata || {};
 
   return (
@@ -33,11 +39,10 @@ export const PlanCard: FC<PlanCardProps> = ({ evalSpec, evalPlan, scores }) => {
         <Card>
           <CardHeader label="Metadata" />
           <CardBody id={"task-metadata`"}>
-            <MetaDataView
-              key={`plan-md-metadata`}
-              className={"text-size-small"}
-              entries={metadata}
-              tableOptions="sm"
+            <RecordTree
+              id={"plan-md-metadata"}
+              record={metadata}
+              scrollRef={scrollRef}
             />
           </CardBody>
         </Card>
