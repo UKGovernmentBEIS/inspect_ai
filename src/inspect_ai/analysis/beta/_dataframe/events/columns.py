@@ -8,8 +8,12 @@ from typing_extensions import override
 from inspect_ai.log._transcript import Event
 
 from ..columns import Column, ColumnType
-from ..extract import messages_as_str
-from .extract import completion_as_str, tool_choice_as_str, tool_view_as_str
+from .extract import (
+    completion_as_str,
+    model_event_input_as_str,
+    tool_choice_as_str,
+    tool_view_as_str,
+)
 
 
 class EventColumn(Column):
@@ -57,7 +61,7 @@ EventTiming: list[Column] = [
 ModelEventColumns: list[Column] = [
     EventColumn("model_event_model", path="model"),
     EventColumn("model_event_role", path="role"),
-    EventColumn("model_event_input", path="input", value=messages_as_str),
+    EventColumn("model_event_input", path=model_event_input_as_str),
     EventColumn("model_event_tools", path="tools"),
     EventColumn("model_event_tool_choice", path=tool_choice_as_str),
     EventColumn("model_event_config", path="config"),

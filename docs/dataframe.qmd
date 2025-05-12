@@ -299,7 +299,7 @@ By default, the `SampleSummary` column group is used, which reads only from summ
 SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),
     SampleColumn("epoch", path="epoch", required=True),
-    SampleColumn("input", path="input", required=True, value=input_as_str),
+    SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("target", path="target", required=True, value=list_as_str),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),

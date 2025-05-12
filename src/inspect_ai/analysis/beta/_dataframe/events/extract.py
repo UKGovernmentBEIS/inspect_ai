@@ -1,5 +1,11 @@
 from inspect_ai.log._transcript import ModelEvent, ToolEvent
 
+from ..extract import messages_as_str
+
+
+def model_event_input_as_str(event: ModelEvent) -> str:
+    return messages_as_str(event.input)
+
 
 def tool_choice_as_str(event: ModelEvent) -> str:
     if isinstance(event.tool_choice, str):

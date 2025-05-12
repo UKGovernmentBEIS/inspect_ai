@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Callable,
@@ -12,8 +13,6 @@ from typing import (
 from inspect_ai._display import display
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.path import pretty_path
-from inspect_ai.analysis.beta._dataframe.events.columns import EventColumn
-from inspect_ai.analysis.beta._dataframe.messages.columns import MessageColumn
 from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
     read_eval_log_samples,
@@ -25,6 +24,9 @@ from inspect_ai.model._chat_message import ChatMessage
 from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
+from ..events.columns import EventColumn
+from ..extract import message_as_str
+from ..messages.columns import MessageColumn
 from ..record import import_record, resolve_duplicate_columns
 from ..util import (
     LogPaths,
@@ -90,7 +92,6 @@ def samples_df(
 class MessagesDetail:
     name: str = "message"
     col_type = MessageColumn
-    source: Literal["task_state", "transcript"] = "task_state"
     filter: Callable[[ChatMessage], bool] = lambda m: True
 
 
@@ -185,14 +186,9 @@ def _read_samples_df(
                     # filter detail records
                     assert isinstance(sample, EvalSample)
                     if isinstance(detail, MessagesDetail):
-                        if detail.source == "task_state":
-                            detail_items: list[ChatMessage] | list[Event] = [
-                                m for m in sample.messages if detail.filter(m)
-                            ]
-                        else:
-                            detail_items = sample_messages_from_events(
-                                sample.events, detail.filter
-                            )
+                        detail_items: list[ChatMessage] | list[Event] = (
+                            sample_messages_from_events(sample.events, detail.filter)
+                        )
                     elif isinstance(detail, EventsDetail):
                         detail_items = [e for e in sample.events if detail.filter(e)]
                     else:
@@ -272,14 +268,22 @@ def sample_messages_from_events(
     messages: list[ChatMessage] = []
     for event in events:
         if event.event == "model":
-            for message in event.input:
-                id = message.id or mm3_hash(f"{message.role}{message.text}")
+            event_messages = event.input + (
+                [event.output.message] if not event.output.empty else []
+            )
+            for message in event_messages:
+                id = message.id or message_hash(message_as_str(message))
                 if id not in ids:
                     messages.append(message)
                     ids.add(id)
 
     # then apply the filter
     return [message for message in messages if filter(message)]
+
+
+@lru_cache(maxsize=100)
+def message_hash(message: str) -> str:
+    return mm3_hash(message)
 
 
 def reorder_samples_df_columns(
