@@ -31,14 +31,14 @@
 }
 
 .copyLink {
+  font-size: 1.2em;
   opacity: 0;
-  padding-left: 0;
+  padding-left: 0.2em;
   padding-right: 2em;
 }
 
-.copyLink:hover {
+.hover .copyLink {
   opacity: 1;
-  display: block;
 }
 
 .root {

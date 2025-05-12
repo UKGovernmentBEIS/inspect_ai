@@ -5,6 +5,7 @@ import {
   ReactElement,
   ReactNode,
   useCallback,
+  useState,
 } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
@@ -112,17 +113,21 @@ export const EventPanel: FC<EventPanelProps> = ({
     setCollapsed(!collapsed);
   }, [setCollapsed, collapsed, childIds]);
 
+  const [mouseOver, setMouseOver] = useState(false);
+
   const titleEl =
     title || icon || filteredArrChildren.length > 1 ? (
       <div
         title={subTitle}
-        className={clsx("text-size-small")}
+        className={clsx("text-size-small", mouseOver ? styles.hover : "")}
         style={{
           display: "grid",
           gridTemplateColumns: gridColumns.join(" "),
           columnGap: "0.3em",
           cursor: isCollapsible && !useBottomDongle ? "pointer" : undefined,
         }}
+        onMouseEnter={() => setMouseOver(true)}
+        onMouseLeave={() => setMouseOver(false)}
       >
         {isCollapsible && !useBottomDongle ? (
           <i
