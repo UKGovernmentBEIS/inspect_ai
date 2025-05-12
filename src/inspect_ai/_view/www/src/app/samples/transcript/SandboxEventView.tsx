@@ -1,6 +1,5 @@
 import { SandboxEvent } from "../../../@types/log";
 import ExpandablePanel from "../../../components/ExpandablePanel";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { ApplicationIcons } from "../../appearance/icons";
 import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { EventPanel } from "./event/EventPanel";
@@ -8,6 +7,7 @@ import { EventSection } from "./event/EventSection";
 
 import clsx from "clsx";
 import { FC } from "react";
+import { RenderedContent } from "../../content/RenderedContent";
 import styles from "./SandboxEventView.module.css";
 import { formatTiming } from "./event/utils";
 import { EventNode } from "./types";
@@ -59,7 +59,7 @@ const ExecView: FC<ExecViewProps> = ({ id, event }) => {
   const options = event.options;
   const input = event.input;
   const result = event.result;
-  const output = event.output;
+  const output = event.output ? event.output.trim() : undefined;
 
   return (
     <div className={clsx(styles.exec)}>
@@ -80,16 +80,23 @@ const ExecView: FC<ExecViewProps> = ({ id, event }) => {
           ) : undefined}
         </div>
       </EventSection>
-      <EventSection title={`Result`}>
-        {output ? (
-          <ExpandablePanel id={`${id}-output`} collapse={false}>
-            <MarkdownDiv markdown={output} />
-          </ExpandablePanel>
-        ) : undefined}
-        {result !== 0 ? (
-          <div className={clsx(styles.result)}>Exited with code {result}</div>
-        ) : undefined}
-      </EventSection>
+      {output || (result !== null && result !== 0) ? (
+        <EventSection title={`Result`}>
+          {output ? (
+            <ExpandablePanel id={`${id}-output`} collapse={false}>
+              <RenderedContent
+                id={`${id}-output-content`}
+                entry={{ name: "sandbox_output", value: output }}
+              />
+            </ExpandablePanel>
+          ) : undefined}
+          {result !== 0 ? (
+            <div className={clsx(styles.result, "text-size-base")}>
+              (exited with code {result})
+            </div>
+          ) : undefined}
+        </EventSection>
+      ) : undefined}
     </div>
   );
 };
