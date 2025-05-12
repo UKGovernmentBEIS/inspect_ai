@@ -257,9 +257,7 @@ export const useSampleData = () => {
 
 export const useLogSelection = () => {
   const selectedSampleSummary = useSelectedSampleSummary();
-  const selectedLogFile = useStore((state) =>
-    state.logsActions.getSelectedLogFile(),
-  );
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const loadedLog = useStore((state) => state.log.loadedLog);
 
   return useMemo(() => {
@@ -354,9 +352,7 @@ export const useMessageVisibility = (
   const isFirstRender = useRef(true);
 
   // Reset state if the eval changes, but not during initialization
-  const selectedLogFile = useStore((state) =>
-    state.logsActions.getSelectedLogFile(),
-  );
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   useEffect(() => {
     // Skip the first effect run
     if (isFirstRender.current) {

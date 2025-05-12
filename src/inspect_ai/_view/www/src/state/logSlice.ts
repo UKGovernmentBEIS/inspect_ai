@@ -207,7 +207,7 @@ export const createLogSlice = (
       refreshLog: async () => {
         const state = get();
         const api = state.api;
-        const selectedLogFile = state.logsActions.getSelectedLogFile();
+        const selectedLogFile = state.logs.selectedLogFile;
 
         if (!api || !selectedLogFile) {
           return;

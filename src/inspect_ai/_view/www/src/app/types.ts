@@ -58,6 +58,7 @@ export interface LogsState {
   logHeaders: Record<string, EvalLogHeader>;
   headersLoading: boolean;
   selectedLogIndex: number;
+  selectedLogFile?: string;
 }
 
 export interface LogState {

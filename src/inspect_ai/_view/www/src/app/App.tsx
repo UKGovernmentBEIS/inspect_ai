@@ -36,9 +36,7 @@ export const App: FC<AppProps> = ({ api }) => {
   const loadLog = useStore((state) => state.logActions.loadLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
   const loadedLogFile = useStore((state) => state.log.loadedLog);
-  const selectedLogFile = useStore((state) =>
-    state.logsActions.getSelectedLogFile(),
-  );
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const logs = useStore((state) => state.logs.logs);
 

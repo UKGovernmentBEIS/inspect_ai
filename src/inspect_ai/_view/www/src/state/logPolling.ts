@@ -26,7 +26,7 @@ export function createLogPolling(
 
     const state = get();
     const api = state.api;
-    const selectedLogFile = state.logsActions.getSelectedLogFile();
+    const selectedLogFile = state.logs.selectedLogFile;
 
     if (!api || !selectedLogFile) {
       return false;
@@ -195,6 +195,6 @@ export function createLogPolling(
     cleanup,
     // Expose the refresh function so components can use it directly
     refreshLog: (clearPending = false) =>
-      refreshLog(get().logsActions.getSelectedLogFile() || "", clearPending),
+      refreshLog(get().logs.selectedLogFile || "", clearPending),
   };
 }

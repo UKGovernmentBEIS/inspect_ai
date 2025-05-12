@@ -35,7 +35,6 @@ export const LogViewLayout: FC = () => {
   // Log Data
   const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
   const resetFiltering = useStore((state) => state.logActions.resetFiltering);
-  const selectSample = useStore((state) => state.logActions.selectSample);
 
   // The main application reference
   const mainAppRef = useRef<HTMLDivElement>(null);
@@ -49,13 +48,7 @@ export const LogViewLayout: FC = () => {
     resetFiltering();
     clearSampleTab();
     clearWorkspaceTab();
-  }, [
-    setOffCanvas,
-    resetFiltering,
-    clearSampleTab,
-    clearWorkspaceTab,
-    selectSample,
-  ]);
+  }, [setOffCanvas, resetFiltering, clearSampleTab, clearWorkspaceTab]);
 
   const handleKeyboard = useCallback(
     (e: KeyboardEvent) => {

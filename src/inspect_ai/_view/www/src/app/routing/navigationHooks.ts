@@ -41,9 +41,7 @@ export const useSampleUrl = () => {
 
   const logDirectory = useStore((state) => state.logs.logs.log_dir);
 
-  const getSelectedLogFile = useStore(
-    (state) => state.logsActions.getSelectedLogFile,
-  );
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 
   // Helper function to resolve the log path for URLs
   const resolveLogPath = useCallback(() => {
@@ -52,15 +50,12 @@ export const useSampleUrl = () => {
       return logPath;
     }
 
-    // Otherwise use the selected log file
-    const selectedLogFile = getSelectedLogFile();
-
     if (selectedLogFile) {
       return directoryRelativeUrl(selectedLogFile, logDirectory);
     }
 
     return undefined;
-  }, [logPath, getSelectedLogFile, logDirectory]);
+  }, [logPath, selectedLogFile, logDirectory]);
 
   // Get a sample URL for a specific sample
   const getSampleUrl = useCallback(
@@ -105,9 +100,7 @@ export const useSampleNavigation = () => {
   }>();
 
   // Get the store access values directly in the hook
-  const getSelectedLogFile = useStore(
-    (state) => state.logsActions.getSelectedLogFile,
-  );
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 
   // Helper function to resolve the log path for URLs
   const resolveLogPath = useCallback(() => {
@@ -116,15 +109,12 @@ export const useSampleNavigation = () => {
       return logPath;
     }
 
-    // Otherwise use the selected log file
-    const selectedLogFile = getSelectedLogFile();
-
     if (selectedLogFile) {
       return directoryRelativeUrl(selectedLogFile, logDirectory);
     }
 
     return undefined;
-  }, [logPath, getSelectedLogFile, logDirectory]);
+  }, [logPath, selectedLogFile, logDirectory]);
 
   // The samples
   const sampleSummaries = useFilteredSamples();

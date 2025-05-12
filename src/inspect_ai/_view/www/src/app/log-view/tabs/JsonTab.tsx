@@ -30,9 +30,7 @@ export const useJsonTabConfig = (
   evalResults: EvalResults | undefined | null,
   evalStats: EvalStats | undefined,
 ) => {
-  const selectedLogFile = useStore((state) =>
-    state.logsActions.getSelectedLogFile(),
-  );
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
   const selectedTab = useStore((state) => state.app.tabs.workspace);
 
   return useMemo(() => {
