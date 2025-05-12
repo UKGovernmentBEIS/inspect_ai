@@ -47597,13 +47597,15 @@ self.onmessage = function (e) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$K.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
       }
     };
-    const container$9 = "_container_304w9_1";
-    const modelInfo = "_modelInfo_304w9_8";
-    const role = "_role_304w9_14";
+    const container$9 = "_container_4wzpj_1";
+    const modelInfo = "_modelInfo_4wzpj_8";
+    const role = "_role_4wzpj_15";
+    const sep = "_sep_4wzpj_19";
     const styles$J = {
       container: container$9,
       modelInfo,
-      role
+      role,
+      sep
     };
     const ModelCard = ({ evalSpec }) => {
       if (!evalSpec) {
@@ -47639,10 +47641,13 @@ self.onmessage = function (e) {
                     children: modelKey
                   }
                 ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Model" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: modelInfo2.model }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Base Url" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: modelInfo2.base_url || noneEl }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Configuration" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: modelInfo2.config && Object.keys(modelInfo2.config).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MetaDataGrid,
@@ -47650,13 +47655,15 @@ self.onmessage = function (e) {
                     entries: modelInfo2.config
                   }
                 ) : noneEl }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Args" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: Object.keys(modelInfo2.args).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MetaDataGrid,
                   {
                     entries: modelInfo2.args
                   }
-                ) : noneEl })
+                ) : noneEl }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$J.sep) })
               ]
             },
             modelKey
@@ -51020,10 +51027,10 @@ self.onmessage = function (e) {
     function Hn(t2, e, n) {
       return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
     }
-    const keyPairContainer = "_keyPairContainer_1adcm_1";
-    const key = "_key_1adcm_1";
-    const pre = "_pre_1adcm_16";
-    const treeIcon = "_treeIcon_1adcm_20";
+    const keyPairContainer = "_keyPairContainer_1ltuo_1";
+    const key = "_key_1ltuo_1";
+    const pre = "_pre_1ltuo_16";
+    const treeIcon = "_treeIcon_1ltuo_20";
     const styles$E = {
       keyPairContainer,
       key,

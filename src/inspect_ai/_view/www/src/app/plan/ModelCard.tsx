@@ -51,14 +51,15 @@ export const ModelCard: FC<ModelCardProps> = ({ evalSpec }) => {
                 >
                   {modelKey}
                 </div>
-
+                <div className={clsx(styles.sep)} />
                 <div className={clsx("text-style-label")}>Model</div>
                 <div>{modelInfo.model}</div>
-
+                <div className={clsx(styles.sep)} />
                 <div className={clsx("text-style-label")}>Base Url</div>
                 <div className="text-size-small">
                   {modelInfo.base_url || noneEl}
                 </div>
+                <div className={clsx(styles.sep)} />
                 <div className={clsx("text-style-label")}>Configuration</div>
                 <div className="text-size-small">
                   {modelInfo.config &&
@@ -72,6 +73,7 @@ export const ModelCard: FC<ModelCardProps> = ({ evalSpec }) => {
                     noneEl
                   )}
                 </div>
+                <div className={clsx(styles.sep)} />
                 <div className={clsx("text-style-label")}>Args</div>
                 <div className="text-size-small">
                   {Object.keys(modelInfo.args).length > 0 ? (
@@ -82,6 +84,7 @@ export const ModelCard: FC<ModelCardProps> = ({ evalSpec }) => {
                     noneEl
                   )}
                 </div>
+                <div className={clsx(styles.sep)} />
               </div>
             );
           })}

@@ -2,8 +2,8 @@
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 0.5em;
-  padding-top: 0.3em;
-  padding-bottom: 0.3em;
+  padding-top: 4px;
+  padding-bottom: 4px;
   border-bottom: solid 1px var(--bs-border-color);
 }
 
