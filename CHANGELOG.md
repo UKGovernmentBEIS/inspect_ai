@@ -2,6 +2,7 @@
 ## Unreleased
 
 - Model Context Protocol: Upgrade sandbox client to typing changes made in v1.8.0 of `mcp` package.
+- vLLM/SGLang: Fix dynamic port binding for local server on Mac OS X.
 
 ## v0.3.95 (10 May 2025)
 

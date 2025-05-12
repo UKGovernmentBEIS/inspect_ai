@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import platform
 import random
 import socket
 import subprocess
@@ -33,6 +34,21 @@ def reserve_port(
     Returns:
         A tuple (port, lock_socket) where `lock_socket` is kept open to hold the lock.
     """
+    is_macos = platform.system() == "Darwin"
+
+    if is_macos:
+        logger.info(
+            "MacOS system detected. A free binding port will be identified, but not reserved until the server binds to it."
+        )
+        # On macOS, let the OS pick a free port but not open it
+        # It leads to a small racode condition window until the port
+        # is actually opened by the llm server
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((host, 0))  # Bind to any free port
+            port = s.getsockname()[1]
+        return port, s
+
+    # Non-macOS behavior: try ports in range
     candidates = list(range(start, end))
     random.shuffle(candidates)
 
