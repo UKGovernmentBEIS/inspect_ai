@@ -5,6 +5,7 @@
   padding: 0.5em 0.5em 0.5em 0.5em;
   font-size: var(--inspect-font-size-small);
   font-weight: 600;
+  border-bottom: solid 1px var(--bs-light-border-subtle);
 }
 
 .card-header-icon {
@@ -13,9 +14,7 @@
 
 .card-body {
   background-color: var(--bs-body-bg);
-  border: solid 1px var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
-  margin: 0 8px 8px 8px;
+
   padding: 0.5em;
 }
 

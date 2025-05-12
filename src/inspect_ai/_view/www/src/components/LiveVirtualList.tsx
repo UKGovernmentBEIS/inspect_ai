@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
+import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { usePrevious, useProperty } from "../state/hooks";
 import { useRafThrottle, useVirtuosoState } from "../state/scrolling";
 import { PulsingDots } from "./PulsingDots";
@@ -35,6 +35,8 @@ interface LiveVirtualListProps<T> {
 
   // The initial index to scroll to when loading
   initialTopMostItemIndex?: number;
+
+  components?: Components<T>;
 }
 
 /**
@@ -49,6 +51,7 @@ export const LiveVirtualList = <T,>({
   live,
   showProgress,
   initialTopMostItemIndex,
+  components,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
   const listHandle = useRef<VirtuosoHandle>(null);
@@ -191,6 +194,7 @@ export const LiveVirtualList = <T,>({
       totalListHeightChanged={heightChanged}
       components={{
         Footer,
+        ...components,
       }}
     />
   );

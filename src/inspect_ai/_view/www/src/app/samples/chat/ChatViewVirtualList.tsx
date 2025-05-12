@@ -4,8 +4,12 @@ import { Messages } from "../../../@types/log";
 import { ChatMessageRow } from "./ChatMessageRow";
 import { ResolvedMessage, resolveMessages } from "./messages";
 
+import clsx from "clsx";
 import { LiveVirtualList } from "../../../components/LiveVirtualList";
 import { ChatViewToolCallStyle } from "./types";
+
+import { ContextProp, ItemProps } from "react-virtuoso";
+import styles from "./ChatViewVirtualList.module.css";
 
 interface ChatViewVirtualListProps {
   id: string;
@@ -68,6 +72,17 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
       );
     };
 
+    const Item = ({
+      children,
+      ...props
+    }: ItemProps<any> & ContextProp<any>) => {
+      return (
+        <div className={clsx(styles.item)} {...props}>
+          {children}
+        </div>
+      );
+    };
+
     return (
       <LiveVirtualList<ResolvedMessage>
         id="chat-virtual-list"
@@ -78,6 +93,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
         initialTopMostItemIndex={initialMessageIndex}
         live={running}
         showProgress={running}
+        components={{ Item }}
       />
     );
   },
