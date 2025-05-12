@@ -3,45 +3,17 @@ from typing import Callable
 from jsonpath_ng import JSONPath  # type: ignore
 from pydantic import JsonValue
 
-from inspect_ai.analysis.beta._dataframe.extract import auto_id
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
+
+from ..extract import auto_id, messages_as_str
+
+
+def sample_input_as_str(sample: EvalSample) -> str:
+    return messages_as_str(sample.input)
 
 
 def sample_messages_as_str(sample: EvalSample) -> str:
-    # format each message for the transcript
-    transcript: list[str] = []
-    for msg in sample.messages:
-        role = msg.role
-        content = msg.text.strip() if msg.text else ""
-
-        # assistant messages with tool calls
-        if isinstance(msg, ChatMessageAssistant) and msg.tool_calls is not None:
-            entry = f"{role}:\n{content}\n"
-
-            for tool in msg.tool_calls:
-                func_name = tool.function
-                args = tool.arguments
-
-                if isinstance(args, dict):
-                    args_text = "\n".join(f"{k}: {v}" for k, v in args.items())
-                    entry += f"\nTool Call: {func_name}\nArguments:\n{args_text}"
-                else:
-                    entry += f"\nTool Call: {func_name}\nArguments: {args}"
-
-            transcript.append(entry)
-
-        # tool responses with errors
-        elif isinstance(msg, ChatMessageTool) and msg.error is not None:
-            func_name = msg.function or "unknown"
-            entry = f"{role}:\n{content}\n\nError in tool call '{func_name}':\n{msg.error.message}\n"
-            transcript.append(entry)
-
-        # normal messages
-        else:
-            transcript.append(f"{role}:\n{content}\n")
-
-    return "\n".join(transcript)
+    return messages_as_str(sample.messages)
 
 
 def sample_path_requires_full(

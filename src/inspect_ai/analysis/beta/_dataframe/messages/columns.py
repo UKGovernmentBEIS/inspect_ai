@@ -43,8 +43,8 @@ class MessageColumn(Column):
 
 MessageContent: list[Column] = [
     MessageColumn("role", path="role", required=True),
-    MessageColumn("content", path=message_text),
     MessageColumn("source", path="source"),
+    MessageColumn("content", path=message_text),
 ]
 """Message content columns."""
 

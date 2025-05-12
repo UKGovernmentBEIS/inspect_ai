@@ -1,12 +1,12 @@
-
 ## Unreleased
 
+- Dataframe functions: `events_df()` function, improved message reading, log filtering
 - Model Context Protocol: Upgrade sandbox client to typing changes made in v1.8.0 of `mcp` package.
 - vLLM/SGLang: Fix dynamic port binding for local server on Mac OS X.
 
 ## v0.3.95 (10 May 2025)
 
-- [DataFrame](https://inspect.aisi.org.uk/dataframe.html) functions for reading dataframes from log files.
+- [Dataframe](https://inspect.aisi.org.uk/dataframe.html) functions for reading dataframes from log files.
 - Web Search: Added provider for [Tavily](https://inspect.aisi.org.uk/tools-standard.html#tavily-provider) Research API.
 - Multiple Choice: `max_tokens` option to control tokens used for `generate()`.
 - Don't enforce sample `working_limit` after solvers have completed executing (matching behavior of other sample limits).

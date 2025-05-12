@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import (
     TYPE_CHECKING,
     Callable,
@@ -9,21 +10,24 @@ from typing import (
     overload,
 )
 
-from inspect_ai._display import display
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.path import pretty_path
-from inspect_ai.analysis.beta._dataframe.events.columns import EventColumn
-from inspect_ai.analysis.beta._dataframe.messages.columns import MessageColumn
+from inspect_ai.analysis.beta._dataframe.progress import import_progress
 from inspect_ai.log._file import (
+    list_eval_logs,
     read_eval_log_sample_summaries,
     read_eval_log_samples,
 )
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.log._transcript import BaseEvent, Event
+from inspect_ai.log._transcript import Event
 from inspect_ai.model._chat_message import ChatMessage
 
 from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn
-from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
+from ..evals.table import EVAL_ID, EVAL_SUFFIX, _read_evals_df, ensure_eval_id
+from ..events.columns import EventColumn
+from ..extract import message_as_str
+from ..messages.columns import MessageColumn
 from ..record import import_record, resolve_duplicate_columns
 from ..util import (
     LogPaths,
@@ -46,39 +50,32 @@ SAMPLE_SUFFIX = "_sample"
 
 @overload
 def samples_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = SampleSummary,
-    recursive: bool = True,
-    reverse: bool = False,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
 
 @overload
 def samples_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = SampleSummary,
-    recursive: bool = True,
-    reverse: bool = False,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
 
 def samples_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = SampleSummary,
-    recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing samples from a set of evals.
 
     Args:
        logs: One or more paths to log files or log directories.
+          Defaults to the contents of the currently active log directory
+          (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
-       recursive: Include recursive contents of directories (defaults to `True`)
-       reverse: Reverse the order of the dataframe (by default, items
-          are ordered from oldest to newest).
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
 
@@ -87,9 +84,7 @@ def samples_df(
        For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
        encountered (by log file) during import.
     """
-    return _read_samples_df(
-        logs, columns, recursive=recursive, reverse=reverse, strict=strict
-    )
+    return _read_samples_df(logs, columns, strict=strict)
 
 
 @dataclass
@@ -101,24 +96,22 @@ class MessagesDetail:
 
 @dataclass
 class EventsDetail:
-    name: str = "message"
+    name: str = "event"
     col_type = EventColumn
-    filter: Callable[[BaseEvent], bool] = lambda e: True
+    filter: Callable[[Event], bool] = lambda e: True
 
 
 def _read_samples_df(
     logs: LogPaths,
     columns: list[Column],
     *,
-    recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     verify_prerequisites()
 
     # resolve logs
-    logs = resolve_logs(logs, recursive=recursive, reverse=reverse)
+    logs = resolve_logs(logs)
 
     # split columns by type
     columns_eval: list[Column] = []
@@ -150,12 +143,31 @@ def _read_samples_df(
     # make sure eval_id is present
     ensure_eval_id(columns_eval)
 
-    # read samples from each log
-    sample_records: list[dict[str, ColumnType]] = []
-    detail_records: list[dict[str, ColumnType]] = []
-    all_errors = ColumnErrors()
-    evals_table = evals_df(logs, columns=columns_eval)
-    with display().progress(total=len(evals_table)) as p:
+    # determine how we will allocate progress
+    with import_progress("scanning logs", total=len(logs)) as (
+        p,
+        task_id,
+    ):
+
+        def progress() -> None:
+            p.update(task_id, advance=1)
+
+        # read samples from each log
+        sample_records: list[dict[str, ColumnType]] = []
+        detail_records: list[dict[str, ColumnType]] = []
+        all_errors = ColumnErrors()
+
+        # read logs and note total samples
+        evals_table, total_samples = _read_evals_df(
+            logs, columns=columns_eval, strict=True, progress=progress
+        )
+
+        # update progress now that we know the total samples
+        entity = detail.name if detail else "sample"
+        p.reset(
+            task_id, description=f"reading {entity}s", completed=0, total=total_samples
+        )
+
         # read samples
         for eval_id, log in zip(evals_table[EVAL_ID].to_list(), logs):
             # get a generator for the samples (might require reading the full log
@@ -191,9 +203,9 @@ def _read_samples_df(
                     # filter detail records
                     assert isinstance(sample, EvalSample)
                     if isinstance(detail, MessagesDetail):
-                        detail_items: list[ChatMessage] | list[Event] = [
-                            m for m in sample.messages if detail.filter(m)
-                        ]
+                        detail_items: list[ChatMessage] | list[Event] = (
+                            sample_messages_from_events(sample.events, detail.filter)
+                        )
                     elif isinstance(detail, EventsDetail):
                         detail_items = [e for e in sample.events if detail.filter(e)]
                     else:
@@ -226,7 +238,7 @@ def _read_samples_df(
 
                 # record sample record
                 sample_records.append(record)
-            p.update()
+                progress()
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)
@@ -260,6 +272,35 @@ def _read_samples_df(
         return samples_table
     else:
         return samples_table, all_errors
+
+
+def sample_messages_from_events(
+    events: list[Event], filter: Callable[[ChatMessage], bool]
+) -> list[ChatMessage]:
+    # don't yield the same event twice
+    ids: set[str] = set()
+
+    # we need to look at the full input to every model event and add
+    # messages we haven't seen before
+    messages: list[ChatMessage] = []
+    for event in events:
+        if event.event == "model":
+            event_messages = event.input + (
+                [event.output.message] if not event.output.empty else []
+            )
+            for message in event_messages:
+                id = message.id or message_hash(message_as_str(message))
+                if id not in ids:
+                    messages.append(message)
+                    ids.add(id)
+
+    # then apply the filter
+    return [message for message in messages if filter(message)]
+
+
+@lru_cache(maxsize=100)
+def message_hash(message: str) -> str:
+    return mm3_hash(message)
 
 
 def reorder_samples_df_columns(

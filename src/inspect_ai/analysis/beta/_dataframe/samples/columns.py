@@ -7,9 +7,13 @@ from typing_extensions import override
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
 
 from ..columns import Column, ColumnType
-from ..extract import input_as_str, list_as_str, score_values
+from ..extract import list_as_str, score_values
 from ..validate import resolved_schema
-from .extract import sample_messages_as_str, sample_path_requires_full
+from .extract import (
+    sample_input_as_str,
+    sample_messages_as_str,
+    sample_path_requires_full,
+)
 
 
 class SampleColumn(Column):
@@ -54,7 +58,7 @@ class SampleColumn(Column):
 SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),
     SampleColumn("epoch", path="epoch", required=True),
-    SampleColumn("input", path="input", required=True, value=input_as_str),
+    SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("target", path="target", required=True, value=list_as_str),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),

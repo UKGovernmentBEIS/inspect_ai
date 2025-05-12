@@ -500,6 +500,18 @@ website:
           href: reference/inspect_ai.analysis.qmd#messagetoolcalls
         - text: MessageColumns
           href: reference/inspect_ai.analysis.qmd#messagecolumns
+        - text: events_df
+          href: reference/inspect_ai.analysis.qmd#events_df
+        - text: EventColumn
+          href: reference/inspect_ai.analysis.qmd#eventcolumn
+        - text: EventInfo
+          href: reference/inspect_ai.analysis.qmd#eventinfo
+        - text: EventTiming
+          href: reference/inspect_ai.analysis.qmd#eventtiming
+        - text: ModelEventColumns
+          href: reference/inspect_ai.analysis.qmd#modeleventcolumns
+        - text: ToolEventColumns
+          href: reference/inspect_ai.analysis.qmd#tooleventcolumns
         - text: Column
           href: reference/inspect_ai.analysis.qmd#column
         - text: ColumnType

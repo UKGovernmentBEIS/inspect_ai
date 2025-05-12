@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Sequence, TypeAlias
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
-from inspect_ai.log._file import log_files_from_ls
+from inspect_ai.log._file import EvalLogInfo, log_files_from_ls
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -17,7 +17,9 @@ if TYPE_CHECKING:
 
 from .columns import ColumnType
 
-LogPaths: TypeAlias = PathLike[str] | str | Sequence[PathLike[str] | str]
+LogPaths: TypeAlias = (
+    PathLike[str] | str | EvalLogInfo | Sequence[PathLike[str] | str | EvalLogInfo]
+)
 
 
 def verify_prerequisites() -> None:
@@ -41,30 +43,31 @@ def verify_prerequisites() -> None:
     verify_required_version("inspect_ai.analysis", "pyarrow", "10.0.1")
 
 
-def resolve_logs(logs: LogPaths, recursive: bool, reverse: bool) -> list[str]:
+def resolve_logs(logs: LogPaths) -> list[str]:
     # normalize to list of str
-    logs = [logs] if isinstance(logs, str | PathLike) else logs
-    logs = [Path(log).as_posix() if isinstance(log, PathLike) else log for log in logs]
+    logs = [logs] if isinstance(logs, str | PathLike | EvalLogInfo) else logs
+    logs_str = [
+        Path(log).as_posix()
+        if isinstance(log, PathLike)
+        else log.name
+        if isinstance(log, EvalLogInfo)
+        else log
+        for log in logs
+    ]
 
     # expand directories
     log_paths: list[FileInfo] = []
-    for log in logs:
-        if isinstance(log, PathLike):
-            log = Path(log).as_posix()
-        fs = filesystem(log)
-        info = fs.info(log)
+    for log_str in logs_str:
+        fs = filesystem(log_str)
+        info = fs.info(log_str)
         if info.type == "directory":
             log_paths.extend(
-                [
-                    fi
-                    for fi in fs.ls(info.name, recursive=recursive)
-                    if fi.type == "file"
-                ]
+                [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
             )
         else:
             log_paths.append(info)
 
-    log_files = log_files_from_ls(log_paths, descending=reverse)
+    log_files = log_files_from_ls(log_paths)
     return [log_file.name for log_file in log_files]
 
 
