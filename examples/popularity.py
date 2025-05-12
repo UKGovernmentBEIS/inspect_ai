@@ -1,6 +1,6 @@
 from inspect_ai import Task, task
 from inspect_ai.dataset import FieldSpec, example_dataset
-from inspect_ai.scorer import includes, match
+from inspect_ai.scorer import match
 from inspect_ai.solver import generate, system_message
 
 SYSTEM_MESSAGE = r"""
@@ -22,5 +22,5 @@ def popularity():
     return Task(
         dataset=dataset,
         solver=[system_message(SYSTEM_MESSAGE), generate()],
-        scorer=[match(), includes()],
+        scorer=[match()],
     )

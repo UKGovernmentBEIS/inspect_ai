@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal, overload
+from typing import TYPE_CHECKING, Callable, Literal, overload
 
 from inspect_ai._display import display
+from inspect_ai._display.core.display import Progress
 from inspect_ai._util.path import pretty_path
 from inspect_ai.log._file import (
     read_eval_log,
@@ -70,6 +71,45 @@ def evals_df(
     # resolve logs
     log_paths = resolve_logs(logs, recursive=recursive)
 
+    with display().progress(total=len(log_paths)) as p:
+        if strict:
+            evals_table, _ = _read_evals_df(
+                log_paths, columns, True, lambda: p.update()
+            )
+            return evals_table
+        else:
+            evals_table, all_errors, _ = _read_evals_df(
+                log_paths, columns, False, lambda: p.update()
+            )
+            return evals_table, all_errors
+
+
+@overload
+def _read_evals_df(
+    log_paths: list[str],
+    columns: list[Column],
+    strict: Literal[True],
+    progress: Callable[[], None],
+) -> tuple["pd.DataFrame", int]: ...
+
+
+@overload
+def _read_evals_df(
+    log_paths: list[str],
+    columns: list[Column],
+    strict: Literal[False],
+    progress: Callable[[], None],
+) -> tuple["pd.DataFrame", ColumnErrors, int]: ...
+
+
+def _read_evals_df(
+    log_paths: list[str],
+    columns: list[Column],
+    strict: bool,
+    progress: Callable[[], None],
+) -> tuple["pd.DataFrame", int] | tuple["pd.DataFrame", ColumnErrors, int]:
+    verify_prerequisites()
+
     # resolve duplicate columns
     columns = resolve_duplicate_columns(columns)
 
@@ -80,27 +120,31 @@ def evals_df(
     ensure_eval_id(columns)
 
     # read logs
+    total_samples = 0
     records: list[dict[str, ColumnType]] = []
-    with display().progress(total=len(log_paths)) as p:
-        for log_path in log_paths:
-            log = read_eval_log(log_path, header_only=True)
-            if strict:
-                record = import_record(log, columns, strict=True)
-            else:
-                record, errors = import_record(log, columns, strict=False)
-                all_errors[pretty_path(log_path)] = errors
-            records.append(record)
-
-            p.update()
+    for log_path in log_paths:
+        log = read_eval_log(log_path, header_only=True)
+        if strict:
+            record = import_record(log, columns, strict=True)
+        else:
+            record, errors = import_record(log, columns, strict=False)
+            all_errors[pretty_path(log_path)] = errors
+        records.append(record)
+        total_samples += (
+            len(log.eval.dataset.sample_ids)
+            if log.eval.dataset.sample_ids is not None
+            else (log.eval.dataset.samples or 100)
+        )
+        progress()
 
     # return table (+errors if strict=False)
     evals_table = records_to_pandas(records)
     evals_table = reorder_evals_df_columns(evals_table, columns)
 
     if strict:
-        return evals_table
+        return evals_table, total_samples
     else:
-        return evals_table, all_errors
+        return evals_table, all_errors, total_samples
 
 
 def ensure_eval_id(columns: list[Column]) -> None:
