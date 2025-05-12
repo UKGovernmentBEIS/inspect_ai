@@ -1,11 +1,10 @@
 import clsx from "clsx";
-import { FC, ReactNode, useCallback, useMemo } from "react";
+import { FC, ReactNode } from "react";
 import { SampleSummary } from "../../../client/api/types";
 import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { useStore } from "../../../state/store";
 import { arrayToString, inputString } from "../../../utils/format";
-import { useSampleNavigation } from "../../routing/navigationHooks";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
@@ -18,6 +17,8 @@ interface SampleRowProps {
   scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
+  showSample: () => void;
+  sampleUrl?: string;
 }
 
 export const SampleRow: FC<SampleRowProps> = ({
@@ -29,6 +30,8 @@ export const SampleRow: FC<SampleRowProps> = ({
   scoreRendered,
   gridColumnsTemplate,
   height,
+  showSample,
+  sampleUrl,
 }) => {
   const streamSampleData = useStore(
     (state) => state.capabilities.streamSampleData,
@@ -38,22 +41,6 @@ export const SampleRow: FC<SampleRowProps> = ({
   );
   // Determine if this sample can be viewed (completed or streaming)
   const isViewable = completed || streamSampleData;
-
-  // Get sample navigation utilities
-  const sampleNavigation = useSampleNavigation();
-
-  const onClick = useCallback(() => {
-    if (isViewable) {
-      sampleNavigation.showSample(index);
-    }
-  }, [isViewable, index]);
-
-  // Use sample navigation hook to get sample URL
-  const sampleUrl = useMemo(() => {
-    return isViewable
-      ? sampleNavigation.getSampleUrl(sample.id, sample.epoch)
-      : undefined;
-  }, [isViewable, sample.id, sample.epoch]);
 
   const rowContent = (
     <div
@@ -135,5 +122,5 @@ export const SampleRow: FC<SampleRowProps> = ({
   );
 
   // Render the row content either as a link or directly
-  return <div onClick={onClick}>{rowContent}</div>;
+  return <div onClick={showSample}>{rowContent}</div>;
 };

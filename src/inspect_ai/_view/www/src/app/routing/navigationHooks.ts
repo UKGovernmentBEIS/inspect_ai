@@ -32,6 +32,61 @@ export const useLogNavigation = () => {
   };
 };
 
+export const useSampleUrl = () => {
+  const { logPath, tabId, sampleTabId } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleTabId?: string;
+  }>();
+
+  const logDirectory = useStore((state) => state.logs.logs.log_dir);
+
+  const getSelectedLogFile = useStore(
+    (state) => state.logsActions.getSelectedLogFile,
+  );
+
+  // Helper function to resolve the log path for URLs
+  const resolveLogPath = useCallback(() => {
+    // If we have a logPath from URL params, use that
+    if (logPath) {
+      return logPath;
+    }
+
+    // Otherwise use the selected log file
+    const selectedLogFile = getSelectedLogFile();
+
+    if (selectedLogFile) {
+      return directoryRelativeUrl(selectedLogFile, logDirectory);
+    }
+
+    return undefined;
+  }, [logPath, getSelectedLogFile, logDirectory]);
+
+  // Get a sample URL for a specific sample
+  const getSampleUrl = useCallback(
+    (
+      sampleId: string | number,
+      epoch: number,
+      specificSampleTabId?: string,
+    ) => {
+      const resolvedPath = resolveLogPath();
+      if (resolvedPath) {
+        const currentSampleTabId = specificSampleTabId || sampleTabId;
+        const url = sampleUrl(
+          resolvedPath,
+          sampleId,
+          epoch,
+          currentSampleTabId,
+        );
+        return url;
+      }
+      return undefined;
+    },
+    [resolveLogPath, tabId, sampleTabId],
+  );
+  return getSampleUrl;
+};
+
 /**
  * Hook that provides sample navigation utilities with proper URL handling
  * for use across the application

@@ -15851,7 +15851,7 @@ var require_assets = __commonJS({
       return __toString.call(val) === "[object Date]";
     }
     /**
-     * react-router v7.5.1
+     * react-router v7.5.3
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -17249,7 +17249,11 @@ var require_assets = __commonJS({
           }
           return {
             matches,
-            pendingActionResult: [boundaryMatch.route.id, result2]
+            pendingActionResult: [
+              boundaryMatch.route.id,
+              result2,
+              actionMatch.route.id
+            ]
           };
         }
         return {
@@ -19418,7 +19422,9 @@ var require_assets = __commonJS({
       });
       if (pendingError !== void 0 && pendingActionResult) {
         errors2 = { [pendingActionResult[0]]: pendingError };
-        loaderData[pendingActionResult[0]] = void 0;
+        if (pendingActionResult[2]) {
+          loaderData[pendingActionResult[2]] = void 0;
+        }
       }
       return {
         loaderData,
@@ -21132,7 +21138,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
     try {
       if (isBrowser) {
-        window.__reactRouterVersion = "7.5.1";
+        window.__reactRouterVersion = "7.5.3";
       }
     } catch (e) {
     }
@@ -21566,7 +21572,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       304
     ]);
     /**
-     * react-router v7.5.1
+     * react-router v7.5.3
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -43364,7 +43370,7 @@ categories: ${categories.join(" ")}`;
       ) });
     };
     const log = createLogger("scrolling");
-    function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
+    function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable2 = true) {
       const getScrollPosition = useStore(
         (state) => state.appActions.getScrollPosition
       );
@@ -82856,7 +82862,9 @@ Supported expressions:
       completed,
       scoreRendered,
       gridColumnsTemplate,
-      height
+      height,
+      showSample,
+      sampleUrl: sampleUrl2
     }) => {
       const streamSampleData = useStore(
         (state) => state.capabilities.streamSampleData
@@ -82865,8 +82873,6 @@ Supported expressions:
         (state) => state.log.selectedSampleIndex
       );
       const isViewable = completed || streamSampleData;
-      const sampleNavigation = useSampleNavigation();
-      const sampleUrl2 = isViewable ? sampleNavigation.getSampleUrl(sample2.id, sample2.epoch) : void 0;
       const rowContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -82939,13 +82945,7 @@ Supported expressions:
           ]
         }
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          onClick: isViewable ? () => sampleNavigation.showSample(index2) : void 0,
-          children: rowContent
-        }
-      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: showSample, children: rowContent });
     };
     const row = "_row_utdq5_1";
     const styles$5 = {
@@ -83126,7 +83126,14 @@ Supported expressions:
                 answer: item2.answer,
                 completed: item2.completed,
                 scoreRendered: item2.scoreRendered,
-                gridColumnsTemplate
+                gridColumnsTemplate,
+                sampleUrl: sampleNavigation.getSampleUrl(
+                  item2.data.id,
+                  item2.data.epoch
+                ),
+                showSample: () => {
+                  sampleNavigation.showSample(item2.index);
+                }
               }
             );
           } else if (item2.type === "separator") {

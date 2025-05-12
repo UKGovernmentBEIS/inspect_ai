@@ -11,7 +11,7 @@ export function useStatefulScrollPosition<
 >(
   elementRef: RefObject<T | null>,
   elementKey: string,
-  delay = 500,
+  delay = 1000,
   scrollable = true,
 ) {
   const getScrollPosition = useStore(
