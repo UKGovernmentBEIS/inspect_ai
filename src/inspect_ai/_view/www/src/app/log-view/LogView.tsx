@@ -141,6 +141,7 @@ export const LogView: FC = () => {
                     selected={selectedTab === tab.id}
                     scrollable={!!tab.scrollable}
                     scrollRef={tab.scrollRef}
+                    className={clsx(tab.className)}
                     style={{ height: tab.scrollable ? "100%" : undefined }}
                   >
                     {createElement(tab.component, tab.componentProps)}

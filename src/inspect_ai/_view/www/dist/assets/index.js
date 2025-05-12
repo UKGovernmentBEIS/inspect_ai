@@ -51563,13 +51563,14 @@ self.onmessage = function (e) {
         );
       }
     );
-    const tabPanel = "_tabPanel_yxa07_1";
-    const fullWidth$1 = "_fullWidth_yxa07_5";
-    const padded = "_padded_yxa07_18";
-    const error = "_error_yxa07_23";
-    const ansi = "_ansi_yxa07_27";
-    const noTop = "_noTop_yxa07_31";
-    const chat = "_chat_yxa07_43";
+    const tabPanel = "_tabPanel_1rp9q_1";
+    const fullWidth$1 = "_fullWidth_1rp9q_5";
+    const padded = "_padded_1rp9q_18";
+    const error = "_error_1rp9q_23";
+    const ansi = "_ansi_1rp9q_27";
+    const noTop = "_noTop_1rp9q_31";
+    const chat = "_chat_1rp9q_43";
+    const transcriptContainer = "_transcriptContainer_1rp9q_51";
     const styles$A = {
       tabPanel,
       fullWidth: fullWidth$1,
@@ -51577,7 +51578,8 @@ self.onmessage = function (e) {
       error,
       ansi,
       noTop,
-      chat
+      chat,
+      transcriptContainer
     };
     const flatBody = "_flatBody_1uw6w_1";
     const iconSmall$1 = "_iconSmall_1uw6w_9";
@@ -61553,7 +61555,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleTranscriptTabId,
-                  className: "sample-tab",
+                  className: clsx("sample-tab", styles$A.transcriptContainer),
                   title: "Transcript",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleTranscriptTabId || effectiveSelectedTab === void 0,
@@ -83779,6 +83781,7 @@ Supported expressions:
                     selected: selectedTab === tab2.id,
                     scrollable: !!tab2.scrollable,
                     scrollRef: tab2.scrollRef,
+                    className: clsx(tab2.className),
                     style: { height: tab2.scrollable ? "100%" : void 0 },
                     children: reactExports.createElement(tab2.component, tab2.componentProps)
                   },

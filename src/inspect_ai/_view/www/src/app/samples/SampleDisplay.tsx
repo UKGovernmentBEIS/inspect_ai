@@ -189,7 +189,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         <TabPanel
           key={kSampleTranscriptTabId}
           id={kSampleTranscriptTabId}
-          className="sample-tab"
+          className={clsx("sample-tab", styles.transcriptContainer)}
           title="Transcript"
           onSelected={onSelectedTab}
           selected={
