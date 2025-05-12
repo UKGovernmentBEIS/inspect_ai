@@ -10,9 +10,9 @@ from typing import (
     overload,
 )
 
-from inspect_ai._display import display
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.path import pretty_path
+from inspect_ai.analysis.beta._dataframe.progress import import_progress
 from inspect_ai.log._file import (
     read_eval_log_sample_summaries,
     read_eval_log_samples,
@@ -23,7 +23,7 @@ from inspect_ai.model._chat_message import ChatMessage
 
 from ..columns import Column, ColumnErrors, ColumnType
 from ..evals.columns import EvalColumn
-from ..evals.table import EVAL_ID, EVAL_SUFFIX, ensure_eval_id, evals_df
+from ..evals.table import EVAL_ID, EVAL_SUFFIX, _read_evals_df, ensure_eval_id
 from ..events.columns import EventColumn
 from ..extract import message_as_str
 from ..messages.columns import MessageColumn
@@ -145,12 +145,31 @@ def _read_samples_df(
     # make sure eval_id is present
     ensure_eval_id(columns_eval)
 
-    # read samples from each log
-    sample_records: list[dict[str, ColumnType]] = []
-    detail_records: list[dict[str, ColumnType]] = []
-    all_errors = ColumnErrors()
-    evals_table = evals_df(logs, columns=columns_eval)
-    with display().progress(total=len(evals_table)) as p:
+    # determine how we will allocate progress
+    with import_progress("scanning logs", total=len(logs)) as (
+        p,
+        task_id,
+    ):
+
+        def progress() -> None:
+            p.update(task_id, advance=1)
+
+        # read samples from each log
+        sample_records: list[dict[str, ColumnType]] = []
+        detail_records: list[dict[str, ColumnType]] = []
+        all_errors = ColumnErrors()
+
+        # read logs and note total samples
+        evals_table, total_samples = _read_evals_df(
+            logs, columns=columns_eval, strict=True, progress=progress
+        )
+
+        # update progress now that we know the total samples
+        entity = detail.name if detail else "sample"
+        p.reset(
+            task_id, description=f"reading {entity}s", completed=0, total=total_samples
+        )
+
         # read samples
         for eval_id, log in zip(evals_table[EVAL_ID].to_list(), logs):
             # get a generator for the samples (might require reading the full log
@@ -221,7 +240,7 @@ def _read_samples_df(
 
                 # record sample record
                 sample_records.append(record)
-            p.update()
+                progress()
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)

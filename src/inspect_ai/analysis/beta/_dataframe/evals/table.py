@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Literal, overload
 
-from inspect_ai._display import display
-from inspect_ai._display.core.display import Progress
 from inspect_ai._util.path import pretty_path
+from inspect_ai.analysis.beta._dataframe.progress import import_progress
 from inspect_ai.log._file import (
     read_eval_log,
 )
@@ -71,15 +70,15 @@ def evals_df(
     # resolve logs
     log_paths = resolve_logs(logs, recursive=recursive)
 
-    with display().progress(total=len(log_paths)) as p:
+    with import_progress("reading logs", total=len(log_paths)) as (p, task_id):
         if strict:
             evals_table, _ = _read_evals_df(
-                log_paths, columns, True, lambda: p.update()
+                log_paths, columns, True, lambda: p.update(task_id, advance=1)
             )
             return evals_table
         else:
             evals_table, all_errors, _ = _read_evals_df(
-                log_paths, columns, False, lambda: p.update()
+                log_paths, columns, False, lambda: p.update(task_id, advance=1)
             )
             return evals_table, all_errors
 
