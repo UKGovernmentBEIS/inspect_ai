@@ -20,3 +20,5 @@ updates:
         versions: [">=14.0.0"]
       - dependency-name: "fsspec"
         versions: [">=2024.12.0"]
+      - dependency-name: "click"
+        versions: [">=8.2.0"]
