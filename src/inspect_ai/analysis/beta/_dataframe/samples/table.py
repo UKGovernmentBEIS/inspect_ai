@@ -10,6 +10,7 @@ from typing import (
 )
 
 from inspect_ai._display import display
+from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis.beta._dataframe.events.columns import EventColumn
 from inspect_ai.analysis.beta._dataframe.messages.columns import MessageColumn
@@ -89,6 +90,7 @@ def samples_df(
 class MessagesDetail:
     name: str = "message"
     col_type = MessageColumn
+    source: Literal["task_state", "transcript"] = "task_state"
     filter: Callable[[ChatMessage], bool] = lambda m: True
 
 
@@ -183,9 +185,14 @@ def _read_samples_df(
                     # filter detail records
                     assert isinstance(sample, EvalSample)
                     if isinstance(detail, MessagesDetail):
-                        detail_items: list[ChatMessage] | list[Event] = [
-                            m for m in sample.messages if detail.filter(m)
-                        ]
+                        if detail.source == "task_state":
+                            detail_items: list[ChatMessage] | list[Event] = [
+                                m for m in sample.messages if detail.filter(m)
+                            ]
+                        else:
+                            detail_items = sample_messages_from_events(
+                                sample.events, detail.filter
+                            )
                     elif isinstance(detail, EventsDetail):
                         detail_items = [e for e in sample.events if detail.filter(e)]
                     else:
@@ -252,6 +259,27 @@ def _read_samples_df(
         return samples_table
     else:
         return samples_table, all_errors
+
+
+def sample_messages_from_events(
+    events: list[Event], filter: Callable[[ChatMessage], bool]
+) -> list[ChatMessage]:
+    # don't yield the same event twice
+    ids: set[str] = set()
+
+    # we need to look at the full input to every model event and add
+    # messages we haven't seen before
+    messages: list[ChatMessage] = []
+    for event in events:
+        if event.event == "model":
+            for message in event.input:
+                id = message.id or mm3_hash(f"{message.role}{message.text}")
+                if id not in ids:
+                    messages.append(message)
+                    ids.add(id)
+
+    # then apply the filter
+    return [message for message in messages if filter(message)]
 
 
 def reorder_samples_df_columns(
