@@ -158,14 +158,14 @@ class EvalConfig(BaseModel):
 
 
 class EvalSampleLimit(BaseModel):
-    """Limit encontered by sample."""
+    """Limit encountered by sample."""
 
     type: Literal[
         "context", "time", "working", "message", "token", "operator", "custom"
     ]
     """The type of limit"""
 
-    limit: int
+    limit: float
     """The limit value"""
 
 

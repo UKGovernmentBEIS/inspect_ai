@@ -111,7 +111,7 @@ class SampleLimitEvent(BaseEvent):
     message: str
     """A message associated with this limit"""
 
-    limit: int | None = Field(default=None)
+    limit: float | None = Field(default=None)
     """The limit value (if any)"""
 
 
