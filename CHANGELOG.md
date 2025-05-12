@@ -1,3 +1,8 @@
+
+## Unreleased
+
+- Model Context Protocol: Upgrade sandbox client to typing changes made in v1.8.0 of `mcp` package.
+
 ## v0.3.95 (10 May 2025)
 
 - [DataFrame](https://inspect.aisi.org.uk/dataframe.html) functions for reading dataframes from log files.
