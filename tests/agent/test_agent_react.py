@@ -55,7 +55,7 @@ def searcher() -> Agent:
 
 
 AGENT_SYSTEM_MESSAGE = """
-You are a helpful assistant attempting to submit the correct answer. When you have completed the task and have a result, call the agent_submit() function to communicate it.
+You are a helpful assistant attempting to submit the correct answer. When you have completed the task and have a result, call the {submit} function to communicate it.
 """
 
 

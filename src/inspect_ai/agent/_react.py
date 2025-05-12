@@ -123,7 +123,11 @@ def react(
         if prompt.handoff_prompt and has_handoff(tools):
             prompt_lines.append(prompt.handoff_prompt)
         if prompt.assistant_prompt:
-            prompt_lines.append(prompt.assistant_prompt)
+            if "{submit}" not in prompt.assistant_prompt and prompt.submit_prompt:
+                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt}"
+            else:
+                assistant_prompt = prompt.assistant_prompt
+            prompt_lines.append(assistant_prompt)
         prompt_content = "\n\n".join(prompt_lines).format(submit=submit_tool.name)
         system_message: ChatMessage | None = ChatMessageSystem(content=prompt_content)
     else:
