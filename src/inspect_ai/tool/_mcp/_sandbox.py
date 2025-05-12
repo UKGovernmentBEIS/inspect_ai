@@ -5,6 +5,7 @@ from typing import TextIO
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 from mcp import JSONRPCRequest, StdioServerParameters
+from mcp.shared.message import SessionMessage
 from mcp.types import JSONRPCMessage, JSONRPCNotification
 
 from inspect_ai.tool._tool_support_helpers import (
@@ -36,12 +37,12 @@ async def sandbox_client(  # type: ignore
     )
 
     # read_stream is remote process's stdout
-    read_stream: MemoryObjectReceiveStream[JSONRPCMessage | Exception]
-    read_stream_writer: MemoryObjectSendStream[JSONRPCMessage | Exception]
+    read_stream: MemoryObjectReceiveStream[SessionMessage | Exception]
+    read_stream_writer: MemoryObjectSendStream[SessionMessage | Exception]
 
     # write_stream is remote process's stdin
-    write_stream: MemoryObjectSendStream[JSONRPCMessage]
-    write_stream_reader: MemoryObjectReceiveStream[JSONRPCMessage]
+    write_stream: MemoryObjectSendStream[SessionMessage]
+    write_stream_reader: MemoryObjectReceiveStream[SessionMessage]
 
     read_stream_writer, read_stream = anyio.create_memory_object_stream(0)
     write_stream, write_stream_reader = anyio.create_memory_object_stream(0)
@@ -64,18 +65,20 @@ async def sandbox_client(  # type: ignore
             async with write_stream_reader:
                 # This reads messages until the stream is closed
                 async for message in write_stream_reader:
-                    root = message.root
+                    root = message.message.root
                     if isinstance(root, JSONRPCRequest):
                         await read_stream_writer.send(
-                            await exec_model_request(
-                                sandbox=sandbox_environment,
-                                method="mcp_send_request",
-                                params={
-                                    "session_id": session_id,
-                                    "request": root.model_dump(),
-                                },
-                                result_type=JSONRPCMessage,
-                                timeout=timeout,
+                            SessionMessage(
+                                message=await exec_model_request(
+                                    sandbox=sandbox_environment,
+                                    method="mcp_send_request",
+                                    params={
+                                        "session_id": session_id,
+                                        "request": root.model_dump(),
+                                    },
+                                    result_type=JSONRPCMessage,
+                                    timeout=timeout,
+                                )
                             )
                         )
                     elif isinstance(root, JSONRPCNotification):
