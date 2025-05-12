@@ -23468,7 +23468,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
-              state.logActions.setEpoch;
               const header2 = {
                 [logFileName]: {
                   version: logContents.version,
@@ -83882,7 +83881,6 @@ Supported expressions:
       const setSelectedLogIndex = useStore(
         (state) => state.logsActions.setSelectedLogIndex
       );
-      const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
       const initialState2 = useStore((state) => state.app.initialState);
       const clearInitialState = useStore(
         (state) => state.appActions.clearInitialState
@@ -83939,11 +83937,6 @@ Supported expressions:
       const clearSample = useStore(
         (state) => state.sampleActions.clearSelectedSample
       );
-      reactExports.useEffect(() => {
-        if (selectedLogIndex > -1) {
-          selectSample(0);
-        }
-      }, [selectedLogIndex]);
       reactExports.useEffect(() => {
         if (sampleId && filteredSamples) {
           const targetEpoch = epoch ? parseInt(epoch, 10) : void 0;
@@ -84017,18 +84010,18 @@ Supported expressions:
       { basename: "" }
     );
     const App = ({ api: api2 }) => {
+      const rehydrated = useStore((state) => state.app.rehydrated);
+      const logs = useStore((state) => state.logs.logs);
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+      const loadedLogFile = useStore((state) => state.log.loadedLog);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const setIntialState = useStore((state) => state.appActions.setInitialState);
       const setAppStatus = useStore((state) => state.appActions.setStatus);
+      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const setLogs = useStore((state) => state.logsActions.setLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-      const setIntialState = useStore((state) => state.appActions.setInitialState);
-      const rehydrated = useStore((state) => state.app.rehydrated);
-      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const pollLog = useStore((state) => state.logActions.pollLog);
-      const loadedLogFile = useStore((state) => state.log.loadedLog);
-      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const logs = useStore((state) => state.logs.logs);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile && selectedLogFile !== loadedLogFile) {

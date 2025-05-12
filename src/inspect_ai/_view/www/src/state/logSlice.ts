@@ -169,7 +169,6 @@ export const createLogSlice = (
         try {
           const logContents = await api.get_log_summary(logFileName);
           state.logActions.setSelectedLogSummary(logContents);
-          state.logActions.setEpoch;
 
           // Push the updated header information up
           const header = {
