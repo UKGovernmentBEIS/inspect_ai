@@ -26,17 +26,6 @@ def score_values(x: JsonValue) -> dict[str, JsonValue]:
     return {k: v["value"] for k, v in scores.items()}
 
 
-def json_message_as_str(message: dict[str, Any]) -> str:
-    return f"{message['role']}:\n{content_as_str(message['content'])}"
-
-
-def content_as_str(content: str | list[dict[str, Any]]) -> str:
-    if isinstance(content, str):
-        return content
-    else:
-        return "\n".join([c["text"] if c["type"] == "text" else "" for c in content])
-
-
 def auto_id(base: str, index: str) -> str:
     seed = f"{base}_{index}"
     hash_bytes = hashlib.md5(seed.encode("utf-8")).digest()
