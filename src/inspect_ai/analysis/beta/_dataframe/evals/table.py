@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Callable, Literal, overload
 from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis.beta._dataframe.progress import import_progress
 from inspect_ai.log._file import (
+    list_eval_logs,
     read_eval_log,
 )
 
@@ -29,34 +30,32 @@ EVAL_SUFFIX = "_eval"
 
 @overload
 def evals_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = EvalColumns,
-    recursive: bool = True,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
 
 @overload
 def evals_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = EvalColumns,
-    recursive: bool = True,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
 
 def evals_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = EvalColumns,
-    recursive: bool = True,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing evals.
 
     Args:
        logs: One or more paths to log files or log directories.
+          Defaults to the contents of the currently active log directory
+          (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
-       recursive: Include recursive contents of directories (defaults to `True`)
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
 
@@ -68,7 +67,7 @@ def evals_df(
     verify_prerequisites()
 
     # resolve logs
-    log_paths = resolve_logs(logs, recursive=recursive)
+    log_paths = resolve_logs(logs)
 
     with import_progress("reading logs", total=len(log_paths)) as (p, task_id):
         if strict:

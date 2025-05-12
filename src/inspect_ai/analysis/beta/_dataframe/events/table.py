@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Literal, TypeAlias
 
+from inspect_ai.analysis.beta._dataframe.events.columns import EventInfo
+from inspect_ai.log._file import list_eval_logs
 from inspect_ai.log._transcript import Event
 
 if TYPE_CHECKING:
@@ -42,38 +44,36 @@ EventFilter: TypeAlias = (
 
 @overload
 def events_df(
-    logs: LogPaths,
-    columns: list[Column],
+    logs: LogPaths = list_eval_logs(),
+    columns: list[Column] = EventInfo,
     filter: EventFilter | None = None,
-    recursive: bool = True,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
 
 @overload
 def events_df(
-    logs: LogPaths,
-    columns: list[Column],
+    logs: LogPaths = list_eval_logs(),
+    columns: list[Column] = EventInfo,
     filter: EventFilter | None = None,
-    recursive: bool = True,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
 
 def events_df(
-    logs: LogPaths,
-    columns: list[Column],
+    logs: LogPaths = list_eval_logs(),
+    columns: list[Column] = EventInfo,
     filter: EventFilter | None = None,
-    recursive: bool = True,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing events from a set of evals.
 
     Args:
        logs: One or more paths to log files or log directories.
+          Defaults to the contents of the currently active log directory
+          (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
        filter: List of event types to include or callable that performs the filter.
-       recursive: Include recursive contents of directories (defaults to `True`)
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
 
@@ -95,7 +95,6 @@ def events_df(
     return _read_samples_df(
         logs=logs,
         columns=columns,
-        recursive=recursive,
         strict=strict,
         detail=detail,
     )

@@ -14,6 +14,7 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis.beta._dataframe.progress import import_progress
 from inspect_ai.log._file import (
+    list_eval_logs,
     read_eval_log_sample_summaries,
     read_eval_log_samples,
 )
@@ -49,34 +50,32 @@ SAMPLE_SUFFIX = "_sample"
 
 @overload
 def samples_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = SampleSummary,
-    recursive: bool = True,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
 
 @overload
 def samples_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = SampleSummary,
-    recursive: bool = True,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
 
 def samples_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = SampleSummary,
-    recursive: bool = True,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing samples from a set of evals.
 
     Args:
        logs: One or more paths to log files or log directories.
+          Defaults to the contents of the currently active log directory
+          (e.g. ./logs or INSPECT_LOG_DIR).
        columns: Specification for what columns to read from log files.
-       recursive: Include recursive contents of directories (defaults to `True`)
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
 
@@ -85,7 +84,7 @@ def samples_df(
        For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
        encountered (by log file) during import.
     """
-    return _read_samples_df(logs, columns, recursive=recursive, strict=strict)
+    return _read_samples_df(logs, columns, strict=strict)
 
 
 @dataclass
@@ -106,14 +105,13 @@ def _read_samples_df(
     logs: LogPaths,
     columns: list[Column],
     *,
-    recursive: bool = True,
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     verify_prerequisites()
 
     # resolve logs
-    logs = resolve_logs(logs, recursive=recursive)
+    logs = resolve_logs(logs)
 
     # split columns by type
     columns_eval: list[Column] = []
