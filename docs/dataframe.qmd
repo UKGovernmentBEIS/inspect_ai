@@ -40,16 +40,16 @@ Each function extracts a default set of columns, however you can tailor column r
 
 Below we'll walk through a few examples, then after that provide more in-depth documentation on customising how dataframes are read for various scenarios.
 
-## Examples
+## Basics
 
-### Import Basics
+### Reading Data
 
 Use the `evals_df()` function to read a dataframe containing a row for each log file (note that we import from `inspect_ai.analysis.beta` since the dataframe functions are currently in beta):
 
 ``` python
+# read logs from a given log directory
 from inspect_ai.analysis.beta import evals_df
-
-evals_df("logs")
+evals_df("logs")   
 ```
 
 ``` default
@@ -58,7 +58,7 @@ RangeIndex: 9 entries, 0 to 8
 Columns: 51 entries, eval_id to score_model_graded_qa_stderr
 ```
 
-The default configuration for `evals_df()` reads 51 columns. While this is the default, column reading can be customized in variety of ways (covered below in [Columns](#columns)).
+The default configuration for `evals_df()` reads a predefined set of columns. You can customise column reading in a variety of ways (covered below in [Columns](#columns)).
 
 Use the `samples_df()` function to read a dataframe with a record for each sample across a set of log files. For example, here we read all of the samples in the "logs" directory:
 
@@ -119,6 +119,37 @@ Columns: 27 entries, sample_id to retries
 ```
 
 This dataframe has 27 columns rather than than the 13 we saw for the default `samples_df()` behavior, reflecting the additional eval level columns. You can create your own column groups and definitions to further customise reading (see [Columns](#columns) for details).
+
+### Filtering Logs
+
+The above examples read all of the logs within a given directory. You can also use the `list_eval_logs()` function to filter the list of logs based on arbitrary criteria as well control whether log listings are recursive.
+
+For example, here we read only log files with a `status` of "success":
+
+``` python
+# read only successful logs from a given log directory
+logs = list_eval_logs("logs", filter=lambda log: log.status == "success")
+evals_df(logs)
+```
+
+Here we read only logs with the task name "popularity":
+
+``` python
+# read only logs with task name 'popularity'
+def task_filter(log: EvalLog) -> bool:
+    return log.eval.task == "popularity"
+    
+logs = list_eval_logs("logs", filter=task_filter)
+evals_df(logs)
+```
+
+We can also choose to read a directory non-recursively:
+
+``` python
+# read only the logs at the top level of 'logs'
+logs = list_eval_logs("logs", recursive=False)
+evals_df(logs)
+```
 
 ### Databases
 
@@ -445,14 +476,14 @@ def message_tool_calls(message: ChatMessage) -> str | None:
         return None
 ```
 
-### Events
+### Events {#events}
 
 The `events_df()` function enables reading event level data from a set of eval logs. Each row corresponds to an event, and includes a `sample_id` and `eval_id` for linking back to its parents.
 
 Because events are so heterogeneous, there is no default `columns` specification for calls to `events_df()`. Rather, you can compose columns from the following pre-built groups:
 
 | Type | Description |
-|----|----|
+|------------------------------------|------------------------------------|
 | `EventInfo` | Event type and span id. |
 | `EventTiming` | Start and end times (both clock time and working time) |
 | `ModelEventColumns` | Read data from model events. |
