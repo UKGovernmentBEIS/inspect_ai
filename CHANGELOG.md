@@ -3,6 +3,7 @@
 - Dataframe functions: `events_df()` function, improved message reading, log filtering
 - Model Context Protocol: Upgrade sandbox client to typing changes made in v1.8.0 of `mcp` package.
 - vLLM/SGLang: Fix dynamic port binding for local server on Mac OS X.
+- React Agent: Improve continue prompt to remind the model to include the answer in their call to `submit()`.
 
 ## v0.3.95 (10 May 2025)
 
