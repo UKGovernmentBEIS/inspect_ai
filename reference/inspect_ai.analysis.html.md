@@ -14,30 +14,23 @@
 
 Read a dataframe containing evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/table.py#L50)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/table.py#L47)
 
 ``` python
 def evals_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = EvalColumns,
-    recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]
 ```
 
 `logs` LogPaths  
-One or more paths to log files or log directories.
+One or more paths to log files or log directories. Defaults to the
+contents of the currently active log directory (e.g. ./logs or
+INSPECT_LOG_DIR).
 
 `columns` list\[[Column](inspect_ai.analysis.qmd#column)\]  
 Specification for what columns to read from log files.
-
-`recursive` bool  
-Include recursive contents of directories (defaults to `True`)
-
-`reverse` bool  
-Reverse the order of the dataframe (by default, items are ordered from
-oldest to newest).
 
 `strict` bool  
 Raise import errors immediately. Defaults to `True`. If `False` then a
@@ -47,7 +40,7 @@ tuple of `DataFrame` and errors is returned.
 
 Column which maps to `EvalLog`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L16)
 
 ``` python
 class EvalColumn(Column)
@@ -57,7 +50,7 @@ class EvalColumn(Column)
 
 Default columns to import for `evals_df()`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L123)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L123)
 
 ``` python
 EvalColumns: list[Column] = (
@@ -75,7 +68,7 @@ EvalColumns: list[Column] = (
 
 Eval basic information columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51)
 
 ``` python
 EvalInfo: list[Column] = [
@@ -95,7 +88,7 @@ EvalInfo: list[Column] = [
 
 Eval task configuration columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64)
 
 ``` python
 EvalTask: list[Column] = [
@@ -115,7 +108,7 @@ EvalTask: list[Column] = [
 
 Eval model columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77)
 
 ``` python
 EvalModel: list[Column] = [
@@ -131,7 +124,7 @@ EvalModel: list[Column] = [
 
 Eval configuration columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95)
 
 ``` python
 EvalConfig: list[Column] = [
@@ -149,7 +142,7 @@ EvalConfig: list[Column] = [
 
 Eval results columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106)
 
 ``` python
 EvalResults: list[Column] = [
@@ -168,7 +161,7 @@ EvalResults: list[Column] = [
 
 Eval scores (one score/metric per-columns).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L118)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L118)
 
 ``` python
 EvalScores: list[Column] = [
@@ -182,30 +175,23 @@ EvalScores: list[Column] = [
 
 Read a dataframe containing samples from a set of evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/samples/table.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/samples/table.py#L67)
 
 ``` python
 def samples_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = SampleSummary,
-    recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]
 ```
 
 `logs` LogPaths  
-One or more paths to log files or log directories.
+One or more paths to log files or log directories. Defaults to the
+contents of the currently active log directory (e.g. ./logs or
+INSPECT_LOG_DIR).
 
 `columns` list\[[Column](inspect_ai.analysis.qmd#column)\]  
 Specification for what columns to read from log files.
-
-`recursive` bool  
-Include recursive contents of directories (defaults to `True`)
-
-`reverse` bool  
-Reverse the order of the dataframe (by default, items are ordered from
-oldest to newest).
 
 `strict` bool  
 Raise import errors immediately. Defaults to `True`. If `False` then a
@@ -215,7 +201,7 @@ tuple of `DataFrame` and errors is returned.
 
 Column which maps to `EvalSample` or `EvalSampleSummary`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L15)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L19)
 
 ``` python
 class SampleColumn(Column)
@@ -225,13 +211,13 @@ class SampleColumn(Column)
 
 Sample summary columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L54)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L58)
 
 ``` python
 SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),
     SampleColumn("epoch", path="epoch", required=True),
-    SampleColumn("input", path="input", required=True, value=input_as_str),
+    SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("target", path="target", required=True, value=list_as_str),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
@@ -248,7 +234,7 @@ SampleSummary: list[Column] = [
 
 Sample messages as a string.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L70)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/samples/columns.py#L74)
 
 ``` python
 SampleMessages: list[Column] = [
@@ -262,21 +248,21 @@ SampleMessages: list[Column] = [
 
 Read a dataframe containing messages from a set of evals.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L45)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L42)
 
 ``` python
 def messages_df(
-    logs: LogPaths,
+    logs: LogPaths = list_eval_logs(),
     columns: list[Column] = MessageColumns,
     filter: MessageFilter | None = None,
-    recursive: bool = True,
-    reverse: bool = False,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]
 ```
 
 `logs` LogPaths  
-One or more paths to log files or log directories.
+One or more paths to log files or log directories. Defaults to the
+contents of the currently active log directory (e.g. ./logs or
+INSPECT_LOG_DIR).
 
 `columns` list\[[Column](inspect_ai.analysis.qmd#column)\]  
 Specification for what columns to read from log files.
@@ -284,13 +270,6 @@ Specification for what columns to read from log files.
 `filter` [MessageFilter](inspect_ai.analysis.qmd#messagefilter) \| None  
 List of message role types to include or callable that performs the
 filter.
-
-`recursive` bool  
-Include recursive contents of directories (defaults to `True`)
-
-`reverse` bool  
-Reverse the order of the dataframe (by default, items are ordered from
-oldest to newest).
 
 `strict` bool  
 Raise import errors immediately. Defaults to `True`. If `False` then a
@@ -300,7 +279,7 @@ tuple of `DataFrame` and errors is returned.
 
 Filter for `messages_df()` rows.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L17)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/messages/table.py#L18)
 
 ``` python
 MessageFilter: TypeAlias = (
@@ -312,7 +291,7 @@ MessageFilter: TypeAlias = (
 
 Column which maps to `ChatMessage`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L16)
 
 ``` python
 class MessageColumn(Column)
@@ -322,13 +301,13 @@ class MessageColumn(Column)
 
 Message content columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L44)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L44)
 
 ``` python
 MessageContent: list[Column] = [
     MessageColumn("role", path="role", required=True),
-    MessageColumn("content", path=message_text),
     MessageColumn("source", path="source"),
+    MessageColumn("content", path=message_text),
 ]
 ```
 
@@ -336,7 +315,7 @@ MessageContent: list[Column] = [
 
 Message tool call columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L51)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L51)
 
 ``` python
 MessageToolCalls: list[Column] = [
@@ -351,10 +330,122 @@ MessageToolCalls: list[Column] = [
 
 Chat message columns.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L59)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/messages/columns.py#L59)
 
 ``` python
 MessageColumns: list[Column] = MessageContent + MessageToolCalls
+```
+
+## Events
+
+### events_df
+
+Read a dataframe containing events from a set of evals.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/events/table.py#L63)
+
+``` python
+def events_df(
+    logs: LogPaths = list_eval_logs(),
+    columns: list[Column] = EventInfo,
+    filter: EventFilter | None = None,
+    strict: bool = True,
+) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]
+```
+
+`logs` LogPaths  
+One or more paths to log files or log directories. Defaults to the
+contents of the currently active log directory (e.g. ./logs or
+INSPECT_LOG_DIR).
+
+`columns` list\[[Column](inspect_ai.analysis.qmd#column)\]  
+Specification for what columns to read from log files.
+
+`filter` EventFilter \| None  
+List of event types to include or callable that performs the filter.
+
+`strict` bool  
+Raise import errors immediately. Defaults to `True`. If `False` then a
+tuple of `DataFrame` and errors is returned.
+
+### EventColumn
+
+Column which maps to `Event`.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L19)
+
+``` python
+class EventColumn(Column)
+```
+
+### EventInfo
+
+Event basic information columns.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L47)
+
+``` python
+EventInfo: list[Column] = [
+    EventColumn("event", path="event"),
+    EventColumn("span_id", path="span_id"),
+]
+```
+
+### EventTiming
+
+Event timing columns.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L53)
+
+``` python
+EventTiming: list[Column] = [
+    EventColumn("timestamp", path="timestamp", type=datetime),
+    EventColumn("completed", path="completed", type=datetime),
+    EventColumn("working_start", path="working_start"),
+    EventColumn("working_time", path="working_time"),
+]
+```
+
+### ModelEventColumns
+
+Model event columns.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L61)
+
+``` python
+ModelEventColumns: list[Column] = [
+    EventColumn("model_event_model", path="model"),
+    EventColumn("model_event_role", path="role"),
+    EventColumn("model_event_input", path=model_event_input_as_str),
+    EventColumn("model_event_tools", path="tools"),
+    EventColumn("model_event_tool_choice", path=tool_choice_as_str),
+    EventColumn("model_event_config", path="config"),
+    EventColumn("model_event_usage", path="output.usage"),
+    EventColumn("model_event_time", path="output.time"),
+    EventColumn("model_event_completion", path=completion_as_str),
+    EventColumn("model_event_retries", path="retries"),
+    EventColumn("model_event_error", path="error"),
+    EventColumn("model_event_cache", path="cache"),
+    EventColumn("model_event_call", path="call"),
+]
+```
+
+### ToolEventColumns
+
+Tool event columns.
+
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/events/columns.py#L78)
+
+``` python
+ToolEventColumns: list[Column] = [
+    EventColumn("tool_event_function", path="function"),
+    EventColumn("tool_event_arguments", path="arguments"),
+    EventColumn("tool_event_view", path=tool_view_as_str),
+    EventColumn("tool_event_result", path="result"),
+    EventColumn("tool_event_truncated", path="truncated"),
+    EventColumn("tool_event_error_type", path="error.type"),
+    EventColumn("tool_event_error_message", path="error.message"),
+]
 ```
 
 ## Columns
@@ -383,7 +474,7 @@ to a comma-separated string).
 The `root` option indicates which root eval log context the columns
 select from.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/columns.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/columns.py#L19)
 
 ``` python
 class Column(abc.ABC)
@@ -413,7 +504,7 @@ value
 Convert extracted value into a column value (defaults to identity
 function).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/columns.py#L84)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/columns.py#L84)
 
 ``` python
 def value(self, x: JsonValue) -> JsonValue
@@ -429,7 +520,7 @@ Valid types for columns.
 Values of `list` and `dict` are converted into column values as JSON
 `str`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/columns.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/columns.py#L12)
 
 ``` python
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
@@ -439,7 +530,7 @@ ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
 
 Error which occurred parsing a column.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/columns.py#L113)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/columns.py#L113)
 
 ``` python
 @dataclass
@@ -461,7 +552,7 @@ Error message.
 
 Dictionary of column errors keyed by log file.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/e4534752006ddbaa55dbee856229de16577cfa75/src/inspect_ai/analysis/beta/_dataframe/columns.py#L135)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/41d0dbba174e804f4ca03158c2f73c3f54d9179c/src/inspect_ai/analysis/beta/_dataframe/columns.py#L135)
 
 ``` python
 class ColumnErrors(dict[str, list[ColumnError]])

@@ -3,10 +3,10 @@
 
 > [!NOTE]
 >
-> Log dataframe functions are currently in beta and are exported from
-> the **inspect_ai.analysis.beta** module. The beta module will be
-> preserved after final release so that code written against it now will
-> continue to work after the beta.
+> Dataframe functions are currently in beta and are exported from the
+> **inspect_ai.analysis.beta** module. The beta module will be preserved
+> after final release so that code written against it now will continue
+> to work after the beta.
 
 ## Overview
 
@@ -35,6 +35,7 @@ including:
 | [evals_df()](#evals) | Evaluation level data (e.g. task, model, scores, etc.). One row per log file. |
 | [samples_df()](#samples) | Sample level data (e.g. input, metadata, scores, errors, etc.) One row per sample, where each log file contains many samples. |
 | [messages_df()](#messages) | Message level data (e.g. role, content, etc.). One row per message, where each sample contains many messages. |
+| [events_df()](#events) | Event level data (type, timing, content, etc.). One row per event, where each sample contains many events. |
 
 Each function extracts a default set of columns, however you can tailor
 column reading to work in whatever way you need for your analysis.
@@ -46,18 +47,18 @@ Below we’ll walk through a few examples, then after that provide more
 in-depth documentation on customising how dataframes are read for
 various scenarios.
 
-## Examples
+## Basics
 
-### Import Basics
+### Reading Data
 
 Use the `evals_df()` function to read a dataframe containing a row for
 each log file (note that we import from `inspect_ai.analysis.beta` since
 the dataframe functions are currently in beta):
 
 ``` python
+# read logs from a given log directory
 from inspect_ai.analysis.beta import evals_df
-
-evals_df("logs")
+evals_df("logs")   
 ```
 
 ``` default
@@ -66,9 +67,9 @@ RangeIndex: 9 entries, 0 to 8
 Columns: 51 entries, eval_id to score_model_graded_qa_stderr
 ```
 
-The default configuration for `evals_df()` reads 51 columns. While this
-is the default, column reading can be customized in variety of ways
-(covered below in [Columns](#columns)).
+The default configuration for `evals_df()` reads a predefined set of
+columns. You can customise column reading in a variety of ways (covered
+below in [Columns](#columns)).
 
 Use the `samples_df()` function to read a dataframe with a record for
 each sample across a set of log files. For example, here we read all of
@@ -141,6 +142,40 @@ This dataframe has 27 columns rather than than the 13 we saw for the
 default `samples_df()` behavior, reflecting the additional eval level
 columns. You can create your own column groups and definitions to
 further customise reading (see [Columns](#columns) for details).
+
+### Filtering Logs
+
+The above examples read all of the logs within a given directory. You
+can also use the `list_eval_logs()` function to filter the list of logs
+based on arbitrary criteria as well control whether log listings are
+recursive.
+
+For example, here we read only log files with a `status` of “success”:
+
+``` python
+# read only successful logs from a given log directory
+logs = list_eval_logs("logs", filter=lambda log: log.status == "success")
+evals_df(logs)
+```
+
+Here we read only logs with the task name “popularity”:
+
+``` python
+# read only logs with task name 'popularity'
+def task_filter(log: EvalLog) -> bool:
+    return log.eval.task == "popularity"
+    
+logs = list_eval_logs("logs", filter=task_filter)
+evals_df(logs)
+```
+
+We can also choose to read a directory non-recursively:
+
+``` python
+# read only the logs at the top level of 'logs'
+logs = list_eval_logs("logs", recursive=False)
+evals_df(logs)
+```
 
 ### Databases
 
@@ -278,23 +313,49 @@ these include:
 
 | Type | Description |
 |----|----|
-| [EvalInfo](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L51) | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
-| [EvalTask](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L64) | Task configuration (name, file, args, solver, etc.) |
-| [EvalModel](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L77) | Model name, args, generation config, etc. |
-| [EvalDataset](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L86) | Dataset name, location, sample ids, etc. |
-| [EvalConfig](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L95) | Epochs, approval, sample limits, etc. |
-| [EvalResults](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L106) | Status, errors, samples completed, headline metric. |
-| [EvalScores](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/analysis/beta/_dataframe/evals/columns.py#L118) | All scores and metrics broken into separate columns. |
+| `EvalInfo` | Descriptive information (e.g. created, tags, metadata, git commit, etc.) |
+| `EvalTask` | Task configuration (name, file, args, solver, etc.) |
+| `EvalModel` | Model name, args, generation config, etc. |
+| `EvalDataset` | Dataset name, location, sample ids, etc. |
+| `EvalConfig` | Epochs, approval, sample limits, etc. |
+| `EvalResults` | Status, errors, samples completed, headline metric. |
+| `EvalScores` | All scores and metrics broken into separate columns. |
+
+#### Multi-Columns
+
+The `task_args` dictionary and eval scores data structure are both
+expanded into multiple columns by default:
+
+``` python
+EvalColumn("task_arg_*", path="eval.task_args")
+EvalColumn("score_*_*", path=eval_log_scores_dict)
+```
+
+Note that scores are a two-level dictionary of `score_<scorer>_<metric>`
+and are extracted using a custom function. If you want to handle scores
+a different way you can build your own set of eval columns with a custom
+scores handler. For example, here we take a subset of eval columns along
+with our own custom handler (`custom_scores_fn`) for scores:
+
+``` python
+evals_df(
+    logs="logs", 
+    columns=(
+        EvalInfo
+        + EvalModel
+        + EvalResults
+        + ([EvalColumn("score_*_*", path=custom_scores_fn)])
+    )
+)
+```
 
 #### Custom Extraction
 
-The `EvalColumn` class provides an additional facility for reading
-values based on a callback function that takes an `EvalLog`. This
-function is specified as the `path` in the column definition.
+The example above demonstrates the use of custom extraction functions,
+which take an `EvalLog` and return a `JsonValue`.
 
-For example, here is the `path` function used to extract a simple
-dictionary of scores/metrics from the more complex `list[EvalScore]`
-type provided as `log.scores`:
+For example, here is the default extraction function for the the
+dictionary of scores/metrics:
 
 ``` python
 def scores_dict(log: EvalLog) -> JsonValue:
@@ -334,7 +395,7 @@ reading full samples.
 SampleSummary: list[Column] = [
     SampleColumn("id", path="id", required=True, type=str),
     SampleColumn("epoch", path="epoch", required=True),
-    SampleColumn("input", path="input", required=True, value=input_as_str),
+    SampleColumn("input", path=sample_input_as_str, required=True),
     SampleColumn("target", path="target", required=True, value=list_as_str),
     SampleColumn("metadata_*", path="metadata"),
     SampleColumn("score_*", path="scores", value=score_values),
@@ -364,6 +425,38 @@ samples_df(
 
 Note that reading `SampleMessages` requires reading full sample content,
 so will take considerably longer than reading only summaries.
+
+When you create a samples data frame the `eval_id` of its parent
+evaluation is automatically included. You can additionally include other
+fields from the evals table, for example:
+
+``` python
+samples_df(
+    logs="logs", 
+    columns = EvalModel + SampleSummary + SampleMessages
+)
+```
+
+#### Multi-Columns
+
+Note that the `metadata` and `score` columns are both dictionaries that
+are expanded into multiple columns:
+
+``` python
+SampleColumn("metadata_*", path="metadata")
+SampleColumn("score_*", path="scores", value=score_values)
+```
+
+This might or might not be what you want for your data frame. To
+preserve them as JSON, remove the `_*`:
+
+``` python
+SampleColumn("metadata", path="metadata")
+SampleColumn("score", path="scores")
+```
+
+You could also write a custom [extraction](#custom-extraction-1) handler
+to read them in some other way.
 
 #### Full Samples
 
@@ -407,7 +500,7 @@ SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 
 The `messages_df()` function enables reading message level data from a
 set of eval logs. Each row corresponds to a message, and includes a
-`sample_id` and `event_id` for linking back to its parents.
+`sample_id` and `eval_id` for linking back to its parents.
 
 The `messages_df()` function takes a `filter` parameter which can either
 be a list of `role` designations or a function that performs filtering.
@@ -439,6 +532,17 @@ MessageToolCalls: list[Column] = [
 MessageColumns: list[Column] = MessageContent + MessageToolCalls
 ```
 
+When you create a messages data frame the parent `sample_id` and
+`eval_id` are automatically included in each record. You can
+additionally include other fields from these tables, for example:
+
+``` python
+messages = messages_df(
+    logs="logs",
+    columns=EvalModel + MessageColumns             
+)
+```
+
 #### Custom Extraction
 
 Two of the fields above are resolved using custom extraction functions
@@ -448,7 +552,6 @@ functions:
 ``` python
 def message_text(message: ChatMessage) -> str:
     return message.text
-
 
 def message_tool_calls(message: ChatMessage) -> str | None:
     if isinstance(message, ChatMessageAssistant) and message.tool_calls is not None:
@@ -464,6 +567,49 @@ def message_tool_calls(message: ChatMessage) -> str | None:
     else:
         return None
 ```
+
+### Events
+
+The `events_df()` function enables reading event level data from a set
+of eval logs. Each row corresponds to an event, and includes a
+`sample_id` and `eval_id` for linking back to its parents.
+
+Because events are so heterogeneous, there is no default `columns`
+specification for calls to `events_df()`. Rather, you can compose
+columns from the following pre-built groups:
+
+| Type | Description |
+|----|----|
+| `EventInfo` | Event type and span id. |
+| `EventTiming` | Start and end times (both clock time and working time) |
+| `ModelEventColumns` | Read data from model events. |
+| `ToolEventColumns` | Read data from tool events. |
+
+The `events_df()` function also takes a `filter` parameter which can
+either be a list of event types or a function that performs filtering.
+For example, to read all model events:
+
+``` python
+model_events = events_df(
+    logs="logs", 
+    columns=EventTiming + ModelEventColumns,
+    filter=["model"]
+)
+```
+
+To read all tool events:
+
+``` python
+model_events = events_df(
+    logs="logs", 
+    columns=EvalModel + EventTiming + ToolEventColumns,
+    filter=["tool"]
+)
+```
+
+Note that for tool events we also include the `EvalModel` column group
+as model information is not directly embedded in tool events (whereas it
+is within model events).
 
 ### Custom
 
