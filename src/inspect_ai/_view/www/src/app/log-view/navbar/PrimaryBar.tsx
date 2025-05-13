@@ -7,6 +7,7 @@ import { kModelNone } from "../../../constants";
 import { useStore } from "../../../state/store";
 import { filename } from "../../../utils/path";
 import { ApplicationIcons } from "../../appearance/icons";
+import { ModelRolesView } from "./ModelRolesView";
 import styles from "./PrimaryBar.module.css";
 import {
   displayScorersFromRunningMetrics,
@@ -15,7 +16,6 @@ import {
 } from "./ResultsPanel";
 import { RunningStatusPanel } from "./RunningStatusPanel";
 import { CancelledPanel, ErroredPanel } from "./StatusPanel";
-import { ModelRolesView } from "./ModelRolesView";
 
 interface PrimaryBarProps {
   showToggle: boolean;
@@ -37,9 +37,7 @@ export const PrimaryBar: FC<PrimaryBarProps> = ({
   const offCanvas = useStore((state) => state.app.offcanvas);
   const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
   const streamSamples = useStore((state) => state.capabilities.streamSamples);
-  const selectedLogFile = useStore((state) =>
-    state.logsActions.getSelectedLogFile(),
-  );
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
 
   const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
 

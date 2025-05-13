@@ -14,7 +14,7 @@ import "./App.css";
 
 import ClipboardJS from "clipboard";
 import { FC, useCallback, useEffect } from "react";
-import { RouterProvider } from "react-router-dom";
+import { RouterProvider, useParams } from "react-router-dom";
 import { ClientAPI, HostMessage } from "../client/api/types.ts";
 import { useStore } from "../state/store.ts";
 import { AppRouter } from "./routing/AppRouter.tsx";
@@ -27,20 +27,33 @@ interface AppProps {
  * Renders the Main Application
  */
 export const App: FC<AppProps> = ({ api }) => {
+  // Whether the app was rehydrated
+  const rehydrated = useStore((state) => state.app.rehydrated);
+
+  const logs = useStore((state) => state.logs.logs);
+  const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+
+  const loadedLogFile = useStore((state) => state.log.loadedLog);
+  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+
+  const setIntialState = useStore((state) => state.appActions.setInitialState);
   const setAppStatus = useStore((state) => state.appActions.setStatus);
+
+  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
   const setLogs = useStore((state) => state.logsActions.setLogs);
   const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-  const setIntialState = useStore((state) => state.appActions.setInitialState);
-  const rehydrated = useStore((state) => state.app.rehydrated);
-  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+
   const loadLog = useStore((state) => state.logActions.loadLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
-  const loadedLogFile = useStore((state) => state.log.loadedLog);
-  const selectedLogFile = useStore((state) =>
-    state.logsActions.getSelectedLogFile(),
-  );
-  const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-  const logs = useStore((state) => state.logs.logs);
+
+  const { sampleId } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleId?: string;
+    epoch?: string;
+    sampleTabId?: string;
+  }>();
+  const selectSample = useStore((state) => state.logActions.selectSample);
 
   // Load a specific log
   useEffect(() => {
@@ -52,6 +65,10 @@ export const App: FC<AppProps> = ({ api }) => {
 
           // Then load the log
           await loadLog(selectedLogFile);
+
+          if (!sampleId) {
+            selectSample(0);
+          }
 
           // Finally set loading to false
           setAppStatus({ loading: false, error: undefined });

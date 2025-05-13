@@ -26,9 +26,6 @@ export interface LogsSlice {
     refreshLogs: () => Promise<void>;
     selectLogFile: (logUrl: string) => Promise<void>;
     loadLogs: () => Promise<LogFiles>;
-
-    // Computed values
-    getSelectedLogFile: () => string | undefined;
   };
 }
 
@@ -37,6 +34,7 @@ const initialState: LogsState = {
   logHeaders: {},
   headersLoading: false,
   selectedLogIndex: -1,
+  selectedLogFile: undefined as string | undefined,
 };
 
 export const createLogsSlice = (
@@ -55,6 +53,10 @@ export const createLogsSlice = (
       setLogs: (logs: LogFiles) => {
         set((state) => {
           state.logs.logs = logs;
+          state.logs.selectedLogFile =
+            state.logs.selectedLogIndex > -1
+              ? logs.files[state.logs.selectedLogIndex]?.name
+              : undefined;
         });
 
         // If we have files in the logs, load the headers
@@ -79,6 +81,8 @@ export const createLogsSlice = (
       setSelectedLogIndex: (selectedLogIndex: number) => {
         set((state) => {
           state.logs.selectedLogIndex = selectedLogIndex;
+          const file = state.logs.logs.files[selectedLogIndex];
+          state.logs.selectedLogFile = file ? file.name : undefined;
         });
       },
       updateLogHeaders: (headers: Record<string, EvalLogHeader>) =>
@@ -94,6 +98,8 @@ export const createLogsSlice = (
 
         if (index > -1) {
           state.logsActions.setSelectedLogIndex(index);
+          state.logs.selectedLogFile =
+            state.logs.logs.files[index]?.name ?? undefined;
         }
       },
 
@@ -160,12 +166,6 @@ export const createLogsSlice = (
             idx !== undefined && idx > -1 ? idx : 0,
           );
         }
-      },
-
-      getSelectedLogFile: () => {
-        const state = get();
-        const file = state.logs.logs.files[state.logs.selectedLogIndex];
-        return file !== undefined ? file.name : undefined;
       },
     },
   } as const;

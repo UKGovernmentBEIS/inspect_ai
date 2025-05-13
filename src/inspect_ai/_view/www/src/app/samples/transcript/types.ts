@@ -45,12 +45,14 @@ export type EventType =
   | SpanBeginEvent
   | SpanEndEvent;
 
-export class EventNode {
-  event: EventType;
-  children: EventNode[] = [];
+export class EventNode<T extends EventType = EventType> {
+  id: string;
+  event: T;
+  children: EventNode<EventType>[] = [];
   depth: number;
 
-  constructor(event: EventType, depth: number) {
+  constructor(id: string, event: T, depth: number) {
+    this.id = id;
     this.event = event;
     this.depth = depth;
   }

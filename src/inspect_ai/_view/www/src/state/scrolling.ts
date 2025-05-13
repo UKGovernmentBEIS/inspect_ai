@@ -11,7 +11,7 @@ export function useStatefulScrollPosition<
 >(
   elementRef: RefObject<T | null>,
   elementKey: string,
-  delay = 500,
+  delay = 1000,
   scrollable = true,
 ) {
   const getScrollPosition = useStore(
@@ -62,12 +62,45 @@ export function useStatefulScrollPosition<
     const savedPosition = getScrollPosition(elementKey);
     if (savedPosition !== undefined) {
       log.debug(`Restoring scroll position`, savedPosition);
-      // Ensure the element has fully rendered
-      requestAnimationFrame(() => {
-        if (element.scrollTop !== savedPosition) {
-          element.scrollTop = savedPosition;
+
+      // Function to check and restore scroll position
+      const tryRestoreScroll = () => {
+        // Check if element has content to scroll (scrollHeight > clientHeight)
+        if (element.scrollHeight > element.clientHeight) {
+          if (element.scrollTop !== savedPosition) {
+            element.scrollTop = savedPosition;
+            log.debug(`Scroll position restored to ${savedPosition}`);
+          }
+          return true; // Successfully restored
         }
-      });
+        return false; // Not ready yet
+      };
+
+      // Try immediately once
+      if (!tryRestoreScroll()) {
+        // If not successful, set up polling with setTimeout for 1-second intervals
+        let attempts = 0;
+        const maxAttempts = 5; // Fewer attempts since we're waiting longer
+
+        const pollForRender = () => {
+          if (tryRestoreScroll() || attempts >= maxAttempts) {
+            // Either success or max attempts reached
+            if (attempts >= maxAttempts) {
+              log.debug(
+                `Failed to restore scroll after ${maxAttempts} attempts`,
+              );
+            }
+            return;
+          }
+
+          attempts++;
+          // Wait 1 second before trying again
+          setTimeout(pollForRender, 1000);
+        };
+
+        // Start polling after 1 second
+        setTimeout(pollForRender, 1000);
+      }
     }
 
     // Set up scroll listener

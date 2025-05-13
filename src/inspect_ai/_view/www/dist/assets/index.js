@@ -2107,10 +2107,10 @@ var require_assets = __commonJS({
       } catch (e) {
         passiveBrowserEventsSupported = false;
       }
-    var root$2 = null, startText = null, fallbackText = null;
+    var root$3 = null, startText = null, fallbackText = null;
     function getData() {
       if (fallbackText) return fallbackText;
-      var start, startValue = startText, startLength = startValue.length, end, endValue = "value" in root$2 ? root$2.value : root$2.textContent, endLength = endValue.length;
+      var start, startValue = startText, startLength = startValue.length, end, endValue = "value" in root$3 ? root$3.value : root$3.textContent, endLength = endValue.length;
       for (start = 0; start < startLength && startValue[start] === endValue[start]; start++) ;
       var minEnd = startLength - start;
       for (end = 1; end <= minEnd && startValue[startLength - end] === endValue[endLength - end]; end++) ;
@@ -2363,7 +2363,7 @@ var require_assets = __commonJS({
     }
     function getFallbackBeforeInputChars(domEventName, nativeEvent) {
       if (isComposing)
-        return "compositionend" === domEventName || !canUseCompositionEvent && isFallbackCompositionEnd(domEventName, nativeEvent) ? (domEventName = getData(), fallbackText = startText = root$2 = null, isComposing = false, domEventName) : null;
+        return "compositionend" === domEventName || !canUseCompositionEvent && isFallbackCompositionEnd(domEventName, nativeEvent) ? (domEventName = getData(), fallbackText = startText = root$3 = null, isComposing = false, domEventName) : null;
       switch (domEventName) {
         case "paste":
           return null;
@@ -9795,7 +9795,7 @@ var require_assets = __commonJS({
             }
           else
             isComposing ? isFallbackCompositionEnd(domEventName, nativeEvent) && (eventType = "onCompositionEnd") : "keydown" === domEventName && 229 === nativeEvent.keyCode && (eventType = "onCompositionStart");
-          eventType && (useFallbackCompositionData && "ko" !== nativeEvent.locale && (isComposing || "onCompositionStart" !== eventType ? "onCompositionEnd" === eventType && isComposing && (fallbackData = getData()) : (root$2 = nativeEventTarget, startText = "value" in root$2 ? root$2.value : root$2.textContent, isComposing = true)), handleEventFunc = accumulateTwoPhaseListeners(targetInst, eventType), 0 < handleEventFunc.length && (eventType = new SyntheticCompositionEvent(
+          eventType && (useFallbackCompositionData && "ko" !== nativeEvent.locale && (isComposing || "onCompositionStart" !== eventType ? "onCompositionEnd" === eventType && isComposing && (fallbackData = getData()) : (root$3 = nativeEventTarget, startText = "value" in root$3 ? root$3.value : root$3.textContent, isComposing = true)), handleEventFunc = accumulateTwoPhaseListeners(targetInst, eventType), 0 < handleEventFunc.length && (eventType = new SyntheticCompositionEvent(
             eventType,
             domEventName,
             null,
@@ -12064,8 +12064,8 @@ var require_assets = __commonJS({
     let line;
     let column;
     let token;
-    let key$1;
-    let root$1;
+    let key$2;
+    let root$2;
     var parse$4 = function parse2(text2, reviver) {
       source = String(text2);
       parseState = "start";
@@ -12074,16 +12074,16 @@ var require_assets = __commonJS({
       line = 1;
       column = 0;
       token = void 0;
-      key$1 = void 0;
-      root$1 = void 0;
+      key$2 = void 0;
+      root$2 = void 0;
       do {
         token = lex();
         parseStates[parseState]();
       } while (token.type !== "eof");
       if (typeof reviver === "function") {
-        return internalize({ "": root$1 }, "", reviver);
+        return internalize({ "": root$2 }, "", reviver);
       }
-      return root$1;
+      return root$2;
     };
     function internalize(holder, name2, reviver) {
       const value2 = holder[name2];
@@ -12728,7 +12728,7 @@ var require_assets = __commonJS({
         switch (token.type) {
           case "identifier":
           case "string":
-            key$1 = token.value;
+            key$2 = token.value;
             parseState = "afterPropertyName";
             return;
           case "punctuator":
@@ -12807,14 +12807,14 @@ var require_assets = __commonJS({
           value2 = token.value;
           break;
       }
-      if (root$1 === void 0) {
-        root$1 = value2;
+      if (root$2 === void 0) {
+        root$2 = value2;
       } else {
         const parent = stack[stack.length - 1];
         if (Array.isArray(parent)) {
           parent.push(value2);
         } else {
-          Object.defineProperty(parent, key$1, {
+          Object.defineProperty(parent, key$2, {
             value: value2,
             writable: true,
             enumerable: true,
@@ -14490,23 +14490,23 @@ var require_assets = __commonJS({
           env.selector += ", " + SELECTOR;
         });
         Prism2.hooks.add("before-sanity-check", function(env) {
-          var pre = (
+          var pre2 = (
             /** @type {HTMLPreElement} */
             env.element
           );
-          if (pre.matches(SELECTOR)) {
+          if (pre2.matches(SELECTOR)) {
             env.code = "";
-            pre.setAttribute(STATUS_ATTR, STATUS_LOADING);
-            var code2 = pre.appendChild(document.createElement("CODE"));
+            pre2.setAttribute(STATUS_ATTR, STATUS_LOADING);
+            var code2 = pre2.appendChild(document.createElement("CODE"));
             code2.textContent = LOADING_MESSAGE;
-            var src = pre.getAttribute("data-src");
+            var src = pre2.getAttribute("data-src");
             var language2 = env.language;
             if (language2 === "none") {
               var extension = (/\.(\w+)$/.exec(src) || [, "none"])[1];
               language2 = EXTENSIONS[extension] || extension;
             }
             Prism2.util.setLanguage(code2, language2);
-            Prism2.util.setLanguage(pre, language2);
+            Prism2.util.setLanguage(pre2, language2);
             var autoloader = Prism2.plugins.autoloader;
             if (autoloader) {
               autoloader.loadLanguages(language2);
@@ -14514,8 +14514,8 @@ var require_assets = __commonJS({
             loadFile(
               src,
               function(text2) {
-                pre.setAttribute(STATUS_ATTR, STATUS_LOADED);
-                var range = parseRange(pre.getAttribute("data-range"));
+                pre2.setAttribute(STATUS_ATTR, STATUS_LOADED);
+                var range = parseRange(pre2.getAttribute("data-range"));
                 if (range) {
                   var lines = text2.split(/\r\n?|\n/g);
                   var start = range[0];
@@ -14529,15 +14529,15 @@ var require_assets = __commonJS({
                   }
                   end = Math.max(0, Math.min(end, lines.length));
                   text2 = lines.slice(start, end).join("\n");
-                  if (!pre.hasAttribute("data-start")) {
-                    pre.setAttribute("data-start", String(start + 1));
+                  if (!pre2.hasAttribute("data-start")) {
+                    pre2.setAttribute("data-start", String(start + 1));
                   }
                 }
                 code2.textContent = text2;
                 Prism2.highlightElement(code2);
               },
               function(error2) {
-                pre.setAttribute(STATUS_ATTR, STATUS_FAILED);
+                pre2.setAttribute(STATUS_ATTR, STATUS_FAILED);
                 code2.textContent = error2;
               }
             );
@@ -15895,9 +15895,9 @@ var require_assets = __commonJS({
         }
         return href2 + "#" + (typeof to2 === "string" ? to2 : createPath(to2));
       }
-      function validateHashLocation(location, to2) {
+      function validateHashLocation(location2, to2) {
         warning(
-          location.pathname.charAt(0) === "/",
+          location2.pathname.charAt(0) === "/",
           `relative pathnames are not supported in hash history.push(${JSON.stringify(
             to2
           )})`
@@ -15927,15 +15927,15 @@ var require_assets = __commonJS({
     function createKey() {
       return Math.random().toString(36).substring(2, 10);
     }
-    function getHistoryState(location, index2) {
+    function getHistoryState(location2, index2) {
       return {
-        usr: location.state,
-        key: location.key,
+        usr: location2.state,
+        key: location2.key,
         idx: index2
       };
     }
     function createLocation(current2, to2, state = null, key2) {
-      let location = {
+      let location2 = {
         pathname: typeof current2 === "string" ? current2 : current2.pathname,
         search: "",
         hash: "",
@@ -15947,7 +15947,7 @@ var require_assets = __commonJS({
         // keep as is for the time being and just let any incoming keys take precedence
         key: to2 && to2.key || key2 || createKey()
       };
-      return location;
+      return location2;
     }
     function createPath({
       pathname = "/",
@@ -16004,11 +16004,11 @@ var require_assets = __commonJS({
       }
       function push2(to2, state) {
         action = "PUSH";
-        let location = createLocation(history2.location, to2, state);
-        if (validateLocation) validateLocation(location, to2);
+        let location2 = createLocation(history2.location, to2, state);
+        if (validateLocation) validateLocation(location2, to2);
         index2 = getIndex() + 1;
-        let historyState = getHistoryState(location, index2);
-        let url = history2.createHref(location);
+        let historyState = getHistoryState(location2, index2);
+        let url = history2.createHref(location2);
         try {
           globalHistory.pushState(historyState, "", url);
         } catch (error2) {
@@ -16023,11 +16023,11 @@ var require_assets = __commonJS({
       }
       function replace2(to2, state) {
         action = "REPLACE";
-        let location = createLocation(history2.location, to2, state);
-        if (validateLocation) validateLocation(location, to2);
+        let location2 = createLocation(history2.location, to2, state);
+        if (validateLocation) validateLocation(location2, to2);
         index2 = getIndex();
-        let historyState = getHistoryState(location, index2);
-        let url = history2.createHref(location);
+        let historyState = getHistoryState(location2, index2);
+        let url = history2.createHref(location2);
         globalHistory.replaceState(historyState, "", url);
         if (v5Compat && listener) {
           listener({ action, location: history2.location, delta: 0 });
@@ -16179,8 +16179,8 @@ var require_assets = __commonJS({
       return matchRoutesImpl(routes, locationArg, basename, false);
     }
     function matchRoutesImpl(routes, locationArg, basename, allowPartial) {
-      let location = typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg;
-      let pathname = stripBasename(location.pathname || "/", basename);
+      let location2 = typeof locationArg === "string" ? parsePath$1(locationArg) : locationArg;
+      let pathname = stripBasename(location2.pathname || "/", basename);
       if (pathname == null) {
         return null;
       }
@@ -16720,7 +16720,7 @@ var require_assets = __commonJS({
       let pendingRevalidationDfd = null;
       function initialize() {
         unlistenHistory = init.history.listen(
-          ({ action: historyAction, location, delta }) => {
+          ({ action: historyAction, location: location2, delta }) => {
             if (unblockBlockerHistoryUpdate) {
               unblockBlockerHistoryUpdate();
               unblockBlockerHistoryUpdate = void 0;
@@ -16732,7 +16732,7 @@ var require_assets = __commonJS({
             );
             let blockerKey = shouldBlockNavigation({
               currentLocation: state.location,
-              nextLocation: location,
+              nextLocation: location2,
               historyAction
             });
             if (blockerKey && delta != null) {
@@ -16742,13 +16742,13 @@ var require_assets = __commonJS({
               init.history.go(delta * -1);
               updateBlocker(blockerKey, {
                 state: "blocked",
-                location,
+                location: location2,
                 proceed() {
                   updateBlocker(blockerKey, {
                     state: "proceeding",
                     proceed: void 0,
                     reset: void 0,
-                    location
+                    location: location2
                   });
                   nextHistoryUpdatePromise.then(() => init.history.go(delta));
                 },
@@ -16760,7 +16760,7 @@ var require_assets = __commonJS({
               });
               return;
             }
-            return startNavigation(historyAction, location);
+            return startNavigation(historyAction, location2);
           }
         );
         if (isBrowser2) {
@@ -16823,9 +16823,9 @@ var require_assets = __commonJS({
         unmountedFetchers.forEach((key2) => deleteFetcher(key2));
         mountedFetchers.forEach((key2) => state.fetchers.delete(key2));
       }
-      function completeNavigation(location, newState, { flushSync } = {}) {
+      function completeNavigation(location2, newState, { flushSync } = {}) {
         var _a2, _b2;
-        let isActionReload = state.actionData != null && state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && state.navigation.state === "loading" && ((_a2 = location.state) == null ? void 0 : _a2._isRedirect) !== true;
+        let isActionReload = state.actionData != null && state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && state.navigation.state === "loading" && ((_a2 = location2.state) == null ? void 0 : _a2._isRedirect) !== true;
         let actionData;
         if (newState.actionData) {
           if (Object.keys(newState.actionData).length > 0) {
@@ -16849,7 +16849,7 @@ var require_assets = __commonJS({
           blockers = new Map(blockers);
           blockers.forEach((_, k) => blockers.set(k, IDLE_BLOCKER));
         }
-        let preventScrollReset = pendingPreventScrollReset === true || state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && ((_b2 = location.state) == null ? void 0 : _b2._isRedirect) !== true;
+        let preventScrollReset = pendingPreventScrollReset === true || state.navigation.formMethod != null && isMutationMethod(state.navigation.formMethod) && ((_b2 = location2.state) == null ? void 0 : _b2._isRedirect) !== true;
         if (inFlightDataRoutes) {
           dataRoutes = inFlightDataRoutes;
           inFlightDataRoutes = void 0;
@@ -16857,35 +16857,35 @@ var require_assets = __commonJS({
         if (isUninterruptedRevalidation) ;
         else if (pendingAction === "POP") ;
         else if (pendingAction === "PUSH") {
-          init.history.push(location, location.state);
+          init.history.push(location2, location2.state);
         } else if (pendingAction === "REPLACE") {
-          init.history.replace(location, location.state);
+          init.history.replace(location2, location2.state);
         }
         let viewTransitionOpts;
         if (pendingAction === "POP") {
           let priorPaths = appliedViewTransitions.get(state.location.pathname);
-          if (priorPaths && priorPaths.has(location.pathname)) {
+          if (priorPaths && priorPaths.has(location2.pathname)) {
             viewTransitionOpts = {
               currentLocation: state.location,
-              nextLocation: location
+              nextLocation: location2
             };
-          } else if (appliedViewTransitions.has(location.pathname)) {
+          } else if (appliedViewTransitions.has(location2.pathname)) {
             viewTransitionOpts = {
-              currentLocation: location,
+              currentLocation: location2,
               nextLocation: state.location
             };
           }
         } else if (pendingViewTransitionEnabled) {
           let toPaths = appliedViewTransitions.get(state.location.pathname);
           if (toPaths) {
-            toPaths.add(location.pathname);
+            toPaths.add(location2.pathname);
           } else {
-            toPaths = /* @__PURE__ */ new Set([location.pathname]);
+            toPaths = /* @__PURE__ */ new Set([location2.pathname]);
             appliedViewTransitions.set(state.location.pathname, toPaths);
           }
           viewTransitionOpts = {
             currentLocation: state.location,
-            nextLocation: location
+            nextLocation: location2
           };
         }
         updateState(
@@ -16895,12 +16895,12 @@ var require_assets = __commonJS({
             actionData,
             loaderData,
             historyAction: pendingAction,
-            location,
+            location: location2,
             initialized: true,
             navigation: IDLE_NAVIGATION,
             revalidation: "idle",
             restoreScrollPosition: getSavedScrollPosition(
-              location,
+              location2,
               newState.matches || state.matches
             ),
             preventScrollReset,
@@ -17017,7 +17017,7 @@ var require_assets = __commonJS({
         );
         return promise;
       }
-      async function startNavigation(historyAction, location, opts) {
+      async function startNavigation(historyAction, location2, opts) {
         pendingNavigationController && pendingNavigationController.abort();
         pendingNavigationController = null;
         pendingAction = historyAction;
@@ -17030,22 +17030,22 @@ var require_assets = __commonJS({
         let matches = (opts == null ? void 0 : opts.initialHydration) && state.matches && state.matches.length > 0 && !initialMatchesIsFOW ? (
           // `matchRoutes()` has already been called if we're in here via `router.initialize()`
           state.matches
-        ) : matchRoutes(routesToUse, location, basename);
+        ) : matchRoutes(routesToUse, location2, basename);
         let flushSync = (opts && opts.flushSync) === true;
-        if (matches && state.initialized && !isRevalidationRequired && isHashChangeOnly(state.location, location) && !(opts && opts.submission && isMutationMethod(opts.submission.formMethod))) {
-          completeNavigation(location, { matches }, { flushSync });
+        if (matches && state.initialized && !isRevalidationRequired && isHashChangeOnly(state.location, location2) && !(opts && opts.submission && isMutationMethod(opts.submission.formMethod))) {
+          completeNavigation(location2, { matches }, { flushSync });
           return;
         }
-        let fogOfWar = checkFogOfWar(matches, routesToUse, location.pathname);
+        let fogOfWar = checkFogOfWar(matches, routesToUse, location2.pathname);
         if (fogOfWar.active && fogOfWar.matches) {
           matches = fogOfWar.matches;
         }
         if (!matches) {
           let { error: error2, notFoundMatches, route } = handleNavigational404(
-            location.pathname
+            location2.pathname
           );
           completeNavigation(
-            location,
+            location2,
             {
               matches: notFoundMatches,
               loaderData: {},
@@ -17060,7 +17060,7 @@ var require_assets = __commonJS({
         pendingNavigationController = new AbortController();
         let request = createClientSideRequest(
           init.history,
-          location,
+          location2,
           pendingNavigationController.signal,
           opts && opts.submission
         );
@@ -17076,7 +17076,7 @@ var require_assets = __commonJS({
         } else if (opts && opts.submission && isMutationMethod(opts.submission.formMethod)) {
           let actionResult = await handleAction(
             request,
-            location,
+            location2,
             opts.submission,
             matches,
             scopedContext,
@@ -17091,7 +17091,7 @@ var require_assets = __commonJS({
             let [routeId, result2] = actionResult.pendingActionResult;
             if (isErrorResult(result2) && isRouteErrorResponse(result2.error) && result2.error.status === 404) {
               pendingNavigationController = null;
-              completeNavigation(location, {
+              completeNavigation(location2, {
                 matches: actionResult.matches,
                 loaderData: {},
                 errors: {
@@ -17103,7 +17103,7 @@ var require_assets = __commonJS({
           }
           matches = actionResult.matches || matches;
           pendingActionResult = actionResult.pendingActionResult;
-          loadingNavigation = getLoadingNavigation(location, opts.submission);
+          loadingNavigation = getLoadingNavigation(location2, opts.submission);
           flushSync = false;
           fogOfWar.active = false;
           request = createClientSideRequest(
@@ -17119,7 +17119,7 @@ var require_assets = __commonJS({
           errors: errors2
         } = await handleLoaders(
           request,
-          location,
+          location2,
           matches,
           scopedContext,
           fogOfWar.active,
@@ -17135,21 +17135,21 @@ var require_assets = __commonJS({
           return;
         }
         pendingNavigationController = null;
-        completeNavigation(location, {
+        completeNavigation(location2, {
           matches: updatedMatches || matches,
           ...getActionDataForCommit(pendingActionResult),
           loaderData,
           errors: errors2
         });
       }
-      async function handleAction(request, location, submission, matches, scopedContext, isFogOfWar, initialHydration, opts = {}) {
+      async function handleAction(request, location2, submission, matches, scopedContext, isFogOfWar, initialHydration, opts = {}) {
         interruptActiveLoads();
-        let navigation = getSubmittingNavigation(location, submission);
+        let navigation = getSubmittingNavigation(location2, submission);
         updateState({ navigation }, { flushSync: opts.flushSync === true });
         if (isFogOfWar) {
           let discoverResult = await discoverRoutes(
             matches,
-            location.pathname,
+            location2.pathname,
             request.signal
           );
           if (discoverResult.type === "aborted") {
@@ -17168,7 +17168,7 @@ var require_assets = __commonJS({
             };
           } else if (!discoverResult.matches) {
             let { notFoundMatches, error: error2, route } = handleNavigational404(
-              location.pathname
+              location2.pathname
             );
             return {
               matches: notFoundMatches,
@@ -17185,13 +17185,13 @@ var require_assets = __commonJS({
           }
         }
         let result2;
-        let actionMatch = getTargetMatch(matches, location);
+        let actionMatch = getTargetMatch(matches, location2);
         if (!actionMatch.route.action && !actionMatch.route.lazy) {
           result2 = {
             type: "error",
             error: getInternalRouterError(405, {
               method: request.method,
-              pathname: location.pathname,
+              pathname: location2.pathname,
               routeId: actionMatch.route.id
             })
           };
@@ -17229,12 +17229,12 @@ var require_assets = __commonJS({
           if (opts && opts.replace != null) {
             replace2 = opts.replace;
           } else {
-            let location2 = normalizeRedirectLocation(
+            let location22 = normalizeRedirectLocation(
               result2.response.headers.get("Location"),
               new URL(request.url),
               basename
             );
-            replace2 = location2 === state.location.pathname + state.location.search;
+            replace2 = location22 === state.location.pathname + state.location.search;
           }
           await startRedirectNavigation(request, result2, true, {
             submission,
@@ -17261,8 +17261,8 @@ var require_assets = __commonJS({
           pendingActionResult: [actionMatch.route.id, result2]
         };
       }
-      async function handleLoaders(request, location, matches, scopedContext, isFogOfWar, overrideNavigation, submission, fetcherSubmission, replace2, initialHydration, flushSync, pendingActionResult) {
-        let loadingNavigation = overrideNavigation || getLoadingNavigation(location, submission);
+      async function handleLoaders(request, location2, matches, scopedContext, isFogOfWar, overrideNavigation, submission, fetcherSubmission, replace2, initialHydration, flushSync, pendingActionResult) {
+        let loadingNavigation = overrideNavigation || getLoadingNavigation(location2, submission);
         let activeSubmission = submission || fetcherSubmission || getSubmissionFromNavigation(loadingNavigation);
         let shouldUpdateNavigationState = !isUninterruptedRevalidation && !initialHydration;
         if (isFogOfWar) {
@@ -17280,7 +17280,7 @@ var require_assets = __commonJS({
           }
           let discoverResult = await discoverRoutes(
             matches,
-            location.pathname,
+            location2.pathname,
             request.signal
           );
           if (discoverResult.type === "aborted") {
@@ -17296,7 +17296,7 @@ var require_assets = __commonJS({
             };
           } else if (!discoverResult.matches) {
             let { error: error2, notFoundMatches, route } = handleNavigational404(
-              location.pathname
+              location2.pathname
             );
             return {
               matches: notFoundMatches,
@@ -17319,7 +17319,7 @@ var require_assets = __commonJS({
           state,
           matches,
           activeSubmission,
-          location,
+          location2,
           initialHydration ? [] : hydrationRouteProperties2,
           initialHydration === true,
           isRevalidationRequired,
@@ -17335,7 +17335,7 @@ var require_assets = __commonJS({
         if (!init.dataStrategy && !dsMatches.some((m) => m.shouldLoad) && revalidatingFetchers.length === 0) {
           let updatedFetchers2 = markFetchRedirectsDone();
           completeNavigation(
-            location,
+            location2,
             {
               matches,
               loaderData: {},
@@ -17846,31 +17846,31 @@ var require_assets = __commonJS({
         if (redirect2.response.headers.has("X-Remix-Revalidate")) {
           isRevalidationRequired = true;
         }
-        let location = redirect2.response.headers.get("Location");
-        invariant(location, "Expected a Location header on the redirect Response");
-        location = normalizeRedirectLocation(
-          location,
+        let location2 = redirect2.response.headers.get("Location");
+        invariant(location2, "Expected a Location header on the redirect Response");
+        location2 = normalizeRedirectLocation(
+          location2,
           new URL(request.url),
           basename
         );
-        let redirectLocation = createLocation(state.location, location, {
+        let redirectLocation = createLocation(state.location, location2, {
           _isRedirect: true
         });
         if (isBrowser2) {
           let isDocumentReload = false;
           if (redirect2.response.headers.has("X-Remix-Reload-Document")) {
             isDocumentReload = true;
-          } else if (ABSOLUTE_URL_REGEX.test(location)) {
-            const url = init.history.createURL(location);
+          } else if (ABSOLUTE_URL_REGEX.test(location2)) {
+            const url = init.history.createURL(location2);
             isDocumentReload = // Hard reload if it's an absolute URL to a new origin
             url.origin !== routerWindow.location.origin || // Hard reload if it's an absolute URL that does not match our basename
             stripBasename(url.pathname, basename) == null;
           }
           if (isDocumentReload) {
             if (replace2) {
-              routerWindow.location.replace(location);
+              routerWindow.location.replace(location2);
             } else {
-              routerWindow.location.assign(location);
+              routerWindow.location.assign(location2);
             }
             return;
           }
@@ -17886,7 +17886,7 @@ var require_assets = __commonJS({
           await startNavigation(redirectNavigationType, redirectLocation, {
             submission: {
               ...activeSubmission,
-              formAction: location
+              formAction: location2
             },
             // Preserve these flags across redirects
             preventScrollReset: preventScrollReset || pendingPreventScrollReset,
@@ -18157,25 +18157,25 @@ var require_assets = __commonJS({
           getScrollRestorationKey2 = null;
         };
       }
-      function getScrollKey(location, matches) {
+      function getScrollKey(location2, matches) {
         if (getScrollRestorationKey2) {
           let key2 = getScrollRestorationKey2(
-            location,
+            location2,
             matches.map((m) => convertRouteMatchToUiMatch(m, state.loaderData))
           );
-          return key2 || location.key;
+          return key2 || location2.key;
         }
-        return location.key;
+        return location2.key;
       }
-      function saveScrollPosition(location, matches) {
+      function saveScrollPosition(location2, matches) {
         if (savedScrollPositions2 && getScrollPosition) {
-          let key2 = getScrollKey(location, matches);
+          let key2 = getScrollKey(location2, matches);
           savedScrollPositions2[key2] = getScrollPosition();
         }
       }
-      function getSavedScrollPosition(location, matches) {
+      function getSavedScrollPosition(location2, matches) {
         if (savedScrollPositions2) {
-          let key2 = getScrollKey(location, matches);
+          let key2 = getScrollKey(location2, matches);
           let y2 = savedScrollPositions2[key2];
           if (typeof y2 === "number") {
             return y2;
@@ -18327,7 +18327,7 @@ var require_assets = __commonJS({
     function isSubmissionNavigation(opts) {
       return opts != null && ("formData" in opts && opts.formData != null || "body" in opts && opts.body !== void 0);
     }
-    function normalizeTo(location, matches, basename, to2, fromRouteId, relative) {
+    function normalizeTo(location2, matches, basename, to2, fromRouteId, relative) {
       let contextualMatches;
       let activeRouteMatch;
       if (fromRouteId) {
@@ -18346,12 +18346,12 @@ var require_assets = __commonJS({
       let path = resolveTo(
         to2 ? to2 : ".",
         getResolveToMatches(contextualMatches),
-        stripBasename(location.pathname, basename) || location.pathname,
+        stripBasename(location2.pathname, basename) || location2.pathname,
         relative === "path"
       );
       if (to2 == null) {
-        path.search = location.search;
-        path.hash = location.hash;
+        path.search = location2.search;
+        path.hash = location2.hash;
       }
       if ((to2 == null || to2 === "" || to2 === ".") && activeRouteMatch) {
         let nakedIndex = hasNakedIndexQuery(path.search);
@@ -18478,11 +18478,11 @@ var require_assets = __commonJS({
       parsedPath.search = `?${searchParams}`;
       return { path: createPath(parsedPath), submission };
     }
-    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, pendingActionResult) {
+    function getMatchesToLoad(request, scopedContext, mapRouteProperties2, manifest, history2, state, matches, submission, location2, lazyRoutePropertiesToSkip, initialHydration, isRevalidationRequired, cancelledFetcherLoads, fetchersQueuedForDeletion, fetchLoadMatches, fetchRedirectIds, routesToUse, basename, pendingActionResult) {
       var _a2;
       let actionResult = pendingActionResult ? isErrorResult(pendingActionResult[1]) ? pendingActionResult[1].error : pendingActionResult[1].data : void 0;
       let currentUrl = history2.createURL(state.location);
-      let nextUrl = history2.createURL(location);
+      let nextUrl = history2.createURL(location2);
       let maxIdx;
       if (initialHydration && state.errors) {
         let boundaryId = Object.keys(state.errors)[0];
@@ -19304,39 +19304,39 @@ var require_assets = __commonJS({
       return { type: "data", data: result2 };
     }
     function normalizeRelativeRoutingRedirectResponse(response, request, routeId, matches, basename) {
-      let location = response.headers.get("Location");
+      let location2 = response.headers.get("Location");
       invariant(
-        location,
+        location2,
         "Redirects returned/thrown from loaders/actions must have a Location header"
       );
-      if (!ABSOLUTE_URL_REGEX.test(location)) {
+      if (!ABSOLUTE_URL_REGEX.test(location2)) {
         let trimmedMatches = matches.slice(
           0,
           matches.findIndex((m) => m.route.id === routeId) + 1
         );
-        location = normalizeTo(
+        location2 = normalizeTo(
           new URL(request.url),
           trimmedMatches,
           basename,
-          location
+          location2
         );
-        response.headers.set("Location", location);
+        response.headers.set("Location", location2);
       }
       return response;
     }
-    function normalizeRedirectLocation(location, currentUrl, basename) {
-      if (ABSOLUTE_URL_REGEX.test(location)) {
-        let normalizedLocation = location;
+    function normalizeRedirectLocation(location2, currentUrl, basename) {
+      if (ABSOLUTE_URL_REGEX.test(location2)) {
+        let normalizedLocation = location2;
         let url = normalizedLocation.startsWith("//") ? new URL(currentUrl.protocol + normalizedLocation) : new URL(normalizedLocation);
         let isSameBasename = stripBasename(url.pathname, basename) != null;
         if (url.origin === currentUrl.origin && isSameBasename) {
           return url.pathname + url.search + url.hash;
         }
       }
-      return location;
+      return location2;
     }
-    function createClientSideRequest(history2, location, signal, submission) {
-      let url = history2.createURL(stripHashFromPath(location)).toString();
+    function createClientSideRequest(history2, location2, signal, submission) {
+      let url = history2.createURL(stripHashFromPath(location2)).toString();
       let init = { signal };
       if (submission && isMutationMethod(submission.formMethod)) {
         let { formMethod, formEncType } = submission;
@@ -19599,8 +19599,8 @@ var require_assets = __commonJS({
     function hasNakedIndexQuery(search) {
       return new URLSearchParams(search).getAll("index").some((v) => v === "");
     }
-    function getTargetMatch(matches, location) {
-      let search = typeof location === "string" ? parsePath$1(location).search : location.search;
+    function getTargetMatch(matches, location2) {
+      let search = typeof location2 === "string" ? parsePath$1(location2).search : location2.search;
       if (matches[matches.length - 1].route.index && hasNakedIndexQuery(search || "")) {
         return matches[matches.length - 1];
       }
@@ -19641,11 +19641,11 @@ var require_assets = __commonJS({
         };
       }
     }
-    function getLoadingNavigation(location, submission) {
+    function getLoadingNavigation(location2, submission) {
       if (submission) {
         let navigation = {
           state: "loading",
-          location,
+          location: location2,
           formMethod: submission.formMethod,
           formAction: submission.formAction,
           formEncType: submission.formEncType,
@@ -19657,7 +19657,7 @@ var require_assets = __commonJS({
       } else {
         let navigation = {
           state: "loading",
-          location,
+          location: location2,
           formMethod: void 0,
           formAction: void 0,
           formEncType: void 0,
@@ -19668,10 +19668,10 @@ var require_assets = __commonJS({
         return navigation;
       }
     }
-    function getSubmittingNavigation(location, submission) {
+    function getSubmittingNavigation(location2, submission) {
       let navigation = {
         state: "submitting",
-        location,
+        location: location2,
         formMethod: submission.formMethod,
         formAction: submission.formAction,
         formEncType: submission.formEncType,
@@ -19965,11 +19965,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         );
       }
       let locationFromContext = useLocation();
-      let location;
+      let location2;
       {
-        location = locationFromContext;
+        location2 = locationFromContext;
       }
-      let pathname = location.pathname || "/";
+      let pathname = location2.pathname || "/";
       let remainingPathname = pathname;
       if (parentPathnameBase !== "/") {
         let parentSegments = parentPathnameBase.replace(/^\//, "").split("/");
@@ -19980,11 +19980,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       {
         warning(
           parentRoute || matches != null,
-          `No routes matched location "${location.pathname}${location.search}${location.hash}" `
+          `No routes matched location "${location2.pathname}${location2.search}${location2.hash}" `
         );
         warning(
           matches == null || matches[matches.length - 1].route.element !== void 0 || matches[matches.length - 1].route.Component !== void 0 || matches[matches.length - 1].route.lazy !== void 0,
-          `Matched leaf route at location "${location.pathname}${location.search}${location.hash}" does not have an element or Component. This means it will render an <Outlet /> with a null value by default resulting in an "empty" page.`
+          `Matched leaf route at location "${location2.pathname}${location2.search}${location2.hash}" does not have an element or Component. This means it will render an <Outlet /> with a null value by default resulting in an "empty" page.`
         );
       }
       let renderedMatches = _renderMatches(
@@ -20647,6 +20647,29 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       (!target2 || target2 === "_self") && // Let browser handle "target=_blank" etc.
       !isModifiedEvent(event);
     }
+    function createSearchParams(init = "") {
+      return new URLSearchParams(
+        typeof init === "string" || Array.isArray(init) || init instanceof URLSearchParams ? init : Object.keys(init).reduce((memo2, key2) => {
+          let value2 = init[key2];
+          return memo2.concat(
+            Array.isArray(value2) ? value2.map((v) => [key2, v]) : [[key2, value2]]
+          );
+        }, [])
+      );
+    }
+    function getSearchParamsForLocation(locationSearch, defaultSearchParams) {
+      let searchParams = createSearchParams(locationSearch);
+      if (defaultSearchParams) {
+        defaultSearchParams.forEach((_, key2) => {
+          if (!searchParams.has(key2)) {
+            defaultSearchParams.getAll(key2).forEach((value2) => {
+              searchParams.append(key2, value2);
+            });
+          }
+        });
+      }
+      return searchParams;
+    }
     var _formDataSupportsSubmitter = null;
     function isFormDataSubmitterSupported() {
       if (_formDataSupportsSubmitter === null) {
@@ -20783,7 +20806,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         )
       );
     }
-    function getNewMatchesForLinks(page, nextMatches, currentMatches, manifest, location, mode) {
+    function getNewMatchesForLinks(page, nextMatches, currentMatches, manifest, location2, mode) {
       let isNew = (match, index2) => {
         if (!currentMatches[index2]) return true;
         return match.route.id !== currentMatches[index2].route.id;
@@ -20815,7 +20838,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (match.route.shouldRevalidate) {
             let routeChoice = match.route.shouldRevalidate({
               currentUrl: new URL(
-                location.pathname + location.search + location.hash,
+                location2.pathname + location2.search + location2.hash,
                 window.origin
               ),
               currentParams: ((_a2 = currentMatches[0]) == null ? void 0 : _a2.params) || {},
@@ -21023,7 +21046,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       matches: nextMatches,
       ...linkProps
     }) {
-      let location = useLocation();
+      let location2 = useLocation();
       let { manifest, routeModules } = useFrameworkContext();
       let { basename } = useDataRouterContext2();
       let { loaderData, matches } = useDataRouterStateContext();
@@ -21033,10 +21056,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           nextMatches,
           matches,
           manifest,
-          location,
+          location2,
           "data"
         ),
-        [page, nextMatches, matches, manifest, location]
+        [page, nextMatches, matches, manifest, location2]
       );
       let newMatchesForAssets = reactExports.useMemo(
         () => getNewMatchesForLinks(
@@ -21044,13 +21067,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           nextMatches,
           matches,
           manifest,
-          location,
+          location2,
           "assets"
         ),
-        [page, nextMatches, matches, manifest, location]
+        [page, nextMatches, matches, manifest, location2]
       );
       let dataHrefs = reactExports.useMemo(() => {
-        if (page === location.pathname + location.search + location.hash) {
+        if (page === location2.pathname + location2.search + location2.hash) {
           return [];
         }
         let routesParams = /* @__PURE__ */ new Set();
@@ -21083,7 +21106,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [
         basename,
         loaderData,
-        location,
+        location2,
         manifest,
         newMatchesForData,
         nextMatches,
@@ -21270,14 +21293,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         ...rest
       }, ref) {
         let path = useResolvedPath(to2, { relative: rest.relative });
-        let location = useLocation();
+        let location2 = useLocation();
         let routerState = reactExports.useContext(DataRouterStateContext);
         let { navigator: navigator2, basename } = reactExports.useContext(NavigationContext);
         let isTransitioning = routerState != null && // Conditional usage is OK here because the usage of a data router is static
         // eslint-disable-next-line react-hooks/rules-of-hooks
         useViewTransitionState(path) && viewTransition === true;
         let toPathname = navigator2.encodeLocation ? navigator2.encodeLocation(path).pathname : path.pathname;
-        let locationPathname = location.pathname;
+        let locationPathname = location2.pathname;
         let nextLocationPathname = routerState && routerState.navigation && routerState.navigation.location ? routerState.navigation.location.pathname : null;
         if (!caseSensitive) {
           locationPathname = locationPathname.toLowerCase();
@@ -21392,13 +21415,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       viewTransition
     } = {}) {
       let navigate = useNavigate();
-      let location = useLocation();
+      let location2 = useLocation();
       let path = useResolvedPath(to2, { relative });
       return reactExports.useCallback(
         (event) => {
           if (shouldProcessLinkClick(event, target2)) {
             event.preventDefault();
-            let replace2 = replaceProp !== void 0 ? replaceProp : createPath(location) === createPath(path);
+            let replace2 = replaceProp !== void 0 ? replaceProp : createPath(location2) === createPath(path);
             navigate(to2, {
               replace: replace2,
               state,
@@ -21409,7 +21432,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         },
         [
-          location,
+          location2,
           navigate,
           path,
           replaceProp,
@@ -21421,6 +21444,39 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           viewTransition
         ]
       );
+    }
+    function useSearchParams(defaultInit) {
+      warning(
+        typeof URLSearchParams !== "undefined",
+        `You cannot use the \`useSearchParams\` hook in a browser that does not support the URLSearchParams API. If you need to support Internet Explorer 11, we recommend you load a polyfill such as https://github.com/ungap/url-search-params.`
+      );
+      let defaultSearchParamsRef = reactExports.useRef(createSearchParams(defaultInit));
+      let hasSetSearchParamsRef = reactExports.useRef(false);
+      let location2 = useLocation();
+      let searchParams = reactExports.useMemo(
+        () => (
+          // Only merge in the defaults if we haven't yet called setSearchParams.
+          // Once we call that we want those to take precedence, otherwise you can't
+          // remove a param with setSearchParams({}) if it has an initial value
+          getSearchParamsForLocation(
+            location2.search,
+            hasSetSearchParamsRef.current ? null : defaultSearchParamsRef.current
+          )
+        ),
+        [location2.search]
+      );
+      let navigate = useNavigate();
+      let setSearchParams = reactExports.useCallback(
+        (nextInit, navigateOptions) => {
+          const newSearchParams = createSearchParams(
+            typeof nextInit === "function" ? nextInit(searchParams) : nextInit
+          );
+          hasSetSearchParamsRef.current = true;
+          navigate("?" + newSearchParams, navigateOptions);
+        },
+        [navigate, searchParams]
+      );
+      return [searchParams, setSearchParams];
     }
     var fetcherId = 0;
     var getUniqueFetcherId = () => `__${String(++fetcherId)}__`;
@@ -21471,9 +21527,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       invariant(routeContext, "useFormAction must be used inside a RouteContext");
       let [match] = routeContext.matches.slice(-1);
       let path = { ...useResolvedPath(action ? action : ".", { relative }) };
-      let location = useLocation();
+      let location2 = useLocation();
       if (action == null) {
-        path.search = location.search;
+        path.search = location2.search;
         let params2 = new URLSearchParams(path.search);
         let indexValues = params2.getAll("index");
         let hasNakedIndexParam = indexValues.some((v) => v === "");
@@ -21528,439 +21584,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     function RouterProvider2(props) {
       return /* @__PURE__ */ reactExports.createElement(RouterProvider, { flushSync: reactDomExports.flushSync, ...props });
     }
-    const createStoreImpl = (createState) => {
-      let state;
-      const listeners = /* @__PURE__ */ new Set();
-      const setState = (partial, replace2) => {
-        const nextState = typeof partial === "function" ? partial(state) : partial;
-        if (!Object.is(nextState, state)) {
-          const previousState = state;
-          state = (replace2 != null ? replace2 : typeof nextState !== "object" || nextState === null) ? nextState : Object.assign({}, state, nextState);
-          listeners.forEach((listener) => listener(state, previousState));
-        }
-      };
-      const getState = () => state;
-      const getInitialState = () => initialState2;
-      const subscribe = (listener) => {
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-      };
-      const api2 = { setState, getState, getInitialState, subscribe };
-      const initialState2 = state = createState(setState, getState, api2);
-      return api2;
-    };
-    const createStore$1 = (createState) => createState ? createStoreImpl(createState) : createStoreImpl;
-    const identity = (arg) => arg;
-    function useStore$1(api2, selector = identity) {
-      const slice = H.useSyncExternalStore(
-        api2.subscribe,
-        () => selector(api2.getState()),
-        () => selector(api2.getInitialState())
-      );
-      H.useDebugValue(slice);
-      return slice;
-    }
-    const createImpl = (createState) => {
-      const api2 = createStore$1(createState);
-      const useBoundStore = (selector) => useStore$1(api2, selector);
-      Object.assign(useBoundStore, api2);
-      return useBoundStore;
-    };
-    const create$2 = (createState) => createImpl;
-    const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": false, "MODE": "development", "PROD": true, "SSR": false };
-    const trackedConnections = /* @__PURE__ */ new Map();
-    const getTrackedConnectionState = (name2) => {
-      const api2 = trackedConnections.get(name2);
-      if (!api2) return {};
-      return Object.fromEntries(
-        Object.entries(api2.stores).map(([key2, api22]) => [key2, api22.getState()])
-      );
-    };
-    const extractConnectionInformation = (store, extensionConnector, options2) => {
-      if (store === void 0) {
-        return {
-          type: "untracked",
-          connection: extensionConnector.connect(options2)
-        };
-      }
-      const existingConnection = trackedConnections.get(options2.name);
-      if (existingConnection) {
-        return { type: "tracked", store, ...existingConnection };
-      }
-      const newConnection = {
-        connection: extensionConnector.connect(options2),
-        stores: {}
-      };
-      trackedConnections.set(options2.name, newConnection);
-      return { type: "tracked", store, ...newConnection };
-    };
-    const devtoolsImpl = (fn2, devtoolsOptions = {}) => (set2, get2, api2) => {
-      const { enabled, anonymousActionType, store, ...options2 } = devtoolsOptions;
-      let extensionConnector;
-      try {
-        extensionConnector = (enabled != null ? enabled : (__vite_import_meta_env__ ? "development" : void 0) !== "production") && window.__REDUX_DEVTOOLS_EXTENSION__;
-      } catch (e) {
-      }
-      if (!extensionConnector) {
-        return fn2(set2, get2, api2);
-      }
-      const { connection, ...connectionInformation } = extractConnectionInformation(store, extensionConnector, options2);
-      let isRecording = true;
-      api2.setState = (state, replace2, nameOrAction) => {
-        const r2 = set2(state, replace2);
-        if (!isRecording) return r2;
-        const action = nameOrAction === void 0 ? { type: anonymousActionType || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
-        if (store === void 0) {
-          connection == null ? void 0 : connection.send(action, get2());
-          return r2;
-        }
-        connection == null ? void 0 : connection.send(
-          {
-            ...action,
-            type: `${store}/${action.type}`
-          },
-          {
-            ...getTrackedConnectionState(options2.name),
-            [store]: api2.getState()
-          }
-        );
-        return r2;
-      };
-      const setStateFromDevtools = (...a) => {
-        const originalIsRecording = isRecording;
-        isRecording = false;
-        set2(...a);
-        isRecording = originalIsRecording;
-      };
-      const initialState2 = fn2(api2.setState, get2, api2);
-      if (connectionInformation.type === "untracked") {
-        connection == null ? void 0 : connection.init(initialState2);
-      } else {
-        connectionInformation.stores[connectionInformation.store] = api2;
-        connection == null ? void 0 : connection.init(
-          Object.fromEntries(
-            Object.entries(connectionInformation.stores).map(([key2, store2]) => [
-              key2,
-              key2 === connectionInformation.store ? initialState2 : store2.getState()
-            ])
-          )
-        );
-      }
-      if (api2.dispatchFromDevtools && typeof api2.dispatch === "function") {
-        let didWarnAboutReservedActionType = false;
-        const originalDispatch = api2.dispatch;
-        api2.dispatch = (...a) => {
-          if ((__vite_import_meta_env__ ? "development" : void 0) !== "production" && a[0].type === "__setState" && !didWarnAboutReservedActionType) {
-            console.warn(
-              '[zustand devtools middleware] "__setState" action type is reserved to set state from the devtools. Avoid using it.'
-            );
-            didWarnAboutReservedActionType = true;
-          }
-          originalDispatch(...a);
-        };
-      }
-      connection.subscribe((message2) => {
-        var _a2;
-        switch (message2.type) {
-          case "ACTION":
-            if (typeof message2.payload !== "string") {
-              console.error(
-                "[zustand devtools middleware] Unsupported action format"
-              );
-              return;
-            }
-            return parseJsonThen(
-              message2.payload,
-              (action) => {
-                if (action.type === "__setState") {
-                  if (store === void 0) {
-                    setStateFromDevtools(action.state);
-                    return;
-                  }
-                  if (Object.keys(action.state).length !== 1) {
-                    console.error(
-                      `
-                    [zustand devtools middleware] Unsupported __setState action format.
-                    When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
-                    and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
-                    `
-                    );
-                  }
-                  const stateFromDevtools = action.state[store];
-                  if (stateFromDevtools === void 0 || stateFromDevtools === null) {
-                    return;
-                  }
-                  if (JSON.stringify(api2.getState()) !== JSON.stringify(stateFromDevtools)) {
-                    setStateFromDevtools(stateFromDevtools);
-                  }
-                  return;
-                }
-                if (!api2.dispatchFromDevtools) return;
-                if (typeof api2.dispatch !== "function") return;
-                api2.dispatch(action);
-              }
-            );
-          case "DISPATCH":
-            switch (message2.payload.type) {
-              case "RESET":
-                setStateFromDevtools(initialState2);
-                if (store === void 0) {
-                  return connection == null ? void 0 : connection.init(api2.getState());
-                }
-                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
-              case "COMMIT":
-                if (store === void 0) {
-                  connection == null ? void 0 : connection.init(api2.getState());
-                  return;
-                }
-                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
-              case "ROLLBACK":
-                return parseJsonThen(message2.state, (state) => {
-                  if (store === void 0) {
-                    setStateFromDevtools(state);
-                    connection == null ? void 0 : connection.init(api2.getState());
-                    return;
-                  }
-                  setStateFromDevtools(state[store]);
-                  connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
-                });
-              case "JUMP_TO_STATE":
-              case "JUMP_TO_ACTION":
-                return parseJsonThen(message2.state, (state) => {
-                  if (store === void 0) {
-                    setStateFromDevtools(state);
-                    return;
-                  }
-                  if (JSON.stringify(api2.getState()) !== JSON.stringify(state[store])) {
-                    setStateFromDevtools(state[store]);
-                  }
-                });
-              case "IMPORT_STATE": {
-                const { nextLiftedState } = message2.payload;
-                const lastComputedState = (_a2 = nextLiftedState.computedStates.slice(-1)[0]) == null ? void 0 : _a2.state;
-                if (!lastComputedState) return;
-                if (store === void 0) {
-                  setStateFromDevtools(lastComputedState);
-                } else {
-                  setStateFromDevtools(lastComputedState[store]);
-                }
-                connection == null ? void 0 : connection.send(
-                  null,
-                  // FIXME no-any
-                  nextLiftedState
-                );
-                return;
-              }
-              case "PAUSE_RECORDING":
-                return isRecording = !isRecording;
-            }
-            return;
-        }
-      });
-      return initialState2;
-    };
-    const devtools = devtoolsImpl;
-    const parseJsonThen = (stringified, f) => {
-      let parsed;
-      try {
-        parsed = JSON.parse(stringified);
-      } catch (e) {
-        console.error(
-          "[zustand devtools middleware] Could not parse the received json",
-          e
-        );
-      }
-      if (parsed !== void 0) f(parsed);
-    };
-    function createJSONStorage(getStorage, options2) {
-      let storage2;
-      try {
-        storage2 = getStorage();
-      } catch (e) {
-        return;
-      }
-      const persistStorage = {
-        getItem: (name2) => {
-          var _a2;
-          const parse2 = (str22) => {
-            if (str22 === null) {
-              return null;
-            }
-            return JSON.parse(str22, void 0);
-          };
-          const str2 = (_a2 = storage2.getItem(name2)) != null ? _a2 : null;
-          if (str2 instanceof Promise) {
-            return str2.then(parse2);
-          }
-          return parse2(str2);
-        },
-        setItem: (name2, newValue) => storage2.setItem(
-          name2,
-          JSON.stringify(newValue, void 0)
-        ),
-        removeItem: (name2) => storage2.removeItem(name2)
-      };
-      return persistStorage;
-    }
-    const toThenable = (fn2) => (input2) => {
-      try {
-        const result2 = fn2(input2);
-        if (result2 instanceof Promise) {
-          return result2;
-        }
-        return {
-          then(onFulfilled) {
-            return toThenable(onFulfilled)(result2);
-          },
-          catch(_onRejected) {
-            return this;
-          }
-        };
-      } catch (e) {
-        return {
-          then(_onFulfilled) {
-            return this;
-          },
-          catch(onRejected) {
-            return toThenable(onRejected)(e);
-          }
-        };
-      }
-    };
-    const persistImpl = (config2, baseOptions) => (set2, get2, api2) => {
-      let options2 = {
-        storage: createJSONStorage(() => localStorage),
-        partialize: (state) => state,
-        version: 0,
-        merge: (persistedState, currentState) => ({
-          ...currentState,
-          ...persistedState
-        }),
-        ...baseOptions
-      };
-      let hasHydrated = false;
-      const hydrationListeners = /* @__PURE__ */ new Set();
-      const finishHydrationListeners = /* @__PURE__ */ new Set();
-      let storage2 = options2.storage;
-      if (!storage2) {
-        return config2(
-          (...args) => {
-            console.warn(
-              `[zustand persist middleware] Unable to update item '${options2.name}', the given storage is currently unavailable.`
-            );
-            set2(...args);
-          },
-          get2,
-          api2
-        );
-      }
-      const setItem = () => {
-        const state = options2.partialize({ ...get2() });
-        return storage2.setItem(options2.name, {
-          state,
-          version: options2.version
-        });
-      };
-      const savedSetState = api2.setState;
-      api2.setState = (state, replace2) => {
-        savedSetState(state, replace2);
-        void setItem();
-      };
-      const configResult = config2(
-        (...args) => {
-          set2(...args);
-          void setItem();
-        },
-        get2,
-        api2
-      );
-      api2.getInitialState = () => configResult;
-      let stateFromStorage;
-      const hydrate = () => {
-        var _a2, _b2;
-        if (!storage2) return;
-        hasHydrated = false;
-        hydrationListeners.forEach((cb) => {
-          var _a22;
-          return cb((_a22 = get2()) != null ? _a22 : configResult);
-        });
-        const postRehydrationCallback = ((_b2 = options2.onRehydrateStorage) == null ? void 0 : _b2.call(options2, (_a2 = get2()) != null ? _a2 : configResult)) || void 0;
-        return toThenable(storage2.getItem.bind(storage2))(options2.name).then((deserializedStorageValue) => {
-          if (deserializedStorageValue) {
-            if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options2.version) {
-              if (options2.migrate) {
-                const migration = options2.migrate(
-                  deserializedStorageValue.state,
-                  deserializedStorageValue.version
-                );
-                if (migration instanceof Promise) {
-                  return migration.then((result2) => [true, result2]);
-                }
-                return [true, migration];
-              }
-              console.error(
-                `State loaded from storage couldn't be migrated since no migrate function was provided`
-              );
-            } else {
-              return [false, deserializedStorageValue.state];
-            }
-          }
-          return [false, void 0];
-        }).then((migrationResult) => {
-          var _a22;
-          const [migrated, migratedState] = migrationResult;
-          stateFromStorage = options2.merge(
-            migratedState,
-            (_a22 = get2()) != null ? _a22 : configResult
-          );
-          set2(stateFromStorage, true);
-          if (migrated) {
-            return setItem();
-          }
-        }).then(() => {
-          postRehydrationCallback == null ? void 0 : postRehydrationCallback(stateFromStorage, void 0);
-          stateFromStorage = get2();
-          hasHydrated = true;
-          finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
-        }).catch((e) => {
-          postRehydrationCallback == null ? void 0 : postRehydrationCallback(void 0, e);
-        });
-      };
-      api2.persist = {
-        setOptions: (newOptions) => {
-          options2 = {
-            ...options2,
-            ...newOptions
-          };
-          if (newOptions.storage) {
-            storage2 = newOptions.storage;
-          }
-        },
-        clearStorage: () => {
-          storage2 == null ? void 0 : storage2.removeItem(options2.name);
-        },
-        getOptions: () => options2,
-        rehydrate: () => hydrate(),
-        hasHydrated: () => hasHydrated,
-        onHydrate: (cb) => {
-          hydrationListeners.add(cb);
-          return () => {
-            hydrationListeners.delete(cb);
-          };
-        },
-        onFinishHydration: (cb) => {
-          finishHydrationListeners.add(cb);
-          return () => {
-            finishHydrationListeners.delete(cb);
-          };
-        }
-      };
-      if (!options2.skipHydration) {
-        hydrate();
-      }
-      return stateFromStorage || configResult;
-    };
-    const persist = persistImpl;
     var NOTHING = Symbol.for("immer-nothing");
     var DRAFTABLE = Symbol.for("immer-draftable");
     var DRAFT_STATE = Symbol.for("immer-state");
@@ -22097,6 +21720,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         die(0, pluginKey);
       }
       return plugin;
+    }
+    function loadPlugin(pluginKey, implementation) {
+      if (!plugins[pluginKey])
+        plugins[pluginKey] = implementation;
     }
     var currentScope;
     function getCurrentScope() {
@@ -22578,6 +22205,254 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return copy;
     }
+    function enableMapSet() {
+      class DraftMap extends Map {
+        constructor(target2, parent) {
+          super();
+          this[DRAFT_STATE] = {
+            type_: 2,
+            parent_: parent,
+            scope_: parent ? parent.scope_ : getCurrentScope(),
+            modified_: false,
+            finalized_: false,
+            copy_: void 0,
+            assigned_: void 0,
+            base_: target2,
+            draft_: this,
+            isManual_: false,
+            revoked_: false
+          };
+        }
+        get size() {
+          return latest(this[DRAFT_STATE]).size;
+        }
+        has(key2) {
+          return latest(this[DRAFT_STATE]).has(key2);
+        }
+        set(key2, value2) {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (!latest(state).has(key2) || latest(state).get(key2) !== value2) {
+            prepareMapCopy(state);
+            markChanged(state);
+            state.assigned_.set(key2, true);
+            state.copy_.set(key2, value2);
+            state.assigned_.set(key2, true);
+          }
+          return this;
+        }
+        delete(key2) {
+          if (!this.has(key2)) {
+            return false;
+          }
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          prepareMapCopy(state);
+          markChanged(state);
+          if (state.base_.has(key2)) {
+            state.assigned_.set(key2, false);
+          } else {
+            state.assigned_.delete(key2);
+          }
+          state.copy_.delete(key2);
+          return true;
+        }
+        clear() {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (latest(state).size) {
+            prepareMapCopy(state);
+            markChanged(state);
+            state.assigned_ = /* @__PURE__ */ new Map();
+            each(state.base_, (key2) => {
+              state.assigned_.set(key2, false);
+            });
+            state.copy_.clear();
+          }
+        }
+        forEach(cb, thisArg) {
+          const state = this[DRAFT_STATE];
+          latest(state).forEach((_value, key2, _map2) => {
+            cb.call(thisArg, this.get(key2), key2, this);
+          });
+        }
+        get(key2) {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          const value2 = latest(state).get(key2);
+          if (state.finalized_ || !isDraftable(value2)) {
+            return value2;
+          }
+          if (value2 !== state.base_.get(key2)) {
+            return value2;
+          }
+          const draft = createProxy(value2, state);
+          prepareMapCopy(state);
+          state.copy_.set(key2, draft);
+          return draft;
+        }
+        keys() {
+          return latest(this[DRAFT_STATE]).keys();
+        }
+        values() {
+          const iterator = this.keys();
+          return {
+            [Symbol.iterator]: () => this.values(),
+            next: () => {
+              const r2 = iterator.next();
+              if (r2.done)
+                return r2;
+              const value2 = this.get(r2.value);
+              return {
+                done: false,
+                value: value2
+              };
+            }
+          };
+        }
+        entries() {
+          const iterator = this.keys();
+          return {
+            [Symbol.iterator]: () => this.entries(),
+            next: () => {
+              const r2 = iterator.next();
+              if (r2.done)
+                return r2;
+              const value2 = this.get(r2.value);
+              return {
+                done: false,
+                value: [r2.value, value2]
+              };
+            }
+          };
+        }
+        [Symbol.iterator]() {
+          return this.entries();
+        }
+      }
+      function proxyMap_(target2, parent) {
+        return new DraftMap(target2, parent);
+      }
+      function prepareMapCopy(state) {
+        if (!state.copy_) {
+          state.assigned_ = /* @__PURE__ */ new Map();
+          state.copy_ = new Map(state.base_);
+        }
+      }
+      class DraftSet extends Set {
+        constructor(target2, parent) {
+          super();
+          this[DRAFT_STATE] = {
+            type_: 3,
+            parent_: parent,
+            scope_: parent ? parent.scope_ : getCurrentScope(),
+            modified_: false,
+            finalized_: false,
+            copy_: void 0,
+            base_: target2,
+            draft_: this,
+            drafts_: /* @__PURE__ */ new Map(),
+            revoked_: false,
+            isManual_: false
+          };
+        }
+        get size() {
+          return latest(this[DRAFT_STATE]).size;
+        }
+        has(value2) {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (!state.copy_) {
+            return state.base_.has(value2);
+          }
+          if (state.copy_.has(value2))
+            return true;
+          if (state.drafts_.has(value2) && state.copy_.has(state.drafts_.get(value2)))
+            return true;
+          return false;
+        }
+        add(value2) {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (!this.has(value2)) {
+            prepareSetCopy(state);
+            markChanged(state);
+            state.copy_.add(value2);
+          }
+          return this;
+        }
+        delete(value2) {
+          if (!this.has(value2)) {
+            return false;
+          }
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          prepareSetCopy(state);
+          markChanged(state);
+          return state.copy_.delete(value2) || (state.drafts_.has(value2) ? state.copy_.delete(state.drafts_.get(value2)) : (
+            /* istanbul ignore next */
+            false
+          ));
+        }
+        clear() {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          if (latest(state).size) {
+            prepareSetCopy(state);
+            markChanged(state);
+            state.copy_.clear();
+          }
+        }
+        values() {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          prepareSetCopy(state);
+          return state.copy_.values();
+        }
+        entries() {
+          const state = this[DRAFT_STATE];
+          assertUnrevoked(state);
+          prepareSetCopy(state);
+          return state.copy_.entries();
+        }
+        keys() {
+          return this.values();
+        }
+        [Symbol.iterator]() {
+          return this.values();
+        }
+        forEach(cb, thisArg) {
+          const iterator = this.values();
+          let result2 = iterator.next();
+          while (!result2.done) {
+            cb.call(thisArg, result2.value, result2.value, this);
+            result2 = iterator.next();
+          }
+        }
+      }
+      function proxySet_(target2, parent) {
+        return new DraftSet(target2, parent);
+      }
+      function prepareSetCopy(state) {
+        if (!state.copy_) {
+          state.copy_ = /* @__PURE__ */ new Set();
+          state.base_.forEach((value2) => {
+            if (isDraftable(value2)) {
+              const draft = createProxy(value2, state);
+              state.drafts_.set(value2, draft);
+              state.copy_.add(draft);
+            } else {
+              state.copy_.add(value2);
+            }
+          });
+        }
+      }
+      function assertUnrevoked(state) {
+        if (state.revoked_)
+          die(3, JSON.stringify(latest(state)));
+      }
+      loadPlugin("MapSet", { proxyMap_, proxySet_ });
+    }
     var immer$1 = new Immer2();
     var produce = immer$1.produce;
     immer$1.produceWithPatches.bind(
@@ -22588,6 +22463,439 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     immer$1.applyPatches.bind(immer$1);
     immer$1.createDraft.bind(immer$1);
     immer$1.finishDraft.bind(immer$1);
+    const createStoreImpl = (createState) => {
+      let state;
+      const listeners = /* @__PURE__ */ new Set();
+      const setState = (partial, replace2) => {
+        const nextState = typeof partial === "function" ? partial(state) : partial;
+        if (!Object.is(nextState, state)) {
+          const previousState = state;
+          state = (replace2 != null ? replace2 : typeof nextState !== "object" || nextState === null) ? nextState : Object.assign({}, state, nextState);
+          listeners.forEach((listener) => listener(state, previousState));
+        }
+      };
+      const getState = () => state;
+      const getInitialState = () => initialState2;
+      const subscribe = (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      };
+      const api2 = { setState, getState, getInitialState, subscribe };
+      const initialState2 = state = createState(setState, getState, api2);
+      return api2;
+    };
+    const createStore$1 = (createState) => createState ? createStoreImpl(createState) : createStoreImpl;
+    const identity = (arg) => arg;
+    function useStore$1(api2, selector = identity) {
+      const slice = H.useSyncExternalStore(
+        api2.subscribe,
+        () => selector(api2.getState()),
+        () => selector(api2.getInitialState())
+      );
+      H.useDebugValue(slice);
+      return slice;
+    }
+    const createImpl = (createState) => {
+      const api2 = createStore$1(createState);
+      const useBoundStore = (selector) => useStore$1(api2, selector);
+      Object.assign(useBoundStore, api2);
+      return useBoundStore;
+    };
+    const create$2 = (createState) => createImpl;
+    const __vite_import_meta_env__ = { "BASE_URL": "./", "DEV": false, "MODE": "development", "PROD": true, "SSR": false };
+    const trackedConnections = /* @__PURE__ */ new Map();
+    const getTrackedConnectionState = (name2) => {
+      const api2 = trackedConnections.get(name2);
+      if (!api2) return {};
+      return Object.fromEntries(
+        Object.entries(api2.stores).map(([key2, api22]) => [key2, api22.getState()])
+      );
+    };
+    const extractConnectionInformation = (store, extensionConnector, options2) => {
+      if (store === void 0) {
+        return {
+          type: "untracked",
+          connection: extensionConnector.connect(options2)
+        };
+      }
+      const existingConnection = trackedConnections.get(options2.name);
+      if (existingConnection) {
+        return { type: "tracked", store, ...existingConnection };
+      }
+      const newConnection = {
+        connection: extensionConnector.connect(options2),
+        stores: {}
+      };
+      trackedConnections.set(options2.name, newConnection);
+      return { type: "tracked", store, ...newConnection };
+    };
+    const devtoolsImpl = (fn2, devtoolsOptions = {}) => (set2, get2, api2) => {
+      const { enabled, anonymousActionType, store, ...options2 } = devtoolsOptions;
+      let extensionConnector;
+      try {
+        extensionConnector = (enabled != null ? enabled : (__vite_import_meta_env__ ? "development" : void 0) !== "production") && window.__REDUX_DEVTOOLS_EXTENSION__;
+      } catch (e) {
+      }
+      if (!extensionConnector) {
+        return fn2(set2, get2, api2);
+      }
+      const { connection, ...connectionInformation } = extractConnectionInformation(store, extensionConnector, options2);
+      let isRecording = true;
+      api2.setState = (state, replace2, nameOrAction) => {
+        const r2 = set2(state, replace2);
+        if (!isRecording) return r2;
+        const action = nameOrAction === void 0 ? { type: anonymousActionType || "anonymous" } : typeof nameOrAction === "string" ? { type: nameOrAction } : nameOrAction;
+        if (store === void 0) {
+          connection == null ? void 0 : connection.send(action, get2());
+          return r2;
+        }
+        connection == null ? void 0 : connection.send(
+          {
+            ...action,
+            type: `${store}/${action.type}`
+          },
+          {
+            ...getTrackedConnectionState(options2.name),
+            [store]: api2.getState()
+          }
+        );
+        return r2;
+      };
+      const setStateFromDevtools = (...a) => {
+        const originalIsRecording = isRecording;
+        isRecording = false;
+        set2(...a);
+        isRecording = originalIsRecording;
+      };
+      const initialState2 = fn2(api2.setState, get2, api2);
+      if (connectionInformation.type === "untracked") {
+        connection == null ? void 0 : connection.init(initialState2);
+      } else {
+        connectionInformation.stores[connectionInformation.store] = api2;
+        connection == null ? void 0 : connection.init(
+          Object.fromEntries(
+            Object.entries(connectionInformation.stores).map(([key2, store2]) => [
+              key2,
+              key2 === connectionInformation.store ? initialState2 : store2.getState()
+            ])
+          )
+        );
+      }
+      if (api2.dispatchFromDevtools && typeof api2.dispatch === "function") {
+        let didWarnAboutReservedActionType = false;
+        const originalDispatch = api2.dispatch;
+        api2.dispatch = (...a) => {
+          if ((__vite_import_meta_env__ ? "development" : void 0) !== "production" && a[0].type === "__setState" && !didWarnAboutReservedActionType) {
+            console.warn(
+              '[zustand devtools middleware] "__setState" action type is reserved to set state from the devtools. Avoid using it.'
+            );
+            didWarnAboutReservedActionType = true;
+          }
+          originalDispatch(...a);
+        };
+      }
+      connection.subscribe((message2) => {
+        var _a2;
+        switch (message2.type) {
+          case "ACTION":
+            if (typeof message2.payload !== "string") {
+              console.error(
+                "[zustand devtools middleware] Unsupported action format"
+              );
+              return;
+            }
+            return parseJsonThen(
+              message2.payload,
+              (action) => {
+                if (action.type === "__setState") {
+                  if (store === void 0) {
+                    setStateFromDevtools(action.state);
+                    return;
+                  }
+                  if (Object.keys(action.state).length !== 1) {
+                    console.error(
+                      `
+                    [zustand devtools middleware] Unsupported __setState action format.
+                    When using 'store' option in devtools(), the 'state' should have only one key, which is a value of 'store' that was passed in devtools(),
+                    and value of this only key should be a state object. Example: { "type": "__setState", "state": { "abc123Store": { "foo": "bar" } } }
+                    `
+                    );
+                  }
+                  const stateFromDevtools = action.state[store];
+                  if (stateFromDevtools === void 0 || stateFromDevtools === null) {
+                    return;
+                  }
+                  if (JSON.stringify(api2.getState()) !== JSON.stringify(stateFromDevtools)) {
+                    setStateFromDevtools(stateFromDevtools);
+                  }
+                  return;
+                }
+                if (!api2.dispatchFromDevtools) return;
+                if (typeof api2.dispatch !== "function") return;
+                api2.dispatch(action);
+              }
+            );
+          case "DISPATCH":
+            switch (message2.payload.type) {
+              case "RESET":
+                setStateFromDevtools(initialState2);
+                if (store === void 0) {
+                  return connection == null ? void 0 : connection.init(api2.getState());
+                }
+                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+              case "COMMIT":
+                if (store === void 0) {
+                  connection == null ? void 0 : connection.init(api2.getState());
+                  return;
+                }
+                return connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+              case "ROLLBACK":
+                return parseJsonThen(message2.state, (state) => {
+                  if (store === void 0) {
+                    setStateFromDevtools(state);
+                    connection == null ? void 0 : connection.init(api2.getState());
+                    return;
+                  }
+                  setStateFromDevtools(state[store]);
+                  connection == null ? void 0 : connection.init(getTrackedConnectionState(options2.name));
+                });
+              case "JUMP_TO_STATE":
+              case "JUMP_TO_ACTION":
+                return parseJsonThen(message2.state, (state) => {
+                  if (store === void 0) {
+                    setStateFromDevtools(state);
+                    return;
+                  }
+                  if (JSON.stringify(api2.getState()) !== JSON.stringify(state[store])) {
+                    setStateFromDevtools(state[store]);
+                  }
+                });
+              case "IMPORT_STATE": {
+                const { nextLiftedState } = message2.payload;
+                const lastComputedState = (_a2 = nextLiftedState.computedStates.slice(-1)[0]) == null ? void 0 : _a2.state;
+                if (!lastComputedState) return;
+                if (store === void 0) {
+                  setStateFromDevtools(lastComputedState);
+                } else {
+                  setStateFromDevtools(lastComputedState[store]);
+                }
+                connection == null ? void 0 : connection.send(
+                  null,
+                  // FIXME no-any
+                  nextLiftedState
+                );
+                return;
+              }
+              case "PAUSE_RECORDING":
+                return isRecording = !isRecording;
+            }
+            return;
+        }
+      });
+      return initialState2;
+    };
+    const devtools = devtoolsImpl;
+    const parseJsonThen = (stringified, f) => {
+      let parsed;
+      try {
+        parsed = JSON.parse(stringified);
+      } catch (e) {
+        console.error(
+          "[zustand devtools middleware] Could not parse the received json",
+          e
+        );
+      }
+      if (parsed !== void 0) f(parsed);
+    };
+    function createJSONStorage(getStorage, options2) {
+      let storage2;
+      try {
+        storage2 = getStorage();
+      } catch (e) {
+        return;
+      }
+      const persistStorage = {
+        getItem: (name2) => {
+          var _a2;
+          const parse2 = (str22) => {
+            if (str22 === null) {
+              return null;
+            }
+            return JSON.parse(str22, void 0);
+          };
+          const str2 = (_a2 = storage2.getItem(name2)) != null ? _a2 : null;
+          if (str2 instanceof Promise) {
+            return str2.then(parse2);
+          }
+          return parse2(str2);
+        },
+        setItem: (name2, newValue) => storage2.setItem(
+          name2,
+          JSON.stringify(newValue, void 0)
+        ),
+        removeItem: (name2) => storage2.removeItem(name2)
+      };
+      return persistStorage;
+    }
+    const toThenable = (fn2) => (input2) => {
+      try {
+        const result2 = fn2(input2);
+        if (result2 instanceof Promise) {
+          return result2;
+        }
+        return {
+          then(onFulfilled) {
+            return toThenable(onFulfilled)(result2);
+          },
+          catch(_onRejected) {
+            return this;
+          }
+        };
+      } catch (e) {
+        return {
+          then(_onFulfilled) {
+            return this;
+          },
+          catch(onRejected) {
+            return toThenable(onRejected)(e);
+          }
+        };
+      }
+    };
+    const persistImpl = (config2, baseOptions) => (set2, get2, api2) => {
+      let options2 = {
+        storage: createJSONStorage(() => localStorage),
+        partialize: (state) => state,
+        version: 0,
+        merge: (persistedState, currentState) => ({
+          ...currentState,
+          ...persistedState
+        }),
+        ...baseOptions
+      };
+      let hasHydrated = false;
+      const hydrationListeners = /* @__PURE__ */ new Set();
+      const finishHydrationListeners = /* @__PURE__ */ new Set();
+      let storage2 = options2.storage;
+      if (!storage2) {
+        return config2(
+          (...args) => {
+            console.warn(
+              `[zustand persist middleware] Unable to update item '${options2.name}', the given storage is currently unavailable.`
+            );
+            set2(...args);
+          },
+          get2,
+          api2
+        );
+      }
+      const setItem = () => {
+        const state = options2.partialize({ ...get2() });
+        return storage2.setItem(options2.name, {
+          state,
+          version: options2.version
+        });
+      };
+      const savedSetState = api2.setState;
+      api2.setState = (state, replace2) => {
+        savedSetState(state, replace2);
+        void setItem();
+      };
+      const configResult = config2(
+        (...args) => {
+          set2(...args);
+          void setItem();
+        },
+        get2,
+        api2
+      );
+      api2.getInitialState = () => configResult;
+      let stateFromStorage;
+      const hydrate = () => {
+        var _a2, _b2;
+        if (!storage2) return;
+        hasHydrated = false;
+        hydrationListeners.forEach((cb) => {
+          var _a22;
+          return cb((_a22 = get2()) != null ? _a22 : configResult);
+        });
+        const postRehydrationCallback = ((_b2 = options2.onRehydrateStorage) == null ? void 0 : _b2.call(options2, (_a2 = get2()) != null ? _a2 : configResult)) || void 0;
+        return toThenable(storage2.getItem.bind(storage2))(options2.name).then((deserializedStorageValue) => {
+          if (deserializedStorageValue) {
+            if (typeof deserializedStorageValue.version === "number" && deserializedStorageValue.version !== options2.version) {
+              if (options2.migrate) {
+                const migration = options2.migrate(
+                  deserializedStorageValue.state,
+                  deserializedStorageValue.version
+                );
+                if (migration instanceof Promise) {
+                  return migration.then((result2) => [true, result2]);
+                }
+                return [true, migration];
+              }
+              console.error(
+                `State loaded from storage couldn't be migrated since no migrate function was provided`
+              );
+            } else {
+              return [false, deserializedStorageValue.state];
+            }
+          }
+          return [false, void 0];
+        }).then((migrationResult) => {
+          var _a22;
+          const [migrated, migratedState] = migrationResult;
+          stateFromStorage = options2.merge(
+            migratedState,
+            (_a22 = get2()) != null ? _a22 : configResult
+          );
+          set2(stateFromStorage, true);
+          if (migrated) {
+            return setItem();
+          }
+        }).then(() => {
+          postRehydrationCallback == null ? void 0 : postRehydrationCallback(stateFromStorage, void 0);
+          stateFromStorage = get2();
+          hasHydrated = true;
+          finishHydrationListeners.forEach((cb) => cb(stateFromStorage));
+        }).catch((e) => {
+          postRehydrationCallback == null ? void 0 : postRehydrationCallback(void 0, e);
+        });
+      };
+      api2.persist = {
+        setOptions: (newOptions) => {
+          options2 = {
+            ...options2,
+            ...newOptions
+          };
+          if (newOptions.storage) {
+            storage2 = newOptions.storage;
+          }
+        },
+        clearStorage: () => {
+          storage2 == null ? void 0 : storage2.removeItem(options2.name);
+        },
+        getOptions: () => options2,
+        rehydrate: () => hydrate(),
+        hasHydrated: () => hasHydrated,
+        onHydrate: (cb) => {
+          hydrationListeners.add(cb);
+          return () => {
+            hydrationListeners.delete(cb);
+          };
+        },
+        onFinishHydration: (cb) => {
+          finishHydrationListeners.add(cb);
+          return () => {
+            finishHydrationListeners.delete(cb);
+          };
+        }
+      };
+      if (!options2.skipHydration) {
+        hydrate();
+      }
+      return stateFromStorage || configResult;
+    };
+    const persist = persistImpl;
     const immerImpl = (initializer) => (set2, get2, store) => {
       store.setState = (updater, replace2, ...a) => {
         const nextState = typeof updater === "function" ? produce(updater) : updater;
@@ -22958,7 +23266,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         const state = get2();
         const api2 = state.api;
-        const selectedLogFile = state.logsActions.getSelectedLogFile();
+        const selectedLogFile = state.logs.selectedLogFile;
         if (!api2 || !selectedLogFile) {
           return false;
         }
@@ -23075,7 +23383,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         clearPendingSummaries,
         cleanup,
         // Expose the refresh function so components can use it directly
-        refreshLog: (clearPending = false) => refreshLog(get2().logsActions.getSelectedLogFile() || "", clearPending)
+        refreshLog: (clearPending = false) => refreshLog(get2().logs.selectedLogFile || "", clearPending)
       };
     }
     const log$7 = createLogger("logSlice");
@@ -23160,7 +23468,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             try {
               const logContents = await api2.get_log_summary(logFileName);
               state.logActions.setSelectedLogSummary(logContents);
-              state.logActions.setEpoch;
               const header2 = {
                 [logFileName]: {
                   version: logContents.version,
@@ -23191,7 +23498,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           refreshLog: async () => {
             const state = get2();
             const api2 = state.api;
-            const selectedLogFile = state.logsActions.getSelectedLogFile();
+            const selectedLogFile = state.logs.selectedLogFile;
             if (!api2 || !selectedLogFile) {
               return;
             }
@@ -23303,7 +23610,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       logs: kEmptyLogs,
       logHeaders: {},
       headersLoading: false,
-      selectedLogIndex: -1
+      selectedLogIndex: -1,
+      selectedLogFile: void 0
     };
     const createLogsSlice = (set2, get2, _store) => {
       const logsPolling = createLogsPolling(get2);
@@ -23314,7 +23622,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         logsActions: {
           setLogs: (logs) => {
             set2((state) => {
+              var _a2;
               state.logs.logs = logs;
+              state.logs.selectedLogFile = state.logs.selectedLogIndex > -1 ? (_a2 = logs.files[state.logs.selectedLogIndex]) == null ? void 0 : _a2.name : void 0;
             });
             if (logs.files.length > 0) {
               setTimeout(() => {
@@ -23334,18 +23644,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setSelectedLogIndex: (selectedLogIndex) => {
             set2((state) => {
               state.logs.selectedLogIndex = selectedLogIndex;
+              const file = state.logs.logs.files[selectedLogIndex];
+              state.logs.selectedLogFile = file ? file.name : void 0;
             });
           },
           updateLogHeaders: (headers) => set2((state) => {
             state.logs.logHeaders = { ...get2().logs.logHeaders, ...headers };
           }),
           setSelectedLogFile: (logUrl2) => {
+            var _a2;
             const state = get2();
             const index2 = state.logs.logs.files.findIndex(
               (val) => logUrl2.endsWith(val.name)
             );
             if (index2 > -1) {
               state.logsActions.setSelectedLogIndex(index2);
+              state.logs.selectedLogFile = ((_a2 = state.logs.logs.files[index2]) == null ? void 0 : _a2.name) ?? void 0;
             }
           },
           // Helper function to load logs
@@ -23397,11 +23711,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 idx !== void 0 && idx > -1 ? idx : 0
               );
             }
-          },
-          getSelectedLogFile: () => {
-            const state = get2();
-            const file = state.logs.logs.files[state.logs.selectedLogIndex];
-            return file !== void 0 ? file.name : void 0;
           }
         }
       };
@@ -23543,7 +23852,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 if (sample2) {
                   const migratedSample = resolveSample$1(sample2);
                   set2((state2) => {
-                    state2.sample.selectedSample = migratedSample;
+                    state2.sampleActions.setSelectedSample(migratedSample);
                     state2.sampleActions.setSampleStatus("ok");
                     state2.sample.runningEvents = [];
                   });
@@ -23671,13 +23980,126 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return currentMax;
     };
+    const isJson = (text2) => {
+      text2 = text2.trim();
+      if (text2.startsWith("{") && text2.endsWith("}")) {
+        try {
+          JSON.parse(text2);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+      return false;
+    };
+    const parsedJson = (text2) => {
+      text2 = text2.trim();
+      if (text2.startsWith("{") && text2.endsWith("}")) {
+        try {
+          return JSON.parse(text2);
+        } catch {
+          return void 0;
+        }
+      }
+      return void 0;
+    };
+    function estimateSize(list2, frequency = 0.2) {
+      if (!list2 || list2.length === 0) {
+        return 0;
+      }
+      const sampleSize = Math.ceil(list2.length * frequency);
+      const messageIndices = /* @__PURE__ */ new Set();
+      while (messageIndices.size < sampleSize && messageIndices.size < list2.length) {
+        const randomIndex = Math.floor(Math.random() * list2.length);
+        messageIndices.add(randomIndex);
+      }
+      const totalSize = Array.from(messageIndices).reduce((size, index2) => {
+        return size + JSON.stringify(list2[index2]).length;
+      }, 0);
+      const estimatedTotalSize = totalSize / sampleSize * list2.length;
+      return estimatedTotalSize;
+    }
+    function filterState(state) {
+      if (!state) {
+        return state;
+      }
+      const filters = [filterLargeLogSummary];
+      return filters.reduce(
+        (filteredState, filter) => filter(filteredState),
+        state
+      );
+    }
+    function isLargeSample(sample2) {
+      const storeKeys = countKeys(sample2.store);
+      if (storeKeys > 5e3) {
+        return true;
+      }
+      const estimatedMessageSize = estimateSize(sample2.messages);
+      if (estimatedMessageSize > 25e4) {
+        return true;
+      }
+      return true;
+    }
+    function countKeys(obj, options2 = { countArrayIndices: false }) {
+      if (obj === null || typeof obj !== "object") {
+        return 0;
+      }
+      if (Array.isArray(obj)) {
+        let count2 = 0;
+        if (options2.countArrayIndices) {
+          count2 += obj.length;
+        }
+        for (const item2 of obj) {
+          count2 += countKeys(item2, options2);
+        }
+        return count2;
+      }
+      let count = Object.keys(obj).length;
+      for (const key2 in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key2)) {
+          count += countKeys(obj[key2], options2);
+        }
+      }
+      return count;
+    }
+    function filterLargeLogSummary(state) {
+      if (!state || !state.log || !state.log.selectedLogSummary) {
+        return state;
+      }
+      const estimatedSize = estimateSize(
+        state.log.selectedLogSummary.sampleSummaries
+      );
+      if (estimatedSize > 25e4) {
+        return {
+          ...state,
+          log: {
+            ...state.log,
+            selectedLogSummary: void 0
+          }
+        };
+      } else {
+        return state;
+      }
+    }
     const log$3 = createLogger("sampleSlice");
+    let selectedSampleRef = {
+      current: void 0
+    };
     const initialState = {
-      selectedSample: void 0,
+      // Store ID for all samples (used for triggering renders)
+      sample_identifier: void 0,
+      // Store the actual sample object for small samples
+      selectedSampleObject: void 0,
+      // Flag to indicate where the sample is stored
+      sampleInState: false,
       sampleStatus: "ok",
       sampleError: void 0,
+      // signals that the sample needs to be reloaded
+      sampleNeedsReload: 0,
       // The resolved events
-      runningEvents: []
+      runningEvents: [],
+      collapsedEvents: null,
+      collapsedIdBuckets: {}
     };
     const createSampleSlice = (set2, get2, _store) => {
       const samplePolling = createSamplePolling(get2, set2);
@@ -23686,33 +24108,100 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         sample: initialState,
         sampleActions: {
           setSelectedSample: (sample2) => {
+            const isLarge = isLargeSample(sample2);
             set2((state) => {
-              state.sample.selectedSample = sample2;
+              state.sample.sample_identifier = {
+                id: sample2.id,
+                epoch: sample2.epoch
+              };
+              state.sample.sampleInState = !isLarge;
+              if (!isLarge) {
+                state.sample.selectedSampleObject = sample2;
+                selectedSampleRef.current = void 0;
+              } else {
+                state.sample.selectedSampleObject = void 0;
+                selectedSampleRef.current = sample2;
+              }
             });
             if (sample2.events.length < 1) {
               get2().appActions.setSampleTab(kSampleMessagesTabId);
             }
           },
-          clearSelectedSample: () => set2((state) => {
-            state.sample.selectedSample = void 0;
-          }),
+          getSelectedSample: () => {
+            const state = get2().sample;
+            return state.sampleInState ? state.selectedSampleObject : selectedSampleRef.current;
+          },
+          clearSelectedSample: () => {
+            selectedSampleRef.current = void 0;
+            set2((state) => {
+              state.sample.sample_identifier = void 0;
+              state.sample.selectedSampleObject = void 0;
+              state.sample.sampleInState = false;
+            });
+          },
           setSampleStatus: (status2) => set2((state) => {
             state.sample.sampleStatus = status2;
           }),
           setSampleError: (error2) => set2((state) => {
             state.sample.sampleError = error2;
           }),
+          setCollapsedEvents: (collapsed) => {
+            set2((state) => {
+              state.sample.collapsedEvents = collapsed;
+            });
+          },
+          clearCollapsedEvents: () => {
+            set2((state) => {
+              state.sample.collapsedEvents = null;
+            });
+          },
+          collapseEvent: (id, collapsed) => {
+            set2((state) => {
+              if (state.sample.collapsedEvents === null) {
+                state.sample.collapsedEvents = {};
+              }
+              if (collapsed) {
+                state.sample.collapsedEvents[id] = true;
+              } else {
+                delete state.sample.collapsedEvents[id];
+              }
+            });
+          },
+          setCollapsedIds: (key2, collapsed) => {
+            set2((state) => {
+              state.sample.collapsedIdBuckets[key2] = collapsed;
+            });
+          },
+          collapseId: (key2, id, collapsed) => {
+            set2((state) => {
+              if (state.sample.collapsedIdBuckets[key2] === void 0) {
+                state.sample.collapsedIdBuckets[key2] = {};
+              }
+              if (collapsed) {
+                state.sample.collapsedIdBuckets[key2][id] = true;
+              } else {
+                delete state.sample.collapsedIdBuckets[key2][id];
+              }
+            });
+          },
+          clearCollapsedIds: (key2) => {
+            set2((state) => {
+              delete state.sample.collapsedIdBuckets[key2];
+            });
+          },
           pollSample: async (logFile, sampleSummary) => {
             const state = get2();
-            if (state.log.loadedLog && state.sample.selectedSample) {
+            const sampleExists = state.sample.sampleInState ? !!state.sample.selectedSampleObject : !!selectedSampleRef.current;
+            if (state.log.loadedLog && sampleExists) {
               samplePolling.startPolling(logFile, sampleSummary);
             }
           },
           loadSample: async (logFile, sampleSummary) => {
-            var _a2;
+            var _a2, _b2, _c;
             const sampleActions = get2().sampleActions;
             sampleActions.setSampleError(void 0);
             sampleActions.setSampleStatus("loading");
+            const state = get2();
             try {
               if (sampleSummary.completed !== false) {
                 log$3.debug(
@@ -23723,8 +24212,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                   sampleSummary.id,
                   sampleSummary.epoch
                 ));
+                log$3.debug(
+                  `LOADED COMPLETED SAMPLE: ${sampleSummary.id}-${sampleSummary.epoch}`
+                );
                 if (sample2) {
                   const migratedSample = resolveSample$1(sample2);
+                  if (((_b2 = state.sample.sample_identifier) == null ? void 0 : _b2.id) !== sample2.id && ((_c = state.sample.sample_identifier) == null ? void 0 : _c.epoch) !== sample2.epoch) {
+                    sampleActions.clearCollapsedEvents();
+                  }
                   sampleActions.setSelectedSample(migratedSample);
                   sampleActions.setSampleStatus("ok");
                 } else {
@@ -23748,8 +24243,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       const cleanup = () => {
         samplePolling.cleanup();
+        selectedSampleRef.current = void 0;
       };
       return [slice, cleanup];
+    };
+    const handleRehydrate = (state) => {
+      if (!state.sample.sampleInState) {
+        state.sample.sampleNeedsReload = state.sample.sampleNeedsReload + 1;
+      }
     };
     const initializeSampleSlice = (set2) => {
       set2((state) => {
@@ -23758,68 +24259,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
     };
-    function filterState(state) {
-      if (!state) {
-        return state;
-      }
-      const filters = [filterLargeSample, filterLargeLogSummary];
-      return filters.reduce(
-        (filteredState, filter) => filter(filteredState),
-        state
-      );
-    }
-    function filterLargeSample(state) {
-      if (!state || !state.sample || !state.sample.selectedSample) {
-        return state;
-      }
-      const estimatedTotalSize = estimateSize(state.sample.selectedSample.messages);
-      if (estimatedTotalSize > 25e4) {
-        return {
-          ...state,
-          sample: {
-            ...state.sample,
-            selectedSample: void 0
-          }
-        };
-      } else {
-        return state;
-      }
-    }
-    function filterLargeLogSummary(state) {
-      if (!state || !state.log || !state.log.selectedLogSummary) {
-        return state;
-      }
-      const estimatedSize = estimateSize(
-        state.log.selectedLogSummary.sampleSummaries
-      );
-      if (estimatedSize > 25e4) {
-        return {
-          ...state,
-          log: {
-            ...state.log,
-            selectedLogSummary: void 0
-          }
-        };
-      } else {
-        return state;
-      }
-    }
-    function estimateSize(list2, frequency = 0.2) {
-      if (!list2 || list2.length === 0) {
-        return 0;
-      }
-      const sampleSize = Math.ceil(list2.length * frequency);
-      const messageIndices = /* @__PURE__ */ new Set();
-      while (messageIndices.size < sampleSize && messageIndices.size < list2.length) {
-        const randomIndex = Math.floor(Math.random() * list2.length);
-        messageIndices.add(randomIndex);
-      }
-      const totalSize = Array.from(messageIndices).reduce((size, index2) => {
-        return size + JSON.stringify(list2[index2]).length;
-      }, 0);
-      const estimatedTotalSize = totalSize / sampleSize * list2.length;
-      return estimatedTotalSize;
-    }
     const log$2 = createLogger("store");
     let storeImplementation = null;
     const useStore = (selector) => {
@@ -23831,6 +24270,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return selector ? storeImplementation(selector) : storeImplementation();
     };
     const initializeStore = (api2, capabilities2, storage2) => {
+      enableMapSet();
       const storageImplementation = {
         getItem: (name2) => {
           return storage2 ? storage2.getItem(name2) : null;
@@ -23917,6 +24357,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               version: 1,
               onRehydrateStorage: (state) => {
                 return (hydrationState, error2) => {
+                  handleRehydrate(state);
                   log$2.debug("REHYDRATING STATE");
                   if (error2) {
                     log$2.debug("ERROR", { error: error2 });
@@ -23959,14 +24400,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         right: "bi bi-chevron-right",
         down: "bi bi-chevron-down"
       },
-      collapse: {
-        up: "bi bi-chevron-up"
-      },
       close: "bi bi-x",
       confirm: "bi bi-check",
       copy: "bi bi-copy",
       error: "bi bi-exclamation-circle",
-      "expand-down": "bi bi-chevron-down",
       info: "bi bi-info-circle",
       input: "bi bi-terminal",
       limits: {
@@ -23977,6 +24414,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         time: "bi bi-clock",
         execution: "bi bi-stopwatch"
       },
+      link: "bi bi-link-45deg",
       logging: loggingIcons,
       menu: "bi bi-list",
       metadata: "bi bi-table",
@@ -23986,13 +24424,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       play: "bi bi-play-fill",
       previous: "bi bi-chevron-left",
       refresh: "bi bi-arrow-clockwise",
-      role: {
-        user: "bi bi-person",
-        system: "bi bi-cpu",
-        assistant: "bi bi-robot",
-        tool: "bi bi-tools",
-        unknown: "bi bi-patch-question"
-      },
       running: "bi bi-stars",
       sample: "bi bi-database",
       sandbox: "bi bi-box-seam",
@@ -24000,6 +24431,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       search: "bi bi-search",
       solvers: {
         use_tools: "bi bi-tools"
+      },
+      tree: {
+        open: "bi bi-caret-down-fill",
+        closed: "bi bi-caret-right-fill"
       }
     };
     const ErrorPanel = ({ title: title2, error: error2 }) => {
@@ -24098,13 +24533,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         const hours = Math.floor(seconds / (60 * 60));
         const minutes = Math.floor(seconds % (60 * 60) / 60);
         const remainingSeconds = seconds % 60;
-        return `${hours} hr ${minutes} min ${remainingSeconds} sec`;
+        return `${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
       } else {
         const days = Math.floor(seconds / (60 * 60 * 24));
         const hours = Math.floor(seconds % (60 * 60 * 24) / (60 * 60));
         const minutes = Math.floor(seconds % (60 * 60) / 60);
         const remainingSeconds = seconds % 60;
-        return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
+        return `${days} days ${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
       }
     };
     function formatPrettyDecimal(num2, maxDecimals = 3) {
@@ -24183,7 +24618,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const circle$1 = "_circle_qymy9_1";
     const green$1 = "_green_qymy9_12";
     const red$1 = "_red_qymy9_18";
-    const styles$1m = {
+    const styles$1o = {
       circle: circle$1,
       green: green$1,
       red: red$1
@@ -24199,9 +24634,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "span",
             {
               className: clsx(
-                styles$1m.circle,
+                styles$1o.circle,
                 "text-size-small",
-                score2 ? styles$1m.green : styles$1m.red
+                score2 ? styles$1o.green : styles$1o.red
               ),
               children: String(score2)
             }
@@ -24270,11 +24705,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     };
     const container$k = "_container_1ramc_1";
-    const key = "_key_1ramc_12";
+    const key$1 = "_key_1ramc_12";
     const value$3 = "_value_1ramc_16";
-    const styles$1l = {
+    const styles$1n = {
       container: container$k,
-      key,
+      key: key$1,
       value: value$3
     };
     const objectScoreDescriptor = (values) => {
@@ -24315,12 +24750,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ) : String(value2);
             scores2.push(
               /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1l.key, "text-size-smaller"), children: key2 }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1l.value, "text-size-base"), children: formattedValue })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1n.key, "text-size-smaller"), children: key2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1n.value, "text-size-base"), children: formattedValue })
               ] })
             );
           });
-          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1l.container), children: scores2 }, `score-value`);
+          return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1n.container), children: scores2 }, `score-value`);
         }
       };
     };
@@ -24328,7 +24763,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const hidden$2 = "_hidden_tm52u_5";
     const pills = "_pills_tm52u_9";
     const pill = "_pill_tm52u_9";
-    const styles$1k = {
+    const styles$1m = {
       visible,
       hidden: hidden$2,
       pills,
@@ -24360,7 +24795,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1k.visible : styles$1k.hidden,
+            className: ((_a2 = child["props"]) == null ? void 0 : _a2.title) === activeItem ? styles$1m.visible : styles$1m.hidden,
             children: child
           },
           `nav-pill-container-${idx}`
@@ -24370,7 +24805,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "ul",
           {
-            className: clsx("nav", "nav-pills", styles$1k.pills),
+            className: clsx("nav", "nav-pills", styles$1m.pills),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: navPills
@@ -24406,7 +24841,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               "nav-link",
               "text-style-label",
               active2 ? "active " : "",
-              styles$1k.pill
+              styles$1m.pill
             ),
             "data-target": title2,
             onClick: handleClick,
@@ -24420,6 +24855,51 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       first: 0,
       intermediate: 10,
       final: 1e3
+    };
+    const copyButton = "_copyButton_1goi8_1";
+    const styles$1l = {
+      copyButton
+    };
+    const CopyButton = ({
+      icon: icon2 = ApplicationIcons.copy,
+      value: value2,
+      onCopySuccess,
+      onCopyError,
+      className: className2 = "",
+      ariaLabel = "Copy to clipboard"
+    }) => {
+      const [isCopied, setIsCopied] = reactExports.useState(false);
+      const handleClick = async () => {
+        try {
+          await navigator.clipboard.writeText(value2);
+          setIsCopied(true);
+          onCopySuccess == null ? void 0 : onCopySuccess();
+          setTimeout(() => {
+            setIsCopied(false);
+          }, 1250);
+        } catch (error2) {
+          onCopyError == null ? void 0 : onCopyError(
+            error2 instanceof Error ? error2 : new Error("Failed to copy")
+          );
+        }
+      };
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "button",
+        {
+          type: "button",
+          className: clsx("copy-button", styles$1l.copyButton, className2),
+          onClick: handleClick,
+          "aria-label": ariaLabel,
+          disabled: isCopied,
+          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "i",
+            {
+              className: isCopied ? `${ApplicationIcons.confirm} primary` : icon2,
+              "aria-hidden": "true"
+            }
+          )
+        }
+      );
     };
     const useResizeObserver = (callback) => {
       const elementRef = reactExports.useRef(null);
@@ -24441,19 +24921,21 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }, [callback]);
       return elementRef;
     };
-    const expandableBordered = "_expandableBordered_59eal_1";
-    const expandableCollapsed = "_expandableCollapsed_59eal_13";
-    const moreToggle = "_moreToggle_59eal_17";
-    const bordered = "_bordered_59eal_24";
-    const moreToggleContainer = "_moreToggleContainer_59eal_28";
-    const moreToggleButton = "_moreToggleButton_59eal_39";
-    const styles$1j = {
+    const expandablePanel = "_expandablePanel_elrou_1";
+    const expandableBordered = "_expandableBordered_elrou_5";
+    const expandableCollapsed = "_expandableCollapsed_elrou_18";
+    const moreToggle = "_moreToggle_elrou_22";
+    const bordered = "_bordered_elrou_35";
+    const moreToggleButton = "_moreToggleButton_elrou_39";
+    const separator$5 = "_separator_elrou_45";
+    const styles$1k = {
+      expandablePanel,
       expandableBordered,
       expandableCollapsed,
       moreToggle,
       bordered,
-      moreToggleContainer,
-      moreToggleButton
+      moreToggleButton,
+      separator: separator$5
     };
     const ExpandablePanel = reactExports.memo(
       ({ id, collapse, border, lines = 15, children: children2, className: className2 }) => {
@@ -24482,27 +24964,31 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         };
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
               style: baseStyles,
               ref: contentRef,
               className: clsx(
-                styles$1j.expandablePanel,
-                collapsed ? styles$1j.expandableCollapsed : void 0,
-                border ? styles$1j.expandableBordered : void 0
+                styles$1k.expandablePanel,
+                collapsed ? styles$1k.expandableCollapsed : void 0,
+                border ? styles$1k.expandableBordered : void 0,
+                showToggle ? styles$1k.padBottom : void 0
               ),
-              children: children2
+              children: [
+                children2,
+                showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  MoreToggle,
+                  {
+                    collapsed,
+                    setCollapsed,
+                    border: !border
+                  }
+                ) })
+              ]
             }
           ),
-          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MoreToggle,
-            {
-              collapsed,
-              setCollapsed,
-              border: !border
-            }
-          )
+          showToggle && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1k.separator) })
         ] });
       }
     );
@@ -24513,42 +24999,41 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       style: style2
     }) => {
       const text2 = collapsed ? "more" : "less";
-      const icon2 = collapsed ? ApplicationIcons["expand-down"] : ApplicationIcons.collapse.up;
       const handleClick = reactExports.useCallback(() => {
         setCollapsed(!collapsed);
       }, [setCollapsed, collapsed]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$1j.moreToggle, border ? styles$1j.bordered : void 0),
+          className: clsx(styles$1k.moreToggle, border ? styles$1k.bordered : void 0),
           style: style2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1j.moreToggleContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "button",
             {
-              className: clsx("btn", styles$1j.moreToggleButton, "text-size-smallest"),
+              className: clsx("btn", styles$1k.moreToggleButton, "text-size-smallest"),
               onClick: handleClick,
               children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$1j.icon) }),
-                text2
+                text2,
+                "..."
               ]
             }
-          ) })
+          )
         }
       );
     };
-    const message$1 = "_message_1nz1x_1";
-    const padded$2 = "_padded_1nz1x_8";
-    const systemRole = "_systemRole_1nz1x_12";
-    const messageGrid = "_messageGrid_1nz1x_16";
-    const messageContents = "_messageContents_1nz1x_24";
-    const indented = "_indented_1nz1x_29";
-    const styles$1i = {
+    const message$1 = "_message_17kai_1";
+    const systemRole = "_systemRole_17kai_8";
+    const messageGrid = "_messageGrid_17kai_12";
+    const messageContents = "_messageContents_17kai_20";
+    const indented = "_indented_17kai_25";
+    const copyLink$1 = "_copyLink_17kai_29";
+    const styles$1j = {
       message: message$1,
-      padded: padded$2,
       systemRole,
       messageGrid,
       messageContents,
-      indented
+      indented,
+      copyLink: copyLink$1
     };
     const decodeCache = {};
     function getDecodeCache(exclude) {
@@ -29749,19 +30234,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.sizeMultiplier = multiplier;
     }
     Style$4.prototype.sup = function() {
-      return styles$1h[sup[this.id]];
+      return styles$1i[sup[this.id]];
     };
     Style$4.prototype.sub = function() {
-      return styles$1h[sub[this.id]];
+      return styles$1i[sub[this.id]];
     };
     Style$4.prototype.fracNum = function() {
-      return styles$1h[fracNum[this.id]];
+      return styles$1i[fracNum[this.id]];
     };
     Style$4.prototype.fracDen = function() {
-      return styles$1h[fracDen[this.id]];
+      return styles$1i[fracDen[this.id]];
     };
     Style$4.prototype.cramp = function() {
-      return styles$1h[cramp[this.id]];
+      return styles$1i[cramp[this.id]];
     };
     Style$4.prototype.cls = function() {
       return sizeNames[this.size] + (this.cramped ? " cramped" : " uncramped");
@@ -29789,7 +30274,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "reset-scriptstyle",
       "reset-scriptscriptstyle"
     ];
-    var styles$1h = [
+    var styles$1i = [
       new Style$4(D, 0, 1, false),
       new Style$4(Dc, 0, 1, true),
       new Style$4(T, 1, 1, false),
@@ -29805,10 +30290,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var fracDen = [Tc, Tc, Sc, Sc, SSc, SSc, SSc, SSc];
     var cramp = [Dc, Dc, Tc, Tc, Sc, Sc, SSc, SSc];
     var Style_1 = {
-      DISPLAY: styles$1h[D],
-      TEXT: styles$1h[T],
-      SCRIPT: styles$1h[S],
-      SCRIPTSCRIPT: styles$1h[SS]
+      DISPLAY: styles$1i[D],
+      TEXT: styles$1i[T],
+      SCRIPT: styles$1i[S],
+      SCRIPTSCRIPT: styles$1i[SS]
     };
     var nativeIndexOf = Array.prototype.indexOf;
     var indexOf = function(list2, elem) {
@@ -36474,12 +36959,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             ref,
             dangerouslySetInnerHTML: markup,
             style: style2,
-            className: clsx(className2, "markdown-content")
+            className: clsx(className2, "markdown-content", "text-size-base")
           }
         );
       }
     );
-    const kLetterListPattern = /^([a-zA-Z][).]\s.*?)$/gm;
+    const kLetterListPattern = /^([a-zA-Z0-9][).]\s.*?)$/gm;
     const kCommonmarkReferenceLinkPattern = /\[([^\]]*)\]: (?!http)(.*)/g;
     const protectBackslashesInLatex = (content2) => {
       if (!content2) return content2;
@@ -36585,17 +37070,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     }
     const contentImage = "_contentImage_61gdd_1";
     const reasoning = "_reasoning_61gdd_6";
-    const styles$1g = {
+    const styles$1h = {
       contentImage,
       reasoning
     };
-    const toolImage = "_toolImage_18gxl_1";
-    const output$1 = "_output_18gxl_6";
-    const textOutput = "_textOutput_18gxl_10";
-    const textCode = "_textCode_18gxl_18";
-    const styles$1f = {
+    const toolImage = "_toolImage_bv5nm_1";
+    const output = "_output_bv5nm_6";
+    const textOutput = "_textOutput_bv5nm_10";
+    const textCode = "_textCode_bv5nm_18";
+    const styles$1g = {
       toolImage,
-      output: output$1,
+      output,
       textOutput,
       textCode
     };
@@ -36615,7 +37100,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "img",
                   {
-                    className: clsx(styles$1f.toolImage),
+                    className: clsx(styles$1g.toolImage),
                     src: out.image
                   },
                   key2
@@ -36631,10 +37116,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTextOutput, { text: String(output2) }, "tool-output-single")
         );
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1f.output), children: outputs });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$1g.output), children: outputs });
     };
     const ToolTextOutput = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1f.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1f.textCode), children: text2.trim() }) });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$1g.textOutput, "tool-output"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("sourceCode", styles$1g.textCode), children: text2.trim() }) });
     };
     const MessageContent = ({ contents: contents2 }) => {
       if (Array.isArray(contents2)) {
@@ -36697,7 +37182,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (!r2.reasoning && !r2.redacted) {
             return void 0;
           }
-          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1g.reasoning, "text-size-small"), children: [
+          return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1h.reasoning, "text-size-small"), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
@@ -36722,7 +37207,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         render: (key2, content2) => {
           const c2 = content2;
           if (c2.image.startsWith("data:")) {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1g.contentImage }, key2);
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: c2.image, className: styles$1h.contentImage }, key2);
           } else {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("code", { children: c2.image }, key2);
           }
@@ -36818,16 +37303,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         args: []
       };
     };
-    const output = "_output_1tv9l_1";
-    const toolCallView = "_toolCallView_1tv9l_4";
-    const styles$1e = {
-      output,
+    const toolCallView = "_toolCallView_16q6n_1";
+    const styles$1f = {
       toolCallView
     };
-    const outputPre = "_outputPre_s62go_1";
-    const toolView = "_toolView_s62go_7";
-    const outputCode = "_outputCode_s62go_15";
-    const styles$1d = {
+    const outputPre = "_outputPre_1jznn_1";
+    const toolView = "_toolView_1jznn_7";
+    const outputCode = "_outputCode_1jznn_15";
+    const styles$1e = {
       outputPre,
       toolView,
       outputCode
@@ -36842,7 +37325,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           {
             markdown: toolCallView2.content,
             ref: prismParentRef,
-            className: clsx("tool-output", styles$1d.toolView)
+            className: clsx("tool-output", styles$1e.toolView)
           }
         );
       }
@@ -36850,7 +37333,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: prismParentRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "pre",
         {
-          className: clsx("tool-output", styles$1d.outputPre, styles$1d.bottomMargin),
+          className: clsx("tool-output", styles$1e.outputPre, styles$1e.bottomMargin),
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "code",
             {
@@ -36858,7 +37341,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 "source-code",
                 "sourceCode",
                 highlightLanguage ? `language-${highlightLanguage}` : void 0,
-                styles$1d.outputCode
+                styles$1e.outputCode
               ),
               children: formattedContent
             }
@@ -36868,14 +37351,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const image = "_image_a8byr_1";
     const toolTitle = "_toolTitle_a8byr_6";
-    const styles$1c = {
+    const styles$1d = {
       image,
       toolTitle
     };
     const ToolTitle = ({ title: title2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1c.image) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1c.toolTitle), children: title2 })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx("bi", "bi-tools", styles$1d.image) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: clsx("text-size-small", styles$1d.toolTitle), children: title2 })
       ] });
     };
     const ToolCallView = ({
@@ -36918,7 +37401,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
       });
       const contents2 = mode !== "compact" ? input2 : input2 || functionCall;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1e.toolCallView), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1f.toolCallView), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           mode !== "compact" && (!view || view.title) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ToolTitle, { title: (view == null ? void 0 : view.title) || functionCall }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -36937,7 +37420,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             collapse,
             border: true,
             lines: 15,
-            className: styles$1e.output,
+            className: clsx("text-size-small"),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: normalizedContent })
           }
         ) : void 0
@@ -36963,7 +37446,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const content$2 = "_content_1b2jp_1";
     const codeCompact = "_codeCompact_1b2jp_5";
-    const styles$1b = {
+    const styles$1c = {
       content: content$2,
       codeCompact
     };
@@ -36989,7 +37472,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           const resolvedToolOutput = resolveToolMessage(toolMessage);
           if (toolCallStyle === "compact") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1b.codeCompact), children: [
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("code", { className: clsx(styles$1c.codeCompact), children: [
               "tool: ",
               functionCall
             ] }) }, `tool-call-${idx}`);
@@ -37010,7 +37493,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         });
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1b.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
+          message2.content && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$1c.content, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MessageContent, { contents: message2.content }) }),
           toolCalls
         ] });
       } else {
@@ -37063,8 +37546,156 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return result2;
       }
     };
+    const ChatMessage = ({
+      id,
+      message: message2,
+      toolMessages,
+      indented: indented2,
+      toolCallStyle,
+      getMessageUrl
+    }) => {
+      const messageUrl = message2.id && getMessageUrl ? getMessageUrl(message2.id) : void 0;
+      const collapse = message2.role === "system" || message2.role === "user";
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          className: clsx(
+            message2.role,
+            "text-size-base",
+            styles$1j.message,
+            message2.role === "system" ? styles$1j.systemRole : void 0,
+            message2.role === "user" ? styles$1j.userRole : void 0
+          ),
+          children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1j.messageGrid, "text-style-label"), children: [
+              message2.role,
+              messageUrl ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                CopyButton,
+                {
+                  icon: ApplicationIcons.link,
+                  value: messageUrl,
+                  className: clsx(styles$1j.copyLink)
+                }
+              ) : ""
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  styles$1j.messageContents,
+                  indented2 ? styles$1j.indented : void 0
+                ),
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ExpandablePanel,
+                  {
+                    id: `${id}-message`,
+                    collapse,
+                    lines: collapse ? 15 : 25,
+                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      MessageContents,
+                      {
+                        id: `${id}-contents`,
+                        message: message2,
+                        toolMessages,
+                        toolCallStyle
+                      },
+                      `${id}-contents`
+                    )
+                  }
+                )
+              }
+            )
+          ]
+        }
+      );
+    };
+    const grid$7 = "_grid_rmdrx_1";
+    const number$1 = "_number_rmdrx_7";
+    const user = "_user_rmdrx_11";
+    const container$j = "_container_rmdrx_16";
+    const styles$1b = {
+      grid: grid$7,
+      number: number$1,
+      user,
+      container: container$j
+    };
+    const ChatMessageRow = ({
+      parentName,
+      number: number2,
+      resolvedMessage,
+      toolCallStyle,
+      indented: indented2,
+      getMessageUrl,
+      highlightUserMessage
+    }) => {
+      if (number2) {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs(
+            "div",
+            {
+              className: clsx(
+                styles$1b.grid,
+                styles$1b.container,
+                highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1b.user : void 0
+              ),
+              children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "div",
+                  {
+                    className: clsx(
+                      "text-size-smaller",
+                      "text-style-secondary",
+                      styles$1b.number
+                    ),
+                    children: number2
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  ChatMessage,
+                  {
+                    id: `${parentName}-chat-messages`,
+                    message: resolvedMessage.message,
+                    toolMessages: resolvedMessage.toolMessages,
+                    indented: indented2,
+                    toolCallStyle,
+                    getMessageUrl
+                  }
+                )
+              ]
+            }
+          ),
+          resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
+        ] });
+      } else {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              styles$1b.container,
+              styles$1b.simple,
+              highlightUserMessage && resolvedMessage.message.role === "user" ? styles$1b.user : void 0
+            ),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                ChatMessage,
+                {
+                  id: `${parentName}-chat-messages`,
+                  message: resolvedMessage.message,
+                  toolMessages: resolvedMessage.toolMessages,
+                  indented: indented2,
+                  toolCallStyle,
+                  getMessageUrl
+                }
+              ),
+              resolvedMessage.message.role === "user" ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: "10px" } }) : void 0
+            ]
+          }
+        );
+      }
+    };
     const resolveMessages = (messages) => {
       const resolvedMessages = [];
+      let index2 = 0;
       for (const message2 of messages) {
         if (message2.role === "tool") {
           if (resolvedMessages.length > 0) {
@@ -37075,6 +37706,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         } else {
           resolvedMessages.push({ message: message2, toolMessages: [] });
         }
+        if (message2.id === void 0) {
+          message2.id = `msg-${index2}`;
+        }
+        index2++;
       }
       const systemMessages = [];
       const collapsedMessages = resolvedMessages.map((resolved) => {
@@ -37101,19 +37736,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         collapsedMessages.unshift({ message: systemMessage, toolMessages: [] });
       }
       return collapsedMessages;
-    };
-    const iconForMsg = (msg) => {
-      if (msg.role === "user") {
-        return ApplicationIcons.role.user;
-      } else if (msg.role === "system") {
-        return ApplicationIcons.role.system;
-      } else if (msg.role === "tool") {
-        return ApplicationIcons.role.tool;
-      } else if (msg.role === "assistant") {
-        return ApplicationIcons.role.assistant;
-      } else {
-        return ApplicationIcons.role.unknown;
-      }
     };
     const normalizeContent = (content2) => {
       if (typeof content2 === "string") {
@@ -37146,114 +37768,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return [];
       }
     };
-    const ChatMessage = ({
-      id,
-      message: message2,
-      toolMessages,
-      indented: indented2,
-      toolCallStyle,
-      padded: padded2
-    }) => {
-      const collapse = message2.role === "system" || message2.role === "user";
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          className: clsx(
-            message2.role,
-            "text-size-base",
-            styles$1i.message,
-            padded2 ? styles$1i.padded : void 0,
-            message2.role === "system" ? styles$1i.systemRole : void 0
-          ),
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$1i.messageGrid, "text-style-label"), children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: iconForMsg(message2) }),
-              message2.role
-            ] }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx(
-                  styles$1i.messageContents,
-                  indented2 ? styles$1i.indented : void 0
-                ),
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                  ExpandablePanel,
-                  {
-                    id: `${id}-message`,
-                    collapse,
-                    lines: collapse ? 15 : 25,
-                    children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                      MessageContents,
-                      {
-                        id: `${id}-contents`,
-                        message: message2,
-                        toolMessages,
-                        toolCallStyle
-                      },
-                      `${id}-contents`
-                    )
-                  }
-                )
-              }
-            )
-          ]
-        }
-      );
-    };
-    const grid$7 = "_grid_140x5_1";
-    const number$1 = "_number_140x5_7";
-    const styles$1a = {
-      grid: grid$7,
-      number: number$1
-    };
-    const ChatMessageRow = ({
-      parentName,
-      number: number2,
-      resolvedMessage,
-      toolCallStyle,
-      indented: indented2,
-      padded: padded2
-    }) => {
-      if (number2) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$1a.grid, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                "text-size-smaller",
-                "text-style-secondary",
-                styles$1a.number
-              ),
-              children: number2
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            ChatMessage,
-            {
-              id: `${parentName}-chat-messages`,
-              message: resolvedMessage.message,
-              toolMessages: resolvedMessage.toolMessages,
-              indented: indented2,
-              toolCallStyle,
-              padded: padded2
-            }
-          )
-        ] });
-      } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          ChatMessage,
-          {
-            id: `${parentName}-chat-messages`,
-            message: resolvedMessage.message,
-            toolMessages: resolvedMessage.toolMessages,
-            indented: indented2,
-            toolCallStyle,
-            padded: padded2
-          }
-        );
-      }
-    };
     const ChatView = ({
       id,
       messages,
@@ -37272,8 +37786,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             number: number2,
             resolvedMessage: msg,
             indented: indented2,
-            toolCallStyle,
-            padded: index2 < collapsedMessages.length - 1
+            toolCallStyle
           },
           `${id}-msg-${index2}`
         );
@@ -38704,7 +39217,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const compact = "_compact_1t3ts_15";
     const cellKey = "_cellKey_1t3ts_19";
     const cellValue = "_cellValue_1t3ts_31";
-    const styles$19 = {
+    const styles$1a = {
       table: table$2,
       cell: cell$3,
       compact,
@@ -38732,15 +39245,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             "td",
             {
               className: clsx(
-                styles$19.cell,
-                styles$19.cellKey,
+                styles$1a.cell,
+                styles$1a.cellKey,
                 "text-size-small",
                 "text-style-label"
               ),
               children: entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$19.cell, styles$19.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
+          /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$1a.cell, styles$1a.cellValue, "text-size-small"), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
         ] }, id2);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -38750,8 +39263,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           className: clsx(
             "table",
             tblClz,
-            styles$19.table,
-            compact2 ? styles$19.compact : void 0,
+            styles$1a.table,
+            compact2 ? styles$1a.compact : void 0,
             className2
           ),
           style: style2,
@@ -38820,40 +39333,20 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return value2;
     };
-    const isJson = (text2) => {
-      text2 = text2.trim();
-      if (text2.startsWith("{") && text2.endsWith("}")) {
-        try {
-          JSON.parse(text2);
-          return true;
-        } catch {
-          return false;
-        }
-      }
-      return false;
-    };
-    const parsedJson = (text2) => {
-      text2 = text2.trim();
-      if (text2.startsWith("{") && text2.endsWith("}")) {
-        try {
-          return JSON.parse(text2);
-        } catch {
-          return void 0;
-        }
-      }
-      return void 0;
-    };
-    const query = "_query_9u9bt_1";
-    const summary$3 = "_summary_9u9bt_6";
-    const preWrap = "_preWrap_9u9bt_10";
-    const styles$18 = {
+    const query = "_query_seqs2_1";
+    const summary$3 = "_summary_seqs2_6";
+    const preWrap = "_preWrap_seqs2_10";
+    const preCompact = "_preCompact_seqs2_15";
+    const styles$19 = {
       query,
       summary: summary$3,
-      preWrap
+      preWrap,
+      preCompact
     };
     const RenderedContent = ({
       id,
-      entry: entry2
+      entry: entry2,
+      renderOptions = { renderString: "markdown" }
     }) => {
       if (entry2.value === null) {
         return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "[null]" });
@@ -38866,7 +39359,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         return renderer2.canRender(entry2);
       });
       if (renderer) {
-        const { rendered } = renderer.render(id, entry2);
+        const { rendered } = renderer.render(id, entry2, renderOptions);
         if (rendered !== void 0 && reactExports.isValidElement(rendered)) {
           return rendered;
         }
@@ -38889,7 +39382,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "string" && entry2.value.indexOf("\x1B") > -1;
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(ANSIDisplay, { output: entry2.value })
           };
@@ -38904,7 +39397,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           return false;
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           const obj = lib$1.parse(entry2.value);
           return { rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: obj }) };
         }
@@ -38914,7 +39407,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "object" && entry2.value._model;
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.model }),
@@ -38929,9 +39422,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "boolean";
         },
-        render: (id, entry2) => {
+        render: (id, entry2, options2) => {
           entry2.value = entry2.value.toString();
-          return contentRenderers.String.render(id, entry2);
+          return contentRenderers.String.render(id, entry2, options2);
         }
       },
       Number: {
@@ -38939,9 +39432,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "number";
         },
-        render: (id, entry2) => {
+        render: (id, entry2, options2) => {
           entry2.value = formatNumber(entry2.value);
-          return contentRenderers.String.render(id, entry2);
+          return contentRenderers.String.render(id, entry2, options2);
         }
       },
       String: {
@@ -38949,11 +39442,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "string";
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, options2) => {
           const rendered = entry2.value.trim();
-          return {
-            rendered
-          };
+          if (options2.renderString === "markdown") {
+            return {
+              rendered
+            };
+          } else {
+            return {
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$19.preWrap, styles$19.preCompact), children: rendered })
+            };
+          }
         }
       },
       Array: {
@@ -38974,7 +39473,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             return false;
           }
         },
-        render: (id, entry2) => {
+        render: (id, entry2, _options) => {
           const arrayMap = {};
           entry2.value.forEach((e, index2) => {
             arrayMap[`[${index2}]`] = e;
@@ -38998,10 +39497,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "object" && entry2.name === "web_search";
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           const results = [];
           results.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$18.query, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$19.query, children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.search }),
               " ",
               entry2.value.query
@@ -39013,7 +39512,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("a", { href: result2.url, children: result2.url }) })
               );
               results.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$18.summary), children: result2.summary })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$19.summary), children: result2.summary })
               );
             }
           );
@@ -39028,9 +39527,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           var _a2;
           return typeof entry2.value === "string" && ((_a2 = entry2.name) == null ? void 0 : _a2.startsWith("web_browser"));
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
-            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$18.preWrap, children: entry2.value })
+            rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$19.preWrap, children: entry2.value })
           };
         }
       },
@@ -39039,7 +39538,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "object" && entry2.value._html;
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: entry2.value._html
           };
@@ -39050,7 +39549,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "string" && entry2.value.startsWith("data:image/");
         },
-        render: (_id, entry2) => {
+        render: (_id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx("img", { src: entry2.value })
           };
@@ -39061,7 +39560,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         canRender: (entry2) => {
           return typeof entry2.value === "object";
         },
-        render: (id, entry2) => {
+        render: (id, entry2, _options) => {
           return {
             rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(
               MetaDataView,
@@ -39098,7 +39597,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     const green = "_green_1iagp_12";
     const red = "_red_1iagp_18";
     const orange = "_orange_1iagp_24";
-    const styles$17 = {
+    const styles$18 = {
       circle,
       green,
       red,
@@ -39139,22 +39638,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$17.circle, styles$17.green),
+                className: clsx("text-size-small", styles$18.circle, styles$18.green),
                 children: "C"
               }
             );
           } else if (score2 === "I") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$17.circle, styles$17.red), children: "I" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$18.circle, styles$18.red), children: "I" });
           } else if (score2 === "P") {
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               "span",
               {
-                className: clsx("text-size-small", styles$17.circle, styles$17.orange),
+                className: clsx("text-size-small", styles$18.circle, styles$18.orange),
                 children: "P"
               }
             );
           } else if (score2 === "N") {
-            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$17.circle, styles$17.red), children: "N" });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-small", styles$18.circle, styles$18.red), children: "N" });
           } else {
             return String(score2);
           }
@@ -41352,9 +41851,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             );
           },
           showPosition: function() {
-            var pre = this.pastInput();
-            var c2 = new Array(pre.length + 1).join("-");
-            return pre + this.upcomingInput() + "\n" + c2 + "^";
+            var pre2 = this.pastInput();
+            var c2 = new Array(pre2.length + 1).join("-");
+            return pre2 + this.upcomingInput() + "\n" + c2 + "^";
           },
           next: function() {
             if (this.done) {
@@ -42135,7 +42634,7 @@ categories: ${categories.join(" ")}`;
     };
     const flex$1 = "_flex_1kye9_1";
     const label$7 = "_label_1kye9_5";
-    const styles$16 = {
+    const styles$17 = {
       flex: flex$1,
       label: label$7
     };
@@ -42169,7 +42668,7 @@ categories: ${categories.join(" ")}`;
         },
         [setSort]
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$16.flex, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$17.flex, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "span",
           {
@@ -42178,7 +42677,7 @@ categories: ${categories.join(" ")}`;
               "text-size-smaller",
               "text-style-label",
               "text-style-secondary",
-              styles$16.label
+              styles$17.label
             ),
             children: "Sort:"
           }
@@ -42472,24 +42971,37 @@ categories: ${categories.join(" ")}`;
     const useSampleData = () => {
       const sampleStatus = useStore((state) => state.sample.sampleStatus);
       const sampleError = useStore((state) => state.sample.sampleError);
-      const selectedSample = useStore((state) => state.sample.selectedSample);
+      const getSelectedSample = useStore(
+        (state) => state.sampleActions.getSelectedSample
+      );
+      const selectedSampleIdentifier = useStore(
+        (state) => state.sample.sample_identifier
+      );
+      const sampleNeedsReload = useStore((state) => state.sample.sampleNeedsReload);
       const runningEvents = useStore(
         (state) => state.sample.runningEvents
       );
       return reactExports.useMemo(() => {
         return {
+          selectedSampleIdentifier,
           status: sampleStatus,
+          sampleNeedsReload,
           error: sampleError,
-          sample: selectedSample,
+          getSelectedSample,
           running: runningEvents
         };
-      }, [sampleStatus, sampleError, selectedSample, runningEvents]);
+      }, [
+        sampleStatus,
+        sampleError,
+        getSelectedSample,
+        selectedSampleIdentifier,
+        sampleNeedsReload,
+        runningEvents
+      ]);
     };
     const useLogSelection = () => {
       const selectedSampleSummary = useSelectedSampleSummary();
-      const selectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile()
-      );
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
       const loadedLog = useStore((state) => state.log.loadedLog);
       return reactExports.useMemo(() => {
         return {
@@ -42499,15 +43011,49 @@ categories: ${categories.join(" ")}`;
         };
       }, [selectedLogFile, selectedSampleSummary]);
     };
-    const useCollapsedState = (id, defaultValue) => {
+    const useCollapseSampleEvent = (id) => {
+      const collapsed = useStore((state) => state.sample.collapsedEvents);
+      const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+      return reactExports.useMemo(() => {
+        const isCollapsed = collapsed !== null && collapsed[id] === true;
+        const set2 = (value2) => {
+          log$1.debug("Set collapsed", id, value2);
+          collapseEvent(id, value2);
+        };
+        return [isCollapsed, set2];
+      }, [collapsed, collapseEvent, id]);
+    };
+    const useCollapsibleIds = (key2) => {
+      const collapsedIds = useStore(
+        (state) => state.sample.collapsedIdBuckets[key2]
+      );
+      const setCollapsed = useStore((state) => state.sampleActions.collapseId);
+      const collapseId = reactExports.useCallback(
+        (id, value2) => {
+          setCollapsed(key2, id, value2);
+        },
+        [setCollapsed]
+      );
+      const clearCollapsedIds = useStore(
+        (state) => state.sampleActions.clearCollapsedIds
+      );
+      const clearIds = reactExports.useCallback(() => {
+        clearCollapsedIds(key2);
+      }, [clearCollapsedIds, key2]);
+      return reactExports.useMemo(() => {
+        return [collapsedIds, collapseId, clearIds];
+      }, [collapsedIds, collapseId, clearIds]);
+    };
+    const useCollapsedState = (id, defaultValue, scope) => {
+      const stateId = id;
       const collapsed = useStore(
-        (state) => state.appActions.getCollapsed(id, defaultValue)
+        (state) => state.appActions.getCollapsed(stateId, defaultValue)
       );
       const setCollapsed = useStore((state) => state.appActions.setCollapsed);
       return reactExports.useMemo(() => {
         const set2 = (value2) => {
-          log$1.debug("Set collapsed", id, value2);
-          setCollapsed(id, value2);
+          log$1.debug("Set collapsed", id, scope, value2);
+          setCollapsed(stateId, value2);
         };
         return [collapsed, set2];
       }, [collapsed, setCollapsed]);
@@ -42521,9 +43067,7 @@ categories: ${categories.join(" ")}`;
         (state) => state.appActions.clearMessageVisible
       );
       const isFirstRender = reactExports.useRef(true);
-      const selectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile()
-      );
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
       reactExports.useEffect(() => {
         if (isFirstRender.current) {
           isFirstRender.current = false;
@@ -42648,6 +43192,24 @@ categories: ${categories.join(" ")}`;
         return `/logs/${encodeURIComponent(logPath)}/samples/${sampleTabId || ""}`;
       }
     };
+    const sampleEventUrl = (eventId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleTranscriptTabId
+      );
+      return `${baseUrl2}?event=${eventId}`;
+    };
+    const sampleMessageUrl = (messageId, logPath, sampleId, sampleEpoch) => {
+      const baseUrl2 = sampleUrl(
+        logPath,
+        sampleId,
+        sampleEpoch,
+        kSampleMessagesTabId
+      );
+      return `${baseUrl2}?message=${messageId}`;
+    };
     const logUrl = (log_file, log_dir, tabId) => {
       const pathSegment = directoryRelativeUrl(log_file, log_dir);
       return logUrlRaw(pathSegment, tabId);
@@ -42658,6 +43220,12 @@ categories: ${categories.join(" ")}`;
       } else {
         return `/logs/${encodeURIComponent(log_segment)}`;
       }
+    };
+    const supportsLinking = () => {
+      return location.hostname !== "localhost" && location.hostname !== "127.0.0.1" && location.protocol !== "vscode-webview:";
+    };
+    const toFullUrl = (path) => {
+      return `${window.location.origin}${window.location.pathname}#${path}`;
     };
     const FindBand = () => {
       const searchBoxRef = reactExports.useRef(null);
@@ -42783,29 +43351,29 @@ categories: ${categories.join(" ")}`;
       ] });
     };
     const wrapper$4 = "_wrapper_1tajk_1";
-    const container$j = "_container_1tajk_12";
+    const container$i = "_container_1tajk_12";
     const animate = "_animate_1tajk_21";
-    const styles$15 = {
+    const styles$16 = {
       wrapper: wrapper$4,
-      container: container$j,
+      container: container$i,
       animate
     };
     const ProgressBar = ({ animating }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$15.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$16.wrapper), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: clsx(styles$15.container),
+          className: clsx(styles$16.container),
           role: "progressbar",
           "aria-label": "Basic example",
           "aria-valuenow": 25,
           "aria-valuemin": 0,
           "aria-valuemax": 100,
-          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$15.animate })
+          children: animating && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$16.animate })
         }
       ) });
     };
     const log = createLogger("scrolling");
-    function useStatefulScrollPosition(elementRef, elementKey, delay = 500, scrollable2 = true) {
+    function useStatefulScrollPosition(elementRef, elementKey, delay = 1e3, scrollable2 = true) {
       const getScrollPosition = useStore(
         (state) => state.appActions.getScrollPosition
       );
@@ -42844,11 +43412,33 @@ categories: ${categories.join(" ")}`;
         const savedPosition = getScrollPosition(elementKey);
         if (savedPosition !== void 0) {
           log.debug(`Restoring scroll position`, savedPosition);
-          requestAnimationFrame(() => {
-            if (element.scrollTop !== savedPosition) {
-              element.scrollTop = savedPosition;
+          const tryRestoreScroll = () => {
+            if (element.scrollHeight > element.clientHeight) {
+              if (element.scrollTop !== savedPosition) {
+                element.scrollTop = savedPosition;
+                log.debug(`Scroll position restored to ${savedPosition}`);
+              }
+              return true;
             }
-          });
+            return false;
+          };
+          if (!tryRestoreScroll()) {
+            let attempts = 0;
+            const maxAttempts = 5;
+            const pollForRender = () => {
+              if (tryRestoreScroll() || attempts >= maxAttempts) {
+                if (attempts >= maxAttempts) {
+                  log.debug(
+                    `Failed to restore scroll after ${maxAttempts} attempts`
+                  );
+                }
+                return;
+              }
+              attempts++;
+              setTimeout(pollForRender, 1e3);
+            };
+            setTimeout(pollForRender, 1e3);
+          }
         }
         if (element.addEventListener) {
           element.addEventListener("scroll", handleScroll);
@@ -42938,7 +43528,7 @@ categories: ${categories.join(" ")}`;
     }
     const dirname$1 = "_dirname_1qban_1";
     const directoryLink = "_directoryLink_1qban_7";
-    const styles$14 = {
+    const styles$15 = {
       dirname: dirname$1,
       directoryLink
     };
@@ -42954,7 +43544,7 @@ categories: ${categories.join(" ")}`;
       }, [offCanvas, setOffCanvas]);
       if (log_dir) {
         const displayDir = prettyDir(log_dir);
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$14.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$15.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { display: "flex", flexDirection: "column" }, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "span",
             {
@@ -42970,13 +43560,13 @@ categories: ${categories.join(" ")}`;
             "span",
             {
               title: displayDir,
-              className: clsx("text-size-base", styles$14.dirname),
+              className: clsx("text-size-base", styles$15.dirname),
               children: offCanvas ? displayDir : ""
             }
           )
         ] }) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$14.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" }) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: "/logs", className: styles$15.directoryLink, onClick: handleClick, children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-title"), children: offCanvas ? "Log History" : "" }) });
       }
     };
     const prettyDir = (path) => {
@@ -43000,9 +43590,9 @@ categories: ${categories.join(" ")}`;
     const list = "_list_1essr_50";
     const backdrop$1 = "_backdrop_1essr_55";
     const active = "_active_1essr_63";
-    const item$1 = "_item_1essr_67";
+    const item$2 = "_item_1essr_67";
     const logLink = "_logLink_1essr_72";
-    const styles$13 = {
+    const styles$14 = {
       sidebar,
       sidebarClosed,
       sidebarOpen,
@@ -43012,13 +43602,13 @@ categories: ${categories.join(" ")}`;
       list,
       backdrop: backdrop$1,
       active,
-      item: item$1,
+      item: item$2,
       logLink
     };
     const error$1 = "_error_srruf_1";
     const running = "_running_srruf_6";
     const cancelled = "_cancelled_srruf_13";
-    const styles$12 = {
+    const styles$13 = {
       error: error$1,
       running,
       cancelled
@@ -43045,20 +43635,20 @@ categories: ${categories.join(" ")}`;
       return clusterValue;
     };
     const metricModifiers = [clusterMetricModifier];
-    const container$i = "_container_1frsg_1";
+    const container$h = "_container_1frsg_1";
     const metric = "_metric_1frsg_8";
     const metricName$1 = "_metricName_1frsg_17";
     const metricReducer$1 = "_metricReducer_1frsg_21";
-    const styles$11 = {
-      container: container$i,
+    const styles$12 = {
+      container: container$h,
       metric,
       metricName: metricName$1,
       metricReducer: metricReducer$1
     };
     const SidebarScoreView = ({ scorer: scorer2 }) => {
       const showReducer = !!scorer2.reducer;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$11.container, children: Object.keys(scorer2.metrics).map((metric2) => {
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$11.metric, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$12.container, children: Object.keys(scorer2.metrics).map((metric2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$12.metric, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -43066,24 +43656,24 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$11.metricName
+                styles$12.metricName
               ),
               children: metricDisplayName(scorer2.metrics[metric2])
             }
           ),
-          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$11.metricReducer), children: scorer2.reducer || "default" }) : "",
+          showReducer ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$12.metricReducer), children: scorer2.reducer || "default" }) : "",
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-title-secondary", children: formatPrettyDecimal(scorer2.metrics[metric2].value) })
         ] }, metric2);
       }) });
     };
-    const container$h = "_container_5kpg1_1";
+    const container$g = "_container_5kpg1_1";
     const scoreWrapper = "_scoreWrapper_5kpg1_9";
     const metricName = "_metricName_5kpg1_16";
     const metricReducer = "_metricReducer_5kpg1_22";
     const metricValues = "_metricValues_5kpg1_27";
     const metricValue = "_metricValue_5kpg1_27";
-    const styles$10 = {
-      container: container$h,
+    const styles$11 = {
+      container: container$g,
       scoreWrapper,
       metricName,
       metricReducer,
@@ -43092,10 +43682,10 @@ categories: ${categories.join(" ")}`;
     };
     const SidebarScoresView = ({ scores: scores2 }) => {
       const showReducer = scores2.findIndex((score2) => !!score2.reducer) !== -1;
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$10.container, children: scores2.map((score2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$11.container, children: scores2.map((score2, idx) => {
         const name2 = score2.name;
         const reducer = score2.reducer;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$10.scoreWrapper, children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$11.scoreWrapper, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -43103,7 +43693,7 @@ categories: ${categories.join(" ")}`;
                 "text-style-secondary",
                 "text-style-label",
                 "text-size-small",
-                styles$10.metricName
+                styles$11.metricName
               ),
               children: name2
             }
@@ -43115,16 +43705,16 @@ categories: ${categories.join(" ")}`;
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary",
-                styles$10.metricReducer
+                styles$11.metricReducer
               ),
               children: reducer || "default"
             }
           ) : "",
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$10.metricValues), children: Object.keys(score2.metrics).map((key2) => {
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$11.metricValues), children: Object.keys(score2.metrics).map((key2) => {
             const metric2 = score2.metrics[key2];
             return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(), children: metricDisplayName(metric2) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$10.metricValue, children: formatPrettyDecimal(metric2.value) })
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$11.metricValue, children: formatPrettyDecimal(metric2.value) })
             ] }, key2);
           }) })
         ] }, `scorer-${name2}-${idx}`);
@@ -43159,7 +43749,7 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$12.cancelled
+            styles$13.cancelled
           ),
           children: message2
         }
@@ -43173,21 +43763,21 @@ categories: ${categories.join(" ")}`;
             "text-style-secondary",
             "text-style-label",
             "text-size-small",
-            styles$12.running
+            styles$13.running
           ),
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: message2 })
         }
       );
     };
     const StatusError = ({ message: message2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$12.error, "text-size-small"), children: message2 });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$13.error, "text-size-small"), children: message2 });
     };
     const entry = "_entry_12m5n_1";
     const title$3 = "_title_12m5n_7";
     const task = "_task_12m5n_12";
     const params = "_params_12m5n_18";
     const scores$1 = "_scores_12m5n_22";
-    const styles$$ = {
+    const styles$10 = {
       entry,
       title: title$3,
       task,
@@ -43219,15 +43809,15 @@ categories: ${categories.join(" ")}`;
         minute: "2-digit"
       })}` : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$$.entry, children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$$.title, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$$.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$10.entry, children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$10.title, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$10.task, "text-size-title-secondary"), children: ((_i = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _i.task) || task2 }),
             /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: timeStr }),
             model2 && model2 !== kModelNone ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: clsx("mb-1", "text-size-small"), children: model2 }) }) : ""
           ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(EvalStatus, { logHeader })
         ] }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$$.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$10.params, "three-line-clamp"), children: /* @__PURE__ */ jsxRuntimeExports.jsx("small", { className: "mb-1", children: hyperparameters ? Object.keys(hyperparameters).map((key2) => {
           const val = hyperparameters[key2];
           if (Array.isArray(val) || typeof val === "object") {
             return `${key2}: ${JSON.stringify(val)}`;
@@ -43238,13 +43828,13 @@ categories: ${categories.join(" ")}`;
         (((_j = logHeader == null ? void 0 : logHeader.eval) == null ? void 0 : _j.dataset) || ((_k = logHeader == null ? void 0 : logHeader.results) == null ? void 0 : _k.scores)) && (logHeader == null ? void 0 : logHeader.status) === "success" ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx("text-truncate", "text-size-small", styles$$.scores),
+            className: clsx("text-truncate", "text-size-small", styles$10.scores),
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
                 "dataset: ",
                 datasetName || "(samples)"
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$$.scoreInfo), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-truncate", styles$10.scoreInfo), children: [
                 scorerLabel,
                 ": ",
                 scorerNames || "(none)"
@@ -43279,34 +43869,34 @@ categories: ${categories.join(" ")}`;
         }
       }, [selectedIndex]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.backdrop, onClick: handleToggle }),
+        offCanvas && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.backdrop, onClick: handleToggle }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             className: clsx(
-              styles$13.sidebar,
-              offCanvas ? styles$13.sidebarOpen : styles$13.sidebarClosed
+              styles$14.sidebar,
+              offCanvas ? styles$14.sidebarOpen : styles$14.sidebarClosed
             ),
             children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$13.header, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$14.header, children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(LogDirectoryTitleView, { log_dir: logs.log_dir }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "button",
                   {
                     onClick: handleToggle,
-                    className: clsx("btn", styles$13.toggle),
+                    className: clsx("btn", styles$14.toggle),
                     type: "button",
                     "aria-label": "Close sidebar",
                     children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.close })
                   }
                 )
               ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$13.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$14.progress, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: loading }) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "ul",
                 {
                   ref: sidebarContentsRef,
-                  className: clsx("list-group", styles$13.list),
+                  className: clsx("list-group", styles$14.list),
                   children: logs.files.map((file, index2) => {
                     const logHeader = logHeaders[file.name];
                     return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -43318,15 +43908,15 @@ categories: ${categories.join(" ")}`;
                         className: clsx(
                           "list-group-item",
                           "list-group-item-action",
-                          styles$13.item,
-                          selectedIndex === index2 ? styles$13.active : void 0
+                          styles$14.item,
+                          selectedIndex === index2 ? styles$14.active : void 0
                         ),
                         "data-index": index2,
                         children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                           Link,
                           {
                             to: logUrl(file.name, logs.log_dir),
-                            className: styles$13.logLink,
+                            className: styles$14.logLink,
                             onClick: () => {
                               onSelectedIndexChanged(index2);
                             },
@@ -43353,13 +43943,14 @@ categories: ${categories.join(" ")}`;
     const EmptyPanel = ({ children: children2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "empty-panel", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "container", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: children2 }) }) });
     };
-    const tabs$1 = "_tabs_1qj7d_1";
-    const tabContents = "_tabContents_1qj7d_5";
-    const scrollable = "_scrollable_1qj7d_10";
-    const tab$1 = "_tab_1qj7d_1";
-    const tabItem = "_tabItem_1qj7d_24";
-    const tabIcon = "_tabIcon_1qj7d_28";
-    const tabTools = "_tabTools_1qj7d_32";
+    const tabs$1 = "_tabs_jdywf_1";
+    const tabContents = "_tabContents_jdywf_5";
+    const scrollable = "_scrollable_jdywf_10";
+    const tab$1 = "_tab_jdywf_1";
+    const tabItem = "_tabItem_jdywf_24";
+    const tabIcon = "_tabIcon_jdywf_28";
+    const tabTools = "_tabTools_jdywf_32";
+    const tabStyle = "_tabStyle_jdywf_42";
     const moduleStyles = {
       tabs: tabs$1,
       tabContents,
@@ -43367,7 +43958,8 @@ categories: ${categories.join(" ")}`;
       tab: tab$1,
       tabItem,
       tabIcon,
-      tabTools
+      tabTools,
+      tabStyle
     };
     const TabSet = ({
       id,
@@ -43385,7 +43977,13 @@ categories: ${categories.join(" ")}`;
           "ul",
           {
             id,
-            className: clsx("nav", `nav-${type}`, className2, moduleStyles.tabs),
+            className: clsx(
+              "nav",
+              `nav-${type}`,
+              type === "tabs" ? moduleStyles.tabStyle : void 0,
+              className2,
+              moduleStyles.tabs
+            ),
             role: "tablist",
             "aria-orientation": "horizontal",
             children: [
@@ -43461,7 +44059,7 @@ categories: ${categories.join(" ")}`;
             scrollable2 && moduleStyles.scrollable
           ),
           style: style2,
-          children: children2
+          children: selected2 ? children2 : null
         }
       );
     };
@@ -43481,52 +44079,8 @@ categories: ${categories.join(" ")}`;
       });
     };
     const navbarWrapper = "_navbarWrapper_838qu_48";
-    const styles$_ = {
+    const styles$$ = {
       navbarWrapper
-    };
-    const copyButton = "_copyButton_1goi8_1";
-    const styles$Z = {
-      copyButton
-    };
-    const CopyButton = ({
-      value: value2,
-      onCopySuccess,
-      onCopyError,
-      className: className2 = "",
-      ariaLabel = "Copy to clipboard"
-    }) => {
-      const [isCopied, setIsCopied] = reactExports.useState(false);
-      const handleClick = async () => {
-        try {
-          await navigator.clipboard.writeText(value2);
-          setIsCopied(true);
-          onCopySuccess == null ? void 0 : onCopySuccess();
-          setTimeout(() => {
-            setIsCopied(false);
-          }, 1250);
-        } catch (error2) {
-          onCopyError == null ? void 0 : onCopyError(
-            error2 instanceof Error ? error2 : new Error("Failed to copy")
-          );
-        }
-      };
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "button",
-        {
-          type: "button",
-          className: clsx(styles$Z.copyButton, className2),
-          onClick: handleClick,
-          "aria-label": ariaLabel,
-          disabled: isCopied,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "i",
-            {
-              className: isCopied ? `${ApplicationIcons.confirm} primary` : ApplicationIcons.copy,
-              "aria-hidden": "true"
-            }
-          )
-        }
-      );
     };
     const filename = (path) => {
       if (!path) {
@@ -43552,7 +44106,41 @@ categories: ${categories.join(" ")}`;
       }
       return "";
     };
-    const container$g = "_container_291sb_1";
+    const container$f = "_container_q17yq_1";
+    const grid$6 = "_grid_q17yq_10";
+    const styles$_ = {
+      container: container$f,
+      grid: grid$6
+    };
+    const ModelRolesView = ({ roles }) => {
+      roles = roles || {};
+      const singleLine = Object.keys(roles).length !== 1;
+      const modelEls = Object.keys(roles).map((key2) => {
+        const role2 = key2;
+        const roleData = roles[role2];
+        const model2 = roleData.model;
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(
+              singleLine ? styles$_.grid : void 0,
+              "text-style-secondary",
+              "text-size-smallest"
+            ),
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: clsx("text-style-label"), children: [
+                role2,
+                ":"
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: model2 })
+            ]
+          },
+          key2
+        );
+      });
+      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$_.container, children: modelEls }) : void 0;
+    };
+    const container$e = "_container_291sb_1";
     const wrapper$3 = "_wrapper_291sb_8";
     const toggle = "_toggle_291sb_14";
     const body$2 = "_body_291sb_19";
@@ -43561,8 +44149,8 @@ categories: ${categories.join(" ")}`;
     const taskModel = "_taskModel_291sb_36";
     const taskStatus = "_taskStatus_291sb_40";
     const secondaryContainer = "_secondaryContainer_291sb_47";
-    const styles$Y = {
-      container: container$g,
+    const styles$Z = {
+      container: container$e,
       wrapper: wrapper$3,
       toggle,
       body: body$2,
@@ -43574,7 +44162,7 @@ categories: ${categories.join(" ")}`;
     };
     const button = "_button_12472_1";
     const label$6 = "_label_12472_14";
-    const styles$X = {
+    const styles$Y = {
       button,
       label: label$6
     };
@@ -43590,10 +44178,10 @@ categories: ${categories.join(" ")}`;
         {
           id,
           onClick,
-          className: clsx(className2, styles$X.button, "text-size-smaller"),
+          className: clsx(className2, styles$Y.button, "text-size-smaller"),
           children: [
             icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2) }) : void 0,
-            text2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$X.label), children: text2 }) : void 0
+            text2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Y.label), children: text2 }) : void 0
           ]
         }
       );
@@ -43603,7 +44191,7 @@ categories: ${categories.join(" ")}`;
     const modalTitle = "_modalTitle_1tvha_18";
     const btnClose = "_btnClose_1tvha_22";
     const backdrop = "_backdrop_1tvha_28";
-    const styles$W = {
+    const styles$X = {
       modal: modal$1,
       header: header$2,
       modalTitle,
@@ -43619,7 +44207,7 @@ categories: ${categories.join(" ")}`;
       className: className2
     }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$W.backdrop, onClick: () => setShowing(false) }),
+        showing && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$X.backdrop, onClick: () => setShowing(false) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
@@ -43627,15 +44215,15 @@ categories: ${categories.join(" ")}`;
             className: clsx("modal", "fade", showing ? "show" : "", className2),
             tabIndex: -1,
             style: { display: showing ? "block" : "none" },
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$W.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$W.header), children: [
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-dialog", styles$X.modal), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "modal-content", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$X.header), children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "div",
                   {
                     className: clsx(
                       "modal-title",
                       "text-size-base",
-                      styles$W.modalTitle
+                      styles$X.modalTitle
                     ),
                     children: title2
                   }
@@ -43647,7 +44235,7 @@ categories: ${categories.join(" ")}`;
                     className: clsx(
                       "btn-close",
                       "text-size-smaller",
-                      styles$W.btnClose
+                      styles$X.btnClose
                     ),
                     "data-bs-dismiss": "modal",
                     "aria-label": "Close",
@@ -43682,7 +44270,7 @@ categories: ${categories.join(" ")}`;
     const moreButton = "_moreButton_yha6g_91";
     const metricsSummary = "_metricsSummary_yha6g_97";
     const modalScores = "_modalScores_yha6g_103";
-    const styles$V = {
+    const styles$W = {
       simpleMetricsRows,
       verticalMetricReducer,
       verticalMetricName,
@@ -43691,19 +44279,21 @@ categories: ${categories.join(" ")}`;
       metricsSummary,
       modalScores
     };
-    const table$1 = "_table_1hgt6_1";
-    const scorer = "_scorer_1hgt6_5";
-    const value$2 = "_value_1hgt6_6";
-    const label$5 = "_label_1hgt6_11";
-    const groupSeparator = "_groupSeparator_1hgt6_28";
-    const tableBody = "_tableBody_1hgt6_33";
-    const styles$U = {
+    const table$1 = "_table_12koy_1";
+    const scorer = "_scorer_12koy_5";
+    const value$2 = "_value_12koy_6";
+    const label$5 = "_label_12koy_11";
+    const groupSeparator = "_groupSeparator_12koy_28";
+    const tableBody = "_tableBody_12koy_33";
+    const tableSeparator = "_tableSeparator_12koy_45";
+    const styles$V = {
       table: table$1,
       scorer,
       value: value$2,
       label: label$5,
       groupSeparator,
-      tableBody
+      tableBody,
+      tableSeparator
     };
     const ScoreGrid = ({
       scoreGroups,
@@ -43729,7 +44319,7 @@ categories: ${categories.join(" ")}`;
                     "text-style-label",
                     "text-style-secondary",
                     "text-size-small",
-                    styles$U.label
+                    styles$V.label
                   ),
                   children: metrics2[i2].name
                 }
@@ -43739,25 +44329,25 @@ categories: ${categories.join(" ")}`;
             cells.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", {}));
           }
         }
-        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$U.headerRow), children: [
+        const headerRow = /* @__PURE__ */ jsxRuntimeExports.jsx("thead", { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { className: clsx(styles$V.headerRow), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("td", {}),
           cells
-        ] });
+        ] }) });
         const rows = [];
         scoreGroup.forEach((g) => {
           const cells2 = [];
           for (let i2 = 0; i2 < columnCount; i2++) {
             if (metrics2.length > i2) {
               cells2.push(
-                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$U.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
+                /* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$V.value, "text-size-small"), children: formatPrettyDecimal(g.metrics[i2].value) })
               );
             } else {
-              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$U.value) }));
+              cells2.push(/* @__PURE__ */ jsxRuntimeExports.jsx("td", { className: clsx(styles$V.value) }));
             }
           }
           rows.push(
             /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$U.scorer, "text-size-small"), children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("th", { className: clsx(styles$V.scorer, "text-size-small"), children: [
                 g.scorer,
                 " ",
                 showReducer && g.reducer ? `(${g.reducer})` : void 0
@@ -43768,15 +44358,15 @@ categories: ${categories.join(" ")}`;
         });
         subTables.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            index2 > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx(styles$V.tableSeparator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("tr", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               "td",
               {
                 colSpan: columnCount + 1,
-                className: clsx(styles$U.groupSeparator)
+                className: clsx(styles$V.groupSeparator)
               }
-            ) }) : void 0,
+            ) }) }) : void 0,
             headerRow,
-            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$U.tableBody), children: rows })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("tbody", { className: clsx("table-group-divider", styles$V.tableBody), children: rows })
           ] })
         );
         index2++;
@@ -43788,13 +44378,14 @@ categories: ${categories.join(" ")}`;
             className2,
             "table",
             striped ? "table-striped" : void 0,
-            styles$U.table,
+            styles$V.table,
             "table-bordered"
           ),
           children: subTables
         }
       );
     };
+    const kMaxPrimaryScoreRows = 4;
     const displayScorersFromRunningMetrics = (metrics2) => {
       if (!metrics2) {
         return [];
@@ -43860,7 +44451,7 @@ categories: ${categories.join(" ")}`;
       if (scorers.length === 1) {
         const showReducer = !!scorers[0].reducer;
         const metrics2 = scorers[0].metrics;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$V.simpleMetricsRows, children: metrics2.map((metric2, i2) => {
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$W.simpleMetricsRows, children: metrics2.map((metric2, i2) => {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             VerticalMetric,
             {
@@ -43876,17 +44467,22 @@ categories: ${categories.join(" ")}`;
         const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
         const grouped = groupMetrics(scorers);
         let primaryResults = grouped[0];
-        if (primaryResults.length > 5) {
+        let showMore = grouped.length > 1;
+        if (primaryResults.length > kMaxPrimaryScoreRows) {
           const shorterResults = grouped.find((g) => {
-            return g.length <= 5;
+            return g.length <= kMaxPrimaryScoreRows;
           });
           if (shorterResults) {
             primaryResults = shorterResults;
           }
+          if (primaryResults.length > kMaxPrimaryScoreRows) {
+            primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
+            showMore = true;
+          }
         }
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$V.metricsSummary), children: [
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$W.metricsSummary), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scoreGroups: [primaryResults], showReducer }),
-          grouped.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          showMore ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               Modal,
               {
@@ -43899,7 +44495,7 @@ categories: ${categories.join(" ")}`;
                   {
                     scoreGroups: grouped,
                     showReducer,
-                    className: styles$V.modalScores,
+                    className: styles$W.modalScores,
                     striped: false
                   }
                 )
@@ -43908,7 +44504,7 @@ categories: ${categories.join(" ")}`;
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               LinkButton,
               {
-                className: styles$V.moreButton,
+                className: styles$W.moreButton,
                 text: "All scoring...",
                 onClick: () => {
                   setShowing(true);
@@ -43948,7 +44544,7 @@ categories: ${categories.join(" ")}`;
               "vertical-metric-label",
               "text-style-label",
               "text-style-secondary",
-              styles$V.verticalMetricName
+              styles$W.verticalMetricName
             ),
             children: metricDisplayName(metric2)
           }
@@ -43959,7 +44555,7 @@ categories: ${categories.join(" ")}`;
             className: clsx(
               "text-style-label",
               "text-style-secondary",
-              styles$V.verticalMetricReducer
+              styles$W.verticalMetricReducer
             ),
             children: reducer || "default"
           }
@@ -43970,7 +44566,7 @@ categories: ${categories.join(" ")}`;
             className: clsx(
               "vertical-metric-value",
               "text-size-largest",
-              styles$V.verticalMetricValue
+              styles$W.verticalMetricValue
             ),
             children: metric2.value !== void 0 && metric2.value !== null ? formatPrettyDecimal(metric2.value) : "n/a"
           }
@@ -43981,20 +44577,20 @@ categories: ${categories.join(" ")}`;
     const status = "_status_1sckj_1";
     const statusText = "_statusText_1sckj_11";
     const icon$1 = "_icon_1sckj_24";
-    const styles$T = {
+    const styles$U = {
       statusContainer,
       status,
       statusText,
       icon: icon$1
     };
     const RunningStatusPanel = ({ sampleCount }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$T.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$T.status), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$T.icon) }),
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$U.statusContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$U.status), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(ApplicationIcons.running, styles$U.icon) }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
             className: clsx(
-              styles$T.statusText,
+              styles$U.statusText,
               "text-style-label",
               "text-size-smaller"
             ),
@@ -44009,7 +44605,7 @@ categories: ${categories.join(" ")}`;
     };
     const statusPanel = "_statusPanel_66f9o_1";
     const statusIcon = "_statusIcon_66f9o_11";
-    const styles$S = {
+    const styles$T = {
       statusPanel,
       statusIcon
     };
@@ -44038,8 +44634,8 @@ categories: ${categories.join(" ")}`;
       status: status2,
       sampleCount
     }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$S.statusPanel, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$S.statusIcon), style: {} }),
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$T.statusPanel, children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$T.statusIcon), style: {} }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: status2 }),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
@@ -44052,40 +44648,6 @@ categories: ${categories.join(" ")}`;
         ] })
       ] });
     };
-    const container$f = "_container_q17yq_1";
-    const grid$6 = "_grid_q17yq_10";
-    const styles$R = {
-      container: container$f,
-      grid: grid$6
-    };
-    const ModelRolesView = ({ roles }) => {
-      roles = roles || {};
-      const singleLine = Object.keys(roles).length !== 1;
-      const modelEls = Object.keys(roles).map((key2) => {
-        const role2 = key2;
-        const roleData = roles[role2];
-        const model2 = roleData.model;
-        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-          "div",
-          {
-            className: clsx(
-              singleLine ? styles$R.grid : void 0,
-              "text-style-secondary",
-              "text-size-smallest"
-            ),
-            children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: clsx("text-style-label"), children: [
-                role2,
-                ":"
-              ] }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: model2 })
-            ]
-          },
-          key2
-        );
-      });
-      return modelEls.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$R.container, children: modelEls }) : void 0;
-    };
     const PrimaryBar = ({
       showToggle,
       status: status2,
@@ -44097,15 +44659,13 @@ categories: ${categories.join(" ")}`;
       const offCanvas = useStore((state) => state.app.offcanvas);
       const setOffCanvas = useStore((state) => state.appActions.setOffcanvas);
       const streamSamples = useStore((state) => state.capabilities.streamSamples);
-      const selectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile()
-      );
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
       const logFileName = selectedLogFile ? filename(selectedLogFile) : "";
       const handleToggle = reactExports.useCallback(() => {
         setOffCanvas(!offCanvas);
       }, [offCanvas, setOffCanvas]);
       const hasRunningMetrics = runningMetrics && runningMetrics.length > 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$Y.wrapper), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$Z.wrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
@@ -44113,7 +44673,7 @@ categories: ${categories.join(" ")}`;
               "navbar-brand",
               "navbar-text",
               "mb-0",
-              styles$Y.container
+              styles$Z.container
             ),
             children: [
               showToggle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -44124,19 +44684,19 @@ categories: ${categories.join(" ")}`;
                   className: clsx(
                     "btn",
                     offCanvas ? "d-md-none" : void 0,
-                    styles$Y.toggle
+                    styles$Z.toggle
                   ),
                   type: "button",
                   children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.menu })
                 }
               ) : "",
-              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Y.body, children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Y.bodyContainer, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Z.body, children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$Z.bodyContainer, children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
                       id: "task-title",
-                      className: clsx("task-title", "text-truncate", styles$Y.taskTitle),
+                      className: clsx("task-title", "text-truncate", styles$Z.taskTitle),
                       title: evalSpec == null ? void 0 : evalSpec.task,
                       children: evalSpec == null ? void 0 : evalSpec.task
                     }
@@ -44148,7 +44708,7 @@ categories: ${categories.join(" ")}`;
                       className: clsx(
                         "task-model",
                         "text-truncate",
-                        styles$Y.taskModel,
+                        styles$Z.taskModel,
                         "text-size-base"
                       ),
                       title: evalSpec == null ? void 0 : evalSpec.model,
@@ -44157,7 +44717,7 @@ categories: ${categories.join(" ")}`;
                   ) : ""
                 ] }),
                 (evalSpec == null ? void 0 : evalSpec.model_roles) ? /* @__PURE__ */ jsxRuntimeExports.jsx(ModelRolesView, { roles: evalSpec.model_roles }) : void 0,
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$Y.secondaryContainer), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("text-size-small", styles$Z.secondaryContainer), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("navbar-secondary-text", "text-truncate"), children: logFileName }),
                   selectedLogFile ? /* @__PURE__ */ jsxRuntimeExports.jsx(CopyButton, { value: selectedLogFile }) : ""
                 ] })
@@ -44165,7 +44725,7 @@ categories: ${categories.join(" ")}`;
             ]
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$Y.taskStatus, "navbar-text"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$Z.taskStatus, "navbar-text"), children: [
           status2 === "success" || status2 === "started" && streamSamples && hasRunningMetrics ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             ResultsPanel,
             {
@@ -44216,14 +44776,14 @@ categories: ${categories.join(" ")}`;
     const justifyCenter = "_justifyCenter_xzzhl_9";
     const justifyRight = "_justifyRight_xzzhl_13";
     const valueGrid = "_valueGrid_xzzhl_17";
-    const container$e = "_container_xzzhl_25";
-    const styles$Q = {
+    const container$d = "_container_xzzhl_25";
+    const styles$S = {
       staticCol,
       justifyLeft,
       justifyCenter,
       justifyRight,
       valueGrid,
-      container: container$e
+      container: container$d
     };
     const SecondaryBar = ({
       evalSpec,
@@ -44250,7 +44810,7 @@ categories: ${categories.join(" ")}`;
           LabeledValue,
           {
             label: "Dataset",
-            className: clsx(styles$Q.staticCol, "text-size-small"),
+            className: clsx(styles$S.staticCol, "text-size-small"),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(
               DatasetSummary,
               {
@@ -44271,8 +44831,8 @@ categories: ${categories.join(" ")}`;
           {
             label: label2,
             className: clsx(
-              styles$Q.staticCol,
-              hasConfig ? styles$Q.justifyLeft : styles$Q.justifyCenter,
+              styles$S.staticCol,
+              hasConfig ? styles$S.justifyLeft : styles$S.justifyCenter,
               "text-size-small"
             ),
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(ScorerSummary, { evalDescriptor })
@@ -44287,7 +44847,7 @@ categories: ${categories.join(" ")}`;
             LabeledValue,
             {
               label: "Config",
-              className: clsx(styles$Q.justifyRight, "text-size-small"),
+              className: clsx(styles$S.justifyRight, "text-size-small"),
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(ParamSummary, { params: hyperparameters })
             },
             "sb-params"
@@ -44305,7 +44865,7 @@ categories: ${categories.join(" ")}`;
             LabeledValue,
             {
               label: "Duration",
-              className: clsx(styles$Q.justifyRight, "text-size-small"),
+              className: clsx(styles$S.justifyRight, "text-size-small"),
               children: totalDuration
             },
             "sb-duration"
@@ -44316,13 +44876,13 @@ categories: ${categories.join(" ")}`;
         ExpandablePanel,
         {
           id: "secondary-nav-bar",
-          className: clsx(styles$Q.container, "text-size-small"),
+          className: clsx(styles$S.container, "text-size-small"),
           collapse: true,
           lines: 5,
           children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: styles$Q.valueGrid,
+              className: styles$S.valueGrid,
               style: {
                 gridTemplateColumns: `${values.map((val) => {
                   return val.size;
@@ -44384,7 +44944,7 @@ categories: ${categories.join(" ")}`;
       runningMetrics
     }) => {
       const totalSampleCount = useTotalSampleCount();
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$_.navbarWrapper), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("nav", { className: clsx("navbar", "sticky-top", styles$$.navbarWrapper), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           PrimaryBar,
           {
@@ -44434,19 +44994,16 @@ categories: ${categories.join(" ")}`;
       const navigate = useNavigate();
       const logDirectory = useStore((state) => state.logs.logs.log_dir);
       const { logPath, tabId, sampleTabId } = useParams();
-      const getSelectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile
-      );
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
       const resolveLogPath = reactExports.useCallback(() => {
         if (logPath) {
           return logPath;
         }
-        const selectedLogFile = getSelectedLogFile();
         if (selectedLogFile) {
           return directoryRelativeUrl(selectedLogFile, logDirectory);
         }
         return void 0;
-      }, [logPath, getSelectedLogFile, logDirectory]);
+      }, [logPath, selectedLogFile, logDirectory]);
       const sampleSummaries = useFilteredSamples();
       const selectedSampleIndex = useStore(
         (state) => state.log.selectedSampleIndex
@@ -44531,12 +45088,21 @@ categories: ${categories.join(" ")}`;
         clearSampleUrl
       };
     };
+    const useSampleDetailNavigation = () => {
+      const [searchParams, _setSearchParams] = useSearchParams();
+      const message2 = searchParams.get("message");
+      const event = searchParams.get("event");
+      return {
+        message: message2,
+        event
+      };
+    };
     const workspace = "_workspace_1r3mu_1";
     const tabContainer = "_tabContainer_1r3mu_6";
     const tabSet = "_tabSet_1r3mu_14";
     const tabs = "_tabs_1r3mu_21";
     const tabPanels = "_tabPanels_1r3mu_29";
-    const styles$P = {
+    const styles$R = {
       workspace,
       tabContainer,
       tabSet,
@@ -44592,15 +45158,3452 @@ categories: ${categories.join(" ")}`;
         }
       );
     };
-    const CardBody = ({ id, children: children2, className: className2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card-body", className2), id: id || "", children: children2 });
+    const CardBody = ({
+      id,
+      children: children2,
+      className: className2,
+      padded: padded2 = true
+    }) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "div",
+        {
+          className: clsx(
+            "card-body",
+            className2,
+            !padded2 ? "card-no-padding" : void 0
+          ),
+          id: id || "",
+          children: children2
+        }
+      );
     };
     const Card = ({ id, children: children2, className: className2 }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("card", className2), id, children: children2 });
     };
-    const item = "_item_1uzhd_1";
-    const styles$O = {
-      item
+    const we = 0, zt = 1, qt = 2, En = 4;
+    function ln(t2) {
+      return () => t2;
+    }
+    function co(t2) {
+      t2();
+    }
+    function ne(t2, e) {
+      return (n) => t2(e(n));
+    }
+    function cn(t2, e) {
+      return () => t2(e);
+    }
+    function kn(t2, e) {
+      return (n) => t2(e, n);
+    }
+    function Me(t2) {
+      return t2 !== void 0;
+    }
+    function uo(...t2) {
+      return () => {
+        t2.map(co);
+      };
+    }
+    function Yt() {
+    }
+    function ye(t2, e) {
+      return e(t2), t2;
+    }
+    function ao(t2, e) {
+      return e(t2);
+    }
+    function X(...t2) {
+      return t2;
+    }
+    function K(t2, e) {
+      return t2(zt, e);
+    }
+    function W(t2, e) {
+      t2(we, e);
+    }
+    function We(t2) {
+      t2(qt);
+    }
+    function lt(t2) {
+      return t2(En);
+    }
+    function F(t2, e) {
+      return K(t2, kn(e, we));
+    }
+    function Rt(t2, e) {
+      const n = t2(zt, (o) => {
+        n(), e(o);
+      });
+      return n;
+    }
+    function un(t2) {
+      let e, n;
+      return (o) => (r2) => {
+        e = r2, n && clearTimeout(n), n = setTimeout(() => {
+          o(e);
+        }, t2);
+      };
+    }
+    function Bn(t2, e) {
+      return t2 === e;
+    }
+    function Y(t2 = Bn) {
+      let e;
+      return (n) => (o) => {
+        t2(e, o) || (e = o, n(o));
+      };
+    }
+    function P(t2) {
+      return (e) => (n) => {
+        t2(n) && e(n);
+      };
+    }
+    function E(t2) {
+      return (e) => ne(e, t2);
+    }
+    function vt$1(t2) {
+      return (e) => () => {
+        e(t2);
+      };
+    }
+    function x$1(t2, ...e) {
+      const n = fo(...e);
+      return (o, r2) => {
+        switch (o) {
+          case qt:
+            We(t2);
+            return;
+          case zt:
+            return K(t2, n(r2));
+        }
+      };
+    }
+    function bt(t2, e) {
+      return (n) => (o) => {
+        n(e = t2(e, o));
+      };
+    }
+    function jt(t2) {
+      return (e) => (n) => {
+        t2 > 0 ? t2-- : e(n);
+      };
+    }
+    function Lt(t2) {
+      let e = null, n;
+      return (o) => (r2) => {
+        e = r2, !n && (n = setTimeout(() => {
+          n = void 0, o(e);
+        }, t2));
+      };
+    }
+    function G(...t2) {
+      const e = new Array(t2.length);
+      let n = 0, o = null;
+      const r2 = Math.pow(2, t2.length) - 1;
+      return t2.forEach((s, i2) => {
+        const l = Math.pow(2, i2);
+        K(s, (c2) => {
+          const u = n;
+          n = n | l, e[i2] = c2, u !== r2 && n === r2 && o && (o(), o = null);
+        });
+      }), (s) => (i2) => {
+        const l = () => {
+          s([i2].concat(e));
+        };
+        n === r2 ? l() : o = l;
+      };
+    }
+    function fo(...t2) {
+      return (e) => t2.reduceRight(ao, e);
+    }
+    function mo(t2) {
+      let e, n;
+      const o = () => e == null ? void 0 : e();
+      return function(r2, s) {
+        switch (r2) {
+          case zt:
+            return s ? n === s ? void 0 : (o(), n = s, e = K(t2, s), e) : (o(), Yt);
+          case qt:
+            o(), n = null;
+            return;
+        }
+      };
+    }
+    function y(t2) {
+      let e = t2;
+      const n = $();
+      return (o, r2) => {
+        switch (o) {
+          case we:
+            e = r2;
+            break;
+          case zt: {
+            r2(e);
+            break;
+          }
+          case En:
+            return e;
+        }
+        return n(o, r2);
+      };
+    }
+    function ct(t2, e) {
+      return ye(y(e), (n) => F(t2, n));
+    }
+    function $() {
+      const t2 = [];
+      return (e, n) => {
+        switch (e) {
+          case we:
+            t2.slice().forEach((o) => {
+              o(n);
+            });
+            return;
+          case qt:
+            t2.splice(0, t2.length);
+            return;
+          case zt:
+            return t2.push(n), () => {
+              const o = t2.indexOf(n);
+              o > -1 && t2.splice(o, 1);
+            };
+        }
+      };
+    }
+    function pt(t2) {
+      return ye($(), (e) => F(t2, e));
+    }
+    function U(t2, e = [], { singleton: n } = { singleton: true }) {
+      return {
+        constructor: t2,
+        dependencies: e,
+        id: po(),
+        singleton: n
+      };
+    }
+    const po = () => Symbol();
+    function ho(t2) {
+      const e = /* @__PURE__ */ new Map(), n = ({ constructor: o, dependencies: r2, id: s, singleton: i2 }) => {
+        if (i2 && e.has(s))
+          return e.get(s);
+        const l = o(r2.map((c2) => n(c2)));
+        return i2 && e.set(s, l), l;
+      };
+      return n(t2);
+    }
+    function rt(...t2) {
+      const e = $(), n = new Array(t2.length);
+      let o = 0;
+      const r2 = Math.pow(2, t2.length) - 1;
+      return t2.forEach((s, i2) => {
+        const l = Math.pow(2, i2);
+        K(s, (c2) => {
+          n[i2] = c2, o = o | l, o === r2 && W(e, n);
+        });
+      }), function(s, i2) {
+        switch (s) {
+          case qt: {
+            We(e);
+            return;
+          }
+          case zt:
+            return o === r2 && i2(n), K(e, i2);
+        }
+      };
+    }
+    function A(t2, e = Bn) {
+      return x$1(t2, Y(e));
+    }
+    function an(...t2) {
+      return function(e, n) {
+        switch (e) {
+          case qt:
+            return;
+          case zt:
+            return uo(...t2.map((o) => K(o, n)));
+        }
+      };
+    }
+    var ht = /* @__PURE__ */ ((t2) => (t2[t2.DEBUG = 0] = "DEBUG", t2[t2.INFO = 1] = "INFO", t2[t2.WARN = 2] = "WARN", t2[t2.ERROR = 3] = "ERROR", t2))(ht || {});
+    const go = {
+      0: "debug",
+      3: "error",
+      1: "log",
+      2: "warn"
+    }, Io = () => typeof globalThis > "u" ? window : globalThis, Vt$1 = U(
+      () => {
+        const t2 = y(
+          3
+          /* ERROR */
+        );
+        return {
+          log: y((n, o, r2 = 1) => {
+            var i2;
+            const s = (i2 = Io().VIRTUOSO_LOG_LEVEL) != null ? i2 : lt(t2);
+            r2 >= s && console[go[r2]](
+              "%creact-virtuoso: %c%s %o",
+              "color: #0253b3; font-weight: bold",
+              "color: initial",
+              n,
+              o
+            );
+          }),
+          logLevel: t2
+        };
+      },
+      [],
+      { singleton: true }
+    );
+    function Ht(t2, e, n) {
+      return _e(t2, e, n).callbackRef;
+    }
+    function _e(t2, e, n) {
+      const o = H.useRef(null);
+      let r2 = (s) => {
+      };
+      if (typeof ResizeObserver < "u") {
+        const s = H.useMemo(() => new ResizeObserver((i2) => {
+          const l = () => {
+            const c2 = i2[0].target;
+            c2.offsetParent !== null && t2(c2);
+          };
+          n ? l() : requestAnimationFrame(l);
+        }), [t2]);
+        r2 = (i2) => {
+          i2 && e ? (s.observe(i2), o.current = i2) : (o.current && s.unobserve(o.current), o.current = null);
+        };
+      }
+      return { callbackRef: r2, ref: o };
+    }
+    function On(t2, e, n, o, r2, s, i2, l, c2) {
+      const u = H.useCallback(
+        (f) => {
+          const S2 = So(f.children, e, l ? "offsetWidth" : "offsetHeight", r2);
+          let p = f.parentElement;
+          for (; !p.dataset.virtuosoScroller; )
+            p = p.parentElement;
+          const m = p.lastElementChild.dataset.viewportType === "window";
+          let w;
+          m && (w = p.ownerDocument.defaultView);
+          const I = i2 ? l ? i2.scrollLeft : i2.scrollTop : m ? l ? w.scrollX || w.document.documentElement.scrollLeft : w.scrollY || w.document.documentElement.scrollTop : l ? p.scrollLeft : p.scrollTop, C2 = i2 ? l ? i2.scrollWidth : i2.scrollHeight : m ? l ? w.document.documentElement.scrollWidth : w.document.documentElement.scrollHeight : l ? p.scrollWidth : p.scrollHeight, g = i2 ? l ? i2.offsetWidth : i2.offsetHeight : m ? l ? w.innerWidth : w.innerHeight : l ? p.offsetWidth : p.offsetHeight;
+          o({
+            scrollHeight: C2,
+            scrollTop: Math.max(I, 0),
+            viewportHeight: g
+          }), s == null || s(
+            l ? dn("column-gap", getComputedStyle(f).columnGap, r2) : dn("row-gap", getComputedStyle(f).rowGap, r2)
+          ), S2 !== null && t2(S2);
+        },
+        [t2, e, r2, s, i2, o]
+      );
+      return _e(u, n, c2);
+    }
+    function So(t2, e, n, o) {
+      const r2 = t2.length;
+      if (r2 === 0)
+        return null;
+      const s = [];
+      for (let i2 = 0; i2 < r2; i2++) {
+        const l = t2.item(i2);
+        if (l.dataset.index === void 0)
+          continue;
+        const c2 = parseInt(l.dataset.index), u = parseFloat(l.dataset.knownSize), f = e(l, n);
+        if (f === 0 && o("Zero-sized element, this should not happen", { child: l }, ht.ERROR), f === u)
+          continue;
+        const S2 = s[s.length - 1];
+        s.length === 0 || S2.size !== f || S2.endIndex !== c2 - 1 ? s.push({ endIndex: c2, size: f, startIndex: c2 }) : s[s.length - 1].endIndex++;
+      }
+      return s;
+    }
+    function dn(t2, e, n) {
+      return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
+    }
+    function Ge(t2, e, n) {
+      const o = H.useRef(null), r2 = H.useCallback(
+        (c2) => {
+          if (!(c2 != null && c2.offsetParent))
+            return;
+          const u = c2.getBoundingClientRect(), f = u.width;
+          let S2, p;
+          if (e) {
+            const m = e.getBoundingClientRect(), w = u.top - m.top;
+            p = m.height - Math.max(0, w), S2 = w + e.scrollTop;
+          } else {
+            const m = i2.current.ownerDocument.defaultView;
+            p = m.innerHeight - Math.max(0, u.top), S2 = u.top + m.scrollY;
+          }
+          o.current = {
+            offsetTop: S2,
+            visibleHeight: p,
+            visibleWidth: f
+          }, t2(o.current);
+        },
+        [t2, e]
+      ), { callbackRef: s, ref: i2 } = _e(r2, true, n), l = H.useCallback(() => {
+        r2(i2.current);
+      }, [r2, i2]);
+      return H.useEffect(() => {
+        var c2;
+        if (e) {
+          e.addEventListener("scroll", l);
+          const u = new ResizeObserver(() => {
+            requestAnimationFrame(l);
+          });
+          return u.observe(e), () => {
+            e.removeEventListener("scroll", l), u.unobserve(e);
+          };
+        } else {
+          const u = (c2 = i2.current) == null ? void 0 : c2.ownerDocument.defaultView;
+          return u == null || u.addEventListener("scroll", l), u == null || u.addEventListener("resize", l), () => {
+            u == null || u.removeEventListener("scroll", l), u == null || u.removeEventListener("resize", l);
+          };
+        }
+      }, [l, e]), s;
+    }
+    const at = U(
+      () => {
+        const t2 = $(), e = $(), n = y(0), o = $(), r2 = y(0), s = $(), i2 = $(), l = y(0), c2 = y(0), u = y(0), f = y(0), S2 = $(), p = $(), m = y(false), w = y(false), I = y(false);
+        return F(
+          x$1(
+            t2,
+            E(({ scrollTop: C2 }) => C2)
+          ),
+          e
+        ), F(
+          x$1(
+            t2,
+            E(({ scrollHeight: C2 }) => C2)
+          ),
+          i2
+        ), F(e, r2), {
+          deviation: n,
+          fixedFooterHeight: u,
+          fixedHeaderHeight: c2,
+          footerHeight: f,
+          headerHeight: l,
+          horizontalDirection: w,
+          scrollBy: p,
+          // input
+          scrollContainerState: t2,
+          scrollHeight: i2,
+          scrollingInProgress: m,
+          // signals
+          scrollTo: S2,
+          scrollTop: e,
+          skipAnimationFrameInResizeObserver: I,
+          smoothScrollTargetReached: o,
+          // state
+          statefulScrollTop: r2,
+          viewportHeight: s
+        };
+      },
+      [],
+      { singleton: true }
+    ), oe = { lvl: 0 };
+    function Fn(t2, e) {
+      const n = t2.length;
+      if (n === 0)
+        return [];
+      let { index: o, value: r2 } = e(t2[0]);
+      const s = [];
+      for (let i2 = 1; i2 < n; i2++) {
+        const { index: l, value: c2 } = e(t2[i2]);
+        s.push({ end: l - 1, start: o, value: r2 }), o = l, r2 = c2;
+      }
+      return s.push({ end: 1 / 0, start: o, value: r2 }), s;
+    }
+    function j(t2) {
+      return t2 === oe;
+    }
+    function re(t2, e) {
+      if (!j(t2))
+        return e === t2.k ? t2.v : e < t2.k ? re(t2.l, e) : re(t2.r, e);
+    }
+    function Ct(t2, e, n = "k") {
+      if (j(t2))
+        return [-1 / 0, void 0];
+      if (Number(t2[n]) === e)
+        return [t2.k, t2.v];
+      if (Number(t2[n]) < e) {
+        const o = Ct(t2.r, e, n);
+        return o[0] === -1 / 0 ? [t2.k, t2.v] : o;
+      }
+      return Ct(t2.l, e, n);
+    }
+    function mt(t2, e, n) {
+      return j(t2) ? Vn(e, n, 1) : e === t2.k ? ot(t2, { k: e, v: n }) : e < t2.k ? fn(ot(t2, { l: mt(t2.l, e, n) })) : fn(ot(t2, { r: mt(t2.r, e, n) }));
+    }
+    function Ut() {
+      return oe;
+    }
+    function ve(t2, e, n) {
+      if (j(t2))
+        return [];
+      const o = Ct(t2, e)[0];
+      return xo(ze(t2, o, n));
+    }
+    function Le(t2, e) {
+      if (j(t2)) return oe;
+      const { k: n, l: o, r: r2 } = t2;
+      if (e === n) {
+        if (j(o))
+          return r2;
+        if (j(r2))
+          return o;
+        {
+          const [s, i2] = zn(o);
+          return ge(ot(t2, { k: s, l: Ln(o), v: i2 }));
+        }
+      } else return e < n ? ge(ot(t2, { l: Le(o, e) })) : ge(ot(t2, { r: Le(r2, e) }));
+    }
+    function _t(t2) {
+      return j(t2) ? [] : [..._t(t2.l), { k: t2.k, v: t2.v }, ..._t(t2.r)];
+    }
+    function ze(t2, e, n) {
+      if (j(t2))
+        return [];
+      const { k: o, l: r2, r: s, v: i2 } = t2;
+      let l = [];
+      return o > e && (l = l.concat(ze(r2, e, n))), o >= e && o <= n && l.push({ k: o, v: i2 }), o <= n && (l = l.concat(ze(s, e, n))), l;
+    }
+    function ge(t2) {
+      const { l: e, lvl: n, r: o } = t2;
+      if (o.lvl >= n - 1 && e.lvl >= n - 1)
+        return t2;
+      if (n > o.lvl + 1) {
+        if (Ee(e))
+          return Pn(ot(t2, { lvl: n - 1 }));
+        if (!j(e) && !j(e.r))
+          return ot(e.r, {
+            l: ot(e, { r: e.r.l }),
+            lvl: n,
+            r: ot(t2, {
+              l: e.r.r,
+              lvl: n - 1
+            })
+          });
+        throw new Error("Unexpected empty nodes");
+      } else {
+        if (Ee(t2))
+          return Ve(ot(t2, { lvl: n - 1 }));
+        if (!j(o) && !j(o.l)) {
+          const r2 = o.l, s = Ee(r2) ? o.lvl - 1 : o.lvl;
+          return ot(r2, {
+            l: ot(t2, {
+              lvl: n - 1,
+              r: r2.l
+            }),
+            lvl: r2.lvl + 1,
+            r: Ve(ot(o, { l: r2.r, lvl: s }))
+          });
+        } else
+          throw new Error("Unexpected empty nodes");
+      }
+    }
+    function ot(t2, e) {
+      return Vn(
+        e.k !== void 0 ? e.k : t2.k,
+        e.v !== void 0 ? e.v : t2.v,
+        e.lvl !== void 0 ? e.lvl : t2.lvl,
+        e.l !== void 0 ? e.l : t2.l,
+        e.r !== void 0 ? e.r : t2.r
+      );
+    }
+    function Ln(t2) {
+      return j(t2.r) ? t2.l : ge(ot(t2, { r: Ln(t2.r) }));
+    }
+    function Ee(t2) {
+      return j(t2) || t2.lvl > t2.r.lvl;
+    }
+    function zn(t2) {
+      return j(t2.r) ? [t2.k, t2.v] : zn(t2.r);
+    }
+    function Vn(t2, e, n, o = oe, r2 = oe) {
+      return { k: t2, l: o, lvl: n, r: r2, v: e };
+    }
+    function fn(t2) {
+      return Ve(Pn(t2));
+    }
+    function Pn(t2) {
+      const { l: e } = t2;
+      return !j(e) && e.lvl === t2.lvl ? ot(e, { r: ot(t2, { l: e.r }) }) : t2;
+    }
+    function Ve(t2) {
+      const { lvl: e, r: n } = t2;
+      return !j(n) && !j(n.r) && n.lvl === e && n.r.lvl === e ? ot(n, { l: ot(t2, { r: n.l }), lvl: e + 1 }) : t2;
+    }
+    function xo(t2) {
+      return Fn(t2, ({ k: e, v: n }) => ({ index: e, value: n }));
+    }
+    function An(t2, e) {
+      return !!(t2 && t2.startIndex === e.startIndex && t2.endIndex === e.endIndex);
+    }
+    function se(t2, e) {
+      return !!(t2 && t2[0] === e[0] && t2[1] === e[1]);
+    }
+    const Ne = U(
+      () => ({ recalcInProgress: y(false) }),
+      [],
+      { singleton: true }
+    );
+    function Mn(t2, e, n) {
+      return t2[Se(t2, e, n)];
+    }
+    function Se(t2, e, n, o = 0) {
+      let r2 = t2.length - 1;
+      for (; o <= r2; ) {
+        const s = Math.floor((o + r2) / 2), i2 = t2[s], l = n(i2, e);
+        if (l === 0)
+          return s;
+        if (l === -1) {
+          if (r2 - o < 2)
+            return s - 1;
+          r2 = s - 1;
+        } else {
+          if (r2 === o)
+            return s;
+          o = s + 1;
+        }
+      }
+      throw new Error(`Failed binary finding record in array - ${t2.join(",")}, searched for ${e}`);
+    }
+    function To(t2, e, n, o) {
+      const r2 = Se(t2, e, o), s = Se(t2, n, o, r2);
+      return t2.slice(r2, s + 1);
+    }
+    function wt(t2, e) {
+      return Math.round(t2.getBoundingClientRect()[e]);
+    }
+    function be(t2) {
+      return !j(t2.groupOffsetTree);
+    }
+    function De({ index: t2 }, e) {
+      return e === t2 ? 0 : e < t2 ? -1 : 1;
+    }
+    function Co() {
+      return {
+        groupIndices: [],
+        groupOffsetTree: Ut(),
+        lastIndex: 0,
+        lastOffset: 0,
+        lastSize: 0,
+        offsetTree: [],
+        sizeTree: Ut()
+      };
+    }
+    function wo(t2, e) {
+      let n = j(t2) ? 0 : 1 / 0;
+      for (const o of e) {
+        const { endIndex: r2, size: s, startIndex: i2 } = o;
+        if (n = Math.min(n, i2), j(t2)) {
+          t2 = mt(t2, 0, s);
+          continue;
+        }
+        const l = ve(t2, i2 - 1, r2 + 1);
+        if (l.some(ko(o)))
+          continue;
+        let c2 = false, u = false;
+        for (const { end: f, start: S2, value: p } of l)
+          c2 ? (r2 >= S2 || s === p) && (t2 = Le(t2, S2)) : (u = p !== s, c2 = true), f > r2 && r2 >= S2 && p !== s && (t2 = mt(t2, r2 + 1, p));
+        u && (t2 = mt(t2, i2, s));
+      }
+      return [t2, n];
+    }
+    function yo(t2) {
+      return typeof t2.groupIndex < "u";
+    }
+    function vo({ offset: t2 }, e) {
+      return e === t2 ? 0 : e < t2 ? -1 : 1;
+    }
+    function ie$2(t2, e, n) {
+      if (e.length === 0)
+        return 0;
+      const { index: o, offset: r2, size: s } = Mn(e, t2, De), i2 = t2 - o, l = s * i2 + (i2 - 1) * n + r2;
+      return l > 0 ? l + n : l;
+    }
+    function Wn(t2, e) {
+      if (!be(e))
+        return t2;
+      let n = 0;
+      for (; e.groupIndices[n] <= t2 + n; )
+        n++;
+      return t2 + n;
+    }
+    function _n(t2, e, n) {
+      if (yo(t2))
+        return e.groupIndices[t2.groupIndex] + 1;
+      {
+        const o = t2.index === "LAST" ? n : t2.index;
+        let r2 = Wn(o, e);
+        return r2 = Math.max(0, r2, Math.min(n, r2)), r2;
+      }
+    }
+    function bo(t2, e, n, o = 0) {
+      return o > 0 && (e = Math.max(e, Mn(t2, o, De).offset)), Fn(To(t2, e, n, vo), Eo);
+    }
+    function Ro(t2, [e, n, o, r2]) {
+      e.length > 0 && o("received item sizes", e, ht.DEBUG);
+      const s = t2.sizeTree;
+      let i2 = s, l = 0;
+      if (n.length > 0 && j(s) && e.length === 2) {
+        const p = e[0].size, m = e[1].size;
+        i2 = n.reduce((w, I) => mt(mt(w, I, p), I + 1, m), i2);
+      } else
+        [i2, l] = wo(i2, e);
+      if (i2 === s)
+        return t2;
+      const { lastIndex: c2, lastOffset: u, lastSize: f, offsetTree: S2 } = Pe(t2.offsetTree, l, i2, r2);
+      return {
+        groupIndices: n,
+        groupOffsetTree: n.reduce((p, m) => mt(p, m, ie$2(m, S2, r2)), Ut()),
+        lastIndex: c2,
+        lastOffset: u,
+        lastSize: f,
+        offsetTree: S2,
+        sizeTree: i2
+      };
+    }
+    function Ho(t2) {
+      return _t(t2).map(({ k: e, v: n }, o, r2) => {
+        const s = r2[o + 1];
+        return { endIndex: s ? s.k - 1 : 1 / 0, size: n, startIndex: e };
+      });
+    }
+    function mn(t2, e) {
+      let n = 0, o = 0;
+      for (; n < t2; )
+        n += e[o + 1] - e[o] - 1, o++;
+      return o - (n === t2 ? 0 : 1);
+    }
+    function Pe(t2, e, n, o) {
+      let r2 = t2, s = 0, i2 = 0, l = 0, c2 = 0;
+      if (e !== 0) {
+        c2 = Se(r2, e - 1, De), l = r2[c2].offset;
+        const f = Ct(n, e - 1);
+        s = f[0], i2 = f[1], r2.length && r2[c2].size === Ct(n, e)[1] && (c2 -= 1), r2 = r2.slice(0, c2 + 1);
+      } else
+        r2 = [];
+      for (const { start: u, value: f } of ve(n, e, 1 / 0)) {
+        const S2 = u - s, p = S2 * i2 + l + S2 * o;
+        r2.push({
+          index: u,
+          offset: p,
+          size: f
+        }), s = u, l = p, i2 = f;
+      }
+      return {
+        lastIndex: s,
+        lastOffset: l,
+        lastSize: i2,
+        offsetTree: r2
+      };
+    }
+    function Eo(t2) {
+      return { index: t2.index, value: t2 };
+    }
+    function ko(t2) {
+      const { endIndex: e, size: n, startIndex: o } = t2;
+      return (r2) => r2.start === o && (r2.end === e || r2.end === 1 / 0) && r2.value === n;
+    }
+    const Bo = {
+      offsetHeight: "height",
+      offsetWidth: "width"
+    }, Et = U(
+      ([{ log: t2 }, { recalcInProgress: e }]) => {
+        const n = $(), o = $(), r2 = ct(o, 0), s = $(), i2 = $(), l = y(0), c2 = y([]), u = y(void 0), f = y(void 0), S2 = y((h, d) => wt(h, Bo[d])), p = y(void 0), m = y(0), w = Co(), I = ct(
+          x$1(n, G(c2, t2, m), bt(Ro, w), Y()),
+          w
+        ), C2 = ct(
+          x$1(
+            c2,
+            Y(),
+            bt((h, d) => ({ current: d, prev: h.current }), {
+              current: [],
+              prev: []
+            }),
+            E(({ prev: h }) => h)
+          ),
+          []
+        );
+        F(
+          x$1(
+            c2,
+            P((h) => h.length > 0),
+            G(I, m),
+            E(([h, d, R]) => {
+              const B = h.reduce((O, L, V) => mt(O, L, ie$2(L, d.offsetTree, R) || V), Ut());
+              return {
+                ...d,
+                groupIndices: h,
+                groupOffsetTree: B
+              };
+            })
+          ),
+          I
+        ), F(
+          x$1(
+            o,
+            G(I),
+            P(([h, { lastIndex: d }]) => h < d),
+            E(([h, { lastIndex: d, lastSize: R }]) => [
+              {
+                endIndex: d,
+                size: R,
+                startIndex: h
+              }
+            ])
+          ),
+          n
+        ), F(u, f);
+        const g = ct(
+          x$1(
+            u,
+            E((h) => h === void 0)
+          ),
+          true
+        );
+        F(
+          x$1(
+            f,
+            P((h) => h !== void 0 && j(lt(I).sizeTree)),
+            E((h) => [{ endIndex: 0, size: h, startIndex: 0 }])
+          ),
+          n
+        );
+        const a = pt(
+          x$1(
+            n,
+            G(I),
+            bt(
+              ({ sizes: h }, [d, R]) => ({
+                changed: R !== h,
+                sizes: R
+              }),
+              { changed: false, sizes: w }
+            ),
+            E((h) => h.changed)
+          )
+        );
+        K(
+          x$1(
+            l,
+            bt(
+              (h, d) => ({ diff: h.prev - d, prev: d }),
+              { diff: 0, prev: 0 }
+            ),
+            E((h) => h.diff)
+          ),
+          (h) => {
+            const { groupIndices: d } = lt(I);
+            if (h > 0)
+              W(e, true), W(s, h + mn(h, d));
+            else if (h < 0) {
+              const R = lt(C2);
+              R.length > 0 && (h -= mn(-h, R)), W(i2, h);
+            }
+          }
+        ), K(x$1(l, G(t2)), ([h, d]) => {
+          h < 0 && d(
+            "`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value",
+            { firstItemIndex: l },
+            ht.ERROR
+          );
+        });
+        const T2 = pt(s);
+        F(
+          x$1(
+            s,
+            G(I),
+            E(([h, d]) => {
+              const R = d.groupIndices.length > 0, B = [], O = d.lastSize;
+              if (R) {
+                const L = re(d.sizeTree, 0);
+                let V = 0, D2 = 0;
+                for (; V < h; ) {
+                  const k = d.groupIndices[D2], q = d.groupIndices.length === D2 + 1 ? 1 / 0 : d.groupIndices[D2 + 1] - k - 1;
+                  B.push({
+                    endIndex: k,
+                    size: L,
+                    startIndex: k
+                  }), B.push({
+                    endIndex: k + 1 + q - 1,
+                    size: O,
+                    startIndex: k + 1
+                  }), D2++, V += q + 1;
+                }
+                const J = _t(d.sizeTree);
+                return V !== h && J.shift(), J.reduce(
+                  (k, { k: q, v: st }) => {
+                    let dt = k.ranges;
+                    return k.prevSize !== 0 && (dt = [
+                      ...k.ranges,
+                      {
+                        endIndex: q + h - 1,
+                        size: k.prevSize,
+                        startIndex: k.prevIndex
+                      }
+                    ]), {
+                      prevIndex: q + h,
+                      prevSize: st,
+                      ranges: dt
+                    };
+                  },
+                  {
+                    prevIndex: h,
+                    prevSize: 0,
+                    ranges: B
+                  }
+                ).ranges;
+              }
+              return _t(d.sizeTree).reduce(
+                (L, { k: V, v: D2 }) => ({
+                  prevIndex: V + h,
+                  prevSize: D2,
+                  ranges: [...L.ranges, { endIndex: V + h - 1, size: L.prevSize, startIndex: L.prevIndex }]
+                }),
+                {
+                  prevIndex: 0,
+                  prevSize: O,
+                  ranges: []
+                }
+              ).ranges;
+            })
+          ),
+          n
+        );
+        const b = pt(
+          x$1(
+            i2,
+            G(I, m),
+            E(([h, { offsetTree: d }, R]) => {
+              const B = -h;
+              return ie$2(B, d, R);
+            })
+          )
+        );
+        return F(
+          x$1(
+            i2,
+            G(I, m),
+            E(([h, d, R]) => {
+              if (d.groupIndices.length > 0) {
+                if (j(d.sizeTree))
+                  return d;
+                let O = Ut();
+                const L = lt(C2);
+                let V = 0, D2 = 0, J = 0;
+                for (; V < -h; ) {
+                  J = L[D2];
+                  const k = L[D2 + 1] - J - 1;
+                  D2++, V += k + 1;
+                }
+                if (O = _t(d.sizeTree).reduce((k, { k: q, v: st }) => mt(k, Math.max(0, q + h), st), O), V !== -h) {
+                  const k = re(d.sizeTree, J);
+                  O = mt(O, 0, k);
+                  const q = Ct(d.sizeTree, -h + 1)[1];
+                  O = mt(O, 1, q);
+                }
+                return {
+                  ...d,
+                  sizeTree: O,
+                  ...Pe(d.offsetTree, 0, O, R)
+                };
+              } else {
+                const O = _t(d.sizeTree).reduce((L, { k: V, v: D2 }) => mt(L, Math.max(0, V + h), D2), Ut());
+                return {
+                  ...d,
+                  sizeTree: O,
+                  ...Pe(d.offsetTree, 0, O, R)
+                };
+              }
+            })
+          ),
+          I
+        ), {
+          beforeUnshiftWith: T2,
+          // input
+          data: p,
+          defaultItemSize: f,
+          firstItemIndex: l,
+          fixedItemSize: u,
+          gap: m,
+          groupIndices: c2,
+          itemSize: S2,
+          listRefresh: a,
+          shiftWith: i2,
+          shiftWithOffset: b,
+          sizeRanges: n,
+          // output
+          sizes: I,
+          statefulTotalCount: r2,
+          totalCount: o,
+          trackItemSizes: g,
+          unshiftWith: s
+        };
+      },
+      X(Vt$1, Ne),
+      { singleton: true }
+    );
+    function Oo(t2) {
+      return t2.reduce(
+        (e, n) => (e.groupIndices.push(e.totalCount), e.totalCount += n + 1, e),
+        {
+          groupIndices: [],
+          totalCount: 0
+        }
+      );
+    }
+    const Gn = U(
+      ([{ groupIndices: t2, sizes: e, totalCount: n }, { headerHeight: o, scrollTop: r2 }]) => {
+        const s = $(), i2 = $(), l = pt(x$1(s, E(Oo)));
+        return F(
+          x$1(
+            l,
+            E((c2) => c2.totalCount)
+          ),
+          n
+        ), F(
+          x$1(
+            l,
+            E((c2) => c2.groupIndices)
+          ),
+          t2
+        ), F(
+          x$1(
+            rt(r2, e, o),
+            P(([c2, u]) => be(u)),
+            E(([c2, u, f]) => Ct(u.groupOffsetTree, Math.max(c2 - f, 0), "v")[0]),
+            Y(),
+            E((c2) => [c2])
+          ),
+          i2
+        ), { groupCounts: s, topItemsIndexes: i2 };
+      },
+      X(Et, at)
+    ), Pt = U(
+      ([{ log: t2 }]) => {
+        const e = y(false), n = pt(
+          x$1(
+            e,
+            P((o) => o),
+            Y()
+          )
+        );
+        return K(e, (o) => {
+          o && lt(t2)("props updated", {}, ht.DEBUG);
+        }), { didMount: n, propsReady: e };
+      },
+      X(Vt$1),
+      { singleton: true }
+    ), Fo = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
+    function Nn(t2) {
+      const e = typeof t2 == "number" ? { index: t2 } : t2;
+      return e.align || (e.align = "start"), (!e.behavior || !Fo) && (e.behavior = "auto"), e.offset || (e.offset = 0), e;
+    }
+    const ce = U(
+      ([
+        { gap: t2, listRefresh: e, sizes: n, totalCount: o },
+        {
+          fixedFooterHeight: r2,
+          fixedHeaderHeight: s,
+          footerHeight: i2,
+          headerHeight: l,
+          scrollingInProgress: c2,
+          scrollTo: u,
+          smoothScrollTargetReached: f,
+          viewportHeight: S2
+        },
+        { log: p }
+      ]) => {
+        const m = $(), w = $(), I = y(0);
+        let C2 = null, g = null, a = null;
+        function T2() {
+          C2 && (C2(), C2 = null), a && (a(), a = null), g && (clearTimeout(g), g = null), W(c2, false);
+        }
+        return F(
+          x$1(
+            m,
+            G(n, S2, o, I, l, i2, p),
+            G(t2, s, r2),
+            E(
+              ([
+                [b, h, d, R, B, O, L, V],
+                D2,
+                J,
+                nt
+              ]) => {
+                const k = Nn(b), { align: q, behavior: st, offset: dt } = k, St = R - 1, ft = _n(k, h, St);
+                let ut = ie$2(ft, h.offsetTree, D2) + O;
+                q === "end" ? (ut += J + Ct(h.sizeTree, ft)[1] - d + nt, ft === St && (ut += L)) : q === "center" ? ut += (J + Ct(h.sizeTree, ft)[1] - d + nt) / 2 : ut -= B, dt && (ut += dt);
+                const At = (xt) => {
+                  T2(), xt ? (V("retrying to scroll to", { location: b }, ht.DEBUG), W(m, b)) : (W(w, true), V("list did not change, scroll successful", {}, ht.DEBUG));
+                };
+                if (T2(), st === "smooth") {
+                  let xt = false;
+                  a = K(e, (Xt) => {
+                    xt = xt || Xt;
+                  }), C2 = Rt(f, () => {
+                    At(xt);
+                  });
+                } else
+                  C2 = Rt(x$1(e, Lo(150)), At);
+                return g = setTimeout(() => {
+                  T2();
+                }, 1200), W(c2, true), V("scrolling from index to", { behavior: st, index: ft, top: ut }, ht.DEBUG), { behavior: st, top: ut };
+              }
+            )
+          ),
+          u
+        ), {
+          scrollTargetReached: w,
+          scrollToIndex: m,
+          topListHeight: I
+        };
+      },
+      X(Et, at, Vt$1),
+      { singleton: true }
+    );
+    function Lo(t2) {
+      return (e) => {
+        const n = setTimeout(() => {
+          e(false);
+        }, t2);
+        return (o) => {
+          o && (e(true), clearTimeout(n));
+        };
+      };
+    }
+    function $e(t2, e) {
+      t2 == 0 ? e() : requestAnimationFrame(() => {
+        $e(t2 - 1, e);
+      });
+    }
+    function Ue(t2, e) {
+      const n = e - 1;
+      return typeof t2 == "number" ? t2 : t2.index === "LAST" ? n : t2.index;
+    }
+    const ue = U(
+      ([{ defaultItemSize: t2, listRefresh: e, sizes: n }, { scrollTop: o }, { scrollTargetReached: r2, scrollToIndex: s }, { didMount: i2 }]) => {
+        const l = y(true), c2 = y(0), u = y(true);
+        return F(
+          x$1(
+            i2,
+            G(c2),
+            P(([f, S2]) => !!S2),
+            vt$1(false)
+          ),
+          l
+        ), F(
+          x$1(
+            i2,
+            G(c2),
+            P(([f, S2]) => !!S2),
+            vt$1(false)
+          ),
+          u
+        ), K(
+          x$1(
+            rt(e, i2),
+            G(l, n, t2, u),
+            P(([[, f], S2, { sizeTree: p }, m, w]) => f && (!j(p) || Me(m)) && !S2 && !w),
+            G(c2)
+          ),
+          ([, f]) => {
+            Rt(r2, () => {
+              W(u, true);
+            }), $e(4, () => {
+              Rt(o, () => {
+                W(l, true);
+              }), W(s, f);
+            });
+          }
+        ), {
+          initialItemFinalLocationReached: u,
+          initialTopMostItemIndex: c2,
+          scrolledToInitialItem: l
+        };
+      },
+      X(Et, at, ce, Pt),
+      { singleton: true }
+    );
+    function Dn(t2, e) {
+      return Math.abs(t2 - e) < 1.01;
+    }
+    const le = "up", te = "down", zo = "none", Vo = {
+      atBottom: false,
+      notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
+      state: {
+        offsetBottom: 0,
+        scrollHeight: 0,
+        scrollTop: 0,
+        viewportHeight: 0
+      }
+    }, Po = 0, ae = U(([{ footerHeight: t2, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r2, viewportHeight: s }]) => {
+      const i2 = y(false), l = y(true), c2 = $(), u = $(), f = y(4), S2 = y(Po), p = ct(
+        x$1(
+          an(x$1(A(r2), jt(1), vt$1(true)), x$1(A(r2), jt(1), vt$1(false), un(100))),
+          Y()
+        ),
+        false
+      ), m = ct(
+        x$1(an(x$1(n, vt$1(true)), x$1(n, vt$1(false), un(200))), Y()),
+        false
+      );
+      F(
+        x$1(
+          rt(A(r2), A(S2)),
+          E(([a, T2]) => a <= T2),
+          Y()
+        ),
+        l
+      ), F(x$1(l, Lt(50)), u);
+      const w = pt(
+        x$1(
+          rt(o, A(s), A(e), A(t2), A(f)),
+          bt((a, [{ scrollHeight: T2, scrollTop: b }, h, d, R, B]) => {
+            const O = b + h - T2 > -B, L = {
+              scrollHeight: T2,
+              scrollTop: b,
+              viewportHeight: h
+            };
+            if (O) {
+              let D2, J;
+              return b > a.state.scrollTop ? (D2 = "SCROLLED_DOWN", J = a.state.scrollTop - b) : (D2 = "SIZE_DECREASED", J = a.state.scrollTop - b || a.scrollTopDelta), {
+                atBottom: true,
+                atBottomBecause: D2,
+                scrollTopDelta: J,
+                state: L
+              };
+            }
+            let V;
+            return L.scrollHeight > a.state.scrollHeight ? V = "SIZE_INCREASED" : h < a.state.viewportHeight ? V = "VIEWPORT_HEIGHT_DECREASING" : b < a.state.scrollTop ? V = "SCROLLING_UPWARDS" : V = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM", {
+              atBottom: false,
+              notAtBottomBecause: V,
+              state: L
+            };
+          }, Vo),
+          Y((a, T2) => a && a.atBottom === T2.atBottom)
+        )
+      ), I = ct(
+        x$1(
+          o,
+          bt(
+            (a, { scrollHeight: T2, scrollTop: b, viewportHeight: h }) => {
+              if (Dn(a.scrollHeight, T2))
+                return {
+                  changed: false,
+                  jump: 0,
+                  scrollHeight: T2,
+                  scrollTop: b
+                };
+              {
+                const d = T2 - (b + h) < 1;
+                return a.scrollTop !== b && d ? {
+                  changed: true,
+                  jump: a.scrollTop - b,
+                  scrollHeight: T2,
+                  scrollTop: b
+                } : {
+                  changed: true,
+                  jump: 0,
+                  scrollHeight: T2,
+                  scrollTop: b
+                };
+              }
+            },
+            { changed: false, jump: 0, scrollHeight: 0, scrollTop: 0 }
+          ),
+          P((a) => a.changed),
+          E((a) => a.jump)
+        ),
+        0
+      );
+      F(
+        x$1(
+          w,
+          E((a) => a.atBottom)
+        ),
+        i2
+      ), F(x$1(i2, Lt(50)), c2);
+      const C2 = y(te);
+      F(
+        x$1(
+          o,
+          E(({ scrollTop: a }) => a),
+          Y(),
+          bt(
+            (a, T2) => lt(m) ? { direction: a.direction, prevScrollTop: T2 } : { direction: T2 < a.prevScrollTop ? le : te, prevScrollTop: T2 },
+            { direction: te, prevScrollTop: 0 }
+          ),
+          E((a) => a.direction)
+        ),
+        C2
+      ), F(x$1(o, Lt(50), vt$1(zo)), C2);
+      const g = y(0);
+      return F(
+        x$1(
+          p,
+          P((a) => !a),
+          vt$1(0)
+        ),
+        g
+      ), F(
+        x$1(
+          r2,
+          Lt(100),
+          G(p),
+          P(([a, T2]) => !!T2),
+          bt(([a, T2], [b]) => [T2, b], [0, 0]),
+          E(([a, T2]) => T2 - a)
+        ),
+        g
+      ), {
+        atBottomState: w,
+        atBottomStateChange: c2,
+        atBottomThreshold: f,
+        atTopStateChange: u,
+        atTopThreshold: S2,
+        isAtBottom: i2,
+        isAtTop: l,
+        isScrolling: p,
+        lastJumpDueToItemResize: I,
+        scrollDirection: C2,
+        scrollVelocity: g
+      };
+    }, X(at)), xe = "top", Te = "bottom", pn = "none";
+    function hn(t2, e, n) {
+      return typeof t2 == "number" ? n === le && e === xe || n === te && e === Te ? t2 : 0 : n === le ? e === xe ? t2.main : t2.reverse : e === Te ? t2.main : t2.reverse;
+    }
+    function gn(t2, e) {
+      var n;
+      return typeof t2 == "number" ? t2 : (n = t2[e]) != null ? n : 0;
+    }
+    const Ke = U(
+      ([{ deviation: t2, fixedHeaderHeight: e, headerHeight: n, scrollTop: o, viewportHeight: r2 }]) => {
+        const s = $(), i2 = y(0), l = y(0), c2 = y(0), u = ct(
+          x$1(
+            rt(
+              A(o),
+              A(r2),
+              A(n),
+              A(s, se),
+              A(c2),
+              A(i2),
+              A(e),
+              A(t2),
+              A(l)
+            ),
+            E(
+              ([
+                f,
+                S2,
+                p,
+                [m, w],
+                I,
+                C2,
+                g,
+                a,
+                T2
+              ]) => {
+                const b = f - a, h = C2 + g, d = Math.max(p - b, 0);
+                let R = pn;
+                const B = gn(T2, xe), O = gn(T2, Te);
+                return m -= a, m += p + g, w += p + g, w -= a, m > f + h - B && (R = le), w < f - d + S2 + O && (R = te), R !== pn ? [
+                  Math.max(b - p - hn(I, xe, R) - B, 0),
+                  b - d - g + S2 + hn(I, Te, R) + O
+                ] : null;
+              }
+            ),
+            P((f) => f != null),
+            Y(se)
+          ),
+          [0, 0]
+        );
+        return {
+          increaseViewportBy: l,
+          // input
+          listBoundary: s,
+          overscan: c2,
+          topListHeight: i2,
+          // output
+          visibleRange: u
+        };
+      },
+      X(at),
+      { singleton: true }
+    );
+    function Ao(t2, e, n) {
+      if (be(e)) {
+        const o = Wn(t2, e);
+        return [
+          { index: Ct(e.groupOffsetTree, o)[0], offset: 0, size: 0 },
+          { data: n == null ? void 0 : n[0], index: o, offset: 0, size: 0 }
+        ];
+      }
+      return [{ data: n == null ? void 0 : n[0], index: t2, offset: 0, size: 0 }];
+    }
+    const ke = {
+      bottom: 0,
+      firstItemIndex: 0,
+      items: [],
+      offsetBottom: 0,
+      offsetTop: 0,
+      top: 0,
+      topItems: [],
+      topListHeight: 0,
+      totalCount: 0
+    };
+    function Ie(t2, e, n, o, r2, s) {
+      const { lastIndex: i2, lastOffset: l, lastSize: c2 } = r2;
+      let u = 0, f = 0;
+      if (t2.length > 0) {
+        u = t2[0].offset;
+        const I = t2[t2.length - 1];
+        f = I.offset + I.size;
+      }
+      const S2 = n - i2, p = l + S2 * c2 + (S2 - 1) * o, m = u, w = p - f;
+      return {
+        bottom: f,
+        firstItemIndex: s,
+        items: In(t2, r2, s),
+        offsetBottom: w,
+        offsetTop: u,
+        top: m,
+        topItems: In(e, r2, s),
+        topListHeight: e.reduce((I, C2) => C2.size + I, 0),
+        totalCount: n
+      };
+    }
+    function $n(t2, e, n, o, r2, s) {
+      let i2 = 0;
+      if (n.groupIndices.length > 0)
+        for (const f of n.groupIndices) {
+          if (f - i2 >= t2)
+            break;
+          i2++;
+        }
+      const l = t2 + i2, c2 = Ue(e, l), u = Array.from({ length: l }).map((f, S2) => ({
+        data: s[S2 + c2],
+        index: S2 + c2,
+        offset: 0,
+        size: 0
+      }));
+      return Ie(u, [], l, r2, n, o);
+    }
+    function In(t2, e, n) {
+      if (t2.length === 0)
+        return [];
+      if (!be(e))
+        return t2.map((u) => ({ ...u, index: u.index + n, originalIndex: u.index }));
+      const o = t2[0].index, r2 = t2[t2.length - 1].index, s = [], i2 = ve(e.groupOffsetTree, o, r2);
+      let l, c2 = 0;
+      for (const u of t2) {
+        (!l || l.end < u.index) && (l = i2.shift(), c2 = e.groupIndices.indexOf(l.start));
+        let f;
+        u.index === l.start ? f = {
+          index: c2,
+          type: "group"
+        } : f = {
+          groupIndex: c2,
+          index: u.index - (c2 + 1) + n
+        }, s.push({
+          ...f,
+          data: u.data,
+          offset: u.offset,
+          originalIndex: u.index,
+          size: u.size
+        });
+      }
+      return s;
+    }
+    const Gt = U(
+      ([
+        { data: t2, firstItemIndex: e, gap: n, sizes: o, totalCount: r2 },
+        s,
+        { listBoundary: i2, topListHeight: l, visibleRange: c2 },
+        { initialTopMostItemIndex: u, scrolledToInitialItem: f },
+        { topListHeight: S2 },
+        p,
+        { didMount: m },
+        { recalcInProgress: w }
+      ]) => {
+        const I = y([]), C2 = y(0), g = $();
+        F(s.topItemsIndexes, I);
+        const a = ct(
+          x$1(
+            rt(
+              m,
+              w,
+              A(c2, se),
+              A(r2),
+              A(o),
+              A(u),
+              f,
+              A(I),
+              A(e),
+              A(n),
+              t2
+            ),
+            P(([d, R, , B, , , , , , , O]) => {
+              const L = O && O.length !== B;
+              return d && !R && !L;
+            }),
+            E(
+              ([
+                ,
+                ,
+                [d, R],
+                B,
+                O,
+                L,
+                V,
+                D2,
+                J,
+                nt,
+                k
+              ]) => {
+                const q = O, { offsetTree: st, sizeTree: dt } = q, St = lt(C2);
+                if (B === 0)
+                  return { ...ke, totalCount: B };
+                if (d === 0 && R === 0)
+                  return St === 0 ? { ...ke, totalCount: B } : $n(St, L, O, J, nt, k || []);
+                if (j(dt))
+                  return St > 0 ? null : Ie(
+                    Ao(Ue(L, B), q, k),
+                    [],
+                    B,
+                    nt,
+                    q,
+                    J
+                  );
+                const ft = [];
+                if (D2.length > 0) {
+                  const Mt = D2[0], yt = D2[D2.length - 1];
+                  let kt = 0;
+                  for (const v of ve(dt, Mt, yt)) {
+                    const N = v.value, Q = Math.max(v.start, Mt), it = Math.min(v.end, yt);
+                    for (let tt = Q; tt <= it; tt++)
+                      ft.push({ data: k == null ? void 0 : k[tt], index: tt, offset: kt, size: N }), kt += N;
+                  }
+                }
+                if (!V)
+                  return Ie([], ft, B, nt, q, J);
+                const ut = D2.length > 0 ? D2[D2.length - 1] + 1 : 0, At = bo(st, d, R, ut);
+                if (At.length === 0)
+                  return null;
+                const xt = B - 1, Xt = ye([], (Mt) => {
+                  for (const yt of At) {
+                    const kt = yt.value;
+                    let v = kt.offset, N = yt.start;
+                    const Q = kt.size;
+                    if (kt.offset < d) {
+                      N += Math.floor((d - kt.offset + nt) / (Q + nt));
+                      const tt = N - yt.start;
+                      v += tt * Q + tt * nt;
+                    }
+                    N < ut && (v += (ut - N) * Q, N = ut);
+                    const it = Math.min(yt.end, xt);
+                    for (let tt = N; tt <= it && !(v >= R); tt++)
+                      Mt.push({ data: k == null ? void 0 : k[tt], index: tt, offset: v, size: Q }), v += Q + nt;
+                  }
+                });
+                return Ie(Xt, ft, B, nt, q, J);
+              }
+            ),
+            //@ts-expect-error filter needs to be fixed
+            P((d) => d !== null),
+            Y()
+          ),
+          ke
+        );
+        F(
+          x$1(
+            t2,
+            P(Me),
+            E((d) => d == null ? void 0 : d.length)
+          ),
+          r2
+        ), F(
+          x$1(
+            a,
+            E((d) => d.topListHeight)
+          ),
+          S2
+        ), F(S2, l), F(
+          x$1(
+            a,
+            E((d) => [d.top, d.bottom])
+          ),
+          i2
+        ), F(
+          x$1(
+            a,
+            E((d) => d.items)
+          ),
+          g
+        );
+        const T2 = pt(
+          x$1(
+            a,
+            P(({ items: d }) => d.length > 0),
+            G(r2, t2),
+            P(([{ items: d }, R]) => d[d.length - 1].originalIndex === R - 1),
+            E(([, d, R]) => [d - 1, R]),
+            Y(se),
+            E(([d]) => d)
+          )
+        ), b = pt(
+          x$1(
+            a,
+            Lt(200),
+            P(({ items: d, topItems: R }) => d.length > 0 && d[0].originalIndex === R.length),
+            E(({ items: d }) => d[0].index),
+            Y()
+          )
+        ), h = pt(
+          x$1(
+            a,
+            P(({ items: d }) => d.length > 0),
+            E(({ items: d }) => {
+              let R = 0, B = d.length - 1;
+              for (; d[R].type === "group" && R < B; )
+                R++;
+              for (; d[B].type === "group" && B > R; )
+                B--;
+              return {
+                endIndex: d[B].index,
+                startIndex: d[R].index
+              };
+            }),
+            Y(An)
+          )
+        );
+        return { endReached: T2, initialItemCount: C2, itemsRendered: g, listState: a, rangeChanged: h, startReached: b, topItemsIndexes: I, ...p };
+      },
+      X(
+        Et,
+        Gn,
+        Ke,
+        ue,
+        ce,
+        ae,
+        Pt,
+        Ne
+      ),
+      { singleton: true }
+    ), Un = U(
+      ([{ fixedFooterHeight: t2, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r2 }]) => {
+        const s = $(), i2 = ct(
+          x$1(
+            rt(n, t2, o, e, r2),
+            E(([l, c2, u, f, S2]) => l + c2 + u + f + S2.offsetBottom + S2.bottom)
+          ),
+          0
+        );
+        return F(A(i2), s), { totalListHeight: i2, totalListHeightChanged: s };
+      },
+      X(at, Gt),
+      { singleton: true }
+    ), Mo = U(
+      ([{ viewportHeight: t2 }, { totalListHeight: e }]) => {
+        const n = y(false), o = ct(
+          x$1(
+            rt(n, t2, e),
+            P(([r2]) => r2),
+            E(([, r2, s]) => Math.max(0, r2 - s)),
+            Lt(0),
+            Y()
+          ),
+          0
+        );
+        return { alignToBottom: n, paddingTopAddition: o };
+      },
+      X(at, Un),
+      { singleton: true }
+    );
+    function Sn(t2) {
+      return t2 ? t2 === "smooth" ? "smooth" : "auto" : false;
+    }
+    const Wo = (t2, e) => typeof t2 == "function" ? Sn(t2(e)) : e && Sn(t2), _o = U(
+      ([
+        { listRefresh: t2, totalCount: e },
+        { atBottomState: n, isAtBottom: o },
+        { scrollToIndex: r2 },
+        { scrolledToInitialItem: s },
+        { didMount: i2, propsReady: l },
+        { log: c2 },
+        { scrollingInProgress: u }
+      ]) => {
+        const f = y(false), S2 = $();
+        let p = null;
+        function m(I) {
+          W(r2, {
+            align: "end",
+            behavior: I,
+            index: "LAST"
+          });
+        }
+        K(
+          x$1(
+            rt(x$1(A(e), jt(1)), i2),
+            G(A(f), o, s, u),
+            E(([[I, C2], g, a, T2, b]) => {
+              let h = C2 && T2, d = "auto";
+              return h && (d = Wo(g, a || b), h = h && !!d), { followOutputBehavior: d, shouldFollow: h, totalCount: I };
+            }),
+            P(({ shouldFollow: I }) => I)
+          ),
+          ({ followOutputBehavior: I, totalCount: C2 }) => {
+            p && (p(), p = null), p = Rt(t2, () => {
+              lt(c2)("following output to ", { totalCount: C2 }, ht.DEBUG), m(I), p = null;
+            });
+          }
+        );
+        function w(I) {
+          const C2 = Rt(n, (g) => {
+            I && !g.atBottom && g.notAtBottomBecause === "SIZE_INCREASED" && !p && (lt(c2)("scrolling to bottom due to increased size", {}, ht.DEBUG), m("auto"));
+          });
+          setTimeout(C2, 100);
+        }
+        return K(
+          x$1(
+            rt(A(f), e, l),
+            P(([I, , C2]) => I && C2),
+            bt(
+              ({ value: I }, [, C2]) => ({ refreshed: I === C2, value: C2 }),
+              { refreshed: false, value: 0 }
+            ),
+            P(({ refreshed: I }) => I),
+            G(f, e)
+          ),
+          ([, I]) => {
+            lt(s) && w(I !== false);
+          }
+        ), K(S2, () => {
+          w(lt(f) !== false);
+        }), K(rt(A(f), n), ([I, C2]) => {
+          I && !C2.atBottom && C2.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING" && m("auto");
+        }), { autoscrollToBottom: S2, followOutput: f };
+      },
+      X(Et, ae, ce, ue, Pt, Vt$1, at)
+    ), Go = U(
+      ([{ data: t2, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r2 }, { initialItemCount: s, listState: i2 }, { didMount: l }]) => (F(
+        x$1(
+          l,
+          G(s),
+          P(([, c2]) => c2 !== 0),
+          G(r2, o, e, n, t2),
+          E(([[, c2], u, f, S2, p, m = []]) => $n(c2, u, f, S2, p, m))
+        ),
+        i2
+      ), {}),
+      X(Et, ue, Gt, Pt),
+      { singleton: true }
+    ), No = U(
+      ([{ didMount: t2 }, { scrollTo: e }, { listState: n }]) => {
+        const o = y(0);
+        return K(
+          x$1(
+            t2,
+            G(o),
+            P(([, r2]) => r2 !== 0),
+            E(([, r2]) => ({ top: r2 }))
+          ),
+          (r2) => {
+            Rt(
+              x$1(
+                n,
+                jt(1),
+                P((s) => s.items.length > 1)
+              ),
+              () => {
+                requestAnimationFrame(() => {
+                  W(e, r2);
+                });
+              }
+            );
+          }
+        ), {
+          initialScrollTop: o
+        };
+      },
+      X(Pt, at, Gt),
+      { singleton: true }
+    ), Do = ({
+      itemBottom: t2,
+      itemTop: e,
+      locationParams: { align: n, behavior: o, ...r2 },
+      viewportBottom: s,
+      viewportTop: i2
+    }) => e < i2 ? { ...r2, align: n != null ? n : "start", behavior: o } : t2 > s ? { ...r2, align: n != null ? n : "end", behavior: o } : null, $o = U(
+      ([
+        { gap: t2, sizes: e, totalCount: n },
+        { fixedFooterHeight: o, fixedHeaderHeight: r2, headerHeight: s, scrollingInProgress: i2, scrollTop: l, viewportHeight: c2 },
+        { scrollToIndex: u }
+      ]) => {
+        const f = $();
+        return F(
+          x$1(
+            f,
+            G(e, c2, n, s, r2, o, l),
+            G(t2),
+            E(([[S2, p, m, w, I, C2, g, a], T2]) => {
+              const { align: b, behavior: h, calculateViewLocation: d = Do, done: R, ...B } = S2, O = _n(S2, p, w - 1), L = ie$2(O, p.offsetTree, T2) + I + C2, V = L + Ct(p.sizeTree, O)[1], D2 = a + C2, J = a + m - g, nt = d({
+                itemBottom: V,
+                itemTop: L,
+                locationParams: { align: b, behavior: h, ...B },
+                viewportBottom: J,
+                viewportTop: D2
+              });
+              return nt ? R && Rt(
+                x$1(
+                  i2,
+                  P((k) => !k),
+                  // skips the initial publish of false, and the cleanup call.
+                  // but if scrollingInProgress is true, we skip the initial publish.
+                  jt(lt(i2) ? 1 : 2)
+                ),
+                R
+              ) : R && R(), nt;
+            }),
+            P((S2) => S2 !== null)
+          ),
+          u
+        ), {
+          scrollIntoView: f
+        };
+      },
+      X(Et, at, ce, Gt, Vt$1),
+      { singleton: true }
+    ), Kn = U(
+      ([{ scrollVelocity: t2 }]) => {
+        const e = y(false), n = $(), o = y(false);
+        return F(
+          x$1(
+            t2,
+            G(o, e, n),
+            P(([r2, s]) => !!s),
+            E(([r2, s, i2, l]) => {
+              const { enter: c2, exit: u } = s;
+              if (i2) {
+                if (u(r2, l))
+                  return false;
+              } else if (c2(r2, l))
+                return true;
+              return i2;
+            }),
+            Y()
+          ),
+          e
+        ), K(
+          x$1(rt(e, t2, n), G(o)),
+          ([[r2, s, i2], l]) => {
+            r2 && l && l.change && l.change(s, i2);
+          }
+        ), { isSeeking: e, scrollSeekConfiguration: o, scrollSeekRangeChanged: n, scrollVelocity: t2 };
+      },
+      X(ae),
+      { singleton: true }
+    ), je = U(([{ scrollContainerState: t2, scrollTo: e }]) => {
+      const n = $(), o = $(), r2 = $(), s = y(false), i2 = y(void 0);
+      return F(
+        x$1(
+          rt(n, o),
+          E(([{ scrollHeight: l, scrollTop: c2, viewportHeight: u }, { offsetTop: f }]) => ({
+            scrollHeight: l,
+            scrollTop: Math.max(0, c2 - f),
+            viewportHeight: u
+          }))
+        ),
+        t2
+      ), F(
+        x$1(
+          e,
+          G(o),
+          E(([l, { offsetTop: c2 }]) => ({
+            ...l,
+            top: l.top + c2
+          }))
+        ),
+        r2
+      ), {
+        customScrollParent: i2,
+        // config
+        useWindowScroll: s,
+        // input
+        windowScrollContainerState: n,
+        // signals
+        windowScrollTo: r2,
+        windowViewportRect: o
+      };
+    }, X(at)), Uo = U(
+      ([
+        { sizeRanges: t2, sizes: e },
+        { headerHeight: n, scrollTop: o },
+        { initialTopMostItemIndex: r2 },
+        { didMount: s },
+        { useWindowScroll: i2, windowScrollContainerState: l, windowViewportRect: c2 }
+      ]) => {
+        const u = $(), f = y(void 0), S2 = y(null), p = y(null);
+        return F(l, S2), F(c2, p), K(
+          x$1(
+            u,
+            G(e, o, i2, S2, p, n)
+          ),
+          ([m, w, I, C2, g, a, T2]) => {
+            const b = Ho(w.sizeTree);
+            C2 && g !== null && a !== null && (I = g.scrollTop - a.offsetTop), I -= T2, m({ ranges: b, scrollTop: I });
+          }
+        ), F(x$1(f, P(Me), E(Ko)), r2), F(
+          x$1(
+            s,
+            G(f),
+            P(([, m]) => m !== void 0),
+            Y(),
+            E(([, m]) => m.ranges)
+          ),
+          t2
+        ), {
+          getState: u,
+          restoreStateFrom: f
+        };
+      },
+      X(Et, at, ue, Pt, je)
+    );
+    function Ko(t2) {
+      return { align: "start", index: 0, offset: t2.scrollTop };
+    }
+    const jo = U(([{ topItemsIndexes: t2 }]) => {
+      const e = y(0);
+      return F(
+        x$1(
+          e,
+          P((n) => n >= 0),
+          E((n) => Array.from({ length: n }).map((o, r2) => r2))
+        ),
+        t2
+      ), { topItemCount: e };
+    }, X(Gt));
+    function jn(t2) {
+      let e = false, n;
+      return () => (e || (e = true, n = t2()), n);
+    }
+    const qo = jn(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent)), Yo = U(
+      ([
+        { deviation: t2, scrollBy: e, scrollingInProgress: n, scrollTop: o },
+        { isAtBottom: r2, isScrolling: s, lastJumpDueToItemResize: i2, scrollDirection: l },
+        { listState: c2 },
+        { beforeUnshiftWith: u, gap: f, shiftWithOffset: S2, sizes: p },
+        { log: m },
+        { recalcInProgress: w }
+      ]) => {
+        const I = pt(
+          x$1(
+            c2,
+            G(i2),
+            bt(
+              ([, g, a, T2], [{ bottom: b, items: h, offsetBottom: d, totalCount: R }, B]) => {
+                const O = b + d;
+                let L = 0;
+                return a === R && g.length > 0 && h.length > 0 && (h[0].originalIndex === 0 && g[0].originalIndex === 0 || (L = O - T2, L !== 0 && (L += B))), [L, h, R, O];
+              },
+              [0, [], 0, 0]
+            ),
+            P(([g]) => g !== 0),
+            G(o, l, n, r2, m, w),
+            P(([, g, a, T2, , , b]) => !b && !T2 && g !== 0 && a === le),
+            E(([[g], , , , , a]) => (a("Upward scrolling compensation", { amount: g }, ht.DEBUG), g))
+          )
+        );
+        function C2(g) {
+          g > 0 ? (W(e, { behavior: "auto", top: -g }), W(t2, 0)) : (W(t2, 0), W(e, { behavior: "auto", top: -g }));
+        }
+        return K(x$1(I, G(t2, s)), ([g, a, T2]) => {
+          T2 && qo() ? W(t2, a - g) : C2(-g);
+        }), K(
+          x$1(
+            rt(ct(s, false), t2, w),
+            P(([g, a, T2]) => !g && !T2 && a !== 0),
+            E(([g, a]) => a),
+            Lt(1)
+          ),
+          C2
+        ), F(
+          x$1(
+            S2,
+            E((g) => ({ top: -g }))
+          ),
+          e
+        ), K(
+          x$1(
+            u,
+            G(p, f),
+            E(([g, { groupIndices: a, lastSize: T2, sizeTree: b }, h]) => {
+              function d(R) {
+                return R * (T2 + h);
+              }
+              if (a.length === 0)
+                return d(g);
+              {
+                let R = 0;
+                const B = re(b, 0);
+                let O = 0, L = 0;
+                for (; O < g; ) {
+                  O++, R += B;
+                  let V = a.length === L + 1 ? 1 / 0 : a[L + 1] - a[L] - 1;
+                  O + V > g && (R -= B, V = g - O + 1), O += V, R += d(V), L++;
+                }
+                return R;
+              }
+            })
+          ),
+          (g) => {
+            W(t2, g), requestAnimationFrame(() => {
+              W(e, { top: g }), requestAnimationFrame(() => {
+                W(t2, 0), W(w, false);
+              });
+            });
+          }
+        ), { deviation: t2 };
+      },
+      X(at, ae, Gt, Et, Vt$1, Ne)
+    ), Zo = U(
+      ([
+        t2,
+        e,
+        n,
+        o,
+        r2,
+        s,
+        i2,
+        l,
+        c2,
+        u
+      ]) => ({
+        ...t2,
+        ...e,
+        ...n,
+        ...o,
+        ...r2,
+        ...s,
+        ...i2,
+        ...l,
+        ...c2,
+        ...u
+      }),
+      X(
+        Ke,
+        Go,
+        Pt,
+        Kn,
+        Un,
+        No,
+        Mo,
+        je,
+        $o,
+        Vt$1
+      )
+    ), qn = U(
+      ([
+        {
+          data: t2,
+          defaultItemSize: e,
+          firstItemIndex: n,
+          fixedItemSize: o,
+          gap: r2,
+          groupIndices: s,
+          itemSize: i2,
+          sizeRanges: l,
+          sizes: c2,
+          statefulTotalCount: u,
+          totalCount: f,
+          trackItemSizes: S2
+        },
+        { initialItemFinalLocationReached: p, initialTopMostItemIndex: m, scrolledToInitialItem: w },
+        I,
+        C2,
+        g,
+        { listState: a, topItemsIndexes: T2, ...b },
+        { scrollToIndex: h },
+        d,
+        { topItemCount: R },
+        { groupCounts: B },
+        O
+      ]) => (F(b.rangeChanged, O.scrollSeekRangeChanged), F(
+        x$1(
+          O.windowViewportRect,
+          E((L) => L.visibleHeight)
+        ),
+        I.viewportHeight
+      ), {
+        data: t2,
+        defaultItemHeight: e,
+        firstItemIndex: n,
+        fixedItemHeight: o,
+        gap: r2,
+        groupCounts: B,
+        initialItemFinalLocationReached: p,
+        initialTopMostItemIndex: m,
+        scrolledToInitialItem: w,
+        sizeRanges: l,
+        topItemCount: R,
+        topItemsIndexes: T2,
+        // input
+        totalCount: f,
+        ...g,
+        groupIndices: s,
+        itemSize: i2,
+        listState: a,
+        scrollToIndex: h,
+        // output
+        statefulTotalCount: u,
+        trackItemSizes: S2,
+        // exported from stateFlagsSystem
+        ...b,
+        // the bag of IO from featureGroup1System
+        ...O,
+        ...I,
+        sizes: c2,
+        ...C2
+      }),
+      X(
+        Et,
+        ue,
+        at,
+        Uo,
+        _o,
+        Gt,
+        ce,
+        Yo,
+        jo,
+        Gn,
+        Zo
+      )
+    );
+    function Xo(t2, e) {
+      const n = {}, o = {};
+      let r2 = 0;
+      const s = t2.length;
+      for (; r2 < s; )
+        o[t2[r2]] = 1, r2 += 1;
+      for (const i2 in e)
+        Object.hasOwn(o, i2) || (n[i2] = e[i2]);
+      return n;
+    }
+    const pe = typeof document < "u" ? H.useLayoutEffect : H.useEffect;
+    function qe(t2, e, n) {
+      const o = Object.keys(e.required || {}), r2 = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i2 = Object.keys(e.events || {}), l = H.createContext({});
+      function c2(g, a) {
+        g.propsReady && W(g.propsReady, false);
+        for (const T2 of o) {
+          const b = g[e.required[T2]];
+          W(b, a[T2]);
+        }
+        for (const T2 of r2)
+          if (T2 in a) {
+            const b = g[e.optional[T2]];
+            W(b, a[T2]);
+          }
+        g.propsReady && W(g.propsReady, true);
+      }
+      function u(g) {
+        return s.reduce((a, T2) => (a[T2] = (b) => {
+          const h = g[e.methods[T2]];
+          W(h, b);
+        }, a), {});
+      }
+      function f(g) {
+        return i2.reduce((a, T2) => (a[T2] = mo(g[e.events[T2]]), a), {});
+      }
+      const S2 = H.forwardRef((g, a) => {
+        const { children: T2, ...b } = g, [h] = H.useState(() => ye(ho(t2), (B) => {
+          c2(B, b);
+        })), [d] = H.useState(cn(f, h));
+        pe(() => {
+          for (const B of i2)
+            B in b && K(d[B], b[B]);
+          return () => {
+            Object.values(d).map(We);
+          };
+        }, [b, d, h]), pe(() => {
+          c2(h, b);
+        }), H.useImperativeHandle(a, ln(u(h)));
+        const R = n;
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(l.Provider, { value: h, children: n ? /* @__PURE__ */ jsxRuntimeExports.jsx(R, { ...Xo([...o, ...r2, ...i2], b), children: T2 }) : T2 });
+      }), p = (g) => H.useCallback(kn(W, H.useContext(l)[g]), [g]), m = (g) => {
+        const T2 = H.useContext(l)[g], b = H.useCallback(
+          (h) => K(T2, h),
+          [T2]
+        );
+        return H.useSyncExternalStore(
+          b,
+          () => lt(T2),
+          () => lt(T2)
+        );
+      }, w = (g) => {
+        const T2 = H.useContext(l)[g], [b, h] = H.useState(cn(lt, T2));
+        return pe(
+          () => K(T2, (d) => {
+            d !== b && h(ln(d));
+          }),
+          [T2, b]
+        ), b;
+      }, I = H.version.startsWith("18") ? m : w;
+      return {
+        Component: S2,
+        useEmitter: (g, a) => {
+          const b = H.useContext(l)[g];
+          pe(() => K(b, a), [a, b]);
+        },
+        useEmitterValue: I,
+        usePublisher: p
+      };
+    }
+    const Re = H.createContext(void 0), Yn = H.createContext(void 0), Zn = typeof document < "u" ? H.useLayoutEffect : H.useEffect;
+    function Be(t2) {
+      return "self" in t2;
+    }
+    function Jo(t2) {
+      return "body" in t2;
+    }
+    function Xn(t2, e, n, o = Yt, r2, s) {
+      const i2 = H.useRef(null), l = H.useRef(null), c2 = H.useRef(null), u = H.useCallback(
+        (p) => {
+          let m, w, I;
+          const C2 = p.target;
+          if (Jo(C2) || Be(C2)) {
+            const a = Be(C2) ? C2 : C2.defaultView;
+            I = s ? a.scrollX : a.scrollY, m = s ? a.document.documentElement.scrollWidth : a.document.documentElement.scrollHeight, w = s ? a.innerWidth : a.innerHeight;
+          } else
+            I = s ? C2.scrollLeft : C2.scrollTop, m = s ? C2.scrollWidth : C2.scrollHeight, w = s ? C2.offsetWidth : C2.offsetHeight;
+          const g = () => {
+            t2({
+              scrollHeight: m,
+              scrollTop: Math.max(I, 0),
+              viewportHeight: w
+            });
+          };
+          p.suppressFlushSync ? g() : lo.flushSync(g), l.current !== null && (I === l.current || I <= 0 || I === m - w) && (l.current = null, e(true), c2.current && (clearTimeout(c2.current), c2.current = null));
+        },
+        [t2, e]
+      );
+      H.useEffect(() => {
+        const p = r2 || i2.current;
+        return o(r2 || i2.current), u({ suppressFlushSync: true, target: p }), p.addEventListener("scroll", u, { passive: true }), () => {
+          o(null), p.removeEventListener("scroll", u);
+        };
+      }, [i2, u, n, o, r2]);
+      function f(p) {
+        const m = i2.current;
+        if (!m || (s ? "offsetWidth" in m && m.offsetWidth === 0 : "offsetHeight" in m && m.offsetHeight === 0))
+          return;
+        const w = p.behavior === "smooth";
+        let I, C2, g;
+        Be(m) ? (C2 = Math.max(
+          wt(m.document.documentElement, s ? "width" : "height"),
+          s ? m.document.documentElement.scrollWidth : m.document.documentElement.scrollHeight
+        ), I = s ? m.innerWidth : m.innerHeight, g = s ? window.scrollX : window.scrollY) : (C2 = m[s ? "scrollWidth" : "scrollHeight"], I = wt(m, s ? "width" : "height"), g = m[s ? "scrollLeft" : "scrollTop"]);
+        const a = C2 - I;
+        if (p.top = Math.ceil(Math.max(Math.min(a, p.top), 0)), Dn(I, C2) || p.top === g) {
+          t2({ scrollHeight: C2, scrollTop: g, viewportHeight: I }), w && e(true);
+          return;
+        }
+        w ? (l.current = p.top, c2.current && clearTimeout(c2.current), c2.current = setTimeout(() => {
+          c2.current = null, l.current = null, e(true);
+        }, 1e3)) : l.current = null, s && (p = { behavior: p.behavior, left: p.top }), m.scrollTo(p);
+      }
+      function S2(p) {
+        s && (p = { behavior: p.behavior, left: p.top }), i2.current.scrollBy(p);
+      }
+      return { scrollByCallback: S2, scrollerRef: i2, scrollToCallback: f };
+    }
+    const Oe = "-webkit-sticky", xn = "sticky", Jn = jn(() => {
+      if (typeof document > "u")
+        return xn;
+      const t2 = document.createElement("div");
+      return t2.style.position = Oe, t2.style.position === Oe ? Oe : xn;
+    });
+    function Ye(t2) {
+      return t2;
+    }
+    const Qo = /* @__PURE__ */ U(() => {
+      const t2 = y((c2) => `Item ${c2}`), e = y(null), n = y((c2) => `Group ${c2}`), o = y({}), r2 = y(Ye), s = y("div"), i2 = y(Yt), l = (c2, u = null) => ct(
+        x$1(
+          o,
+          E((f) => f[c2]),
+          Y()
+        ),
+        u
+      );
+      return {
+        components: o,
+        computeItemKey: r2,
+        context: e,
+        EmptyPlaceholder: l("EmptyPlaceholder"),
+        FooterComponent: l("Footer"),
+        GroupComponent: l("Group", "div"),
+        groupContent: n,
+        HeaderComponent: l("Header"),
+        HeaderFooterTag: s,
+        ItemComponent: l("Item", "div"),
+        itemContent: t2,
+        ListComponent: l("List", "div"),
+        ScrollerComponent: l("Scroller", "div"),
+        scrollerRef: i2,
+        ScrollSeekPlaceholder: l("ScrollSeekPlaceholder"),
+        TopItemListComponent: l("TopItemList")
+      };
+    }), tr = /* @__PURE__ */ U(
+      ([t2, e]) => ({ ...t2, ...e }),
+      X(qn, Qo)
+    ), er = ({ height: t2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: t2 } }), nr = { overflowAnchor: "none", position: Jn(), zIndex: 1 }, Qn = { overflowAnchor: "none" }, or = { ...Qn, display: "inline-block", height: "100%" }, Tn = /* @__PURE__ */ H.memo(function({ showTopList: e = false }) {
+      const n = M("listState"), o = gt("sizeRanges"), r2 = M("useWindowScroll"), s = M("customScrollParent"), i2 = gt("windowScrollContainerState"), l = gt("scrollContainerState"), c2 = s || r2 ? i2 : l, u = M("itemContent"), f = M("context"), S2 = M("groupContent"), p = M("trackItemSizes"), m = M("itemSize"), w = M("log"), I = gt("gap"), C2 = M("horizontalDirection"), { callbackRef: g } = On(
+        o,
+        m,
+        p,
+        e ? Yt : c2,
+        w,
+        I,
+        s,
+        C2,
+        M("skipAnimationFrameInResizeObserver")
+      ), [a, T2] = H.useState(0);
+      Je("deviation", (k) => {
+        a !== k && T2(k);
+      });
+      const b = M("EmptyPlaceholder"), h = M("ScrollSeekPlaceholder") || er, d = M("ListComponent"), R = M("ItemComponent"), B = M("GroupComponent"), O = M("computeItemKey"), L = M("isSeeking"), V = M("groupIndices").length > 0, D2 = M("alignToBottom"), J = M("initialItemFinalLocationReached"), nt = e ? {} : {
+        boxSizing: "border-box",
+        ...C2 ? {
+          display: "inline-block",
+          height: "100%",
+          marginLeft: a !== 0 ? a : D2 ? "auto" : 0,
+          paddingLeft: n.offsetTop,
+          paddingRight: n.offsetBottom,
+          whiteSpace: "nowrap"
+        } : {
+          marginTop: a !== 0 ? a : D2 ? "auto" : 0,
+          paddingBottom: n.offsetBottom,
+          paddingTop: n.offsetTop
+        },
+        ...J ? {} : { visibility: "hidden" }
+      };
+      return !e && n.totalCount === 0 && b ? /* @__PURE__ */ jsxRuntimeExports.jsx(b, { ...Z(b, f) }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
+        d,
+        {
+          ...Z(d, f),
+          "data-testid": e ? "virtuoso-top-item-list" : "virtuoso-item-list",
+          ref: g,
+          style: nt,
+          children: (e ? n.topItems : n.items).map((k) => {
+            const q = k.originalIndex, st = O(q + n.firstItemIndex, k.data, f);
+            return L ? /* @__PURE__ */ reactExports.createElement(
+              h,
+              {
+                ...Z(h, f),
+                height: k.size,
+                index: k.index,
+                key: st,
+                type: k.type || "item",
+                ...k.type === "group" ? {} : { groupIndex: k.groupIndex }
+              }
+            ) : k.type === "group" ? /* @__PURE__ */ reactExports.createElement(
+              B,
+              {
+                ...Z(B, f),
+                "data-index": q,
+                "data-item-index": k.index,
+                "data-known-size": k.size,
+                key: st,
+                style: nr
+              },
+              S2(k.index, f)
+            ) : /* @__PURE__ */ reactExports.createElement(
+              R,
+              {
+                ...Z(R, f),
+                ...to(R, k.data),
+                "data-index": q,
+                "data-item-group-index": k.groupIndex,
+                "data-item-index": k.index,
+                "data-known-size": k.size,
+                key: st,
+                style: C2 ? or : Qn
+              },
+              V ? u(k.index, k.groupIndex, k.data, f) : u(k.index, k.data, f)
+            );
+          })
+        }
+      );
+    }), rr = {
+      height: "100%",
+      outline: "none",
+      overflowY: "auto",
+      position: "relative",
+      WebkitOverflowScrolling: "touch"
+    }, sr = {
+      outline: "none",
+      overflowX: "auto",
+      position: "relative"
+    }, Zt = (t2) => ({
+      height: "100%",
+      position: "absolute",
+      top: 0,
+      width: "100%",
+      ...t2 ? { display: "flex", flexDirection: "column" } : {}
+    }), ir = {
+      position: Jn(),
+      top: 0,
+      width: "100%",
+      zIndex: 1
+    };
+    function Z(t2, e) {
+      if (typeof t2 != "string")
+        return { context: e };
+    }
+    function to(t2, e) {
+      return { item: typeof t2 == "string" ? void 0 : e };
+    }
+    const lr = /* @__PURE__ */ H.memo(function() {
+      const e = M("HeaderComponent"), n = gt("headerHeight"), o = M("HeaderFooterTag"), r2 = Ht(
+        H.useMemo(
+          () => (i2) => {
+            n(wt(i2, "height"));
+          },
+          [n]
+        ),
+        true,
+        M("skipAnimationFrameInResizeObserver")
+      ), s = M("context");
+      return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
+    }), cr = /* @__PURE__ */ H.memo(function() {
+      const e = M("FooterComponent"), n = gt("footerHeight"), o = M("HeaderFooterTag"), r2 = Ht(
+        H.useMemo(
+          () => (i2) => {
+            n(wt(i2, "height"));
+          },
+          [n]
+        ),
+        true,
+        M("skipAnimationFrameInResizeObserver")
+      ), s = M("context");
+      return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
+    });
+    function Ze({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
+      return H.memo(function({ children: s, style: i2, ...l }) {
+        const c2 = n("scrollContainerState"), u = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S2 = e("scrollerRef"), p = e("context"), m = e("horizontalDirection") || false, { scrollByCallback: w, scrollerRef: I, scrollToCallback: C2 } = Xn(
+          c2,
+          f,
+          u,
+          S2,
+          void 0,
+          m
+        );
+        return t2("scrollTo", C2), t2("scrollBy", w), /* @__PURE__ */ jsxRuntimeExports.jsx(
+          u,
+          {
+            "data-testid": "virtuoso-scroller",
+            "data-virtuoso-scroller": true,
+            ref: I,
+            style: { ...m ? sr : rr, ...i2 },
+            tabIndex: 0,
+            ...l,
+            ...Z(u, p),
+            children: s
+          }
+        );
+      });
+    }
+    function Xe({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
+      return H.memo(function({ children: s, style: i2, ...l }) {
+        const c2 = n("windowScrollContainerState"), u = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S2 = e("totalListHeight"), p = e("deviation"), m = e("customScrollParent"), w = e("context"), I = H.useRef(null), C2 = e("scrollerRef"), { scrollByCallback: g, scrollerRef: a, scrollToCallback: T2 } = Xn(
+          c2,
+          f,
+          u,
+          C2,
+          m
+        );
+        return Zn(() => {
+          var b;
+          return a.current = m || ((b = I.current) == null ? void 0 : b.ownerDocument.defaultView), () => {
+            a.current = null;
+          };
+        }, [a, m]), t2("windowScrollTo", T2), t2("scrollBy", g), /* @__PURE__ */ jsxRuntimeExports.jsx(
+          u,
+          {
+            ref: I,
+            "data-virtuoso-scroller": true,
+            style: { position: "relative", ...i2, ...S2 !== 0 ? { height: S2 + p } : {} },
+            ...l,
+            ...Z(u, w),
+            children: s
+          }
+        );
+      });
+    }
+    const ur = ({ children: t2 }) => {
+      const e = H.useContext(Re), n = gt("viewportHeight"), o = gt("fixedItemHeight"), r2 = M("alignToBottom"), s = M("horizontalDirection"), i2 = H.useMemo(
+        () => ne(n, (c2) => wt(c2, s ? "width" : "height")),
+        [n, s]
+      ), l = Ht(i2, true, M("skipAnimationFrameInResizeObserver"));
+      return H.useEffect(() => {
+        e && (n(e.viewportHeight), o(e.itemHeight));
+      }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "element", ref: l, style: Zt(r2), children: t2 });
+    }, ar = ({ children: t2 }) => {
+      const e = H.useContext(Re), n = gt("windowViewportRect"), o = gt("fixedItemHeight"), r2 = M("customScrollParent"), s = Ge(
+        n,
+        r2,
+        M("skipAnimationFrameInResizeObserver")
+      ), i2 = M("alignToBottom");
+      return H.useEffect(() => {
+        e && (o(e.itemHeight), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: 100 }));
+      }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "window", ref: s, style: Zt(i2), children: t2 });
+    }, dr = ({ children: t2 }) => {
+      const e = M("TopItemListComponent") || "div", n = M("headerHeight"), o = { ...ir, marginTop: `${n}px` }, r2 = M("context");
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(e, { style: o, ...Z(e, r2), children: t2 });
+    }, fr = /* @__PURE__ */ H.memo(function(e) {
+      const n = M("useWindowScroll"), o = M("topItemsIndexes").length > 0, r2 = M("customScrollParent"), s = M("context"), i2 = r2 || n ? pr : mr, l = r2 || n ? ar : ur;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(i2, { ...e, ...Z(i2, s), children: [
+        o && /* @__PURE__ */ jsxRuntimeExports.jsx(dr, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Tn, { showTopList: true }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(l, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(lr, {}),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(Tn, {}),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(cr, {})
+        ] })
+      ] });
+    }), {
+      Component: eo,
+      useEmitter: Je,
+      useEmitterValue: M,
+      usePublisher: gt
+    } = /* @__PURE__ */ qe(
+      tr,
+      {
+        events: {
+          atBottomStateChange: "atBottomStateChange",
+          atTopStateChange: "atTopStateChange",
+          endReached: "endReached",
+          groupIndices: "groupIndices",
+          isScrolling: "isScrolling",
+          itemsRendered: "itemsRendered",
+          rangeChanged: "rangeChanged",
+          startReached: "startReached",
+          totalListHeightChanged: "totalListHeightChanged"
+        },
+        methods: {
+          autoscrollToBottom: "autoscrollToBottom",
+          getState: "getState",
+          scrollBy: "scrollBy",
+          scrollIntoView: "scrollIntoView",
+          scrollTo: "scrollTo",
+          scrollToIndex: "scrollToIndex"
+        },
+        optional: {
+          alignToBottom: "alignToBottom",
+          atBottomThreshold: "atBottomThreshold",
+          atTopThreshold: "atTopThreshold",
+          components: "components",
+          computeItemKey: "computeItemKey",
+          context: "context",
+          customScrollParent: "customScrollParent",
+          data: "data",
+          defaultItemHeight: "defaultItemHeight",
+          firstItemIndex: "firstItemIndex",
+          fixedItemHeight: "fixedItemHeight",
+          followOutput: "followOutput",
+          groupContent: "groupContent",
+          groupCounts: "groupCounts",
+          headerFooterTag: "HeaderFooterTag",
+          horizontalDirection: "horizontalDirection",
+          increaseViewportBy: "increaseViewportBy",
+          initialItemCount: "initialItemCount",
+          initialScrollTop: "initialScrollTop",
+          initialTopMostItemIndex: "initialTopMostItemIndex",
+          itemContent: "itemContent",
+          itemSize: "itemSize",
+          logLevel: "logLevel",
+          overscan: "overscan",
+          restoreStateFrom: "restoreStateFrom",
+          scrollerRef: "scrollerRef",
+          scrollSeekConfiguration: "scrollSeekConfiguration",
+          skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver",
+          topItemCount: "topItemCount",
+          totalCount: "totalCount",
+          useWindowScroll: "useWindowScroll"
+        },
+        required: {}
+      },
+      fr
+    ), mr = /* @__PURE__ */ Ze({ useEmitter: Je, useEmitterValue: M, usePublisher: gt }), pr = /* @__PURE__ */ Xe({ useEmitter: Je, useEmitterValue: M, usePublisher: gt }), Kr = eo, hr = /* @__PURE__ */ U(() => {
+      const t2 = y((c2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("td", { children: [
+        "Item $",
+        c2
+      ] })), e = y(null), n = y(null), o = y(null), r2 = y({}), s = y(Ye), i2 = y(Yt), l = (c2, u = null) => ct(
+        x$1(
+          r2,
+          E((f) => f[c2]),
+          Y()
+        ),
+        u
+      );
+      return {
+        components: r2,
+        computeItemKey: s,
+        context: e,
+        EmptyPlaceholder: l("EmptyPlaceholder"),
+        FillerRow: l("FillerRow"),
+        fixedFooterContent: o,
+        fixedHeaderContent: n,
+        itemContent: t2,
+        ScrollerComponent: l("Scroller", "div"),
+        scrollerRef: i2,
+        ScrollSeekPlaceholder: l("ScrollSeekPlaceholder"),
+        TableBodyComponent: l("TableBody", "tbody"),
+        TableComponent: l("Table", "table"),
+        TableFooterComponent: l("TableFoot", "tfoot"),
+        TableHeadComponent: l("TableHead", "thead"),
+        TableRowComponent: l("TableRow", "tr")
+      };
+    });
+    /* @__PURE__ */ U(
+      ([t2, e]) => ({ ...t2, ...e }),
+      X(qn, hr)
+    );
+    const wn = {
+      bottom: 0,
+      itemHeight: 0,
+      items: [],
+      itemWidth: 0,
+      offsetBottom: 0,
+      offsetTop: 0,
+      top: 0
+    }, Hr = {
+      bottom: 0,
+      itemHeight: 0,
+      items: [{ index: 0 }],
+      itemWidth: 0,
+      offsetBottom: 0,
+      offsetTop: 0,
+      top: 0
+    }, { ceil: yn, floor: Ce, max: ee, min: Fe, round: vn } = Math;
+    function bn(t2, e, n) {
+      return Array.from({ length: e - t2 + 1 }).map((o, r2) => ({ data: n === null ? null : n[r2 + t2], index: r2 + t2 }));
+    }
+    function Er(t2) {
+      return {
+        ...Hr,
+        items: t2
+      };
+    }
+    function he(t2, e) {
+      return t2 && t2.width === e.width && t2.height === e.height;
+    }
+    function kr(t2, e) {
+      return t2 && t2.column === e.column && t2.row === e.row;
+    }
+    const Br = /* @__PURE__ */ U(
+      ([
+        { increaseViewportBy: t2, listBoundary: e, overscan: n, visibleRange: o },
+        { footerHeight: r2, headerHeight: s, scrollBy: i2, scrollContainerState: l, scrollTo: c2, scrollTop: u, smoothScrollTargetReached: f, viewportHeight: S2 },
+        p,
+        m,
+        { didMount: w, propsReady: I },
+        { customScrollParent: C2, useWindowScroll: g, windowScrollContainerState: a, windowScrollTo: T2, windowViewportRect: b },
+        h
+      ]) => {
+        const d = y(0), R = y(0), B = y(wn), O = y({ height: 0, width: 0 }), L = y({ height: 0, width: 0 }), V = $(), D2 = $(), J = y(0), nt = y(null), k = y({ column: 0, row: 0 }), q = $(), st = $(), dt = y(false), St = y(0), ft = y(true), ut = y(false), At = y(false);
+        K(
+          x$1(
+            w,
+            G(St),
+            P(([v, N]) => !!N)
+          ),
+          () => {
+            W(ft, false);
+          }
+        ), K(
+          x$1(
+            rt(w, ft, L, O, St, ut),
+            P(([v, N, Q, it, , tt]) => v && !N && Q.height !== 0 && it.height !== 0 && !tt)
+          ),
+          ([, , , , v]) => {
+            W(ut, true), $e(1, () => {
+              W(V, v);
+            }), Rt(x$1(u), () => {
+              W(e, [0, 0]), W(ft, true);
+            });
+          }
+        ), F(
+          x$1(
+            st,
+            P((v) => v != null && v.scrollTop > 0),
+            vt$1(0)
+          ),
+          R
+        ), K(
+          x$1(
+            w,
+            G(st),
+            P(([, v]) => v != null)
+          ),
+          ([, v]) => {
+            v && (W(O, v.viewport), W(L, v.item), W(k, v.gap), v.scrollTop > 0 && (W(dt, true), Rt(x$1(u, jt(1)), (N) => {
+              W(dt, false);
+            }), W(c2, { top: v.scrollTop })));
+          }
+        ), F(
+          x$1(
+            O,
+            E(({ height: v }) => v)
+          ),
+          S2
+        ), F(
+          x$1(
+            rt(
+              A(O, he),
+              A(L, he),
+              A(k, (v, N) => v && v.column === N.column && v.row === N.row),
+              A(u)
+            ),
+            E(([v, N, Q, it]) => ({
+              gap: Q,
+              item: N,
+              scrollTop: it,
+              viewport: v
+            }))
+          ),
+          q
+        ), F(
+          x$1(
+            rt(
+              A(d),
+              o,
+              A(k, kr),
+              A(L, he),
+              A(O, he),
+              A(nt),
+              A(R),
+              A(dt),
+              A(ft),
+              A(St)
+            ),
+            P(([, , , , , , , v]) => !v),
+            E(
+              ([
+                v,
+                [N, Q],
+                it,
+                tt,
+                Bt,
+                Jt,
+                Nt,
+                ,
+                de,
+                Ot
+              ]) => {
+                const { column: Ft, row: Qt } = it, { height: fe, width: He } = tt, { width: tn } = Bt;
+                if (Nt === 0 && (v === 0 || tn === 0))
+                  return wn;
+                if (He === 0) {
+                  const sn = Ue(Ot, v), so = sn + Math.max(Nt - 1, 0);
+                  return Er(bn(sn, so, Jt));
+                }
+                const me = no(tn, He, Ft);
+                let Dt, Wt;
+                de ? N === 0 && Q === 0 && Nt > 0 ? (Dt = 0, Wt = Nt - 1) : (Dt = me * Ce((N + Qt) / (fe + Qt)), Wt = me * yn((Q + Qt) / (fe + Qt)) - 1, Wt = Fe(v - 1, ee(Wt, me - 1)), Dt = Fe(Wt, ee(0, Dt))) : (Dt = 0, Wt = -1);
+                const en = bn(Dt, Wt, Jt), { bottom: nn, top: on } = Rn(Bt, it, tt, en), rn = yn(v / me), ro = rn * fe + (rn - 1) * Qt - nn;
+                return { bottom: nn, itemHeight: fe, items: en, itemWidth: He, offsetBottom: ro, offsetTop: on, top: on };
+              }
+            )
+          ),
+          B
+        ), F(
+          x$1(
+            nt,
+            P((v) => v !== null),
+            E((v) => v.length)
+          ),
+          d
+        ), F(
+          x$1(
+            rt(O, L, B, k),
+            P(([v, N, { items: Q }]) => Q.length > 0 && N.height !== 0 && v.height !== 0),
+            E(([v, N, { items: Q }, it]) => {
+              const { bottom: tt, top: Bt } = Rn(v, it, N, Q);
+              return [Bt, tt];
+            }),
+            Y(se)
+          ),
+          e
+        );
+        const xt = y(false);
+        F(
+          x$1(
+            u,
+            G(xt),
+            E(([v, N]) => N || v !== 0)
+          ),
+          xt
+        );
+        const Xt = pt(
+          x$1(
+            rt(B, d),
+            P(([{ items: v }]) => v.length > 0),
+            G(xt),
+            P(([[v, N], Q]) => {
+              const tt = v.items[v.items.length - 1].index === N - 1;
+              return (Q || v.bottom > 0 && v.itemHeight > 0 && v.offsetBottom === 0 && v.items.length === N) && tt;
+            }),
+            E(([[, v]]) => v - 1),
+            Y()
+          )
+        ), Mt = pt(
+          x$1(
+            A(B),
+            P(({ items: v }) => v.length > 0 && v[0].index === 0),
+            vt$1(0),
+            Y()
+          )
+        ), yt = pt(
+          x$1(
+            A(B),
+            G(dt),
+            P(([{ items: v }, N]) => v.length > 0 && !N),
+            E(([{ items: v }]) => ({
+              endIndex: v[v.length - 1].index,
+              startIndex: v[0].index
+            })),
+            Y(An),
+            Lt(0)
+          )
+        );
+        F(yt, m.scrollSeekRangeChanged), F(
+          x$1(
+            V,
+            G(O, L, d, k),
+            E(([v, N, Q, it, tt]) => {
+              const Bt = Nn(v), { align: Jt, behavior: Nt, offset: de } = Bt;
+              let Ot = Bt.index;
+              Ot === "LAST" && (Ot = it - 1), Ot = ee(0, Ot, Fe(it - 1, Ot));
+              let Ft = Ae(N, tt, Q, Ot);
+              return Jt === "end" ? Ft = vn(Ft - N.height + Q.height) : Jt === "center" && (Ft = vn(Ft - N.height / 2 + Q.height / 2)), de && (Ft += de), { behavior: Nt, top: Ft };
+            })
+          ),
+          c2
+        );
+        const kt = ct(
+          x$1(
+            B,
+            E((v) => v.offsetBottom + v.bottom)
+          ),
+          0
+        );
+        return F(
+          x$1(
+            b,
+            E((v) => ({ height: v.visibleHeight, width: v.visibleWidth }))
+          ),
+          O
+        ), {
+          customScrollParent: C2,
+          // input
+          data: nt,
+          deviation: J,
+          footerHeight: r2,
+          gap: k,
+          headerHeight: s,
+          increaseViewportBy: t2,
+          initialItemCount: R,
+          itemDimensions: L,
+          overscan: n,
+          restoreStateFrom: st,
+          scrollBy: i2,
+          scrollContainerState: l,
+          scrollHeight: D2,
+          scrollTo: c2,
+          scrollToIndex: V,
+          scrollTop: u,
+          smoothScrollTargetReached: f,
+          totalCount: d,
+          useWindowScroll: g,
+          viewportDimensions: O,
+          windowScrollContainerState: a,
+          windowScrollTo: T2,
+          windowViewportRect: b,
+          ...m,
+          // output
+          gridState: B,
+          horizontalDirection: At,
+          initialTopMostItemIndex: St,
+          totalListHeight: kt,
+          ...p,
+          endReached: Xt,
+          propsReady: I,
+          rangeChanged: yt,
+          startReached: Mt,
+          stateChanged: q,
+          stateRestoreInProgress: dt,
+          ...h
+        };
+      },
+      X(Ke, at, ae, Kn, Pt, je, Vt$1)
+    );
+    function no(t2, e, n) {
+      return ee(1, Ce((t2 + n) / (Ce(e) + n)));
+    }
+    function Rn(t2, e, n, o) {
+      const { height: r2 } = n;
+      if (r2 === void 0 || o.length === 0)
+        return { bottom: 0, top: 0 };
+      const s = Ae(t2, e, n, o[0].index);
+      return { bottom: Ae(t2, e, n, o[o.length - 1].index) + r2, top: s };
+    }
+    function Ae(t2, e, n, o) {
+      const r2 = no(t2.width, n.width, e.column), s = Ce(o / r2), i2 = s * n.height + ee(0, s - 1) * e.row;
+      return i2 > 0 ? i2 + e.row : i2;
+    }
+    const Or = /* @__PURE__ */ U(() => {
+      const t2 = y((S2) => `Item ${S2}`), e = y({}), n = y(null), o = y("virtuoso-grid-item"), r2 = y("virtuoso-grid-list"), s = y(Ye), i2 = y("div"), l = y(Yt), c2 = (S2, p = null) => ct(
+        x$1(
+          e,
+          E((m) => m[S2]),
+          Y()
+        ),
+        p
+      ), u = y(false), f = y(false);
+      return F(A(f), u), {
+        components: e,
+        computeItemKey: s,
+        context: n,
+        FooterComponent: c2("Footer"),
+        HeaderComponent: c2("Header"),
+        headerFooterTag: i2,
+        itemClassName: o,
+        ItemComponent: c2("Item", "div"),
+        itemContent: t2,
+        listClassName: r2,
+        ListComponent: c2("List", "div"),
+        readyStateChanged: u,
+        reportReadyState: f,
+        ScrollerComponent: c2("Scroller", "div"),
+        scrollerRef: l,
+        ScrollSeekPlaceholder: c2("ScrollSeekPlaceholder", "div")
+      };
+    }), Fr = /* @__PURE__ */ U(
+      ([t2, e]) => ({ ...t2, ...e }),
+      X(Br, Or)
+    ), Lr = /* @__PURE__ */ H.memo(function() {
+      const e = et$1("gridState"), n = et$1("listClassName"), o = et$1("itemClassName"), r2 = et$1("itemContent"), s = et$1("computeItemKey"), i2 = et$1("isSeeking"), l = It("scrollHeight"), c2 = et$1("ItemComponent"), u = et$1("ListComponent"), f = et$1("ScrollSeekPlaceholder"), S2 = et$1("context"), p = It("itemDimensions"), m = It("gap"), w = et$1("log"), I = et$1("stateRestoreInProgress"), C2 = It("reportReadyState"), g = Ht(
+        H.useMemo(
+          () => (a) => {
+            const T2 = a.parentElement.parentElement.scrollHeight;
+            l(T2);
+            const b = a.firstChild;
+            if (b) {
+              const { height: h, width: d } = b.getBoundingClientRect();
+              p({ height: h, width: d });
+            }
+            m({
+              column: Hn("column-gap", getComputedStyle(a).columnGap, w),
+              row: Hn("row-gap", getComputedStyle(a).rowGap, w)
+            });
+          },
+          [l, p, m, w]
+        ),
+        true,
+        false
+      );
+      return Zn(() => {
+        e.itemHeight > 0 && e.itemWidth > 0 && C2(true);
+      }, [e]), I ? null : /* @__PURE__ */ jsxRuntimeExports.jsx(
+        u,
+        {
+          className: n,
+          ref: g,
+          ...Z(u, S2),
+          "data-testid": "virtuoso-item-list",
+          style: { paddingBottom: e.offsetBottom, paddingTop: e.offsetTop },
+          children: e.items.map((a) => {
+            const T2 = s(a.index, a.data, S2);
+            return i2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              f,
+              {
+                ...Z(f, S2),
+                height: e.itemHeight,
+                index: a.index,
+                width: e.itemWidth
+              },
+              T2
+            ) : /* @__PURE__ */ reactExports.createElement(
+              c2,
+              {
+                ...Z(c2, S2),
+                className: o,
+                "data-index": a.index,
+                key: T2
+              },
+              r2(a.index, a.data, S2)
+            );
+          })
+        }
+      );
+    }), zr = H.memo(function() {
+      const e = et$1("HeaderComponent"), n = It("headerHeight"), o = et$1("headerFooterTag"), r2 = Ht(
+        H.useMemo(
+          () => (i2) => {
+            n(wt(i2, "height"));
+          },
+          [n]
+        ),
+        true,
+        false
+      ), s = et$1("context");
+      return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
+    }), Vr = H.memo(function() {
+      const e = et$1("FooterComponent"), n = It("footerHeight"), o = et$1("headerFooterTag"), r2 = Ht(
+        H.useMemo(
+          () => (i2) => {
+            n(wt(i2, "height"));
+          },
+          [n]
+        ),
+        true,
+        false
+      ), s = et$1("context");
+      return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
+    }), Pr = ({ children: t2 }) => {
+      const e = H.useContext(Yn), n = It("itemDimensions"), o = It("viewportDimensions"), r2 = Ht(
+        H.useMemo(
+          () => (s) => {
+            o(s.getBoundingClientRect());
+          },
+          [o]
+        ),
+        true,
+        false
+      );
+      return H.useEffect(() => {
+        e && (o({ height: e.viewportHeight, width: e.viewportWidth }), n({ height: e.itemHeight, width: e.itemWidth }));
+      }, [e, o, n]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: r2, style: Zt(false), children: t2 });
+    }, Ar = ({ children: t2 }) => {
+      const e = H.useContext(Yn), n = It("windowViewportRect"), o = It("itemDimensions"), r2 = et$1("customScrollParent"), s = Ge(n, r2, false);
+      return H.useEffect(() => {
+        e && (o({ height: e.itemHeight, width: e.itemWidth }), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: e.viewportWidth }));
+      }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: s, style: Zt(false), children: t2 });
+    }, Mr = /* @__PURE__ */ H.memo(function({ ...e }) {
+      const n = et$1("useWindowScroll"), o = et$1("customScrollParent"), r2 = o || n ? Gr : _r, s = o || n ? Ar : Pr, i2 = et$1("context");
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(r2, { ...e, ...Z(r2, i2), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(s, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(zr, {}),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Lr, {}),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(Vr, {})
+      ] }) });
+    }), {
+      useEmitter: oo,
+      useEmitterValue: et$1,
+      usePublisher: It
+    } = /* @__PURE__ */ qe(
+      Fr,
+      {
+        events: {
+          atBottomStateChange: "atBottomStateChange",
+          atTopStateChange: "atTopStateChange",
+          endReached: "endReached",
+          isScrolling: "isScrolling",
+          rangeChanged: "rangeChanged",
+          readyStateChanged: "readyStateChanged",
+          startReached: "startReached",
+          stateChanged: "stateChanged"
+        },
+        methods: {
+          scrollBy: "scrollBy",
+          scrollTo: "scrollTo",
+          scrollToIndex: "scrollToIndex"
+        },
+        optional: {
+          components: "components",
+          computeItemKey: "computeItemKey",
+          context: "context",
+          customScrollParent: "customScrollParent",
+          data: "data",
+          headerFooterTag: "headerFooterTag",
+          increaseViewportBy: "increaseViewportBy",
+          initialItemCount: "initialItemCount",
+          initialTopMostItemIndex: "initialTopMostItemIndex",
+          itemClassName: "itemClassName",
+          itemContent: "itemContent",
+          listClassName: "listClassName",
+          logLevel: "logLevel",
+          overscan: "overscan",
+          restoreStateFrom: "restoreStateFrom",
+          scrollerRef: "scrollerRef",
+          scrollSeekConfiguration: "scrollSeekConfiguration",
+          totalCount: "totalCount",
+          useWindowScroll: "useWindowScroll"
+        }
+      },
+      Mr
+    ), _r = /* @__PURE__ */ Ze({ useEmitter: oo, useEmitterValue: et$1, usePublisher: It }), Gr = /* @__PURE__ */ Xe({ useEmitter: oo, useEmitterValue: et$1, usePublisher: It });
+    function Hn(t2, e, n) {
+      return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
+    }
+    const keyPairContainer = "_keyPairContainer_1ltuo_1";
+    const key = "_key_1ltuo_1";
+    const pre = "_pre_1ltuo_16";
+    const treeIcon = "_treeIcon_1ltuo_20";
+    const styles$Q = {
+      keyPairContainer,
+      key,
+      pre,
+      treeIcon
+    };
+    const kStoreInstanceKey = /^(.+)?:([a-zA-Z0-9]{22}):instance$/;
+    const kStoreKey = /^(.+)?:([a-zA-Z0-9]{22}):(.+)$/;
+    const resolveStoreKeys = (record) => {
+      const result2 = {};
+      const storeInstances = {};
+      const instanceKeys = /* @__PURE__ */ new Set();
+      const entries = Object.entries(record);
+      for (let i2 = 0; i2 < entries.length; i2++) {
+        const [key2, value2] = entries[i2];
+        const instanceInfo = parseStoreInstanceKey(key2, value2);
+        if (instanceInfo) {
+          const { storeName, instanceId } = instanceInfo;
+          const instanceKey = storeKey(storeName, instanceId);
+          if (!storeInstances[instanceKey]) {
+            storeInstances[instanceKey] = {};
+          }
+          instanceKeys.add(key2);
+          continue;
+        } else {
+          const storeKeyInfo = parseStoreKey(key2);
+          if (storeKeyInfo) {
+            const { storeName, instanceId, keyName: keyName2 } = storeKeyInfo;
+            const instanceKey = storeKey(storeName, instanceId);
+            if (storeInstances[instanceKey]) {
+              storeInstances[instanceKey][keyName2] = value2;
+              continue;
+            }
+          } else {
+            result2[key2] = value2;
+          }
+        }
+      }
+      for (const [instanceKey, children2] of Object.entries(storeInstances)) {
+        result2[instanceKey] = resolveStoreKeys(children2);
+      }
+      for (const [key2, value2] of Object.entries(result2)) {
+        if (typeof value2 === "object" && value2 !== null && !Array.isArray(value2)) {
+          result2[key2] = resolveStoreKeys(value2);
+        }
+      }
+      return result2;
+    };
+    const parseStoreInstanceKey = (key2, value2) => {
+      const match = key2.match(kStoreInstanceKey);
+      if (match) {
+        const [, storeName, instanceId] = match;
+        if (typeof value2 === "string" && instanceId === value2) {
+          return {
+            storeName,
+            instanceId
+          };
+        }
+      }
+      return null;
+    };
+    const parseStoreKey = (key2) => {
+      const match = key2.match(kStoreKey);
+      if (match) {
+        const [, storeName, instanceId, keyName2] = match;
+        if (keyName2 !== "instance") {
+          return {
+            storeName,
+            instanceId,
+            keyName: keyName2
+          };
+        }
+      }
+      return null;
+    };
+    const storeKey = (storeName, instanceId) => {
+      return `${storeName || ""} (${instanceId})`;
+    };
+    const kRecordTreeKey = "record-tree-key";
+    const RecordTree = ({
+      id,
+      record,
+      className: className2,
+      scrollRef,
+      defaultExpandLevel = 1,
+      processStore = false
+    }) => {
+      const listHandle = reactExports.useRef(null);
+      const { getRestoreState } = useVirtuosoState(
+        listHandle,
+        `metadata-grid-${id}`
+      );
+      const [collapsedIds, setCollapsed, clearIds] = useCollapsibleIds(id);
+      const setCollapsedIds = useStore(
+        (state) => state.sampleActions.setCollapsedIds
+      );
+      reactExports.useEffect(() => {
+        return () => {
+          clearIds();
+        };
+      }, [clearIds, id]);
+      const items = reactExports.useMemo(() => {
+        return toTreeItems(
+          record,
+          collapsedIds || {},
+          processStore ? [resolveStoreKeys] : []
+        );
+      }, [record, collapsedIds, processStore]);
+      reactExports.useEffect(() => {
+        if (collapsedIds) {
+          return;
+        }
+        const defaultCollapsedIds = items.reduce((prev, item2) => {
+          if (item2.depth >= defaultExpandLevel && item2.hasChildren) {
+            return {
+              ...prev,
+              [item2.id]: true
+            };
+          }
+          return prev;
+        }, {});
+        setCollapsedIds(id, defaultCollapsedIds);
+      }, [collapsedIds, items]);
+      const keyUpHandler = reactExports.useCallback(
+        (itemId, index2) => {
+          return (event) => {
+            switch (event.key) {
+              case "Enter":
+                event.preventDefault();
+                event.stopPropagation();
+                setCollapsed(itemId, !(collapsedIds == null ? void 0 : collapsedIds[id]));
+                break;
+              case "ArrowDown": {
+                event.preventDefault();
+                event.stopPropagation();
+                if (index2 === items.length - 1) {
+                  return;
+                }
+                const treeRoot = document.getElementById(id);
+                const nextEl = treeRoot == null ? void 0 : treeRoot.querySelector(
+                  `.${kRecordTreeKey}[data-index="${index2 + 1}"]`
+                );
+                if (nextEl) {
+                  nextEl.focus();
+                }
+                break;
+              }
+              case "ArrowUp": {
+                event.preventDefault();
+                event.stopPropagation();
+                if (index2 === 0) {
+                  return;
+                }
+                const treeRoot = document.getElementById(id);
+                const prevEl = treeRoot == null ? void 0 : treeRoot.querySelector(
+                  `.${kRecordTreeKey}[data-index="${index2 - 1}"]`
+                );
+                if (prevEl) {
+                  prevEl.focus();
+                }
+                break;
+              }
+              case "ArrowRight":
+                event.preventDefault();
+                event.stopPropagation();
+                setCollapsed(itemId, false);
+                break;
+              case "ArrowLeft":
+                event.preventDefault();
+                event.stopPropagation();
+                setCollapsed(itemId, true);
+                break;
+            }
+          };
+        },
+        [collapsedIds, items]
+      );
+      const renderRow = (index2) => {
+        const item2 = items[index2];
+        return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(styles$Q.keyPairContainer, "text-size-small"),
+            style: {
+              paddingLeft: `${item2.depth * 20}px`
+            },
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "div",
+                {
+                  "data-index": index2,
+                  className: clsx(
+                    kRecordTreeKey,
+                    styles$Q.key,
+                    "font-monospace",
+                    "text-style-secondary"
+                  ),
+                  onKeyUp: keyUpHandler(item2.id, index2),
+                  tabIndex: 0,
+                  onClick: () => {
+                    setCollapsed(item2.id, !(collapsedIds == null ? void 0 : collapsedIds[item2.id]));
+                  },
+                  children: [
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.hasChildren ? /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$Q.pre), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                      "i",
+                      {
+                        className: clsx(
+                          collapsedIds && collapsedIds[item2.id] ? ApplicationIcons.tree.closed : ApplicationIcons.tree.open,
+                          styles$Q.treeIcon
+                        )
+                      }
+                    ) }) : void 0 }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsxs("pre", { className: clsx(styles$Q.pre), children: [
+                      item2.key,
+                      ":"
+                    ] })
+                  ]
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item2.value !== null && (!item2.hasChildren || (collapsedIds == null ? void 0 : collapsedIds[item2.id])) ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                RenderedContent,
+                {
+                  id: `${id}-value-${item2.id}`,
+                  entry: {
+                    name: item2.key,
+                    value: item2.value
+                  },
+                  renderOptions: { renderString: "pre" }
+                }
+              ) : void 0 })
+            ]
+          },
+          item2.id
+        );
+      };
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        Kr,
+        {
+          ref: listHandle,
+          customScrollParent: (scrollRef == null ? void 0 : scrollRef.current) ? scrollRef.current : void 0,
+          id,
+          style: { width: "100%", height: "100%" },
+          data: items,
+          defaultItemHeight: 50,
+          itemContent: renderRow,
+          atBottomThreshold: 30,
+          increaseViewportBy: { top: 300, bottom: 300 },
+          overscan: {
+            main: 10,
+            reverse: 10
+          },
+          className: clsx(className2, "samples-list"),
+          skipAnimationFrameInResizeObserver: true,
+          restoreStateFrom: getRestoreState(),
+          tabIndex: 0
+        }
+      );
+    };
+    const toTreeItems = (record, collapsedIds, recordProcessors = [], currentDepth = 0, currentPath = []) => {
+      if (!record) {
+        return [];
+      }
+      if (recordProcessors.length > 0) {
+        for (const processor of recordProcessors) {
+          record = processor(record);
+        }
+      }
+      const result2 = [];
+      Object.entries(record).forEach(([key2, value2], index2) => {
+        const itemSegment = index2.toString();
+        result2.push(
+          ...processNodeRecursive(
+            key2,
+            value2,
+            currentDepth,
+            currentPath,
+            itemSegment,
+            collapsedIds
+          )
+        );
+      });
+      return result2;
+    };
+    const processNodeRecursive = (key2, value2, depth, parentPath, thisPath, collapsedIds) => {
+      const items = [];
+      const currentItemPath = [...parentPath, thisPath];
+      const id = `${depth}.${currentItemPath.join(".")}`;
+      if (isPrimitiveOrNull(value2)) {
+        items.push({
+          id,
+          key: key2,
+          value: value2 === void 0 ? null : value2,
+          depth,
+          hasChildren: false
+        });
+        return items;
+      }
+      let displayValue = null;
+      let processChildren = false;
+      if (Array.isArray(value2)) {
+        processChildren = true;
+        displayValue = `Array(${value2.length})`;
+      } else if (typeof value2 === "object" && value2 !== null) {
+        processChildren = true;
+        displayValue = `Object(${Object.keys(value2).length})`;
+      } else {
+        displayValue = String(value2);
+        processChildren = false;
+      }
+      items.push({ id, key: key2, value: displayValue, depth, hasChildren: true });
+      if (processChildren && !collapsedIds[id]) {
+        const childDepth = depth + 1;
+        if (Array.isArray(value2)) {
+          if (value2.length > 0) {
+            value2.forEach((element, index2) => {
+              const elementKey = `[${index2}]`;
+              const elementIdentifier = `[${index2}]`;
+              items.push(
+                ...processNodeRecursive(
+                  elementKey,
+                  element,
+                  childDepth,
+                  currentItemPath,
+                  elementIdentifier,
+                  collapsedIds
+                )
+              );
+            });
+          }
+        } else if (typeof value2 === "object" && value2 !== null) {
+          Object.entries(value2).forEach(
+            ([childKey, childValue], index2) => {
+              const childIdentifier = index2.toString();
+              items.push(
+                ...processNodeRecursive(
+                  childKey,
+                  childValue,
+                  childDepth,
+                  currentItemPath,
+                  childIdentifier,
+                  collapsedIds
+                )
+              );
+            }
+          );
+        }
+      }
+      return items;
+    };
+    const isPrimitiveOrNull = (value2) => {
+      return value2 === null || value2 === void 0 || typeof value2 === "string" || typeof value2 === "number" || typeof value2 === "boolean";
+    };
+    const item$1 = "_item_1uzhd_1";
+    const styles$P = {
+      item: item$1
     };
     const DatasetDetailView = ({
       dataset,
@@ -44610,12 +48613,12 @@ categories: ${categories.join(" ")}`;
         Object.entries(dataset).filter(([key2]) => key2 !== "sample_ids")
       );
       if (!dataset || Object.keys(filtered).length === 0) {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$O.item), style: style2, children: "No dataset information available" });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-base", styles$P.item), style: style2, children: "No dataset information available" });
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         MetaDataView,
         {
-          className: clsx("text-size-base", styles$O.item),
+          className: clsx("text-size-base", styles$P.item),
           entries: filtered,
           tableOptions: "borderless,sm",
           style: style2
@@ -44625,7 +48628,7 @@ categories: ${categories.join(" ")}`;
     const grid$5 = "_grid_ax2xo_1";
     const cell$2 = "_cell_ax2xo_8";
     const value$1 = "_value_ax2xo_13";
-    const styles$N = {
+    const styles$O = {
       grid: grid$5,
       cell: cell$2,
       value: value$1
@@ -44655,7 +48658,7 @@ categories: ${categories.join(" ")}`;
             {
               className: clsx(
                 `${baseId}-key`,
-                styles$N.cell,
+                styles$O.cell,
                 "text-style-label",
                 "text-style-secondary",
                 "text-size-smaller"
@@ -44666,13 +48669,13 @@ categories: ${categories.join(" ")}`;
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
-              className: clsx(styles$N.value, `${baseId}-value`, "text-size-smaller"),
+              className: clsx(styles$O.value, `${baseId}-value`, "text-size-smaller"),
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 })
             }
           )
         ] }, `${baseId}-record-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$N.grid), style: style2, children: entryEls });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$O.grid), style: style2, children: entryEls });
     };
     const entryRecords = (entries) => {
       if (!entries) {
@@ -44687,11 +48690,11 @@ categories: ${categories.join(" ")}`;
       }
     };
     const icon = "_icon_59zaz_1";
-    const container$d = "_container_59zaz_5";
+    const container$c = "_container_59zaz_5";
     const metadata$2 = "_metadata_59zaz_11";
-    const styles$M = {
+    const styles$N = {
       icon,
-      container: container$d,
+      container: container$c,
       metadata: metadata$2
     };
     const DetailStep = ({
@@ -44700,16 +48703,16 @@ categories: ${categories.join(" ")}`;
       params: params2,
       className: className2
     }) => {
-      const iconHtml = icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$M.icon) }) : "";
+      const iconHtml = icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$N.icon) }) : "";
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(className2), children: [
         iconHtml,
         " ",
         name2,
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$M.container, children: params2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$N.container, children: params2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           MetaDataGrid,
           {
             entries: params2,
-            className: clsx("text-size-small", styles$M.metadata)
+            className: clsx("text-size-small", styles$N.metadata)
           }
         ) : "" })
       ] });
@@ -44728,42 +48731,42 @@ categories: ${categories.join(" ")}`;
           icon: ApplicationIcons.scorer,
           name: name2,
           params: params2,
-          className: clsx(styles$O.item, "text-size-base")
+          className: clsx(styles$P.item, "text-size-base")
         }
       );
     };
-    const container$c = "_container_12j2k_1";
+    const container$b = "_container_12j2k_1";
     const separator$4 = "_separator_12j2k_11";
-    const styles$L = {
-      container: container$c,
+    const styles$M = {
+      container: container$b,
       separator: separator$4
     };
     const SolversDetailView = ({ steps }) => {
-      const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$L.items, "text-size-small", styles$L.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
+      const separator2 = /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$M.items, "text-size-small", styles$M.separator), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) });
       const details = steps == null ? void 0 : steps.map((step, index2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             DetailStep,
             {
               name: step.solver,
-              className: clsx(styles$L.items, "text-size-small")
+              className: clsx(styles$M.items, "text-size-small")
             }
           ),
           index2 < steps.length - 1 ? separator2 : ""
         ] }, `solver-step-${index2}`);
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$L.container, children: details });
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$M.container, children: details });
     };
     const floatingCol = "_floatingCol_1y1hk_1";
     const wideCol = "_wideCol_1y1hk_9";
     const planCol = "_planCol_1y1hk_24";
-    const container$b = "_container_1y1hk_28";
+    const container$a = "_container_1y1hk_28";
     const grid$4 = "_grid_1y1hk_34";
-    const styles$K = {
+    const styles$L = {
       floatingCol,
       wideCol,
       planCol,
-      container: container$b,
+      container: container$a,
       grid: grid$4
     };
     const PlanDetailView = ({
@@ -44778,13 +48781,13 @@ categories: ${categories.join(" ")}`;
       const taskColumns = [];
       taskColumns.push({
         title: "Dataset",
-        className: styles$K.floatingCol,
+        className: styles$L.floatingCol,
         contents: /* @__PURE__ */ jsxRuntimeExports.jsx(DatasetDetailView, { dataset: evaluation.dataset })
       });
       if (steps) {
         taskColumns.push({
           title: "Solvers",
-          className: styles$K.wideCol,
+          className: styles$L.wideCol,
           contents: /* @__PURE__ */ jsxRuntimeExports.jsx(SolversDetailView, { steps })
         });
       }
@@ -44818,15 +48821,15 @@ categories: ${categories.join(" ")}`;
           });
           taskColumns.push({
             title: label2,
-            className: styles$K.floatingCol,
+            className: styles$L.floatingCol,
             contents: scorerPanels
           });
         }
       }
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$K.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$L.container, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         "div",
         {
-          className: styles$K.grid,
+          className: styles$L.grid,
           style: {
             gridTemplateColumns: `repeat(${taskColumns.length}, fit-content(50%))`
           },
@@ -44854,7 +48857,7 @@ categories: ${categories.join(" ")}`;
               "text-size-small",
               "text-style-label",
               "text-style-secondary",
-              styles$K.planCol
+              styles$L.planCol
             ),
             children: title2
           }
@@ -44862,7 +48865,12 @@ categories: ${categories.join(" ")}`;
         children2
       ] });
     };
-    const PlanCard = ({ evalSpec, evalPlan, scores: scores2 }) => {
+    const PlanCard = ({
+      evalSpec,
+      evalPlan,
+      scores: scores2,
+      scrollRef
+    }) => {
       const metadata2 = (evalSpec == null ? void 0 : evalSpec.metadata) || {};
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
@@ -44879,18 +48887,17 @@ categories: ${categories.join(" ")}`;
         Object.keys(metadata2).length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Metadata" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-metadata`", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            MetaDataView,
+            RecordTree,
             {
-              className: "text-size-small",
-              entries: metadata2,
-              tableOptions: "sm"
-            },
-            `plan-md-metadata`
+              id: "plan-md-metadata",
+              record: metadata2,
+              scrollRef
+            }
           ) })
         ] })
       ] });
     };
-    const styles$J = {
+    const styles$K = {
       "task-error-display": "_task-error-display_1624b_1"
     };
     const TaskErrorCard = ({ error: error2 }) => {
@@ -44906,12 +48913,13 @@ categories: ${categories.join(" ")}`;
           ANSIDisplay,
           {
             output: error2.traceback_ansi,
-            className: styles$J["task-error-display"]
+            className: styles$K["task-error-display"]
           }
         ) })
       ] });
     };
     const useInfoTabConfig = (evalSpec, evalPlan, evalError, evalResults) => {
+      const scrollRef = reactExports.useRef(null);
       const totalSampleCount = useTotalSampleCount();
       return reactExports.useMemo(() => {
         return {
@@ -44924,8 +48932,10 @@ categories: ${categories.join(" ")}`;
             evalPlan,
             evalError,
             evalResults,
-            sampleCount: totalSampleCount
-          }
+            sampleCount: totalSampleCount,
+            scrollRef
+          },
+          scrollRef
         };
       }, [evalSpec, evalPlan, evalError, evalResults, totalSampleCount]);
     };
@@ -44935,7 +48945,8 @@ categories: ${categories.join(" ")}`;
       evalResults,
       evalStatus,
       evalError,
-      sampleCount
+      sampleCount,
+      scrollRef
     }) => {
       const showWarning = sampleCount === 0 && evalStatus === "success" && (evalSpec == null ? void 0 : evalSpec.dataset.samples) && evalSpec.dataset.samples > 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { style: { width: "100%" }, children: [
@@ -44953,7 +48964,8 @@ categories: ${categories.join(" ")}`;
             {
               evalSpec,
               evalPlan,
-              scores: evalResults == null ? void 0 : evalResults.scores
+              scores: evalResults == null ? void 0 : evalResults.scores,
+              scrollRef
             }
           ),
           evalStatus === "error" && evalError ? /* @__PURE__ */ jsxRuntimeExports.jsx(TaskErrorCard, { error: evalError }) : void 0
@@ -45415,10 +49427,10 @@ self.onmessage = function (e) {
     var _b = freb(fdeb, 0), fd = _b.b;
     var rev = new u16(32768);
     for (var i$1 = 0; i$1 < 32768; ++i$1) {
-      var x$1 = (i$1 & 43690) >> 1 | (i$1 & 21845) << 1;
-      x$1 = (x$1 & 52428) >> 2 | (x$1 & 13107) << 2;
-      x$1 = (x$1 & 61680) >> 4 | (x$1 & 3855) << 4;
-      rev[i$1] = ((x$1 & 65280) >> 8 | (x$1 & 255) << 8) >> 1;
+      var x = (i$1 & 43690) >> 1 | (i$1 & 21845) << 1;
+      x = (x & 52428) >> 2 | (x & 13107) << 2;
+      x = (x & 61680) >> 4 | (x & 3855) << 4;
+      rev[i$1] = ((x & 65280) >> 8 | (x & 255) << 8) >> 1;
     }
     var hMap = function(cd, mb, r2) {
       var s = cd.length;
@@ -45663,7 +49675,7 @@ self.onmessage = function (e) {
       } while (!final);
       return bt2 != buf.length && noBuf ? slc(buf, 0, bt2) : buf.subarray(0, bt2);
     };
-    var et$1 = /* @__PURE__ */ new u8(0);
+    var et = /* @__PURE__ */ new u8(0);
     var mrg = function(a, b) {
       var o = {};
       for (var k in a)
@@ -45830,7 +49842,7 @@ self.onmessage = function (e) {
     var td = typeof TextDecoder != "undefined" && /* @__PURE__ */ new TextDecoder();
     var tds = 0;
     try {
-      td.decode(et$1, { stream: true });
+      td.decode(et, { stream: true });
       tds = 1;
     } catch (e) {
     }
@@ -46933,14 +50945,12 @@ self.onmessage = function (e) {
     );
     ToolButton.displayName = "ToolButton";
     const jsonTab = "_jsonTab_6pq03_1";
-    const styles$I = {
+    const styles$J = {
       jsonTab
     };
     const kJsonMaxSize = 1e7;
     const useJsonTabConfig = (evalVersion, evalStatus, evalSpec, evalPlan, evalError, evalResults, evalStats) => {
-      const selectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile()
-      );
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
       const selectedTab = useStore((state) => state.app.tabs.workspace);
       return reactExports.useMemo(() => {
         const evalHeader = {
@@ -47012,7 +51022,7 @@ self.onmessage = function (e) {
       const downloadFiles = useStore((state) => state.capabilities.downloadFiles);
       if (logFile && json.length > kJsonMaxSize && downloadFiles) {
         const file = `${filename(logFile)}.json`;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$J.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
           DownloadPanel,
           {
             message: "The JSON for this log file is too large to render.",
@@ -47022,16 +51032,18 @@ self.onmessage = function (e) {
           }
         ) });
       } else {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
+        return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$J.jsonTab, children: /* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { id: "task-json-contents", json, simple: true }) });
       }
     };
-    const container$a = "_container_304w9_1";
-    const modelInfo = "_modelInfo_304w9_8";
-    const role = "_role_304w9_14";
-    const styles$H = {
-      container: container$a,
+    const container$9 = "_container_4wzpj_1";
+    const modelInfo = "_modelInfo_4wzpj_8";
+    const role = "_role_4wzpj_15";
+    const sep = "_sep_4wzpj_19";
+    const styles$I = {
+      container: container$9,
       modelInfo,
-      role
+      role,
+      sep
     };
     const ModelCard = ({ evalSpec }) => {
       if (!evalSpec) {
@@ -47049,28 +51061,31 @@ self.onmessage = function (e) {
       const noneEl = /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-style-secondary", children: "None" });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Models" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-model-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$H.container, children: Object.keys(modelsInfo || {}).map((modelKey) => {
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: "task-model-card-body", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$I.container, children: Object.keys(modelsInfo || {}).map((modelKey) => {
           const modelInfo2 = modelsInfo[modelKey];
           return /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "div",
             {
-              className: clsx(styles$H.modelInfo, "text-size-small"),
+              className: clsx(styles$I.modelInfo, "text-size-small"),
               children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx(
                   "div",
                   {
                     className: clsx(
-                      styles$H.role,
+                      styles$I.role,
                       "text-style-label",
                       "text-style-secondary"
                     ),
                     children: modelKey
                   }
                 ),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$I.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Model" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: modelInfo2.model }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$I.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Base Url" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: modelInfo2.base_url || noneEl }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$I.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Configuration" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: modelInfo2.config && Object.keys(modelInfo2.config).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MetaDataGrid,
@@ -47078,13 +51093,15 @@ self.onmessage = function (e) {
                     entries: modelInfo2.config
                   }
                 ) : noneEl }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$I.sep) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Args" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-size-small", children: Object.keys(modelInfo2.args).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   MetaDataGrid,
                   {
                     entries: modelInfo2.args
                   }
-                ) : noneEl })
+                ) : noneEl }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$I.sep) })
               ]
             },
             modelKey
@@ -47098,7 +51115,7 @@ self.onmessage = function (e) {
     const col3$1 = "_col3_sq96g_16";
     const separator$3 = "_separator_sq96g_20";
     const padded$1 = "_padded_sq96g_26";
-    const styles$G = {
+    const styles$H = {
       wrapper: wrapper$2,
       col2: col2$2,
       col1_3: col1_3$1,
@@ -47160,14 +51177,14 @@ self.onmessage = function (e) {
         value: usage.total_tokens,
         secondary: false
       });
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$G.wrapper, className2), children: rows.map((row2, idx) => {
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-small", styles$H.wrapper, className2), children: rows.map((row2, idx) => {
         if (row2.label === "---") {
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
               className: clsx(
-                styles$G.separator,
-                row2.padded ? styles$G.padded : void 0
+                styles$H.separator,
+                row2.padded ? styles$H.padded : void 0
               )
             },
             `$usage-sep-${idx}`
@@ -47180,12 +51197,12 @@ self.onmessage = function (e) {
                 className: clsx(
                   "text-style-label",
                   "text-style-secondary",
-                  row2.secondary ? styles$G.col2 : styles$G.col1_3
+                  row2.secondary ? styles$H.col2 : styles$H.col1_3
                 ),
                 children: row2.label
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$G.col3, children: row2.value ? formatNumber(row2.value) : "" })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$H.col3, children: row2.value ? formatNumber(row2.value) : "" })
           ] }, `$usage-row-${idx}`);
         }
       }) });
@@ -47195,7 +51212,7 @@ self.onmessage = function (e) {
     const tableH = "_tableH_z217i_9";
     const model = "_model_z217i_14";
     const cellContents = "_cellContents_z217i_18";
-    const styles$F = {
+    const styles$G = {
       table,
       tableTokens,
       tableH,
@@ -47210,7 +51227,7 @@ self.onmessage = function (e) {
             "table",
             "table-sm",
             "text-size-smaller",
-            styles$F.table,
+            styles$G.table,
             className2
           ),
           children: children2
@@ -47227,7 +51244,7 @@ self.onmessage = function (e) {
               colSpan: 3,
               className: clsx(
                 "card-subheading",
-                styles$F.tableTokens,
+                styles$G.tableTokens,
                 "text-size-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -47242,7 +51259,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$F.tableH,
+                styles$G.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -47254,7 +51271,7 @@ self.onmessage = function (e) {
             "th",
             {
               className: clsx(
-                styles$F.tableH,
+                styles$G.tableH,
                 "text-sixe-small",
                 "text-style-label",
                 "text-style-secondary"
@@ -47267,8 +51284,8 @@ self.onmessage = function (e) {
     };
     const TokenRow = ({ model: model2, usage }) => {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("tr", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$F.model, styles$F.cellContents), children: model2 }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage, className: clsx(styles$F.cellContents) }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$G.model, styles$G.cellContents), children: model2 }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("td", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelUsagePanel, { usage, className: clsx(styles$G.cellContents) }) })
       ] });
     };
     const ModelTokenTable = ({
@@ -47284,7 +51301,7 @@ self.onmessage = function (e) {
     };
     const wrapper$1 = "_wrapper_14r3b_1";
     const col2$1 = "_col2_14r3b_16";
-    const styles$E = {
+    const styles$F = {
       wrapper: wrapper$1,
       col2: col2$1
     };
@@ -47295,7 +51312,7 @@ self.onmessage = function (e) {
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Usage" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: kUsageCardBodyId, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$E.wrapper, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$E.col2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelTokenTable, { model_usage: stats.model_usage }) }) }) })
+        /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { id: kUsageCardBodyId, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$F.wrapper, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$F.col2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(ModelTokenTable, { model_usage: stats.model_usage }) }) }) })
       ] });
     };
     const useModelsTab = (evalSpec, evalStats, evalStatus) => {
@@ -47327,13 +51344,13 @@ self.onmessage = function (e) {
       return id.replace(/([ #.;,?!+*~'":^$[\]()=>|/\\])/g, "\\$1");
     }
     const panel$2 = "_panel_twp3v_1";
-    const container$9 = "_container_twp3v_7";
-    const styles$D = {
+    const container$8 = "_container_twp3v_7";
+    const styles$E = {
       panel: panel$2,
-      container: container$9
+      container: container$8
     };
     const NoContentsPanel = ({ text: text2 }) => {
-      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$D.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$D.container, "text-size-smaller"), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$E.panel), children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$E.container, "text-size-smaller"), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.noSamples }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: text2 })
       ] }) });
@@ -47383,3072 +51400,7 @@ self.onmessage = function (e) {
 </div>`;
       return headingHtml;
     };
-    const we = 0, zt = 1, qt = 2, En = 4;
-    function ln(t2) {
-      return () => t2;
-    }
-    function co(t2) {
-      t2();
-    }
-    function ne(t2, e) {
-      return (n) => t2(e(n));
-    }
-    function cn(t2, e) {
-      return () => t2(e);
-    }
-    function kn(t2, e) {
-      return (n) => t2(e, n);
-    }
-    function Me(t2) {
-      return t2 !== void 0;
-    }
-    function uo(...t2) {
-      return () => {
-        t2.map(co);
-      };
-    }
-    function Yt() {
-    }
-    function ye(t2, e) {
-      return e(t2), t2;
-    }
-    function ao(t2, e) {
-      return e(t2);
-    }
-    function X(...t2) {
-      return t2;
-    }
-    function K(t2, e) {
-      return t2(zt, e);
-    }
-    function W(t2, e) {
-      t2(we, e);
-    }
-    function We(t2) {
-      t2(qt);
-    }
-    function lt(t2) {
-      return t2(En);
-    }
-    function F(t2, e) {
-      return K(t2, kn(e, we));
-    }
-    function Rt(t2, e) {
-      const n = t2(zt, (o) => {
-        n(), e(o);
-      });
-      return n;
-    }
-    function un(t2) {
-      let e, n;
-      return (o) => (r2) => {
-        e = r2, n && clearTimeout(n), n = setTimeout(() => {
-          o(e);
-        }, t2);
-      };
-    }
-    function Bn(t2, e) {
-      return t2 === e;
-    }
-    function Y(t2 = Bn) {
-      let e;
-      return (n) => (o) => {
-        t2(e, o) || (e = o, n(o));
-      };
-    }
-    function P(t2) {
-      return (e) => (n) => {
-        t2(n) && e(n);
-      };
-    }
-    function E(t2) {
-      return (e) => ne(e, t2);
-    }
-    function vt$1(t2) {
-      return (e) => () => {
-        e(t2);
-      };
-    }
-    function x(t2, ...e) {
-      const n = fo(...e);
-      return (o, r2) => {
-        switch (o) {
-          case qt:
-            We(t2);
-            return;
-          case zt:
-            return K(t2, n(r2));
-        }
-      };
-    }
-    function bt(t2, e) {
-      return (n) => (o) => {
-        n(e = t2(e, o));
-      };
-    }
-    function jt(t2) {
-      return (e) => (n) => {
-        t2 > 0 ? t2-- : e(n);
-      };
-    }
-    function Lt(t2) {
-      let e = null, n;
-      return (o) => (r2) => {
-        e = r2, !n && (n = setTimeout(() => {
-          n = void 0, o(e);
-        }, t2));
-      };
-    }
-    function G(...t2) {
-      const e = new Array(t2.length);
-      let n = 0, o = null;
-      const r2 = Math.pow(2, t2.length) - 1;
-      return t2.forEach((s, i2) => {
-        const l = Math.pow(2, i2);
-        K(s, (c2) => {
-          const u = n;
-          n = n | l, e[i2] = c2, u !== r2 && n === r2 && o && (o(), o = null);
-        });
-      }), (s) => (i2) => {
-        const l = () => {
-          s([i2].concat(e));
-        };
-        n === r2 ? l() : o = l;
-      };
-    }
-    function fo(...t2) {
-      return (e) => t2.reduceRight(ao, e);
-    }
-    function mo(t2) {
-      let e, n;
-      const o = () => e == null ? void 0 : e();
-      return function(r2, s) {
-        switch (r2) {
-          case zt:
-            return s ? n === s ? void 0 : (o(), n = s, e = K(t2, s), e) : (o(), Yt);
-          case qt:
-            o(), n = null;
-            return;
-        }
-      };
-    }
-    function y(t2) {
-      let e = t2;
-      const n = $();
-      return (o, r2) => {
-        switch (o) {
-          case we:
-            e = r2;
-            break;
-          case zt: {
-            r2(e);
-            break;
-          }
-          case En:
-            return e;
-        }
-        return n(o, r2);
-      };
-    }
-    function ct(t2, e) {
-      return ye(y(e), (n) => F(t2, n));
-    }
-    function $() {
-      const t2 = [];
-      return (e, n) => {
-        switch (e) {
-          case we:
-            t2.slice().forEach((o) => {
-              o(n);
-            });
-            return;
-          case qt:
-            t2.splice(0, t2.length);
-            return;
-          case zt:
-            return t2.push(n), () => {
-              const o = t2.indexOf(n);
-              o > -1 && t2.splice(o, 1);
-            };
-        }
-      };
-    }
-    function pt(t2) {
-      return ye($(), (e) => F(t2, e));
-    }
-    function U(t2, e = [], { singleton: n } = { singleton: true }) {
-      return {
-        constructor: t2,
-        dependencies: e,
-        id: po(),
-        singleton: n
-      };
-    }
-    const po = () => Symbol();
-    function ho(t2) {
-      const e = /* @__PURE__ */ new Map(), n = ({ constructor: o, dependencies: r2, id: s, singleton: i2 }) => {
-        if (i2 && e.has(s))
-          return e.get(s);
-        const l = o(r2.map((c2) => n(c2)));
-        return i2 && e.set(s, l), l;
-      };
-      return n(t2);
-    }
-    function rt(...t2) {
-      const e = $(), n = new Array(t2.length);
-      let o = 0;
-      const r2 = Math.pow(2, t2.length) - 1;
-      return t2.forEach((s, i2) => {
-        const l = Math.pow(2, i2);
-        K(s, (c2) => {
-          n[i2] = c2, o = o | l, o === r2 && W(e, n);
-        });
-      }), function(s, i2) {
-        switch (s) {
-          case qt: {
-            We(e);
-            return;
-          }
-          case zt:
-            return o === r2 && i2(n), K(e, i2);
-        }
-      };
-    }
-    function A(t2, e = Bn) {
-      return x(t2, Y(e));
-    }
-    function an(...t2) {
-      return function(e, n) {
-        switch (e) {
-          case qt:
-            return;
-          case zt:
-            return uo(...t2.map((o) => K(o, n)));
-        }
-      };
-    }
-    var ht = /* @__PURE__ */ ((t2) => (t2[t2.DEBUG = 0] = "DEBUG", t2[t2.INFO = 1] = "INFO", t2[t2.WARN = 2] = "WARN", t2[t2.ERROR = 3] = "ERROR", t2))(ht || {});
-    const go = {
-      0: "debug",
-      3: "error",
-      1: "log",
-      2: "warn"
-    }, Io = () => typeof globalThis > "u" ? window : globalThis, Vt$1 = U(
-      () => {
-        const t2 = y(
-          3
-          /* ERROR */
-        );
-        return {
-          log: y((n, o, r2 = 1) => {
-            var i2;
-            const s = (i2 = Io().VIRTUOSO_LOG_LEVEL) != null ? i2 : lt(t2);
-            r2 >= s && console[go[r2]](
-              "%creact-virtuoso: %c%s %o",
-              "color: #0253b3; font-weight: bold",
-              "color: initial",
-              n,
-              o
-            );
-          }),
-          logLevel: t2
-        };
-      },
-      [],
-      { singleton: true }
-    );
-    function Ht(t2, e, n) {
-      return _e(t2, e, n).callbackRef;
-    }
-    function _e(t2, e, n) {
-      const o = H.useRef(null);
-      let r2 = (s) => {
-      };
-      if (typeof ResizeObserver < "u") {
-        const s = H.useMemo(() => new ResizeObserver((i2) => {
-          const l = () => {
-            const c2 = i2[0].target;
-            c2.offsetParent !== null && t2(c2);
-          };
-          n ? l() : requestAnimationFrame(l);
-        }), [t2]);
-        r2 = (i2) => {
-          i2 && e ? (s.observe(i2), o.current = i2) : (o.current && s.unobserve(o.current), o.current = null);
-        };
-      }
-      return { callbackRef: r2, ref: o };
-    }
-    function On(t2, e, n, o, r2, s, i2, l, c2) {
-      const u = H.useCallback(
-        (f) => {
-          const S2 = So(f.children, e, l ? "offsetWidth" : "offsetHeight", r2);
-          let p = f.parentElement;
-          for (; !p.dataset.virtuosoScroller; )
-            p = p.parentElement;
-          const m = p.lastElementChild.dataset.viewportType === "window";
-          let w;
-          m && (w = p.ownerDocument.defaultView);
-          const I = i2 ? l ? i2.scrollLeft : i2.scrollTop : m ? l ? w.scrollX || w.document.documentElement.scrollLeft : w.scrollY || w.document.documentElement.scrollTop : l ? p.scrollLeft : p.scrollTop, C2 = i2 ? l ? i2.scrollWidth : i2.scrollHeight : m ? l ? w.document.documentElement.scrollWidth : w.document.documentElement.scrollHeight : l ? p.scrollWidth : p.scrollHeight, g = i2 ? l ? i2.offsetWidth : i2.offsetHeight : m ? l ? w.innerWidth : w.innerHeight : l ? p.offsetWidth : p.offsetHeight;
-          o({
-            scrollHeight: C2,
-            scrollTop: Math.max(I, 0),
-            viewportHeight: g
-          }), s == null || s(
-            l ? dn("column-gap", getComputedStyle(f).columnGap, r2) : dn("row-gap", getComputedStyle(f).rowGap, r2)
-          ), S2 !== null && t2(S2);
-        },
-        [t2, e, r2, s, i2, o]
-      );
-      return _e(u, n, c2);
-    }
-    function So(t2, e, n, o) {
-      const r2 = t2.length;
-      if (r2 === 0)
-        return null;
-      const s = [];
-      for (let i2 = 0; i2 < r2; i2++) {
-        const l = t2.item(i2);
-        if (l.dataset.index === void 0)
-          continue;
-        const c2 = parseInt(l.dataset.index), u = parseFloat(l.dataset.knownSize), f = e(l, n);
-        if (f === 0 && o("Zero-sized element, this should not happen", { child: l }, ht.ERROR), f === u)
-          continue;
-        const S2 = s[s.length - 1];
-        s.length === 0 || S2.size !== f || S2.endIndex !== c2 - 1 ? s.push({ endIndex: c2, size: f, startIndex: c2 }) : s[s.length - 1].endIndex++;
-      }
-      return s;
-    }
-    function dn(t2, e, n) {
-      return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
-    }
-    function Ge(t2, e, n) {
-      const o = H.useRef(null), r2 = H.useCallback(
-        (c2) => {
-          if (!(c2 != null && c2.offsetParent))
-            return;
-          const u = c2.getBoundingClientRect(), f = u.width;
-          let S2, p;
-          if (e) {
-            const m = e.getBoundingClientRect(), w = u.top - m.top;
-            p = m.height - Math.max(0, w), S2 = w + e.scrollTop;
-          } else {
-            const m = i2.current.ownerDocument.defaultView;
-            p = m.innerHeight - Math.max(0, u.top), S2 = u.top + m.scrollY;
-          }
-          o.current = {
-            offsetTop: S2,
-            visibleHeight: p,
-            visibleWidth: f
-          }, t2(o.current);
-        },
-        [t2, e]
-      ), { callbackRef: s, ref: i2 } = _e(r2, true, n), l = H.useCallback(() => {
-        r2(i2.current);
-      }, [r2, i2]);
-      return H.useEffect(() => {
-        var c2;
-        if (e) {
-          e.addEventListener("scroll", l);
-          const u = new ResizeObserver(() => {
-            requestAnimationFrame(l);
-          });
-          return u.observe(e), () => {
-            e.removeEventListener("scroll", l), u.unobserve(e);
-          };
-        } else {
-          const u = (c2 = i2.current) == null ? void 0 : c2.ownerDocument.defaultView;
-          return u == null || u.addEventListener("scroll", l), u == null || u.addEventListener("resize", l), () => {
-            u == null || u.removeEventListener("scroll", l), u == null || u.removeEventListener("resize", l);
-          };
-        }
-      }, [l, e]), s;
-    }
-    const at = U(
-      () => {
-        const t2 = $(), e = $(), n = y(0), o = $(), r2 = y(0), s = $(), i2 = $(), l = y(0), c2 = y(0), u = y(0), f = y(0), S2 = $(), p = $(), m = y(false), w = y(false), I = y(false);
-        return F(
-          x(
-            t2,
-            E(({ scrollTop: C2 }) => C2)
-          ),
-          e
-        ), F(
-          x(
-            t2,
-            E(({ scrollHeight: C2 }) => C2)
-          ),
-          i2
-        ), F(e, r2), {
-          deviation: n,
-          fixedFooterHeight: u,
-          fixedHeaderHeight: c2,
-          footerHeight: f,
-          headerHeight: l,
-          horizontalDirection: w,
-          scrollBy: p,
-          // input
-          scrollContainerState: t2,
-          scrollHeight: i2,
-          scrollingInProgress: m,
-          // signals
-          scrollTo: S2,
-          scrollTop: e,
-          skipAnimationFrameInResizeObserver: I,
-          smoothScrollTargetReached: o,
-          // state
-          statefulScrollTop: r2,
-          viewportHeight: s
-        };
-      },
-      [],
-      { singleton: true }
-    ), oe = { lvl: 0 };
-    function Fn(t2, e) {
-      const n = t2.length;
-      if (n === 0)
-        return [];
-      let { index: o, value: r2 } = e(t2[0]);
-      const s = [];
-      for (let i2 = 1; i2 < n; i2++) {
-        const { index: l, value: c2 } = e(t2[i2]);
-        s.push({ end: l - 1, start: o, value: r2 }), o = l, r2 = c2;
-      }
-      return s.push({ end: 1 / 0, start: o, value: r2 }), s;
-    }
-    function j(t2) {
-      return t2 === oe;
-    }
-    function re(t2, e) {
-      if (!j(t2))
-        return e === t2.k ? t2.v : e < t2.k ? re(t2.l, e) : re(t2.r, e);
-    }
-    function Ct(t2, e, n = "k") {
-      if (j(t2))
-        return [-1 / 0, void 0];
-      if (Number(t2[n]) === e)
-        return [t2.k, t2.v];
-      if (Number(t2[n]) < e) {
-        const o = Ct(t2.r, e, n);
-        return o[0] === -1 / 0 ? [t2.k, t2.v] : o;
-      }
-      return Ct(t2.l, e, n);
-    }
-    function mt(t2, e, n) {
-      return j(t2) ? Vn(e, n, 1) : e === t2.k ? ot(t2, { k: e, v: n }) : e < t2.k ? fn(ot(t2, { l: mt(t2.l, e, n) })) : fn(ot(t2, { r: mt(t2.r, e, n) }));
-    }
-    function Ut() {
-      return oe;
-    }
-    function ve(t2, e, n) {
-      if (j(t2))
-        return [];
-      const o = Ct(t2, e)[0];
-      return xo(ze(t2, o, n));
-    }
-    function Le(t2, e) {
-      if (j(t2)) return oe;
-      const { k: n, l: o, r: r2 } = t2;
-      if (e === n) {
-        if (j(o))
-          return r2;
-        if (j(r2))
-          return o;
-        {
-          const [s, i2] = zn(o);
-          return ge(ot(t2, { k: s, l: Ln(o), v: i2 }));
-        }
-      } else return e < n ? ge(ot(t2, { l: Le(o, e) })) : ge(ot(t2, { r: Le(r2, e) }));
-    }
-    function _t(t2) {
-      return j(t2) ? [] : [..._t(t2.l), { k: t2.k, v: t2.v }, ..._t(t2.r)];
-    }
-    function ze(t2, e, n) {
-      if (j(t2))
-        return [];
-      const { k: o, l: r2, r: s, v: i2 } = t2;
-      let l = [];
-      return o > e && (l = l.concat(ze(r2, e, n))), o >= e && o <= n && l.push({ k: o, v: i2 }), o <= n && (l = l.concat(ze(s, e, n))), l;
-    }
-    function ge(t2) {
-      const { l: e, lvl: n, r: o } = t2;
-      if (o.lvl >= n - 1 && e.lvl >= n - 1)
-        return t2;
-      if (n > o.lvl + 1) {
-        if (Ee(e))
-          return Pn(ot(t2, { lvl: n - 1 }));
-        if (!j(e) && !j(e.r))
-          return ot(e.r, {
-            l: ot(e, { r: e.r.l }),
-            lvl: n,
-            r: ot(t2, {
-              l: e.r.r,
-              lvl: n - 1
-            })
-          });
-        throw new Error("Unexpected empty nodes");
-      } else {
-        if (Ee(t2))
-          return Ve(ot(t2, { lvl: n - 1 }));
-        if (!j(o) && !j(o.l)) {
-          const r2 = o.l, s = Ee(r2) ? o.lvl - 1 : o.lvl;
-          return ot(r2, {
-            l: ot(t2, {
-              lvl: n - 1,
-              r: r2.l
-            }),
-            lvl: r2.lvl + 1,
-            r: Ve(ot(o, { l: r2.r, lvl: s }))
-          });
-        } else
-          throw new Error("Unexpected empty nodes");
-      }
-    }
-    function ot(t2, e) {
-      return Vn(
-        e.k !== void 0 ? e.k : t2.k,
-        e.v !== void 0 ? e.v : t2.v,
-        e.lvl !== void 0 ? e.lvl : t2.lvl,
-        e.l !== void 0 ? e.l : t2.l,
-        e.r !== void 0 ? e.r : t2.r
-      );
-    }
-    function Ln(t2) {
-      return j(t2.r) ? t2.l : ge(ot(t2, { r: Ln(t2.r) }));
-    }
-    function Ee(t2) {
-      return j(t2) || t2.lvl > t2.r.lvl;
-    }
-    function zn(t2) {
-      return j(t2.r) ? [t2.k, t2.v] : zn(t2.r);
-    }
-    function Vn(t2, e, n, o = oe, r2 = oe) {
-      return { k: t2, l: o, lvl: n, r: r2, v: e };
-    }
-    function fn(t2) {
-      return Ve(Pn(t2));
-    }
-    function Pn(t2) {
-      const { l: e } = t2;
-      return !j(e) && e.lvl === t2.lvl ? ot(e, { r: ot(t2, { l: e.r }) }) : t2;
-    }
-    function Ve(t2) {
-      const { lvl: e, r: n } = t2;
-      return !j(n) && !j(n.r) && n.lvl === e && n.r.lvl === e ? ot(n, { l: ot(t2, { r: n.l }), lvl: e + 1 }) : t2;
-    }
-    function xo(t2) {
-      return Fn(t2, ({ k: e, v: n }) => ({ index: e, value: n }));
-    }
-    function An(t2, e) {
-      return !!(t2 && t2.startIndex === e.startIndex && t2.endIndex === e.endIndex);
-    }
-    function se(t2, e) {
-      return !!(t2 && t2[0] === e[0] && t2[1] === e[1]);
-    }
-    const Ne = U(
-      () => ({ recalcInProgress: y(false) }),
-      [],
-      { singleton: true }
-    );
-    function Mn(t2, e, n) {
-      return t2[Se(t2, e, n)];
-    }
-    function Se(t2, e, n, o = 0) {
-      let r2 = t2.length - 1;
-      for (; o <= r2; ) {
-        const s = Math.floor((o + r2) / 2), i2 = t2[s], l = n(i2, e);
-        if (l === 0)
-          return s;
-        if (l === -1) {
-          if (r2 - o < 2)
-            return s - 1;
-          r2 = s - 1;
-        } else {
-          if (r2 === o)
-            return s;
-          o = s + 1;
-        }
-      }
-      throw new Error(`Failed binary finding record in array - ${t2.join(",")}, searched for ${e}`);
-    }
-    function To(t2, e, n, o) {
-      const r2 = Se(t2, e, o), s = Se(t2, n, o, r2);
-      return t2.slice(r2, s + 1);
-    }
-    function wt(t2, e) {
-      return Math.round(t2.getBoundingClientRect()[e]);
-    }
-    function be(t2) {
-      return !j(t2.groupOffsetTree);
-    }
-    function De({ index: t2 }, e) {
-      return e === t2 ? 0 : e < t2 ? -1 : 1;
-    }
-    function Co() {
-      return {
-        groupIndices: [],
-        groupOffsetTree: Ut(),
-        lastIndex: 0,
-        lastOffset: 0,
-        lastSize: 0,
-        offsetTree: [],
-        sizeTree: Ut()
-      };
-    }
-    function wo(t2, e) {
-      let n = j(t2) ? 0 : 1 / 0;
-      for (const o of e) {
-        const { endIndex: r2, size: s, startIndex: i2 } = o;
-        if (n = Math.min(n, i2), j(t2)) {
-          t2 = mt(t2, 0, s);
-          continue;
-        }
-        const l = ve(t2, i2 - 1, r2 + 1);
-        if (l.some(ko(o)))
-          continue;
-        let c2 = false, u = false;
-        for (const { end: f, start: S2, value: p } of l)
-          c2 ? (r2 >= S2 || s === p) && (t2 = Le(t2, S2)) : (u = p !== s, c2 = true), f > r2 && r2 >= S2 && p !== s && (t2 = mt(t2, r2 + 1, p));
-        u && (t2 = mt(t2, i2, s));
-      }
-      return [t2, n];
-    }
-    function yo(t2) {
-      return typeof t2.groupIndex < "u";
-    }
-    function vo({ offset: t2 }, e) {
-      return e === t2 ? 0 : e < t2 ? -1 : 1;
-    }
-    function ie$2(t2, e, n) {
-      if (e.length === 0)
-        return 0;
-      const { index: o, offset: r2, size: s } = Mn(e, t2, De), i2 = t2 - o, l = s * i2 + (i2 - 1) * n + r2;
-      return l > 0 ? l + n : l;
-    }
-    function Wn(t2, e) {
-      if (!be(e))
-        return t2;
-      let n = 0;
-      for (; e.groupIndices[n] <= t2 + n; )
-        n++;
-      return t2 + n;
-    }
-    function _n(t2, e, n) {
-      if (yo(t2))
-        return e.groupIndices[t2.groupIndex] + 1;
-      {
-        const o = t2.index === "LAST" ? n : t2.index;
-        let r2 = Wn(o, e);
-        return r2 = Math.max(0, r2, Math.min(n, r2)), r2;
-      }
-    }
-    function bo(t2, e, n, o = 0) {
-      return o > 0 && (e = Math.max(e, Mn(t2, o, De).offset)), Fn(To(t2, e, n, vo), Eo);
-    }
-    function Ro(t2, [e, n, o, r2]) {
-      e.length > 0 && o("received item sizes", e, ht.DEBUG);
-      const s = t2.sizeTree;
-      let i2 = s, l = 0;
-      if (n.length > 0 && j(s) && e.length === 2) {
-        const p = e[0].size, m = e[1].size;
-        i2 = n.reduce((w, I) => mt(mt(w, I, p), I + 1, m), i2);
-      } else
-        [i2, l] = wo(i2, e);
-      if (i2 === s)
-        return t2;
-      const { lastIndex: c2, lastOffset: u, lastSize: f, offsetTree: S2 } = Pe(t2.offsetTree, l, i2, r2);
-      return {
-        groupIndices: n,
-        groupOffsetTree: n.reduce((p, m) => mt(p, m, ie$2(m, S2, r2)), Ut()),
-        lastIndex: c2,
-        lastOffset: u,
-        lastSize: f,
-        offsetTree: S2,
-        sizeTree: i2
-      };
-    }
-    function Ho(t2) {
-      return _t(t2).map(({ k: e, v: n }, o, r2) => {
-        const s = r2[o + 1];
-        return { endIndex: s ? s.k - 1 : 1 / 0, size: n, startIndex: e };
-      });
-    }
-    function mn(t2, e) {
-      let n = 0, o = 0;
-      for (; n < t2; )
-        n += e[o + 1] - e[o] - 1, o++;
-      return o - (n === t2 ? 0 : 1);
-    }
-    function Pe(t2, e, n, o) {
-      let r2 = t2, s = 0, i2 = 0, l = 0, c2 = 0;
-      if (e !== 0) {
-        c2 = Se(r2, e - 1, De), l = r2[c2].offset;
-        const f = Ct(n, e - 1);
-        s = f[0], i2 = f[1], r2.length && r2[c2].size === Ct(n, e)[1] && (c2 -= 1), r2 = r2.slice(0, c2 + 1);
-      } else
-        r2 = [];
-      for (const { start: u, value: f } of ve(n, e, 1 / 0)) {
-        const S2 = u - s, p = S2 * i2 + l + S2 * o;
-        r2.push({
-          index: u,
-          offset: p,
-          size: f
-        }), s = u, l = p, i2 = f;
-      }
-      return {
-        lastIndex: s,
-        lastOffset: l,
-        lastSize: i2,
-        offsetTree: r2
-      };
-    }
-    function Eo(t2) {
-      return { index: t2.index, value: t2 };
-    }
-    function ko(t2) {
-      const { endIndex: e, size: n, startIndex: o } = t2;
-      return (r2) => r2.start === o && (r2.end === e || r2.end === 1 / 0) && r2.value === n;
-    }
-    const Bo = {
-      offsetHeight: "height",
-      offsetWidth: "width"
-    }, Et = U(
-      ([{ log: t2 }, { recalcInProgress: e }]) => {
-        const n = $(), o = $(), r2 = ct(o, 0), s = $(), i2 = $(), l = y(0), c2 = y([]), u = y(void 0), f = y(void 0), S2 = y((h, d) => wt(h, Bo[d])), p = y(void 0), m = y(0), w = Co(), I = ct(
-          x(n, G(c2, t2, m), bt(Ro, w), Y()),
-          w
-        ), C2 = ct(
-          x(
-            c2,
-            Y(),
-            bt((h, d) => ({ current: d, prev: h.current }), {
-              current: [],
-              prev: []
-            }),
-            E(({ prev: h }) => h)
-          ),
-          []
-        );
-        F(
-          x(
-            c2,
-            P((h) => h.length > 0),
-            G(I, m),
-            E(([h, d, R]) => {
-              const B = h.reduce((O, L, V) => mt(O, L, ie$2(L, d.offsetTree, R) || V), Ut());
-              return {
-                ...d,
-                groupIndices: h,
-                groupOffsetTree: B
-              };
-            })
-          ),
-          I
-        ), F(
-          x(
-            o,
-            G(I),
-            P(([h, { lastIndex: d }]) => h < d),
-            E(([h, { lastIndex: d, lastSize: R }]) => [
-              {
-                endIndex: d,
-                size: R,
-                startIndex: h
-              }
-            ])
-          ),
-          n
-        ), F(u, f);
-        const g = ct(
-          x(
-            u,
-            E((h) => h === void 0)
-          ),
-          true
-        );
-        F(
-          x(
-            f,
-            P((h) => h !== void 0 && j(lt(I).sizeTree)),
-            E((h) => [{ endIndex: 0, size: h, startIndex: 0 }])
-          ),
-          n
-        );
-        const a = pt(
-          x(
-            n,
-            G(I),
-            bt(
-              ({ sizes: h }, [d, R]) => ({
-                changed: R !== h,
-                sizes: R
-              }),
-              { changed: false, sizes: w }
-            ),
-            E((h) => h.changed)
-          )
-        );
-        K(
-          x(
-            l,
-            bt(
-              (h, d) => ({ diff: h.prev - d, prev: d }),
-              { diff: 0, prev: 0 }
-            ),
-            E((h) => h.diff)
-          ),
-          (h) => {
-            const { groupIndices: d } = lt(I);
-            if (h > 0)
-              W(e, true), W(s, h + mn(h, d));
-            else if (h < 0) {
-              const R = lt(C2);
-              R.length > 0 && (h -= mn(-h, R)), W(i2, h);
-            }
-          }
-        ), K(x(l, G(t2)), ([h, d]) => {
-          h < 0 && d(
-            "`firstItemIndex` prop should not be set to less than zero. If you don't know the total count, just use a very high value",
-            { firstItemIndex: l },
-            ht.ERROR
-          );
-        });
-        const T2 = pt(s);
-        F(
-          x(
-            s,
-            G(I),
-            E(([h, d]) => {
-              const R = d.groupIndices.length > 0, B = [], O = d.lastSize;
-              if (R) {
-                const L = re(d.sizeTree, 0);
-                let V = 0, D2 = 0;
-                for (; V < h; ) {
-                  const k = d.groupIndices[D2], q = d.groupIndices.length === D2 + 1 ? 1 / 0 : d.groupIndices[D2 + 1] - k - 1;
-                  B.push({
-                    endIndex: k,
-                    size: L,
-                    startIndex: k
-                  }), B.push({
-                    endIndex: k + 1 + q - 1,
-                    size: O,
-                    startIndex: k + 1
-                  }), D2++, V += q + 1;
-                }
-                const J = _t(d.sizeTree);
-                return V !== h && J.shift(), J.reduce(
-                  (k, { k: q, v: st }) => {
-                    let dt = k.ranges;
-                    return k.prevSize !== 0 && (dt = [
-                      ...k.ranges,
-                      {
-                        endIndex: q + h - 1,
-                        size: k.prevSize,
-                        startIndex: k.prevIndex
-                      }
-                    ]), {
-                      prevIndex: q + h,
-                      prevSize: st,
-                      ranges: dt
-                    };
-                  },
-                  {
-                    prevIndex: h,
-                    prevSize: 0,
-                    ranges: B
-                  }
-                ).ranges;
-              }
-              return _t(d.sizeTree).reduce(
-                (L, { k: V, v: D2 }) => ({
-                  prevIndex: V + h,
-                  prevSize: D2,
-                  ranges: [...L.ranges, { endIndex: V + h - 1, size: L.prevSize, startIndex: L.prevIndex }]
-                }),
-                {
-                  prevIndex: 0,
-                  prevSize: O,
-                  ranges: []
-                }
-              ).ranges;
-            })
-          ),
-          n
-        );
-        const b = pt(
-          x(
-            i2,
-            G(I, m),
-            E(([h, { offsetTree: d }, R]) => {
-              const B = -h;
-              return ie$2(B, d, R);
-            })
-          )
-        );
-        return F(
-          x(
-            i2,
-            G(I, m),
-            E(([h, d, R]) => {
-              if (d.groupIndices.length > 0) {
-                if (j(d.sizeTree))
-                  return d;
-                let O = Ut();
-                const L = lt(C2);
-                let V = 0, D2 = 0, J = 0;
-                for (; V < -h; ) {
-                  J = L[D2];
-                  const k = L[D2 + 1] - J - 1;
-                  D2++, V += k + 1;
-                }
-                if (O = _t(d.sizeTree).reduce((k, { k: q, v: st }) => mt(k, Math.max(0, q + h), st), O), V !== -h) {
-                  const k = re(d.sizeTree, J);
-                  O = mt(O, 0, k);
-                  const q = Ct(d.sizeTree, -h + 1)[1];
-                  O = mt(O, 1, q);
-                }
-                return {
-                  ...d,
-                  sizeTree: O,
-                  ...Pe(d.offsetTree, 0, O, R)
-                };
-              } else {
-                const O = _t(d.sizeTree).reduce((L, { k: V, v: D2 }) => mt(L, Math.max(0, V + h), D2), Ut());
-                return {
-                  ...d,
-                  sizeTree: O,
-                  ...Pe(d.offsetTree, 0, O, R)
-                };
-              }
-            })
-          ),
-          I
-        ), {
-          beforeUnshiftWith: T2,
-          // input
-          data: p,
-          defaultItemSize: f,
-          firstItemIndex: l,
-          fixedItemSize: u,
-          gap: m,
-          groupIndices: c2,
-          itemSize: S2,
-          listRefresh: a,
-          shiftWith: i2,
-          shiftWithOffset: b,
-          sizeRanges: n,
-          // output
-          sizes: I,
-          statefulTotalCount: r2,
-          totalCount: o,
-          trackItemSizes: g,
-          unshiftWith: s
-        };
-      },
-      X(Vt$1, Ne),
-      { singleton: true }
-    );
-    function Oo(t2) {
-      return t2.reduce(
-        (e, n) => (e.groupIndices.push(e.totalCount), e.totalCount += n + 1, e),
-        {
-          groupIndices: [],
-          totalCount: 0
-        }
-      );
-    }
-    const Gn = U(
-      ([{ groupIndices: t2, sizes: e, totalCount: n }, { headerHeight: o, scrollTop: r2 }]) => {
-        const s = $(), i2 = $(), l = pt(x(s, E(Oo)));
-        return F(
-          x(
-            l,
-            E((c2) => c2.totalCount)
-          ),
-          n
-        ), F(
-          x(
-            l,
-            E((c2) => c2.groupIndices)
-          ),
-          t2
-        ), F(
-          x(
-            rt(r2, e, o),
-            P(([c2, u]) => be(u)),
-            E(([c2, u, f]) => Ct(u.groupOffsetTree, Math.max(c2 - f, 0), "v")[0]),
-            Y(),
-            E((c2) => [c2])
-          ),
-          i2
-        ), { groupCounts: s, topItemsIndexes: i2 };
-      },
-      X(Et, at)
-    ), Pt = U(
-      ([{ log: t2 }]) => {
-        const e = y(false), n = pt(
-          x(
-            e,
-            P((o) => o),
-            Y()
-          )
-        );
-        return K(e, (o) => {
-          o && lt(t2)("props updated", {}, ht.DEBUG);
-        }), { didMount: n, propsReady: e };
-      },
-      X(Vt$1),
-      { singleton: true }
-    ), Fo = typeof document < "u" && "scrollBehavior" in document.documentElement.style;
-    function Nn(t2) {
-      const e = typeof t2 == "number" ? { index: t2 } : t2;
-      return e.align || (e.align = "start"), (!e.behavior || !Fo) && (e.behavior = "auto"), e.offset || (e.offset = 0), e;
-    }
-    const ce = U(
-      ([
-        { gap: t2, listRefresh: e, sizes: n, totalCount: o },
-        {
-          fixedFooterHeight: r2,
-          fixedHeaderHeight: s,
-          footerHeight: i2,
-          headerHeight: l,
-          scrollingInProgress: c2,
-          scrollTo: u,
-          smoothScrollTargetReached: f,
-          viewportHeight: S2
-        },
-        { log: p }
-      ]) => {
-        const m = $(), w = $(), I = y(0);
-        let C2 = null, g = null, a = null;
-        function T2() {
-          C2 && (C2(), C2 = null), a && (a(), a = null), g && (clearTimeout(g), g = null), W(c2, false);
-        }
-        return F(
-          x(
-            m,
-            G(n, S2, o, I, l, i2, p),
-            G(t2, s, r2),
-            E(
-              ([
-                [b, h, d, R, B, O, L, V],
-                D2,
-                J,
-                nt
-              ]) => {
-                const k = Nn(b), { align: q, behavior: st, offset: dt } = k, St = R - 1, ft = _n(k, h, St);
-                let ut = ie$2(ft, h.offsetTree, D2) + O;
-                q === "end" ? (ut += J + Ct(h.sizeTree, ft)[1] - d + nt, ft === St && (ut += L)) : q === "center" ? ut += (J + Ct(h.sizeTree, ft)[1] - d + nt) / 2 : ut -= B, dt && (ut += dt);
-                const At = (xt) => {
-                  T2(), xt ? (V("retrying to scroll to", { location: b }, ht.DEBUG), W(m, b)) : (W(w, true), V("list did not change, scroll successful", {}, ht.DEBUG));
-                };
-                if (T2(), st === "smooth") {
-                  let xt = false;
-                  a = K(e, (Xt) => {
-                    xt = xt || Xt;
-                  }), C2 = Rt(f, () => {
-                    At(xt);
-                  });
-                } else
-                  C2 = Rt(x(e, Lo(150)), At);
-                return g = setTimeout(() => {
-                  T2();
-                }, 1200), W(c2, true), V("scrolling from index to", { behavior: st, index: ft, top: ut }, ht.DEBUG), { behavior: st, top: ut };
-              }
-            )
-          ),
-          u
-        ), {
-          scrollTargetReached: w,
-          scrollToIndex: m,
-          topListHeight: I
-        };
-      },
-      X(Et, at, Vt$1),
-      { singleton: true }
-    );
-    function Lo(t2) {
-      return (e) => {
-        const n = setTimeout(() => {
-          e(false);
-        }, t2);
-        return (o) => {
-          o && (e(true), clearTimeout(n));
-        };
-      };
-    }
-    function $e(t2, e) {
-      t2 == 0 ? e() : requestAnimationFrame(() => {
-        $e(t2 - 1, e);
-      });
-    }
-    function Ue(t2, e) {
-      const n = e - 1;
-      return typeof t2 == "number" ? t2 : t2.index === "LAST" ? n : t2.index;
-    }
-    const ue = U(
-      ([{ defaultItemSize: t2, listRefresh: e, sizes: n }, { scrollTop: o }, { scrollTargetReached: r2, scrollToIndex: s }, { didMount: i2 }]) => {
-        const l = y(true), c2 = y(0), u = y(true);
-        return F(
-          x(
-            i2,
-            G(c2),
-            P(([f, S2]) => !!S2),
-            vt$1(false)
-          ),
-          l
-        ), F(
-          x(
-            i2,
-            G(c2),
-            P(([f, S2]) => !!S2),
-            vt$1(false)
-          ),
-          u
-        ), K(
-          x(
-            rt(e, i2),
-            G(l, n, t2, u),
-            P(([[, f], S2, { sizeTree: p }, m, w]) => f && (!j(p) || Me(m)) && !S2 && !w),
-            G(c2)
-          ),
-          ([, f]) => {
-            Rt(r2, () => {
-              W(u, true);
-            }), $e(4, () => {
-              Rt(o, () => {
-                W(l, true);
-              }), W(s, f);
-            });
-          }
-        ), {
-          initialItemFinalLocationReached: u,
-          initialTopMostItemIndex: c2,
-          scrolledToInitialItem: l
-        };
-      },
-      X(Et, at, ce, Pt),
-      { singleton: true }
-    );
-    function Dn(t2, e) {
-      return Math.abs(t2 - e) < 1.01;
-    }
-    const le = "up", te = "down", zo = "none", Vo = {
-      atBottom: false,
-      notAtBottomBecause: "NOT_SHOWING_LAST_ITEM",
-      state: {
-        offsetBottom: 0,
-        scrollHeight: 0,
-        scrollTop: 0,
-        viewportHeight: 0
-      }
-    }, Po = 0, ae = U(([{ footerHeight: t2, headerHeight: e, scrollBy: n, scrollContainerState: o, scrollTop: r2, viewportHeight: s }]) => {
-      const i2 = y(false), l = y(true), c2 = $(), u = $(), f = y(4), S2 = y(Po), p = ct(
-        x(
-          an(x(A(r2), jt(1), vt$1(true)), x(A(r2), jt(1), vt$1(false), un(100))),
-          Y()
-        ),
-        false
-      ), m = ct(
-        x(an(x(n, vt$1(true)), x(n, vt$1(false), un(200))), Y()),
-        false
-      );
-      F(
-        x(
-          rt(A(r2), A(S2)),
-          E(([a, T2]) => a <= T2),
-          Y()
-        ),
-        l
-      ), F(x(l, Lt(50)), u);
-      const w = pt(
-        x(
-          rt(o, A(s), A(e), A(t2), A(f)),
-          bt((a, [{ scrollHeight: T2, scrollTop: b }, h, d, R, B]) => {
-            const O = b + h - T2 > -B, L = {
-              scrollHeight: T2,
-              scrollTop: b,
-              viewportHeight: h
-            };
-            if (O) {
-              let D2, J;
-              return b > a.state.scrollTop ? (D2 = "SCROLLED_DOWN", J = a.state.scrollTop - b) : (D2 = "SIZE_DECREASED", J = a.state.scrollTop - b || a.scrollTopDelta), {
-                atBottom: true,
-                atBottomBecause: D2,
-                scrollTopDelta: J,
-                state: L
-              };
-            }
-            let V;
-            return L.scrollHeight > a.state.scrollHeight ? V = "SIZE_INCREASED" : h < a.state.viewportHeight ? V = "VIEWPORT_HEIGHT_DECREASING" : b < a.state.scrollTop ? V = "SCROLLING_UPWARDS" : V = "NOT_FULLY_SCROLLED_TO_LAST_ITEM_BOTTOM", {
-              atBottom: false,
-              notAtBottomBecause: V,
-              state: L
-            };
-          }, Vo),
-          Y((a, T2) => a && a.atBottom === T2.atBottom)
-        )
-      ), I = ct(
-        x(
-          o,
-          bt(
-            (a, { scrollHeight: T2, scrollTop: b, viewportHeight: h }) => {
-              if (Dn(a.scrollHeight, T2))
-                return {
-                  changed: false,
-                  jump: 0,
-                  scrollHeight: T2,
-                  scrollTop: b
-                };
-              {
-                const d = T2 - (b + h) < 1;
-                return a.scrollTop !== b && d ? {
-                  changed: true,
-                  jump: a.scrollTop - b,
-                  scrollHeight: T2,
-                  scrollTop: b
-                } : {
-                  changed: true,
-                  jump: 0,
-                  scrollHeight: T2,
-                  scrollTop: b
-                };
-              }
-            },
-            { changed: false, jump: 0, scrollHeight: 0, scrollTop: 0 }
-          ),
-          P((a) => a.changed),
-          E((a) => a.jump)
-        ),
-        0
-      );
-      F(
-        x(
-          w,
-          E((a) => a.atBottom)
-        ),
-        i2
-      ), F(x(i2, Lt(50)), c2);
-      const C2 = y(te);
-      F(
-        x(
-          o,
-          E(({ scrollTop: a }) => a),
-          Y(),
-          bt(
-            (a, T2) => lt(m) ? { direction: a.direction, prevScrollTop: T2 } : { direction: T2 < a.prevScrollTop ? le : te, prevScrollTop: T2 },
-            { direction: te, prevScrollTop: 0 }
-          ),
-          E((a) => a.direction)
-        ),
-        C2
-      ), F(x(o, Lt(50), vt$1(zo)), C2);
-      const g = y(0);
-      return F(
-        x(
-          p,
-          P((a) => !a),
-          vt$1(0)
-        ),
-        g
-      ), F(
-        x(
-          r2,
-          Lt(100),
-          G(p),
-          P(([a, T2]) => !!T2),
-          bt(([a, T2], [b]) => [T2, b], [0, 0]),
-          E(([a, T2]) => T2 - a)
-        ),
-        g
-      ), {
-        atBottomState: w,
-        atBottomStateChange: c2,
-        atBottomThreshold: f,
-        atTopStateChange: u,
-        atTopThreshold: S2,
-        isAtBottom: i2,
-        isAtTop: l,
-        isScrolling: p,
-        lastJumpDueToItemResize: I,
-        scrollDirection: C2,
-        scrollVelocity: g
-      };
-    }, X(at)), xe = "top", Te = "bottom", pn = "none";
-    function hn(t2, e, n) {
-      return typeof t2 == "number" ? n === le && e === xe || n === te && e === Te ? t2 : 0 : n === le ? e === xe ? t2.main : t2.reverse : e === Te ? t2.main : t2.reverse;
-    }
-    function gn(t2, e) {
-      var n;
-      return typeof t2 == "number" ? t2 : (n = t2[e]) != null ? n : 0;
-    }
-    const Ke = U(
-      ([{ deviation: t2, fixedHeaderHeight: e, headerHeight: n, scrollTop: o, viewportHeight: r2 }]) => {
-        const s = $(), i2 = y(0), l = y(0), c2 = y(0), u = ct(
-          x(
-            rt(
-              A(o),
-              A(r2),
-              A(n),
-              A(s, se),
-              A(c2),
-              A(i2),
-              A(e),
-              A(t2),
-              A(l)
-            ),
-            E(
-              ([
-                f,
-                S2,
-                p,
-                [m, w],
-                I,
-                C2,
-                g,
-                a,
-                T2
-              ]) => {
-                const b = f - a, h = C2 + g, d = Math.max(p - b, 0);
-                let R = pn;
-                const B = gn(T2, xe), O = gn(T2, Te);
-                return m -= a, m += p + g, w += p + g, w -= a, m > f + h - B && (R = le), w < f - d + S2 + O && (R = te), R !== pn ? [
-                  Math.max(b - p - hn(I, xe, R) - B, 0),
-                  b - d - g + S2 + hn(I, Te, R) + O
-                ] : null;
-              }
-            ),
-            P((f) => f != null),
-            Y(se)
-          ),
-          [0, 0]
-        );
-        return {
-          increaseViewportBy: l,
-          // input
-          listBoundary: s,
-          overscan: c2,
-          topListHeight: i2,
-          // output
-          visibleRange: u
-        };
-      },
-      X(at),
-      { singleton: true }
-    );
-    function Ao(t2, e, n) {
-      if (be(e)) {
-        const o = Wn(t2, e);
-        return [
-          { index: Ct(e.groupOffsetTree, o)[0], offset: 0, size: 0 },
-          { data: n == null ? void 0 : n[0], index: o, offset: 0, size: 0 }
-        ];
-      }
-      return [{ data: n == null ? void 0 : n[0], index: t2, offset: 0, size: 0 }];
-    }
-    const ke = {
-      bottom: 0,
-      firstItemIndex: 0,
-      items: [],
-      offsetBottom: 0,
-      offsetTop: 0,
-      top: 0,
-      topItems: [],
-      topListHeight: 0,
-      totalCount: 0
-    };
-    function Ie(t2, e, n, o, r2, s) {
-      const { lastIndex: i2, lastOffset: l, lastSize: c2 } = r2;
-      let u = 0, f = 0;
-      if (t2.length > 0) {
-        u = t2[0].offset;
-        const I = t2[t2.length - 1];
-        f = I.offset + I.size;
-      }
-      const S2 = n - i2, p = l + S2 * c2 + (S2 - 1) * o, m = u, w = p - f;
-      return {
-        bottom: f,
-        firstItemIndex: s,
-        items: In(t2, r2, s),
-        offsetBottom: w,
-        offsetTop: u,
-        top: m,
-        topItems: In(e, r2, s),
-        topListHeight: e.reduce((I, C2) => C2.size + I, 0),
-        totalCount: n
-      };
-    }
-    function $n(t2, e, n, o, r2, s) {
-      let i2 = 0;
-      if (n.groupIndices.length > 0)
-        for (const f of n.groupIndices) {
-          if (f - i2 >= t2)
-            break;
-          i2++;
-        }
-      const l = t2 + i2, c2 = Ue(e, l), u = Array.from({ length: l }).map((f, S2) => ({
-        data: s[S2 + c2],
-        index: S2 + c2,
-        offset: 0,
-        size: 0
-      }));
-      return Ie(u, [], l, r2, n, o);
-    }
-    function In(t2, e, n) {
-      if (t2.length === 0)
-        return [];
-      if (!be(e))
-        return t2.map((u) => ({ ...u, index: u.index + n, originalIndex: u.index }));
-      const o = t2[0].index, r2 = t2[t2.length - 1].index, s = [], i2 = ve(e.groupOffsetTree, o, r2);
-      let l, c2 = 0;
-      for (const u of t2) {
-        (!l || l.end < u.index) && (l = i2.shift(), c2 = e.groupIndices.indexOf(l.start));
-        let f;
-        u.index === l.start ? f = {
-          index: c2,
-          type: "group"
-        } : f = {
-          groupIndex: c2,
-          index: u.index - (c2 + 1) + n
-        }, s.push({
-          ...f,
-          data: u.data,
-          offset: u.offset,
-          originalIndex: u.index,
-          size: u.size
-        });
-      }
-      return s;
-    }
-    const Gt = U(
-      ([
-        { data: t2, firstItemIndex: e, gap: n, sizes: o, totalCount: r2 },
-        s,
-        { listBoundary: i2, topListHeight: l, visibleRange: c2 },
-        { initialTopMostItemIndex: u, scrolledToInitialItem: f },
-        { topListHeight: S2 },
-        p,
-        { didMount: m },
-        { recalcInProgress: w }
-      ]) => {
-        const I = y([]), C2 = y(0), g = $();
-        F(s.topItemsIndexes, I);
-        const a = ct(
-          x(
-            rt(
-              m,
-              w,
-              A(c2, se),
-              A(r2),
-              A(o),
-              A(u),
-              f,
-              A(I),
-              A(e),
-              A(n),
-              t2
-            ),
-            P(([d, R, , B, , , , , , , O]) => {
-              const L = O && O.length !== B;
-              return d && !R && !L;
-            }),
-            E(
-              ([
-                ,
-                ,
-                [d, R],
-                B,
-                O,
-                L,
-                V,
-                D2,
-                J,
-                nt,
-                k
-              ]) => {
-                const q = O, { offsetTree: st, sizeTree: dt } = q, St = lt(C2);
-                if (B === 0)
-                  return { ...ke, totalCount: B };
-                if (d === 0 && R === 0)
-                  return St === 0 ? { ...ke, totalCount: B } : $n(St, L, O, J, nt, k || []);
-                if (j(dt))
-                  return St > 0 ? null : Ie(
-                    Ao(Ue(L, B), q, k),
-                    [],
-                    B,
-                    nt,
-                    q,
-                    J
-                  );
-                const ft = [];
-                if (D2.length > 0) {
-                  const Mt = D2[0], yt = D2[D2.length - 1];
-                  let kt = 0;
-                  for (const v of ve(dt, Mt, yt)) {
-                    const N = v.value, Q = Math.max(v.start, Mt), it = Math.min(v.end, yt);
-                    for (let tt = Q; tt <= it; tt++)
-                      ft.push({ data: k == null ? void 0 : k[tt], index: tt, offset: kt, size: N }), kt += N;
-                  }
-                }
-                if (!V)
-                  return Ie([], ft, B, nt, q, J);
-                const ut = D2.length > 0 ? D2[D2.length - 1] + 1 : 0, At = bo(st, d, R, ut);
-                if (At.length === 0)
-                  return null;
-                const xt = B - 1, Xt = ye([], (Mt) => {
-                  for (const yt of At) {
-                    const kt = yt.value;
-                    let v = kt.offset, N = yt.start;
-                    const Q = kt.size;
-                    if (kt.offset < d) {
-                      N += Math.floor((d - kt.offset + nt) / (Q + nt));
-                      const tt = N - yt.start;
-                      v += tt * Q + tt * nt;
-                    }
-                    N < ut && (v += (ut - N) * Q, N = ut);
-                    const it = Math.min(yt.end, xt);
-                    for (let tt = N; tt <= it && !(v >= R); tt++)
-                      Mt.push({ data: k == null ? void 0 : k[tt], index: tt, offset: v, size: Q }), v += Q + nt;
-                  }
-                });
-                return Ie(Xt, ft, B, nt, q, J);
-              }
-            ),
-            //@ts-expect-error filter needs to be fixed
-            P((d) => d !== null),
-            Y()
-          ),
-          ke
-        );
-        F(
-          x(
-            t2,
-            P(Me),
-            E((d) => d == null ? void 0 : d.length)
-          ),
-          r2
-        ), F(
-          x(
-            a,
-            E((d) => d.topListHeight)
-          ),
-          S2
-        ), F(S2, l), F(
-          x(
-            a,
-            E((d) => [d.top, d.bottom])
-          ),
-          i2
-        ), F(
-          x(
-            a,
-            E((d) => d.items)
-          ),
-          g
-        );
-        const T2 = pt(
-          x(
-            a,
-            P(({ items: d }) => d.length > 0),
-            G(r2, t2),
-            P(([{ items: d }, R]) => d[d.length - 1].originalIndex === R - 1),
-            E(([, d, R]) => [d - 1, R]),
-            Y(se),
-            E(([d]) => d)
-          )
-        ), b = pt(
-          x(
-            a,
-            Lt(200),
-            P(({ items: d, topItems: R }) => d.length > 0 && d[0].originalIndex === R.length),
-            E(({ items: d }) => d[0].index),
-            Y()
-          )
-        ), h = pt(
-          x(
-            a,
-            P(({ items: d }) => d.length > 0),
-            E(({ items: d }) => {
-              let R = 0, B = d.length - 1;
-              for (; d[R].type === "group" && R < B; )
-                R++;
-              for (; d[B].type === "group" && B > R; )
-                B--;
-              return {
-                endIndex: d[B].index,
-                startIndex: d[R].index
-              };
-            }),
-            Y(An)
-          )
-        );
-        return { endReached: T2, initialItemCount: C2, itemsRendered: g, listState: a, rangeChanged: h, startReached: b, topItemsIndexes: I, ...p };
-      },
-      X(
-        Et,
-        Gn,
-        Ke,
-        ue,
-        ce,
-        ae,
-        Pt,
-        Ne
-      ),
-      { singleton: true }
-    ), Un = U(
-      ([{ fixedFooterHeight: t2, fixedHeaderHeight: e, footerHeight: n, headerHeight: o }, { listState: r2 }]) => {
-        const s = $(), i2 = ct(
-          x(
-            rt(n, t2, o, e, r2),
-            E(([l, c2, u, f, S2]) => l + c2 + u + f + S2.offsetBottom + S2.bottom)
-          ),
-          0
-        );
-        return F(A(i2), s), { totalListHeight: i2, totalListHeightChanged: s };
-      },
-      X(at, Gt),
-      { singleton: true }
-    ), Mo = U(
-      ([{ viewportHeight: t2 }, { totalListHeight: e }]) => {
-        const n = y(false), o = ct(
-          x(
-            rt(n, t2, e),
-            P(([r2]) => r2),
-            E(([, r2, s]) => Math.max(0, r2 - s)),
-            Lt(0),
-            Y()
-          ),
-          0
-        );
-        return { alignToBottom: n, paddingTopAddition: o };
-      },
-      X(at, Un),
-      { singleton: true }
-    );
-    function Sn(t2) {
-      return t2 ? t2 === "smooth" ? "smooth" : "auto" : false;
-    }
-    const Wo = (t2, e) => typeof t2 == "function" ? Sn(t2(e)) : e && Sn(t2), _o = U(
-      ([
-        { listRefresh: t2, totalCount: e },
-        { atBottomState: n, isAtBottom: o },
-        { scrollToIndex: r2 },
-        { scrolledToInitialItem: s },
-        { didMount: i2, propsReady: l },
-        { log: c2 },
-        { scrollingInProgress: u }
-      ]) => {
-        const f = y(false), S2 = $();
-        let p = null;
-        function m(I) {
-          W(r2, {
-            align: "end",
-            behavior: I,
-            index: "LAST"
-          });
-        }
-        K(
-          x(
-            rt(x(A(e), jt(1)), i2),
-            G(A(f), o, s, u),
-            E(([[I, C2], g, a, T2, b]) => {
-              let h = C2 && T2, d = "auto";
-              return h && (d = Wo(g, a || b), h = h && !!d), { followOutputBehavior: d, shouldFollow: h, totalCount: I };
-            }),
-            P(({ shouldFollow: I }) => I)
-          ),
-          ({ followOutputBehavior: I, totalCount: C2 }) => {
-            p && (p(), p = null), p = Rt(t2, () => {
-              lt(c2)("following output to ", { totalCount: C2 }, ht.DEBUG), m(I), p = null;
-            });
-          }
-        );
-        function w(I) {
-          const C2 = Rt(n, (g) => {
-            I && !g.atBottom && g.notAtBottomBecause === "SIZE_INCREASED" && !p && (lt(c2)("scrolling to bottom due to increased size", {}, ht.DEBUG), m("auto"));
-          });
-          setTimeout(C2, 100);
-        }
-        return K(
-          x(
-            rt(A(f), e, l),
-            P(([I, , C2]) => I && C2),
-            bt(
-              ({ value: I }, [, C2]) => ({ refreshed: I === C2, value: C2 }),
-              { refreshed: false, value: 0 }
-            ),
-            P(({ refreshed: I }) => I),
-            G(f, e)
-          ),
-          ([, I]) => {
-            lt(s) && w(I !== false);
-          }
-        ), K(S2, () => {
-          w(lt(f) !== false);
-        }), K(rt(A(f), n), ([I, C2]) => {
-          I && !C2.atBottom && C2.notAtBottomBecause === "VIEWPORT_HEIGHT_DECREASING" && m("auto");
-        }), { autoscrollToBottom: S2, followOutput: f };
-      },
-      X(Et, ae, ce, ue, Pt, Vt$1, at)
-    ), Go = U(
-      ([{ data: t2, firstItemIndex: e, gap: n, sizes: o }, { initialTopMostItemIndex: r2 }, { initialItemCount: s, listState: i2 }, { didMount: l }]) => (F(
-        x(
-          l,
-          G(s),
-          P(([, c2]) => c2 !== 0),
-          G(r2, o, e, n, t2),
-          E(([[, c2], u, f, S2, p, m = []]) => $n(c2, u, f, S2, p, m))
-        ),
-        i2
-      ), {}),
-      X(Et, ue, Gt, Pt),
-      { singleton: true }
-    ), No = U(
-      ([{ didMount: t2 }, { scrollTo: e }, { listState: n }]) => {
-        const o = y(0);
-        return K(
-          x(
-            t2,
-            G(o),
-            P(([, r2]) => r2 !== 0),
-            E(([, r2]) => ({ top: r2 }))
-          ),
-          (r2) => {
-            Rt(
-              x(
-                n,
-                jt(1),
-                P((s) => s.items.length > 1)
-              ),
-              () => {
-                requestAnimationFrame(() => {
-                  W(e, r2);
-                });
-              }
-            );
-          }
-        ), {
-          initialScrollTop: o
-        };
-      },
-      X(Pt, at, Gt),
-      { singleton: true }
-    ), Do = ({
-      itemBottom: t2,
-      itemTop: e,
-      locationParams: { align: n, behavior: o, ...r2 },
-      viewportBottom: s,
-      viewportTop: i2
-    }) => e < i2 ? { ...r2, align: n != null ? n : "start", behavior: o } : t2 > s ? { ...r2, align: n != null ? n : "end", behavior: o } : null, $o = U(
-      ([
-        { gap: t2, sizes: e, totalCount: n },
-        { fixedFooterHeight: o, fixedHeaderHeight: r2, headerHeight: s, scrollingInProgress: i2, scrollTop: l, viewportHeight: c2 },
-        { scrollToIndex: u }
-      ]) => {
-        const f = $();
-        return F(
-          x(
-            f,
-            G(e, c2, n, s, r2, o, l),
-            G(t2),
-            E(([[S2, p, m, w, I, C2, g, a], T2]) => {
-              const { align: b, behavior: h, calculateViewLocation: d = Do, done: R, ...B } = S2, O = _n(S2, p, w - 1), L = ie$2(O, p.offsetTree, T2) + I + C2, V = L + Ct(p.sizeTree, O)[1], D2 = a + C2, J = a + m - g, nt = d({
-                itemBottom: V,
-                itemTop: L,
-                locationParams: { align: b, behavior: h, ...B },
-                viewportBottom: J,
-                viewportTop: D2
-              });
-              return nt ? R && Rt(
-                x(
-                  i2,
-                  P((k) => !k),
-                  // skips the initial publish of false, and the cleanup call.
-                  // but if scrollingInProgress is true, we skip the initial publish.
-                  jt(lt(i2) ? 1 : 2)
-                ),
-                R
-              ) : R && R(), nt;
-            }),
-            P((S2) => S2 !== null)
-          ),
-          u
-        ), {
-          scrollIntoView: f
-        };
-      },
-      X(Et, at, ce, Gt, Vt$1),
-      { singleton: true }
-    ), Kn = U(
-      ([{ scrollVelocity: t2 }]) => {
-        const e = y(false), n = $(), o = y(false);
-        return F(
-          x(
-            t2,
-            G(o, e, n),
-            P(([r2, s]) => !!s),
-            E(([r2, s, i2, l]) => {
-              const { enter: c2, exit: u } = s;
-              if (i2) {
-                if (u(r2, l))
-                  return false;
-              } else if (c2(r2, l))
-                return true;
-              return i2;
-            }),
-            Y()
-          ),
-          e
-        ), K(
-          x(rt(e, t2, n), G(o)),
-          ([[r2, s, i2], l]) => {
-            r2 && l && l.change && l.change(s, i2);
-          }
-        ), { isSeeking: e, scrollSeekConfiguration: o, scrollSeekRangeChanged: n, scrollVelocity: t2 };
-      },
-      X(ae),
-      { singleton: true }
-    ), je = U(([{ scrollContainerState: t2, scrollTo: e }]) => {
-      const n = $(), o = $(), r2 = $(), s = y(false), i2 = y(void 0);
-      return F(
-        x(
-          rt(n, o),
-          E(([{ scrollHeight: l, scrollTop: c2, viewportHeight: u }, { offsetTop: f }]) => ({
-            scrollHeight: l,
-            scrollTop: Math.max(0, c2 - f),
-            viewportHeight: u
-          }))
-        ),
-        t2
-      ), F(
-        x(
-          e,
-          G(o),
-          E(([l, { offsetTop: c2 }]) => ({
-            ...l,
-            top: l.top + c2
-          }))
-        ),
-        r2
-      ), {
-        customScrollParent: i2,
-        // config
-        useWindowScroll: s,
-        // input
-        windowScrollContainerState: n,
-        // signals
-        windowScrollTo: r2,
-        windowViewportRect: o
-      };
-    }, X(at)), Uo = U(
-      ([
-        { sizeRanges: t2, sizes: e },
-        { headerHeight: n, scrollTop: o },
-        { initialTopMostItemIndex: r2 },
-        { didMount: s },
-        { useWindowScroll: i2, windowScrollContainerState: l, windowViewportRect: c2 }
-      ]) => {
-        const u = $(), f = y(void 0), S2 = y(null), p = y(null);
-        return F(l, S2), F(c2, p), K(
-          x(
-            u,
-            G(e, o, i2, S2, p, n)
-          ),
-          ([m, w, I, C2, g, a, T2]) => {
-            const b = Ho(w.sizeTree);
-            C2 && g !== null && a !== null && (I = g.scrollTop - a.offsetTop), I -= T2, m({ ranges: b, scrollTop: I });
-          }
-        ), F(x(f, P(Me), E(Ko)), r2), F(
-          x(
-            s,
-            G(f),
-            P(([, m]) => m !== void 0),
-            Y(),
-            E(([, m]) => m.ranges)
-          ),
-          t2
-        ), {
-          getState: u,
-          restoreStateFrom: f
-        };
-      },
-      X(Et, at, ue, Pt, je)
-    );
-    function Ko(t2) {
-      return { align: "start", index: 0, offset: t2.scrollTop };
-    }
-    const jo = U(([{ topItemsIndexes: t2 }]) => {
-      const e = y(0);
-      return F(
-        x(
-          e,
-          P((n) => n >= 0),
-          E((n) => Array.from({ length: n }).map((o, r2) => r2))
-        ),
-        t2
-      ), { topItemCount: e };
-    }, X(Gt));
-    function jn(t2) {
-      let e = false, n;
-      return () => (e || (e = true, n = t2()), n);
-    }
-    const qo = jn(() => /iP(ad|od|hone)/i.test(navigator.userAgent) && /WebKit/i.test(navigator.userAgent)), Yo = U(
-      ([
-        { deviation: t2, scrollBy: e, scrollingInProgress: n, scrollTop: o },
-        { isAtBottom: r2, isScrolling: s, lastJumpDueToItemResize: i2, scrollDirection: l },
-        { listState: c2 },
-        { beforeUnshiftWith: u, gap: f, shiftWithOffset: S2, sizes: p },
-        { log: m },
-        { recalcInProgress: w }
-      ]) => {
-        const I = pt(
-          x(
-            c2,
-            G(i2),
-            bt(
-              ([, g, a, T2], [{ bottom: b, items: h, offsetBottom: d, totalCount: R }, B]) => {
-                const O = b + d;
-                let L = 0;
-                return a === R && g.length > 0 && h.length > 0 && (h[0].originalIndex === 0 && g[0].originalIndex === 0 || (L = O - T2, L !== 0 && (L += B))), [L, h, R, O];
-              },
-              [0, [], 0, 0]
-            ),
-            P(([g]) => g !== 0),
-            G(o, l, n, r2, m, w),
-            P(([, g, a, T2, , , b]) => !b && !T2 && g !== 0 && a === le),
-            E(([[g], , , , , a]) => (a("Upward scrolling compensation", { amount: g }, ht.DEBUG), g))
-          )
-        );
-        function C2(g) {
-          g > 0 ? (W(e, { behavior: "auto", top: -g }), W(t2, 0)) : (W(t2, 0), W(e, { behavior: "auto", top: -g }));
-        }
-        return K(x(I, G(t2, s)), ([g, a, T2]) => {
-          T2 && qo() ? W(t2, a - g) : C2(-g);
-        }), K(
-          x(
-            rt(ct(s, false), t2, w),
-            P(([g, a, T2]) => !g && !T2 && a !== 0),
-            E(([g, a]) => a),
-            Lt(1)
-          ),
-          C2
-        ), F(
-          x(
-            S2,
-            E((g) => ({ top: -g }))
-          ),
-          e
-        ), K(
-          x(
-            u,
-            G(p, f),
-            E(([g, { groupIndices: a, lastSize: T2, sizeTree: b }, h]) => {
-              function d(R) {
-                return R * (T2 + h);
-              }
-              if (a.length === 0)
-                return d(g);
-              {
-                let R = 0;
-                const B = re(b, 0);
-                let O = 0, L = 0;
-                for (; O < g; ) {
-                  O++, R += B;
-                  let V = a.length === L + 1 ? 1 / 0 : a[L + 1] - a[L] - 1;
-                  O + V > g && (R -= B, V = g - O + 1), O += V, R += d(V), L++;
-                }
-                return R;
-              }
-            })
-          ),
-          (g) => {
-            W(t2, g), requestAnimationFrame(() => {
-              W(e, { top: g }), requestAnimationFrame(() => {
-                W(t2, 0), W(w, false);
-              });
-            });
-          }
-        ), { deviation: t2 };
-      },
-      X(at, ae, Gt, Et, Vt$1, Ne)
-    ), Zo = U(
-      ([
-        t2,
-        e,
-        n,
-        o,
-        r2,
-        s,
-        i2,
-        l,
-        c2,
-        u
-      ]) => ({
-        ...t2,
-        ...e,
-        ...n,
-        ...o,
-        ...r2,
-        ...s,
-        ...i2,
-        ...l,
-        ...c2,
-        ...u
-      }),
-      X(
-        Ke,
-        Go,
-        Pt,
-        Kn,
-        Un,
-        No,
-        Mo,
-        je,
-        $o,
-        Vt$1
-      )
-    ), qn = U(
-      ([
-        {
-          data: t2,
-          defaultItemSize: e,
-          firstItemIndex: n,
-          fixedItemSize: o,
-          gap: r2,
-          groupIndices: s,
-          itemSize: i2,
-          sizeRanges: l,
-          sizes: c2,
-          statefulTotalCount: u,
-          totalCount: f,
-          trackItemSizes: S2
-        },
-        { initialItemFinalLocationReached: p, initialTopMostItemIndex: m, scrolledToInitialItem: w },
-        I,
-        C2,
-        g,
-        { listState: a, topItemsIndexes: T2, ...b },
-        { scrollToIndex: h },
-        d,
-        { topItemCount: R },
-        { groupCounts: B },
-        O
-      ]) => (F(b.rangeChanged, O.scrollSeekRangeChanged), F(
-        x(
-          O.windowViewportRect,
-          E((L) => L.visibleHeight)
-        ),
-        I.viewportHeight
-      ), {
-        data: t2,
-        defaultItemHeight: e,
-        firstItemIndex: n,
-        fixedItemHeight: o,
-        gap: r2,
-        groupCounts: B,
-        initialItemFinalLocationReached: p,
-        initialTopMostItemIndex: m,
-        scrolledToInitialItem: w,
-        sizeRanges: l,
-        topItemCount: R,
-        topItemsIndexes: T2,
-        // input
-        totalCount: f,
-        ...g,
-        groupIndices: s,
-        itemSize: i2,
-        listState: a,
-        scrollToIndex: h,
-        // output
-        statefulTotalCount: u,
-        trackItemSizes: S2,
-        // exported from stateFlagsSystem
-        ...b,
-        // the bag of IO from featureGroup1System
-        ...O,
-        ...I,
-        sizes: c2,
-        ...C2
-      }),
-      X(
-        Et,
-        ue,
-        at,
-        Uo,
-        _o,
-        Gt,
-        ce,
-        Yo,
-        jo,
-        Gn,
-        Zo
-      )
-    );
-    function Xo(t2, e) {
-      const n = {}, o = {};
-      let r2 = 0;
-      const s = t2.length;
-      for (; r2 < s; )
-        o[t2[r2]] = 1, r2 += 1;
-      for (const i2 in e)
-        Object.hasOwn(o, i2) || (n[i2] = e[i2]);
-      return n;
-    }
-    const pe = typeof document < "u" ? H.useLayoutEffect : H.useEffect;
-    function qe(t2, e, n) {
-      const o = Object.keys(e.required || {}), r2 = Object.keys(e.optional || {}), s = Object.keys(e.methods || {}), i2 = Object.keys(e.events || {}), l = H.createContext({});
-      function c2(g, a) {
-        g.propsReady && W(g.propsReady, false);
-        for (const T2 of o) {
-          const b = g[e.required[T2]];
-          W(b, a[T2]);
-        }
-        for (const T2 of r2)
-          if (T2 in a) {
-            const b = g[e.optional[T2]];
-            W(b, a[T2]);
-          }
-        g.propsReady && W(g.propsReady, true);
-      }
-      function u(g) {
-        return s.reduce((a, T2) => (a[T2] = (b) => {
-          const h = g[e.methods[T2]];
-          W(h, b);
-        }, a), {});
-      }
-      function f(g) {
-        return i2.reduce((a, T2) => (a[T2] = mo(g[e.events[T2]]), a), {});
-      }
-      const S2 = H.forwardRef((g, a) => {
-        const { children: T2, ...b } = g, [h] = H.useState(() => ye(ho(t2), (B) => {
-          c2(B, b);
-        })), [d] = H.useState(cn(f, h));
-        pe(() => {
-          for (const B of i2)
-            B in b && K(d[B], b[B]);
-          return () => {
-            Object.values(d).map(We);
-          };
-        }, [b, d, h]), pe(() => {
-          c2(h, b);
-        }), H.useImperativeHandle(a, ln(u(h)));
-        const R = n;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(l.Provider, { value: h, children: n ? /* @__PURE__ */ jsxRuntimeExports.jsx(R, { ...Xo([...o, ...r2, ...i2], b), children: T2 }) : T2 });
-      }), p = (g) => H.useCallback(kn(W, H.useContext(l)[g]), [g]), m = (g) => {
-        const T2 = H.useContext(l)[g], b = H.useCallback(
-          (h) => K(T2, h),
-          [T2]
-        );
-        return H.useSyncExternalStore(
-          b,
-          () => lt(T2),
-          () => lt(T2)
-        );
-      }, w = (g) => {
-        const T2 = H.useContext(l)[g], [b, h] = H.useState(cn(lt, T2));
-        return pe(
-          () => K(T2, (d) => {
-            d !== b && h(ln(d));
-          }),
-          [T2, b]
-        ), b;
-      }, I = H.version.startsWith("18") ? m : w;
-      return {
-        Component: S2,
-        useEmitter: (g, a) => {
-          const b = H.useContext(l)[g];
-          pe(() => K(b, a), [a, b]);
-        },
-        useEmitterValue: I,
-        usePublisher: p
-      };
-    }
-    const Re = H.createContext(void 0), Yn = H.createContext(void 0), Zn = typeof document < "u" ? H.useLayoutEffect : H.useEffect;
-    function Be(t2) {
-      return "self" in t2;
-    }
-    function Jo(t2) {
-      return "body" in t2;
-    }
-    function Xn(t2, e, n, o = Yt, r2, s) {
-      const i2 = H.useRef(null), l = H.useRef(null), c2 = H.useRef(null), u = H.useCallback(
-        (p) => {
-          let m, w, I;
-          const C2 = p.target;
-          if (Jo(C2) || Be(C2)) {
-            const a = Be(C2) ? C2 : C2.defaultView;
-            I = s ? a.scrollX : a.scrollY, m = s ? a.document.documentElement.scrollWidth : a.document.documentElement.scrollHeight, w = s ? a.innerWidth : a.innerHeight;
-          } else
-            I = s ? C2.scrollLeft : C2.scrollTop, m = s ? C2.scrollWidth : C2.scrollHeight, w = s ? C2.offsetWidth : C2.offsetHeight;
-          const g = () => {
-            t2({
-              scrollHeight: m,
-              scrollTop: Math.max(I, 0),
-              viewportHeight: w
-            });
-          };
-          p.suppressFlushSync ? g() : lo.flushSync(g), l.current !== null && (I === l.current || I <= 0 || I === m - w) && (l.current = null, e(true), c2.current && (clearTimeout(c2.current), c2.current = null));
-        },
-        [t2, e]
-      );
-      H.useEffect(() => {
-        const p = r2 || i2.current;
-        return o(r2 || i2.current), u({ suppressFlushSync: true, target: p }), p.addEventListener("scroll", u, { passive: true }), () => {
-          o(null), p.removeEventListener("scroll", u);
-        };
-      }, [i2, u, n, o, r2]);
-      function f(p) {
-        const m = i2.current;
-        if (!m || (s ? "offsetWidth" in m && m.offsetWidth === 0 : "offsetHeight" in m && m.offsetHeight === 0))
-          return;
-        const w = p.behavior === "smooth";
-        let I, C2, g;
-        Be(m) ? (C2 = Math.max(
-          wt(m.document.documentElement, s ? "width" : "height"),
-          s ? m.document.documentElement.scrollWidth : m.document.documentElement.scrollHeight
-        ), I = s ? m.innerWidth : m.innerHeight, g = s ? window.scrollX : window.scrollY) : (C2 = m[s ? "scrollWidth" : "scrollHeight"], I = wt(m, s ? "width" : "height"), g = m[s ? "scrollLeft" : "scrollTop"]);
-        const a = C2 - I;
-        if (p.top = Math.ceil(Math.max(Math.min(a, p.top), 0)), Dn(I, C2) || p.top === g) {
-          t2({ scrollHeight: C2, scrollTop: g, viewportHeight: I }), w && e(true);
-          return;
-        }
-        w ? (l.current = p.top, c2.current && clearTimeout(c2.current), c2.current = setTimeout(() => {
-          c2.current = null, l.current = null, e(true);
-        }, 1e3)) : l.current = null, s && (p = { behavior: p.behavior, left: p.top }), m.scrollTo(p);
-      }
-      function S2(p) {
-        s && (p = { behavior: p.behavior, left: p.top }), i2.current.scrollBy(p);
-      }
-      return { scrollByCallback: S2, scrollerRef: i2, scrollToCallback: f };
-    }
-    const Oe = "-webkit-sticky", xn = "sticky", Jn = jn(() => {
-      if (typeof document > "u")
-        return xn;
-      const t2 = document.createElement("div");
-      return t2.style.position = Oe, t2.style.position === Oe ? Oe : xn;
-    });
-    function Ye(t2) {
-      return t2;
-    }
-    const Qo = /* @__PURE__ */ U(() => {
-      const t2 = y((c2) => `Item ${c2}`), e = y(null), n = y((c2) => `Group ${c2}`), o = y({}), r2 = y(Ye), s = y("div"), i2 = y(Yt), l = (c2, u = null) => ct(
-        x(
-          o,
-          E((f) => f[c2]),
-          Y()
-        ),
-        u
-      );
-      return {
-        components: o,
-        computeItemKey: r2,
-        context: e,
-        EmptyPlaceholder: l("EmptyPlaceholder"),
-        FooterComponent: l("Footer"),
-        GroupComponent: l("Group", "div"),
-        groupContent: n,
-        HeaderComponent: l("Header"),
-        HeaderFooterTag: s,
-        ItemComponent: l("Item", "div"),
-        itemContent: t2,
-        ListComponent: l("List", "div"),
-        ScrollerComponent: l("Scroller", "div"),
-        scrollerRef: i2,
-        ScrollSeekPlaceholder: l("ScrollSeekPlaceholder"),
-        TopItemListComponent: l("TopItemList")
-      };
-    }), tr = /* @__PURE__ */ U(
-      ([t2, e]) => ({ ...t2, ...e }),
-      X(qn, Qo)
-    ), er = ({ height: t2 }) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: { height: t2 } }), nr = { overflowAnchor: "none", position: Jn(), zIndex: 1 }, Qn = { overflowAnchor: "none" }, or = { ...Qn, display: "inline-block", height: "100%" }, Tn = /* @__PURE__ */ H.memo(function({ showTopList: e = false }) {
-      const n = M("listState"), o = gt("sizeRanges"), r2 = M("useWindowScroll"), s = M("customScrollParent"), i2 = gt("windowScrollContainerState"), l = gt("scrollContainerState"), c2 = s || r2 ? i2 : l, u = M("itemContent"), f = M("context"), S2 = M("groupContent"), p = M("trackItemSizes"), m = M("itemSize"), w = M("log"), I = gt("gap"), C2 = M("horizontalDirection"), { callbackRef: g } = On(
-        o,
-        m,
-        p,
-        e ? Yt : c2,
-        w,
-        I,
-        s,
-        C2,
-        M("skipAnimationFrameInResizeObserver")
-      ), [a, T2] = H.useState(0);
-      Je("deviation", (k) => {
-        a !== k && T2(k);
-      });
-      const b = M("EmptyPlaceholder"), h = M("ScrollSeekPlaceholder") || er, d = M("ListComponent"), R = M("ItemComponent"), B = M("GroupComponent"), O = M("computeItemKey"), L = M("isSeeking"), V = M("groupIndices").length > 0, D2 = M("alignToBottom"), J = M("initialItemFinalLocationReached"), nt = e ? {} : {
-        boxSizing: "border-box",
-        ...C2 ? {
-          display: "inline-block",
-          height: "100%",
-          marginLeft: a !== 0 ? a : D2 ? "auto" : 0,
-          paddingLeft: n.offsetTop,
-          paddingRight: n.offsetBottom,
-          whiteSpace: "nowrap"
-        } : {
-          marginTop: a !== 0 ? a : D2 ? "auto" : 0,
-          paddingBottom: n.offsetBottom,
-          paddingTop: n.offsetTop
-        },
-        ...J ? {} : { visibility: "hidden" }
-      };
-      return !e && n.totalCount === 0 && b ? /* @__PURE__ */ jsxRuntimeExports.jsx(b, { ...Z(b, f) }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-        d,
-        {
-          ...Z(d, f),
-          "data-testid": e ? "virtuoso-top-item-list" : "virtuoso-item-list",
-          ref: g,
-          style: nt,
-          children: (e ? n.topItems : n.items).map((k) => {
-            const q = k.originalIndex, st = O(q + n.firstItemIndex, k.data, f);
-            return L ? /* @__PURE__ */ reactExports.createElement(
-              h,
-              {
-                ...Z(h, f),
-                height: k.size,
-                index: k.index,
-                key: st,
-                type: k.type || "item",
-                ...k.type === "group" ? {} : { groupIndex: k.groupIndex }
-              }
-            ) : k.type === "group" ? /* @__PURE__ */ reactExports.createElement(
-              B,
-              {
-                ...Z(B, f),
-                "data-index": q,
-                "data-item-index": k.index,
-                "data-known-size": k.size,
-                key: st,
-                style: nr
-              },
-              S2(k.index, f)
-            ) : /* @__PURE__ */ reactExports.createElement(
-              R,
-              {
-                ...Z(R, f),
-                ...to(R, k.data),
-                "data-index": q,
-                "data-item-group-index": k.groupIndex,
-                "data-item-index": k.index,
-                "data-known-size": k.size,
-                key: st,
-                style: C2 ? or : Qn
-              },
-              V ? u(k.index, k.groupIndex, k.data, f) : u(k.index, k.data, f)
-            );
-          })
-        }
-      );
-    }), rr = {
-      height: "100%",
-      outline: "none",
-      overflowY: "auto",
-      position: "relative",
-      WebkitOverflowScrolling: "touch"
-    }, sr = {
-      outline: "none",
-      overflowX: "auto",
-      position: "relative"
-    }, Zt = (t2) => ({
-      height: "100%",
-      position: "absolute",
-      top: 0,
-      width: "100%",
-      ...t2 ? { display: "flex", flexDirection: "column" } : {}
-    }), ir = {
-      position: Jn(),
-      top: 0,
-      width: "100%",
-      zIndex: 1
-    };
-    function Z(t2, e) {
-      if (typeof t2 != "string")
-        return { context: e };
-    }
-    function to(t2, e) {
-      return { item: typeof t2 == "string" ? void 0 : e };
-    }
-    const lr = /* @__PURE__ */ H.memo(function() {
-      const e = M("HeaderComponent"), n = gt("headerHeight"), o = M("HeaderFooterTag"), r2 = Ht(
-        H.useMemo(
-          () => (i2) => {
-            n(wt(i2, "height"));
-          },
-          [n]
-        ),
-        true,
-        M("skipAnimationFrameInResizeObserver")
-      ), s = M("context");
-      return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
-    }), cr = /* @__PURE__ */ H.memo(function() {
-      const e = M("FooterComponent"), n = gt("footerHeight"), o = M("HeaderFooterTag"), r2 = Ht(
-        H.useMemo(
-          () => (i2) => {
-            n(wt(i2, "height"));
-          },
-          [n]
-        ),
-        true,
-        M("skipAnimationFrameInResizeObserver")
-      ), s = M("context");
-      return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
-    });
-    function Ze({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
-      return H.memo(function({ children: s, style: i2, ...l }) {
-        const c2 = n("scrollContainerState"), u = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S2 = e("scrollerRef"), p = e("context"), m = e("horizontalDirection") || false, { scrollByCallback: w, scrollerRef: I, scrollToCallback: C2 } = Xn(
-          c2,
-          f,
-          u,
-          S2,
-          void 0,
-          m
-        );
-        return t2("scrollTo", C2), t2("scrollBy", w), /* @__PURE__ */ jsxRuntimeExports.jsx(
-          u,
-          {
-            "data-testid": "virtuoso-scroller",
-            "data-virtuoso-scroller": true,
-            ref: I,
-            style: { ...m ? sr : rr, ...i2 },
-            tabIndex: 0,
-            ...l,
-            ...Z(u, p),
-            children: s
-          }
-        );
-      });
-    }
-    function Xe({ useEmitter: t2, useEmitterValue: e, usePublisher: n }) {
-      return H.memo(function({ children: s, style: i2, ...l }) {
-        const c2 = n("windowScrollContainerState"), u = e("ScrollerComponent"), f = n("smoothScrollTargetReached"), S2 = e("totalListHeight"), p = e("deviation"), m = e("customScrollParent"), w = e("context"), I = H.useRef(null), C2 = e("scrollerRef"), { scrollByCallback: g, scrollerRef: a, scrollToCallback: T2 } = Xn(
-          c2,
-          f,
-          u,
-          C2,
-          m
-        );
-        return Zn(() => {
-          var b;
-          return a.current = m || ((b = I.current) == null ? void 0 : b.ownerDocument.defaultView), () => {
-            a.current = null;
-          };
-        }, [a, m]), t2("windowScrollTo", T2), t2("scrollBy", g), /* @__PURE__ */ jsxRuntimeExports.jsx(
-          u,
-          {
-            ref: I,
-            "data-virtuoso-scroller": true,
-            style: { position: "relative", ...i2, ...S2 !== 0 ? { height: S2 + p } : {} },
-            ...l,
-            ...Z(u, w),
-            children: s
-          }
-        );
-      });
-    }
-    const ur = ({ children: t2 }) => {
-      const e = H.useContext(Re), n = gt("viewportHeight"), o = gt("fixedItemHeight"), r2 = M("alignToBottom"), s = M("horizontalDirection"), i2 = H.useMemo(
-        () => ne(n, (c2) => wt(c2, s ? "width" : "height")),
-        [n, s]
-      ), l = Ht(i2, true, M("skipAnimationFrameInResizeObserver"));
-      return H.useEffect(() => {
-        e && (n(e.viewportHeight), o(e.itemHeight));
-      }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "element", ref: l, style: Zt(r2), children: t2 });
-    }, ar = ({ children: t2 }) => {
-      const e = H.useContext(Re), n = gt("windowViewportRect"), o = gt("fixedItemHeight"), r2 = M("customScrollParent"), s = Ge(
-        n,
-        r2,
-        M("skipAnimationFrameInResizeObserver")
-      ), i2 = M("alignToBottom");
-      return H.useEffect(() => {
-        e && (o(e.itemHeight), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: 100 }));
-      }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-viewport-type": "window", ref: s, style: Zt(i2), children: t2 });
-    }, dr = ({ children: t2 }) => {
-      const e = M("TopItemListComponent") || "div", n = M("headerHeight"), o = { ...ir, marginTop: `${n}px` }, r2 = M("context");
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(e, { style: o, ...Z(e, r2), children: t2 });
-    }, fr = /* @__PURE__ */ H.memo(function(e) {
-      const n = M("useWindowScroll"), o = M("topItemsIndexes").length > 0, r2 = M("customScrollParent"), s = M("context"), i2 = r2 || n ? pr : mr, l = r2 || n ? ar : ur;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(i2, { ...e, ...Z(i2, s), children: [
-        o && /* @__PURE__ */ jsxRuntimeExports.jsx(dr, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Tn, { showTopList: true }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(l, { children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(lr, {}),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(Tn, {}),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(cr, {})
-        ] })
-      ] });
-    }), {
-      Component: eo,
-      useEmitter: Je,
-      useEmitterValue: M,
-      usePublisher: gt
-    } = /* @__PURE__ */ qe(
-      tr,
-      {
-        events: {
-          atBottomStateChange: "atBottomStateChange",
-          atTopStateChange: "atTopStateChange",
-          endReached: "endReached",
-          groupIndices: "groupIndices",
-          isScrolling: "isScrolling",
-          itemsRendered: "itemsRendered",
-          rangeChanged: "rangeChanged",
-          startReached: "startReached",
-          totalListHeightChanged: "totalListHeightChanged"
-        },
-        methods: {
-          autoscrollToBottom: "autoscrollToBottom",
-          getState: "getState",
-          scrollBy: "scrollBy",
-          scrollIntoView: "scrollIntoView",
-          scrollTo: "scrollTo",
-          scrollToIndex: "scrollToIndex"
-        },
-        optional: {
-          alignToBottom: "alignToBottom",
-          atBottomThreshold: "atBottomThreshold",
-          atTopThreshold: "atTopThreshold",
-          components: "components",
-          computeItemKey: "computeItemKey",
-          context: "context",
-          customScrollParent: "customScrollParent",
-          data: "data",
-          defaultItemHeight: "defaultItemHeight",
-          firstItemIndex: "firstItemIndex",
-          fixedItemHeight: "fixedItemHeight",
-          followOutput: "followOutput",
-          groupContent: "groupContent",
-          groupCounts: "groupCounts",
-          headerFooterTag: "HeaderFooterTag",
-          horizontalDirection: "horizontalDirection",
-          increaseViewportBy: "increaseViewportBy",
-          initialItemCount: "initialItemCount",
-          initialScrollTop: "initialScrollTop",
-          initialTopMostItemIndex: "initialTopMostItemIndex",
-          itemContent: "itemContent",
-          itemSize: "itemSize",
-          logLevel: "logLevel",
-          overscan: "overscan",
-          restoreStateFrom: "restoreStateFrom",
-          scrollerRef: "scrollerRef",
-          scrollSeekConfiguration: "scrollSeekConfiguration",
-          skipAnimationFrameInResizeObserver: "skipAnimationFrameInResizeObserver",
-          topItemCount: "topItemCount",
-          totalCount: "totalCount",
-          useWindowScroll: "useWindowScroll"
-        },
-        required: {}
-      },
-      fr
-    ), mr = /* @__PURE__ */ Ze({ useEmitter: Je, useEmitterValue: M, usePublisher: gt }), pr = /* @__PURE__ */ Xe({ useEmitter: Je, useEmitterValue: M, usePublisher: gt }), Kr = eo, hr = /* @__PURE__ */ U(() => {
-      const t2 = y((c2) => /* @__PURE__ */ jsxRuntimeExports.jsxs("td", { children: [
-        "Item $",
-        c2
-      ] })), e = y(null), n = y(null), o = y(null), r2 = y({}), s = y(Ye), i2 = y(Yt), l = (c2, u = null) => ct(
-        x(
-          r2,
-          E((f) => f[c2]),
-          Y()
-        ),
-        u
-      );
-      return {
-        components: r2,
-        computeItemKey: s,
-        context: e,
-        EmptyPlaceholder: l("EmptyPlaceholder"),
-        FillerRow: l("FillerRow"),
-        fixedFooterContent: o,
-        fixedHeaderContent: n,
-        itemContent: t2,
-        ScrollerComponent: l("Scroller", "div"),
-        scrollerRef: i2,
-        ScrollSeekPlaceholder: l("ScrollSeekPlaceholder"),
-        TableBodyComponent: l("TableBody", "tbody"),
-        TableComponent: l("Table", "table"),
-        TableFooterComponent: l("TableFoot", "tfoot"),
-        TableHeadComponent: l("TableHead", "thead"),
-        TableRowComponent: l("TableRow", "tr")
-      };
-    });
-    /* @__PURE__ */ U(
-      ([t2, e]) => ({ ...t2, ...e }),
-      X(qn, hr)
-    );
-    const wn = {
-      bottom: 0,
-      itemHeight: 0,
-      items: [],
-      itemWidth: 0,
-      offsetBottom: 0,
-      offsetTop: 0,
-      top: 0
-    }, Hr = {
-      bottom: 0,
-      itemHeight: 0,
-      items: [{ index: 0 }],
-      itemWidth: 0,
-      offsetBottom: 0,
-      offsetTop: 0,
-      top: 0
-    }, { ceil: yn, floor: Ce, max: ee, min: Fe, round: vn } = Math;
-    function bn(t2, e, n) {
-      return Array.from({ length: e - t2 + 1 }).map((o, r2) => ({ data: n === null ? null : n[r2 + t2], index: r2 + t2 }));
-    }
-    function Er(t2) {
-      return {
-        ...Hr,
-        items: t2
-      };
-    }
-    function he(t2, e) {
-      return t2 && t2.width === e.width && t2.height === e.height;
-    }
-    function kr(t2, e) {
-      return t2 && t2.column === e.column && t2.row === e.row;
-    }
-    const Br = /* @__PURE__ */ U(
-      ([
-        { increaseViewportBy: t2, listBoundary: e, overscan: n, visibleRange: o },
-        { footerHeight: r2, headerHeight: s, scrollBy: i2, scrollContainerState: l, scrollTo: c2, scrollTop: u, smoothScrollTargetReached: f, viewportHeight: S2 },
-        p,
-        m,
-        { didMount: w, propsReady: I },
-        { customScrollParent: C2, useWindowScroll: g, windowScrollContainerState: a, windowScrollTo: T2, windowViewportRect: b },
-        h
-      ]) => {
-        const d = y(0), R = y(0), B = y(wn), O = y({ height: 0, width: 0 }), L = y({ height: 0, width: 0 }), V = $(), D2 = $(), J = y(0), nt = y(null), k = y({ column: 0, row: 0 }), q = $(), st = $(), dt = y(false), St = y(0), ft = y(true), ut = y(false), At = y(false);
-        K(
-          x(
-            w,
-            G(St),
-            P(([v, N]) => !!N)
-          ),
-          () => {
-            W(ft, false);
-          }
-        ), K(
-          x(
-            rt(w, ft, L, O, St, ut),
-            P(([v, N, Q, it, , tt]) => v && !N && Q.height !== 0 && it.height !== 0 && !tt)
-          ),
-          ([, , , , v]) => {
-            W(ut, true), $e(1, () => {
-              W(V, v);
-            }), Rt(x(u), () => {
-              W(e, [0, 0]), W(ft, true);
-            });
-          }
-        ), F(
-          x(
-            st,
-            P((v) => v != null && v.scrollTop > 0),
-            vt$1(0)
-          ),
-          R
-        ), K(
-          x(
-            w,
-            G(st),
-            P(([, v]) => v != null)
-          ),
-          ([, v]) => {
-            v && (W(O, v.viewport), W(L, v.item), W(k, v.gap), v.scrollTop > 0 && (W(dt, true), Rt(x(u, jt(1)), (N) => {
-              W(dt, false);
-            }), W(c2, { top: v.scrollTop })));
-          }
-        ), F(
-          x(
-            O,
-            E(({ height: v }) => v)
-          ),
-          S2
-        ), F(
-          x(
-            rt(
-              A(O, he),
-              A(L, he),
-              A(k, (v, N) => v && v.column === N.column && v.row === N.row),
-              A(u)
-            ),
-            E(([v, N, Q, it]) => ({
-              gap: Q,
-              item: N,
-              scrollTop: it,
-              viewport: v
-            }))
-          ),
-          q
-        ), F(
-          x(
-            rt(
-              A(d),
-              o,
-              A(k, kr),
-              A(L, he),
-              A(O, he),
-              A(nt),
-              A(R),
-              A(dt),
-              A(ft),
-              A(St)
-            ),
-            P(([, , , , , , , v]) => !v),
-            E(
-              ([
-                v,
-                [N, Q],
-                it,
-                tt,
-                Bt,
-                Jt,
-                Nt,
-                ,
-                de,
-                Ot
-              ]) => {
-                const { column: Ft, row: Qt } = it, { height: fe, width: He } = tt, { width: tn } = Bt;
-                if (Nt === 0 && (v === 0 || tn === 0))
-                  return wn;
-                if (He === 0) {
-                  const sn = Ue(Ot, v), so = sn + Math.max(Nt - 1, 0);
-                  return Er(bn(sn, so, Jt));
-                }
-                const me = no(tn, He, Ft);
-                let Dt, Wt;
-                de ? N === 0 && Q === 0 && Nt > 0 ? (Dt = 0, Wt = Nt - 1) : (Dt = me * Ce((N + Qt) / (fe + Qt)), Wt = me * yn((Q + Qt) / (fe + Qt)) - 1, Wt = Fe(v - 1, ee(Wt, me - 1)), Dt = Fe(Wt, ee(0, Dt))) : (Dt = 0, Wt = -1);
-                const en = bn(Dt, Wt, Jt), { bottom: nn, top: on } = Rn(Bt, it, tt, en), rn = yn(v / me), ro = rn * fe + (rn - 1) * Qt - nn;
-                return { bottom: nn, itemHeight: fe, items: en, itemWidth: He, offsetBottom: ro, offsetTop: on, top: on };
-              }
-            )
-          ),
-          B
-        ), F(
-          x(
-            nt,
-            P((v) => v !== null),
-            E((v) => v.length)
-          ),
-          d
-        ), F(
-          x(
-            rt(O, L, B, k),
-            P(([v, N, { items: Q }]) => Q.length > 0 && N.height !== 0 && v.height !== 0),
-            E(([v, N, { items: Q }, it]) => {
-              const { bottom: tt, top: Bt } = Rn(v, it, N, Q);
-              return [Bt, tt];
-            }),
-            Y(se)
-          ),
-          e
-        );
-        const xt = y(false);
-        F(
-          x(
-            u,
-            G(xt),
-            E(([v, N]) => N || v !== 0)
-          ),
-          xt
-        );
-        const Xt = pt(
-          x(
-            rt(B, d),
-            P(([{ items: v }]) => v.length > 0),
-            G(xt),
-            P(([[v, N], Q]) => {
-              const tt = v.items[v.items.length - 1].index === N - 1;
-              return (Q || v.bottom > 0 && v.itemHeight > 0 && v.offsetBottom === 0 && v.items.length === N) && tt;
-            }),
-            E(([[, v]]) => v - 1),
-            Y()
-          )
-        ), Mt = pt(
-          x(
-            A(B),
-            P(({ items: v }) => v.length > 0 && v[0].index === 0),
-            vt$1(0),
-            Y()
-          )
-        ), yt = pt(
-          x(
-            A(B),
-            G(dt),
-            P(([{ items: v }, N]) => v.length > 0 && !N),
-            E(([{ items: v }]) => ({
-              endIndex: v[v.length - 1].index,
-              startIndex: v[0].index
-            })),
-            Y(An),
-            Lt(0)
-          )
-        );
-        F(yt, m.scrollSeekRangeChanged), F(
-          x(
-            V,
-            G(O, L, d, k),
-            E(([v, N, Q, it, tt]) => {
-              const Bt = Nn(v), { align: Jt, behavior: Nt, offset: de } = Bt;
-              let Ot = Bt.index;
-              Ot === "LAST" && (Ot = it - 1), Ot = ee(0, Ot, Fe(it - 1, Ot));
-              let Ft = Ae(N, tt, Q, Ot);
-              return Jt === "end" ? Ft = vn(Ft - N.height + Q.height) : Jt === "center" && (Ft = vn(Ft - N.height / 2 + Q.height / 2)), de && (Ft += de), { behavior: Nt, top: Ft };
-            })
-          ),
-          c2
-        );
-        const kt = ct(
-          x(
-            B,
-            E((v) => v.offsetBottom + v.bottom)
-          ),
-          0
-        );
-        return F(
-          x(
-            b,
-            E((v) => ({ height: v.visibleHeight, width: v.visibleWidth }))
-          ),
-          O
-        ), {
-          customScrollParent: C2,
-          // input
-          data: nt,
-          deviation: J,
-          footerHeight: r2,
-          gap: k,
-          headerHeight: s,
-          increaseViewportBy: t2,
-          initialItemCount: R,
-          itemDimensions: L,
-          overscan: n,
-          restoreStateFrom: st,
-          scrollBy: i2,
-          scrollContainerState: l,
-          scrollHeight: D2,
-          scrollTo: c2,
-          scrollToIndex: V,
-          scrollTop: u,
-          smoothScrollTargetReached: f,
-          totalCount: d,
-          useWindowScroll: g,
-          viewportDimensions: O,
-          windowScrollContainerState: a,
-          windowScrollTo: T2,
-          windowViewportRect: b,
-          ...m,
-          // output
-          gridState: B,
-          horizontalDirection: At,
-          initialTopMostItemIndex: St,
-          totalListHeight: kt,
-          ...p,
-          endReached: Xt,
-          propsReady: I,
-          rangeChanged: yt,
-          startReached: Mt,
-          stateChanged: q,
-          stateRestoreInProgress: dt,
-          ...h
-        };
-      },
-      X(Ke, at, ae, Kn, Pt, je, Vt$1)
-    );
-    function no(t2, e, n) {
-      return ee(1, Ce((t2 + n) / (Ce(e) + n)));
-    }
-    function Rn(t2, e, n, o) {
-      const { height: r2 } = n;
-      if (r2 === void 0 || o.length === 0)
-        return { bottom: 0, top: 0 };
-      const s = Ae(t2, e, n, o[0].index);
-      return { bottom: Ae(t2, e, n, o[o.length - 1].index) + r2, top: s };
-    }
-    function Ae(t2, e, n, o) {
-      const r2 = no(t2.width, n.width, e.column), s = Ce(o / r2), i2 = s * n.height + ee(0, s - 1) * e.row;
-      return i2 > 0 ? i2 + e.row : i2;
-    }
-    const Or = /* @__PURE__ */ U(() => {
-      const t2 = y((S2) => `Item ${S2}`), e = y({}), n = y(null), o = y("virtuoso-grid-item"), r2 = y("virtuoso-grid-list"), s = y(Ye), i2 = y("div"), l = y(Yt), c2 = (S2, p = null) => ct(
-        x(
-          e,
-          E((m) => m[S2]),
-          Y()
-        ),
-        p
-      ), u = y(false), f = y(false);
-      return F(A(f), u), {
-        components: e,
-        computeItemKey: s,
-        context: n,
-        FooterComponent: c2("Footer"),
-        HeaderComponent: c2("Header"),
-        headerFooterTag: i2,
-        itemClassName: o,
-        ItemComponent: c2("Item", "div"),
-        itemContent: t2,
-        listClassName: r2,
-        ListComponent: c2("List", "div"),
-        readyStateChanged: u,
-        reportReadyState: f,
-        ScrollerComponent: c2("Scroller", "div"),
-        scrollerRef: l,
-        ScrollSeekPlaceholder: c2("ScrollSeekPlaceholder", "div")
-      };
-    }), Fr = /* @__PURE__ */ U(
-      ([t2, e]) => ({ ...t2, ...e }),
-      X(Br, Or)
-    ), Lr = /* @__PURE__ */ H.memo(function() {
-      const e = et("gridState"), n = et("listClassName"), o = et("itemClassName"), r2 = et("itemContent"), s = et("computeItemKey"), i2 = et("isSeeking"), l = It("scrollHeight"), c2 = et("ItemComponent"), u = et("ListComponent"), f = et("ScrollSeekPlaceholder"), S2 = et("context"), p = It("itemDimensions"), m = It("gap"), w = et("log"), I = et("stateRestoreInProgress"), C2 = It("reportReadyState"), g = Ht(
-        H.useMemo(
-          () => (a) => {
-            const T2 = a.parentElement.parentElement.scrollHeight;
-            l(T2);
-            const b = a.firstChild;
-            if (b) {
-              const { height: h, width: d } = b.getBoundingClientRect();
-              p({ height: h, width: d });
-            }
-            m({
-              column: Hn("column-gap", getComputedStyle(a).columnGap, w),
-              row: Hn("row-gap", getComputedStyle(a).rowGap, w)
-            });
-          },
-          [l, p, m, w]
-        ),
-        true,
-        false
-      );
-      return Zn(() => {
-        e.itemHeight > 0 && e.itemWidth > 0 && C2(true);
-      }, [e]), I ? null : /* @__PURE__ */ jsxRuntimeExports.jsx(
-        u,
-        {
-          className: n,
-          ref: g,
-          ...Z(u, S2),
-          "data-testid": "virtuoso-item-list",
-          style: { paddingBottom: e.offsetBottom, paddingTop: e.offsetTop },
-          children: e.items.map((a) => {
-            const T2 = s(a.index, a.data, S2);
-            return i2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-              f,
-              {
-                ...Z(f, S2),
-                height: e.itemHeight,
-                index: a.index,
-                width: e.itemWidth
-              },
-              T2
-            ) : /* @__PURE__ */ reactExports.createElement(
-              c2,
-              {
-                ...Z(c2, S2),
-                className: o,
-                "data-index": a.index,
-                key: T2
-              },
-              r2(a.index, a.data, S2)
-            );
-          })
-        }
-      );
-    }), zr = H.memo(function() {
-      const e = et("HeaderComponent"), n = It("headerHeight"), o = et("headerFooterTag"), r2 = Ht(
-        H.useMemo(
-          () => (i2) => {
-            n(wt(i2, "height"));
-          },
-          [n]
-        ),
-        true,
-        false
-      ), s = et("context");
-      return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
-    }), Vr = H.memo(function() {
-      const e = et("FooterComponent"), n = It("footerHeight"), o = et("headerFooterTag"), r2 = Ht(
-        H.useMemo(
-          () => (i2) => {
-            n(wt(i2, "height"));
-          },
-          [n]
-        ),
-        true,
-        false
-      ), s = et("context");
-      return e ? /* @__PURE__ */ jsxRuntimeExports.jsx(o, { ref: r2, children: /* @__PURE__ */ jsxRuntimeExports.jsx(e, { ...Z(e, s) }) }) : null;
-    }), Pr = ({ children: t2 }) => {
-      const e = H.useContext(Yn), n = It("itemDimensions"), o = It("viewportDimensions"), r2 = Ht(
-        H.useMemo(
-          () => (s) => {
-            o(s.getBoundingClientRect());
-          },
-          [o]
-        ),
-        true,
-        false
-      );
-      return H.useEffect(() => {
-        e && (o({ height: e.viewportHeight, width: e.viewportWidth }), n({ height: e.itemHeight, width: e.itemWidth }));
-      }, [e, o, n]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: r2, style: Zt(false), children: t2 });
-    }, Ar = ({ children: t2 }) => {
-      const e = H.useContext(Yn), n = It("windowViewportRect"), o = It("itemDimensions"), r2 = et("customScrollParent"), s = Ge(n, r2, false);
-      return H.useEffect(() => {
-        e && (o({ height: e.itemHeight, width: e.itemWidth }), n({ offsetTop: 0, visibleHeight: e.viewportHeight, visibleWidth: e.viewportWidth }));
-      }, [e, n, o]), /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: s, style: Zt(false), children: t2 });
-    }, Mr = /* @__PURE__ */ H.memo(function({ ...e }) {
-      const n = et("useWindowScroll"), o = et("customScrollParent"), r2 = o || n ? Gr : _r, s = o || n ? Ar : Pr, i2 = et("context");
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(r2, { ...e, ...Z(r2, i2), children: /* @__PURE__ */ jsxRuntimeExports.jsxs(s, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(zr, {}),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Lr, {}),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(Vr, {})
-      ] }) });
-    }), {
-      useEmitter: oo,
-      useEmitterValue: et,
-      usePublisher: It
-    } = /* @__PURE__ */ qe(
-      Fr,
-      {
-        events: {
-          atBottomStateChange: "atBottomStateChange",
-          atTopStateChange: "atTopStateChange",
-          endReached: "endReached",
-          isScrolling: "isScrolling",
-          rangeChanged: "rangeChanged",
-          readyStateChanged: "readyStateChanged",
-          startReached: "startReached",
-          stateChanged: "stateChanged"
-        },
-        methods: {
-          scrollBy: "scrollBy",
-          scrollTo: "scrollTo",
-          scrollToIndex: "scrollToIndex"
-        },
-        optional: {
-          components: "components",
-          computeItemKey: "computeItemKey",
-          context: "context",
-          customScrollParent: "customScrollParent",
-          data: "data",
-          headerFooterTag: "headerFooterTag",
-          increaseViewportBy: "increaseViewportBy",
-          initialItemCount: "initialItemCount",
-          initialTopMostItemIndex: "initialTopMostItemIndex",
-          itemClassName: "itemClassName",
-          itemContent: "itemContent",
-          listClassName: "listClassName",
-          logLevel: "logLevel",
-          overscan: "overscan",
-          restoreStateFrom: "restoreStateFrom",
-          scrollerRef: "scrollerRef",
-          scrollSeekConfiguration: "scrollSeekConfiguration",
-          totalCount: "totalCount",
-          useWindowScroll: "useWindowScroll"
-        }
-      },
-      Mr
-    ), _r = /* @__PURE__ */ Ze({ useEmitter: oo, useEmitterValue: et, usePublisher: It }), Gr = /* @__PURE__ */ Xe({ useEmitter: oo, useEmitterValue: et, usePublisher: It });
-    function Hn(t2, e, n) {
-      return e !== "normal" && !(e != null && e.endsWith("px")) && n(`${t2} was not resolved to pixel value correctly`, e, ht.WARN), e === "normal" ? 0 : parseInt(e != null ? e : "0", 10);
-    }
-    const container$8 = "_container_1rer0_2";
+    const container$7 = "_container_1rer0_2";
     const dotsContainer = "_dotsContainer_1rer0_8";
     const small = "_small_1rer0_15";
     const medium = "_medium_1rer0_19";
@@ -50457,8 +51409,8 @@ self.onmessage = function (e) {
     const subtle = "_subtle_1rer0_36";
     const primary = "_primary_1rer0_40";
     const visuallyHidden = "_visuallyHidden_1rer0_59";
-    const styles$C = {
-      container: container$8,
+    const styles$D = {
+      container: container$7,
       dotsContainer,
       small,
       medium,
@@ -50478,29 +51430,29 @@ self.onmessage = function (e) {
         "div",
         {
           className: clsx(
-            styles$C.container,
-            size === "small" ? styles$C.small : size === "medium" ? styles$C.medium : styles$C.large
+            styles$D.container,
+            size === "small" ? styles$D.small : size === "medium" ? styles$D.medium : styles$D.large
           ),
           role: "status",
           children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$C.dotsContainer, children: [...Array(dotsCount)].map((_, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$D.dotsContainer, children: [...Array(dotsCount)].map((_, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx(
-                  styles$C.dot,
-                  subtle2 ? styles$C.subtle : styles$C.primary
+                  styles$D.dot,
+                  subtle2 ? styles$D.subtle : styles$D.primary
                 ),
                 style: { animationDelay: `${index2 * 0.15}s` }
               },
               index2
             )) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$C.visuallyHidden, children: text2 })
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: styles$D.visuallyHidden, children: text2 })
           ]
         }
       );
     };
     const progressContainer = "_progressContainer_1cjjr_1";
-    const styles$B = {
+    const styles$C = {
       progressContainer
     };
     const LiveVirtualList = ({
@@ -50510,7 +51462,9 @@ self.onmessage = function (e) {
       renderRow,
       scrollRef,
       live,
-      showProgress
+      showProgress,
+      initialTopMostItemIndex,
+      components
     }) => {
       const listHandle = reactExports.useRef(null);
       const { getRestoreState, isScrolling } = useVirtuosoState(
@@ -50578,7 +51532,7 @@ self.onmessage = function (e) {
       const [, forceRender] = reactExports.useState({});
       const forceUpdate = reactExports.useCallback(() => forceRender({}), []);
       const Footer = () => {
-        return showProgress ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$B.progressContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0;
+        return showProgress ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$C.progressContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0;
       };
       reactExports.useEffect(() => {
         const parent = scrollRef == null ? void 0 : scrollRef.current;
@@ -50587,6 +51541,19 @@ self.onmessage = function (e) {
           return () => parent.removeEventListener("scroll", handleScroll);
         }
       }, [scrollRef, handleScroll]);
+      reactExports.useEffect(() => {
+        if (initialTopMostItemIndex !== void 0 && listHandle.current) {
+          const timer = setTimeout(() => {
+            var _a2;
+            (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({
+              index: initialTopMostItemIndex,
+              align: "start",
+              behavior: "auto"
+            });
+          }, 50);
+          return () => clearTimeout(timer);
+        }
+      }, [initialTopMostItemIndex]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         Kr,
         {
@@ -50603,25 +51570,41 @@ self.onmessage = function (e) {
           restoreStateFrom: getRestoreState(),
           totalListHeightChanged: heightChanged,
           components: {
-            Footer
+            Footer,
+            ...components
           }
         }
       );
+    };
+    const item = "_item_5fj0m_6";
+    const styles$B = {
+      item
     };
     const ChatViewVirtualList = reactExports.memo(
       ({
         id,
         messages,
+        initialMessageId,
         className: className2,
         toolCallStyle,
         indented: indented2,
         numbered = true,
         scrollRef,
-        running: running2
+        running: running2,
+        getMessageUrl
       }) => {
         const collapsedMessages = reactExports.useMemo(() => {
           return resolveMessages(messages);
         }, [messages]);
+        const initialMessageIndex = reactExports.useMemo(() => {
+          if (initialMessageId === null || initialMessageId === void 0) {
+            return void 0;
+          }
+          const index2 = collapsedMessages.findIndex((message2) => {
+            return message2.message.id === initialMessageId;
+          });
+          return index2 !== -1 ? index2 : void 0;
+        }, [initialMessageId, collapsedMessages]);
         const renderRow = (index2, item2) => {
           const number2 = collapsedMessages.length > 1 && numbered ? index2 + 1 : void 0;
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -50632,7 +51615,25 @@ self.onmessage = function (e) {
               resolvedMessage: item2,
               indented: indented2,
               toolCallStyle,
-              padded: index2 < collapsedMessages.length - 1
+              getMessageUrl,
+              highlightUserMessage: true
+            }
+          );
+        };
+        const Item = ({
+          children: children2,
+          ...props
+        }) => {
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              className: clsx(styles$B.item),
+              "data-index": props["data-index"],
+              "data-item-group-index": props["data-item-group-index"],
+              "data-item-index": props["data-item-index"],
+              "data-known-size": props["data-known-size"],
+              style: props.style,
+              children: children2
             }
           );
         };
@@ -50644,31 +51645,31 @@ self.onmessage = function (e) {
             scrollRef,
             data: collapsedMessages,
             renderRow,
+            initialTopMostItemIndex: initialMessageIndex,
             live: running2,
-            showProgress: running2
+            showProgress: running2,
+            components: { Item }
           }
         );
       }
     );
-    const tabPanel = "_tabPanel_1p5e1_1";
-    const fullWidth$1 = "_fullWidth_1p5e1_5";
-    const metadataPanel = "_metadataPanel_1p5e1_9";
-    const padded = "_padded_1p5e1_18";
-    const error = "_error_1p5e1_23";
-    const ansi = "_ansi_1p5e1_27";
-    const noTop = "_noTop_1p5e1_31";
-    const timePanel = "_timePanel_1p5e1_35";
-    const chat = "_chat_1p5e1_43";
+    const tabPanel = "_tabPanel_1rp9q_1";
+    const fullWidth$1 = "_fullWidth_1rp9q_5";
+    const padded = "_padded_1rp9q_18";
+    const error = "_error_1rp9q_23";
+    const ansi = "_ansi_1rp9q_27";
+    const noTop = "_noTop_1rp9q_31";
+    const chat = "_chat_1rp9q_43";
+    const transcriptContainer = "_transcriptContainer_1rp9q_51";
     const styles$A = {
       tabPanel,
       fullWidth: fullWidth$1,
-      metadataPanel,
       padded,
       error,
       ansi,
       noTop,
-      timePanel,
-      chat
+      chat,
+      transcriptContainer
     };
     const flatBody = "_flatBody_1uw6w_1";
     const iconSmall$1 = "_iconSmall_1uw6w_9";
@@ -50897,14 +51898,14 @@ self.onmessage = function (e) {
       );
       return scorerDescriptor == null ? void 0 : scorerDescriptor.render(scoreData.value);
     };
-    const container$7 = "_container_8i3m0_1";
+    const container$6 = "_container_8i3m0_1";
     const cell$1 = "_cell_8i3m0_9";
     const fullWidth = "_fullWidth_8i3m0_13";
     const separator$2 = "_separator_8i3m0_25";
     const separatorPadded = "_separatorPadded_8i3m0_30";
     const headerSep = "_headerSep_8i3m0_35";
     const styles$x = {
-      container: container$7,
+      container: container$6,
       cell: cell$1,
       fullWidth,
       separator: separator$2,
@@ -50913,7 +51914,8 @@ self.onmessage = function (e) {
     };
     const SampleScoresGrid = ({
       evalSample,
-      className: className2
+      className: className2,
+      scrollRef
     }) => {
       const evalDescriptor = useEvalDescriptor();
       if (!evalDescriptor) {
@@ -50988,7 +51990,16 @@ self.onmessage = function (e) {
                 scorer: scorer2
               }
             ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$x.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: explanation2 }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base", styles$x.cell), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              RenderedContent,
+              {
+                id: `${scorer2}-explanation`,
+                entry: {
+                  name: "Explanation",
+                  value: explanation2
+                }
+              }
+            ) }),
             Object.keys(metadata2).length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
@@ -51002,7 +52013,15 @@ self.onmessage = function (e) {
                   children: "Metadata"
                 }
               ),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$x.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(MetaDataGrid, { entries: metadata2 }) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$x.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                RecordTree,
+                {
+                  id: `${scorer2}-metadataa`,
+                  scrollRef,
+                  record: metadata2,
+                  defaultExpandLevel: 0
+                }
+              ) }),
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
                 {
@@ -51018,19 +52037,18 @@ self.onmessage = function (e) {
         })
       ] });
     };
-    const container$6 = "_container_w4jj8_1";
-    const wordBreak = "_wordBreak_w4jj8_15";
-    const scoreCard = "_scoreCard_w4jj8_56";
-    const scores = "_scores_w4jj8_60";
+    const wordBreak = "_wordBreak_las07_9";
+    const scoreCard = "_scoreCard_las07_50";
+    const scores = "_scores_las07_54";
     const styles$w = {
-      container: container$6,
       wordBreak,
       scoreCard,
       scores
     };
     const SampleScoresView = ({
       sample: sample2,
-      className: className2
+      className: className2,
+      scrollRef
     }) => {
       const evalDescriptor = useEvalDescriptor();
       if (!evalDescriptor) {
@@ -51088,7 +52106,8 @@ self.onmessage = function (e) {
               SampleScoresGrid,
               {
                 evalSample: sample2,
-                className: clsx(styles$w.scores)
+                className: clsx(styles$w.scores),
+                scrollRef
               }
             )
           ] }) })
@@ -51116,9 +52135,10 @@ self.onmessage = function (e) {
       return card2;
     };
     const ApprovalEventView = ({
-      event,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventRow,
         {
@@ -51224,32 +52244,46 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$4 = "_label_7z797_1";
-    const navs = "_navs_7z797_6";
-    const card = "_card_7z797_12";
-    const cardContent = "_cardContent_7z797_18";
-    const hidden$1 = "_hidden_7z797_23";
+    const label$4 = "_label_14w7y_1";
+    const navs = "_navs_14w7y_6";
+    const card = "_card_14w7y_12";
+    const cardContent = "_cardContent_14w7y_20";
+    const hidden$1 = "_hidden_14w7y_25";
+    const copyLink = "_copyLink_14w7y_33";
+    const hover = "_hover_14w7y_40";
+    const root$1 = "_root_14w7y_44";
+    const bottomDongle = "_bottomDongle_14w7y_49";
+    const dongleIcon = "_dongleIcon_14w7y_66";
     const styles$s = {
       label: label$4,
       navs,
       card,
       cardContent,
-      hidden: hidden$1
+      hidden: hidden$1,
+      copyLink,
+      hover,
+      root: root$1,
+      bottomDongle,
+      dongleIcon
     };
     const EventPanel = ({
       id,
+      depth,
       className: className2,
       title: title2,
       subTitle,
       text: text2,
       icon: icon2,
-      collapse,
-      children: children2
+      children: children2,
+      childIds,
+      collapsibleContent,
+      collapseControl = "top"
     }) => {
-      const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
-        defaultValue: !!collapse
-      });
-      const hasCollapse = collapse !== void 0;
+      const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
+      const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
+      const useBottomDongle = isCollapsible && collapseControl === "bottom";
+      const { logPath, sampleId, epoch } = useParams();
+      const url = logPath && supportsLinking() ? toFullUrl(sampleEventUrl(id, logPath, sampleId, epoch)) : void 0;
       const pillId = (index2) => {
         return `${id}-nav-pill-${index2}`;
       };
@@ -51262,36 +52296,42 @@ self.onmessage = function (e) {
         defaultValue: defaultPillId
       });
       const gridColumns2 = [];
-      if (hasCollapse) {
+      if (isCollapsible && !useBottomDongle) {
         gridColumns2.push("minmax(0, max-content)");
       }
       if (icon2) {
         gridColumns2.push("max-content");
       }
       gridColumns2.push("minmax(0, max-content)");
+      if (url) {
+        gridColumns2.push("minmax(0, max-content)");
+      }
       gridColumns2.push("auto");
       gridColumns2.push("minmax(0, max-content)");
       gridColumns2.push("minmax(0, max-content)");
       const toggleCollapse = reactExports.useCallback(() => {
-        setCollapsed(!isCollapsed);
-      }, [setCollapsed, isCollapsed]);
+        setCollapsed(!collapsed);
+      }, [setCollapsed, collapsed, childIds]);
+      const [mouseOver, setMouseOver] = reactExports.useState(false);
       const titleEl = title2 || icon2 || filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
           title: subTitle,
-          className: clsx("text-size-small"),
+          className: clsx("text-size-small", mouseOver ? styles$s.hover : ""),
           style: {
             display: "grid",
             gridTemplateColumns: gridColumns2.join(" "),
             columnGap: "0.3em",
-            cursor: hasCollapse ? "pointer" : void 0
+            cursor: isCollapsible && !useBottomDongle ? "pointer" : void 0
           },
+          onMouseEnter: () => setMouseOver(true),
+          onMouseLeave: () => setMouseOver(false),
           children: [
-            hasCollapse ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            isCollapsible && !useBottomDongle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               "i",
               {
                 onClick: toggleCollapse,
-                className: isCollapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down
+                className: collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down
               }
             ) : "",
             icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -51312,16 +52352,24 @@ self.onmessage = function (e) {
                 children: title2
               }
             ),
+            url ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              CopyButton,
+              {
+                value: url,
+                icon: ApplicationIcons.link,
+                className: clsx(styles$s.copyLink)
+              }
+            ) : "",
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: toggleCollapse }),
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "div",
               {
                 className: clsx("text-style-secondary", styles$s.label),
                 onClick: toggleCollapse,
-                children: isCollapsed ? text2 : ""
+                children: collapsed ? text2 : ""
               }
             ),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.navs, children: (!hasCollapse || !isCollapsed) && filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$s.navs, children: isCollapsible && collapsibleContent && collapsed ? "" : filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index2) => {
@@ -51340,46 +52388,82 @@ self.onmessage = function (e) {
           ]
         }
       ) : "";
-      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { id, className: clsx(className2, styles$s.card), children: [
-        titleEl,
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(
-              "tab-content",
-              styles$s.cardContent,
-              hasCollapse && isCollapsed ? styles$s.hidden : void 0
+      const card2 = /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          id,
+          className: clsx(
+            className2,
+            styles$s.card,
+            depth === 0 ? styles$s.root : void 0
+          ),
+          children: [
+            titleEl,
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                className: clsx(
+                  "tab-content",
+                  styles$s.cardContent,
+                  isCollapsible && collapsed && collapsibleContent ? styles$s.hidden : void 0
+                ),
+                children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
+                  const id2 = pillId(index2);
+                  const isSelected = id2 === selectedNav;
+                  return /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "div",
+                    {
+                      id: id2,
+                      className: clsx("tab-pane", "show", isSelected ? "active" : ""),
+                      children: child
+                    },
+                    `children-${id2}-${index2}`
+                  );
+                })
+              }
             ),
-            children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index2) => {
-              const id2 = pillId(index2);
-              const isSelected = id2 === selectedNav;
-              return /* @__PURE__ */ jsxRuntimeExports.jsx(
-                "div",
-                {
-                  id: id2,
-                  className: clsx("tab-pane", "show", isSelected ? "active" : ""),
-                  children: child
-                },
-                `children-${id2}-${index2}`
-              );
-            })
-          }
-        )
-      ] }) });
+            isCollapsible && useBottomDongle ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
+              "div",
+              {
+                className: clsx(styles$s.bottomDongle, "text-size-smallest"),
+                onClick: toggleCollapse,
+                children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "i",
+                    {
+                      className: clsx(
+                        collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down,
+                        styles$s.dongleIcon
+                      )
+                    }
+                  ),
+                  "transcript (",
+                  childIds == null ? void 0 : childIds.length,
+                  " ",
+                  (childIds == null ? void 0 : childIds.length) === 1 ? "event" : "events",
+                  ")"
+                ]
+              }
+            ) : void 0
+          ]
+        }
+      );
       return card2;
     };
     function hasDataDefault(node2) {
       return reactExports.isValidElement(node2) && node2.props !== null && typeof node2.props === "object" && "data-default" in node2.props;
     }
     const ErrorEventView = ({
-      id,
-      event,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
+      const id = eventNode.id;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           title: "Error",
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -51397,25 +52481,34 @@ self.onmessage = function (e) {
         }
       );
     };
-    const panel$1 = "_panel_8zdtn_1";
+    const panel$1 = "_panel_vz394_1";
     const styles$r = {
       panel: panel$1
     };
     const InfoEventView = ({
-      id,
-      event,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
       const panels = [];
       if (typeof event.data === "string") {
-        panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: event.data, className: styles$r.panel }));
+        panels.push(
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            MarkdownDiv,
+            {
+              markdown: event.data,
+              className: clsx(styles$r.panel, "text-size-base")
+            }
+          )
+        );
       } else {
         panels.push(/* @__PURE__ */ jsxRuntimeExports.jsx(JSONPanel, { data: event.data, className: styles$r.panel }));
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id,
+          id: eventNode.id,
+          depth: eventNode.depth,
           title: "Info" + (event.source ? ": " + event.source : ""),
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -51425,14 +52518,16 @@ self.onmessage = function (e) {
       );
     };
     const InputEventView = ({
-      id,
-      event,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
+      const id = eventNode.id;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           title: "Input",
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
@@ -51452,9 +52547,10 @@ self.onmessage = function (e) {
       grid: grid$2
     };
     const LoggerEventView = ({
-      event,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
       const obj = parsedJson(event.message.message);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventRow,
@@ -51629,11 +52725,11 @@ self.onmessage = function (e) {
       return `${title2}${subtitle}`;
     };
     const ModelEventView = ({
-      id,
-      event,
+      eventNode,
       className: className2
     }) => {
       var _a2, _b2;
+      const event = eventNode.event;
       const totalUsage = (_a2 = event.output.usage) == null ? void 0 : _a2.total_tokens;
       const callTime = event.output.time;
       const outputMessages = (_b2 = event.output.choices) == null ? void 0 : _b2.map((choice) => {
@@ -51653,7 +52749,8 @@ self.onmessage = function (e) {
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id,
+          id: eventNode.id,
+          depth: eventNode.depth,
           className: className2,
           title: formatTitle(panelTitle, totalUsage, callTime),
           subTitle: formatTiming(event.timestamp, event.working_start),
@@ -51663,7 +52760,7 @@ self.onmessage = function (e) {
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
                 {
-                  id: `${id}-model-output`,
+                  id: `${eventNode.id}-model-output`,
                   messages: [...userMessages, ...outputMessages || []],
                   numbered: false,
                   toolCallStyle: "omit"
@@ -51695,7 +52792,7 @@ self.onmessage = function (e) {
               /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Messages", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                 ChatView,
                 {
-                  id: `${id}-model-input-full`,
+                  id: `${eventNode.id}-model-input-full`,
                   messages: [...event.input, ...outputMessages || []]
                 }
               ) })
@@ -51747,7 +52844,7 @@ self.onmessage = function (e) {
         ] }, `${tool2.name}-${idx}`);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$o.toolConfig, children: toolEls }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$o.toolConfig, "text-size-small"), children: toolEls }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$o.toolChoice, children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Tool Choice" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(ToolChoiceView, { toolChoice: toolChoice2 }) })
@@ -51778,28 +52875,29 @@ self.onmessage = function (e) {
       metadata: metadata$1
     };
     const SampleInitEventView = ({
-      id,
-      event,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
       const stateObj = event.state;
       const sections = [];
       if (event.sample.files && Object.keys(event.sample.files).length > 0) {
         sections.push(
           /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Files", children: Object.keys(event.sample.files).map((file) => {
             return /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$m.noMargin, children: file }, `sample-init-file-${file}`);
-          }) }, `sample-${id}-init-files`)
+          }) }, `event-${eventNode.id}`)
         );
       }
       if (event.sample.setup) {
         sections.push(
-          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$m.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `sample-${id}-init-setup`)
+          /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Setup", children: /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: styles$m.code, children: /* @__PURE__ */ jsxRuntimeExports.jsx("code", { className: "sourceCode", children: event.sample.setup }) }) }, `${eventNode.id}-section-setup`)
         );
       }
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id,
+          id: eventNode.id,
+          depth: eventNode.depth,
           className: className2,
           title: "Sample",
           icon: ApplicationIcons.sample,
@@ -51817,7 +52915,7 @@ self.onmessage = function (e) {
                 }) : "",
                 sections.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$m.section, children: sections }) : "",
                 event.sample.target ? /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: "Target", children: toArray(event.sample.target).map((target2) => {
-                  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: target2 }, target2);
+                  return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-base"), children: target2 }, target2);
                 }) }) : void 0
               ] })
             ] }),
@@ -51834,8 +52932,7 @@ self.onmessage = function (e) {
       );
     };
     const SampleLimitEventView = ({
-      id,
-      event,
+      eventNode,
       className: className2
     }) => {
       const resolve_title = (type) => {
@@ -51870,9 +52967,19 @@ self.onmessage = function (e) {
             return ApplicationIcons.limits.execution;
         }
       };
-      const title2 = resolve_title(event.type);
-      const icon2 = resolve_icon(event.type);
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(EventPanel, { id, title: title2, icon: icon2, className: className2, children: event.message });
+      const title2 = resolve_title(eventNode.event.type);
+      const icon2 = resolve_icon(eventNode.event.type);
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        EventPanel,
+        {
+          id: eventNode.id,
+          depth: eventNode.depth,
+          title: title2,
+          icon: icon2,
+          className: className2,
+          children: eventNode.event.message
+        }
+      );
     };
     const twoColumn = "_twoColumn_1irga_9";
     const exec = "_exec_1irga_15";
@@ -51887,14 +52994,16 @@ self.onmessage = function (e) {
       wrapPre
     };
     const SandboxEventView = ({
-      id,
-      event,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
+      const id = eventNode.id;
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           className: className2,
           title: `Sandbox: ${event.action}`,
           icon: ApplicationIcons.sandbox,
@@ -51911,7 +53020,7 @@ self.onmessage = function (e) {
       const options2 = event.options;
       const input2 = event.input;
       const result2 = event.result;
-      const output2 = event.output;
+      const output2 = event.output ? event.output.trim() : void 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.exec), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.twoColumn), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$l.wrapPre), children: cmd2 }),
@@ -51924,13 +53033,20 @@ self.onmessage = function (e) {
             }
           ) }) : void 0
         ] }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(EventSection, { title: `Result`, children: [
-          output2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-output`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: output2 }) }) : void 0,
-          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.result), children: [
-            "Exited with code ",
-            result2
+        output2 || result2 !== null && result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(EventSection, { title: `Result`, children: [
+          output2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-output`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RenderedContent,
+            {
+              id: `${id}-output-content`,
+              entry: { name: "sandbox_output", value: output2 }
+            }
+          ) }) : void 0,
+          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.result, "text-size-base"), children: [
+            "(exited with code ",
+            result2,
+            ")"
           ] }) : void 0
-        ] })
+        ] }) : void 0
       ] });
     };
     const ReadFileView = ({ id, event }) => {
@@ -51964,19 +53080,21 @@ self.onmessage = function (e) {
       metadata
     };
     const ScoreEventView = ({
-      id,
-      event,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
       const resolvedTarget = event.target ? Array.isArray(event.target) ? event.target.join("\n") : event.target : void 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
-          id,
+          id: eventNode.id,
+          depth: eventNode.depth,
           title: (event.intermediate ? "Intermediate " : "") + "Score",
           className: clsx(className2, "text-size-small"),
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: ApplicationIcons.scorer,
+          collapsibleContent: true,
           children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Explanation", className: clsx(styles$k.explanation), children: [
               event.target ? /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -53394,14 +54512,14 @@ self.onmessage = function (e) {
           const lineOutput = {
             pieces: []
           };
-          const location = (_a2 = /^(?:@@ )?[-+]?(\d+),(\d+)/.exec(line2)) === null || _a2 === void 0 ? void 0 : _a2.slice(1);
-          if (!location) {
+          const location2 = (_a2 = /^(?:@@ )?[-+]?(\d+),(\d+)/.exec(line2)) === null || _a2 === void 0 ? void 0 : _a2.slice(1);
+          if (!location2) {
             throw new Error("invalid text diff format");
           }
-          assertArrayHasAtLeast2(location);
+          assertArrayHasAtLeast2(location2);
           lineOutput.location = {
-            line: location[0],
-            chr: location[1]
+            line: location2[0],
+            chr: location2[1]
           };
           const pieces = line2.split("\n").slice(1);
           for (let pieceIndex = 0, piecesLength = pieces.length; pieceIndex < piecesLength; pieceIndex++) {
@@ -59051,7 +60169,7 @@ ${events}
             const value2 = rawSessions[key2];
             const match = key2.match(/(.*)_(\d+_\d+)\.(.*)/);
             if (match) {
-              const user = match[1];
+              const user2 = match[1];
               const timestamp = match[2];
               const type = match[3];
               sessions[timestamp] = sessions[timestamp] || {};
@@ -59069,7 +60187,7 @@ ${events}
                   sessions[timestamp].name = value2;
                   break;
               }
-              sessions[timestamp].user = user;
+              sessions[timestamp].user = user2;
             }
           }
         }
@@ -59198,11 +60316,11 @@ ${events}
       summary: summary$2
     };
     const StateEventView = ({
-      id,
-      event,
-      isStore = false,
+      eventNode,
       className: className2
     }) => {
+      const event = eventNode.event;
+      const id = eventNode.id;
       const summary2 = reactExports.useMemo(() => {
         return summarizeChanges(event.changes);
       }, [event.changes]);
@@ -59218,18 +60336,26 @@ ${events}
         }
       }, [event.changes]);
       const changePreview = reactExports.useMemo(() => {
+        const isStore = eventNode.event.event === "store";
         return generatePreview(event.changes, structuredClone(after), isStore);
-      }, [event.changes, after, isStore]);
+      }, [event.changes, after]);
       const title2 = event.event === "state" ? "State Updated" : "Store Updated";
+      const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
+      reactExports.useEffect(() => {
+        if (changePreview === void 0) {
+          collapseEvent(id, true);
+        }
+      }, [changePreview, collapseEvent]);
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           title: title2,
           className: className2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           text: !changePreview ? summary2 : void 0,
-          collapse: changePreview === void 0 ? true : void 0,
+          collapsibleContent: true,
           children: [
             changePreview ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { "data-name": "Summary", className: clsx(styles$h.summary), children: changePreview }) : void 0,
             /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -59439,12 +60565,21 @@ ${events}
     function initializeObject(current2) {
       return current2 ?? {};
     }
-    const ET_STEP = "step";
+    const STEP = "step";
     const ACTION_BEGIN = "begin";
-    const ET_SPAN_BEGIN = "span_begin";
-    const ET_SPAN_END = "span_end";
+    const SPAN_BEGIN = "span_begin";
+    const SPAN_END = "span_end";
+    const TOOL = "tool";
+    const SUBTASK = "subtask";
+    const STORE = "store";
+    const STATE = "state";
+    const TYPE_TOOL = "tool";
+    const TYPE_SUBTASK = "subtask";
+    const TYPE_SOLVER = "solver";
+    const TYPE_AGENT = "agent";
+    const TYPE_HANDOFF = "handoff";
     const hasSpans = (events) => {
-      return events.some((event) => event.event === ET_SPAN_BEGIN);
+      return events.some((event) => event.event === SPAN_BEGIN);
     };
     const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
     const fixupEventStream = (events, filterPending = true) => {
@@ -59578,31 +60713,26 @@ ${events}
       };
     };
     const StepEventView = ({
-      id,
-      event,
+      eventNode,
       children: children2,
       className: className2
     }) => {
+      const event = eventNode.event;
+      const id = eventNode.id;
       const descriptor = stepDescriptor(event);
       const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize$1(children2);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: `step-${event.name}-${id}`,
+          id,
+          depth: eventNode.depth,
+          childIds: children2.map((child) => child.id),
           className: clsx("transcript-step", className2),
           title: title2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           icon: descriptor.icon,
-          collapse: descriptor.collapse,
-          text: text2,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            TranscriptComponent,
-            {
-              id: `step|${event.name}|${id}`,
-              eventNodes: children2
-            }
-          )
+          text: text2
         }
       );
     };
@@ -59654,8 +60784,7 @@ ${events}
             };
           case "system_message":
             return {
-              ...rootStepDescriptor,
-              collapse: true
+              ...rootStepDescriptor
             };
           case "use_tools":
             return {
@@ -59678,14 +60807,12 @@ ${events}
         if (event.name === kSandboxSignalName) {
           return {
             ...rootStepDescriptor,
-            name: "Sandbox Events",
-            collapse: true
+            name: "Sandbox Events"
           };
         } else if (event.name === "init") {
           return {
             ...rootStepDescriptor,
-            name: "Init",
-            collapse: true
+            name: "Init"
           };
         } else {
           return {
@@ -59697,8 +60824,7 @@ ${events}
           case "sample_init":
             return {
               ...rootStepDescriptor,
-              name: "Sample Init",
-              collapse: true
+              name: "Sample Init"
             };
           default:
             return {
@@ -59718,27 +60844,18 @@ ${events}
       subtaskLabel
     };
     const SubtaskEventView = ({
-      id,
-      event,
-      depth,
+      eventNode,
+      children: children2,
       className: className2
     }) => {
+      const event = eventNode.event;
+      const id = eventNode.id;
       const body2 = [];
       if (event.type === "fork") {
         body2.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { title: "Summary", className: clsx(styles$g.summary), children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Inputs" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$g.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Transcript" }),
-            event.events.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-              TranscriptView,
-              {
-                id: `${id}-subtask`,
-                "data-name": "Transcript",
-                events: event.events,
-                depth: depth + 1
-              }
-            ) : /* @__PURE__ */ jsxRuntimeExports.jsx(None, {})
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$g.summaryRendered), children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: event.input }) })
           ] })
         );
       } else {
@@ -59752,25 +60869,13 @@ ${events}
             }
           )
         );
-        if (event.events.length > 0) {
-          body2.push(
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              TranscriptView,
-              {
-                id: `${id}-subtask`,
-                "data-name": "Transcript",
-                events: event.events,
-                depth: depth + 1
-              }
-            )
-          );
-        }
       }
       const type = event.type === "fork" ? "Fork" : "Subtask";
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           className: className2,
           title: formatTitle(
             `${type}: ${event.name}`,
@@ -59778,7 +60883,8 @@ ${events}
             event.working_time
           ),
           subTitle: formatTiming(event.timestamp, event.working_start),
-          collapse: false,
+          childIds: children2.map((child) => child.id),
+          collapseControl: "bottom",
           children: body2
         }
       );
@@ -59786,9 +60892,9 @@ ${events}
     const SubtaskSummary = ({ input: input2, result: result2 }) => {
       const output2 = typeof result2 === "object" ? result2 : { result: result2 };
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$g.subtaskSummary), children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Input" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-size-small"), children: "Input" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-large", styles$g.subtaskLabel) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label"), children: "Output" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-size-small"), children: "Output" }),
         input2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: input2 }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-title-secondary", styles$g.subtaskLabel), children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: ApplicationIcons.arrows.right }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Rendered, { values: output2 }) })
@@ -59821,105 +60927,96 @@ ${events}
       progress
     };
     const ToolEventView = ({
-      id,
-      event,
+      eventNode,
       children: children2,
       className: className2
     }) => {
       var _a2, _b2;
+      const event = eventNode.event;
+      const id = eventNode.id;
       const { input: input2, functionCall, highlightLanguage } = reactExports.useMemo(
         () => resolveToolInput(event.function, event.arguments),
         [event.function, event.arguments]
       );
-      const { approvalEvent, lastModelEvent } = reactExports.useMemo(() => {
-        const approvalEvent2 = event.events.find((e) => {
-          return e.event === "approval";
+      const { approvalNode, lastModelNode } = reactExports.useMemo(() => {
+        const approvalNode2 = children2.find((e) => {
+          return e.event.event === "approval";
         });
-        const lastModelEvent2 = [...event.events].reverse().find((e) => {
-          return e.event === "model";
+        const lastModelNode2 = children2.findLast((e) => {
+          return e.event.event === "model";
         });
-        return { approvalEvent: approvalEvent2, lastModelEvent: lastModelEvent2 };
+        return {
+          approvalNode: approvalNode2,
+          lastModelNode: lastModelNode2
+        };
       }, [event.events]);
       const title2 = `Tool: ${((_a2 = event.view) == null ? void 0 : _a2.title) || event.function}`;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
           id,
+          depth: eventNode.depth,
           title: formatTitle(title2, void 0, event.working_time),
           className: className2,
           subTitle: formatTiming(event.timestamp, event.working_start),
           icon: ApplicationIcons.solvers.use_tools,
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$f.summary, children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ToolCallView,
-                {
-                  id: `${id}-tool-call`,
-                  functionCall,
-                  input: input2,
-                  highlightLanguage,
-                  output: ((_b2 = event.error) == null ? void 0 : _b2.message) || event.result,
-                  mode: "compact",
-                  view: event.view ? event.view : void 0
-                }
-              ),
-              lastModelEvent && lastModelEvent.event === "model" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ChatView,
-                {
-                  id: `${id}-toolcall-chatmessage`,
-                  messages: lastModelEvent.output.choices.map((m) => m.message),
-                  numbered: false,
-                  toolCallStyle: "compact"
-                }
-              ) : void 0,
-              approvalEvent ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                ApprovalEventView,
-                {
-                  event: approvalEvent,
-                  className: styles$f.approval
-                }
-              ) : "",
-              event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$f.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
-            ] }),
-            children2.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-              TranscriptComponent,
+          childIds: children2.map((child) => child.id),
+          collapseControl: "bottom",
+          children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { "data-name": "Summary", className: styles$f.summary, children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ToolCallView,
               {
-                "data-name": "Transcript",
-                id: `${id}-subtask`,
-                eventNodes: children2,
-                "data-default": event.failed || event.agent ? true : null
+                id: `${id}-tool-call`,
+                functionCall,
+                input: input2,
+                highlightLanguage,
+                output: ((_b2 = event.error) == null ? void 0 : _b2.message) || event.result,
+                mode: "compact",
+                view: event.view ? event.view : void 0
               }
-            ) : ""
-          ]
+            ),
+            lastModelNode ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ChatView,
+              {
+                id: `${id}-toolcall-chatmessage`,
+                messages: lastModelNode.event.output.choices.map((m) => m.message),
+                numbered: false,
+                toolCallStyle: "compact"
+              }
+            ) : void 0,
+            approvalNode ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ApprovalEventView,
+              {
+                eventNode: approvalNode,
+                className: styles$f.approval
+              }
+            ) : "",
+            event.pending ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$f.progress), children: /* @__PURE__ */ jsxRuntimeExports.jsx(PulsingDots, { subtle: false, size: "medium" }) }) : void 0
+          ] })
         }
       );
     };
     const SpanEventView = ({
-      id,
-      event,
+      eventNode,
       children: children2,
       className: className2
     }) => {
+      const event = eventNode.event;
+      const id = eventNode.id;
       const descriptor = spanDescriptor(event);
       const title2 = descriptor.name || `${event.type ? event.type + ": " : "Step: "}${event.name}`;
       const text2 = summarize(children2);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         EventPanel,
         {
-          id: `span-${event.name}-${id}`,
+          id,
+          depth: eventNode.depth,
+          childIds: children2.map((child) => child.id),
           className: clsx("transcript-span", className2),
           title: title2,
           subTitle: formatDateTime(new Date(event.timestamp)),
           text: text2,
-          collapse: descriptor.collapse,
-          icon: descriptor.icon,
-          children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-            TranscriptComponent,
-            {
-              id: `span|${event.name}|${id}`,
-              eventNodes: children2
-            }
-          )
+          icon: descriptor.icon
         }
       );
     };
@@ -59959,62 +61056,51 @@ ${events}
         switch (event.name) {
           case "chain_of_thought":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           case "generate":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           case "self_critique":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           case "system_message":
             return {
-              ...rootStepDescriptor,
-              collapse: true
+              ...rootStepDescriptor
             };
           case "use_tools":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           case "multiple_choice":
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
           default:
             return {
-              ...rootStepDescriptor,
-              collapse: false
+              ...rootStepDescriptor
             };
         }
       } else if (event.type === "scorer") {
         return {
-          ...rootStepDescriptor,
-          collapse: false
+          ...rootStepDescriptor
         };
       } else if (event.event === "span_begin") {
         if (event.span_id === kSandboxSignalName) {
           return {
             ...rootStepDescriptor,
-            name: "Sandbox Events",
-            collapse: true
+            name: "Sandbox Events"
           };
         } else if (event.name === "init") {
           return {
             ...rootStepDescriptor,
-            name: "Init",
-            collapse: true
+            name: "Init"
           };
         } else {
           return {
-            ...rootStepDescriptor,
-            collapse: false
+            ...rootStepDescriptor
           };
         }
       } else {
@@ -60022,8 +61108,7 @@ ${events}
           case "sample_init":
             return {
               ...rootStepDescriptor,
-              name: "Sample Init",
-              collapse: true
+              name: "Sample Init"
             };
           default:
             return {
@@ -60032,77 +61117,83 @@ ${events}
         }
       }
     };
-    const transcriptComponent = "_transcriptComponent_171gc_19";
-    const eventNode = "_eventNode_171gc_25";
-    const darkenBg = "_darkenBg_171gc_29";
-    const lastNode = "_lastNode_171gc_33";
-    const eventNodeContainer = "_eventNodeContainer_171gc_37";
-    const noBottom = "_noBottom_171gc_41";
-    const attached$1 = "_attached_171gc_45";
+    const node = "_node_1dxwr_1";
+    const attached = "_attached_1dxwr_6";
     const styles$e = {
-      transcriptComponent,
-      eventNode,
-      darkenBg,
-      lastNode,
-      eventNodeContainer,
-      noBottom,
-      attached: attached$1
-    };
-    const darkenedBg = "_darkenedBg_u9na2_1";
-    const normalBg = "_normalBg_u9na2_5";
-    const node = "_node_u9na2_9";
-    const attached = "_attached_u9na2_14";
-    const styles$d = {
-      darkenedBg,
-      normalBg,
       node,
       attached
     };
-    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2 }) => {
-      const renderRow = reactExports.useCallback((index2, item2) => {
-        const bgClass = item2.depth % 2 == 0 ? styles$d.darkenedBg : styles$d.normalBg;
-        const paddingClass = index2 === 0 ? styles$d.first : void 0;
-        const eventId = `${id}-event-${index2}`;
-        const previousIndex = index2 - 1;
-        const previous = previousIndex > 0 && previousIndex <= eventNodes.length ? eventNodes[previousIndex] : void 0;
-        const attached2 = item2.event.event === "tool" && ((previous == null ? void 0 : previous.event.event) === "tool" || (previous == null ? void 0 : previous.event.event) === "model");
-        const attachedClass = attached2 ? styles$d.attached : void 0;
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            className: clsx(styles$d.node, paddingClass, attachedClass),
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { id: eventId, node: item2, className: clsx(bgClass) })
-          },
-          eventId
-        );
-      }, []);
+    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2, initialEventId }) => {
+      const initialEventIndex = reactExports.useMemo(() => {
+        if (initialEventId === null || initialEventId === void 0) {
+          return void 0;
+        }
+        const result2 = eventNodes.findIndex((event) => {
+          return event.id === initialEventId;
+        });
+        return result2 === -1 ? void 0 : result2;
+      }, [initialEventId, eventNodes]);
+      const renderRow = reactExports.useCallback(
+        (index2, item2) => {
+          const paddingClass = index2 === 0 ? styles$e.first : void 0;
+          const previousIndex = index2 - 1;
+          const previous = previousIndex > 0 && previousIndex <= eventNodes.length ? eventNodes[previousIndex] : void 0;
+          const attached2 = item2.event.event === "tool" && ((previous == null ? void 0 : previous.event.event) === "tool" || (previous == null ? void 0 : previous.event.event) === "model");
+          const attachedClass = attached2 ? styles$e.attached : void 0;
+          return /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "div",
+            {
+              id: item2.id,
+              className: clsx(styles$e.node, paddingClass, attachedClass),
+              style: {
+                paddingLeft: `${item2.depth <= 1 ? item2.depth * 0.7 : (0.7 + item2.depth - 1) * 1}em`,
+                paddingRight: `${item2.depth === 0 ? void 0 : ".7em"} `
+              },
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { node: item2 })
+            },
+            item2.id
+          );
+        },
+        [eventNodes]
+      );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LiveVirtualList,
         {
           id,
           scrollRef,
           data: eventNodes,
+          initialTopMostItemIndex: initialEventIndex,
           renderRow,
           live: running2
         }
       );
     };
     class EventNode {
-      constructor(event, depth) {
+      constructor(id, event, depth) {
+        __publicField(this, "id");
         __publicField(this, "event");
         __publicField(this, "children", []);
         __publicField(this, "depth");
+        this.id = id;
         this.event = event;
         this.depth = depth;
       }
     }
     function treeifyEvents(events, depth) {
       const useSpans = hasSpans(events);
-      const treeFn = useSpans ? treeifyFnSpan : treeifyFnStep;
+      const pathIndices = [];
       const rootNodes = [];
       const stack2 = [];
       const addNode = (event) => {
-        const node2 = new EventNode(event, stack2.length + depth);
+        const currentDepth = stack2.length;
+        if (pathIndices.length <= currentDepth) {
+          pathIndices.push(0);
+        } else {
+          pathIndices[currentDepth]++;
+          pathIndices.length = currentDepth + 1;
+        }
+        const idPath = pathIndices.slice(0, currentDepth + 1).join(".");
+        const node2 = new EventNode(idPath, event, currentDepth + depth);
         if (stack2.length > 0) {
           const parentNode = stack2[stack2.length - 1];
           parentNode.children.push(node2);
@@ -60115,12 +61206,11 @@ ${events}
         stack2.push(node2);
       };
       const popStack = () => {
-        if (stack2.length > 0) {
-          stack2.pop();
-        }
+        stack2.pop();
+        pathIndices.pop();
       };
       events.forEach((event) => {
-        treeFn(event, addNode, pushStack, popStack);
+        treeifyFn(event, addNode, pushStack, popStack);
       });
       if (useSpans) {
         return transformTree(rootNodes);
@@ -60128,9 +61218,9 @@ ${events}
         return rootNodes;
       }
     }
-    const treeifyFnStep = (event, addNode, pushStack, popStack) => {
+    const treeifyFn = (event, addNode, pushStack, popStack) => {
       switch (event.event) {
-        case ET_STEP:
+        case STEP:
           if (event.action === ACTION_BEGIN) {
             const node2 = addNode(event);
             pushStack(node2);
@@ -60138,30 +61228,39 @@ ${events}
             popStack();
           }
           break;
-        case ET_SPAN_BEGIN: {
-          break;
-        }
-        case ET_SPAN_END: {
-          break;
-        }
-        default:
-          addNode(event);
-          break;
-      }
-    };
-    const treeifyFnSpan = (event, addNode, pushStack, popStack) => {
-      switch (event.event) {
-        case ET_STEP:
-          break;
-        case ET_SPAN_BEGIN: {
+        case SPAN_BEGIN: {
           const node2 = addNode(event);
           pushStack(node2);
           break;
         }
-        case ET_SPAN_END: {
+        case SPAN_END: {
           popStack();
           break;
         }
+        case TOOL:
+          {
+            const node2 = addNode(event);
+            if (event.events.length > 0 && (event.events[0].event !== SPAN_BEGIN || event.events[0].type !== TYPE_TOOL)) {
+              pushStack(node2);
+              for (const child of event.events) {
+                treeifyFn(child, addNode, pushStack, popStack);
+              }
+              popStack();
+            }
+          }
+          break;
+        case SUBTASK:
+          {
+            const node2 = addNode(event);
+            if (event.events.length > 0 && (event.events[0].event !== SPAN_BEGIN || event.events[0].type !== TYPE_SUBTASK)) {
+              pushStack(node2);
+              for (const child of event.events) {
+                treeifyFn(child, addNode, pushStack, popStack);
+              }
+              popStack();
+            }
+          }
+          break;
         default:
           addNode(event);
           break;
@@ -60170,27 +61269,27 @@ ${events}
     const treeNodeTransformers = [
       {
         name: "unwrap_tools",
-        matches: (node2) => node2.event.event === "span_begin" && node2.event.type === "tool",
-        process: (node2) => elevateChildNode(node2, "tool") || node2
+        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event.type === TYPE_TOOL,
+        process: (node2) => elevateChildNode(node2, TYPE_TOOL) || node2
       },
       {
         name: "unwrap_subtasks",
-        matches: (node2) => node2.event.event === "span_begin" && node2.event.type === "subtask",
-        process: (node2) => elevateChildNode(node2, "subtask") || node2
+        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event.type === TYPE_SUBTASK,
+        process: (node2) => elevateChildNode(node2, TYPE_SUBTASK) || node2
       },
       {
         name: "unwrap_agent_solver",
-        matches: (node2) => node2.event.event === "span_begin" && node2.event["type"] === "solver" && node2.children.length === 2 && node2.children[0].event.event === "span_begin" && node2.children[0].event.type === "agent" && node2.children[1].event.event === "state",
+        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_SOLVER && node2.children.length === 2 && node2.children[0].event.event === SPAN_BEGIN && node2.children[0].event.type === TYPE_AGENT && node2.children[1].event.event === STATE,
         process: (node2) => skipFirstChildNode(node2)
       },
       {
         name: "unwrap_agent_solver w/store",
-        matches: (node2) => node2.event.event === "span_begin" && node2.event["type"] === "solver" && node2.children.length === 3 && node2.children[0].event.event === "span_begin" && node2.children[0].event.type === "agent" && node2.children[1].event.event === "state" && node2.children[2].event.event === "store",
+        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_SOLVER && node2.children.length === 3 && node2.children[0].event.event === SPAN_BEGIN && node2.children[0].event.type === TYPE_AGENT && node2.children[1].event.event === STATE && node2.children[2].event.event === STORE,
         process: (node2) => skipFirstChildNode(node2)
       },
       {
         name: "unwrap_handoff",
-        matches: (node2) => node2.event.event === "span_begin" && node2.event["type"] === "handoff" && node2.children.length === 2 && node2.children[0].event.event === "tool" && node2.children[1].event.event === "store" && node2.children[0].children.length === 2 && node2.children[0].children[0].event.event === "span_begin" && node2.children[0].children[0].event.type === "agent",
+        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_HANDOFF && node2.children.length === 2 && node2.children[0].event.event === TOOL && node2.children[1].event.event === STORE && node2.children[0].children.length === 2 && node2.children[0].children[0].event.event === SPAN_BEGIN && node2.children[0].children[0].event.type === TYPE_AGENT,
         process: (node2) => skipThisNode(node2)
       }
     ];
@@ -60221,7 +61320,7 @@ ${events}
       const targetNode = { ...node2.children[targetIndex] };
       const remainingChildren = node2.children.filter((_, i2) => i2 !== targetIndex);
       targetNode.depth = node2.depth;
-      targetNode.children = reduceDepth(remainingChildren);
+      targetNode.children = setDepth(remainingChildren, node2.depth + 1);
       return targetNode;
     };
     const skipFirstChildNode = (node2) => {
@@ -60244,101 +61343,91 @@ ${events}
         return node2;
       });
     };
-    const TranscriptView = ({
-      id,
-      events,
-      depth
-    }) => {
-      const resolvedEvents = fixupEventStream(events);
-      const eventNodes = treeifyEvents(
-        resolvedEvents,
-        depth !== void 0 ? depth : 0
-      );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(TranscriptComponent, { id, eventNodes });
+    const setDepth = (nodes, depth) => {
+      return nodes.map((node2) => {
+        if (node2.children.length > 0) {
+          node2.children = setDepth(node2.children, depth + 1);
+        }
+        node2.depth = depth;
+        return node2;
+      });
+    };
+    const flatTree = (eventNodes, collapsed) => {
+      const result2 = [];
+      for (const node2 of eventNodes) {
+        result2.push(node2);
+        if (collapsed === null || collapsed[node2.id] !== true) {
+          result2.push(...flatTree(node2.children, collapsed));
+        }
+      }
+      return result2;
     };
     const TranscriptVirtualList = reactExports.memo(
       (props) => {
-        let { id, scrollRef, events, depth, running: running2 } = props;
-        const eventNodes = reactExports.useMemo(() => {
+        let { id, scrollRef, events, running: running2, initialEventId } = props;
+        const collapsedEvents = useStore((state) => state.sample.collapsedEvents);
+        const setCollapsedEvents = useStore(
+          (state) => state.sampleActions.setCollapsedEvents
+        );
+        const { eventNodes, defaultCollapsedIds } = reactExports.useMemo(() => {
           const resolvedEvents = fixupEventStream(events, !running2);
-          const eventNodes2 = treeifyEvents(resolvedEvents, depth || 0);
-          return eventNodes2;
-        }, [events, depth]);
+          const eventTree = treeifyEvents(resolvedEvents, 0);
+          const defaultCollapsedIds2 = {};
+          const findCollapsibleEvents = (nodes) => {
+            for (const node2 of nodes) {
+              if ((node2.event.event === "step" || node2.event.event === "span_begin" || node2.event.event === "tool" || node2.event.event === "subtask") && collapseFilters.some(
+                (filter) => filter(
+                  node2.event
+                )
+              )) {
+                defaultCollapsedIds2[node2.id] = true;
+              }
+              findCollapsibleEvents(node2.children);
+            }
+          };
+          findCollapsibleEvents(eventTree);
+          const eventNodes2 = flatTree(
+            eventTree,
+            collapsedEvents || defaultCollapsedIds2
+          );
+          return { eventNodes: eventNodes2, defaultCollapsedIds: defaultCollapsedIds2 };
+        }, [events, running2, collapsedEvents]);
+        reactExports.useEffect(() => {
+          if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
+            setCollapsedEvents(defaultCollapsedIds);
+          }
+        }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
         return /* @__PURE__ */ jsxRuntimeExports.jsx(
           TranscriptVirtualListComponent,
           {
             id,
             eventNodes,
+            initialEventId,
             scrollRef,
             running: running2
           }
         );
       }
     );
-    const TranscriptComponent = reactExports.memo(
-      ({ id, eventNodes }) => {
-        const rows = [];
-        let attached2 = false;
-        for (let i2 = 0; i2 < eventNodes.length; i2++) {
-          const eventNode2 = eventNodes[i2];
-          const clz = [styles$e.eventNode];
-          const containerClz = [];
-          if (eventNode2.event.event !== "tool") {
-            attached2 = false;
-          }
-          if (eventNode2.depth % 2 == 0) {
-            clz.push(styles$e.darkenBg);
-          }
-          if (i2 === eventNodes.length - 1) {
-            clz.push(styles$e.lastNode);
-          }
-          if (attached2) {
-            containerClz.push(styles$e.attached);
-          }
-          const eventId = `${id}|event|${i2}`;
-          const row2 = /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(
-                styles$e.eventNodeContainer,
-                i2 === eventNodes.length - 1 ? styles$e.noBottom : void 0,
-                containerClz
-              ),
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-                RenderedEventNode,
-                {
-                  id: eventId,
-                  node: eventNode2,
-                  className: clsx(clz)
-                }
-              )
-            },
-            eventId
-          );
-          rows.push(row2);
-          if (eventNode2.event.event === "model") {
-            attached2 = true;
-          }
+    const collapseFilters = [
+      (event) => event.type === "solver" && event.name === "system_message",
+      (event) => {
+        if (event.event === "step" || event.event === "span_begin") {
+          return event.name === kSandboxSignalName || event.name === "init" || event.name === "sample_init";
         }
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "div",
-          {
-            id,
-            className: clsx("text-size-small", styles$e.transcriptComponent),
-            children: rows
-          }
-        );
-      }
-    );
+        return false;
+      },
+      (event) => event.event === "tool" && !event.agent && !event.failed,
+      (event) => event.event === "subtask"
+    ];
     const RenderedEventNode = reactExports.memo(
-      ({ id, node: node2, className: className2 }) => {
+      ({ node: node2, className: className2 }) => {
         switch (node2.event.event) {
           case "sample_init":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SampleInitEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 className: className2
               }
             );
@@ -60346,27 +61435,55 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SampleLimitEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 className: className2
               }
             );
           case "info":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(InfoEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              InfoEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "logger":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(LoggerEventView, { event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              LoggerEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "model":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(ModelEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ModelEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "score":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ScoreEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "state":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(StateEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              StateEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "span_begin":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SpanEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 children: node2.children,
                 className: className2
               }
@@ -60375,8 +61492,7 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               StepEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 children: node2.children,
                 className: className2
               }
@@ -60385,40 +61501,60 @@ ${events}
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               StateEventView,
               {
-                id,
-                event: node2.event,
-                className: className2,
-                isStore: true
+                eventNode: node2,
+                className: className2
               }
             );
           case "subtask":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               SubtaskEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 className: className2,
-                depth: node2.depth
+                children: node2.children
               }
             );
           case "tool":
             return /* @__PURE__ */ jsxRuntimeExports.jsx(
               ToolEventView,
               {
-                id,
-                event: node2.event,
+                eventNode: node2,
                 className: className2,
                 children: node2.children
               }
             );
           case "input":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(InputEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              InputEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "error":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ErrorEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "approval":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(ApprovalEventView, { event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              ApprovalEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           case "sandbox":
-            return /* @__PURE__ */ jsxRuntimeExports.jsx(SandboxEventView, { id, event: node2.event, className: className2 });
+            return /* @__PURE__ */ jsxRuntimeExports.jsx(
+              SandboxEventView,
+              {
+                eventNode: node2,
+                className: className2
+              }
+            );
           default:
             return null;
         }
@@ -60432,7 +61568,9 @@ ${events}
         (state) => state.log.selectedSampleIndex
       );
       const sampleData = useSampleData();
-      const sample2 = sampleData.sample;
+      const sample2 = reactExports.useMemo(() => {
+        return sampleData.getSelectedSample();
+      }, [sampleData.selectedSampleIdentifier, sampleData.getSelectedSample]);
       const runningSampleData = sampleData.running;
       const selectedTab = useStore((state) => state.app.tabs.sample);
       const setSelectedTab = useStore((state) => state.appActions.setSampleTab);
@@ -60456,6 +61594,9 @@ ${events}
         sampleId: urlSampleId,
         epoch: urlEpoch
       } = useParams();
+      const getMessageUrl = (id2) => {
+        return id2 && urlLogPath && supportsLinking() ? toFullUrl(sampleMessageUrl(id2, urlLogPath, urlSampleId, urlEpoch)) : void 0;
+      };
       const onSelectedTab = reactExports.useCallback(
         (e) => {
           const el = e.currentTarget;
@@ -60476,7 +61617,11 @@ ${events}
           setSelectedTab
         ]
       );
-      const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample2);
+      const sampleMetadatas = metadataViewsForSample(
+        `${baseId}-${id}`,
+        scrollRef,
+        sample2
+      );
       const tabsetId = `task-sample-details-tab-${id}`;
       const targetId = `${tabsetId}-content`;
       const handlePrintClick = reactExports.useCallback(() => {
@@ -60497,6 +61642,7 @@ ${events}
         );
       }
       const running2 = isRunning(sampleSummary, runningSampleData);
+      const sampleDetailNavigation = useSampleDetailNavigation();
       return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
         sample2 || sampleSummary ? /* @__PURE__ */ jsxRuntimeExports.jsx(SampleSummaryView, { parent_id: id, sample: sample2 || sampleSummary }) : void 0,
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -60511,7 +61657,7 @@ ${events}
                 TabPanel,
                 {
                   id: kSampleTranscriptTabId,
-                  className: "sample-tab",
+                  className: clsx("sample-tab", styles$A.transcriptContainer),
                   title: "Transcript",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleTranscriptTabId || effectiveSelectedTab === void 0,
@@ -60521,6 +61667,7 @@ ${events}
                     {
                       id: `${baseId}-transcript-display-${id}`,
                       events: sampleEvents || [],
+                      initialEventId: sampleDetailNavigation.event,
                       running: running2,
                       scrollRef
                     },
@@ -60543,10 +61690,12 @@ ${events}
                     {
                       id: `${baseId}-chat-${id}`,
                       messages: sampleMessages,
+                      initialMessageId: sampleDetailNavigation.message,
                       indented: true,
                       scrollRef,
                       toolCallStyle: "complete",
-                      running: running2
+                      running: running2,
+                      getMessageUrl
                     },
                     `${baseId}-chat-${id}`
                   )
@@ -60561,7 +61710,14 @@ ${events}
                   title: "Scoring",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleScoringTabId,
-                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(SampleScoresView, { sample: sample2 })
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    SampleScoresView,
+                    {
+                      sample: sample2,
+                      className: styles$A.padded,
+                      scrollRef
+                    }
+                  )
                 },
                 kSampleScoringTabId
               ),
@@ -60573,7 +61729,7 @@ ${events}
                   title: "Metadata",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleMetdataTabId,
-                  children: sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.metadataPanel), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
+                  children: !sample2 || sampleMetadatas.length > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: sampleMetadatas }) : /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "No metadata" })
                 }
               ),
               (sample2 == null ? void 0 : sample2.error) || (sample2 == null ? void 0 : sample2.error_retries) && (sample2 == null ? void 0 : sample2.error_retries.length) > 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -60626,7 +61782,7 @@ ${events}
                   title: "JSON",
                   onSelected: onSelectedTab,
                   selected: effectiveSelectedTab === kSampleJsonTabId,
-                  children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : sample2.messages.length > 100 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large too display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  children: !sample2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON not available" }) : estimateSize(sample2.events) > 25e4 ? /* @__PURE__ */ jsxRuntimeExports.jsx(NoContentsPanel, { text: "JSON too large to display" }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$A.padded, styles$A.fullWidth), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                     JSONPanel,
                     {
                       data: sample2,
@@ -60641,7 +61797,7 @@ ${events}
         )
       ] });
     };
-    const metadataViewsForSample = (id, sample2) => {
+    const metadataViewsForSample = (id, scrollRef, sample2) => {
       if (!sample2) {
         return [];
       }
@@ -60664,12 +61820,18 @@ ${events}
         sampleMetadatas.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Time" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$A.timePanel, "text-size-smaller"), children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Working" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.working_time) }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-style-label", "text-style-secondary"), children: "Total" }),
-              /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: formatTime$1(sample2.total_time) })
-            ] }) })
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { padded: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              RecordTree,
+              {
+                id: `task-sample-time-${id}`,
+                record: {
+                  Working: formatTime$1(sample2.working_time),
+                  Total: formatTime$1(sample2.total_time)
+                },
+                className: clsx("tab-pane", styles$A.noTop),
+                scrollRef
+              }
+            ) })
           ] }, `sample-time-${id}`)
         );
       }
@@ -60677,12 +61839,13 @@ ${events}
         sampleMetadatas.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Metadata" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { padded: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              RecordTree,
               {
-                id: "task-sample-metadata-${id}",
-                entries: sample2 == null ? void 0 : sample2.metadata,
-                className: clsx("tab-pane", styles$A.noTop)
+                id: `task-sample-metadata-${id}`,
+                record: sample2 == null ? void 0 : sample2.metadata,
+                className: clsx("tab-pane", styles$A.noTop),
+                scrollRef
               }
             ) })
           ] }, `sample-metadata-${id}`)
@@ -60692,12 +61855,14 @@ ${events}
         sampleMetadatas.push(
           /* @__PURE__ */ jsxRuntimeExports.jsxs(Card, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(CardHeader, { label: "Store" }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              MetaDataView,
+            /* @__PURE__ */ jsxRuntimeExports.jsx(CardBody, { padded: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              RecordTree,
               {
-                id: "task-sample-store-${id}",
-                entries: sample2 == null ? void 0 : sample2.store,
-                className: clsx("tab-pane", styles$A.noTop)
+                id: `task-sample-store-${id}`,
+                record: sample2 == null ? void 0 : sample2.store,
+                className: clsx("tab-pane", styles$A.noTop),
+                scrollRef,
+                processStore: true
               }
             ) })
           ] }, `sample-store-${id}`)
@@ -60771,10 +61936,10 @@ ${events}
       }
       return false;
     };
-    const container$3 = "_container_kgsc6_1";
-    const body$1 = "_body_kgsc6_7";
-    const scroller = "_scroller_kgsc6_11";
-    const styles$c = {
+    const container$3 = "_container_hinf1_1";
+    const body$1 = "_body_hinf1_7";
+    const scroller = "_scroller_hinf1_12";
+    const styles$d = {
       container: container$3,
       body: body$1,
       scroller
@@ -60794,31 +61959,35 @@ ${events}
         ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
       );
       const prevLogFile = usePrevious(logSelection.loadedLog);
+      const prevSampleNeedsReload = usePrevious(
+        sampleData.sampleNeedsReload
+      );
       reactExports.useEffect(() => {
-        var _a3, _b3, _c2;
+        var _a3, _b3;
         if (logSelection.logFile && logSelection.sample) {
-          const currentSampleCompleted = ((_a3 = logSelection.sample) == null ? void 0 : _a3.completed) !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== void 0 && prevLogFile !== logSelection.loadedLog || ((_b3 = sampleData.sample) == null ? void 0 : _b3.id) !== logSelection.sample.id || ((_c2 = sampleData.sample) == null ? void 0 : _c2.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
+          const currentSampleCompleted = logSelection.sample.completed !== void 0 ? logSelection.sample.completed : true;
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_a3 = sampleData.selectedSampleIdentifier) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.selectedSampleIdentifier) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted || prevSampleNeedsReload !== sampleData.sampleNeedsReload) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
       }, [
-        logSelection.loadedLog,
+        logSelection.logFile,
         (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
         (_c = logSelection.sample) == null ? void 0 : _c.epoch,
         (_d = logSelection.sample) == null ? void 0 : _d.completed,
-        (_e2 = sampleData.sample) == null ? void 0 : _e2.id,
-        (_f = sampleData.sample) == null ? void 0 : _f.epoch
+        (_e2 = sampleData.selectedSampleIdentifier) == null ? void 0 : _e2.id,
+        (_f = sampleData.selectedSampleIdentifier) == null ? void 0 : _f.epoch,
+        sampleData.sampleNeedsReload
       ]);
       const scrollRef = reactExports.useRef(null);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$c.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$d.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           ProgressBar,
           {
             animating: sampleData.status === "loading" || sampleData.status === "streaming"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$c.scroller), ref: scrollRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$c.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$d.scroller), ref: scrollRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$d.body, children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           ErrorPanel,
           {
             title: "Unable to load sample",
@@ -60833,18 +62002,18 @@ ${events}
     const close = "_close_yj2nt_18";
     const modal = "_modal_yj2nt_26";
     const hidden = "_hidden_yj2nt_31";
-    const modalBody = "_modalBody_yj2nt_35";
+    const modalBody$1 = "_modalBody_yj2nt_35";
     const content$1 = "_content_yj2nt_41";
     const header$1 = "_header_yj2nt_45";
     const titleTool = "_titleTool_yj2nt_50";
-    const styles$b = {
+    const styles$c = {
       title,
       detail,
       detailText,
       close,
       modal,
       hidden,
-      modalBody,
+      modalBody: modalBody$1,
       content: content$1,
       header: header$1,
       titleTool
@@ -60860,7 +62029,8 @@ ${events}
       visible: visible2,
       onHide,
       showProgress,
-      scrollRef
+      scrollRef,
+      classNames
     }) => {
       const modalFooter = footer2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-footer", children: footer2 }) : "";
       const modalRef = reactExports.useRef(null);
@@ -60877,8 +62047,8 @@ ${events}
           id,
           className: clsx(
             "modal",
-            styles$b.modal,
-            !visible2 ? styles$b.hidden : void 0
+            styles$c.modal,
+            !visible2 ? styles$c.hidden : void 0
           ),
           role: "dialog",
           onKeyUp: onkeyup,
@@ -60890,23 +62060,23 @@ ${events}
               className: clsx(
                 "modal-dialog",
                 "modal-dialog-scrollable",
-                styles$b.modalBody
+                styles$c.modalBody
               ),
               role: "document",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$b.content), children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$b.header), children: [
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-content", styles$c.content), children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx("modal-header", styles$c.header), children: [
                   /* @__PURE__ */ jsxRuntimeExports.jsx(
                     "div",
                     {
-                      className: clsx("modal-title", "text-size-smaller", styles$b.title),
+                      className: clsx("modal-title", "text-size-smaller", styles$c.title),
                       children: title2 || ""
                     }
                   ),
-                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$b.detail, children: [
+                  detail2 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$c.detail, children: [
                     (detailTools == null ? void 0 : detailTools.left) ? detailTools.left.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-left-${idx}`);
                     }) : "",
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$b.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("text-size-smaller", styles$c.detailText), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: detail2 }) }),
                     (detailTools == null ? void 0 : detailTools.right) ? detailTools.right.map((tool2, idx) => {
                       return /* @__PURE__ */ jsxRuntimeExports.jsx(TitleTool, { ...tool2 }, `tool-right-${idx}`);
                     }) : ""
@@ -60919,7 +62089,7 @@ ${events}
                         "btn",
                         "btn-close-large-dialog",
                         "text-size-larger",
-                        styles$b.close
+                        styles$c.close
                       ),
                       onClick: onHide,
                       "aria-label": "Close",
@@ -60928,7 +62098,7 @@ ${events}
                   )
                 ] }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(ProgressBar, { animating: showProgress }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "modal-body", ref: scrollRef, children: children2 }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("modal-body", classNames == null ? void 0 : classNames.body), ref: scrollRef, children: children2 }),
                 modalFooter
               ] })
             }
@@ -60946,7 +62116,7 @@ ${events}
             "btn",
             "btn-outline",
             "text-size-small",
-            styles$b.titleTool
+            styles$c.titleTool
           ),
           "aria-label": label2,
           onClick,
@@ -60954,6 +62124,10 @@ ${events}
           children: /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: icon2 })
         }
       );
+    };
+    const modalBody = "_modalBody_1owi5_1";
+    const styles$b = {
+      modalBody
     };
     const SampleDialog = ({
       id,
@@ -60976,11 +62150,14 @@ ${events}
         ((_a2 = logSelection.sample) == null ? void 0 : _a2.completed) !== void 0 ? logSelection.sample.completed : true
       );
       const prevLogFile = usePrevious(logSelection.logFile);
+      const prevSampleNeedsReload = usePrevious(
+        sampleData.sampleNeedsReload
+      );
       reactExports.useEffect(() => {
         var _a3, _b3;
         if (logSelection.logFile && logSelection.sample) {
           const currentSampleCompleted = logSelection.sample.completed !== void 0 ? logSelection.sample.completed : true;
-          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_a3 = sampleData.sample) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.sample) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted) {
+          if (prevLogFile !== void 0 && prevLogFile !== logSelection.logFile || ((_a3 = sampleData.selectedSampleIdentifier) == null ? void 0 : _a3.id) !== logSelection.sample.id || ((_b3 = sampleData.selectedSampleIdentifier) == null ? void 0 : _b3.epoch) !== logSelection.sample.epoch || prevCompleted !== void 0 && currentSampleCompleted !== prevCompleted || prevSampleNeedsReload !== sampleData.sampleNeedsReload) {
             loadSample(logSelection.logFile, logSelection.sample);
           }
         }
@@ -60989,8 +62166,9 @@ ${events}
         (_b2 = logSelection.sample) == null ? void 0 : _b2.id,
         (_c = logSelection.sample) == null ? void 0 : _c.epoch,
         (_d = logSelection.sample) == null ? void 0 : _d.completed,
-        (_e2 = sampleData.sample) == null ? void 0 : _e2.id,
-        (_f = sampleData.sample) == null ? void 0 : _f.epoch
+        (_e2 = sampleData.selectedSampleIdentifier) == null ? void 0 : _e2.id,
+        (_f = sampleData.selectedSampleIdentifier) == null ? void 0 : _f.epoch,
+        sampleData.sampleNeedsReload
       ]);
       const sampleNavigation = useSampleNavigation();
       const tools2 = reactExports.useMemo(() => {
@@ -61048,6 +62226,9 @@ ${events}
           onkeyup: handleKeyUp,
           visible: showingSampleDialog,
           onHide,
+          classNames: {
+            body: styles$b.modalBody
+          },
           showProgress: sampleData.status === "loading" || sampleData.status === "streaming",
           scrollRef,
           children: sampleData.error ? /* @__PURE__ */ jsxRuntimeExports.jsx(ErrorPanel, { title: "Sample Error", error: sampleData.error }) : /* @__PURE__ */ jsxRuntimeExports.jsx(SampleDisplay, { id, scrollRef })
@@ -81778,7 +82959,9 @@ Supported expressions:
       completed,
       scoreRendered,
       gridColumnsTemplate,
-      height
+      height,
+      showSample,
+      sampleUrl: sampleUrl2
     }) => {
       const streamSampleData = useStore(
         (state) => state.capabilities.streamSampleData
@@ -81787,8 +82970,6 @@ Supported expressions:
         (state) => state.log.selectedSampleIndex
       );
       const isViewable = completed || streamSampleData;
-      const sampleNavigation = useSampleNavigation();
-      const sampleUrl2 = isViewable ? sampleNavigation.getSampleUrl(sample2.id, sample2.epoch) : void 0;
       const rowContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
@@ -81861,13 +83042,7 @@ Supported expressions:
           ]
         }
       );
-      return /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "div",
-        {
-          onClick: isViewable ? () => sampleNavigation.showSample(index2) : void 0,
-          children: rowContent
-        }
-      );
+      return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { onClick: showSample, children: rowContent });
     };
     const row = "_row_utdq5_1";
     const styles$5 = {
@@ -82048,7 +83223,14 @@ Supported expressions:
                 answer: item2.answer,
                 completed: item2.completed,
                 scoreRendered: item2.scoreRendered,
-                gridColumnsTemplate
+                gridColumnsTemplate,
+                sampleUrl: sampleNavigation.getSampleUrl(
+                  item2.data.id,
+                  item2.data.epoch
+                ),
+                showSample: () => {
+                  sampleNavigation.showSample(item2.index);
+                }
               }
             );
           } else if (item2.type === "separator") {
@@ -82394,7 +83576,9 @@ Supported expressions:
       const groupBy = useGroupBy();
       const groupByOrder = useGroupByOrder();
       const currentScore = useScore();
-      const selectedSample = useStore((state) => state.sample.selectedSample);
+      const selectedSampleIdentifier = useStore(
+        (state) => state.sample.sample_identifier
+      );
       const [items, setItems] = reactExports.useState([]);
       const [sampleItems, setSampleItems] = reactExports.useState([]);
       const sampleListHandle = reactExports.useRef(null);
@@ -82474,7 +83658,7 @@ Supported expressions:
           showingSampleDialog && /* @__PURE__ */ jsxRuntimeExports.jsx(
             SampleDialog,
             {
-              id: String((selectedSample == null ? void 0 : selectedSample.id) || ""),
+              id: selectedSampleIdentifier ? `${selectedSampleIdentifier.id}_${selectedSampleIdentifier.epoch}` : "",
               title: title2,
               showingSampleDialog
             }
@@ -82681,15 +83865,15 @@ Supported expressions:
               showToggle
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$P.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$P.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { ref: divRef, className: clsx("workspace", styles$R.workspace), children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx("log-detail", styles$R.tabContainer), children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             TabSet,
             {
               id: "log-details",
               tools: tabTools2,
               type: "pills",
-              className: clsx(styles$P.tabSet, "text-size-smaller"),
-              tabControlsClassName: clsx(styles$P.tabs, "text-size-smaller"),
-              tabPanelsClassName: clsx(styles$P.tabPanels),
+              className: clsx(styles$R.tabSet, "text-size-smaller"),
+              tabControlsClassName: clsx(styles$R.tabs, "text-size-smaller"),
+              tabPanelsClassName: clsx(styles$R.tabPanels),
               children: Object.keys(tabs2).map((key2) => {
                 const tab2 = tabs2[key2];
                 return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -82701,6 +83885,7 @@ Supported expressions:
                     selected: selectedTab === tab2.id,
                     scrollable: !!tab2.scrollable,
                     scrollRef: tab2.scrollRef,
+                    className: clsx(tab2.className),
                     style: { height: tab2.scrollable ? "100%" : void 0 },
                     children: reactExports.createElement(tab2.component, tab2.componentProps)
                   },
@@ -82730,7 +83915,6 @@ Supported expressions:
       const headersLoading = useStore((state) => state.logs.headersLoading);
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const resetFiltering = useStore((state) => state.logActions.resetFiltering);
-      const selectSample = useStore((state) => state.logActions.selectSample);
       const mainAppRef = reactExports.useRef(null);
       const fullScreen = logs.files.length === 1 && !logs.log_dir;
       const handleSelectedIndexChanged = reactExports.useCallback(() => {
@@ -82738,13 +83922,7 @@ Supported expressions:
         resetFiltering();
         clearSampleTab();
         clearWorkspaceTab();
-      }, [
-        setOffCanvas,
-        resetFiltering,
-        clearSampleTab,
-        clearWorkspaceTab,
-        selectSample
-      ]);
+      }, [setOffCanvas, resetFiltering, clearSampleTab, clearWorkspaceTab]);
       const handleKeyboard = reactExports.useCallback(
         (e) => {
           if (nativeFind || !setShowFind) {
@@ -82796,25 +83974,30 @@ Supported expressions:
     };
     const LogViewContainer = () => {
       const { logPath, tabId, sampleId, epoch, sampleTabId } = useParams();
-      const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
-      const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
-      const setShowingSampleDialog = useStore(
-        (state) => state.appActions.setShowingSampleDialog
-      );
-      const selectSample = useStore((state) => state.logActions.selectSample);
-      const setSampleTab = useStore((state) => state.appActions.setSampleTab);
-      const filteredSamples = useFilteredSamples();
-      const totalSampleCount = useTotalSampleCount();
-      const setStatus = useStore((state) => state.appActions.setStatus);
-      const setSelectedLogIndex = useStore(
-        (state) => state.logsActions.setSelectedLogIndex
-      );
-      const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
       const initialState2 = useStore((state) => state.app.initialState);
       const clearInitialState = useStore(
         (state) => state.appActions.clearInitialState
       );
+      const setSampleTab = useStore((state) => state.appActions.setSampleTab);
+      const setShowingSampleDialog = useStore(
+        (state) => state.appActions.setShowingSampleDialog
+      );
+      const setStatus = useStore((state) => state.appActions.setStatus);
+      const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
+      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+      const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+      const selectSample = useStore((state) => state.logActions.selectSample);
+      const setSelectedLogIndex = useStore(
+        (state) => state.logsActions.setSelectedLogIndex
+      );
+      const clearSelectedLogSummary = useStore(
+        (state) => state.logActions.clearSelectedLogSummary
+      );
+      const clearSelectedSample = useStore(
+        (state) => state.sampleActions.clearSelectedSample
+      );
+      const filteredSamples = useFilteredSamples();
+      const totalSampleCount = useTotalSampleCount();
       const navigate = useNavigate();
       reactExports.useEffect(() => {
         if (initialState2) {
@@ -82827,6 +84010,7 @@ Supported expressions:
           navigate(url);
         }
       }, [initialState2]);
+      const prevLogPath = usePrevious(logPath);
       reactExports.useEffect(() => {
         const loadLogFromPath = async () => {
           if (logPath) {
@@ -82835,6 +84019,10 @@ Supported expressions:
               setWorkspaceTab(tabId);
             } else {
               setWorkspaceTab(kLogViewSamplesTabId);
+            }
+            if (logPath !== prevLogPath) {
+              clearSelectedSample();
+              clearSelectedLogSummary();
             }
           } else {
             setStatus({
@@ -82845,9 +84033,6 @@ Supported expressions:
             setWorkspaceTab(kLogViewSamplesTabId);
             await refreshLogs();
             setSelectedLogIndex(0);
-            if (!sampleId) {
-              selectSample(0);
-            }
             setStatus({
               loading: false,
               error: void 0
@@ -82864,14 +84049,6 @@ Supported expressions:
         setSelectedLogIndex,
         setStatus
       ]);
-      const clearSample = useStore(
-        (state) => state.sampleActions.clearSelectedSample
-      );
-      reactExports.useEffect(() => {
-        if (selectedLogIndex > -1) {
-          selectSample(0);
-        }
-      }, [selectedLogIndex]);
       reactExports.useEffect(() => {
         if (sampleId && filteredSamples) {
           const targetEpoch = epoch ? parseInt(epoch, 10) : void 0;
@@ -82891,7 +84068,7 @@ Supported expressions:
         } else {
           setShowingSampleDialog(false);
           if (totalSampleCount > 1) {
-            clearSample();
+            clearSelectedSample();
           }
         }
       }, [
@@ -82903,17 +84080,17 @@ Supported expressions:
         selectSample,
         setSampleTab,
         setShowingSampleDialog,
-        clearSample
+        clearSelectedSample
       ]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(LogViewLayout, {});
     };
     const AppLayout = () => {
-      const location = useLocation();
+      const location2 = useLocation();
       reactExports.useEffect(() => {
         if (storeImplementation) {
-          storeImplementation.getState().appActions.setUrlHash(location.pathname);
+          storeImplementation.getState().appActions.setUrlHash(location2.pathname);
         }
-      }, [location]);
+      }, [location2]);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(AppErrorBoundary, { children: /* @__PURE__ */ jsxRuntimeExports.jsx(Outlet, {}) });
     };
     const AppRouter = createHashRouter(
@@ -82945,26 +84122,29 @@ Supported expressions:
       { basename: "" }
     );
     const App = ({ api: api2 }) => {
+      const rehydrated = useStore((state) => state.app.rehydrated);
+      const logs = useStore((state) => state.logs.logs);
+      const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
+      const loadedLogFile = useStore((state) => state.log.loadedLog);
+      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
+      const setIntialState = useStore((state) => state.appActions.setInitialState);
       const setAppStatus = useStore((state) => state.appActions.setStatus);
+      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const setLogs = useStore((state) => state.logsActions.setLogs);
       const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-      const setIntialState = useStore((state) => state.appActions.setInitialState);
-      const rehydrated = useStore((state) => state.app.rehydrated);
-      const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
       const loadLog = useStore((state) => state.logActions.loadLog);
       const pollLog = useStore((state) => state.logActions.pollLog);
-      const loadedLogFile = useStore((state) => state.log.loadedLog);
-      const selectedLogFile = useStore(
-        (state) => state.logsActions.getSelectedLogFile()
-      );
-      const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
-      const logs = useStore((state) => state.logs.logs);
+      const { sampleId } = useParams();
+      const selectSample = useStore((state) => state.logActions.selectSample);
       reactExports.useEffect(() => {
         const loadSpecificLog = async () => {
           if (selectedLogFile && selectedLogFile !== loadedLogFile) {
             try {
               setAppStatus({ loading: true, error: void 0 });
               await loadLog(selectedLogFile);
+              if (!sampleId) {
+                selectSample(0);
+              }
               setAppStatus({ loading: false, error: void 0 });
             } catch (e) {
               console.log(e);

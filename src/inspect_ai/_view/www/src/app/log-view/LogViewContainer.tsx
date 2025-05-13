@@ -1,7 +1,11 @@
 import { FC, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { kLogViewSamplesTabId } from "../../constants";
-import { useFilteredSamples, useTotalSampleCount } from "../../state/hooks";
+import {
+  useFilteredSamples,
+  usePrevious,
+  useTotalSampleCount,
+} from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { baseUrl } from "../routing/url";
 import { LogViewLayout } from "./LogViewLayout";
@@ -17,26 +21,34 @@ export const LogViewContainer: FC = () => {
     epoch?: string;
     sampleTabId?: string;
   }>();
-  const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
-  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
-  const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
-  const setShowingSampleDialog = useStore(
-    (state) => state.appActions.setShowingSampleDialog,
-  );
-  const selectSample = useStore((state) => state.logActions.selectSample);
-  const setSampleTab = useStore((state) => state.appActions.setSampleTab);
-  const filteredSamples = useFilteredSamples();
-  const totalSampleCount = useTotalSampleCount();
-  const setStatus = useStore((state) => state.appActions.setStatus);
-  const setSelectedLogIndex = useStore(
-    (state) => state.logsActions.setSelectedLogIndex,
-  );
-
-  const selectedLogIndex = useStore((state) => state.logs.selectedLogIndex);
   const initialState = useStore((state) => state.app.initialState);
   const clearInitialState = useStore(
     (state) => state.appActions.clearInitialState,
   );
+  const setSampleTab = useStore((state) => state.appActions.setSampleTab);
+  const setShowingSampleDialog = useStore(
+    (state) => state.appActions.setShowingSampleDialog,
+  );
+  const setStatus = useStore((state) => state.appActions.setStatus);
+  const setWorkspaceTab = useStore((state) => state.appActions.setWorkspaceTab);
+
+  const refreshLogs = useStore((state) => state.logsActions.refreshLogs);
+  const selectLogFile = useStore((state) => state.logsActions.selectLogFile);
+  const selectSample = useStore((state) => state.logActions.selectSample);
+  const setSelectedLogIndex = useStore(
+    (state) => state.logsActions.setSelectedLogIndex,
+  );
+
+  const clearSelectedLogSummary = useStore(
+    (state) => state.logActions.clearSelectedLogSummary,
+  );
+
+  const clearSelectedSample = useStore(
+    (state) => state.sampleActions.clearSelectedSample,
+  );
+
+  const filteredSamples = useFilteredSamples();
+  const totalSampleCount = useTotalSampleCount();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -51,6 +63,8 @@ export const LogViewContainer: FC = () => {
     }
   }, [initialState]);
 
+  const prevLogPath = usePrevious<string | undefined>(logPath);
+
   useEffect(() => {
     const loadLogFromPath = async () => {
       if (logPath) {
@@ -63,6 +77,13 @@ export const LogViewContainer: FC = () => {
           setWorkspaceTab(tabId);
         } else {
           setWorkspaceTab(kLogViewSamplesTabId);
+        }
+
+        // Reset the sample
+        if (logPath !== prevLogPath) {
+          clearSelectedSample();
+
+          clearSelectedLogSummary();
         }
       } else {
         setStatus({
@@ -79,10 +100,6 @@ export const LogViewContainer: FC = () => {
 
         // Select the first log in the list
         setSelectedLogIndex(0);
-
-        if (!sampleId) {
-          selectSample(0);
-        }
 
         setStatus({
           loading: false,
@@ -101,16 +118,6 @@ export const LogViewContainer: FC = () => {
     setSelectedLogIndex,
     setStatus,
   ]);
-
-  const clearSample = useStore(
-    (state) => state.sampleActions.clearSelectedSample,
-  );
-
-  useEffect(() => {
-    if (selectedLogIndex > -1) {
-      selectSample(0);
-    }
-  }, [selectedLogIndex]);
 
   // Handle sample selection from URL params
   useEffect(() => {
@@ -140,7 +147,7 @@ export const LogViewContainer: FC = () => {
       // This handles the case when user navigates back from a sample
       setShowingSampleDialog(false);
       if (totalSampleCount > 1) {
-        clearSample();
+        clearSelectedSample();
       }
     }
   }, [
@@ -152,7 +159,7 @@ export const LogViewContainer: FC = () => {
     selectSample,
     setSampleTab,
     setShowingSampleDialog,
-    clearSample,
+    clearSelectedSample,
   ]);
 
   return <LogViewLayout />;

@@ -169,7 +169,6 @@ export const createLogSlice = (
         try {
           const logContents = await api.get_log_summary(logFileName);
           state.logActions.setSelectedLogSummary(logContents);
-          state.logActions.setEpoch;
 
           // Push the updated header information up
           const header = {
@@ -207,7 +206,7 @@ export const createLogSlice = (
       refreshLog: async () => {
         const state = get();
         const api = state.api;
-        const selectedLogFile = state.logsActions.getSelectedLogFile();
+        const selectedLogFile = state.logs.selectedLogFile;
 
         if (!api || !selectedLogFile) {
           return;

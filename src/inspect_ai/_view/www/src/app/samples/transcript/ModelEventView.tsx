@@ -24,10 +24,10 @@ import { usePrismHighlight } from "../../../state/hooks";
 import styles from "./ModelEventView.module.css";
 import { EventTimingPanel } from "./event/EventTimingPanel";
 import { formatTiming, formatTitle } from "./event/utils";
+import { EventNode } from "./types";
 
 interface ModelEventViewProps {
-  id: string;
-  event: ModelEvent;
+  eventNode: EventNode<ModelEvent>;
   className?: string | string[];
 }
 
@@ -35,10 +35,10 @@ interface ModelEventViewProps {
  * Renders the StateEventView component.
  */
 export const ModelEventView: FC<ModelEventViewProps> = ({
-  id,
-  event,
+  eventNode,
   className,
 }) => {
+  const event = eventNode.event;
   const totalUsage = event.output.usage?.total_tokens;
   const callTime = event.output.time;
 
@@ -69,7 +69,8 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
   return (
     <EventPanel
-      id={id}
+      id={eventNode.id}
+      depth={eventNode.depth}
       className={className}
       title={formatTitle(panelTitle, totalUsage, callTime)}
       subTitle={formatTiming(event.timestamp, event.working_start)}
@@ -77,7 +78,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
     >
       <div data-name="Summary" className={styles.container}>
         <ChatView
-          id={`${id}-model-output`}
+          id={`${eventNode.id}-model-output`}
           messages={[...userMessages, ...(outputMessages || [])]}
           numbered={false}
           toolCallStyle="omit"
@@ -117,7 +118,7 @@ export const ModelEventView: FC<ModelEventViewProps> = ({
 
         <EventSection title="Messages">
           <ChatView
-            id={`${id}-model-input-full`}
+            id={`${eventNode.id}-model-input-full`}
             messages={[...event.input, ...(outputMessages || [])]}
           />
         </EventSection>
@@ -212,7 +213,9 @@ const ToolsConfig: FC<ToolConfigProps> = ({ tools, toolChoice }) => {
 
   return (
     <>
-      <div className={styles.toolConfig}>{toolEls}</div>
+      <div className={clsx(styles.toolConfig, "text-size-small")}>
+        {toolEls}
+      </div>
       <div className={styles.toolChoice}>
         <div className={clsx("text-style-label", "text-style-secondary")}>
           Tool Choice

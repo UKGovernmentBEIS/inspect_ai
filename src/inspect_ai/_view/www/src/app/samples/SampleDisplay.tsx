@@ -1,5 +1,4 @@
 import { TabPanel, TabSet } from "../../components/TabSet";
-import { MetaDataView } from "../content/MetaDataView";
 
 import { escapeSelector } from "../../utils/html";
 import { isVscode } from "../../utils/vscode";
@@ -34,15 +33,23 @@ import {
 import { useFilteredSamples, useSampleData } from "../../state/hooks";
 import { useStore } from "../../state/store";
 import { formatTime } from "../../utils/format";
+import { estimateSize } from "../../utils/json";
 import { printHeadingHtml, printHtml } from "../../utils/print";
-import { sampleUrl } from "../routing/url";
+import { RecordTree } from "../content/RecordTree";
+import { useSampleDetailNavigation } from "../routing/navigationHooks";
+import {
+  sampleMessageUrl,
+  sampleUrl,
+  supportsLinking,
+  toFullUrl,
+} from "../routing/url";
 import { ModelTokenTable } from "../usage/ModelTokenTable";
 import { ChatViewVirtualList } from "./chat/ChatViewVirtualList";
 import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 import { SampleScoresView } from "./scores/SampleScoresView";
-import { TranscriptVirtualList } from "./transcript/TranscriptView";
+import { TranscriptVirtualList } from "./transcript/TranscriptVirtualList";
 
 interface SampleDisplayProps {
   id: string;
@@ -61,7 +68,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   );
 
   const sampleData = useSampleData();
-  const sample = sampleData.sample;
+  const sample = useMemo(() => {
+    return sampleData.getSelectedSample();
+  }, [sampleData.selectedSampleIdentifier, sampleData.getSelectedSample]);
+
   const runningSampleData = sampleData.running;
 
   // Selected tab handling
@@ -105,6 +115,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
     epoch?: string;
   }>();
 
+  const getMessageUrl = (id: string) => {
+    return id && urlLogPath && supportsLinking()
+      ? toFullUrl(sampleMessageUrl(id, urlLogPath, urlSampleId, urlEpoch))
+      : undefined;
+  };
+
   // Tab selection
   const onSelectedTab = useCallback(
     (e: MouseEvent<HTMLElement>) => {
@@ -129,7 +145,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
     ],
   );
 
-  const sampleMetadatas = metadataViewsForSample(`${baseId}-${id}`, sample);
+  const sampleMetadatas = metadataViewsForSample(
+    `${baseId}-${id}`,
+    scrollRef,
+    sample,
+  );
 
   const tabsetId = `task-sample-details-tab-${id}`;
   const targetId = `${tabsetId}-content`;
@@ -153,6 +173,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   // Is the sample running?
   const running = isRunning(sampleSummary, runningSampleData);
 
+  const sampleDetailNavigation = useSampleDetailNavigation();
+
   return (
     <Fragment>
       {sample || sampleSummary ? (
@@ -167,7 +189,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         <TabPanel
           key={kSampleTranscriptTabId}
           id={kSampleTranscriptTabId}
-          className="sample-tab"
+          className={clsx("sample-tab", styles.transcriptContainer)}
           title="Transcript"
           onSelected={onSelectedTab}
           selected={
@@ -180,6 +202,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
+            initialEventId={sampleDetailNavigation.event}
             running={running}
             scrollRef={scrollRef}
           />
@@ -197,10 +220,12 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             key={`${baseId}-chat-${id}`}
             id={`${baseId}-chat-${id}`}
             messages={sampleMessages}
+            initialMessageId={sampleDetailNavigation.message}
             indented={true}
             scrollRef={scrollRef}
             toolCallStyle="complete"
             running={running}
+            getMessageUrl={getMessageUrl}
           />
         </TabPanel>
         <TabPanel
@@ -211,7 +236,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           onSelected={onSelectedTab}
           selected={effectiveSelectedTab === kSampleScoringTabId}
         >
-          <SampleScoresView sample={sample} />
+          <SampleScoresView
+            sample={sample}
+            className={styles.padded}
+            scrollRef={scrollRef}
+          />
         </TabPanel>
         <TabPanel
           id={kSampleMetdataTabId}
@@ -220,8 +249,10 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           onSelected={onSelectedTab}
           selected={effectiveSelectedTab === kSampleMetdataTabId}
         >
-          {sampleMetadatas.length > 0 ? (
-            <div className={clsx(styles.metadataPanel)}>{sampleMetadatas}</div>
+          {!sample || sampleMetadatas.length > 0 ? (
+            <div className={clsx(styles.padded, styles.fullWidth)}>
+              {sampleMetadatas}
+            </div>
           ) : (
             <NoContentsPanel text="No metadata" />
           )}
@@ -280,8 +311,8 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
         >
           {!sample ? (
             <NoContentsPanel text="JSON not available" />
-          ) : sample.messages.length > 100 ? (
-            <NoContentsPanel text="JSON too large too display" />
+          ) : estimateSize(sample.events) > 250000 ? (
+            <NoContentsPanel text="JSON too large to display" />
           ) : (
             <div className={clsx(styles.padded, styles.fullWidth)}>
               <JSONPanel
@@ -297,7 +328,11 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   );
 };
 
-const metadataViewsForSample = (id: string, sample?: EvalSample) => {
+const metadataViewsForSample = (
+  id: string,
+  scrollRef: RefObject<HTMLDivElement | null>,
+  sample?: EvalSample,
+) => {
   if (!sample) {
     return [];
   }
@@ -326,17 +361,16 @@ const metadataViewsForSample = (id: string, sample?: EvalSample) => {
     sampleMetadatas.push(
       <Card key={`sample-time-${id}`}>
         <CardHeader label="Time" />
-        <CardBody>
-          <div className={clsx(styles.timePanel, "text-size-smaller")}>
-            <div className={clsx("text-style-label", "text-style-secondary")}>
-              Working
-            </div>
-            <div>{formatTime(sample.working_time)}</div>
-            <div className={clsx("text-style-label", "text-style-secondary")}>
-              Total
-            </div>
-            <div>{formatTime(sample.total_time)}</div>
-          </div>
+        <CardBody padded={false}>
+          <RecordTree
+            id={`task-sample-time-${id}`}
+            record={{
+              Working: formatTime(sample.working_time),
+              Total: formatTime(sample.total_time),
+            }}
+            className={clsx("tab-pane", styles.noTop)}
+            scrollRef={scrollRef}
+          />
         </CardBody>
       </Card>,
     );
@@ -346,11 +380,12 @@ const metadataViewsForSample = (id: string, sample?: EvalSample) => {
     sampleMetadatas.push(
       <Card key={`sample-metadata-${id}`}>
         <CardHeader label="Metadata" />
-        <CardBody>
-          <MetaDataView
-            id="task-sample-metadata-${id}"
-            entries={sample?.metadata as Record<string, unknown>}
+        <CardBody padded={false}>
+          <RecordTree
+            id={`task-sample-metadata-${id}`}
+            record={sample?.metadata as Record<string, unknown>}
             className={clsx("tab-pane", styles.noTop)}
+            scrollRef={scrollRef}
           />
         </CardBody>
       </Card>,
@@ -361,11 +396,13 @@ const metadataViewsForSample = (id: string, sample?: EvalSample) => {
     sampleMetadatas.push(
       <Card key={`sample-store-${id}`}>
         <CardHeader label="Store" />
-        <CardBody>
-          <MetaDataView
-            id="task-sample-store-${id}"
-            entries={sample?.store as Record<string, unknown>}
+        <CardBody padded={false}>
+          <RecordTree
+            id={`task-sample-store-${id}`}
+            record={sample?.store as Record<string, unknown>}
             className={clsx("tab-pane", styles.noTop)}
+            scrollRef={scrollRef}
+            processStore={true}
           />
         </CardBody>
       </Card>,

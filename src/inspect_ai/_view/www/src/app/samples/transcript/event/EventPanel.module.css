@@ -10,6 +10,8 @@
 }
 
 .card {
+  position: relative;
+  background-color: var(--bs-body-bg);
   padding: 0.625rem;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
@@ -22,4 +24,45 @@
 
 .cardContent.hidden {
   display: none;
+}
+
+.hidden {
+  display: none;
+}
+
+.copyLink {
+  font-size: 1.2em;
+  opacity: 0;
+  padding-left: 0.2em;
+  padding-right: 2em;
+}
+
+.hover .copyLink {
+  opacity: 1;
+}
+
+.root {
+  background-color: var(--bs-light-bg-subtle);
+  border-radius: unset;
+}
+
+.bottomDongle {
+  display: block;
+  position: absolute;
+  margin: 0 auto;
+  width: fit-content;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--bs-body-bg);
+  border: solid 1px var(--bs-light-border-subtle);
+  color: var(--bs-secondary);
+
+  border-radius: var(--bs-border-radius);
+  padding: 0em 0.4em;
+  cursor: pointer;
+}
+
+.dongleIcon {
+  padding-right: 0.3em;
 }

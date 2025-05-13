@@ -84,13 +84,13 @@ export const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / (60 * 60));
     const minutes = Math.floor((seconds % (60 * 60)) / 60);
     const remainingSeconds = seconds % 60;
-    return `${hours} hr ${minutes} min ${remainingSeconds} sec`;
+    return `${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
   } else {
     const days = Math.floor(seconds / (60 * 60 * 24));
     const hours = Math.floor((seconds % (60 * 60 * 24)) / (60 * 60));
     const minutes = Math.floor((seconds % (60 * 60)) / 60);
     const remainingSeconds = seconds % 60;
-    return `${days} days ${hours} hr ${minutes} min ${remainingSeconds} sec`;
+    return `${days} days ${hours} hr ${minutes} min ${Math.floor(remainingSeconds)} sec`;
   }
 };
 

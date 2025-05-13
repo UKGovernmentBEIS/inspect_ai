@@ -58,6 +58,7 @@ export interface LogsState {
   logHeaders: Record<string, EvalLogHeader>;
   headersLoading: boolean;
   selectedLogIndex: number;
+  selectedLogFile?: string;
 }
 
 export interface LogState {
@@ -78,13 +79,23 @@ export interface LogState {
 
 export type SampleStatus = "ok" | "loading" | "streaming" | "error";
 
+export type SampleIdentifier = {
+  id: string | number;
+  epoch: number;
+};
+
 export interface SampleState {
-  selectedSample: EvalSample | undefined;
+  sample_identifier: SampleIdentifier | undefined;
+  sampleInState: boolean;
+  selectedSampleObject?: EvalSample;
   sampleStatus: SampleStatus;
   sampleError: Error | undefined;
+  sampleNeedsReload: number;
 
   // Events and attachments
   runningEvents: Event[];
+  collapsedEvents: Record<string, true> | null;
+  collapsedIdBuckets: Record<string, Record<string, boolean>>;
 }
 
 export type Event =

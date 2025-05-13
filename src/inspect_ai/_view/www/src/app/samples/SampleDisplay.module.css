@@ -41,5 +41,13 @@
 }
 
 .chat {
-  padding-top: 1em;
+  padding: 1em;
+}
+
+.padded {
+  padding: 1em;
+}
+
+.transcriptContainer {
+  padding-bottom: 1em;
 }

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
+import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
 import { usePrevious, useProperty } from "../state/hooks";
 import { useRafThrottle, useVirtuosoState } from "../state/scrolling";
 import { PulsingDots } from "./PulsingDots";
@@ -32,6 +32,11 @@ interface LiveVirtualListProps<T> {
   // The progress message to show (if any)
   // no message show if progress isn't provided
   showProgress?: boolean;
+
+  // The initial index to scroll to when loading
+  initialTopMostItemIndex?: number;
+
+  components?: Components<T>;
 }
 
 /**
@@ -45,6 +50,8 @@ export const LiveVirtualList = <T,>({
   scrollRef,
   live,
   showProgress,
+  initialTopMostItemIndex,
+  components,
 }: LiveVirtualListProps<T>) => {
   // The list handle and list state management
   const listHandle = useRef<VirtuosoHandle>(null);
@@ -155,6 +162,22 @@ export const LiveVirtualList = <T,>({
     }
   }, [scrollRef, handleScroll]);
 
+  // Scroll to index when component mounts or targetIndex changes
+  useEffect(() => {
+    if (initialTopMostItemIndex !== undefined && listHandle.current) {
+      // If there is an initial index, scroll to it after a short delay
+      const timer = setTimeout(() => {
+        listHandle.current?.scrollToIndex({
+          index: initialTopMostItemIndex,
+          align: "start",
+          behavior: "auto",
+        });
+      }, 50);
+
+      return () => clearTimeout(timer);
+    }
+  }, [initialTopMostItemIndex]);
+
   return (
     <Virtuoso
       ref={listHandle}
@@ -171,6 +194,7 @@ export const LiveVirtualList = <T,>({
       totalListHeightChanged={heightChanged}
       components={{
         Footer,
+        ...components,
       }}
     />
   );

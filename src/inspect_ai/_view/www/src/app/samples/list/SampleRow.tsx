@@ -5,7 +5,6 @@ import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { useStore } from "../../../state/store";
 import { arrayToString, inputString } from "../../../utils/format";
-import { useSampleNavigation } from "../../routing/navigationHooks";
 import { SampleErrorView } from "../error/SampleErrorView";
 import styles from "./SampleRow.module.css";
 
@@ -18,6 +17,8 @@ interface SampleRowProps {
   scoreRendered: ReactNode;
   gridColumnsTemplate: string;
   height: number;
+  showSample: () => void;
+  sampleUrl?: string;
 }
 
 export const SampleRow: FC<SampleRowProps> = ({
@@ -29,6 +30,8 @@ export const SampleRow: FC<SampleRowProps> = ({
   scoreRendered,
   gridColumnsTemplate,
   height,
+  showSample,
+  sampleUrl,
 }) => {
   const streamSampleData = useStore(
     (state) => state.capabilities.streamSampleData,
@@ -38,14 +41,6 @@ export const SampleRow: FC<SampleRowProps> = ({
   );
   // Determine if this sample can be viewed (completed or streaming)
   const isViewable = completed || streamSampleData;
-
-  // Get sample navigation utilities
-  const sampleNavigation = useSampleNavigation();
-
-  // Use sample navigation hook to get sample URL
-  const sampleUrl = isViewable
-    ? sampleNavigation.getSampleUrl(sample.id, sample.epoch)
-    : undefined;
 
   const rowContent = (
     <div
@@ -127,13 +122,5 @@ export const SampleRow: FC<SampleRowProps> = ({
   );
 
   // Render the row content either as a link or directly
-  return (
-    <div
-      onClick={
-        isViewable ? () => sampleNavigation.showSample(index) : undefined
-      }
-    >
-      {rowContent}
-    </div>
-  );
+  return <div onClick={showSample}>{rowContent}</div>;
 };

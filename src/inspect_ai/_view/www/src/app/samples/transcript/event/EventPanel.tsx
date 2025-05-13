@@ -5,23 +5,33 @@ import {
   ReactElement,
   ReactNode,
   useCallback,
+  useState,
 } from "react";
 import { ApplicationIcons } from "../../../appearance/icons";
 import { EventNavs } from "./EventNavs";
 
-import { useProperty } from "../../../../state/hooks";
+import { useParams } from "react-router-dom";
+import { CopyButton } from "../../../../components/CopyButton";
+import { useCollapseSampleEvent, useProperty } from "../../../../state/hooks";
+import {
+  sampleEventUrl,
+  supportsLinking,
+  toFullUrl,
+} from "../../../routing/url";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
   id: string;
+  depth: number;
   className?: string | string[];
   title?: string;
   subTitle?: string;
   text?: string;
   icon?: string;
-  collapse?: boolean;
   children?: ReactNode | ReactNode[];
-  running?: boolean;
+  childIds?: string[];
+  collapsibleContent?: boolean;
+  collapseControl?: "top" | "bottom";
 }
 
 interface ChildProps {
@@ -33,19 +43,33 @@ interface ChildProps {
  */
 export const EventPanel: FC<EventPanelProps> = ({
   id,
+  depth,
   className,
   title,
   subTitle,
   text,
   icon,
-  collapse,
   children,
+  childIds,
+  collapsibleContent,
+  collapseControl = "top",
 }) => {
-  const [isCollapsed, setCollapsed] = useProperty(id, "collapsed", {
-    defaultValue: !!collapse,
-  });
+  const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
+  const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
+  const useBottomDongle = isCollapsible && collapseControl === "bottom";
 
-  const hasCollapse = collapse !== undefined;
+  // Get all URL parameters at component level
+  const { logPath, sampleId, epoch } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleId?: string;
+    epoch?: string;
+  }>();
+
+  const url =
+    logPath && supportsLinking()
+      ? toFullUrl(sampleEventUrl(id, logPath, sampleId, epoch))
+      : undefined;
 
   const pillId = (index: number) => {
     return `${id}-nav-pill-${index}`;
@@ -66,7 +90,7 @@ export const EventPanel: FC<EventPanelProps> = ({
   const gridColumns = [];
 
   // chevron
-  if (hasCollapse) {
+  if (isCollapsible && !useBottomDongle) {
     gridColumns.push("minmax(0, max-content)");
   }
 
@@ -77,31 +101,39 @@ export const EventPanel: FC<EventPanelProps> = ({
 
   // title
   gridColumns.push("minmax(0, max-content)");
+  // id
+  if (url) {
+    gridColumns.push("minmax(0, max-content)");
+  }
   gridColumns.push("auto");
   gridColumns.push("minmax(0, max-content)");
   gridColumns.push("minmax(0, max-content)");
 
   const toggleCollapse = useCallback(() => {
-    setCollapsed(!isCollapsed);
-  }, [setCollapsed, isCollapsed]);
+    setCollapsed(!collapsed);
+  }, [setCollapsed, collapsed, childIds]);
+
+  const [mouseOver, setMouseOver] = useState(false);
 
   const titleEl =
     title || icon || filteredArrChildren.length > 1 ? (
       <div
         title={subTitle}
-        className={clsx("text-size-small")}
+        className={clsx("text-size-small", mouseOver ? styles.hover : "")}
         style={{
           display: "grid",
           gridTemplateColumns: gridColumns.join(" "),
           columnGap: "0.3em",
-          cursor: hasCollapse ? "pointer" : undefined,
+          cursor: isCollapsible && !useBottomDongle ? "pointer" : undefined,
         }}
+        onMouseEnter={() => setMouseOver(true)}
+        onMouseLeave={() => setMouseOver(false)}
       >
-        {hasCollapse ? (
+        {isCollapsible && !useBottomDongle ? (
           <i
             onClick={toggleCollapse}
             className={
-              isCollapsed
+              collapsed
                 ? ApplicationIcons.chevron.right
                 : ApplicationIcons.chevron.down
             }
@@ -126,17 +158,26 @@ export const EventPanel: FC<EventPanelProps> = ({
         >
           {title}
         </div>
+        {url ? (
+          <CopyButton
+            value={url}
+            icon={ApplicationIcons.link}
+            className={clsx(styles.copyLink)}
+          />
+        ) : (
+          ""
+        )}
         <div onClick={toggleCollapse}></div>
         <div
           className={clsx("text-style-secondary", styles.label)}
           onClick={toggleCollapse}
         >
-          {isCollapsed ? text : ""}
+          {collapsed ? text : ""}
         </div>
         <div className={styles.navs}>
-          {(!hasCollapse || !isCollapsed) &&
-          filteredArrChildren &&
-          filteredArrChildren.length > 1 ? (
+          {isCollapsible && collapsibleContent && collapsed ? (
+            ""
+          ) : filteredArrChildren && filteredArrChildren.length > 1 ? (
             <EventNavs
               navs={filteredArrChildren.map((child, index) => {
                 const defaultTitle = `Tab ${index}`;
@@ -163,33 +204,58 @@ export const EventPanel: FC<EventPanelProps> = ({
     );
 
   const card = (
-    <>
-      <div id={id} className={clsx(className, styles.card)}>
-        {titleEl}
-        <div
-          className={clsx(
-            "tab-content",
-            styles.cardContent,
-            hasCollapse && isCollapsed ? styles.hidden : undefined,
-          )}
-        >
-          {filteredArrChildren?.map((child, index) => {
-            const id = pillId(index);
-            const isSelected = id === selectedNav;
+    <div
+      id={id}
+      className={clsx(
+        className,
+        styles.card,
+        depth === 0 ? styles.root : undefined,
+      )}
+    >
+      {titleEl}
+      <div
+        className={clsx(
+          "tab-content",
+          styles.cardContent,
+          isCollapsible && collapsed && collapsibleContent
+            ? styles.hidden
+            : undefined,
+        )}
+      >
+        {filteredArrChildren?.map((child, index) => {
+          const id = pillId(index);
+          const isSelected = id === selectedNav;
 
-            return (
-              <div
-                key={`children-${id}-${index}`}
-                id={id}
-                className={clsx("tab-pane", "show", isSelected ? "active" : "")}
-              >
-                {child}
-              </div>
-            );
-          })}
-        </div>
+          return (
+            <div
+              key={`children-${id}-${index}`}
+              id={id}
+              className={clsx("tab-pane", "show", isSelected ? "active" : "")}
+            >
+              {child}
+            </div>
+          );
+        })}
       </div>
-    </>
+
+      {isCollapsible && useBottomDongle ? (
+        <div
+          className={clsx(styles.bottomDongle, "text-size-smallest")}
+          onClick={toggleCollapse}
+        >
+          <i
+            className={clsx(
+              collapsed
+                ? ApplicationIcons.chevron.right
+                : ApplicationIcons.chevron.down,
+              styles.dongleIcon,
+            )}
+          />
+          transcript ({childIds?.length}{" "}
+          {childIds?.length === 1 ? "event" : "events"})
+        </div>
+      ) : undefined}
+    </div>
   );
   return card;
 };

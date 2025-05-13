@@ -9,8 +9,15 @@
   display: grid;
   grid-template-columns: max-content auto;
   column-gap: 1em;
+  row-gap: 0.1em;
 }
 
 .role {
   grid-column: -1/1;
+}
+
+.sep {
+  grid-column: -1/1;
+  height: 1px;
+  background-color: var(--bs-light-border-subtle);
 }

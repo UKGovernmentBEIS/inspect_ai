@@ -5,6 +5,14 @@
 - AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
 - Eval retry: Improve error message when attempting to retry tasks in packages that have not been registered.
 - Warn when a passed `--sample-id` is not found in the target dataset.
+- Inspect View: Improve the performance and memory efficiency of the viewer when viewing large samples with long, complex transcripts.
+- Inspect View: Improve the performance of the viewer when viewing large, complex sample or task metadata. 
+- Inspect View: Live display of subtask, tool and other child events when viewing a running evaluation.
+- Inspect View: Transcript rendering improvements including less complex overall layout, more collapsible entities, and improved rendering of sandbox events, tool calls, and other events.
+- Inspect View: Message rendering improvement including coloring user messages, reducing layout complexity, and other minor improvements.
+- Inspect View: Render metadata for samples and tasks as an interactive tree.
+- Inspect View: When deployed via `inspect view bundle`, support linking to individual transcript events or messages.
+- Inspect View: Reduce the maximum size of the header (before it is collapsed) when evals have large numbers of metrics.
 
 ## v0.3.96 (13 May 2025)
 

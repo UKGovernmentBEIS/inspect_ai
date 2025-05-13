@@ -145,6 +145,13 @@ export const SampleList: FC<SampleListProps> = memo((props) => {
             completed={item.completed}
             scoreRendered={item.scoreRendered}
             gridColumnsTemplate={gridColumnsTemplate}
+            sampleUrl={sampleNavigation.getSampleUrl(
+              item.data.id,
+              item.data.epoch,
+            )}
+            showSample={() => {
+              sampleNavigation.showSample(item.index);
+            }}
           />
         );
       } else if (item.type === "separator") {

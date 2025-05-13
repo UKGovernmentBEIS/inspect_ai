@@ -5,17 +5,13 @@
   white-space: normal;
 }
 
-.padded {
-  padding-bottom: 1em;
-}
-
 .systemRole {
   opacity: 0.7;
 }
 
 .messageGrid {
   display: grid;
-  grid-template-columns: max-content auto;
+  grid-template-columns: max-content max-content max-content;
   column-gap: 0.3em;
   font-weight: 500;
   margin-bottom: 0.3em;
@@ -27,6 +23,15 @@
 }
 
 .messageContents.indented {
-  margin-left: 1.1rem;
-  padding-bottom: 0.8rem;
+  margin-left: 0rem;
+}
+
+.copyLink {
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 2em;
+}
+
+.copyLink:hover {
+  opacity: 1;
 }

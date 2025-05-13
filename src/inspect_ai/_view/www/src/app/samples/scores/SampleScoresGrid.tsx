@@ -1,22 +1,24 @@
 import clsx from "clsx";
-import { FC, Fragment } from "react";
+import { FC, Fragment, RefObject } from "react";
 import { EvalSample } from "../../../@types/log";
 import { SampleSummary } from "../../../client/api/types";
 import { EmptyPanel } from "../../../components/EmptyPanel";
-import { MarkdownDiv } from "../../../components/MarkdownDiv";
 import { useEvalDescriptor } from "../../../state/hooks";
-import { MetaDataGrid } from "../../content/MetaDataGrid";
+import { RecordTree } from "../../content/RecordTree";
+import { RenderedContent } from "../../content/RenderedContent";
 import { SampleScores } from "./SampleScores";
 import styles from "./SampleScoresGrid.module.css";
 
 interface SampleScoresGridProps {
   evalSample: EvalSample;
   className?: string | string[];
+  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
 export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
   evalSample,
   className,
+  scrollRef,
 }) => {
   const evalDescriptor = useEvalDescriptor();
   if (!evalDescriptor) {
@@ -84,7 +86,13 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
               />
             </div>
             <div className={clsx("text-size-base", styles.cell)}>
-              <MarkdownDiv markdown={explanation} />
+              <RenderedContent
+                id={`${scorer}-explanation`}
+                entry={{
+                  name: "Explanation",
+                  value: explanation,
+                }}
+              />
             </div>
 
             {Object.keys(metadata).length > 0 ? (
@@ -100,7 +108,12 @@ export const SampleScoresGrid: FC<SampleScoresGridProps> = ({
                   Metadata
                 </div>
                 <div className={clsx(styles.fullWidth)}>
-                  <MetaDataGrid entries={metadata} />
+                  <RecordTree
+                    id={`${scorer}-metadataa`}
+                    scrollRef={scrollRef}
+                    record={metadata}
+                    defaultExpandLevel={0}
+                  />
                 </div>
                 <div
                   className={clsx(

@@ -1,4 +1,4 @@
-import { FC, useMemo } from "react";
+import { FC, RefObject, useMemo, useRef } from "react";
 import {
   EvalError,
   EvalPlan,
@@ -20,6 +20,7 @@ export const useInfoTabConfig = (
   evalError: EvalError | undefined | null,
   evalResults: EvalResults | undefined | null,
 ) => {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const totalSampleCount = useTotalSampleCount();
   return useMemo(() => {
     return {
@@ -33,12 +34,14 @@ export const useInfoTabConfig = (
         evalError,
         evalResults,
         sampleCount: totalSampleCount,
+        scrollRef,
       },
+      scrollRef,
     };
   }, [evalSpec, evalPlan, evalError, evalResults, totalSampleCount]);
 };
 
-interface PlanTabProps {
+interface InfoTabProps {
   evalSpec?: EvalSpec;
   evalPlan?: EvalPlan;
   evalStats?: EvalStats;
@@ -47,15 +50,17 @@ interface PlanTabProps {
   evalStatus?: "started" | "error" | "cancelled" | "success";
   evalError?: EvalError;
   sampleCount?: number;
+  scrollRef: RefObject<HTMLDivElement | null>;
 }
 
-export const InfoTab: FC<PlanTabProps> = ({
+export const InfoTab: FC<InfoTabProps> = ({
   evalSpec,
   evalPlan,
   evalResults,
   evalStatus,
   evalError,
   sampleCount,
+  scrollRef,
 }) => {
   const showWarning =
     sampleCount === 0 &&
@@ -79,6 +84,7 @@ export const InfoTab: FC<PlanTabProps> = ({
           evalSpec={evalSpec}
           evalPlan={evalPlan}
           scores={evalResults?.scores}
+          scrollRef={scrollRef}
         />
         {evalStatus === "error" && evalError ? (
           <TaskErrorCard error={evalError} />

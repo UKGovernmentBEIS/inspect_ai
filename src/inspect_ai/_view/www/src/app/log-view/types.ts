@@ -7,5 +7,6 @@ export interface TabDescriptor<P> {
   label: string;
   component: ComponentType<P>;
   componentProps: P;
+  className?: string | string[];
   tools?: () => ReactNode[] | undefined;
 }
