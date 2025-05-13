@@ -249,7 +249,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           onSelected={onSelectedTab}
           selected={effectiveSelectedTab === kSampleMetdataTabId}
         >
-          {sampleMetadatas.length > 0 ? (
+          {!sample || sampleMetadatas.length > 0 ? (
             <div className={clsx(styles.padded, styles.fullWidth)}>
               {sampleMetadatas}
             </div>
