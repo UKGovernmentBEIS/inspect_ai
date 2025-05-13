@@ -22,6 +22,8 @@ export interface ResultsScorer {
   metrics: ResultsMetric[];
 }
 
+const kMaxPrimaryScoreRows = 4;
+
 export const displayScorersFromRunningMetrics = (metrics?: RunningMetric[]) => {
   if (!metrics) {
     return [];
@@ -123,19 +125,27 @@ export const ResultsPanel: FC<ResultsPanelProps> = ({ scorers }) => {
 
     // Try to select metrics with a group size 5 or less, if possible
     let primaryResults = grouped[0];
-    if (primaryResults.length > 5) {
+    let showMore = grouped.length > 1;
+    if (primaryResults.length > kMaxPrimaryScoreRows) {
       const shorterResults = grouped.find((g) => {
-        return g.length <= 5;
+        return g.length <= kMaxPrimaryScoreRows;
       });
       if (shorterResults) {
         primaryResults = shorterResults;
+      }
+
+      // If the primary metrics are still too long, truncate them and
+      // show the rest in the modal
+      if (primaryResults.length > kMaxPrimaryScoreRows) {
+        primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
+        showMore = true;
       }
     }
 
     return (
       <div className={clsx(styles.metricsSummary)}>
         <ScoreGrid scoreGroups={[primaryResults]} showReducer={showReducer} />
-        {grouped.length > 1 ? (
+        {showMore ? (
           <>
             <Modal
               id="results-metrics"

@@ -44379,6 +44379,7 @@ categories: ${categories.join(" ")}`;
         }
       );
     };
+    const kMaxPrimaryScoreRows = 4;
     const displayScorersFromRunningMetrics = (metrics2) => {
       if (!metrics2) {
         return [];
@@ -44460,17 +44461,22 @@ categories: ${categories.join(" ")}`;
         const showReducer = scorers.findIndex((score2) => !!score2.reducer) !== -1;
         const grouped = groupMetrics(scorers);
         let primaryResults = grouped[0];
-        if (primaryResults.length > 5) {
+        let showMore = grouped.length > 1;
+        if (primaryResults.length > kMaxPrimaryScoreRows) {
           const shorterResults = grouped.find((g) => {
-            return g.length <= 5;
+            return g.length <= kMaxPrimaryScoreRows;
           });
           if (shorterResults) {
             primaryResults = shorterResults;
           }
+          if (primaryResults.length > kMaxPrimaryScoreRows) {
+            primaryResults = primaryResults.slice(0, kMaxPrimaryScoreRows);
+            showMore = true;
+          }
         }
         return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$W.metricsSummary), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(ScoreGrid, { scoreGroups: [primaryResults], showReducer }),
-          grouped.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+          showMore ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               Modal,
               {
