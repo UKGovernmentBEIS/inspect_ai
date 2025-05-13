@@ -4,6 +4,8 @@
 - Model Context Protocol: Upgrade sandbox client to typing changes made in v1.8.0 of `mcp` package.
 - vLLM/SGLang: Fix dynamic port binding for local server on Mac OS X.
 - React Agent: Improve continue prompt to remind the model to include the answer in their call to `submit()`.
+- Inspect View: Properly sort samples by score even when there are samples with errors.
+- Inspect View: Allow filtering of samples by score when evals are running.
 
 ## v0.3.95 (10 May 2025)
 
