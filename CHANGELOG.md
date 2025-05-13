@@ -1,3 +1,7 @@
+## Future
+
+- Dataframes: Do not do additional sorting on log file paths passed to `_df()` functions.
+
 ## Unreleased
 
 - Dataframe functions: `events_df()` function, improved message reading, log filtering

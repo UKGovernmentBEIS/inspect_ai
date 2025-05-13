@@ -526,12 +526,19 @@ def log_files_from_ls(
     ls: list[FileInfo],
     formats: list[Literal["eval", "json"]] | None = None,
     descending: bool = True,
+    sort: bool = True,
 ) -> list[EvalLogInfo]:
     extensions = [f".{format}" for format in (formats or ALL_LOG_FORMATS)]
     return [
         log_file_info(file)
-        for file in sorted(
-            ls, key=lambda file: (file.mtime if file.mtime else 0), reverse=descending
+        for file in (
+            sorted(
+                ls,
+                key=lambda file: (file.mtime if file.mtime else 0),
+                reverse=descending,
+            )
+            if sort
+            else ls
         )
         if file.type == "file" and is_log_file(file.name, extensions)
     ]
