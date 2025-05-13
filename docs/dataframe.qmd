@@ -407,6 +407,14 @@ $ inspect log convert ./logs --to eval --output-dir ./logs-amended
 ```
 :::
 
+#### Sample IDs
+
+The `samples_df()` function produces a globally unique ID for each sample, contained in the `sample_id` field. This field is also included in the data frames created by `messages_df()` and `events_df()` as a parent sample reference.
+
+Since `sample_id` is globally unique, it is suitable for use in tables and views that span multiple evaluations.
+
+Note that `samples_df()` also includes `id` and `epoch` fields that serve distinct purposes: `id` references the corresponding sample in the task's dataset, while `epoch` indicates the iteration of execution.
+
 ### Messages {#messages}
 
 The `messages_df()` function enables reading message level data from a set of eval logs. Each row corresponds to a message, and includes a `sample_id` and `eval_id` for linking back to its parents.
