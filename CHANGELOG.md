@@ -1,4 +1,4 @@
-## Unreleased
+## v0.3.96 (13 May 2025)
 
 - Dataframes: `events_df()` function, improved message reading, log filtering, don't re-sort passed logs
 - Model Context Protocol: Upgrade sandbox client to typing changes made in v1.8.0 of `mcp` package.

@@ -3,12 +3,6 @@ title: "inspect_ai.analysis.beta"
 ---
 
 ::: callout-note
-The analysis functions described below are available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-
 Analysis functions are currently in beta and are exported from the **inspect_ai.analysis.beta** module. The beta module will be preserved after final release so that code written against it now will continue to work after the beta.
 :::
 
