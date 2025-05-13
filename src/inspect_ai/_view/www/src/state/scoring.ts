@@ -37,7 +37,7 @@ const getScorersFromResults = (results?: EvalResults): ScorerInfo[] => {
 const getScorersFromSamples = (samples: SampleSummary[]): ScorerInfo[] => {
   // Find a sample with scores
   const scoredSample = samples.find((sample) => {
-    return !!sample.scores;
+    return !sample.error && sample.completed && !!sample.scores;
   });
 
   return Object.keys(scoredSample?.scores || {}).map((key) => ({

@@ -69,13 +69,18 @@ export const passFailScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
       }
     },
     compare: (a: SelectedScore, b: SelectedScore) => {
-      if (typeof a.value !== "string" || typeof b.value !== "string") {
-        throw new Error(
-          "Unexpectedly using the pass fail scorer on non-string values",
-        );
+      if (typeof a.value !== "string" && typeof b.value !== "string") {
+        return 0;
+      } else if (typeof a.value === "string" && typeof b.value !== "string") {
+        return -1;
+      } else if (typeof a.value !== "string" && typeof b.value === "string") {
+        return 1;
+      } else {
+        const sort =
+          order.indexOf(String(a.value || "")) -
+          order.indexOf(String(b.value || ""));
+        return sort;
       }
-      const sort = order.indexOf(a.value || "") - order.indexOf(b.value || "");
-      return sort;
     },
   };
 };

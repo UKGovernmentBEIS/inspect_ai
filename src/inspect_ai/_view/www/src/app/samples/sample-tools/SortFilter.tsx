@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { ChangeEvent, FC, useCallback } from "react";
+import { ScoreLabel } from "../../../app/types";
 import { SampleSummary } from "../../../client/api/types";
 import {
   kEpochAscVal,
@@ -9,7 +10,6 @@ import {
   kScoreAscVal,
   kScoreDescVal,
 } from "../../../constants";
-import { ScoreLabel } from "../../../app/types";
 import { isNumeric } from "../../../utils/type";
 import { SamplesDescriptor } from "../descriptor/samplesDescriptor";
 import styles from "./SortFilter.module.css";
