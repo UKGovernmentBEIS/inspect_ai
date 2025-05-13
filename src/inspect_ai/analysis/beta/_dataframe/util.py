@@ -67,7 +67,7 @@ def resolve_logs(logs: LogPaths) -> list[str]:
         else:
             log_paths.append(info)
 
-    log_files = log_files_from_ls(log_paths)
+    log_files = log_files_from_ls(log_paths, sort=False)
     return [log_file.name for log_file in log_files]
 
 

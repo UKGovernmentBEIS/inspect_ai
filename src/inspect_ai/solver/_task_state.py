@@ -138,7 +138,7 @@ class TaskState:
     The `TaskState` represents the internal state of the `Task` being run for a single `Sample`.
 
     The `TaskState` is passed to and returned from each solver during a sample's
-    evaluation. It allows us to manipulated the message history, the tools
+    evaluation. It allows us to maintain the manipulated message history, the tools
     available to the model, the final output of the model, and whether the task
     is completed or has hit a limit.
     """
