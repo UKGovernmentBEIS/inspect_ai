@@ -282,8 +282,8 @@ react(
 
 ### Attempts
 
-By default the `react()` agent is allowed a single attempt at calling
-the `submit()` function. If you want to give it multiple attempts, pass
+When using a `submit()` tool, the `react()` agent is allowed a single
+attempt by default. If you want to give it multiple attempts, pass
 another value to `attempts`:
 
 ``` python
@@ -308,17 +308,63 @@ it!). This is typically an oversight, and models simply need to be
 encouraged to call `submit()` or alternatively continue if they haven’t
 yet completed the task.
 
-This behavior is controlled by the `on_continue` parameter, which by
+This behaviour is controlled by the `on_continue` parameter, which by
 default yields the following user message to the model:
 
 ``` default
 Please proceed to the next step using your best judgement. If you believe you
-have completed the task, please call the `submit()` tool.
+have completed the task, please call the `submit()` tool with your final answer
 ```
 
 You can pass a different continuation message, or alternative pass an
 `AgentContinue` function that can dynamically determine both whether to
 continue and what the message is.
+
+### Submit Tool
+
+> [!NOTE]
+>
+> The ability to disable the submit tool described below is available
+> only in the development version of Inspect. To install the development
+> version from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+As described above, the `react()` agent uses a special `submit()` tool
+internally to enable the model to signal explicitly when it is complete
+and has an answer. The use of a `submit()` tool has a couple of
+benefits:
+
+1.  Some implementations of ReAct loops terminate the loop when the
+    model stops calling tools. However, in some cases models will
+    unintentionally stop calling tools (e.g. write a message saying they
+    are going to call a tool and then not do it). The use of an explicit
+    `submit()` tool call to signal completion works around this problem,
+    as the model can be encouraged to keep calling tools rather than
+    terminating.
+
+2.  An explicit `submit()` tool call to signal completion enables the
+    implementation of multiple [attempts](#attempts), which is often a
+    good way to model the underlying domain (e.g. a engineer can attempt
+    to fix a bug multiple times with tests providing feedback on success
+    or failure).
+
+That said, the `submit()` tool might not be appropriate for every domain
+or agent. You can disable the use of the submit tool with:
+
+``` python
+react(
+    ...,
+    submit=False
+)
+```
+
+By default, disabling the submit tool will result in the agent
+terminating when it stops calling tools. Alternatively, you can manually
+control termination by providing a custom [on_continue](#continuation)
+handler.
 
 ### Truncation
 
