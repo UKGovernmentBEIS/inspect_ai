@@ -1,0 +1,11 @@
+.container {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1em;
+  width: 100%;
+}
+
+.treeContainer {
+  overflow: visible;
+  height: auto;
+}

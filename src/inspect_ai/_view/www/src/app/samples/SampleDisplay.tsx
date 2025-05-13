@@ -49,7 +49,7 @@ import { messagesFromEvents } from "./chat/messages";
 import styles from "./SampleDisplay.module.css";
 import { SampleSummaryView } from "./SampleSummaryView";
 import { SampleScoresView } from "./scores/SampleScoresView";
-import { TranscriptVirtualList } from "./transcript/TranscriptVirtualList";
+import { TranscriptPanel } from "./transcript/TranscriptPanel";
 
 interface SampleDisplayProps {
   id: string;
@@ -198,7 +198,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
           }
           scrollable={false}
         >
-          <TranscriptVirtualList
+          <TranscriptPanel
             key={`${baseId}-transcript-display-${id}`}
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
