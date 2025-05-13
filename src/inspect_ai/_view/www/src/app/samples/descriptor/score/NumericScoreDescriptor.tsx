@@ -22,7 +22,6 @@ export const numericScoreDescriptor = (values: Value2[]): ScoreDescriptor => {
       } else if (typeof a.value !== "number" && typeof b.value === "number") {
         return 1;
       } else {
-        console.warn("Comparing non-numerics using a numeric score descriptor");
         return 0;
       }
     },

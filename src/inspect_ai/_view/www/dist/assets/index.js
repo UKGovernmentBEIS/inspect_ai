@@ -24251,7 +24251,6 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           } else if (typeof a.value !== "number" && typeof b.value === "number") {
             return 1;
           } else {
-            console.warn("Comparing non-numerics using a numeric score descriptor");
             return 0;
           }
         },
