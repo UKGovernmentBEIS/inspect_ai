@@ -55,6 +55,10 @@ Please proceed to the next step using your best judgement. If you believe you
 have completed the task, please call the `{submit}()` tool.
 """
 
+DEFAULT_CONTINUE_PROMOT_NO_SUBMIT = """
+Please proceed to the next step using your best judgement.
+"""
+
 
 AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str]]
 """Function called to determine whether the agent should continue.

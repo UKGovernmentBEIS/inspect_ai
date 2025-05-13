@@ -22,6 +22,7 @@ from ._agent import Agent, AgentState, agent, agent_with
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
+    DEFAULT_CONTINUE_PROMOT_NO_SUBMIT,
     DEFAULT_CONTINUE_PROMPT,
     AgentAttempts,
     AgentContinue,
@@ -41,7 +42,7 @@ def react(
     tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     model: str | Model | Agent | None = None,
     attempts: int | AgentAttempts = 1,
-    submit: AgentSubmit = AgentSubmit(),
+    submit: AgentSubmit | bool | None = None,
     on_continue: str | AgentContinue | None = None,
     truncation: Literal["auto", "disabled"] | MessageFilter = "disabled",
 ) -> Agent:
@@ -73,14 +74,16 @@ def react(
        tools: Tools available for the agent.
        model: Model to use for agent (defaults to currently evaluated model).
        attempts: Configure agent to make multiple attempts.
-       submit: Configure submit tool used by agent.
-       on_continue: Message to play back to the model to urge it to continue.
-          Use the placeholder {submit} to refer to the submit tool within the message.
-          Alternatively, an async function to call to determine whether the loop
-          should continue and what message to play back. Note that this function
-          is called on _every_ iteration of the loop so if you only want to send
-          a message back when the model fails to call tools you need to code
-          that behavior explicitly.
+       submit: Use a submit tool for reporting the final answer. Defaults to `True`
+          which uses the default submit behavior. Pass an `AgentSubmit` to
+          customize the behavior or pass `False` to disable the submit tool.
+       on_continue: Message to play back to the model to urge it to continue
+          when it stops calling tools. Use the placeholder {submit} to refer to
+          the submit tool within the message. Alternatively, an async function
+          to call to determine whether the loop should continue and what message
+          to play back. Note that this function is called on _every_ iteration of
+          the loop so if you only want to send a message back when the model fails
+          to call tools you need to code that behavior explicitly.
        truncation: Truncate the conversation history in the event of a context
           window overflow. Defaults to "disabled" which does no truncation. Pass
           "auto" to use `trim_messages()` to reduce the context size. Pass a
@@ -89,6 +92,29 @@ def react(
     Returns:
         ReAct agent.
     """
+    # if there is no submit tool then delegate to react_no_submit
+    if submit is False:
+        # if the user passes a `str` for on_continue this won't do anything
+        if isinstance(on_continue, str):
+            raise ValueError(
+                "Passing a string to on_continue with no submit tool is not permitted, "
+                + "because in this case the agent will always terminate when no tool "
+                + "calls are made."
+            )
+
+        return react_no_submit(
+            name=name,
+            description=description,
+            prompt=prompt,
+            tools=tools,
+            model=model,
+            on_continue=on_continue,
+            truncation=truncation,
+        )
+
+    # if submit is True or None then use default AgentSubmit
+    if submit is True or submit is None:
+        submit = AgentSubmit()
 
     # default submit tool
     @tool(name="submit")
@@ -115,23 +141,7 @@ def react(
     tools.append(submit_tool)
 
     # resolve prompt / system message
-    prompt = AgentPrompt(prompt) if isinstance(prompt, str) else prompt
-    if prompt:
-        prompt_lines: list[str] = []
-        if prompt.instructions:
-            prompt_lines.append(prompt.instructions)
-        if prompt.handoff_prompt and has_handoff(tools):
-            prompt_lines.append(prompt.handoff_prompt)
-        if prompt.assistant_prompt:
-            if "{submit}" not in prompt.assistant_prompt and prompt.submit_prompt:
-                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt}"
-            else:
-                assistant_prompt = prompt.assistant_prompt
-            prompt_lines.append(assistant_prompt)
-        prompt_content = "\n\n".join(prompt_lines).format(submit=submit_tool.name)
-        system_message: ChatMessage | None = ChatMessageSystem(content=prompt_content)
-    else:
-        system_message = None
+    system_message = _prompt_to_system_message(prompt, tools, submit_tool.name)
 
     # resolve attempts
     attempts = AgentAttempts(attempts) if isinstance(attempts, int) else attempts
@@ -154,12 +164,7 @@ def react(
                 state.messages.insert(0, system_message)
 
             # resolve overflow handling
-            if truncation == "auto":
-                overflow = cast(MessageFilter | None, trim_messages)
-            elif truncation == "disabled":
-                overflow = None
-            else:
-                overflow = truncation
+            overflow = _resolve_overflow(truncation)
 
             # track attempts
             attempt_count = 0
@@ -172,20 +177,11 @@ def react(
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
-                    from inspect_ai.log._transcript import transcript
-
-                    if overflow is not None:
-                        previous_messages = state.messages[:-1]
-                        state.messages = await overflow(previous_messages)
-                        if len(state.messages) < len(previous_messages):
-                            transcript().info(
-                                "Agent exceeded model context window, truncating messages and continuing."
-                            )
-                            continue
-
-                    # no overflow policy or overflow didn't reduce conversation length
-                    transcript().info("Agent terminated: model context window exceeded")
-                    break
+                    state, handled = await _handle_overflow(state, overflow)
+                    if handled:
+                        continue
+                    else:
+                        break
 
                 # resolve tool calls (if any)
                 if state.output.message.tool_calls:
@@ -237,9 +233,7 @@ def react(
 
                 # call the on_continue hook (if any)
                 if callable(on_continue):
-                    if not is_callable_coroutine(on_continue):
-                        raise ValueError("The on_continue function must be async.")
-                    do_continue = await cast(AgentContinue, on_continue)(state)
+                    do_continue = await _call_on_continue(on_continue, state)
                     if do_continue is True:
                         # if there were no tool calls we need to send back a user message
                         if not state.output.message.tool_calls:
@@ -278,10 +272,133 @@ def react(
             state.messages = _remove_submit_tool(state.messages, submit_tool.name)
             return state
 
-    if name is not None or description is not None:
-        return agent_with(execute, name=name, description=description)
+    return _resolve_agent(execute, name, description)
+
+
+def react_no_submit(
+    *,
+    name: str | None,
+    description: str | None,
+    prompt: str | AgentPrompt | None,
+    tools: Sequence[Tool | ToolDef | ToolSource] | None,
+    model: str | Model | Agent | None,
+    on_continue: AgentContinue | None,
+    truncation: Literal["auto", "disabled"] | MessageFilter,
+) -> Agent:
+    # resolve tools
+    tools = list(tools) if tools is not None else []
+
+    # resolve prompt / system message
+    system_message = _prompt_to_system_message(prompt, tools, None)
+
+    async def execute(state: AgentState) -> AgentState:
+        async with mcp_connection(tools):
+            # prepend system message if we have one
+            if system_message:
+                state.messages.insert(0, system_message)
+
+            # resolve overflow handling
+            overflow = _resolve_overflow(truncation)
+
+            # main loop
+            while True:
+                # generate output and append assistant message
+                state = await _agent_generate(model, state, tools)
+
+                # check for context window overflow
+                if state.output.stop_reason == "model_length":
+                    state, handled = await _handle_overflow(state, overflow)
+                    if handled:
+                        continue
+                    else:
+                        break
+
+                # resolve tool calls (if any)
+                if state.output.message.tool_calls:
+                    # call tool functions
+                    messages, output = await execute_tools(state.messages, tools)
+                    state.messages.extend(messages)
+                    if output:
+                        state.output = output
+
+                # call the on_continue hook (if any)
+                if on_continue:
+                    do_continue = await _call_on_continue(on_continue, state)
+                    if do_continue is True:
+                        do_continue = DEFAULT_CONTINUE_PROMOT_NO_SUBMIT
+                    if do_continue:
+                        state.messages.append(ChatMessageUser(content=do_continue))
+                    else:
+                        break
+                elif not state.output.message.tool_calls:
+                    break
+
+            return state
+
+    return _resolve_agent(execute, name, description)
+
+
+def _prompt_to_system_message(
+    prompt: str | AgentPrompt | None,
+    tools: list[Tool | ToolDef | ToolSource],
+    submit_tool: str | None,
+) -> ChatMessage | None:
+    prompt = AgentPrompt(prompt) if isinstance(prompt, str) else prompt
+    if prompt:
+        prompt_lines: list[str] = []
+        if prompt.instructions:
+            prompt_lines.append(prompt.instructions)
+        if prompt.handoff_prompt and has_handoff(tools):
+            prompt_lines.append(prompt.handoff_prompt)
+        if prompt.assistant_prompt:
+            if (
+                submit_tool
+                and ("{submit}" not in prompt.assistant_prompt)
+                and prompt.submit_prompt
+            ):
+                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt}"
+            else:
+                assistant_prompt = prompt.assistant_prompt
+            prompt_lines.append(assistant_prompt)
+        prompt_content = "\n\n".join(prompt_lines).format(
+            submit=submit_tool or "submit"
+        )
+        system_message: ChatMessage | None = ChatMessageSystem(content=prompt_content)
     else:
-        return execute
+        system_message = None
+    return system_message
+
+
+def _resolve_overflow(
+    truncation: Literal["auto", "disabled"] | MessageFilter,
+) -> MessageFilter | None:
+    # resolve overflow handling
+    if truncation == "auto":
+        overflow = cast(MessageFilter | None, trim_messages)
+    elif truncation == "disabled":
+        overflow = None
+    else:
+        overflow = truncation
+    return overflow
+
+
+async def _handle_overflow(
+    state: AgentState, overflow: MessageFilter | None
+) -> tuple[AgentState, bool]:
+    from inspect_ai.log._transcript import transcript
+
+    if overflow is not None:
+        previous_messages = state.messages[:-1]
+        state.messages = await overflow(previous_messages)
+        if len(state.messages) < len(previous_messages):
+            transcript().info(
+                "Agent exceeded model context window, truncating messages and continuing."
+            )
+            return state, True
+
+    # no overflow policy or overflow didn't reduce conversation length
+    transcript().info("Agent terminated: model context window exceeded")
+    return state, False
 
 
 async def _agent_generate(
@@ -321,6 +438,21 @@ def _model_generate(model: str | Model | None) -> Agent:
         return state
 
     return generate
+
+
+async def _call_on_continue(
+    on_continue: AgentContinue, state: AgentState
+) -> str | bool:
+    if not is_callable_coroutine(on_continue):
+        raise ValueError("The on_continue function must be async.")
+    return await on_continue(state)
+
+
+def _resolve_agent(agent: Agent, name: str | None, description: str | None) -> Agent:
+    if name is not None or description is not None:
+        return agent_with(agent, name=name, description=description)
+    else:
+        return agent
 
 
 def _remove_submit_tool(
