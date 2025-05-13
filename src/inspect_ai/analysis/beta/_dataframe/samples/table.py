@@ -7,6 +7,7 @@ from typing import (
     Callable,
     Generator,
     Literal,
+    Sequence,
     overload,
 )
 
@@ -51,7 +52,7 @@ SAMPLE_SUFFIX = "_sample"
 @overload
 def samples_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = SampleSummary,
+    columns: Sequence[Column] = SampleSummary,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
 
@@ -59,14 +60,14 @@ def samples_df(
 @overload
 def samples_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = SampleSummary,
+    columns: Sequence[Column] = SampleSummary,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
 
 
 def samples_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = SampleSummary,
+    columns: Sequence[Column] = SampleSummary,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing samples from a set of evals.
@@ -103,7 +104,7 @@ class EventsDetail:
 
 def _read_samples_df(
     logs: LogPaths,
-    columns: list[Column],
+    columns: Sequence[Column],
     *,
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
@@ -142,7 +143,7 @@ def _read_samples_df(
     )
 
     # make sure eval_id is present
-    ensure_eval_id(columns_eval)
+    columns_eval = list(ensure_eval_id(columns_eval))
 
     # establish progress
     progress_cm = (

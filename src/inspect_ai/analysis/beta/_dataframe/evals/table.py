@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Literal, overload
+from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
 from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis.beta._dataframe.progress import import_progress
@@ -46,7 +46,7 @@ def evals_df(
 
 def evals_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = EvalColumns,
+    columns: Sequence[Column] = EvalColumns,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     """Read a dataframe containing evals.
@@ -83,7 +83,7 @@ def evals_df(
 @overload
 def _read_evals_df(
     log_paths: list[str],
-    columns: list[Column],
+    columns: Sequence[Column],
     strict: Literal[True],
     progress: Callable[[], None],
 ) -> tuple["pd.DataFrame", int]: ...
@@ -92,7 +92,7 @@ def _read_evals_df(
 @overload
 def _read_evals_df(
     log_paths: list[str],
-    columns: list[Column],
+    columns: Sequence[Column],
     strict: Literal[False],
     progress: Callable[[], None],
 ) -> tuple["pd.DataFrame", ColumnErrors, int]: ...
@@ -100,7 +100,7 @@ def _read_evals_df(
 
 def _read_evals_df(
     log_paths: list[str],
-    columns: list[Column],
+    columns: Sequence[Column],
     strict: bool,
     progress: Callable[[], None],
 ) -> tuple["pd.DataFrame", int] | tuple["pd.DataFrame", ColumnErrors, int]:
@@ -113,7 +113,7 @@ def _read_evals_df(
     all_errors = ColumnErrors()
 
     # ensure eval_id
-    ensure_eval_id(columns)
+    columns = ensure_eval_id(columns)
 
     # read logs
     total_samples = 0
@@ -143,13 +143,15 @@ def _read_evals_df(
         return evals_table, all_errors, total_samples
 
 
-def ensure_eval_id(columns: list[Column]) -> None:
+def ensure_eval_id(columns: Sequence[Column]) -> Sequence[Column]:
     if not any([column.name == EVAL_ID for column in columns]):
-        columns.extend(EvalId)
+        return list(columns) + EvalId
+    else:
+        return columns
 
 
 def reorder_evals_df_columns(
-    df: "pd.DataFrame", eval_columns: list[Column]
+    df: "pd.DataFrame", eval_columns: Sequence[Column]
 ) -> "pd.DataFrame":
     actual_columns = list(df.columns)
     ordered_columns: list[str] = []

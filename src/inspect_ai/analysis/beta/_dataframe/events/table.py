@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Literal, TypeAlias
+from typing import TYPE_CHECKING, Callable, Literal, Sequence, TypeAlias
 
 from inspect_ai.analysis.beta._dataframe.events.columns import EventInfo
 from inspect_ai.log._file import list_eval_logs
@@ -45,7 +45,7 @@ EventFilter: TypeAlias = (
 @overload
 def events_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = EventInfo,
+    columns: Sequence[Column] = EventInfo,
     filter: EventFilter | None = None,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
@@ -54,7 +54,7 @@ def events_df(
 @overload
 def events_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = EventInfo,
+    columns: Sequence[Column] = EventInfo,
     filter: EventFilter | None = None,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
@@ -62,7 +62,7 @@ def events_df(
 
 def events_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = EventInfo,
+    columns: Sequence[Column] = EventInfo,
     filter: EventFilter | None = None,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:

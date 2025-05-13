@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Literal, TypeAlias
+from typing import TYPE_CHECKING, Callable, Literal, Sequence, TypeAlias
 
 from inspect_ai.log._file import list_eval_logs
 from inspect_ai.model._chat_message import ChatMessage
@@ -24,7 +24,7 @@ MessageFilter: TypeAlias = (
 @overload
 def messages_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = MessageColumns,
+    columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: Literal[True] = True,
 ) -> "pd.DataFrame": ...
@@ -33,7 +33,7 @@ def messages_df(
 @overload
 def messages_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = MessageColumns,
+    columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: Literal[False] = False,
 ) -> tuple["pd.DataFrame", ColumnErrors]: ...
@@ -41,7 +41,7 @@ def messages_df(
 
 def messages_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = MessageColumns,
+    columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
