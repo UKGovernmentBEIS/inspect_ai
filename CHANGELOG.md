@@ -1,6 +1,8 @@
 ## Unreleased
 
 - React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).
+- Anthropic: Show warning when generation config incompatible with extended thinking is used (affects `temperature`, `top_p`, and `top_k`).
+
 
 ## v0.3.96 (13 May 2025)
 
