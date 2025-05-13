@@ -1,6 +1,6 @@
 import json
 from datetime import date, datetime, time, timezone
-from typing import Any, Callable, Literal, Type, cast, overload
+from typing import Any, Callable, Literal, Sequence, Type, cast, overload
 
 import yaml
 from jsonpath_ng import JSONPath  # type: ignore
@@ -26,7 +26,7 @@ def import_record(
     | ChatMessage
     | Event
     | dict[str, JsonValue],
-    columns: list[Column],
+    columns: Sequence[Column],
     strict: Literal[True] = True,
 ) -> dict[str, ColumnType]: ...
 
@@ -39,7 +39,7 @@ def import_record(
     | ChatMessage
     | Event
     | dict[str, JsonValue],
-    columns: list[Column],
+    columns: Sequence[Column],
     strict: Literal[False],
 ) -> tuple[dict[str, ColumnType], list[ColumnError]]: ...
 
@@ -51,7 +51,7 @@ def import_record(
     | ChatMessage
     | Event
     | dict[str, JsonValue],
-    columns: list[Column],
+    columns: Sequence[Column],
     strict: bool = True,
 ) -> dict[str, ColumnType] | tuple[dict[str, ColumnType], list[ColumnError]]:
     # resolve the record BaseModel into a dict (and optionally a summary dict).
@@ -190,7 +190,7 @@ def import_record(
         return result, errors
 
 
-def resolve_duplicate_columns(columns: list[Column]) -> list[Column]:
+def resolve_duplicate_columns(columns: Sequence[Column]) -> list[Column]:
     """Remove duplicate columns (with the later columns winning)"""
     seen = set[str]()
     deduped: list[Column] = []
