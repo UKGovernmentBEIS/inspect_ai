@@ -20095,6 +20095,27 @@ span.ap-marker-container:hover span.ap-marker {
   padding-top: 0rem;
   margin-top: -8px;
 }
+._container_3okw0_1 {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 1em;
+  width: 100%;
+}
+
+._treeContainer_3okw0_8 {
+  overflow: visible;
+  height: auto;
+}
+._node_1d5c2_1 {
+  display: grid;
+  column-gap: 0.3em;
+  grid-template-columns: max-content 1fr;
+}
+
+._panel_1d5c2_7 {
+  margin-top: 0.65rem;
+  overflow: visible;
+}
 ._container_hinf1_1 {
   width: 100%;
   display: flex;
