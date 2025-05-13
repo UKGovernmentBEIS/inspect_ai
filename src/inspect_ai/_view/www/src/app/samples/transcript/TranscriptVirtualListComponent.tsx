@@ -50,7 +50,7 @@ export const TranscriptVirtualListComponent: FC<
           key={item.id}
           className={clsx(styles.node, paddingClass, attachedClass)}
           style={{
-            paddingLeft: `${item.depth * 0.7}em`,
+            paddingLeft: `${item.depth <= 1 ? item.depth * 0.7 : (0.7 + item.depth - 1) * 1}em`,
             paddingRight: `${item.depth === 0 ? undefined : ".7em"} `,
           }}
         >

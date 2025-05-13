@@ -52150,15 +52150,16 @@ self.onmessage = function (e) {
         }
       );
     };
-    const label$4 = "_label_1vfw7_1";
-    const navs = "_navs_1vfw7_6";
-    const card = "_card_1vfw7_12";
-    const cardContent = "_cardContent_1vfw7_20";
-    const hidden$1 = "_hidden_1vfw7_25";
-    const copyLink = "_copyLink_1vfw7_33";
-    const root$1 = "_root_1vfw7_44";
-    const bottomDongle = "_bottomDongle_1vfw7_49";
-    const dongleIcon = "_dongleIcon_1vfw7_66";
+    const label$4 = "_label_14w7y_1";
+    const navs = "_navs_14w7y_6";
+    const card = "_card_14w7y_12";
+    const cardContent = "_cardContent_14w7y_20";
+    const hidden$1 = "_hidden_14w7y_25";
+    const copyLink = "_copyLink_14w7y_33";
+    const hover = "_hover_14w7y_40";
+    const root$1 = "_root_14w7y_44";
+    const bottomDongle = "_bottomDongle_14w7y_49";
+    const dongleIcon = "_dongleIcon_14w7y_66";
     const styles$s = {
       label: label$4,
       navs,
@@ -52166,6 +52167,7 @@ self.onmessage = function (e) {
       cardContent,
       hidden: hidden$1,
       copyLink,
+      hover,
       root: root$1,
       bottomDongle,
       dongleIcon
@@ -52216,17 +52218,20 @@ self.onmessage = function (e) {
       const toggleCollapse = reactExports.useCallback(() => {
         setCollapsed(!collapsed);
       }, [setCollapsed, collapsed, childIds]);
+      const [mouseOver, setMouseOver] = reactExports.useState(false);
       const titleEl = title2 || icon2 || filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
           title: subTitle,
-          className: clsx("text-size-small"),
+          className: clsx("text-size-small", mouseOver ? styles$s.hover : ""),
           style: {
             display: "grid",
             gridTemplateColumns: gridColumns2.join(" "),
             columnGap: "0.3em",
             cursor: isCollapsible && !useBottomDongle ? "pointer" : void 0
           },
+          onMouseEnter: () => setMouseOver(true),
+          onMouseLeave: () => setMouseOver(false),
           children: [
             isCollapsible && !useBottomDongle ? /* @__PURE__ */ jsxRuntimeExports.jsx(
               "i",
@@ -52921,7 +52926,7 @@ self.onmessage = function (e) {
       const options2 = event.options;
       const input2 = event.input;
       const result2 = event.result;
-      const output2 = event.output;
+      const output2 = event.output ? event.output.trim() : void 0;
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.exec), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(EventSection, { title: `Command`, children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.twoColumn), children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx("pre", { className: clsx(styles$l.wrapPre), children: cmd2 }),
@@ -52934,13 +52939,20 @@ self.onmessage = function (e) {
             }
           ) }) : void 0
         ] }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsxs(EventSection, { title: `Result`, children: [
-          output2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-output`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: output2 }) }) : void 0,
-          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.result), children: [
-            "Exited with code ",
-            result2
+        output2 || result2 !== null && result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs(EventSection, { title: `Result`, children: [
+          output2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(ExpandablePanel, { id: `${id}-output`, collapse: false, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+            RenderedContent,
+            {
+              id: `${id}-output-content`,
+              entry: { name: "sandbox_output", value: output2 }
+            }
+          ) }) : void 0,
+          result2 !== 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$l.result, "text-size-base"), children: [
+            "(exited with code ",
+            result2,
+            ")"
           ] }) : void 0
-        ] })
+        ] }) : void 0
       ] });
     };
     const ReadFileView = ({ id, event }) => {
@@ -61040,7 +61052,7 @@ ${events}
               id: item2.id,
               className: clsx(styles$e.node, paddingClass, attachedClass),
               style: {
-                paddingLeft: `${item2.depth * 0.7}em`,
+                paddingLeft: `${item2.depth <= 1 ? item2.depth * 0.7 : (0.7 + item2.depth - 1) * 1}em`,
                 paddingRight: `${item2.depth === 0 ? void 0 : ".7em"} `
               },
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { node: item2 })

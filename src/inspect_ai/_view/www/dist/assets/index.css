@@ -17281,18 +17281,18 @@ thead th {
 ._navs_1vm6p_1 {
   margin-right: 0;
 }
-._label_1vfw7_1 {
+._label_14w7y_1 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._navs_1vfw7_6 {
+._navs_14w7y_6 {
   justify-self: end;
   display: flex;
   flex-direction: columns;
 }
 
-._card_1vfw7_12 {
+._card_14w7y_12 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -17300,36 +17300,36 @@ thead th {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_1vfw7_20 {
+._cardContent_14w7y_20 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_1vfw7_20._hidden_1vfw7_25 {
+._cardContent_14w7y_20._hidden_14w7y_25 {
   display: none;
 }
 
-._hidden_1vfw7_25 {
+._hidden_14w7y_25 {
   display: none;
 }
 
-._copyLink_1vfw7_33 {
+._copyLink_14w7y_33 {
+  font-size: 1.2em;
   opacity: 0;
-  padding-left: 0;
+  padding-left: 0.2em;
   padding-right: 2em;
 }
 
-._copyLink_1vfw7_33:hover {
+._hover_14w7y_40 ._copyLink_14w7y_33 {
   opacity: 1;
-  display: block;
 }
 
-._root_1vfw7_44 {
+._root_14w7y_44 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_1vfw7_49 {
+._bottomDongle_14w7y_49 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -17346,7 +17346,7 @@ thead th {
   cursor: pointer;
 }
 
-._dongleIcon_1vfw7_66 {
+._dongleIcon_14w7y_66 {
   padding-right: 0.3em;
 }
 ._panel_vz394_1 {
