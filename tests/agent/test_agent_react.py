@@ -55,7 +55,7 @@ def searcher() -> Agent:
 
 
 AGENT_SYSTEM_MESSAGE = """
-You are a helpful assistant attempting to submit the correct answer. When you have completed the task and have a result, call the agent_submit() function to communicate it.
+You are a helpful assistant attempting to submit the correct answer. When you have completed the task and have a result, call the {submit} function to communicate it.
 """
 
 
@@ -234,10 +234,38 @@ def check_custom_submit(log: EvalLog, name: str, description: str) -> None:
     assert model_event.tools[1].description == description
 
 
+def addition_dataset() -> list[Sample]:
+    return [Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])]
+
+
+def test_react_agent_no_submit() -> None:
+    def addition_task() -> Task:
+        return Task(
+            dataset=addition_dataset(),
+            solver=react(tools=[addition()], submit=False),
+            scorer=includes(),
+        )
+
+    log = eval(
+        addition_task(),
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    "mockllm/model", "addition", {"x": 1, "y": 1}
+                ),
+                ModelOutput.from_content("mockllm/model", content="2"),
+            ],
+        ),
+    )[0]
+    assert log.results
+    assert log.results.scores[0].metrics["accuracy"].value == 1
+
+
 def test_react_agent_retries() -> None:
     def addition_task(max_attempts: int) -> Task:
         return Task(
-            dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],
+            dataset=addition_dataset(),
             solver=react(tools=[addition()], attempts=max_attempts),
             scorer=includes(),
             message_limit=30,

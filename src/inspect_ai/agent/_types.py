@@ -22,7 +22,9 @@ see the result of tool calls right after sending the message. If you need
 to perform multiple actions, you can always send more messages with additional
 tool calls. Do some reasoning before your actions, describing what tool calls
 you are going to use and how they fit into your plan.
+"""
 
+DEFAULT_SUBMIT_PROMPT = """
 When you have completed the task and have an answer, call the {submit}()
 tool to report it.
 """
@@ -38,12 +40,23 @@ class AgentPrompt(NamedTuple):
     """Prompt used when there are additional handoff agents active."""
 
     assistant_prompt: str | None = DEFAULT_ASSISTANT_PROMPT
-    """Prompt for assistant (covers tool use, submit tool, CoT, etc.)."""
+    """Prompt for assistant (covers tool use, CoT, etc.)."""
+
+    submit_prompt: str | None = DEFAULT_SUBMIT_PROMPT
+    """Prompt to tell the model about the submit tool.
+
+    This prompt is not used if the `assistant_prompt` contains a
+    {submit} placeholder.
+    """
 
 
 DEFAULT_CONTINUE_PROMPT = """
 Please proceed to the next step using your best judgement. If you believe you
 have completed the task, please call the `{submit}()` tool with your final answer.
+"""
+
+DEFAULT_CONTINUE_PROMOT_NO_SUBMIT = """
+Please proceed to the next step using your best judgement.
 """
 
 

@@ -183,6 +183,13 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
         return o
 
 
+def registry_package_name(name: str) -> str | None:
+    if name.find("/") != -1 and name.find(".") == -1:
+        return name.split("/")[0]
+    else:
+        return None
+
+
 def registry_find(predicate: Callable[[RegistryInfo], bool]) -> list[object]:
     r"""Find objects in the registry that match the passed predicate.
 

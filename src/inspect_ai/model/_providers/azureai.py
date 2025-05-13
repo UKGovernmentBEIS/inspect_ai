@@ -138,6 +138,7 @@ class AzureAIAPI(ModelAPI):
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # emulate tools (auto for llama, opt-in for others)
         if self.emulate_tools is None and self.is_llama():
+            self.emulate_tools = True
             handler: ChatAPIHandler | None = Llama31Handler(self.model_name)
         elif self.emulate_tools:
             handler = Llama31Handler(self.model_name)
@@ -151,10 +152,14 @@ class AzureAIAPI(ModelAPI):
         # prepare request
         request = dict(
             messages=await chat_request_messages(input, handler),
-            tools=chat_tools(tools) if len(tools) > 0 else None,
-            tool_choice=chat_tool_choice(tool_choice) if len(tools) > 0 else None,
             **self.completion_params(config),
         )
+        # newer versions of vllm reject requests with tools or tool_choice if the
+        # server hasn't been started explicitly with the --tool-call-parser and
+        # --enable-auto-tool-choice flags
+        if (not self.emulate_tools) and len(tools) > 0:
+            request["tools"] = chat_tools(tools)
+            request["tool_choice"] = chat_tool_choice(tool_choice)
 
         # create client (note the client needs to be created and closed
         # with each call so it can be cleaned up and not end up on another

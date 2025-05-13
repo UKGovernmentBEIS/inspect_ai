@@ -1,6 +1,14 @@
 ## Unreleased
 
-- Dataframe functions: `events_df()` function, improved message reading, log filtering
+- React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).
+- Anthropic: Show warning when generation config incompatible with extended thinking is used (affects `temperature`, `top_p`, and `top_k`).
+- AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
+- Eval retry: Improve error message when attempting to retry tasks in packages that have not been registered.
+- Warn when a passed `--sample-id` is not found in the target dataset.
+
+## v0.3.96 (13 May 2025)
+
+- Dataframes: `events_df()` function, improved message reading, log filtering, don't re-sort passed logs
 - Model Context Protocol: Upgrade sandbox client to typing changes made in v1.8.0 of `mcp` package.
 - vLLM/SGLang: Fix dynamic port binding for local server on Mac OS X.
 - React Agent: Improve continue prompt to remind the model to include the answer in their call to `submit()`.
