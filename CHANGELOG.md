@@ -1,3 +1,7 @@
+## Unreleased
+
+- React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).
+
 ## v0.3.96 (13 May 2025)
 
 - Dataframes: `events_df()` function, improved message reading, log filtering, don't re-sort passed logs

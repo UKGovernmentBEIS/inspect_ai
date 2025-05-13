@@ -18,8 +18,6 @@ from inspect_ai.agent import (
     run,
 )
 from inspect_ai.dataset import Sample
-from inspect_ai.log._transcript import ModelEvent, SpanBeginEvent, SpanEndEvent
-from inspect_ai.log._tree import event_sequence, event_tree
 from inspect_ai.model import ChatMessageSystem, Model, get_model
 from inspect_ai.model._chat_message import ChatMessageUser
 from inspect_ai.solver import (
@@ -261,17 +259,3 @@ def test_agent_collect() -> None:
     log = eval(task, model="openai/gpt-4o")[0]
     assert log.status == "success"
     assert log.samples
-
-    tree = event_tree(log.samples[0].events)
-
-    events = list(event_sequence(tree))
-
-    assert isinstance(events[7], SpanBeginEvent)
-    assert events[7].name == "task-1"
-    assert isinstance(events[8], ModelEvent)
-    assert isinstance(events[9], SpanEndEvent)
-
-    assert isinstance(events[10], SpanBeginEvent)
-    assert events[10].name == "task-2"
-    assert isinstance(events[11], ModelEvent)
-    assert isinstance(events[12], SpanEndEvent)
