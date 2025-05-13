@@ -15,7 +15,7 @@ from inspect_ai.analysis.beta import (
 )
 from inspect_ai.log import EvalLog, list_eval_logs
 
-LOGS_DIR = Path(__file__).parent / "logs"
+LOGS_DIR = Path(__file__).parent / "test_logs"
 
 
 def test_evals_df():
