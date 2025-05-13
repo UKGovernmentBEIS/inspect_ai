@@ -28,7 +28,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import absolute_file_path
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
-from inspect_ai._util.registry import registry_lookup
+from inspect_ai._util.registry import registry_lookup, registry_package_name
 from inspect_ai.approval._apply import init_tool_approval
 from inspect_ai.approval._policy import (
     ApprovalPolicy,
@@ -770,7 +770,15 @@ async def eval_retry_async(
             task = f"{task_file}@{task_name}"
         else:
             if registry_lookup("task", task_name) is None:
-                raise FileNotFoundError(f"Task '{task_name}' not found.")
+                # if this object is in a package then let the user know
+                # that they need to register it to work with eval-retry
+                package_name = registry_package_name(task_name)
+                if package_name is not None:
+                    raise FileNotFoundError(
+                        f"Task '{task_name}' is located in package '{package_name}' but has not been registered so cannot be retried. See https://inspect.aisi.org.uk/tasks.html#packaging for additional details on registering tasks in packages."
+                    )
+                else:
+                    raise FileNotFoundError(f"Task '{task_name}' not found.")
             task = task_name
 
         # see if there is solver spec in the eval log
