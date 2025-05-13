@@ -42287,7 +42287,7 @@ categories: ${categories.join(" ")}`;
     };
     const getScorersFromSamples = (samples) => {
       const scoredSample = samples.find((sample2) => {
-        return !!sample2.scores;
+        return !sample2.error && sample2.completed && !!sample2.scores;
       });
       return Object.keys((scoredSample == null ? void 0 : scoredSample.scores) || {}).map((key2) => ({
         name: key2,
