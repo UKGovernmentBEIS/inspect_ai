@@ -16,6 +16,8 @@ import { useVirtuosoState } from "../../state/scrolling";
 import { useStore } from "../../state/store";
 import { ApplicationIcons } from "../appearance/icons";
 import styles from "./RecordTree.module.css";
+import { resolveStoreKeys } from "./record_processors/store";
+import { RecordProcessor } from "./record_processors/types";
 
 const kRecordTreeKey = "record-tree-key";
 
@@ -25,6 +27,7 @@ interface RecordTreeProps {
   className?: string | string[];
   scrollRef?: RefObject<HTMLDivElement | null>;
   defaultExpandLevel?: number;
+  processStore?: boolean;
 }
 
 /**
@@ -36,6 +39,7 @@ export const RecordTree: FC<RecordTreeProps> = ({
   className,
   scrollRef,
   defaultExpandLevel = 1,
+  processStore = false,
 }) => {
   // The virtual list handle and state
   const listHandle = useRef<VirtuosoHandle | null>(null);
@@ -59,8 +63,12 @@ export const RecordTree: FC<RecordTreeProps> = ({
 
   // Tree-ify the record (creates a flat lsit of items with depth property)
   const items = useMemo(() => {
-    return toTreeItems(record, collapsedIds || {});
-  }, [record, collapsedIds]);
+    return toTreeItems(
+      record,
+      collapsedIds || {},
+      processStore ? [resolveStoreKeys] : [],
+    );
+  }, [record, collapsedIds, processStore]);
 
   // If collapsedIds is not set, we need to set it to the default state
   useEffect(() => {
@@ -230,11 +238,19 @@ interface MetadataItem {
 export const toTreeItems = (
   record: Record<string, unknown>,
   collapsedIds: Record<string, boolean>,
+  recordProcessors: RecordProcessor[] = [],
   currentDepth = 0,
   currentPath: string[] = [],
 ): MetadataItem[] => {
   if (!record) {
     return [];
+  }
+
+  // Apply any record processors
+  if (recordProcessors.length > 0) {
+    for (const processor of recordProcessors) {
+      record = processor(record);
+    }
   }
 
   const result: MetadataItem[] = [];

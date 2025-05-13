@@ -48249,13 +48249,86 @@ categories: ${categories.join(" ")}`;
       pre,
       treeIcon
     };
+    const kStoreInstanceKey = /^(.+)?:([a-zA-Z0-9]{22}):instance$/;
+    const kStoreKey = /^(.+)?:([a-zA-Z0-9]{22}):(.+)$/;
+    const resolveStoreKeys = (record) => {
+      const result2 = {};
+      const storeInstances = {};
+      const instanceKeys = /* @__PURE__ */ new Set();
+      const entries = Object.entries(record);
+      for (let i2 = 0; i2 < entries.length; i2++) {
+        const [key2, value2] = entries[i2];
+        const instanceInfo = parseStoreInstanceKey(key2, value2);
+        if (instanceInfo) {
+          const { storeName, instanceId } = instanceInfo;
+          const instanceKey = storeKey(storeName, instanceId);
+          if (!storeInstances[instanceKey]) {
+            storeInstances[instanceKey] = {};
+          }
+          instanceKeys.add(key2);
+          continue;
+        } else {
+          const storeKeyInfo = parseStoreKey(key2);
+          if (storeKeyInfo) {
+            const { storeName, instanceId, keyName: keyName2 } = storeKeyInfo;
+            const instanceKey = storeKey(storeName, instanceId);
+            if (storeInstances[instanceKey]) {
+              storeInstances[instanceKey][keyName2] = value2;
+              continue;
+            }
+          } else {
+            result2[key2] = value2;
+          }
+        }
+      }
+      for (const [instanceKey, children2] of Object.entries(storeInstances)) {
+        result2[instanceKey] = resolveStoreKeys(children2);
+      }
+      for (const [key2, value2] of Object.entries(result2)) {
+        if (typeof value2 === "object" && value2 !== null && !Array.isArray(value2)) {
+          result2[key2] = resolveStoreKeys(value2);
+        }
+      }
+      return result2;
+    };
+    const parseStoreInstanceKey = (key2, value2) => {
+      const match = key2.match(kStoreInstanceKey);
+      if (match) {
+        const [, storeName, instanceId] = match;
+        if (typeof value2 === "string" && instanceId === value2) {
+          return {
+            storeName,
+            instanceId
+          };
+        }
+      }
+      return null;
+    };
+    const parseStoreKey = (key2) => {
+      const match = key2.match(kStoreKey);
+      if (match) {
+        const [, storeName, instanceId, keyName2] = match;
+        if (keyName2 !== "instance") {
+          return {
+            storeName,
+            instanceId,
+            keyName: keyName2
+          };
+        }
+      }
+      return null;
+    };
+    const storeKey = (storeName, instanceId) => {
+      return `${storeName || ""} (${instanceId})`;
+    };
     const kRecordTreeKey = "record-tree-key";
     const RecordTree = ({
       id,
       record,
       className: className2,
       scrollRef,
-      defaultExpandLevel = 1
+      defaultExpandLevel = 1,
+      processStore = false
     }) => {
       const listHandle = reactExports.useRef(null);
       const { getRestoreState } = useVirtuosoState(
@@ -48272,8 +48345,12 @@ categories: ${categories.join(" ")}`;
         };
       }, [clearIds, id]);
       const items = reactExports.useMemo(() => {
-        return toTreeItems(record, collapsedIds || {});
-      }, [record, collapsedIds]);
+        return toTreeItems(
+          record,
+          collapsedIds || {},
+          processStore ? [resolveStoreKeys] : []
+        );
+      }, [record, collapsedIds, processStore]);
       reactExports.useEffect(() => {
         if (collapsedIds) {
           return;
@@ -48424,9 +48501,14 @@ categories: ${categories.join(" ")}`;
         }
       );
     };
-    const toTreeItems = (record, collapsedIds, currentDepth = 0, currentPath = []) => {
+    const toTreeItems = (record, collapsedIds, recordProcessors = [], currentDepth = 0, currentPath = []) => {
       if (!record) {
         return [];
+      }
+      if (recordProcessors.length > 0) {
+        for (const processor of recordProcessors) {
+          record = processor(record);
+        }
       }
       const result2 = [];
       Object.entries(record).forEach(([key2, value2], index2) => {
@@ -61773,7 +61855,8 @@ ${events}
                 id: `task-sample-store-${id}`,
                 record: sample2 == null ? void 0 : sample2.store,
                 className: clsx("tab-pane", styles$A.noTop),
-                scrollRef
+                scrollRef,
+                processStore: true
               }
             ) })
           ] }, `sample-store-${id}`)

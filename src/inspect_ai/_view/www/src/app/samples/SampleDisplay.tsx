@@ -402,6 +402,7 @@ const metadataViewsForSample = (
             record={sample?.store as Record<string, unknown>}
             className={clsx("tab-pane", styles.noTop)}
             scrollRef={scrollRef}
+            processStore={true}
           />
         </CardBody>
       </Card>,
