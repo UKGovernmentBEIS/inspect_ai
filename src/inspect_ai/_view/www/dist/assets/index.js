@@ -15851,7 +15851,7 @@ var require_assets = __commonJS({
       return __toString.call(val) === "[object Date]";
     }
     /**
-     * react-router v7.5.1
+     * react-router v7.5.3
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -17249,7 +17249,11 @@ var require_assets = __commonJS({
           }
           return {
             matches,
-            pendingActionResult: [boundaryMatch.route.id, result2]
+            pendingActionResult: [
+              boundaryMatch.route.id,
+              result2,
+              actionMatch.route.id
+            ]
           };
         }
         return {
@@ -19418,7 +19422,9 @@ var require_assets = __commonJS({
       });
       if (pendingError !== void 0 && pendingActionResult) {
         errors2 = { [pendingActionResult[0]]: pendingError };
-        loaderData[pendingActionResult[0]] = void 0;
+        if (pendingActionResult[2]) {
+          loaderData[pendingActionResult[2]] = void 0;
+        }
       }
       return {
         loaderData,
@@ -21109,7 +21115,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     var isBrowser = typeof window !== "undefined" && typeof window.document !== "undefined" && typeof window.document.createElement !== "undefined";
     try {
       if (isBrowser) {
-        window.__reactRouterVersion = "7.5.1";
+        window.__reactRouterVersion = "7.5.3";
       }
     } catch (e) {
     }
@@ -21510,7 +21516,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       304
     ]);
     /**
-     * react-router v7.5.1
+     * react-router v7.5.3
      *
      * Copyright (c) Remix Software Inc.
      *
@@ -24240,8 +24246,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         compare: (a, b) => {
           if (typeof a.value === "number" && typeof b.value === "number") {
             return compareWithNan(a.value, b.value);
+          } else if (typeof a.value === "number" && typeof b.value !== "number") {
+            return -1;
+          } else if (typeof a.value !== "number" && typeof b.value === "number") {
+            return 1;
           } else {
-            console.warn("Comparing non-numerics using a numeric score descriptor");
             return 0;
           }
         },
@@ -39151,13 +39160,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         },
         compare: (a, b) => {
-          if (typeof a.value !== "string" || typeof b.value !== "string") {
-            throw new Error(
-              "Unexpectedly using the pass fail scorer on non-string values"
-            );
+          if (typeof a.value !== "string" && typeof b.value !== "string") {
+            return 0;
+          } else if (typeof a.value === "string" && typeof b.value !== "string") {
+            return -1;
+          } else if (typeof a.value !== "string" && typeof b.value === "string") {
+            return 1;
+          } else {
+            const sort = order.indexOf(String(a.value || "")) - order.indexOf(String(b.value || ""));
+            return sort;
           }
-          const sort = order.indexOf(a.value || "") - order.indexOf(b.value || "");
-          return sort;
         }
       };
     };
@@ -42275,7 +42287,7 @@ categories: ${categories.join(" ")}`;
     };
     const getScorersFromSamples = (samples) => {
       const scoredSample = samples.find((sample2) => {
-        return !!sample2.scores;
+        return !sample2.error && sample2.completed && !!sample2.scores;
       });
       return Object.keys((scoredSample == null ? void 0 : scoredSample.scores) || {}).map((key2) => ({
         name: key2,
