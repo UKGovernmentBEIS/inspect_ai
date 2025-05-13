@@ -1,7 +1,9 @@
 import os
 from copy import deepcopy
+from logging import getLogger
 from typing import cast
 
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai.dataset import Sample
 from inspect_ai.dataset._dataset import Dataset
@@ -9,6 +11,8 @@ from inspect_ai.model import ChatMessage, ChatMessageUser
 
 from ..task import Task
 from .constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+
+logger = getLogger(__name__)
 
 
 def sample_messages(sample: Sample) -> list[ChatMessage]:
@@ -47,8 +51,19 @@ def slice_dataset(
         return id if isinstance(id, str) else str(id).zfill(20)
 
     if sample_id is not None:
+        # reduce to list of normalized sample ids
         sample_id = sample_id if isinstance(sample_id, list) else [sample_id]
         sample_id = [normalise(id) for id in sample_id]
+
+        # validate all the sample ids and warn if they aren't in the dataset
+        all_sample_ids = [normalise(sample.id) for sample in dataset]
+        for id in sample_id:
+            if id not in all_sample_ids:
+                warn_once(
+                    logger, f"sample id '{id}' not found in dataset '{dataset.name}'."
+                )
+
+        # filter the dataset
         return dataset.filter(lambda sample: normalise(sample.id) in sample_id)
     else:
         dataset_limit = (
