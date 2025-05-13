@@ -69,15 +69,13 @@ def evals_df(
     # resolve logs
     log_paths = resolve_logs(logs)
 
-    with import_progress("reading logs", total=len(log_paths)) as (p, task_id):
+    with import_progress("reading logs", total=len(log_paths)) as p:
         if strict:
-            evals_table, _ = _read_evals_df(
-                log_paths, columns, True, lambda: p.update(task_id, advance=1)
-            )
+            evals_table, _ = _read_evals_df(log_paths, columns, True, p.update)
             return evals_table
         else:
             evals_table, all_errors, _ = _read_evals_df(
-                log_paths, columns, False, lambda: p.update(task_id, advance=1)
+                log_paths, columns, False, p.update
             )
             return evals_table, all_errors
 

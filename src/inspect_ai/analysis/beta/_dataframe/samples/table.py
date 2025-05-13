@@ -12,7 +12,7 @@ from typing import (
 
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.path import pretty_path
-from inspect_ai.analysis.beta._dataframe.progress import import_progress
+from inspect_ai.analysis.beta._dataframe.progress import import_progress, no_progress
 from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log_sample_summaries,
@@ -107,6 +107,7 @@ def _read_samples_df(
     *,
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
+    progress: bool = True,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
     verify_prerequisites()
 
@@ -143,15 +144,13 @@ def _read_samples_df(
     # make sure eval_id is present
     ensure_eval_id(columns_eval)
 
+    # establish progress
+    progress_cm = (
+        import_progress("scanning logs", total=len(logs)) if progress else no_progress()
+    )
+
     # determine how we will allocate progress
-    with import_progress("scanning logs", total=len(logs)) as (
-        p,
-        task_id,
-    ):
-
-        def progress() -> None:
-            p.update(task_id, advance=1)
-
+    with progress_cm as p:
         # read samples from each log
         sample_records: list[dict[str, ColumnType]] = []
         detail_records: list[dict[str, ColumnType]] = []
@@ -159,14 +158,12 @@ def _read_samples_df(
 
         # read logs and note total samples
         evals_table, total_samples = _read_evals_df(
-            logs, columns=columns_eval, strict=True, progress=progress
+            logs, columns=columns_eval, strict=True, progress=p.update
         )
 
         # update progress now that we know the total samples
         entity = detail.name if detail else "sample"
-        p.reset(
-            task_id, description=f"reading {entity}s", completed=0, total=total_samples
-        )
+        p.reset(description=f"reading {entity}s", completed=0, total=total_samples)
 
         # read samples
         for eval_id, log in zip(evals_table[EVAL_ID].to_list(), logs):
@@ -238,7 +235,7 @@ def _read_samples_df(
 
                 # record sample record
                 sample_records.append(record)
-                progress()
+                p.update()
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)
