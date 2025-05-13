@@ -3,6 +3,7 @@
 - React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).
 - Anthropic: Show warning when generation config incompatible with extended thinking is used (affects `temperature`, `top_p`, and `top_k`).
 - AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
+- Eval retry: Improve error message when attempting to retry tasks in packages that have not been registered.
 
 
 ## v0.3.96 (13 May 2025)
