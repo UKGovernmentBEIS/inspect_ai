@@ -8,3 +8,15 @@
   margin-top: 0.65rem;
   overflow: visible;
 }
+
+.eventRow {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  column-gap: 0em;
+  cursor: pointer;
+}
+
+.eventRow .toggle {
+  font-size: 0.7em;
+  margin-top: 4px;
+}

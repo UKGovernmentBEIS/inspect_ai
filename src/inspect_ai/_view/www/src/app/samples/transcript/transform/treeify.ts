@@ -297,6 +297,10 @@ const setDepth = (nodes: EventNode[], depth: number): EventNode[] => {
   });
 };
 
+export interface TreeNodeVisitor {
+  visit: (node: EventNode) => EventNode[];
+}
+
 /**
  * Flatten the tree structure into a flat array of EventNode objects
  * Each node in the result will have its children set properly
@@ -306,13 +310,31 @@ const setDepth = (nodes: EventNode[], depth: number): EventNode[] => {
  */
 export const flatTree = (
   eventNodes: EventNode[],
-  collapsed: Record<string, true> | null,
+  collapsed: Record<string, boolean> | null,
+  visitors?: TreeNodeVisitor[],
 ): EventNode[] => {
   const result: EventNode[] = [];
   for (const node of eventNodes) {
-    result.push(node);
-    if (collapsed === null || collapsed[node.id] !== true) {
-      result.push(...flatTree(node.children, collapsed));
+    if (visitors && visitors.length > 0) {
+      let pendingNodes: EventNode[] = [node];
+      for (const visitor of visitors) {
+        for (const pendingNode of pendingNodes) {
+          const visitorResult = visitor.visit(pendingNode);
+          pendingNodes = visitorResult;
+        }
+      }
+
+      for (const pendingNode of pendingNodes) {
+        result.push(pendingNode);
+        if (collapsed === null || collapsed[pendingNode.id] !== true) {
+          result.push(...flatTree(pendingNode.children, collapsed, visitors));
+        }
+      }
+    } else {
+      result.push(node);
+      if (collapsed === null || collapsed[node.id] !== true) {
+        result.push(...flatTree(node.children, collapsed, visitors));
+      }
     }
   }
   return result;

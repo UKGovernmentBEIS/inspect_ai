@@ -1,11 +1,26 @@
 .container {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 1em;
+  display: flex;
   width: 100%;
+  flex-direction: row;
+  min-height: 100vh;
 }
 
 .treeContainer {
-  overflow: visible;
-  height: auto;
+  overflow-y: auto;
+  margin: 0.65rem 0 0 0;
+  padding: 0.5em;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+  width: 200px;
+  position: sticky;
+  top: 0.65rem;
+  height: calc(100vh - var(--top-offset));
+  align-self: flex-start;
+  z-index: 10;
 }
+
+.events {
+  left: 200px;
+  right: 0;
+}
+
