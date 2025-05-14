@@ -79,7 +79,7 @@ class Llama31Handler(ChatAPIHandler):
         prompt that asks the model to use the <tool_call>...</tool_call> syntax)
         """
         # extract tool calls
-        tool_call_regex = rf"<{TOOL_CALL}>((?:.|\n)*?)</{TOOL_CALL}>"
+        tool_call_regex = rf"<{TOOL_CALL}s?>((?:.|\n)*?)</{TOOL_CALL}s?>"
         tool_calls_content: list[str] = re.findall(tool_call_regex, response)
 
         # if there are tool calls proceed with parsing
@@ -93,7 +93,7 @@ class Llama31Handler(ChatAPIHandler):
             ]
 
             # find other content that exists outside tool calls
-            tool_call_content_regex = rf"<{TOOL_CALL}>(?:.|\n)*?</{TOOL_CALL}>"
+            tool_call_content_regex = rf"<{TOOL_CALL}s?>(?:.|\n)*?</{TOOL_CALL}s?>"
             other_content = re.split(tool_call_content_regex, response, flags=re.DOTALL)
             other_content = [
                 str(content).strip()
