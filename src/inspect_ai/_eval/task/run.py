@@ -675,7 +675,8 @@ async def task_run_sample(
                             )
 
                         # set progress for plan then run it
-                        state = await plan(state, generate)
+                        async with span("solvers"):
+                            state = await plan(state, generate)
 
                     # disable sample working limit after execution
                     end_sample_working_limit()
@@ -747,44 +748,50 @@ async def task_run_sample(
                     # timeout during scoring will result in an ordinary sample error
                     with timeout_cm:
                         if error is None:
-                            for scorer in scorers or []:
-                                scorer_name = unique_scorer_name(
-                                    scorer, list(results.keys())
-                                )
-                                async with span(name=scorer_name, type="scorer"):
-                                    score_result = (
-                                        await scorer(state, Target(sample.target))
-                                        if scorer
-                                        else None
+                            async with span(name="scorers"):
+                                for scorer in scorers or []:
+                                    scorer_name = unique_scorer_name(
+                                        scorer, list(results.keys())
                                     )
-                                    if score_result is not None:
-                                        sample_score = SampleScore(
-                                            score=score_result,
-                                            sample_id=sample.id,
-                                            sample_metadata=sample.metadata,
-                                            scorer=registry_unqualified_name(scorer),
+                                    async with span(name=scorer_name, type="scorer"):
+                                        score_result = (
+                                            await scorer(state, Target(sample.target))
+                                            if scorer
+                                            else None
+                                        )
+                                        if score_result is not None:
+                                            sample_score = SampleScore(
+                                                score=score_result,
+                                                sample_id=sample.id,
+                                                sample_metadata=sample.metadata,
+                                                scorer=registry_unqualified_name(
+                                                    scorer
+                                                ),
+                                            )
+                                            transcript()._event(
+                                                ScoreEvent(
+                                                    score=score_result,
+                                                    target=sample.target,
+                                                )
+                                            )
+                                            results[scorer_name] = sample_score
+
+                                # add scores returned by solvers
+                                if state.scores is not None:
+                                    for name, score in state.scores.items():
+                                        results[name] = SampleScore(
+                                            score=score,
+                                            sample_id=state.sample_id,
+                                            sample_metadata=state.metadata,
                                         )
                                         transcript()._event(
                                             ScoreEvent(
-                                                score=score_result, target=sample.target
+                                                score=score, target=sample.target
                                             )
                                         )
-                                        results[scorer_name] = sample_score
 
-                            # add scores returned by solvers
-                            if state.scores is not None:
-                                for name, score in state.scores.items():
-                                    results[name] = SampleScore(
-                                        score=score,
-                                        sample_id=state.sample_id,
-                                        sample_metadata=state.metadata,
-                                    )
-                                    transcript()._event(
-                                        ScoreEvent(score=score, target=sample.target)
-                                    )
-
-                            # propagate results into scores
-                            state.scores = {k: v.score for k, v in results.items()}
+                                # propagate results into scores
+                                state.scores = {k: v.score for k, v in results.items()}
 
                 except anyio.get_cancelled_exc_class():
                     if active.interrupt_action:
