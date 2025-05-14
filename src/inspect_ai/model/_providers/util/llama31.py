@@ -164,7 +164,7 @@ def parse_tool_call_content(content: str, tools: list[ToolInfo]) -> ToolCall:
         # see if we can get the fields (if not report error)
         name = tool_call_data.get("name", None)
         arguments = tool_call_data.get("arguments", None)
-        if not name or not arguments:
+        if not name or (arguments is None):
             raise ValueError(
                 "Required 'name' and 'arguments' not provided in JSON dictionary."
             )
