@@ -5,6 +5,7 @@
 - AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
 - Eval retry: Improve error message when attempting to retry tasks in packages that have not been registered.
 - Warn when a passed `--sample-id` is not found in the target dataset.
+- Dataframes: Use native pyarrow column storage with pd.NA for missing values.
 - Inspect View: Improve the performance and memory efficiency of the viewer when viewing large samples with long, complex transcripts.
 - Inspect View: Improve the performance of the viewer when viewing large, complex sample or task metadata. 
 - Inspect View: Live display of subtask, tool and other child events when viewing a running evaluation.
