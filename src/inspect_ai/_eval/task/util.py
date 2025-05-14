@@ -1,8 +1,10 @@
 import os
+import reprlib
 from copy import deepcopy
 from logging import getLogger
 from typing import cast
 
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.path import cwd_relative_path
 from inspect_ai.dataset import Sample
@@ -52,11 +54,12 @@ def slice_dataset(
 
     if sample_id is not None:
         # reduce to list of normalized sample ids
-        sample_id = sample_id if isinstance(sample_id, list) else [sample_id]
-        sample_id = [normalise(id) for id in sample_id]
+        sample_ids = sample_id if isinstance(sample_id, list) else [sample_id]
+        sample_id = [normalise(id) for id in sample_ids]
 
         # validate all the sample ids and warn if they aren't in the dataset
-        all_sample_ids = [normalise(sample.id) for sample in dataset]
+        all_sample_ids_raw = [sample.id for sample in dataset]
+        all_sample_ids = [normalise(id) for id in all_sample_ids_raw]
         for id in sample_id:
             if id not in all_sample_ids:
                 warn_once(
@@ -64,7 +67,18 @@ def slice_dataset(
                 )
 
         # filter the dataset
-        return dataset.filter(lambda sample: normalise(sample.id) in sample_id)
+        filtered = dataset.filter(lambda sample: normalise(sample.id) in sample_id)
+
+        # raise error if we got no hits
+        if len(filtered) == 0:
+            filter = ",".join([str(id) for id in sample_id])
+            r = reprlib.Repr()
+            r.maxlist = 8
+            raise PrerequisiteError(
+                f"No matches in dataset '{dataset.name}' for sample_id filter '{filter}'\n({dataset.name} ids: {r.repr(all_sample_ids_raw)})"
+            )
+
+        return filtered
     else:
         dataset_limit = (
             slice(0, len(dataset))

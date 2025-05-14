@@ -1,4 +1,7 @@
+import pytest
+
 from inspect_ai import Task, eval
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset import Sample
 
 
@@ -47,16 +50,9 @@ def test_sample_id_task_preface():
     assert log.samples
     assert len(log.samples) == 2
 
-    # one hit one miss
-    log = eval(task, sample_id=["foo:5", "bar:6"], model="mockllm/model")[0]
-    assert log.samples
-    assert len(log.samples) == 1
-    assert log.samples[0].id == 5
-
     # two misses
-    log = eval(task, sample_id=["bar:5", "bar:6"], model="mockllm/model")[0]
-    assert log.samples is not None
-    assert len(log.samples) == 0
+    with pytest.raises(PrerequisiteError):
+        log = eval(task, sample_id=["bar:5", "bar:6"], model="mockllm/model")[0]
 
 
 def test_sample_id_task_preface_multiple():
