@@ -12,7 +12,6 @@ from typing import (
 )
 
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis.beta._dataframe.progress import import_progress, no_progress
 from inspect_ai.log._file import (
     list_eval_logs,
@@ -23,7 +22,7 @@ from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._transcript import Event
 from inspect_ai.model._chat_message import ChatMessage
 
-from ..columns import Column, ColumnErrors, ColumnType
+from ..columns import Column, ColumnError, ColumnType
 from ..evals.columns import EvalColumn
 from ..evals.table import EVAL_ID, EVAL_SUFFIX, _read_evals_df, ensure_eval_id
 from ..events.columns import EventColumn
@@ -62,14 +61,14 @@ def samples_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = SampleSummary,
     strict: Literal[False] = False,
-) -> tuple["pd.DataFrame", ColumnErrors]: ...
+) -> tuple["pd.DataFrame", list[ColumnError]]: ...
 
 
 def samples_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = SampleSummary,
     strict: bool = True,
-) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
+) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     """Read a dataframe containing samples from a set of evals.
 
     Args:
@@ -109,7 +108,7 @@ def _read_samples_df(
     strict: bool = True,
     detail: MessagesDetail | EventsDetail | None = None,
     progress: bool = True,
-) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
+) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     verify_prerequisites()
 
     # resolve logs
@@ -155,10 +154,10 @@ def _read_samples_df(
         # read samples from each log
         sample_records: list[dict[str, ColumnType]] = []
         detail_records: list[dict[str, ColumnType]] = []
-        all_errors = ColumnErrors()
+        all_errors: list[ColumnError] = []
 
         # read logs and note total samples
-        evals_table, total_samples = _read_evals_df(
+        evals_table, eval_logs, total_samples = _read_evals_df(
             logs, columns=columns_eval, strict=True, progress=p.update
         )
 
@@ -167,24 +166,31 @@ def _read_samples_df(
         p.reset(description=f"reading {entity}s", completed=0, total=total_samples)
 
         # read samples
-        for eval_id, log in zip(evals_table[EVAL_ID].to_list(), logs):
+        for eval_id, log_path, eval_log in zip(
+            evals_table[EVAL_ID].to_list(), logs, eval_logs
+        ):
             # get a generator for the samples (might require reading the full log
             # or might be fine to just read the summaries)
             if require_full_samples:
                 samples: Generator[EvalSample | EvalSampleSummary, None, None] = (
                     read_eval_log_samples(
-                        log, all_samples_required=False, resolve_attachments=True
+                        log_path, all_samples_required=False, resolve_attachments=True
                     )
                 )
             else:
-                samples = (summary for summary in read_eval_log_sample_summaries(log))
+                samples = (
+                    summary for summary in read_eval_log_sample_summaries(log_path)
+                )
             for sample in samples:
                 if strict:
-                    record = import_record(sample, columns_sample, strict=True)
+                    record = import_record(
+                        eval_log, sample, columns_sample, strict=True
+                    )
                 else:
-                    record, errors = import_record(sample, columns_sample, strict=False)
-                    error_key = f"{pretty_path(log)} [{sample.id}, {sample.epoch}]"
-                    all_errors[error_key] = errors
+                    record, errors = import_record(
+                        eval_log, sample, columns_sample, strict=False
+                    )
+                    all_errors.extend(errors)
 
                 # inject ids
                 sample_id = sample.uuid or auto_sample_id(eval_id, sample)
@@ -213,16 +219,13 @@ def _read_samples_df(
                     for index, item in enumerate(detail_items):
                         if strict:
                             detail_record = import_record(
-                                item, columns_detail, strict=True
+                                eval_log, item, columns_detail, strict=True
                             )
                         else:
                             detail_record, errors = import_record(
-                                item, columns_detail, strict=False
+                                eval_log, item, columns_detail, strict=False
                             )
-                            error_key = (
-                                f"{pretty_path(log)} [{sample.id}, {sample.epoch}]"
-                            )
-                            all_errors[error_key] = errors
+                            all_errors.extend(errors)
 
                         # inject ids
                         detail_id = detail_record.get(

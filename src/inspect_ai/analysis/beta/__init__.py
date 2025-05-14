@@ -1,7 +1,6 @@
 from ._dataframe.columns import (
     Column,
     ColumnError,
-    ColumnErrors,
     ColumnType,
 )
 from ._dataframe.evals.columns import (
@@ -63,5 +62,4 @@ __all__ = [
     "Column",
     "ColumnType",
     "ColumnError",
-    "ColumnErrors",
 ]

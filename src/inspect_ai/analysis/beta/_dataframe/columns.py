@@ -7,6 +7,8 @@ from jsonpath_ng import JSONPath  # type: ignore
 from jsonpath_ng.ext import parse  # type: ignore
 from pydantic import JsonValue
 
+from inspect_ai.log._log import EvalLog
+
 from .validate import jsonpath_in_schema
 
 ColumnType: TypeAlias = int | float | bool | str | date | time | datetime | None
@@ -125,21 +127,14 @@ class ColumnError:
     error: Exception
     """Underlying error."""
 
+    log: EvalLog
+    """Eval log where the error occurred.
+
+    Use log.location to determine the path where the log was read from.
+    """
+
     def __str__(self) -> str:
         msg = f"Error reading column '{self.column}'"
         if self.path:
             msg = f"{msg} from path '{self.path}'"
-        return f"{msg}: {self.error}"
-
-
-class ColumnErrors(dict[str, list[ColumnError]]):
-    """Dictionary of column errors keyed by log file."""
-
-    def __str__(self) -> str:
-        lines: list[str] = [""]
-        for file, errors in self.items():
-            lines.append(file)
-            for error in errors:
-                lines.append(f" - {error}")
-            lines.append("")
-        return "\n".join(lines)
+        return f"{msg}: {self.error} (log: {self.log.location})"

@@ -49,5 +49,4 @@ Analysis functions are currently in beta and are exported from the **inspect_ai.
 ### Column
 ### ColumnType
 ### ColumnError
-### ColumnErrors
 
