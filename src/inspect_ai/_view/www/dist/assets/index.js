@@ -52140,8 +52140,8 @@ self.onmessage = function (e) {
         }
       );
     };
-    const container$6 = "_container_n5xp9_1";
-    const treeContainer = "_treeContainer_n5xp9_8";
+    const container$6 = "_container_19jbn_1";
+    const treeContainer = "_treeContainer_19jbn_8";
     const styles$x = {
       container: container$6,
       treeContainer
@@ -52171,6 +52171,8 @@ self.onmessage = function (e) {
     const TYPE_SOLVERS = "solvers";
     const TYPE_AGENT = "agent";
     const TYPE_HANDOFF = "handoff";
+    const TYPE_SCORERS = "scorers";
+    const TYPE_SCORER = "scorer";
     const hasSpans = (events) => {
       return events.some((event) => event.event === SPAN_BEGIN);
     };
@@ -52268,19 +52270,44 @@ self.onmessage = function (e) {
     const transformTree = (roots) => {
       const treeNodeTransformers = transformers();
       const visitNode = (node2) => {
-        let processedNode = node2;
-        processedNode.children = processedNode.children.flatMap(visitNode);
+        let currentNodes = [node2];
+        currentNodes = currentNodes.map((n) => {
+          n.children = n.children.flatMap(visitNode);
+          return n;
+        });
         for (const transformer of treeNodeTransformers) {
-          if (transformer.matches(processedNode)) {
-            processedNode = transformer.process(processedNode);
-            break;
+          console.log("transformer", transformer.name);
+          const nextNodes = [];
+          for (const currentNode of currentNodes) {
+            if (transformer.matches(currentNode)) {
+              const result2 = transformer.process(currentNode);
+              if (Array.isArray(result2)) {
+                nextNodes.push(...result2);
+              } else {
+                nextNodes.push(result2);
+              }
+            } else {
+              nextNodes.push(currentNode);
+            }
+          }
+          currentNodes = nextNodes;
+        }
+        return currentNodes.length === 1 ? currentNodes[0] : currentNodes;
+      };
+      const processedRoots = roots.flatMap(visitNode);
+      const flushedNodes = [];
+      for (const transformer of treeNodeTransformers) {
+        if (transformer.flush) {
+          const flushResults = transformer.flush();
+          if (flushResults && flushResults.length > 0) {
+            flushedNodes.push(...flushResults);
           }
         }
-        return processedNode;
-      };
-      return roots.flatMap(visitNode);
+      }
+      return [...processedRoots, ...flushedNodes];
     };
     const transformers = () => {
+      console.log("transformers");
       const treeNodeTransformers = [
         {
           name: "unwrap_tools",
@@ -52314,9 +52341,55 @@ self.onmessage = function (e) {
             const nodes = discardNode(node2);
             return nodes;
           }
-        }
+        },
+        ...createScorerSpan()
       ];
       return treeNodeTransformers;
+    };
+    const createScorerSpan = () => {
+      console.log("createScorerSpan");
+      let hasScorerSpan = false;
+      let collectedScorers = [];
+      return [
+        {
+          name: "detect_scorer_span",
+          matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event.type === TYPE_SCORERS,
+          process: (node2) => {
+            hasScorerSpan = true;
+            return node2;
+          }
+        },
+        {
+          name: "wrap_scorers",
+          matches: (_node) => {
+            console.log("match?", _node);
+            return true;
+          },
+          process: (node2) => {
+            console.log("collect?", node2);
+            if (!hasScorerSpan && (node2.event.event === SPAN_BEGIN || node2.event.event === "step") && node2.event.type === TYPE_SCORER && node2.depth === 1) {
+              collectedScorers.push(node2);
+              return [];
+            }
+            return node2;
+          },
+          flush: () => {
+            if (collectedScorers.length > 0) {
+              const numberOfScorers = collectedScorers.length;
+              const firstScorer = collectedScorers[0];
+              const scorerNode = new EventNode(
+                firstScorer.id,
+                { ...firstScorer.event, name: `${numberOfScorers} scorers` },
+                firstScorer.depth
+              );
+              scorerNode.children = collectedScorers;
+              collectedScorers.length = 0;
+              return [scorerNode];
+            }
+            return [];
+          }
+        }
+      ];
     };
     const elevateChildNode = (node2, childEventType) => {
       const targetIndex = node2.children.findIndex(
@@ -52565,7 +52638,8 @@ self.onmessage = function (e) {
             noStoreVisitor(),
             collapseTurnsVisitor(),
             collapseMultipleTurnsVisitor(),
-            noLooseModelCalls()
+            noLooseModelCalls(),
+            noScorerChildren()
           ]
         );
         return nodeList;
@@ -52575,7 +52649,7 @@ self.onmessage = function (e) {
           setCollapsedEvents(defaultCollapsedIds);
         }
       }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
-      const renderRow = reactExports.useCallback((index2, node2) => {
+      const renderRow = reactExports.useCallback((_index, node2) => {
         return /* @__PURE__ */ jsxRuntimeExports.jsx(EventRow$1, { node: node2 }, node2.id);
       }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -52735,6 +52809,28 @@ self.onmessage = function (e) {
         }
       };
     };
+    const noScorerChildren = () => {
+      let inScorers = false;
+      let inScorer = false;
+      let currentDepth = -1;
+      return {
+        visit: (node2) => {
+          if (node2.event.event === "span_begin" && node2.event.type === TYPE_SCORERS) {
+            inScorers = true;
+            return [node2];
+          }
+          if ((node2.event.event === "step" || node2.event.event === "span_begin") && node2.event.type === TYPE_SCORER) {
+            inScorer = true;
+            currentDepth = node2.depth;
+            return [node2];
+          }
+          if (inScorers && inScorer && node2.depth === currentDepth + 1) {
+            return [];
+          }
+          return [node2];
+        }
+      };
+    };
     const kTurnType = "type";
     const collapseMultipleTurnsVisitor = () => {
       const collectedTurns = [];
@@ -52780,6 +52876,23 @@ self.onmessage = function (e) {
       let startTurn = null;
       let turnCount = 1;
       let currentDepth = 0;
+      const makeTurn = (baseTurn) => {
+        return new EventNode(
+          baseTurn.id,
+          {
+            id: baseTurn.id,
+            event: "span_begin",
+            type: kTurnType,
+            name: `turn ${turnCount++}`,
+            pending: false,
+            working_start: baseTurn.event.working_start,
+            timestamp: baseTurn.event.timestamp,
+            parent_id: null,
+            span_id: baseTurn.event.span_id
+          },
+          baseTurn.depth
+        );
+      };
       return {
         visit: (node2) => {
           if (currentDepth !== node2.depth) {
@@ -52789,27 +52902,12 @@ self.onmessage = function (e) {
           const result2 = [];
           if (node2.event.event === "model") {
             if (startTurn) {
-              result2.push(startTurn);
+              result2.push(makeTurn(startTurn));
+              startTurn = null;
             }
             startTurn = node2;
           } else if (startTurn && node2.event.event === "tool" && startTurn.depth === node2.depth) {
-            result2.push(
-              new EventNode(
-                startTurn.id,
-                {
-                  id: startTurn.id,
-                  event: "span_begin",
-                  type: kTurnType,
-                  name: `turn ${turnCount++}`,
-                  pending: false,
-                  working_start: startTurn.event.working_start,
-                  timestamp: startTurn.event.timestamp,
-                  parent_id: null,
-                  span_id: startTurn.event.span_id
-                },
-                startTurn.depth
-              )
-            );
+            result2.push(makeTurn(startTurn));
             startTurn = null;
           } else {
             if (startTurn) {
@@ -52819,6 +52917,12 @@ self.onmessage = function (e) {
             result2.push(node2);
           }
           return result2;
+        },
+        flush: () => {
+          if (startTurn) {
+            return [startTurn];
+          }
+          return [];
         }
       };
     };

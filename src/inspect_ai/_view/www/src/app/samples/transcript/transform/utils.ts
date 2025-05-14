@@ -17,6 +17,7 @@ export const TYPE_SOLVERS = "solvers";
 export const TYPE_AGENT = "agent";
 export const TYPE_HANDOFF = "handoff";
 export const TYPE_SCORERS = "scorers";
+export const TYPE_SCORER = "scorer";
 
 export const hasSpans = (events: Events): boolean => {
   return events.some((event) => event.event === SPAN_BEGIN);
