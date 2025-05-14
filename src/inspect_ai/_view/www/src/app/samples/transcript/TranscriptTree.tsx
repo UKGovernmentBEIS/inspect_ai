@@ -49,6 +49,8 @@ export const TranscriptTree: FC<TranscriptTreeProps> = ({
         noStateVisitor(),
         noStoreVisitor(),
         collapseTurnsVisitor(),
+        collapseMultipleTurnsVisitor(),
+        noLooseModelCalls(),
       ],
     );
 
@@ -235,6 +237,66 @@ const noStoreVisitor = () => {
   };
 };
 
+const noLooseModelCalls = () => {
+  return {
+    visit: (node: EventNode): EventNode[] => {
+      if (node.event.event === "model") {
+        return [];
+      }
+      return [node];
+    },
+  };
+};
+
+const kTurnType = "type";
+
+const collapseMultipleTurnsVisitor = () => {
+  const collectedTurns: EventNode[] = [];
+
+  const gatherCollectedTurns = (): EventNode | undefined => {
+    if (collectedTurns.length > 0) {
+      const numberOfTurns = collectedTurns.length;
+      const firstTurn = collectedTurns[0];
+
+      // The collapsed turns
+      const turnNode = new EventNode(
+        firstTurn.id,
+        { ...firstTurn.event, name: `${numberOfTurns} turns` },
+        firstTurn.depth,
+      );
+
+      // Clear the array
+      collectedTurns.length = 0;
+      return turnNode;
+    } else {
+      return undefined;
+    }
+  };
+
+  return {
+    visit: (node: EventNode): EventNode[] => {
+      if (node.event.event === "span_begin" && node.event.type === kTurnType) {
+        collectedTurns.push(node);
+        return [];
+      } else {
+        const collectedTurn = gatherCollectedTurns();
+        if (collectedTurn) {
+          return [collectedTurn, node];
+        } else {
+          return [node];
+        }
+      }
+    },
+    flush: (): EventNode[] => {
+      const collectedTurn = gatherCollectedTurns();
+      if (collectedTurn) {
+        return [collectedTurn];
+      }
+      return [];
+    },
+  };
+};
+
 const collapseTurnsVisitor = () => {
   let startTurn: EventNode | null = null;
   let turnCount = 1;
@@ -242,9 +304,6 @@ const collapseTurnsVisitor = () => {
 
   return {
     visit: (node: EventNode): EventNode[] => {
-      if (node.event.event === "tool") {
-        console.log({ currentDepth, scope: node.event.span_id });
-      }
       if (currentDepth !== node.depth) {
         turnCount = 1;
       }
@@ -267,7 +326,7 @@ const collapseTurnsVisitor = () => {
             {
               id: startTurn.id,
               event: "span_begin",
-              type: "turn",
+              type: kTurnType,
               name: `turn ${turnCount++}`,
               pending: false,
               working_start: startTurn.event.working_start,

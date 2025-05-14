@@ -327,6 +327,7 @@ const setDepth = (nodes: EventNode[], depth: number): EventNode[] => {
 
 export interface TreeNodeVisitor {
   visit: (node: EventNode) => EventNode[];
+  flush?: () => EventNode[];
 }
 
 /**
@@ -346,10 +347,12 @@ export const flatTree = (
     if (visitors && visitors.length > 0) {
       let pendingNodes: EventNode[] = [node];
       for (const visitor of visitors) {
+        const allResults: EventNode[] = [];
         for (const pendingNode of pendingNodes) {
           const visitorResult = visitor.visit(pendingNode);
-          pendingNodes = visitorResult;
+          allResults.push(...visitorResult);
         }
+        pendingNodes = allResults;
       }
 
       for (const pendingNode of pendingNodes) {
@@ -365,5 +368,16 @@ export const flatTree = (
       }
     }
   }
+
+  // Final flush of all visitors (handle buffered nodes)
+  if (visitors && visitors.length > 0) {
+    for (const visitor of visitors) {
+      if (visitor.flush) {
+        const finalNodes = visitor.flush();
+        result.push(...finalNodes);
+      }
+    }
+  }
+
   return result;
 };

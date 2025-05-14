@@ -52373,10 +52373,12 @@ self.onmessage = function (e) {
         if (visitors && visitors.length > 0) {
           let pendingNodes = [node2];
           for (const visitor of visitors) {
+            const allResults = [];
             for (const pendingNode of pendingNodes) {
               const visitorResult = visitor.visit(pendingNode);
-              pendingNodes = visitorResult;
+              allResults.push(...visitorResult);
             }
+            pendingNodes = allResults;
           }
           for (const pendingNode of pendingNodes) {
             result2.push(pendingNode);
@@ -52388,6 +52390,14 @@ self.onmessage = function (e) {
           result2.push(node2);
           if (collapsed === null || collapsed[node2.id] !== true) {
             result2.push(...flatTree(node2.children, collapsed, visitors));
+          }
+        }
+      }
+      if (visitors && visitors.length > 0) {
+        for (const visitor of visitors) {
+          if (visitor.flush) {
+            const finalNodes = visitor.flush();
+            result2.push(...finalNodes);
           }
         }
       }
@@ -52553,7 +52563,9 @@ self.onmessage = function (e) {
             noSandboxVisitor(),
             noStateVisitor(),
             noStoreVisitor(),
-            collapseTurnsVisitor()
+            collapseTurnsVisitor(),
+            collapseMultipleTurnsVisitor(),
+            noLooseModelCalls()
           ]
         );
         return nodeList;
@@ -52713,15 +52725,63 @@ self.onmessage = function (e) {
         }
       };
     };
+    const noLooseModelCalls = () => {
+      return {
+        visit: (node2) => {
+          if (node2.event.event === "model") {
+            return [];
+          }
+          return [node2];
+        }
+      };
+    };
+    const kTurnType = "type";
+    const collapseMultipleTurnsVisitor = () => {
+      const collectedTurns = [];
+      const gatherCollectedTurns = () => {
+        if (collectedTurns.length > 0) {
+          const numberOfTurns = collectedTurns.length;
+          const firstTurn = collectedTurns[0];
+          const turnNode = new EventNode(
+            firstTurn.id,
+            { ...firstTurn.event, name: `${numberOfTurns} turns` },
+            firstTurn.depth
+          );
+          collectedTurns.length = 0;
+          return turnNode;
+        } else {
+          return void 0;
+        }
+      };
+      return {
+        visit: (node2) => {
+          if (node2.event.event === "span_begin" && node2.event.type === kTurnType) {
+            collectedTurns.push(node2);
+            return [];
+          } else {
+            const collectedTurn = gatherCollectedTurns();
+            if (collectedTurn) {
+              return [collectedTurn, node2];
+            } else {
+              return [node2];
+            }
+          }
+        },
+        flush: () => {
+          const collectedTurn = gatherCollectedTurns();
+          if (collectedTurn) {
+            return [collectedTurn];
+          }
+          return [];
+        }
+      };
+    };
     const collapseTurnsVisitor = () => {
       let startTurn = null;
       let turnCount = 1;
       let currentDepth = 0;
       return {
         visit: (node2) => {
-          if (node2.event.event === "tool") {
-            console.log({ currentDepth, scope: node2.event.span_id });
-          }
           if (currentDepth !== node2.depth) {
             turnCount = 1;
           }
@@ -52739,7 +52799,7 @@ self.onmessage = function (e) {
                 {
                   id: startTurn.id,
                   event: "span_begin",
-                  type: "turn",
+                  type: kTurnType,
                   name: `turn ${turnCount++}`,
                   pending: false,
                   working_start: startTurn.event.working_start,
