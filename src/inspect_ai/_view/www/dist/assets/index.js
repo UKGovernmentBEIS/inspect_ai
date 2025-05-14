@@ -52168,6 +52168,7 @@ self.onmessage = function (e) {
     const TYPE_TOOL = "tool";
     const TYPE_SUBTASK = "subtask";
     const TYPE_SOLVER = "solver";
+    const TYPE_SOLVERS = "solvers";
     const TYPE_AGENT = "agent";
     const TYPE_HANDOFF = "handoff";
     const hasSpans = (events) => {
@@ -52178,6 +52179,7 @@ self.onmessage = function (e) {
       const pathIndices = [];
       const rootNodes = [];
       const stack2 = [];
+      const treeifyFn = getTreeifyFunction();
       const addNode = (event) => {
         const currentDepth = stack2.length;
         if (pathIndices.length <= currentDepth) {
@@ -52212,85 +52214,62 @@ self.onmessage = function (e) {
         return rootNodes;
       }
     }
-    const treeifyFn = (event, addNode, pushStack, popStack) => {
-      switch (event.event) {
-        case STEP:
-          if (event.action === ACTION_BEGIN) {
+    const getTreeifyFunction = () => {
+      const treeifyFn = (event, addNode, pushStack, popStack) => {
+        switch (event.event) {
+          case STEP:
+            if (event.action === ACTION_BEGIN) {
+              const node2 = addNode(event);
+              pushStack(node2);
+            } else {
+              popStack();
+            }
+            break;
+          case SPAN_BEGIN: {
             const node2 = addNode(event);
             pushStack(node2);
-          } else {
+            break;
+          }
+          case SPAN_END: {
             popStack();
+            break;
           }
-          break;
-        case SPAN_BEGIN: {
-          const node2 = addNode(event);
-          pushStack(node2);
-          break;
-        }
-        case SPAN_END: {
-          popStack();
-          break;
-        }
-        case TOOL:
-          {
-            const node2 = addNode(event);
-            if (event.events.length > 0 && (event.events[0].event !== SPAN_BEGIN || event.events[0].type !== TYPE_TOOL)) {
-              pushStack(node2);
-              for (const child of event.events) {
-                treeifyFn(child, addNode, pushStack, popStack);
+          case TOOL:
+            {
+              const node2 = addNode(event);
+              if (event.events.length > 0 && (event.events[0].event !== SPAN_BEGIN || event.events[0].type !== TYPE_TOOL)) {
+                pushStack(node2);
+                for (const child of event.events) {
+                  treeifyFn(child, addNode, pushStack, popStack);
+                }
+                popStack();
               }
-              popStack();
             }
-          }
-          break;
-        case SUBTASK:
-          {
-            const node2 = addNode(event);
-            if (event.events.length > 0 && (event.events[0].event !== SPAN_BEGIN || event.events[0].type !== TYPE_SUBTASK)) {
-              pushStack(node2);
-              for (const child of event.events) {
-                treeifyFn(child, addNode, pushStack, popStack);
+            break;
+          case SUBTASK:
+            {
+              const node2 = addNode(event);
+              if (event.events.length > 0 && (event.events[0].event !== SPAN_BEGIN || event.events[0].type !== TYPE_SUBTASK)) {
+                pushStack(node2);
+                for (const child of event.events) {
+                  treeifyFn(child, addNode, pushStack, popStack);
+                }
+                popStack();
               }
-              popStack();
             }
-          }
-          break;
-        default:
-          addNode(event);
-          break;
-      }
+            break;
+          default:
+            addNode(event);
+            break;
+        }
+      };
+      return treeifyFn;
     };
-    const treeNodeTransformers = [
-      {
-        name: "unwrap_tools",
-        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event.type === TYPE_TOOL,
-        process: (node2) => elevateChildNode(node2, TYPE_TOOL) || node2
-      },
-      {
-        name: "unwrap_subtasks",
-        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event.type === TYPE_SUBTASK,
-        process: (node2) => elevateChildNode(node2, TYPE_SUBTASK) || node2
-      },
-      {
-        name: "unwrap_agent_solver",
-        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_SOLVER && node2.children.length === 2 && node2.children[0].event.event === SPAN_BEGIN && node2.children[0].event.type === TYPE_AGENT && node2.children[1].event.event === STATE,
-        process: (node2) => skipFirstChildNode(node2)
-      },
-      {
-        name: "unwrap_agent_solver w/store",
-        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_SOLVER && node2.children.length === 3 && node2.children[0].event.event === SPAN_BEGIN && node2.children[0].event.type === TYPE_AGENT && node2.children[1].event.event === STATE && node2.children[2].event.event === STORE,
-        process: (node2) => skipFirstChildNode(node2)
-      },
-      {
-        name: "unwrap_handoff",
-        matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_HANDOFF && node2.children.length === 2 && node2.children[0].event.event === TOOL && node2.children[1].event.event === STORE && node2.children[0].children.length === 2 && node2.children[0].children[0].event.event === SPAN_BEGIN && node2.children[0].children[0].event.type === TYPE_AGENT,
-        process: (node2) => skipThisNode(node2)
-      }
-    ];
     const transformTree = (roots) => {
+      const treeNodeTransformers = transformers();
       const visitNode = (node2) => {
         let processedNode = node2;
-        processedNode.children = processedNode.children.map(visitNode);
+        processedNode.children = processedNode.children.flatMap(visitNode);
         for (const transformer of treeNodeTransformers) {
           if (transformer.matches(processedNode)) {
             processedNode = transformer.process(processedNode);
@@ -52299,7 +52278,45 @@ self.onmessage = function (e) {
         }
         return processedNode;
       };
-      return roots.map(visitNode);
+      return roots.flatMap(visitNode);
+    };
+    const transformers = () => {
+      const treeNodeTransformers = [
+        {
+          name: "unwrap_tools",
+          matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event.type === TYPE_TOOL,
+          process: (node2) => elevateChildNode(node2, TYPE_TOOL) || node2
+        },
+        {
+          name: "unwrap_subtasks",
+          matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event.type === TYPE_SUBTASK,
+          process: (node2) => elevateChildNode(node2, TYPE_SUBTASK) || node2
+        },
+        {
+          name: "unwrap_agent_solver",
+          matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_SOLVER && node2.children.length === 2 && node2.children[0].event.event === SPAN_BEGIN && node2.children[0].event.type === TYPE_AGENT && node2.children[1].event.event === STATE,
+          process: (node2) => skipFirstChildNode(node2)
+        },
+        {
+          name: "unwrap_agent_solver w/store",
+          matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_SOLVER && node2.children.length === 3 && node2.children[0].event.event === SPAN_BEGIN && node2.children[0].event.type === TYPE_AGENT && node2.children[1].event.event === STATE && node2.children[2].event.event === STORE,
+          process: (node2) => skipFirstChildNode(node2)
+        },
+        {
+          name: "unwrap_handoff",
+          matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event["type"] === TYPE_HANDOFF && node2.children.length === 2 && node2.children[0].event.event === TOOL && node2.children[1].event.event === STORE && node2.children[0].children.length === 2 && node2.children[0].children[0].event.event === SPAN_BEGIN && node2.children[0].children[0].event.type === TYPE_AGENT,
+          process: (node2) => skipThisNode(node2)
+        },
+        {
+          name: "discard_solvers_span",
+          matches: (Node2) => Node2.event.event === SPAN_BEGIN && Node2.event.type === TYPE_SOLVERS,
+          process: (node2) => {
+            const nodes = discardNode(node2);
+            return nodes;
+          }
+        }
+      ];
+      return treeNodeTransformers;
     };
     const elevateChildNode = (node2, childEventType) => {
       const targetIndex = node2.children.findIndex(
@@ -52327,6 +52344,10 @@ self.onmessage = function (e) {
       newNode.depth = node2.depth;
       newNode.children = reduceDepth(newNode.children[0].children, 2);
       return newNode;
+    };
+    const discardNode = (node2) => {
+      const nodes = reduceDepth(node2.children, 1);
+      return nodes;
     };
     const reduceDepth = (nodes, depth = 1) => {
       return nodes.map((node2) => {

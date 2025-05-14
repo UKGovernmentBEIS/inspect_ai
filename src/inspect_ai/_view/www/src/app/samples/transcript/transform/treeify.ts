@@ -12,6 +12,7 @@ import {
   TYPE_AGENT,
   TYPE_HANDOFF,
   TYPE_SOLVER,
+  TYPE_SOLVERS,
   TYPE_SUBTASK,
   TYPE_TOOL,
   hasSpans,
@@ -30,6 +31,9 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
 
   const rootNodes: EventNode[] = [];
   const stack: EventNode[] = [];
+
+  // The function used to build the tree
+  const treeifyFn = getTreeifyFunction();
 
   const addNode = (event: EventType): EventNode => {
     const currentDepth = stack.length;
@@ -76,143 +80,92 @@ export function treeifyEvents(events: Events, depth: number): EventNode[] {
   }
 }
 
-const treeifyFn: TreeifyFunction = (
-  event: EventType,
-  addNode: (event: EventType) => EventNode,
-  pushStack: (node: EventNode) => void,
-  popStack: () => void,
-): void => {
-  switch (event.event) {
-    case STEP:
-      if (event.action === ACTION_BEGIN) {
-        // Starting a new step
+const getTreeifyFunction = () => {
+  const treeifyFn: TreeifyFunction = (
+    event: EventType,
+    addNode: (event: EventType) => EventNode,
+    pushStack: (node: EventNode) => void,
+    popStack: () => void,
+  ): void => {
+    switch (event.event) {
+      case STEP:
+        if (event.action === ACTION_BEGIN) {
+          // Starting a new step
+          const node = addNode(event);
+          pushStack(node);
+        } else {
+          // An ending step
+          popStack();
+        }
+        break;
+      case SPAN_BEGIN: {
         const node = addNode(event);
         pushStack(node);
-      } else {
-        // An ending step
+        break;
+      }
+      case SPAN_END: {
         popStack();
+        break;
       }
-      break;
-    case SPAN_BEGIN: {
-      const node = addNode(event);
-      pushStack(node);
-      break;
-    }
-    case SPAN_END: {
-      popStack();
-      break;
-    }
-    case TOOL:
-      {
-        const node = addNode(event);
+      case TOOL:
+        {
+          const node = addNode(event);
 
-        // In the span world, the first child will be a span of type tool
-        if (
-          event.events.length > 0 &&
-          (event.events[0].event !== SPAN_BEGIN ||
-            event.events[0].type !== TYPE_TOOL)
-        ) {
-          // Expand the children
-          pushStack(node);
-          for (const child of event.events) {
-            treeifyFn(child, addNode, pushStack, popStack);
+          // In the span world, the first child will be a span of type tool
+          if (
+            event.events.length > 0 &&
+            (event.events[0].event !== SPAN_BEGIN ||
+              event.events[0].type !== TYPE_TOOL)
+          ) {
+            // Expand the children
+            pushStack(node);
+            for (const child of event.events) {
+              treeifyFn(child, addNode, pushStack, popStack);
+            }
+            popStack();
           }
-          popStack();
         }
-      }
 
-      break;
-    case SUBTASK:
-      {
-        const node = addNode(event);
+        break;
+      case SUBTASK:
+        {
+          const node = addNode(event);
 
-        // In the span world, the first child will be a span of type tool
-        if (
-          event.events.length > 0 &&
-          (event.events[0].event !== SPAN_BEGIN ||
-            event.events[0].type !== TYPE_SUBTASK)
-        ) {
-          // Expand the children
-          pushStack(node);
-          for (const child of event.events) {
-            treeifyFn(child, addNode, pushStack, popStack);
+          // In the span world, the first child will be a span of type tool
+          if (
+            event.events.length > 0 &&
+            (event.events[0].event !== SPAN_BEGIN ||
+              event.events[0].type !== TYPE_SUBTASK)
+          ) {
+            // Expand the children
+            pushStack(node);
+            for (const child of event.events) {
+              treeifyFn(child, addNode, pushStack, popStack);
+            }
+            popStack();
           }
-          popStack();
         }
-      }
 
-      break;
-    default:
-      // An event
-      addNode(event);
-      break;
-  }
+        break;
+
+      default:
+        // An event
+        addNode(event);
+        break;
+    }
+  };
+  return treeifyFn;
 };
-
-type TreeNodeTransformer = {
-  name: string;
-  matches: (node: EventNode) => boolean;
-  process: (node: EventNode) => EventNode;
-};
-
-const treeNodeTransformers: TreeNodeTransformer[] = [
-  {
-    name: "unwrap_tools",
-    matches: (node) =>
-      node.event.event === SPAN_BEGIN && node.event.type === TYPE_TOOL,
-    process: (node) => elevateChildNode(node, TYPE_TOOL) || node,
-  },
-  {
-    name: "unwrap_subtasks",
-    matches: (node) =>
-      node.event.event === SPAN_BEGIN && node.event.type === TYPE_SUBTASK,
-    process: (node) => elevateChildNode(node, TYPE_SUBTASK) || node,
-  },
-  {
-    name: "unwrap_agent_solver",
-    matches: (node) =>
-      node.event.event === SPAN_BEGIN &&
-      node.event["type"] === TYPE_SOLVER &&
-      node.children.length === 2 &&
-      node.children[0].event.event === SPAN_BEGIN &&
-      node.children[0].event.type === TYPE_AGENT &&
-      node.children[1].event.event === STATE,
-
-    process: (node) => skipFirstChildNode(node),
-  },
-  {
-    name: "unwrap_agent_solver w/store",
-    matches: (node) =>
-      node.event.event === SPAN_BEGIN &&
-      node.event["type"] === TYPE_SOLVER &&
-      node.children.length === 3 &&
-      node.children[0].event.event === SPAN_BEGIN &&
-      node.children[0].event.type === TYPE_AGENT &&
-      node.children[1].event.event === STATE &&
-      node.children[2].event.event === STORE,
-    process: (node) => skipFirstChildNode(node),
-  },
-  {
-    name: "unwrap_handoff",
-    matches: (node) =>
-      node.event.event === SPAN_BEGIN &&
-      node.event["type"] === TYPE_HANDOFF &&
-      node.children.length === 2 &&
-      node.children[0].event.event === TOOL &&
-      node.children[1].event.event === STORE &&
-      node.children[0].children.length === 2 &&
-      node.children[0].children[0].event.event === SPAN_BEGIN &&
-      node.children[0].children[0].event.type === TYPE_AGENT,
-    process: (node) => skipThisNode(node),
-  },
-];
 
 const transformTree = (roots: EventNode[]): EventNode[] => {
-  const visitNode = (node: EventNode): EventNode => {
-    let processedNode = node;
+  // Gather the transformers that we'll use
+  const treeNodeTransformers = transformers();
+
+  const visitNode = (node: EventNode): EventNode | EventNode[] => {
+    let processedNode: EventNode | EventNode[] = node;
 
     // Visit children (depth first)
-    processedNode.children = processedNode.children.map(visitNode);
+    processedNode.children = processedNode.children.flatMap(visitNode);
 
     // Apply any visitors to this node
     for (const transformer of treeNodeTransformers) {
@@ -225,7 +178,77 @@ const transformTree = (roots: EventNode[]): EventNode[] => {
     return processedNode;
   };
 
-  return roots.map(visitNode);
+  return roots.flatMap(visitNode);
+};
+
+const transformers = () => {
+  const treeNodeTransformers: TreeNodeTransformer[] = [
+    {
+      name: "unwrap_tools",
+      matches: (node) =>
+        node.event.event === SPAN_BEGIN && node.event.type === TYPE_TOOL,
+      process: (node) => elevateChildNode(node, TYPE_TOOL) || node,
+    },
+    {
+      name: "unwrap_subtasks",
+      matches: (node) =>
+        node.event.event === SPAN_BEGIN && node.event.type === TYPE_SUBTASK,
+      process: (node) => elevateChildNode(node, TYPE_SUBTASK) || node,
+    },
+    {
+      name: "unwrap_agent_solver",
+      matches: (node) =>
+        node.event.event === SPAN_BEGIN &&
+        node.event["type"] === TYPE_SOLVER &&
+        node.children.length === 2 &&
+        node.children[0].event.event === SPAN_BEGIN &&
+        node.children[0].event.type === TYPE_AGENT &&
+        node.children[1].event.event === STATE,
+
+      process: (node) => skipFirstChildNode(node),
+    },
+    {
+      name: "unwrap_agent_solver w/store",
+      matches: (node) =>
+        node.event.event === SPAN_BEGIN &&
+        node.event["type"] === TYPE_SOLVER &&
+        node.children.length === 3 &&
+        node.children[0].event.event === SPAN_BEGIN &&
+        node.children[0].event.type === TYPE_AGENT &&
+        node.children[1].event.event === STATE &&
+        node.children[2].event.event === STORE,
+      process: (node) => skipFirstChildNode(node),
+    },
+    {
+      name: "unwrap_handoff",
+      matches: (node) =>
+        node.event.event === SPAN_BEGIN &&
+        node.event["type"] === TYPE_HANDOFF &&
+        node.children.length === 2 &&
+        node.children[0].event.event === TOOL &&
+        node.children[1].event.event === STORE &&
+        node.children[0].children.length === 2 &&
+        node.children[0].children[0].event.event === SPAN_BEGIN &&
+        node.children[0].children[0].event.type === TYPE_AGENT,
+      process: (node) => skipThisNode(node),
+    },
+    {
+      name: "discard_solvers_span",
+      matches: (Node) =>
+        Node.event.event === SPAN_BEGIN && Node.event.type === TYPE_SOLVERS,
+      process: (node) => {
+        const nodes = discardNode(node);
+        return nodes;
+      },
+    },
+  ];
+  return treeNodeTransformers;
+};
+
+type TreeNodeTransformer = {
+  name: string;
+  matches: (node: EventNode) => boolean;
+  process: (node: EventNode) => EventNode | EventNode[];
 };
 
 /**
@@ -273,6 +296,11 @@ const skipThisNode = (node: EventNode): EventNode => {
   newNode.depth = node.depth;
   newNode.children = reduceDepth(newNode.children[0].children, 2);
   return newNode;
+};
+
+const discardNode = (node: EventNode): EventNode[] => {
+  const nodes = reduceDepth(node.children, 1);
+  return nodes;
 };
 
 // Reduce the depth of the children by 1
