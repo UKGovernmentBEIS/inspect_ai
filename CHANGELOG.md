@@ -4,6 +4,7 @@
 - Anthropic: Show warning when generation config incompatible with extended thinking is used (affects `temperature`, `top_p`, and `top_k`).
 - AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
 - AzureAI: Accept `<tool_calls>` plural from Llama models (as it sometimes uses this instead of `<tool_call>`).
+- AzureAI: Correctly handle tool calls with no arguments.
 - Eval retry: Improve error message when attempting to retry tasks in packages that have not been registered.
 - Warn when a passed `--sample-id` is not found in the target dataset (raise error if there are no matches at all).
 - Dataframes: Include underlying `EvalLog` and `Exception` in `ColumnError`.
