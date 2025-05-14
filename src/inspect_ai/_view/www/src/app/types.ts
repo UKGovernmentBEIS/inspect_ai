@@ -94,7 +94,7 @@ export interface SampleState {
 
   // Events and attachments
   runningEvents: Event[];
-  collapsedEvents: Record<string, true> | null;
+  collapsedEvents: Record<string, boolean> | null;
   collapsedIdBuckets: Record<string, Record<string, boolean>>;
 }
 

@@ -25,7 +25,7 @@ export interface SampleSlice {
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
-    setCollapsedEvents: (collapsed: Record<string, true>) => void;
+    setCollapsedEvents: (collapsed: Record<string, boolean>) => void;
     collapseEvent: (id: string, collapsed: boolean) => void;
     clearCollapsedEvents: () => void;
 

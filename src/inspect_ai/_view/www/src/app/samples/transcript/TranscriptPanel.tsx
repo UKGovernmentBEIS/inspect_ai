@@ -1,16 +1,13 @@
-import { FC, memo, RefObject, useMemo } from "react";
+import { FC, memo, RefObject, useRef } from "react";
 import { Events } from "../../../@types/log";
-import { TranscriptVirtualListComponent } from "./TranscriptVirtualListComponent";
-import { fixupEventStream } from "./transform/fixups";
-import { treeifyEvents } from "./transform/treeify";
-//
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptTree } from "./TranscriptTree";
+import { TranscriptVirtualList } from "./TranscriptVirtualList";
+import { useEventNodes } from "./transform/hooks";
 
 interface TranscriptPanelProps {
   id: string;
   events: Events;
-  depth?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
   running?: boolean;
   initialEventId?: string | null;
@@ -20,27 +17,31 @@ interface TranscriptPanelProps {
  * Renders the Transcript Virtual List.
  */
 export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
-  let { id, scrollRef, events, depth, running, initialEventId } = props;
+  let { id, scrollRef, events, running, initialEventId } = props;
 
-  // Normalize Events themselves
-  const eventNodes = useMemo(() => {
-    const resolvedEvents = fixupEventStream(events, !running);
-    const eventNodes = treeifyEvents(resolvedEvents, depth || 0);
+  const { eventNodes, defaultCollapsedIds } = useEventNodes(
+    events,
+    running === true,
+  );
 
-    return eventNodes;
-  }, [events, depth]);
+  const navRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className={styles.container}>
-      <div className={styles.treeContainer}>
-        <TranscriptTree eventNodes={eventNodes} />
+      <div className={styles.treeContainer} ref={navRef}>
+        <TranscriptTree
+          scrollRef={scrollRef}
+          eventNodes={eventNodes}
+          defaultCollapsedIds={defaultCollapsedIds}
+        />
       </div>
-      <TranscriptVirtualListComponent
+      <TranscriptVirtualList
         id={id}
         eventNodes={eventNodes}
+        defaultCollapsedIds={defaultCollapsedIds}
         scrollRef={scrollRef}
         running={running}
-        initialEventId={initialEventId}
+        initialEventId={initialEventId === undefined ? null : initialEventId}
       />
     </div>
   );
