@@ -220,8 +220,8 @@ def test_collect_errors() -> None:
 
     assert len(errors) == 2
 
-    assert any("not found" in error.message for error in errors)
-    assert any("Cannot coerce" in error.message for error in errors)
+    assert any("not found" in str(error.error) for error in errors)
+    assert any("Cannot coerce" in str(error.error) for error in errors)
 
 
 def test_invalid_jsonpath() -> None:
