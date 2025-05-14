@@ -52207,6 +52207,7 @@ self.onmessage = function (e) {
         stack2.pop();
         pathIndices.pop();
       };
+      events = injectScorersSpan(events);
       events.forEach((event) => {
         treeifyFn(event, addNode, pushStack, popStack);
       });
@@ -52216,6 +52217,68 @@ self.onmessage = function (e) {
         return rootNodes;
       }
     }
+    const kBeginScorerId = "E617087FA405";
+    const kEndScorerId = "C39922B09481";
+    const kScorersSpanId = "C5A831026F2C";
+    const injectScorersSpan = (events) => {
+      const results = [];
+      const collectedScorerEvents = [];
+      let hasCollectedScorers = false;
+      let collecting = null;
+      const flushCollected = () => {
+        if (collectedScorerEvents.length > 0) {
+          const beginSpan = {
+            name: "scorers",
+            id: kBeginScorerId,
+            span_id: kScorersSpanId,
+            event: SPAN_BEGIN,
+            type: TYPE_SCORERS,
+            timestamp: collectedScorerEvents[0].timestamp,
+            working_start: collectedScorerEvents[0].working_start,
+            pending: false,
+            parent_id: null
+          };
+          const scoreEvents = collectedScorerEvents.map((event) => {
+            return {
+              ...event,
+              parent_id: event.event === "span_begin" ? event.parent_id || kScorersSpanId : null
+            };
+          });
+          const endSpan = {
+            id: kEndScorerId,
+            span_id: kScorersSpanId,
+            event: SPAN_END,
+            pending: false,
+            working_start: collectedScorerEvents[collectedScorerEvents.length - 1].working_start,
+            timestamp: collectedScorerEvents[collectedScorerEvents.length - 1].timestamp
+          };
+          collectedScorerEvents.length = 0;
+          hasCollectedScorers = true;
+          return [beginSpan, ...scoreEvents, endSpan];
+        }
+        return [];
+      };
+      for (const event of events) {
+        if (event.event === SPAN_BEGIN && event.type === TYPE_SCORERS) {
+          return events;
+        }
+        if (event.event === SPAN_BEGIN && event.type === TYPE_SCORER && !hasCollectedScorers) {
+          collecting = event.span_id;
+        }
+        if (collecting) {
+          if (event.event === SPAN_END && event.span_id === collecting) {
+            collecting = null;
+            results.push(...flushCollected());
+            results.push(event);
+          } else {
+            collectedScorerEvents.push(event);
+          }
+        } else {
+          results.push(event);
+        }
+      }
+      return results;
+    };
     const getTreeifyFunction = () => {
       const treeifyFn = (event, addNode, pushStack, popStack) => {
         switch (event.event) {
@@ -52276,7 +52339,6 @@ self.onmessage = function (e) {
           return n;
         });
         for (const transformer of treeNodeTransformers) {
-          console.log("transformer", transformer.name);
           const nextNodes = [];
           for (const currentNode of currentNodes) {
             if (transformer.matches(currentNode)) {
@@ -52307,7 +52369,6 @@ self.onmessage = function (e) {
       return [...processedRoots, ...flushedNodes];
     };
     const transformers = () => {
-      console.log("transformers");
       const treeNodeTransformers = [
         {
           name: "unwrap_tools",
@@ -52341,55 +52402,9 @@ self.onmessage = function (e) {
             const nodes = discardNode(node2);
             return nodes;
           }
-        },
-        ...createScorerSpan()
-      ];
-      return treeNodeTransformers;
-    };
-    const createScorerSpan = () => {
-      console.log("createScorerSpan");
-      let hasScorerSpan = false;
-      let collectedScorers = [];
-      return [
-        {
-          name: "detect_scorer_span",
-          matches: (node2) => node2.event.event === SPAN_BEGIN && node2.event.type === TYPE_SCORERS,
-          process: (node2) => {
-            hasScorerSpan = true;
-            return node2;
-          }
-        },
-        {
-          name: "wrap_scorers",
-          matches: (_node) => {
-            console.log("match?", _node);
-            return true;
-          },
-          process: (node2) => {
-            console.log("collect?", node2);
-            if (!hasScorerSpan && (node2.event.event === SPAN_BEGIN || node2.event.event === "step") && node2.event.type === TYPE_SCORER && node2.depth === 1) {
-              collectedScorers.push(node2);
-              return [];
-            }
-            return node2;
-          },
-          flush: () => {
-            if (collectedScorers.length > 0) {
-              const numberOfScorers = collectedScorers.length;
-              const firstScorer = collectedScorers[0];
-              const scorerNode = new EventNode(
-                firstScorer.id,
-                { ...firstScorer.event, name: `${numberOfScorers} scorers` },
-                firstScorer.depth
-              );
-              scorerNode.children = collectedScorers;
-              collectedScorers.length = 0;
-              return [scorerNode];
-            }
-            return [];
-          }
         }
       ];
+      return treeNodeTransformers;
     };
     const elevateChildNode = (node2, childEventType) => {
       const targetIndex = node2.children.findIndex(
