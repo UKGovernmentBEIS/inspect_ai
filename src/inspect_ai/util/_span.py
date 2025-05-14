@@ -35,7 +35,7 @@ async def span(name: str, *, type: str | None = None) -> AsyncIterator[None]:
             SpanBeginEvent(
                 id=id,
                 parent_id=parent_id,
-                type=type,
+                type=type or name,
                 name=name,
             )
         )
