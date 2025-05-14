@@ -20,6 +20,7 @@ from .extract import model_to_record
 
 @overload
 def import_record(
+    log: EvalLog,
     record: EvalLog
     | EvalSampleSummary
     | EvalSample
@@ -33,6 +34,7 @@ def import_record(
 
 @overload
 def import_record(
+    log: EvalLog,
     record: EvalLog
     | EvalSampleSummary
     | EvalSample
@@ -45,6 +47,7 @@ def import_record(
 
 
 def import_record(
+    log: EvalLog,
     record: EvalLog
     | EvalSampleSummary
     | EvalSample
@@ -80,7 +83,7 @@ def import_record(
         try:
             result[name] = _resolve_value(value, column.type)
         except ValueError as ex:
-            error = ColumnError(name, path=column.path, error=ex)
+            error = ColumnError(name, path=column.path, error=ex, log=log)
             if strict:
                 raise ValueError(str(error))
             else:
@@ -93,7 +96,7 @@ def import_record(
         ex = ValueError(
             f"field not of type {required_type}" if required_type else "field not found"
         )
-        error = ColumnError(name, path=path, error=ex)
+        error = ColumnError(name, path=path, error=ex, log=log)
         if strict:
             raise ValueError(str(error))
         else:
@@ -158,6 +161,7 @@ def import_record(
                 column.name,
                 path=str(column.path) if column.path else None,
                 error=ex,
+                log=log,
             )
             if strict:
                 raise ValueError(str(error))

@@ -32,9 +32,7 @@ def test_evals_df_columns():
 def test_evals_df_strict():
     df, errors = evals_df(LOGS_DIR, strict=False)
     assert len(df) == 3
-    assert len(errors) == 3
-    for error_list in errors.values():
-        assert len(error_list) == 0
+    assert len(errors) == 0
 
 
 def test_evals_df_filter():

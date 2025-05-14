@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
-from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis.beta._dataframe.progress import import_progress
 from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
 )
+from inspect_ai.log._log import EvalLog
 
-from ..columns import Column, ColumnErrors, ColumnType
+from ..columns import Column, ColumnError, ColumnType
 from ..record import import_record, resolve_duplicate_columns
 from ..util import (
     LogPaths,
@@ -41,14 +41,14 @@ def evals_df(
     logs: LogPaths = list_eval_logs(),
     columns: list[Column] = EvalColumns,
     strict: Literal[False] = False,
-) -> tuple["pd.DataFrame", ColumnErrors]: ...
+) -> tuple["pd.DataFrame", list[ColumnError]]: ...
 
 
 def evals_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = EvalColumns,
     strict: bool = True,
-) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
+) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     """Read a dataframe containing evals.
 
     Args:
@@ -71,10 +71,10 @@ def evals_df(
 
     with import_progress("reading logs", total=len(log_paths)) as p:
         if strict:
-            evals_table, _ = _read_evals_df(log_paths, columns, True, p.update)
+            evals_table, _, _ = _read_evals_df(log_paths, columns, True, p.update)
             return evals_table
         else:
-            evals_table, all_errors, _ = _read_evals_df(
+            evals_table, _, all_errors, _ = _read_evals_df(
                 log_paths, columns, False, p.update
             )
             return evals_table, all_errors
@@ -86,7 +86,7 @@ def _read_evals_df(
     columns: Sequence[Column],
     strict: Literal[True],
     progress: Callable[[], None],
-) -> tuple["pd.DataFrame", int]: ...
+) -> tuple["pd.DataFrame", list[EvalLog], int]: ...
 
 
 @overload
@@ -95,7 +95,7 @@ def _read_evals_df(
     columns: Sequence[Column],
     strict: Literal[False],
     progress: Callable[[], None],
-) -> tuple["pd.DataFrame", ColumnErrors, int]: ...
+) -> tuple["pd.DataFrame", list[EvalLog], list[ColumnError], int]: ...
 
 
 def _read_evals_df(
@@ -103,28 +103,33 @@ def _read_evals_df(
     columns: Sequence[Column],
     strict: bool,
     progress: Callable[[], None],
-) -> tuple["pd.DataFrame", int] | tuple["pd.DataFrame", ColumnErrors, int]:
+) -> (
+    tuple["pd.DataFrame", list[EvalLog], int]
+    | tuple["pd.DataFrame", list[EvalLog], list[ColumnError], int]
+):
     verify_prerequisites()
 
     # resolve duplicate columns
     columns = resolve_duplicate_columns(columns)
 
     # accumulate errors for strict=False
-    all_errors = ColumnErrors()
+    all_errors: list[ColumnError] = []
 
     # ensure eval_id
     columns = ensure_eval_id(columns)
 
     # read logs
     total_samples = 0
+    eval_logs: list[EvalLog] = []
     records: list[dict[str, ColumnType]] = []
     for log_path in log_paths:
         log = read_eval_log(log_path, header_only=True)
+        eval_logs.append(log)
         if strict:
-            record = import_record(log, columns, strict=True)
+            record = import_record(log, log, columns, strict=True)
         else:
-            record, errors = import_record(log, columns, strict=False)
-            all_errors[pretty_path(log_path)] = errors
+            record, errors = import_record(log, log, columns, strict=False)
+            all_errors.extend(errors)
         records.append(record)
         total_samples += (
             len(log.eval.dataset.sample_ids)
@@ -138,9 +143,9 @@ def _read_evals_df(
     evals_table = reorder_evals_df_columns(evals_table, columns)
 
     if strict:
-        return evals_table, total_samples
+        return evals_table, eval_logs, total_samples
     else:
-        return evals_table, all_errors, total_samples
+        return evals_table, eval_logs, all_errors, total_samples
 
 
 def ensure_eval_id(columns: Sequence[Column]) -> Sequence[Column]:

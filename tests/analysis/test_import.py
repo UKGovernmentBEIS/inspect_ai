@@ -5,10 +5,12 @@ import pytest
 from pydantic import JsonValue
 from typing_extensions import override
 
+from inspect_ai._util.datetime import iso_now
 from inspect_ai.analysis.beta import Column, EvalColumns
 from inspect_ai.analysis.beta._dataframe.evals.columns import EvalColumn
 from inspect_ai.analysis.beta._dataframe.record import _resolve_value, import_record
 from inspect_ai.log._file import read_eval_log
+from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 
 
 class TColumn(Column):
@@ -56,7 +58,18 @@ yaml_record: dict[str, JsonValue] = {
 }
 
 
-# ======== Basic Functionality Tests ========
+def eval_log() -> EvalLog:
+    return EvalLog(
+        eval=EvalSpec(
+            created=iso_now(),
+            task="task",
+            dataset=EvalDataset(),
+            model="model",
+            config=EvalConfig(),
+        )
+    )
+
+
 def test_basic_import() -> None:
     """Test basic field import with direct mapping."""
     spec: list[Column] = [
@@ -64,7 +77,7 @@ def test_basic_import() -> None:
         TColumn("model", path="$.eval.model"),
     ]
 
-    result = import_record(test_record, spec)
+    result = import_record(eval_log(), test_record, spec)
 
     assert result["status"] == "complete"
     assert result["model"] == "openai/gpt-4o"
@@ -76,7 +89,7 @@ def test_wildcard_fields() -> None:
         TColumn("task_arg_*", path="$.eval.task_args"),
     ]
 
-    result = import_record(test_record, spec)
+    result = import_record(eval_log(), test_record, spec)
 
     assert result["task_arg_foo"] == 42
     assert result["task_arg_bar"] == 84
@@ -89,7 +102,7 @@ def test_extract_function() -> None:
     spec: list[Column] = [
         EvalColumn("status", path=lambda log: log.status, required=True),
     ]
-    result = import_record(log, spec)
+    result = import_record(eval_log(), log, spec)
     assert result["status"] == "success"
 
 
@@ -101,7 +114,7 @@ def test_field_options() -> None:
         TColumn("missing", path="$.not.existing", required=False),
     ]
 
-    result = import_record(test_record, spec)
+    result = import_record(eval_log(), test_record, spec)
 
     assert result["status"] == "complete"
     assert result["error_msg"] == "Some error occurred"
@@ -113,14 +126,13 @@ def test_predefined_spec() -> None:
     log = read_eval_log(
         Path(__file__).parent.parent / "log" / "test_eval_log" / "log_formats.eval"
     )
-    result = import_record(log, EvalColumns)
+    result = import_record(log, log, EvalColumns)
 
     assert result["status"] == "success"
     assert result["model"] == "ollama/llama3.1"
     assert result["error_message"] is None
 
 
-# ======== Type Coercion Tests ========
 def test_type_coercion_simple() -> None:
     """Test simple type coercion."""
     spec: list[Column] = [
@@ -130,7 +142,7 @@ def test_type_coercion_simple() -> None:
         TColumn("values", path="$.data.values", type=str),  # Will json.dumps
     ]
 
-    result = import_record(test_record, spec)
+    result = import_record(eval_log(), test_record, spec)
     assert result["flag"] is True
     assert result["values"] == "[1, 2, 3, 4]"
 
@@ -144,7 +156,7 @@ def test_type_coercion_failure() -> None:
     ]
 
     with pytest.raises(ValueError, match="Cannot coerce"):
-        print(import_record(test_record, spec))
+        print(import_record(eval_log(), test_record, spec))
 
 
 def test_date_time_coercion() -> None:
@@ -156,7 +168,7 @@ def test_date_time_coercion() -> None:
         TColumn("iso_dt", path="$.data.timestamps.iso", type=datetime),
     ]
 
-    result = import_record(test_record, spec)
+    result = import_record(eval_log(), test_record, spec)
 
     assert isinstance(result["timestamp_dt"], datetime)
     assert result["timestamp_dt"] == datetime.fromtimestamp(1714640400, tz=timezone.utc)
@@ -187,7 +199,7 @@ def test_yaml_string_coercion() -> None:
         TColumn("array_val", path="$.string_array", type=str),  # Keep as string
     ]
 
-    result = import_record(yaml_record, spec)
+    result = import_record(eval_log(), yaml_record, spec)
 
     assert result["int_val"] == 42
     assert result["float_val"] == 3.14
@@ -197,7 +209,6 @@ def test_yaml_string_coercion() -> None:
     assert result["array_val"] == "[1, 2, 3]"
 
 
-# ======== Error Handling Tests ========
 def test_required_field_missing() -> None:
     """Test error when required field is missing."""
     spec: list[Column] = [
@@ -205,7 +216,7 @@ def test_required_field_missing() -> None:
     ]
 
     with pytest.raises(ValueError, match="not found"):
-        import_record(test_record, spec)
+        import_record(eval_log(), test_record, spec)
 
 
 def test_collect_errors() -> None:
@@ -216,7 +227,7 @@ def test_collect_errors() -> None:
         TColumn("bad_type", path="$.data.extra", type=int),  # str to int will fail
     ]
 
-    _, errors = import_record(test_record, spec, strict=False)
+    _, errors = import_record(eval_log(), test_record, spec, strict=False)
 
     assert len(errors) == 2
 
@@ -233,10 +244,9 @@ def test_invalid_jsonpath() -> None:
     with pytest.raises(
         Exception
     ):  # Exception type depends on jsonpath-ng implementation
-        import_record(test_record, spec)
+        import_record(eval_log(), test_record, spec)
 
 
-# ======== Edge Cases Tests ========
 def test_empty_record() -> None:
     """Test importing from an empty record."""
     empty_record: dict[str, JsonValue] = {}
@@ -245,7 +255,7 @@ def test_empty_record() -> None:
         TColumn("status", path="$.status", required=False),
     ]
 
-    result = import_record(empty_record, spec)
+    result = import_record(eval_log(), empty_record, spec)
     assert result["status"] is None
 
 
@@ -260,7 +270,7 @@ def test_none_values() -> None:
         TColumn("null_value", path="$.data.null_value"),
     ]
 
-    result = import_record({**test_record, **none_record}, spec)
+    result = import_record(eval_log(), {**test_record, **none_record}, spec)
     assert result["explicit_none"] is None
     assert result["null_value"] is None
 
@@ -275,13 +285,12 @@ def test_multiple_import_specs() -> None:
         TColumn("model", path="$.eval.model"),
     ]
 
-    result = import_record(test_record, spec1 + spec2)
+    result = import_record(eval_log(), test_record, spec1 + spec2)
 
     assert result["status"] == "complete"
     assert result["model"] == "openai/gpt-4o"
 
 
-# ======== Internal Function Tests ========
 def test_resolve_value_compound_types() -> None:
     """Test resolving compound values."""
     # List to string
@@ -343,7 +352,6 @@ def test_resolve_value_errors() -> None:
         _resolve_value("not a bool", int)
 
 
-# ======== Complex Tests ========
 def test_complex_import_scenario() -> None:
     """Test a complex import scenario with various field types and options."""
     complex_record: dict[str, JsonValue] = {
@@ -372,7 +380,7 @@ def test_complex_import_scenario() -> None:
         TColumn("missing", path="$.not.here", required=False),
     ]
 
-    result = import_record(complex_record, spec)
+    result = import_record(eval_log(), complex_record, spec)
 
     assert result["record_id"] == "record-123"
     assert result["value1"] == 42

@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 from typing_extensions import overload
 
-from ..columns import Column, ColumnErrors
+from ..columns import Column, ColumnError
 from ..samples.table import MessagesDetail, _read_samples_df
 from ..util import LogPaths, verify_prerequisites
 from .columns import MessageColumns
@@ -36,7 +36,7 @@ def messages_df(
     columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: Literal[False] = False,
-) -> tuple["pd.DataFrame", ColumnErrors]: ...
+) -> tuple["pd.DataFrame", list[ColumnError]]: ...
 
 
 def messages_df(
@@ -44,7 +44,7 @@ def messages_df(
     columns: Sequence[Column] = MessageColumns,
     filter: MessageFilter | None = None,
     strict: bool = True,
-) -> "pd.DataFrame" | tuple["pd.DataFrame", ColumnErrors]:
+) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     """Read a dataframe containing messages from a set of evals.
 
     Args:
