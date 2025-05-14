@@ -130,7 +130,7 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.sampleError = error;
         }),
-      setCollapsedEvents: (collapsed: Record<string, true>) => {
+      setCollapsedEvents: (collapsed: Record<string, boolean>) => {
         set((state) => {
           state.sample.collapsedEvents = collapsed;
         });

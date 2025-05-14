@@ -17260,14 +17260,14 @@ thead th {
 ._scores_las07_54 {
   padding-top: 1em;
 }
-._container_n5xp9_1 {
+._container_19jbn_1 {
   display: flex;
   width: 100%;
   flex-direction: row;
   min-height: 100vh;
 }
 
-._treeContainer_n5xp9_8 {
+._treeContainer_19jbn_8 {
   overflow-y: auto;
   margin: 0.65rem 0 0 0;
   padding: 0.5em;
@@ -17281,11 +17281,10 @@ thead th {
   z-index: 10;
 }
 
-._events_n5xp9_22 {
+._events_19jbn_22 {
   left: 200px;
   right: 0;
 }
-
 ._node_1ppaj_1 {
   display: grid;
   column-gap: 0.3em;

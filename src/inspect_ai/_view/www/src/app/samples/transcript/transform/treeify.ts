@@ -11,6 +11,8 @@ import {
   TOOL,
   TYPE_AGENT,
   TYPE_HANDOFF,
+  TYPE_SCORER,
+  TYPE_SCORERS,
   TYPE_SOLVER,
   TYPE_SOLVERS,
   TYPE_SUBTASK,
@@ -159,29 +161,65 @@ const getTreeifyFunction = () => {
 
 const transformTree = (roots: EventNode[]): EventNode[] => {
   // Gather the transformers that we'll use
-  const treeNodeTransformers = transformers();
+  const treeNodeTransformers: TreeNodeTransformer[] = transformers();
 
   const visitNode = (node: EventNode): EventNode | EventNode[] => {
-    let processedNode: EventNode | EventNode[] = node;
+    // Start with the original node
+    let currentNodes: EventNode[] = [node];
 
-    // Visit children (depth first)
-    processedNode.children = processedNode.children.flatMap(visitNode);
+    // Process children of all nodes first (depth-first)
+    currentNodes = currentNodes.map((n) => {
+      n.children = n.children.flatMap(visitNode);
+      return n;
+    });
 
-    // Apply any visitors to this node
+    // Apply each transformer to all nodes that match
     for (const transformer of treeNodeTransformers) {
-      if (transformer.matches(processedNode)) {
-        processedNode = transformer.process(processedNode);
-        // Only apply the first matching transformer
-        break;
+      console.log("transformer", transformer.name);
+      const nextNodes: EventNode[] = [];
+
+      // Process each current node with this transformer
+      for (const currentNode of currentNodes) {
+        if (transformer.matches(currentNode)) {
+          const result = transformer.process(currentNode);
+          if (Array.isArray(result)) {
+            nextNodes.push(...result);
+          } else {
+            nextNodes.push(result);
+          }
+        } else {
+          // Node doesn't match this transformer, keep it unchanged
+          nextNodes.push(currentNode);
+        }
       }
+
+      // Update current nodes for next transformer
+      currentNodes = nextNodes;
     }
-    return processedNode;
+
+    // Return all processed nodes
+    return currentNodes.length === 1 ? currentNodes[0] : currentNodes;
   };
 
-  return roots.flatMap(visitNode);
+  // Process all nodes first
+  const processedRoots = roots.flatMap(visitNode);
+
+  // Call flush on any transformers that have it
+  const flushedNodes: EventNode[] = [];
+  for (const transformer of treeNodeTransformers) {
+    if (transformer.flush) {
+      const flushResults = transformer.flush();
+      if (flushResults && flushResults.length > 0) {
+        flushedNodes.push(...flushResults);
+      }
+    }
+  }
+
+  return [...processedRoots, ...flushedNodes];
 };
 
 const transformers = () => {
+  console.log("transformers");
   const treeNodeTransformers: TreeNodeTransformer[] = [
     {
       name: "unwrap_tools",
@@ -241,6 +279,7 @@ const transformers = () => {
         return nodes;
       },
     },
+    ...createScorerSpan(),
   ];
   return treeNodeTransformers;
 };
@@ -249,6 +288,63 @@ type TreeNodeTransformer = {
   name: string;
   matches: (node: EventNode) => boolean;
   process: (node: EventNode) => EventNode | EventNode[];
+  flush?: () => EventNode[];
+};
+
+const createScorerSpan = () => {
+  console.log("createScorerSpan");
+  let hasScorerSpan = false;
+  let collectedScorers: EventNode[] = [];
+  return [
+    {
+      name: "detect_scorer_span",
+      matches: (node: EventNode) =>
+        node.event.event === SPAN_BEGIN && node.event.type === TYPE_SCORERS,
+      process: (node: EventNode) => {
+        hasScorerSpan = true;
+        return node;
+      },
+    },
+    {
+      name: "wrap_scorers",
+      matches: (_node: EventNode) => {
+        console.log("match?", _node);
+        return true;
+      },
+      process: (node: EventNode) => {
+        console.log("collect?", node);
+        if (
+          !hasScorerSpan &&
+          (node.event.event === SPAN_BEGIN || node.event.event === "step") &&
+          node.event.type === TYPE_SCORER &&
+          node.depth === 1
+        ) {
+          collectedScorers.push(node);
+          return [];
+        }
+        return node;
+      },
+      flush: () => {
+        if (collectedScorers.length > 0) {
+          const numberOfScorers = collectedScorers.length;
+          const firstScorer = collectedScorers[0];
+
+          // The collapsed turns
+          const scorerNode = new EventNode(
+            firstScorer.id,
+            { ...firstScorer.event, name: `${numberOfScorers} scorers` },
+            firstScorer.depth,
+          );
+          scorerNode.children = collectedScorers;
+
+          // Clear the array
+          collectedScorers.length = 0;
+          return [scorerNode];
+        }
+        return [];
+      },
+    },
+  ];
 };
 
 /**

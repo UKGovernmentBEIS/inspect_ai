@@ -11,6 +11,7 @@ import { flatTree } from "./transform/treeify";
 
 import styles from "./TranscriptTree.module.css";
 import { kSandboxSignalName } from "./transform/fixups";
+import { TYPE_SCORER, TYPE_SCORERS } from "./transform/utils";
 
 interface TranscriptTreeProps {
   eventNodes: EventNode[];
@@ -51,6 +52,7 @@ export const TranscriptTree: FC<TranscriptTreeProps> = ({
         collapseTurnsVisitor(),
         collapseMultipleTurnsVisitor(),
         noLooseModelCalls(),
+        noScorerChildren(),
       ],
     );
 
@@ -66,7 +68,7 @@ export const TranscriptTree: FC<TranscriptTreeProps> = ({
     }
   }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
-  const renderRow = useCallback((index: number, node: EventNode) => {
+  const renderRow = useCallback((_index: number, node: EventNode) => {
     return <EventRow node={node} key={node.id} />;
   }, []);
 
@@ -248,6 +250,38 @@ const noLooseModelCalls = () => {
   };
 };
 
+const noScorerChildren = () => {
+  let inScorers = false;
+  let inScorer = false;
+  let currentDepth = -1;
+  return {
+    visit: (node: EventNode): EventNode[] => {
+      // Note once we're in the scorers span
+      if (
+        node.event.event === "span_begin" &&
+        node.event.type === TYPE_SCORERS
+      ) {
+        inScorers = true;
+        return [node];
+      }
+
+      if (
+        (node.event.event === "step" || node.event.event === "span_begin") &&
+        node.event.type === TYPE_SCORER
+      ) {
+        inScorer = true;
+        currentDepth = node.depth;
+        return [node];
+      }
+
+      if (inScorers && inScorer && node.depth === currentDepth + 1) {
+        return [];
+      }
+      return [node];
+    },
+  };
+};
+
 const kTurnType = "type";
 
 const collapseMultipleTurnsVisitor = () => {
@@ -302,6 +336,24 @@ const collapseTurnsVisitor = () => {
   let turnCount = 1;
   let currentDepth = 0;
 
+  const makeTurn = (baseTurn: EventNode) => {
+    return new EventNode(
+      baseTurn.id,
+      {
+        id: baseTurn.id,
+        event: "span_begin",
+        type: kTurnType,
+        name: `turn ${turnCount++}`,
+        pending: false,
+        working_start: baseTurn.event.working_start,
+        timestamp: baseTurn.event.timestamp,
+        parent_id: null,
+        span_id: baseTurn.event.span_id,
+      },
+      baseTurn.depth,
+    );
+  };
+
   return {
     visit: (node: EventNode): EventNode[] => {
       if (currentDepth !== node.depth) {
@@ -312,7 +364,8 @@ const collapseTurnsVisitor = () => {
       const result: EventNode[] = [];
       if (node.event.event === "model") {
         if (startTurn) {
-          result.push(startTurn);
+          result.push(makeTurn(startTurn));
+          startTurn = null;
         }
         startTurn = node;
       } else if (
@@ -320,23 +373,7 @@ const collapseTurnsVisitor = () => {
         node.event.event === "tool" &&
         startTurn.depth === node.depth
       ) {
-        result.push(
-          new EventNode(
-            startTurn.id,
-            {
-              id: startTurn.id,
-              event: "span_begin",
-              type: kTurnType,
-              name: `turn ${turnCount++}`,
-              pending: false,
-              working_start: startTurn.event.working_start,
-              timestamp: startTurn.event.timestamp,
-              parent_id: null,
-              span_id: startTurn.event.span_id,
-            },
-            startTurn.depth,
-          ),
-        );
+        result.push(makeTurn(startTurn));
         startTurn = null;
       } else {
         if (startTurn) {
@@ -346,6 +383,12 @@ const collapseTurnsVisitor = () => {
         result.push(node);
       }
       return result;
+    },
+    flush: (): EventNode[] => {
+      if (startTurn) {
+        return [startTurn];
+      }
+      return [];
     },
   };
 };
