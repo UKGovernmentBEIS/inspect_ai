@@ -122,14 +122,14 @@ class ColumnError:
     path: str | None
     """Path to select column value. """
 
-    message: str
-    """Error message."""
+    error: Exception
+    """Underlying error."""
 
     def __str__(self) -> str:
         msg = f"Error reading column '{self.column}'"
         if self.path:
             msg = f"{msg} from path '{self.path}'"
-        return f"{msg}: {self.message}"
+        return f"{msg}: {self.error}"
 
 
 class ColumnErrors(dict[str, list[ColumnError]]):

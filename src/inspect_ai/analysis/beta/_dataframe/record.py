@@ -80,7 +80,7 @@ def import_record(
         try:
             result[name] = _resolve_value(value, column.type)
         except ValueError as ex:
-            error = ColumnError(name, path=column.path, message=str(ex))
+            error = ColumnError(name, path=column.path, error=ex)
             if strict:
                 raise ValueError(str(error))
             else:
@@ -90,10 +90,10 @@ def import_record(
     def field_not_found(
         name: str, path: JSONPath | None, required_type: str | None = None
     ) -> None:
-        message = (
+        ex = ValueError(
             f"field not of type {required_type}" if required_type else "field not found"
         )
-        error = ColumnError(name, path=path, message=f"{message}")
+        error = ColumnError(name, path=path, error=ex)
         if strict:
             raise ValueError(str(error))
         else:
@@ -157,7 +157,7 @@ def import_record(
             error = ColumnError(
                 column.name,
                 path=str(column.path) if column.path else None,
-                message=str(ex),
+                error=ex,
             )
             if strict:
                 raise ValueError(str(error))
