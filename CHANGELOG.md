@@ -7,6 +7,7 @@
 - AzureAI: Correctly handle tool calls with no arguments.
 - Eval retry: Improve error message when attempting to retry tasks in packages that have not been registered.
 - Warn when a passed `--sample-id` is not found in the target dataset (raise error if there are no matches at all).
+- Dataframes: [parallel](https://inspect.aisi.org.uk/dataframe.html#parallel-reading) option to read samples in parallel using multiprocessing.
 - Dataframes: Include underlying `EvalLog` and `Exception` in `ColumnError`.
 - Dataframes: Use native pyarrow column storage with pd.NA for missing values.
 - Inspect View: Improve the performance and memory efficiency of the viewer when viewing large samples with long, complex transcripts.
