@@ -183,6 +183,8 @@ def _read_samples_df(
 
         # recombine df
         df = pd.concat(df_results, ignore_index=True)
+        subset = f"{detail.name}_id" if detail else SAMPLE_ID
+        df.drop_duplicates(subset=subset, ignore_index=True, inplace=True)
 
         # recombine errors
         errors: list[ColumnError] = list(
@@ -262,22 +264,21 @@ def _read_samples_df_serial(
         p.reset(description=f"reading {entity}s", completed=0, total=total_samples)
 
         # read samples
-        for eval_id, log_path, eval_log in zip(
-            evals_table[EVAL_ID].to_list(), logs, eval_logs
-        ):
+        for eval_id, eval_log in zip(evals_table[EVAL_ID].to_list(), eval_logs):
             # get a generator for the samples (might require reading the full log
             # or might be fine to just read the summaries)
             if require_full_samples:
                 samples: Generator[EvalSample | EvalSampleSummary, None, None] = (
                     read_eval_log_samples(
-                        log_path,
+                        eval_log.location,
                         all_samples_required=False,
                         resolve_attachments=True,
                     )
                 )
             else:
                 samples = (
-                    summary for summary in read_eval_log_sample_summaries(log_path)
+                    summary
+                    for summary in read_eval_log_sample_summaries(eval_log.location)
                 )
             for sample in samples:
                 if strict:
@@ -345,10 +346,16 @@ def _read_samples_df_serial(
 
     # normalize records and produce samples table
     samples_table = records_to_pandas(sample_records)
+    samples_table.drop_duplicates(
+        "sample_id", keep="first", inplace=True, ignore_index=True
+    )
 
     # if we have detail records then join them into the samples table
     if detail is not None:
         details_table = records_to_pandas(detail_records)
+        details_table.drop_duplicates(
+            f"{detail.name}_id", keep="first", inplace=True, ignore_index=True
+        )
         samples_table = details_table.merge(
             samples_table,
             on=SAMPLE_ID,

@@ -140,21 +140,17 @@ def _read_evals_df(
     records: list[dict[str, ColumnType]] = []
     for log_path in log_paths:
         log = read_eval_log(log_path, header_only=True)
-        eval_logs.append(log)
         if strict:
             record = import_record(log, log, columns, strict=True)
         else:
             record, errors = import_record(log, log, columns, strict=False)
             all_errors.extend(errors)
 
-        # check for duplicate ids
+        # don't add duplicate ids
         eval_id = str(record.get(EVAL_ID, ""))
-        if eval_id in eval_ids:
-            logger.warning(
-                f"Log is duplicate of already imported log (ignoring): {pretty_path(log_path)}"
-            )
-        else:
+        if eval_id not in eval_ids:
             eval_ids.add(eval_id)
+            eval_logs.append(log)
             records.append(record)
             total_samples += (
                 len(log.eval.dataset.sample_ids)
