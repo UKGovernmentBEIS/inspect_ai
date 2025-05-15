@@ -1,6 +1,6 @@
 import { FC, memo, RefObject } from "react";
 import { Events } from "../../../@types/log";
-import { useStickyRef } from "../../../components/StickyRef";
+import { StickyScroll } from "../../../components/StickyScroll";
 import { TranscriptOutline } from "./TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
@@ -25,21 +25,19 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     running === true,
   );
 
-  const stickElement = useStickyRef({ scrollRef, enableSmoothing: false });
-
   return (
     <div className={styles.container}>
-      <div
+      <StickyScroll
+        scrollRef={scrollRef}
         className={styles.treeContainer}
-        ref={stickElement.ref}
-        style={stickElement.style}
+        offsetTop={32}
       >
         <TranscriptOutline
           scrollRef={scrollRef}
           eventNodes={eventNodes}
           defaultCollapsedIds={defaultCollapsedIds}
         />
-      </div>
+      </StickyScroll>
       <TranscriptVirtualList
         id={id}
         eventNodes={eventNodes}

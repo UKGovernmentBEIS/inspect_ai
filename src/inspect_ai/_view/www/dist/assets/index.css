@@ -17300,15 +17300,14 @@ thead th {
   text-decoration: underline;
   color: var(--bs-link-hover-color);
 }
-._container_tjop7_1 {
+._container_1m8gs_1 {
   display: grid;
   width: 100%;
   grid-template-columns: 200px 1fr;
   min-height: 100vh;
 }
 
-._treeContainer_tjop7_8 {
-  overflow-y: auto;
+._treeContainer_1m8gs_8 {
   padding: 0.5em;
   border-right: solid 1px var(--bs-light-border-subtle);
   width: 100%;
