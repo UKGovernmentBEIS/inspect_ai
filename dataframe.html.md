@@ -177,6 +177,67 @@ logs = list_eval_logs("logs", recursive=False)
 evals_df(logs)
 ```
 
+### Parallel Reading
+
+> [!NOTE]
+>
+> The parallel reading feature described below is available only in the
+> development version of Inspect. To install the development version
+> from GitHub:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `samples_df()`, `messages_df()`, and `events_df()` functions can be
+slow to run if you are reading full samples from hundreds of logs,
+especially logs with larger samples (e.g. agent trajectories).
+
+One easy mitigation when using `samples_df()` is to stick with the
+default `SampleSummary` columns only, as these require only a very fast
+read of a header (the actual samples don’t need to be loaded).
+
+If you need to read full samples, events, or messages and the read is
+taking longer than you’d like, you can enable parallel reading using the
+`parallel` option:
+
+``` python
+from inspect_ai.analysis.beta import (
+    SampleMessages, SampleSummary samples_df, events_df
+)
+
+# we need to read full sample messages so we parallelize
+samples = samples_df(
+    "logs", 
+    columns=SampleSummary + SampleMessages,
+    parallel=True 
+)
+
+# events require fully loading samples so we parallelize
+events = events_df(
+    "logs",
+    parallel=True
+)
+```
+
+Parallel reading uses the Python `ProcessPoolExecutor` with the number
+of workers based on `mp.cpu_count()`. The workers are capped at 8 by
+default as typically beyond this disk and memory contention dominate
+performance. If you wish you can override this default by passing a
+number of workers explicitly:
+
+``` python
+events = events_df(
+    "logs",
+    parallel=16
+)
+```
+
+Note that the `evals_df()` function does not have a `parallel` option as
+it only does very inexpensive reads of log headers, so the overhead
+required for parallelisation would most often make the function slower
+to run.
+
 ### Databases
 
 You can also read multiple dataframes and combine them into a relational
@@ -496,6 +557,20 @@ SampleColumn("model_reasoning_tokens", path=model_reasoning_tokens)
 > $ inspect log convert ./logs --to eval --output-dir ./logs-amended
 > ```
 
+#### Sample IDs
+
+The `samples_df()` function produces a globally unique ID for each
+sample, contained in the `sample_id` field. This field is also included
+in the data frames created by `messages_df()` and `events_df()` as a
+parent sample reference.
+
+Since `sample_id` is globally unique, it is suitable for use in tables
+and views that span multiple evaluations.
+
+Note that `samples_df()` also includes `id` and `epoch` fields that
+serve distinct purposes: `id` references the corresponding sample in the
+task’s dataset, while `epoch` indicates the iteration of execution.
+
 ### Messages
 
 The `messages_df()` function enables reading message level data from a
@@ -586,24 +661,30 @@ columns from the following pre-built groups:
 | `ToolEventColumns` | Read data from tool events. |
 
 The `events_df()` function also takes a `filter` parameter which can
-either be a list of event types or a function that performs filtering.
-For example, to read all model events:
+provide a function that performs filtering. For example, to read all
+model events:
 
 ``` python
+def model_event_filter(event: Event) -> bool:
+    return event.event == "model"
+
 model_events = events_df(
     logs="logs", 
     columns=EventTiming + ModelEventColumns,
-    filter=["model"]
+    filter=model_event_filter
 )
 ```
 
 To read all tool events:
 
 ``` python
+def tool_event_filter(event: Event) -> bool:
+    return event.event == "tool"
+
 model_events = events_df(
     logs="logs", 
     columns=EvalModel + EventTiming + ToolEventColumns,
-    filter=["tool"]
+    filter=tool_event_filter
 )
 ```
 
