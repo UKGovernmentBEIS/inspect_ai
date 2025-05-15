@@ -52460,7 +52460,7 @@ self.onmessage = function (e) {
       const result2 = [];
       for (const node2 of eventNodes) {
         if (visitors && visitors.length > 0) {
-          let pendingNodes = [node2];
+          let pendingNodes = [{ ...node2 }];
           for (const visitor of visitors) {
             const allResults = [];
             for (const pendingNode of pendingNodes) {
@@ -52471,16 +52471,21 @@ self.onmessage = function (e) {
           }
           for (const pendingNode of pendingNodes) {
             result2.push(pendingNode);
+            const children2 = flatTree(
+              pendingNode.children,
+              collapsed,
+              visitors,
+              pendingNode
+            );
             if (collapsed === null || collapsed[pendingNode.id] !== true) {
-              result2.push(
-                ...flatTree(pendingNode.children, collapsed, visitors, pendingNode)
-              );
+              result2.push(...children2);
             }
           }
         } else {
           result2.push(node2);
+          const children2 = flatTree(node2.children, collapsed, visitors, node2);
           if (collapsed === null || collapsed[node2.id] !== true) {
-            result2.push(...flatTree(node2.children, collapsed, visitors, node2));
+            result2.push(...children2);
           }
         }
       }
