@@ -24409,6 +24409,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       critical: "bi bi-fire"
     };
     const ApplicationIcons = {
+      // bi bi-x-diamond
       approve: "bi bi-shield",
       approvals: {
         approve: "bi bi-shield-check",
@@ -52140,8 +52141,8 @@ self.onmessage = function (e) {
         }
       );
     };
-    const container$6 = "_container_19jbn_1";
-    const treeContainer = "_treeContainer_19jbn_8";
+    const container$6 = "_container_7p60n_1";
+    const treeContainer = "_treeContainer_7p60n_8";
     const styles$x = {
       container: container$6,
       treeContainer
@@ -52493,6 +52494,13 @@ self.onmessage = function (e) {
       }
       return result2;
     };
+    const parsePackageName = (name2) => {
+      if (name2.includes("/")) {
+        const [packageName, moduleName] = name2.split("/", 2);
+        return { package: packageName, module: moduleName };
+      }
+      return { package: "", module: name2 };
+    };
     const eventRow = "_eventRow_1ppaj_12";
     const toggle = "_toggle_1ppaj_19";
     const styles$w = {
@@ -52648,14 +52656,23 @@ self.onmessage = function (e) {
           eventNodes,
           collapsedEvents || defaultCollapsedIds,
           [
-            noLogVisitor(),
-            noInfoVisitor(),
-            noSandboxVisitor(),
-            noStateVisitor(),
-            noStoreVisitor(),
+            // Strip specific nodes
+            removeNodeVisitor("logger"),
+            removeNodeVisitor("info"),
+            removeNodeVisitor("state"),
+            removeNodeVisitor("store"),
+            removeNodeVisitor("approval"),
+            removeNodeVisitor("input"),
+            // Strip the sandbox wrapper (and children)
+            removeStepSpanNameVisitor(kSandboxSignalName),
+            // Collapse model calls into turns
             collapseTurnsVisitor(),
+            // Collapse turns into a single node for sequential runs
+            // of turns
             collapseMultipleTurnsVisitor(),
-            noLooseModelCalls(),
+            // Remove any leftover bare model calls that aren't in turns
+            removeNodeVisitor("model"),
+            // Remove child events for scorers
             noScorerChildren()
           ]
         );
@@ -52709,7 +52726,7 @@ self.onmessage = function (e) {
               {
                 "data-depth": node2.depth,
                 style: { paddingLeft: `${node2.depth * 0.4}em` },
-                children: labelForNode(node2)
+                children: parsePackageName(labelForNode(node2)).module
               }
             )
           ]
@@ -52766,60 +52783,20 @@ self.onmessage = function (e) {
         }
       }
     };
-    const noLogVisitor = () => {
+    const removeNodeVisitor = (event) => {
       return {
         visit: (node2, parent) => {
-          if (node2.event.event === "logger") {
+          if (node2.event.event === event) {
             return removeNode(node2, parent);
           }
           return [node2];
         }
       };
     };
-    const noInfoVisitor = () => {
+    const removeStepSpanNameVisitor = (name2) => {
       return {
         visit: (node2, parent) => {
-          if (node2.event.event === "info") {
-            return removeNode(node2, parent);
-          }
-          return [node2];
-        }
-      };
-    };
-    const noSandboxVisitor = () => {
-      return {
-        visit: (node2, parent) => {
-          if ((node2.event.event === "step" || node2.event.event === "span_begin") && node2.event.name === kSandboxSignalName) {
-            return removeNode(node2, parent);
-          }
-          return [node2];
-        }
-      };
-    };
-    const noStateVisitor = () => {
-      return {
-        visit: (node2, parent) => {
-          if (node2.event.event === "state") {
-            return removeNode(node2, parent);
-          }
-          return [node2];
-        }
-      };
-    };
-    const noStoreVisitor = () => {
-      return {
-        visit: (node2, parent) => {
-          if (node2.event.event === "store") {
-            return removeNode(node2, parent);
-          }
-          return [node2];
-        }
-      };
-    };
-    const noLooseModelCalls = () => {
-      return {
-        visit: (node2, parent) => {
-          if (node2.event.event === "model") {
+          if ((node2.event.event === "step" || node2.event.event === "span_begin") && node2.event.name === name2) {
             return removeNode(node2, parent);
           }
           return [node2];

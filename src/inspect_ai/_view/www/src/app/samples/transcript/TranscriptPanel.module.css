@@ -1,7 +1,7 @@
 .container {
-  display: flex;
+  display: grid;
   width: 100%;
-  flex-direction: row;
+  grid-template-columns: 220px 1fr;
   min-height: 100vh;
 }
 
@@ -11,7 +11,7 @@
   padding: 0.5em;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
-  width: 200px;
+  width: 100%;
   position: sticky;
   top: 0.65rem;
   height: calc(100vh - var(--top-offset));

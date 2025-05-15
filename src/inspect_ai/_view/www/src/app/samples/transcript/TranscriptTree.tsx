@@ -9,6 +9,7 @@ import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
 import { flatTree } from "./transform/treeify";
 
+import { parsePackageName } from "../../../utils/python";
 import styles from "./TranscriptTree.module.css";
 import { kSandboxSignalName } from "./transform/fixups";
 import { TYPE_SCORER, TYPE_SCORERS } from "./transform/utils";
@@ -44,14 +45,28 @@ export const TranscriptTree: FC<TranscriptTreeProps> = ({
       eventNodes,
       collapsedEvents || defaultCollapsedIds,
       [
-        noLogVisitor(),
-        noInfoVisitor(),
-        noSandboxVisitor(),
-        noStateVisitor(),
-        noStoreVisitor(),
+        // Strip specific nodes
+        removeNodeVisitor("logger"),
+        removeNodeVisitor("info"),
+        removeNodeVisitor("state"),
+        removeNodeVisitor("store"),
+        removeNodeVisitor("approval"),
+        removeNodeVisitor("input"),
+
+        // Strip the sandbox wrapper (and children)
+        removeStepSpanNameVisitor(kSandboxSignalName),
+
+        // Collapse model calls into turns
         collapseTurnsVisitor(),
+
+        // Collapse turns into a single node for sequential runs
+        // of turns
         collapseMultipleTurnsVisitor(),
-        noLooseModelCalls(),
+
+        // Remove any leftover bare model calls that aren't in turns
+        removeNodeVisitor("model"),
+
+        // Remove child events for scorers
         noScorerChildren(),
       ],
     );
@@ -115,7 +130,7 @@ const EventRow: FC<EventRowProps> = ({ node }) => {
         data-depth={node.depth}
         style={{ paddingLeft: `${node.depth * 0.4}em` }}
       >
-        {labelForNode(node)}
+        {parsePackageName(labelForNode(node)).module}
       </div>
     </div>
   );
@@ -183,10 +198,10 @@ const labelForNode = (node: EventNode): string => {
 
 // Visitors are used to transform the event tree
 
-const noLogVisitor = () => {
+const removeNodeVisitor = (event: string) => {
   return {
     visit: (node: EventNode, parent?: EventNode): EventNode[] => {
-      if (node.event.event === "logger") {
+      if (node.event.event === event) {
         return removeNode(node, parent);
       }
       return [node];
@@ -194,57 +209,13 @@ const noLogVisitor = () => {
   };
 };
 
-const noInfoVisitor = () => {
-  return {
-    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
-      if (node.event.event === "info") {
-        return removeNode(node, parent);
-      }
-      return [node];
-    },
-  };
-};
-
-const noSandboxVisitor = () => {
+const removeStepSpanNameVisitor = (name: string) => {
   return {
     visit: (node: EventNode, parent?: EventNode): EventNode[] => {
       if (
         (node.event.event === "step" || node.event.event === "span_begin") &&
-        node.event.name === kSandboxSignalName
+        node.event.name === name
       ) {
-        return removeNode(node, parent);
-      }
-      return [node];
-    },
-  };
-};
-
-const noStateVisitor = () => {
-  return {
-    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
-      if (node.event.event === "state") {
-        return removeNode(node, parent);
-      }
-      return [node];
-    },
-  };
-};
-
-const noStoreVisitor = () => {
-  return {
-    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
-      if (node.event.event === "store") {
-        return removeNode(node, parent);
-      }
-      return [node];
-    },
-  };
-};
-
-const noLooseModelCalls = () => {
-  return {
-    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
-      if (node.event.event === "model") {
         return removeNode(node, parent);
       }
       return [node];
