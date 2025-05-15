@@ -20122,14 +20122,24 @@ span.ap-marker-container:hover span.ap-marker {
 ._progress_1qsnv_12 {
   margin-left: 0.5em;
 }
-._node_1dxwr_1 {
-  padding-top: 0.7rem;
-  padding-bottom: 1px;
+._node_1c0c3_1 {
+  padding-top: 1rem;
 }
 
-._attached_1dxwr_6 {
+._attached_1c0c3_5 {
   padding-top: 0rem;
-  margin-top: -8px;
+}
+
+._attachedParent_1c0c3_9 {
+  padding-bottom: 0px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
+}
+
+._attachedChild_1c0c3_16 {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 ._container_hinf1_1 {
   width: 100%;

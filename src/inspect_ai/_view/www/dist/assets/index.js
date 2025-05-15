@@ -61873,11 +61873,15 @@ ${events}
         }
       }
     };
-    const node = "_node_1dxwr_1";
-    const attached = "_attached_1dxwr_6";
+    const node = "_node_1c0c3_1";
+    const attached = "_attached_1c0c3_5";
+    const attachedParent = "_attachedParent_1c0c3_9";
+    const attachedChild = "_attachedChild_1c0c3_16";
     const styles$e = {
       node,
-      attached
+      attached,
+      attachedParent,
+      attachedChild
     };
     const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2, initialEventId, className: className2 }) => {
       const initialEventIndex = reactExports.useMemo(() => {
@@ -61893,9 +61897,14 @@ ${events}
         (index2, item2) => {
           const paddingClass = index2 === 0 ? styles$e.first : void 0;
           const previousIndex = index2 - 1;
+          const nextIndex = index2 + 1;
           const previous = previousIndex > 0 && previousIndex <= eventNodes.length ? eventNodes[previousIndex] : void 0;
+          const next = nextIndex < eventNodes.length ? eventNodes[nextIndex] : void 0;
           const attached2 = item2.event.event === "tool" && ((previous == null ? void 0 : previous.event.event) === "tool" || (previous == null ? void 0 : previous.event.event) === "model");
+          const attachedParent2 = item2.event.event === "model" && (next == null ? void 0 : next.event.event) === "tool";
           const attachedClass = attached2 ? styles$e.attached : void 0;
+          const attachedChildClass = attached2 ? styles$e.attachedChild : void 0;
+          const attachedParentClass = attachedParent2 ? styles$e.attachedParent : void 0;
           return /* @__PURE__ */ jsxRuntimeExports.jsx(
             "div",
             {
@@ -61905,7 +61914,13 @@ ${events}
                 paddingLeft: `${item2.depth <= 1 ? item2.depth * 0.7 : (0.7 + item2.depth - 1) * 1}em`,
                 paddingRight: `${item2.depth === 0 ? void 0 : ".7em"} `
               },
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedEventNode, { node: item2 })
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                RenderedEventNode,
+                {
+                  node: item2,
+                  className: clsx(attachedParentClass, attachedChildClass)
+                }
+              )
             },
             item2.id
           );

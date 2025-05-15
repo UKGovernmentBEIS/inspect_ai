@@ -1,9 +1,19 @@
 .node {
-  padding-top: 0.7rem;
-  padding-bottom: 1px;
+  padding-top: 1rem;
 }
 
 .attached {
   padding-top: 0rem;
-  margin-top: -8px;
+}
+
+.attachedParent {
+  padding-bottom: 0px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
+}
+
+.attachedChild {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }

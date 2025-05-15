@@ -36,14 +36,24 @@ export const TranscriptVirtualListComponent: FC<
       const paddingClass = index === 0 ? styles.first : undefined;
 
       const previousIndex = index - 1;
+      const nextIndex = index + 1;
       const previous =
         previousIndex > 0 && previousIndex <= eventNodes.length
           ? eventNodes[previousIndex]
           : undefined;
+      const next =
+        nextIndex < eventNodes.length ? eventNodes[nextIndex] : undefined;
       const attached =
         item.event.event === "tool" &&
         (previous?.event.event === "tool" || previous?.event.event === "model");
+
+      const attachedParent =
+        item.event.event === "model" && next?.event.event === "tool";
       const attachedClass = attached ? styles.attached : undefined;
+      const attachedChildClass = attached ? styles.attachedChild : undefined;
+      const attachedParentClass = attachedParent
+        ? styles.attachedParent
+        : undefined;
 
       return (
         <div
@@ -55,7 +65,10 @@ export const TranscriptVirtualListComponent: FC<
             paddingRight: `${item.depth === 0 ? undefined : ".7em"} `,
           }}
         >
-          <RenderedEventNode node={item} />
+          <RenderedEventNode
+            node={item}
+            className={clsx(attachedParentClass, attachedChildClass)}
+          />
         </div>
       );
     },
