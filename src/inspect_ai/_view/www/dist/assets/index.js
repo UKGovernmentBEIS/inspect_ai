@@ -52689,7 +52689,7 @@ self.onmessage = function (e) {
         }
       }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
       const renderRow = reactExports.useCallback((_index, node2) => {
-        return /* @__PURE__ */ jsxRuntimeExports.jsx(EventRow$1, { node: node2 }, node2.id);
+        return /* @__PURE__ */ jsxRuntimeExports.jsx(TreeNode$1, { node: node2 }, node2.id);
       }, []);
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         Kr,
@@ -52714,29 +52714,31 @@ self.onmessage = function (e) {
         }
       );
     };
-    const EventRow$1 = ({ node: node2 }) => {
+    const TreeNode$1 = ({ node: node2 }) => {
       const [collapsed, setCollapsed] = useCollapseSampleEvent(node2.id);
       const icon2 = iconForNode(node2, collapsed);
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          className: clsx(styles$w.eventRow, "text-size-smaller"),
-          onClick: () => {
-            setCollapsed(!collapsed);
-          },
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$w.toggle), children: icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2) }) : void 0 }),
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                "data-depth": node2.depth,
-                style: { paddingLeft: `${node2.depth * 0.4}em` },
-                children: parsePackageName(labelForNode(node2)).module
-              }
-            )
-          ]
-        }
-      );
+      const { logPath, sampleId, epoch } = useParams();
+      const url = logPath ? sampleEventUrl(node2.id, logPath, sampleId, epoch) : void 0;
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$w.eventRow, "text-size-smaller"), children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            className: clsx(styles$w.toggle),
+            onClick: () => {
+              setCollapsed(!collapsed);
+            },
+            children: icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2) }) : void 0
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
+          {
+            "data-depth": node2.depth,
+            style: { paddingLeft: `${node2.depth * 0.4}em` },
+            children: url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, children: parsePackageName(labelForNode(node2)).module }) : parsePackageName(labelForNode(node2)).module
+          }
+        )
+      ] });
     };
     const iconForNode = (node2, collapsed) => {
       return node2.children.length > 0 ? collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down : void 0;
