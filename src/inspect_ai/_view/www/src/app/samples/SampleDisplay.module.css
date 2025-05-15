@@ -2,6 +2,13 @@
   padding-bottom: 1em;
 }
 
+.tabControls {
+  position: sticky;
+  z-index: 1001;
+  top: 0;
+  background-color: var(--bs-body-bg);
+}
+
 .fullWidth {
   width: 100%;
 }

@@ -182,6 +182,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
       ) : undefined}
       <TabSet
         id={tabsetId}
+        className={clsx(styles.tabControls)}
         tabControlsClassName={clsx("text-size-base")}
         tabPanelsClassName={clsx(styles.tabPanel)}
         tools={tools}
