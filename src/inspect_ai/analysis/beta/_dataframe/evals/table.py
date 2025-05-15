@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
+from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis.beta._dataframe.progress import import_progress
 from inspect_ai.log._file import (
     list_eval_logs,
@@ -20,6 +22,8 @@ from ..util import (
     verify_prerequisites,
 )
 from .columns import EvalColumns, EvalId
+
+logger = getLogger(__name__)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -120,6 +124,7 @@ def _read_evals_df(
 
     # read logs
     total_samples = 0
+    eval_ids: set[str] = set()
     eval_logs: list[EvalLog] = []
     records: list[dict[str, ColumnType]] = []
     for log_path in log_paths:
@@ -130,12 +135,21 @@ def _read_evals_df(
         else:
             record, errors = import_record(log, log, columns, strict=False)
             all_errors.extend(errors)
-        records.append(record)
-        total_samples += (
-            len(log.eval.dataset.sample_ids)
-            if log.eval.dataset.sample_ids is not None
-            else (log.eval.dataset.samples or 100)
-        )
+
+        # check for duplicate ids
+        eval_id = str(record.get(EVAL_ID, ""))
+        if eval_id in eval_ids:
+            logger.warning(
+                f"Log is duplicate of already imported log (ignoring): {pretty_path(log_path)}"
+            )
+        else:
+            eval_ids.add(eval_id)
+            records.append(record)
+            total_samples += (
+                len(log.eval.dataset.sample_ids)
+                if log.eval.dataset.sample_ids is not None
+                else (log.eval.dataset.samples or 100)
+            )
         progress()
 
     # return table (+errors if strict=False)
