@@ -52423,7 +52423,7 @@ self.onmessage = function (e) {
         return node2;
       });
     };
-    const flatTree = (eventNodes, collapsed, visitors) => {
+    const flatTree = (eventNodes, collapsed, visitors, parentNode) => {
       const result2 = [];
       for (const node2 of eventNodes) {
         if (visitors && visitors.length > 0) {
@@ -52431,7 +52431,7 @@ self.onmessage = function (e) {
           for (const visitor of visitors) {
             const allResults = [];
             for (const pendingNode of pendingNodes) {
-              const visitorResult = visitor.visit(pendingNode);
+              const visitorResult = visitor.visit(pendingNode, parentNode);
               allResults.push(...visitorResult);
             }
             pendingNodes = allResults;
@@ -52439,13 +52439,15 @@ self.onmessage = function (e) {
           for (const pendingNode of pendingNodes) {
             result2.push(pendingNode);
             if (collapsed === null || collapsed[pendingNode.id] !== true) {
-              result2.push(...flatTree(pendingNode.children, collapsed, visitors));
+              result2.push(
+                ...flatTree(pendingNode.children, collapsed, visitors, pendingNode)
+              );
             }
           }
         } else {
           result2.push(node2);
           if (collapsed === null || collapsed[node2.id] !== true) {
-            result2.push(...flatTree(node2.children, collapsed, visitors));
+            result2.push(...flatTree(node2.children, collapsed, visitors, node2));
           }
         }
       }
@@ -52734,9 +52736,9 @@ self.onmessage = function (e) {
     };
     const noLogVisitor = () => {
       return {
-        visit: (node2) => {
+        visit: (node2, parent) => {
           if (node2.event.event === "logger") {
-            return [];
+            return removeNode(node2, parent);
           }
           return [node2];
         }
@@ -52744,9 +52746,9 @@ self.onmessage = function (e) {
     };
     const noInfoVisitor = () => {
       return {
-        visit: (node2) => {
+        visit: (node2, parent) => {
           if (node2.event.event === "info") {
-            return [];
+            return removeNode(node2, parent);
           }
           return [node2];
         }
@@ -52754,9 +52756,9 @@ self.onmessage = function (e) {
     };
     const noSandboxVisitor = () => {
       return {
-        visit: (node2) => {
+        visit: (node2, parent) => {
           if ((node2.event.event === "step" || node2.event.event === "span_begin") && node2.event.name === kSandboxSignalName) {
-            return [];
+            return removeNode(node2, parent);
           }
           return [node2];
         }
@@ -52764,9 +52766,9 @@ self.onmessage = function (e) {
     };
     const noStateVisitor = () => {
       return {
-        visit: (node2) => {
+        visit: (node2, parent) => {
           if (node2.event.event === "state") {
-            return [];
+            return removeNode(node2, parent);
           }
           return [node2];
         }
@@ -52774,9 +52776,9 @@ self.onmessage = function (e) {
     };
     const noStoreVisitor = () => {
       return {
-        visit: (node2) => {
+        visit: (node2, parent) => {
           if (node2.event.event === "store") {
-            return [];
+            return removeNode(node2, parent);
           }
           return [node2];
         }
@@ -52784,9 +52786,9 @@ self.onmessage = function (e) {
     };
     const noLooseModelCalls = () => {
       return {
-        visit: (node2) => {
+        visit: (node2, parent) => {
           if (node2.event.event === "model") {
-            return [];
+            return removeNode(node2, parent);
           }
           return [node2];
         }
@@ -52797,7 +52799,7 @@ self.onmessage = function (e) {
       let inScorer = false;
       let currentDepth = -1;
       return {
-        visit: (node2) => {
+        visit: (node2, parent) => {
           if (node2.event.event === "span_begin" && node2.event.type === TYPE_SCORERS) {
             inScorers = true;
             return [node2];
@@ -52808,7 +52810,7 @@ self.onmessage = function (e) {
             return [node2];
           }
           if (inScorers && inScorer && node2.depth === currentDepth + 1) {
-            return [];
+            return removeNode(node2, parent);
           }
           return [node2];
         }
@@ -52908,6 +52910,12 @@ self.onmessage = function (e) {
           return [];
         }
       };
+    };
+    const removeNode = (node2, parent) => {
+      if (parent) {
+        parent.children = parent.children.filter((child) => child.id !== node2.id);
+      }
+      return [];
     };
     const title$2 = "_title_19l1b_1";
     const contents = "_contents_19l1b_8";
