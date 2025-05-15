@@ -1,8 +1,8 @@
 import { FC, memo, RefObject } from "react";
 import { Events } from "../../../@types/log";
 import { useStickyRef } from "../../../components/StickyRef";
+import { TranscriptOutline } from "./TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
-import { TranscriptTree } from "./TranscriptTree";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
 import { useEventNodes } from "./transform/hooks";
 
@@ -34,7 +34,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
         ref={stickElement.ref}
         style={stickElement.style}
       >
-        <TranscriptTree
+        <TranscriptOutline
           scrollRef={scrollRef}
           eventNodes={eventNodes}
           defaultCollapsedIds={defaultCollapsedIds}
