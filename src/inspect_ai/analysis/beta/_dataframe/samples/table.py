@@ -53,6 +53,7 @@ def samples_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = SampleSummary,
     strict: Literal[True] = True,
+    quiet: bool = False,
 ) -> "pd.DataFrame": ...
 
 
@@ -61,6 +62,7 @@ def samples_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = SampleSummary,
     strict: Literal[False] = False,
+    quiet: bool = False,
 ) -> tuple["pd.DataFrame", list[ColumnError]]: ...
 
 
@@ -68,6 +70,7 @@ def samples_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = SampleSummary,
     strict: bool = True,
+    quiet: bool = False,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
     """Read a dataframe containing samples from a set of evals.
 
@@ -78,13 +81,14 @@ def samples_df(
        columns: Specification for what columns to read from log files.
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
+       quiet: If `True` do not print any output or progress (defaults to `False`).
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
        For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
        encountered (by log file) during import.
     """
-    return _read_samples_df(logs, columns, strict=strict, progress=False)
+    return _read_samples_df(logs, columns, strict=strict, progress=not quiet)
 
 
 @dataclass
