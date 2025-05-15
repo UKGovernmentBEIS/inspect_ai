@@ -17260,30 +17260,19 @@ thead th {
 ._scores_las07_54 {
   padding-top: 1em;
 }
-._container_7p60n_1 {
+._container_tjop7_1 {
   display: grid;
   width: 100%;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 200px 1fr;
   min-height: 100vh;
 }
 
-._treeContainer_7p60n_8 {
+._treeContainer_tjop7_8 {
   overflow-y: auto;
-  margin: 0.65rem 0 0 0;
   padding: 0.5em;
-  border: solid 1px var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
+  border-right: solid 1px var(--bs-light-border-subtle);
   width: 100%;
-  position: sticky;
-  top: 0.65rem;
-  height: calc(100vh - var(--top-offset));
-  align-self: flex-start;
-  z-index: 10;
-}
-
-._events_7p60n_22 {
-  left: 200px;
-  right: 0;
+  height: 100%;
 }
 ._node_1ppaj_1 {
   display: grid;

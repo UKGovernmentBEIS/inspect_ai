@@ -45,6 +45,7 @@ interface TranscriptVirtualListProps {
   initialEventId: string | null;
   scrollRef: RefObject<HTMLDivElement | null>;
   running?: boolean;
+  className?: string | string[];
 }
 
 /**
@@ -59,6 +60,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       defaultCollapsedIds,
       running,
       initialEventId,
+      className,
     } = props;
 
     // The list of events that have been collapsed
@@ -88,6 +90,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
         initialEventId={initialEventId}
         scrollRef={scrollRef}
         running={running}
+        className={className}
       />
     );
   },
