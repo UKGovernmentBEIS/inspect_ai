@@ -20,3 +20,14 @@
   font-size: 0.7em;
   margin-top: 4px;
 }
+
+.eventLink {
+  color: var(--bs-body);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.eventLink:hover {
+  text-decoration: underline;
+  color: var(--bs-link-hover-color);
+}

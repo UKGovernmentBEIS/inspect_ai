@@ -52225,12 +52225,6 @@ self.onmessage = function (e) {
         }
       };
     };
-    const container$6 = "_container_tjop7_1";
-    const treeContainer = "_treeContainer_tjop7_8";
-    const styles$x = {
-      container: container$6,
-      treeContainer
-    };
     class EventNode {
       constructor(id, event, depth) {
         __publicField(this, "id");
@@ -52590,11 +52584,13 @@ self.onmessage = function (e) {
       }
       return { package: "", module: name2 };
     };
-    const eventRow = "_eventRow_1ppaj_12";
-    const toggle = "_toggle_1ppaj_19";
-    const styles$w = {
+    const eventRow = "_eventRow_qgi7d_12";
+    const toggle = "_toggle_qgi7d_19";
+    const eventLink = "_eventLink_qgi7d_24";
+    const styles$x = {
       eventRow,
-      toggle
+      toggle,
+      eventLink
     };
     const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
     const fixupEventStream = (events, filterPending = true) => {
@@ -52727,7 +52723,7 @@ self.onmessage = function (e) {
         span_id: name2
       };
     };
-    const TranscriptTree = ({
+    const TranscriptOutline = ({
       eventNodes,
       defaultCollapsedIds,
       className: className2,
@@ -52803,11 +52799,11 @@ self.onmessage = function (e) {
       const icon2 = iconForNode(node2, collapsed);
       const { logPath, sampleId, epoch } = useParams();
       const url = logPath ? sampleEventUrl(node2.id, logPath, sampleId, epoch) : void 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$w.eventRow, "text-size-smaller"), children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$x.eventRow, "text-size-smaller"), children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: clsx(styles$w.toggle),
+            className: clsx(styles$x.toggle),
             onClick: () => {
               setCollapsed(!collapsed);
             },
@@ -52819,7 +52815,7 @@ self.onmessage = function (e) {
           {
             "data-depth": node2.depth,
             style: { paddingLeft: `${node2.depth * 0.4}em` },
-            children: url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, children: parsePackageName(labelForNode(node2)).module }) : parsePackageName(labelForNode(node2)).module
+            children: url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, className: clsx(styles$x.eventLink), children: parsePackageName(labelForNode(node2)).module }) : parsePackageName(labelForNode(node2)).module
           }
         )
       ] });
@@ -53016,6 +53012,12 @@ self.onmessage = function (e) {
         parent.children = parent.children.filter((child) => child.id !== node2.id);
       }
       return [];
+    };
+    const container$6 = "_container_tjop7_1";
+    const treeContainer = "_treeContainer_tjop7_8";
+    const styles$w = {
+      container: container$6,
+      treeContainer
     };
     const title$2 = "_title_19l1b_1";
     const contents = "_contents_19l1b_8";
@@ -62156,15 +62158,15 @@ ${events}
         running2 === true
       );
       const stickElement = useStickyRef({ scrollRef });
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$x.container, children: [
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$w.container, children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
-            className: styles$x.treeContainer,
+            className: styles$w.treeContainer,
             ref: stickElement.ref,
             style: stickElement.style,
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-              TranscriptTree,
+              TranscriptOutline,
               {
                 scrollRef,
                 eventNodes,
@@ -62182,7 +62184,7 @@ ${events}
             scrollRef,
             running: running2,
             initialEventId: initialEventId === void 0 ? null : initialEventId,
-            className: styles$x.listContainer
+            className: styles$w.listContainer
           }
         )
       ] });

@@ -12,18 +12,18 @@ import { flatTree } from "./transform/treeify";
 import { Link, useParams } from "react-router-dom";
 import { parsePackageName } from "../../../utils/python";
 import { sampleEventUrl } from "../../routing/url";
-import styles from "./TranscriptTree.module.css";
+import styles from "./TranscriptOutline.module.css";
 import { kSandboxSignalName } from "./transform/fixups";
 import { TYPE_SCORER, TYPE_SCORERS } from "./transform/utils";
 
-interface TranscriptTreeProps {
+interface TranscriptOutlineProps {
   eventNodes: EventNode[];
   defaultCollapsedIds: Record<string, boolean>;
   className?: string | string[];
   scrollRef?: RefObject<HTMLDivElement | null>;
 }
 
-export const TranscriptTree: FC<TranscriptTreeProps> = ({
+export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   eventNodes,
   defaultCollapsedIds,
   className,
@@ -146,7 +146,9 @@ const TreeNode: FC<TreeNodeProps> = ({ node }) => {
         style={{ paddingLeft: `${node.depth * 0.4}em` }}
       >
         {url ? (
-          <Link to={url}>{parsePackageName(labelForNode(node)).module}</Link>
+          <Link to={url} className={clsx(styles.eventLink)}>
+            {parsePackageName(labelForNode(node)).module}
+          </Link>
         ) : (
           parsePackageName(labelForNode(node)).module
         )}
