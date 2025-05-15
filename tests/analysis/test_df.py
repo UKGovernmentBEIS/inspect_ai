@@ -76,7 +76,7 @@ def test_messages_df_columns():
 
 
 def test_messages_df_filter():
-    df = messages_df(LOGS_DIR, filter=["assistant"])
+    df = messages_df(LOGS_DIR, filter=lambda m: m.role == "assistant")
     assert len(df) == 14
 
 
@@ -96,5 +96,5 @@ def test_events_df_columns():
 
 
 def test_events_df_filter():
-    df = events_df(LOGS_DIR, filter=["tool"])
+    df = events_df(LOGS_DIR, filter=lambda e: e.event == "tool")
     assert len(df) == 4

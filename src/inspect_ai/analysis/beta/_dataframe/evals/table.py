@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
-from inspect_ai.analysis.beta._dataframe.progress import import_progress
+from inspect_ai.analysis.beta._dataframe.progress import import_progress, no_progress
 from inspect_ai.log._file import (
     list_eval_logs,
     read_eval_log,
@@ -21,6 +22,8 @@ from ..util import (
 )
 from .columns import EvalColumns, EvalId
 
+logger = getLogger(__name__)
+
 if TYPE_CHECKING:
     import pandas as pd
 
@@ -33,6 +36,7 @@ def evals_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = EvalColumns,
     strict: Literal[True] = True,
+    quiet: bool = False,
 ) -> "pd.DataFrame": ...
 
 
@@ -41,6 +45,7 @@ def evals_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = EvalColumns,
     strict: Literal[False] = False,
+    quiet: bool = False,
 ) -> tuple["pd.DataFrame", Sequence[ColumnError]]: ...
 
 
@@ -48,6 +53,7 @@ def evals_df(
     logs: LogPaths = list_eval_logs(),
     columns: Sequence[Column] = EvalColumns,
     strict: bool = True,
+    quiet: bool = False,
 ) -> "pd.DataFrame" | tuple["pd.DataFrame", Sequence[ColumnError]]:
     """Read a dataframe containing evals.
 
@@ -58,6 +64,7 @@ def evals_df(
        columns: Specification for what columns to read from log files.
        strict: Raise import errors immediately. Defaults to `True`.
           If `False` then a tuple of `DataFrame` and errors is returned.
+       quiet: If `True`, do not show any output or progress. Defaults to `False`.
 
     Returns:
        For `strict`, a Pandas `DataFrame` with information for the specified logs.
@@ -69,7 +76,14 @@ def evals_df(
     # resolve logs
     log_paths = resolve_logs(logs)
 
-    with import_progress("reading logs", total=len(log_paths)) as p:
+    # establish progress
+    progress_cm = (
+        import_progress("reading logs", total=len(log_paths))
+        if not quiet
+        else no_progress()
+    )
+
+    with progress_cm as p:
         if strict:
             evals_table, _, _ = _read_evals_df(log_paths, columns, True, p.update)
             return evals_table
@@ -120,22 +134,28 @@ def _read_evals_df(
 
     # read logs
     total_samples = 0
+    eval_ids: set[str] = set()
     eval_logs: list[EvalLog] = []
     records: list[dict[str, ColumnType]] = []
     for log_path in log_paths:
         log = read_eval_log(log_path, header_only=True)
-        eval_logs.append(log)
         if strict:
             record = import_record(log, log, columns, strict=True)
         else:
             record, errors = import_record(log, log, columns, strict=False)
             all_errors.extend(errors)
-        records.append(record)
-        total_samples += (
-            len(log.eval.dataset.sample_ids)
-            if log.eval.dataset.sample_ids is not None
-            else (log.eval.dataset.samples or 100)
-        )
+
+        # don't add duplicate ids
+        eval_id = str(record.get(EVAL_ID, ""))
+        if eval_id not in eval_ids:
+            eval_ids.add(eval_id)
+            eval_logs.append(log)
+            records.append(record)
+            total_samples += (
+                len(log.eval.dataset.sample_ids)
+                if log.eval.dataset.sample_ids is not None
+                else (log.eval.dataset.samples or 100)
+            )
         progress()
 
     # return table (+errors if strict=False)

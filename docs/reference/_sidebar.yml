@@ -518,8 +518,6 @@ website:
           href: reference/inspect_ai.analysis.qmd#columntype
         - text: ColumnError
           href: reference/inspect_ai.analysis.qmd#columnerror
-        - text: ColumnErrors
-          href: reference/inspect_ai.analysis.qmd#columnerrors
       - section: inspect_ai.util
         href: reference/inspect_ai.util.qmd
         contents:

@@ -146,22 +146,17 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
     table = pa.Table.from_pylist(records)
 
     # convert arrow to pandas
-    df = table.to_pandas()
+    df = table.to_pandas(types_mapper=arrow_types_mapper)
 
     # swap numpy-backed nullable columns for arrow-backed equivalents
-    df = df.convert_dtypes(dtype_backend="pyarrow")
+    # df = df.convert_dtypes(dtype_backend="pyarrow")
     return df
 
 
-def arrow_types_mapper(
-    arrow_type: "pa.DataType",
-) -> "pd.api.extensions.ExtensionDtype" | None:
+def arrow_types_mapper(arrow_type: pa.DataType) -> pd.ArrowDtype:
     import pandas as pd
     import pyarrow as pa
 
-    # convert str => str
-    if pa.types.is_string(arrow_type):
-        return pd.StringDtype()
-    # default conversion for other types
-    else:
-        return None
+    if pa.types.is_null(arrow_type):
+        arrow_type = pa.string()
+    return pd.ArrowDtype(arrow_type)
