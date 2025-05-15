@@ -84,7 +84,7 @@ def samples_df(
        For `strict=False`, a tuple of Pandas `DataFrame` and a dictionary of errors
        encountered (by log file) during import.
     """
-    return _read_samples_df(logs, columns, strict=strict)
+    return _read_samples_df(logs, columns, strict=strict, progress=False)
 
 
 @dataclass

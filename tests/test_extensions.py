@@ -44,6 +44,7 @@ async def test_extension_sandboxenv():
     await eval_async(task, model="mockllm/model")
 
 
+@pytest.mark.slow
 @pytest.mark.anyio
 async def test_extension_sandboxenv_with_specialised_config():
     # ensure the package is installed
