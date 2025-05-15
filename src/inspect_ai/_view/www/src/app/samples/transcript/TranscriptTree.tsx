@@ -181,11 +181,13 @@ const labelForNode = (node: EventNode): string => {
   }
 };
 
+// Visitors are used to transform the event tree
+
 const noLogVisitor = () => {
   return {
-    visit: (node: EventNode): EventNode[] => {
+    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
       if (node.event.event === "logger") {
-        return [];
+        return removeNode(node, parent);
       }
       return [node];
     },
@@ -194,9 +196,9 @@ const noLogVisitor = () => {
 
 const noInfoVisitor = () => {
   return {
-    visit: (node: EventNode): EventNode[] => {
+    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
       if (node.event.event === "info") {
-        return [];
+        return removeNode(node, parent);
       }
       return [node];
     },
@@ -205,12 +207,12 @@ const noInfoVisitor = () => {
 
 const noSandboxVisitor = () => {
   return {
-    visit: (node: EventNode): EventNode[] => {
+    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
       if (
         (node.event.event === "step" || node.event.event === "span_begin") &&
         node.event.name === kSandboxSignalName
       ) {
-        return [];
+        return removeNode(node, parent);
       }
       return [node];
     },
@@ -219,9 +221,9 @@ const noSandboxVisitor = () => {
 
 const noStateVisitor = () => {
   return {
-    visit: (node: EventNode): EventNode[] => {
+    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
       if (node.event.event === "state") {
-        return [];
+        return removeNode(node, parent);
       }
       return [node];
     },
@@ -230,9 +232,9 @@ const noStateVisitor = () => {
 
 const noStoreVisitor = () => {
   return {
-    visit: (node: EventNode): EventNode[] => {
+    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
       if (node.event.event === "store") {
-        return [];
+        return removeNode(node, parent);
       }
       return [node];
     },
@@ -241,9 +243,9 @@ const noStoreVisitor = () => {
 
 const noLooseModelCalls = () => {
   return {
-    visit: (node: EventNode): EventNode[] => {
+    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
       if (node.event.event === "model") {
-        return [];
+        return removeNode(node, parent);
       }
       return [node];
     },
@@ -255,7 +257,7 @@ const noScorerChildren = () => {
   let inScorer = false;
   let currentDepth = -1;
   return {
-    visit: (node: EventNode): EventNode[] => {
+    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
       // Note once we're in the scorers span
       if (
         node.event.event === "span_begin" &&
@@ -275,7 +277,7 @@ const noScorerChildren = () => {
       }
 
       if (inScorers && inScorer && node.depth === currentDepth + 1) {
-        return [];
+        return removeNode(node, parent);
       }
       return [node];
     },
@@ -391,4 +393,11 @@ const collapseTurnsVisitor = () => {
       return [];
     },
   };
+};
+
+const removeNode = (node: EventNode, parent?: EventNode): EventNode[] => {
+  if (parent) {
+    parent.children = parent.children.filter((child) => child.id !== node.id);
+  }
+  return [];
 };

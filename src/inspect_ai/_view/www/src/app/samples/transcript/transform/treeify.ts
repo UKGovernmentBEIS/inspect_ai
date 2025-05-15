@@ -451,21 +451,24 @@ const setDepth = (nodes: EventNode[], depth: number): EventNode[] => {
 };
 
 export interface TreeNodeVisitor {
-  visit: (node: EventNode) => EventNode[];
+  visit: (node: EventNode, parent?: EventNode) => EventNode[];
   flush?: () => EventNode[];
 }
 
 /**
  * Flatten the tree structure into a flat array of EventNode objects
  * Each node in the result will have its children set properly
- * @param events - The events to flatten
- * @param depth - The current depth in the tree
+ * @param eventNodes - The event nodes to flatten
+ * @param collapsed - Record indicating which nodes are collapsed
+ * @param visitors - Array of visitors to apply to each node
+ * @param parentNode - The parent node of the current nodes being processed
  * @returns An array of EventNode objects
  */
 export const flatTree = (
   eventNodes: EventNode[],
   collapsed: Record<string, boolean> | null,
   visitors?: TreeNodeVisitor[],
+  parentNode?: EventNode,
 ): EventNode[] => {
   const result: EventNode[] = [];
   for (const node of eventNodes) {
@@ -474,7 +477,7 @@ export const flatTree = (
       for (const visitor of visitors) {
         const allResults: EventNode[] = [];
         for (const pendingNode of pendingNodes) {
-          const visitorResult = visitor.visit(pendingNode);
+          const visitorResult = visitor.visit(pendingNode, parentNode);
           allResults.push(...visitorResult);
         }
         pendingNodes = allResults;
@@ -483,13 +486,15 @@ export const flatTree = (
       for (const pendingNode of pendingNodes) {
         result.push(pendingNode);
         if (collapsed === null || collapsed[pendingNode.id] !== true) {
-          result.push(...flatTree(pendingNode.children, collapsed, visitors));
+          result.push(
+            ...flatTree(pendingNode.children, collapsed, visitors, pendingNode),
+          );
         }
       }
     } else {
       result.push(node);
       if (collapsed === null || collapsed[node.id] !== true) {
-        result.push(...flatTree(node.children, collapsed, visitors));
+        result.push(...flatTree(node.children, collapsed, visitors, node));
       }
     }
   }
