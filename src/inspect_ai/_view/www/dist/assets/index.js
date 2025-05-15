@@ -51680,16 +51680,18 @@ self.onmessage = function (e) {
         );
       }
     );
-    const tabPanel = "_tabPanel_1rp9q_1";
-    const fullWidth$1 = "_fullWidth_1rp9q_5";
-    const padded = "_padded_1rp9q_18";
-    const error = "_error_1rp9q_23";
-    const ansi = "_ansi_1rp9q_27";
-    const noTop = "_noTop_1rp9q_31";
-    const chat = "_chat_1rp9q_43";
-    const transcriptContainer = "_transcriptContainer_1rp9q_51";
+    const tabPanel = "_tabPanel_6o9gh_1";
+    const tabControls = "_tabControls_6o9gh_5";
+    const fullWidth$1 = "_fullWidth_6o9gh_12";
+    const padded = "_padded_6o9gh_25";
+    const error = "_error_6o9gh_30";
+    const ansi = "_ansi_6o9gh_34";
+    const noTop = "_noTop_6o9gh_38";
+    const chat = "_chat_6o9gh_50";
+    const transcriptContainer = "_transcriptContainer_6o9gh_58";
     const styles$C = {
       tabPanel,
+      tabControls,
       fullWidth: fullWidth$1,
       padded,
       error,
@@ -51721,14 +51723,14 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$B.lineBase, "text-truncate"), children: errorType(message2) })
       ] });
     };
-    const target = "_target_1s9n0_1";
-    const answer = "_answer_1s9n0_5";
-    const grid$3 = "_grid_1s9n0_9";
-    const centerLabel = "_centerLabel_1s9n0_17";
-    const centerValue = "_centerValue_1s9n0_22";
-    const wrap = "_wrap_1s9n0_27";
-    const titled = "_titled_1s9n0_31";
-    const value = "_value_1s9n0_35";
+    const target = "_target_dknw5_1";
+    const answer = "_answer_dknw5_5";
+    const grid$3 = "_grid_dknw5_9";
+    const centerLabel = "_centerLabel_dknw5_17";
+    const centerValue = "_centerValue_dknw5_22";
+    const wrap = "_wrap_dknw5_27";
+    const titled = "_titled_dknw5_31";
+    const value = "_value_dknw5_35";
     const styles$A = {
       target,
       answer,
@@ -62278,6 +62280,7 @@ ${events}
           TabSet,
           {
             id: tabsetId,
+            className: clsx(styles$C.tabControls),
             tabControlsClassName: clsx("text-size-base"),
             tabPanelsClassName: clsx(styles$C.tabPanel),
             tools: tools2,
@@ -62754,7 +62757,7 @@ ${events}
         }
       );
     };
-    const modalBody = "_modalBody_1owi5_1";
+    const modalBody = "_modalBody_ozq2k_1";
     const styles$b = {
       modalBody
     };
