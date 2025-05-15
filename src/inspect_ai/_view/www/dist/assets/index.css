@@ -17260,20 +17260,20 @@ thead th {
 ._scores_las07_54 {
   padding-top: 1em;
 }
-._container_19jbn_1 {
-  display: flex;
+._container_7p60n_1 {
+  display: grid;
   width: 100%;
-  flex-direction: row;
+  grid-template-columns: 220px 1fr;
   min-height: 100vh;
 }
 
-._treeContainer_19jbn_8 {
+._treeContainer_7p60n_8 {
   overflow-y: auto;
   margin: 0.65rem 0 0 0;
   padding: 0.5em;
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
-  width: 200px;
+  width: 100%;
   position: sticky;
   top: 0.65rem;
   height: calc(100vh - var(--top-offset));
@@ -17281,7 +17281,7 @@ thead th {
   z-index: 10;
 }
 
-._events_19jbn_22 {
+._events_7p60n_22 {
   left: 200px;
   right: 0;
 }

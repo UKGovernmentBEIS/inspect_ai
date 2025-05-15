@@ -9,6 +9,7 @@ const loggingIcons: Record<string, string> = {
 };
 
 export const ApplicationIcons = {
+  agent: "bi bi-grid", // bi bi-x-diamond
   approve: "bi bi-shield",
   approvals: {
     approve: "bi bi-shield-check",
@@ -106,5 +107,6 @@ export const ApplicationIcons = {
     open: "bi bi-caret-down-fill",
     closed: "bi bi-caret-right-fill",
   },
+  turns: "bi bi-chat-left-text", // bi bi-repeat
   usage: "bi bi-stopwatch",
 };
