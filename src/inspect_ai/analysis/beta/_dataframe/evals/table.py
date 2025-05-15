@@ -34,7 +34,7 @@ EVAL_SUFFIX = "_eval"
 @overload
 def evals_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = EvalColumns,
+    columns: Sequence[Column] = EvalColumns,
     strict: Literal[True] = True,
     quiet: bool = False,
 ) -> "pd.DataFrame": ...
@@ -43,10 +43,10 @@ def evals_df(
 @overload
 def evals_df(
     logs: LogPaths = list_eval_logs(),
-    columns: list[Column] = EvalColumns,
+    columns: Sequence[Column] = EvalColumns,
     strict: Literal[False] = False,
     quiet: bool = False,
-) -> tuple["pd.DataFrame", list[ColumnError]]: ...
+) -> tuple["pd.DataFrame", Sequence[ColumnError]]: ...
 
 
 def evals_df(
@@ -54,7 +54,7 @@ def evals_df(
     columns: Sequence[Column] = EvalColumns,
     strict: bool = True,
     quiet: bool = False,
-) -> "pd.DataFrame" | tuple["pd.DataFrame", list[ColumnError]]:
+) -> "pd.DataFrame" | tuple["pd.DataFrame", Sequence[ColumnError]]:
     """Read a dataframe containing evals.
 
     Args:
@@ -96,30 +96,30 @@ def evals_df(
 
 @overload
 def _read_evals_df(
-    log_paths: list[str],
+    log_paths: Sequence[str],
     columns: Sequence[Column],
     strict: Literal[True],
     progress: Callable[[], None],
-) -> tuple["pd.DataFrame", list[EvalLog], int]: ...
+) -> tuple["pd.DataFrame", Sequence[EvalLog], int]: ...
 
 
 @overload
 def _read_evals_df(
-    log_paths: list[str],
+    log_paths: Sequence[str],
     columns: Sequence[Column],
     strict: Literal[False],
     progress: Callable[[], None],
-) -> tuple["pd.DataFrame", list[EvalLog], list[ColumnError], int]: ...
+) -> tuple["pd.DataFrame", Sequence[EvalLog], Sequence[ColumnError], int]: ...
 
 
 def _read_evals_df(
-    log_paths: list[str],
+    log_paths: Sequence[str],
     columns: Sequence[Column],
     strict: bool,
     progress: Callable[[], None],
 ) -> (
-    tuple["pd.DataFrame", list[EvalLog], int]
-    | tuple["pd.DataFrame", list[EvalLog], list[ColumnError], int]
+    tuple["pd.DataFrame", Sequence[EvalLog], int]
+    | tuple["pd.DataFrame", Sequence[EvalLog], Sequence[ColumnError], int]
 ):
     verify_prerequisites()
 
