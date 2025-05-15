@@ -65,7 +65,7 @@ SampleSummary: list[Column] = [
     SampleColumn("model_usage", path="model_usage"),
     SampleColumn("total_time", path="total_time"),
     SampleColumn("working_time", path="total_time"),
-    SampleColumn("error", path="error"),
+    SampleColumn("error", path="error", default=""),
     SampleColumn("limit", path="limit"),
     SampleColumn("retries", path="retries"),
 ]
