@@ -2,10 +2,10 @@ import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
-from tqdm import tqdm
 
 from inspect_ai._util.timer import execution_timer
 from inspect_ai.analysis.beta import SampleSummary, samples_df
+from inspect_ai.analysis.beta._dataframe.progress import import_progress
 from inspect_ai.analysis.beta._dataframe.samples.columns import SampleMessages
 from inspect_ai.log import list_eval_logs
 
@@ -32,9 +32,11 @@ if __name__ == "__main__":
                 ): idx
                 for idx, log in enumerate(logs)
             }
-            for fut in tqdm(as_completed(futures), total=len(futures)):
-                idx = futures[fut]
-                dfs[idx] = fut.result()
+            with import_progress("reading samples", total=len(futures)) as p:
+                for fut in as_completed(futures):
+                    idx = futures[fut]
+                    dfs[idx] = fut.result()
+                    p.update()
         finally:
             executor.shutdown(wait=False, cancel_futures=True)
 
