@@ -473,7 +473,7 @@ export const flatTree = (
   const result: EventNode[] = [];
   for (const node of eventNodes) {
     if (visitors && visitors.length > 0) {
-      let pendingNodes: EventNode[] = [node];
+      let pendingNodes: EventNode[] = [{ ...node }];
       for (const visitor of visitors) {
         const allResults: EventNode[] = [];
         for (const pendingNode of pendingNodes) {
@@ -485,16 +485,21 @@ export const flatTree = (
 
       for (const pendingNode of pendingNodes) {
         result.push(pendingNode);
+        const children = flatTree(
+          pendingNode.children,
+          collapsed,
+          visitors,
+          pendingNode,
+        );
         if (collapsed === null || collapsed[pendingNode.id] !== true) {
-          result.push(
-            ...flatTree(pendingNode.children, collapsed, visitors, pendingNode),
-          );
+          result.push(...children);
         }
       }
     } else {
       result.push(node);
+      const children = flatTree(node.children, collapsed, visitors, node);
       if (collapsed === null || collapsed[node.id] !== true) {
-        result.push(...flatTree(node.children, collapsed, visitors, node));
+        result.push(...children);
       }
     }
   }
