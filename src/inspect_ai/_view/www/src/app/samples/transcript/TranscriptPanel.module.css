@@ -1,25 +1,14 @@
 .container {
   display: grid;
   width: 100%;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 200px 1fr;
   min-height: 100vh;
 }
 
 .treeContainer {
   overflow-y: auto;
-  margin: 0.65rem 0 0 0;
   padding: 0.5em;
-  border: solid 1px var(--bs-light-border-subtle);
-  border-radius: var(--bs-border-radius);
+  border-right: solid 1px var(--bs-light-border-subtle);
   width: 100%;
-  position: sticky;
-  top: 0.65rem;
-  height: calc(100vh - var(--top-offset));
-  align-self: flex-start;
-  z-index: 10;
-}
-
-.events {
-  left: 200px;
-  right: 0;
+  height: 100%;
 }

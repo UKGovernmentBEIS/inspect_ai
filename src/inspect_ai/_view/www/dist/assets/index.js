@@ -52141,8 +52141,92 @@ self.onmessage = function (e) {
         }
       );
     };
-    const container$6 = "_container_7p60n_1";
-    const treeContainer = "_treeContainer_7p60n_8";
+    const useStickyRef = ({
+      scrollRef,
+      offsetTop = 0
+    }) => {
+      const [offsetY, setOffsetY] = reactExports.useState(0);
+      const elementRef = reactExports.useRef(null);
+      const naturalPositionRef = reactExports.useRef(null);
+      const isPinnedRef = reactExports.useRef(false);
+      reactExports.useEffect(() => {
+        const element = elementRef.current;
+        const scrollContainer = scrollRef == null ? void 0 : scrollRef.current;
+        if (!element || !scrollContainer) return;
+        const getNaturalPosition = () => {
+          const elementRect = element.getBoundingClientRect();
+          const containerRect = scrollContainer.getBoundingClientRect();
+          let currentElement = element;
+          let totalOffset = 0;
+          const containerStyle = window.getComputedStyle(scrollContainer);
+          totalOffset += parseFloat(containerStyle.paddingTop) || 0;
+          while (currentElement && currentElement !== scrollContainer && currentElement.parentElement) {
+            const computedStyle = window.getComputedStyle(currentElement);
+            if (currentElement !== element) {
+              totalOffset += parseFloat(computedStyle.marginTop) || 0;
+              totalOffset += parseFloat(computedStyle.marginBottom) || 0;
+              totalOffset += parseFloat(computedStyle.paddingTop) || 0;
+              totalOffset += parseFloat(computedStyle.paddingBottom) || 0;
+            }
+            currentElement = currentElement.parentElement;
+            if (currentElement && currentElement.contains(scrollContainer) && currentElement !== scrollContainer) {
+              const parentStyle = window.getComputedStyle(currentElement);
+              totalOffset += parseFloat(parentStyle.paddingTop) || 0;
+            }
+          }
+          return elementRect.top - containerRect.top + totalOffset;
+        };
+        naturalPositionRef.current = getNaturalPosition();
+        let animationFrameId = null;
+        const handleScroll = () => {
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+          }
+          animationFrameId = requestAnimationFrame(() => {
+            if (!element || !scrollContainer || naturalPositionRef.current === null)
+              return;
+            const scrollTop = scrollContainer.scrollTop;
+            const elementTopRelativeToContainer = naturalPositionRef.current - scrollTop;
+            console.log({
+              position: naturalPositionRef.current,
+              scrollTop,
+              elementTopRelativeToContainer
+            });
+            if (elementTopRelativeToContainer < offsetTop) {
+              setOffsetY(offsetTop - elementTopRelativeToContainer);
+              isPinnedRef.current = true;
+            } else {
+              setOffsetY(0);
+              isPinnedRef.current = false;
+            }
+            animationFrameId = null;
+          });
+        };
+        const handleResize = () => {
+          naturalPositionRef.current = getNaturalPosition();
+          handleScroll();
+        };
+        scrollContainer.addEventListener("scroll", handleScroll);
+        window.addEventListener("resize", handleResize);
+        handleScroll();
+        return () => {
+          scrollContainer.removeEventListener("scroll", handleScroll);
+          window.removeEventListener("resize", handleResize);
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+          }
+        };
+      }, [scrollRef, offsetTop]);
+      return {
+        ref: elementRef,
+        style: {
+          transform: `translateY(${offsetY}px)`,
+          willChange: "transform"
+        }
+      };
+    };
+    const container$6 = "_container_tjop7_1";
+    const treeContainer = "_treeContainer_tjop7_8";
     const styles$x = {
       container: container$6,
       treeContainer
@@ -61795,7 +61879,7 @@ ${events}
       node,
       attached
     };
-    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2, initialEventId }) => {
+    const TranscriptVirtualListComponent = ({ id, eventNodes, scrollRef, running: running2, initialEventId, className: className2 }) => {
       const initialEventIndex = reactExports.useMemo(() => {
         if (initialEventId === null || initialEventId === void 0) {
           return void 0;
@@ -61831,6 +61915,7 @@ ${events}
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         LiveVirtualList,
         {
+          className: className2,
           id,
           scrollRef,
           data: eventNodes,
@@ -61848,7 +61933,8 @@ ${events}
           eventNodes,
           defaultCollapsedIds,
           running: running2,
-          initialEventId
+          initialEventId,
+          className: className2
         } = props;
         const collapsedEvents = useStore((state) => state.sample.collapsedEvents);
         const setCollapsedEvents = useStore(
@@ -61869,7 +61955,8 @@ ${events}
             eventNodes: flattenedNodes,
             initialEventId,
             scrollRef,
-            running: running2
+            running: running2,
+            className: className2
           }
         );
       }
@@ -62053,16 +62140,24 @@ ${events}
         events,
         running2 === true
       );
-      const navRef = reactExports.useRef(null);
+      const stickElement = useStickyRef({ scrollRef });
       return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: styles$x.container, children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: styles$x.treeContainer, ref: navRef, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
-          TranscriptTree,
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "div",
           {
-            scrollRef,
-            eventNodes,
-            defaultCollapsedIds
+            className: styles$x.treeContainer,
+            ref: stickElement.ref,
+            style: stickElement.style,
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+              TranscriptTree,
+              {
+                scrollRef,
+                eventNodes,
+                defaultCollapsedIds
+              }
+            )
           }
-        ) }),
+        ),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           TranscriptVirtualList,
           {
@@ -62071,7 +62166,8 @@ ${events}
             defaultCollapsedIds,
             scrollRef,
             running: running2,
-            initialEventId: initialEventId === void 0 ? null : initialEventId
+            initialEventId: initialEventId === void 0 ? null : initialEventId,
+            className: styles$x.listContainer
           }
         )
       ] });
