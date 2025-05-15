@@ -9,7 +9,9 @@ import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
 import { flatTree } from "./transform/treeify";
 
+import { Link, useParams } from "react-router-dom";
 import { parsePackageName } from "../../../utils/python";
+import { sampleEventUrl } from "../../routing/url";
 import styles from "./TranscriptTree.module.css";
 import { kSandboxSignalName } from "./transform/fixups";
 import { TYPE_SCORER, TYPE_SCORERS } from "./transform/utils";
@@ -84,7 +86,7 @@ export const TranscriptTree: FC<TranscriptTreeProps> = ({
   }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
   const renderRow = useCallback((_index: number, node: EventNode) => {
-    return <EventRow node={node} key={node.id} />;
+    return <TreeNode node={node} key={node.id} />;
   }, []);
 
   return (
@@ -110,27 +112,44 @@ export const TranscriptTree: FC<TranscriptTreeProps> = ({
   );
 };
 
-interface EventRowProps {
+interface TreeNodeProps {
   node: EventNode;
 }
-const EventRow: FC<EventRowProps> = ({ node }) => {
+const TreeNode: FC<TreeNodeProps> = ({ node }) => {
   const [collapsed, setCollapsed] = useCollapseSampleEvent(node.id);
   const icon = iconForNode(node, collapsed);
+
+  // Get all URL parameters at component level
+  const { logPath, sampleId, epoch } = useParams<{
+    logPath?: string;
+    tabId?: string;
+    sampleId?: string;
+    epoch?: string;
+  }>();
+
+  const url = logPath
+    ? sampleEventUrl(node.id, logPath, sampleId, epoch)
+    : undefined;
+
   return (
-    <div
-      className={clsx(styles.eventRow, "text-size-smaller")}
-      onClick={() => {
-        setCollapsed(!collapsed);
-      }}
-    >
-      <div className={clsx(styles.toggle)}>
+    <div className={clsx(styles.eventRow, "text-size-smaller")}>
+      <div
+        className={clsx(styles.toggle)}
+        onClick={() => {
+          setCollapsed(!collapsed);
+        }}
+      >
         {icon ? <i className={clsx(icon)} /> : undefined}
       </div>
       <div
         data-depth={node.depth}
         style={{ paddingLeft: `${node.depth * 0.4}em` }}
       >
-        {parsePackageName(labelForNode(node)).module}
+        {url ? (
+          <Link to={url}>{parsePackageName(labelForNode(node)).module}</Link>
+        ) : (
+          parsePackageName(labelForNode(node)).module
+        )}
       </div>
     </div>
   );
