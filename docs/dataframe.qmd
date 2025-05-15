@@ -537,23 +537,29 @@ Because events are so heterogeneous, there is no default `columns` specification
 | `ModelEventColumns` | Read data from model events. |
 | `ToolEventColumns` | Read data from tool events. |
 
-The `events_df()` function also takes a `filter` parameter which can either be a list of event types or a function that performs filtering. For example, to read all model events:
+The `events_df()` function also takes a `filter` parameter which can provide a function that performs filtering. For example, to read all model events:
 
 ``` python
+def model_event_filter(event: Event) -> bool:
+    return event.event == "model"
+
 model_events = events_df(
     logs="logs", 
     columns=EventTiming + ModelEventColumns,
-    filter=["model"]
+    filter=model_event_filter
 )
 ```
 
 To read all tool events:
 
 ``` python
+def tool_event_filter(event: Event) -> bool:
+    return event.event == "tool"
+
 model_events = events_df(
     logs="logs", 
     columns=EvalModel + EventTiming + ToolEventColumns,
-    filter=["tool"]
+    filter=tool_event_filter
 )
 ```
 
