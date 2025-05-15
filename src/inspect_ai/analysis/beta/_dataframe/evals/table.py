@@ -3,7 +3,6 @@ from __future__ import annotations
 from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Literal, Sequence, overload
 
-from inspect_ai._util.path import pretty_path
 from inspect_ai.analysis.beta._dataframe.progress import import_progress, no_progress
 from inspect_ai.log._file import (
     list_eval_logs,
