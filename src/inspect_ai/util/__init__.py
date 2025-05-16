@@ -3,6 +3,7 @@ from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.util._limit import (
     Limit,
     LimitExceededError,
+    LimitScope,
     apply_limits,
     message_limit,
     token_limit,
@@ -58,6 +59,7 @@ __all__ = [
     "resource",
     "subprocess",
     "LimitExceededError",
+    "LimitScope",
     "SandboxEnvironment",
     "SandboxEnvironmentConfigType",
     "SandboxEnvironmentLimits",
