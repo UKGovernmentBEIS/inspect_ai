@@ -11,7 +11,7 @@
 
 .eventRow {
   display: grid;
-  grid-template-columns: 20px 1fr;
+  grid-template-columns: 14px 1fr;
   column-gap: 0em;
   cursor: pointer;
 }
@@ -36,4 +36,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.eventPadding {
+  height: 2em;
 }
