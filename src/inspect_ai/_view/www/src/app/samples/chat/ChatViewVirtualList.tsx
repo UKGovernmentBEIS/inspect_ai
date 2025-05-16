@@ -16,6 +16,7 @@ interface ChatViewVirtualListProps {
   className?: string | string[];
   messages: Messages;
   initialMessageId?: string | null;
+  topOffset?: number;
   toolCallStyle: ChatViewToolCallStyle;
   indented: boolean;
   numbered?: boolean;
@@ -32,6 +33,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
     id,
     messages,
     initialMessageId,
+    topOffset,
     className,
     toolCallStyle,
     indented,
@@ -98,6 +100,7 @@ export const ChatViewVirtualList: FC<ChatViewVirtualListProps> = memo(
         data={collapsedMessages}
         renderRow={renderRow}
         initialTopMostItemIndex={initialMessageIndex}
+        offsetTop={topOffset}
         live={running}
         showProgress={running}
         components={{ Item }}
