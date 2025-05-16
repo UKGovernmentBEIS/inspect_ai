@@ -134,6 +134,7 @@ export const StickyScroll: FC<StickyScrollProps> = ({
         top: `${dimensions.stickyTop}px`,
         left: `${dimensions.left}px`,
         width: `${dimensions.width}px`,
+        maxHeight: `calc(100vh - ${dimensions.stickyTop}px)`,
         zIndex,
       }
     : {};

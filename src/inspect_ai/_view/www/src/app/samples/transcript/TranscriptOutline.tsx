@@ -1,4 +1,12 @@
-import { FC, RefObject, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  CSSProperties,
+  FC,
+  RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventNode } from "./types";
 
@@ -21,13 +29,33 @@ interface TranscriptOutlineProps {
   defaultCollapsedIds: Record<string, boolean>;
   className?: string | string[];
   scrollRef?: RefObject<HTMLDivElement | null>;
+  style?: CSSProperties;
 }
+
+// hack: add a padding node to the end of the list so
+// when the tree is positioned at the bottom of the viewport
+// it has some breathing room
+const EventPaddingNode: EventNode = {
+  id: "padding",
+  event: {
+    event: "info",
+    source: "",
+    data: "",
+    timestamp: "",
+    pending: false,
+    working_start: 0,
+    span_id: null,
+  },
+  depth: 0,
+  children: [],
+};
 
 export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   eventNodes,
   defaultCollapsedIds,
   className,
   scrollRef,
+  style,
 }) => {
   const id = "transcript-tree";
   // The virtual list handle and state
@@ -73,7 +101,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       ],
     );
 
-    return nodeList;
+    return [...nodeList, EventPaddingNode];
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
   // Update the collapsed events when the default collapsed IDs change
@@ -86,7 +114,11 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
   const renderRow = useCallback((_index: number, node: EventNode) => {
-    return <TreeNode node={node} key={node.id} />;
+    if (node === EventPaddingNode) {
+      return <div className={styles.eventPadding} key={node.id} />;
+    } else {
+      return <TreeNode node={node} key={node.id} />;
+    }
   }, []);
 
   return (
@@ -94,7 +126,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       ref={listHandle}
       customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
       id={id}
-      style={{ height: "100%" }}
+      style={{ ...style }}
       data={flattenedNodes}
       defaultItemHeight={50}
       itemContent={renderRow}
@@ -104,7 +136,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         main: 10,
         reverse: 10,
       }}
-      className={clsx(className, "samples-list")}
+      className={clsx(className, "transcript-outline")}
       skipAnimationFrameInResizeObserver={true}
       restoreStateFrom={getRestoreState()}
       tabIndex={0}
@@ -132,7 +164,10 @@ const TreeNode: FC<TreeNodeProps> = ({ node }) => {
     : undefined;
 
   return (
-    <div className={clsx(styles.eventRow, "text-size-smaller")}>
+    <div
+      className={clsx(styles.eventRow, "text-size-smallest")}
+      style={{ paddingLeft: `${node.depth * 0.8}em` }}
+    >
       <div
         className={clsx(styles.toggle)}
         onClick={() => {
@@ -141,11 +176,7 @@ const TreeNode: FC<TreeNodeProps> = ({ node }) => {
       >
         {icon ? <i className={clsx(icon)} /> : undefined}
       </div>
-      <div
-        className={clsx(styles.label)}
-        data-depth={node.depth}
-        style={{ paddingLeft: `${node.depth * 0.4}em` }}
-      >
+      <div className={clsx(styles.label)} data-depth={node.depth}>
         {url ? (
           <Link to={url} className={clsx(styles.eventLink)}>
             {parsePackageName(labelForNode(node)).module}
@@ -162,11 +193,15 @@ const iconForNode = (
   node: EventNode,
   collapsed: boolean,
 ): string | undefined => {
-  return node.children.length > 0
-    ? collapsed
+  if (node.children.length > 0) {
+    return collapsed
       ? ApplicationIcons.chevron.right
-      : ApplicationIcons.chevron.down
-    : undefined;
+      : ApplicationIcons.chevron.down;
+  }
+
+  if (node.event.event === "sample_limit") {
+    return ApplicationIcons.limits.custom;
+  }
 };
 
 const labelForNode = (node: EventNode): string => {

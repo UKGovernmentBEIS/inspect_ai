@@ -34,7 +34,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
         offsetTop={topOffset}
       >
         <TranscriptOutline
-          scrollRef={scrollRef}
+          className={styles.outline}
           eventNodes={eventNodes}
           defaultCollapsedIds={defaultCollapsedIds}
         />
