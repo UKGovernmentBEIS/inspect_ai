@@ -32005,7 +32005,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       input: "bi bi-terminal",
       limits: {
         messages: "bi bi-chat-right-text",
-        custom: "bi bi-person-workspace",
+        custom: "bi bi-exclamation-triangle",
         operator: "bi bi-person-workspace",
         tokens: "bi bi-list",
         time: "bi bi-clock",
@@ -53793,12 +53793,12 @@ categories: ${categories.join(" ")}`;
     const statusContainer = "_statusContainer_1sckj_1";
     const status = "_status_1sckj_1";
     const statusText = "_statusText_1sckj_11";
-    const icon$1 = "_icon_1sckj_24";
+    const icon$2 = "_icon_1sckj_24";
     const styles$W = {
       statusContainer,
       status,
       statusText,
-      icon: icon$1
+      icon: icon$2
     };
     const RunningStatusPanel = ({ sampleCount }) => {
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$W.statusContainer), children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$W.status), children: [
@@ -58329,11 +58329,11 @@ categories: ${categories.join(" ")}`;
         return entries;
       }
     };
-    const icon = "_icon_59zaz_1";
+    const icon$1 = "_icon_59zaz_1";
     const container$d = "_container_59zaz_5";
     const metadata$2 = "_metadata_59zaz_11";
     const styles$P = {
-      icon,
+      icon: icon$1,
       container: container$d,
       metadata: metadata$2
     };
@@ -63030,17 +63030,19 @@ self.onmessage = function (e) {
       }
       return { package: "", module: name2 };
     };
-    const eventRow = "_eventRow_h48zr_12";
-    const toggle = "_toggle_h48zr_19";
-    const eventLink = "_eventLink_h48zr_24";
-    const label$5 = "_label_h48zr_35";
-    const eventPadding = "_eventPadding_h48zr_41";
+    const eventRow = "_eventRow_rzpu5_12";
+    const toggle = "_toggle_rzpu5_19";
+    const eventLink = "_eventLink_rzpu5_24";
+    const label$5 = "_label_rzpu5_35";
+    const eventPadding = "_eventPadding_rzpu5_41";
+    const icon = "_icon_rzpu5_45";
     const styles$x = {
       eventRow,
       toggle,
       eventLink,
       label: label$5,
-      eventPadding
+      eventPadding,
+      icon
     };
     const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
     const fixupEventStream = (events, filterPending = true) => {
@@ -63281,14 +63283,15 @@ self.onmessage = function (e) {
     };
     const TreeNode$1 = ({ node: node2 }) => {
       const [collapsed, setCollapsed] = useCollapseSampleEvent(node2.id);
-      const icon2 = iconForNode(node2, collapsed);
+      const icon2 = iconForNode(node2);
+      const toggle2 = toggleIcon(node2, collapsed);
       const { logPath, sampleId, epoch } = useParams();
       const url = logPath ? sampleEventUrl(node2.id, logPath, sampleId, epoch) : void 0;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
           className: clsx(styles$x.eventRow, "text-size-smallest"),
-          style: { paddingLeft: `${node2.depth * 0.8}em` },
+          style: { paddingLeft: `${node2.depth * 0.4}em` },
           children: [
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               "div",
@@ -63297,28 +63300,35 @@ self.onmessage = function (e) {
                 onClick: () => {
                   setCollapsed(!collapsed);
                 },
-                children: icon2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx(icon2) }, void 0, false, {
+                children: toggle2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx(toggle2) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-                  lineNumber: 177,
-                  columnNumber: 17
+                  lineNumber: 178,
+                  columnNumber: 19
                 }, void 0) : void 0
               },
               void 0,
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-                lineNumber: 171,
+                lineNumber: 172,
                 columnNumber: 7
               },
               void 0
             ),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$x.label), "data-depth": node2.depth, children: url ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Link, { to: url, className: clsx(styles$x.eventLink), children: parsePackageName(labelForNode(node2)).module }, void 0, false, {
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$x.label), "data-depth": node2.depth, children: [
+              icon2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx(icon2, styles$x.icon) }, void 0, false, {
+                fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
+                lineNumber: 181,
+                columnNumber: 17
+              }, void 0) : void 0,
+              url ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Link, { to: url, className: clsx(styles$x.eventLink), children: parsePackageName(labelForNode(node2)).module }, void 0, false, {
+                fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
+                lineNumber: 183,
+                columnNumber: 11
+              }, void 0) : parsePackageName(labelForNode(node2)).module
+            ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-              lineNumber: 181,
-              columnNumber: 11
-            }, void 0) : parsePackageName(labelForNode(node2)).module }, void 0, false, {
-              fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-              lineNumber: 179,
+              lineNumber: 180,
               columnNumber: 7
             }, void 0)
           ]
@@ -63327,18 +63337,25 @@ self.onmessage = function (e) {
         true,
         {
           fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-          lineNumber: 167,
+          lineNumber: 168,
           columnNumber: 5
         },
         void 0
       );
     };
-    const iconForNode = (node2, collapsed) => {
+    const toggleIcon = (node2, collapsed) => {
       if (node2.children.length > 0) {
         return collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down;
       }
-      if (node2.event.event === "sample_limit") {
-        return ApplicationIcons.limits.custom;
+    };
+    const iconForNode = (node2) => {
+      switch (node2.event.event) {
+        case "sample_limit":
+          return ApplicationIcons.limits.custom;
+        case "score":
+          return ApplicationIcons.scorer;
+        case "error":
+          return ApplicationIcons.error;
       }
     };
     const labelForNode = (node2) => {
