@@ -5,6 +5,10 @@
   min-height: 100vh;
 }
 
+.container.collapsed {
+  grid-template-columns: 1.5em 1fr;
+}
+
 .treeContainer {
   padding: 0.5em;
   border-right: solid 1px var(--bs-light-border-subtle);
@@ -18,4 +22,16 @@
 
 .outline {
   margin-bottom: 1em;
+}
+
+.outlineToggle {
+  cursor: pointer;
+  font-size: 0.8em;
+  position: absolute;
+  top: 0.5em;
+  right: 0.5em;
+}
+
+.collapsed .outline {
+  display: none;
 }

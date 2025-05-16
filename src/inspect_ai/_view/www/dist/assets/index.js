@@ -31715,9 +31715,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setSampleError: (error2) => set2((state) => {
             state.sample.sampleError = error2;
           }),
-          setCollapsedEvents: (collapsed) => {
+          setCollapsedEvents: (collapsed2) => {
             set2((state) => {
-              state.sample.collapsedEvents = collapsed;
+              state.sample.collapsedEvents = collapsed2;
             });
           },
           clearCollapsedEvents: () => {
@@ -31725,29 +31725,29 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               state.sample.collapsedEvents = null;
             });
           },
-          collapseEvent: (id, collapsed) => {
+          collapseEvent: (id, collapsed2) => {
             set2((state) => {
               if (state.sample.collapsedEvents === null) {
                 state.sample.collapsedEvents = {};
               }
-              if (collapsed) {
+              if (collapsed2) {
                 state.sample.collapsedEvents[id] = true;
               } else {
                 delete state.sample.collapsedEvents[id];
               }
             });
           },
-          setCollapsedIds: (key2, collapsed) => {
+          setCollapsedIds: (key2, collapsed2) => {
             set2((state) => {
-              state.sample.collapsedIdBuckets[key2] = collapsed;
+              state.sample.collapsedIdBuckets[key2] = collapsed2;
             });
           },
-          collapseId: (key2, id, collapsed) => {
+          collapseId: (key2, id, collapsed2) => {
             set2((state) => {
               if (state.sample.collapsedIdBuckets[key2] === void 0) {
                 state.sample.collapsedIdBuckets[key2] = {};
               }
-              if (collapsed) {
+              if (collapsed2) {
                 state.sample.collapsedIdBuckets[key2][id] = true;
               } else {
                 delete state.sample.collapsedIdBuckets[key2][id];
@@ -32000,6 +32000,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       sandbox: "bi bi-box-seam",
       scorer: "bi bi-calculator",
       search: "bi bi-search",
+      sidebar: "bi bi-list",
       solvers: {
         use_tools: "bi bi-tools"
       },
@@ -32633,7 +32634,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const ExpandablePanel = reactExports.memo(
       ({ id, collapse, border, lines = 15, children: children2, className: className2 }) => {
-        const [collapsed, setCollapsed] = useCollapsedState(id, collapse);
+        const [collapsed2, setCollapsed] = useCollapsedState(id, collapse);
         const [showToggle, setShowToggle] = reactExports.useState(false);
         const baseFontSizeRef = reactExports.useRef(0);
         const checkOverflow = reactExports.useCallback(
@@ -32653,7 +32654,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         const contentRef = useResizeObserver(checkOverflow);
         const baseStyles = {
           overflow: "hidden",
-          ...collapsed && {
+          ...collapsed2 && {
             maxHeight: `${lines}rem`
           }
         };
@@ -32665,7 +32666,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               ref: contentRef,
               className: clsx(
                 styles$1m.expandablePanel,
-                collapsed ? styles$1m.expandableCollapsed : void 0,
+                collapsed2 ? styles$1m.expandableCollapsed : void 0,
                 border ? styles$1m.expandableBordered : void 0,
                 showToggle ? styles$1m.padBottom : void 0
               ),
@@ -32674,7 +32675,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
                 showToggle && /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(jsxDevRuntimeExports.Fragment, { children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                   MoreToggle,
                   {
-                    collapsed,
+                    collapsed: collapsed2,
                     setCollapsed,
                     border: !border
                   },
@@ -32715,15 +32716,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     );
     const MoreToggle = ({
-      collapsed,
+      collapsed: collapsed2,
       border,
       setCollapsed,
       style: style2
     }) => {
-      const text2 = collapsed ? "more" : "less";
+      const text2 = collapsed2 ? "more" : "less";
       const handleClick = reactExports.useCallback(() => {
-        setCollapsed(!collapsed);
-      }, [setCollapsed, collapsed]);
+        setCollapsed(!collapsed2);
+      }, [setCollapsed, collapsed2]);
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
         {
@@ -51270,16 +51271,16 @@ categories: ${categories.join(" ")}`;
       }, [selectedLogFile, selectedSampleSummary]);
     };
     const useCollapseSampleEvent = (id) => {
-      const collapsed = useStore((state) => state.sample.collapsedEvents);
+      const collapsed2 = useStore((state) => state.sample.collapsedEvents);
       const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
       return reactExports.useMemo(() => {
-        const isCollapsed = collapsed !== null && collapsed[id] === true;
+        const isCollapsed = collapsed2 !== null && collapsed2[id] === true;
         const set2 = (value2) => {
           log$1.debug("Set collapsed", id, value2);
           collapseEvent(id, value2);
         };
         return [isCollapsed, set2];
-      }, [collapsed, collapseEvent, id]);
+      }, [collapsed2, collapseEvent, id]);
     };
     const useCollapsibleIds = (key2) => {
       const collapsedIds = useStore(
@@ -51304,7 +51305,7 @@ categories: ${categories.join(" ")}`;
     };
     const useCollapsedState = (id, defaultValue, scope) => {
       const stateId = id;
-      const collapsed = useStore(
+      const collapsed2 = useStore(
         (state) => state.appActions.getCollapsed(stateId, defaultValue)
       );
       const setCollapsed = useStore((state) => state.appActions.setCollapsed);
@@ -51313,8 +51314,8 @@ categories: ${categories.join(" ")}`;
           log$1.debug("Set collapsed", id, scope, value2);
           setCollapsed(stateId, value2);
         };
-        return [collapsed, set2];
-      }, [collapsed, setCollapsed]);
+        return [collapsed2, set2];
+      }, [collapsed2, setCollapsed]);
     };
     const useMessageVisibility = (id, scope) => {
       const visible2 = useStore(
@@ -62574,22 +62575,39 @@ self.onmessage = function (e) {
         sentinel.style.height = "1px";
         sentinel.style.pointerEvents = "none";
         wrapper2.prepend(sentinel);
+        const widthTracker = document.createElement("div");
+        widthTracker.style.position = "absolute";
+        widthTracker.style.top = "0";
+        widthTracker.style.left = "0";
+        widthTracker.style.width = "100%";
+        widthTracker.style.height = "0";
+        widthTracker.style.pointerEvents = "none";
+        widthTracker.style.visibility = "hidden";
+        wrapper2.prepend(widthTracker);
         const updateDimensions = () => {
           if (wrapper2 && scrollContainer) {
             const contentRect = content2.getBoundingClientRect();
             const containerRect = scrollContainer.getBoundingClientRect();
+            const trackerRect = widthTracker.getBoundingClientRect();
             const stickyTop = containerRect.top + offsetTop;
             setDimensions({
-              width: contentRect.width,
+              // Use the width tracker to get the right width that respects
+              // the parent container's current width, rather than the content's width
+              width: trackerRect.width,
               height: contentRect.height,
-              left: contentRect.left,
+              left: trackerRect.left,
               stickyTop
             });
           }
         };
         updateDimensions();
         const resizeObserver = new ResizeObserver(() => {
-          updateDimensions();
+          requestAnimationFrame(() => {
+            updateDimensions();
+            if (isSticky) {
+              handleScroll();
+            }
+          });
         });
         resizeObserver.observe(wrapper2);
         resizeObserver.observe(scrollContainer);
@@ -62614,28 +62632,33 @@ self.onmessage = function (e) {
           if (sentinel.parentNode) {
             sentinel.parentNode.removeChild(sentinel);
           }
+          if (widthTracker.parentNode) {
+            widthTracker.parentNode.removeChild(widthTracker);
+          }
         };
       }, [scrollRef, offsetTop, onStickyChange, isSticky]);
       const wrapperStyle = {
         position: "relative",
         height: isSticky ? `${dimensions.height}px` : "auto"
+        // Don't constrain width - let it flow naturally with the content
       };
       const contentStyle = isSticky ? {
         position: "fixed",
         top: `${dimensions.stickyTop}px`,
         left: `${dimensions.left}px`,
         width: `${dimensions.width}px`,
+        // Keep explicit width to prevent expanding to 100%
         maxHeight: `calc(100vh - ${dimensions.stickyTop}px)`,
         zIndex
       } : {};
       const contentClassName = isSticky && stickyClassName ? `${className2} ${stickyClassName}`.trim() : className2;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: wrapperRef, style: wrapperStyle, children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { ref: contentRef, className: contentClassName, style: contentStyle, children: children2 }, void 0, false, {
         fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/components/StickyScroll.tsx",
-        lineNumber: 149,
+        lineNumber: 178,
         columnNumber: 7
       }, void 0) }, void 0, false, {
         fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/components/StickyScroll.tsx",
-        lineNumber: 148,
+        lineNumber: 177,
         columnNumber: 5
       }, void 0);
     };
@@ -62948,7 +62971,7 @@ self.onmessage = function (e) {
         return node2;
       });
     };
-    const flatTree = (eventNodes, collapsed, visitors, parentNode) => {
+    const flatTree = (eventNodes, collapsed2, visitors, parentNode) => {
       const result2 = [];
       for (const node2 of eventNodes) {
         if (visitors && visitors.length > 0) {
@@ -62965,18 +62988,18 @@ self.onmessage = function (e) {
             result2.push(pendingNode);
             const children2 = flatTree(
               pendingNode.children,
-              collapsed,
+              collapsed2,
               visitors,
               pendingNode
             );
-            if (collapsed === null || collapsed[pendingNode.id] !== true) {
+            if (collapsed2 === null || collapsed2[pendingNode.id] !== true) {
               result2.push(...children2);
             }
           }
         } else {
           result2.push(node2);
-          const children2 = flatTree(node2.children, collapsed, visitors, node2);
-          if (collapsed === null || collapsed[node2.id] !== true) {
+          const children2 = flatTree(node2.children, collapsed2, visitors, node2);
+          if (collapsed2 === null || collapsed2[node2.id] !== true) {
             result2.push(...children2);
           }
         }
@@ -63014,8 +63037,8 @@ self.onmessage = function (e) {
     };
     const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
     const fixupEventStream = (events, filterPending = true) => {
-      const collapsed = processPendingEvents(events, filterPending);
-      const fixedUp = collapseSampleInit(collapsed);
+      const collapsed2 = processPendingEvents(events, filterPending);
+      const fixedUp = collapseSampleInit(collapsed2);
       return groupSandboxEvents(fixedUp);
     };
     const processPendingEvents = (events, filter) => {
@@ -63250,9 +63273,9 @@ self.onmessage = function (e) {
       );
     };
     const TreeNode$1 = ({ node: node2 }) => {
-      const [collapsed, setCollapsed] = useCollapseSampleEvent(node2.id);
+      const [collapsed2, setCollapsed] = useCollapseSampleEvent(node2.id);
       const icon2 = iconForNode(node2);
-      const toggle2 = toggleIcon(node2, collapsed);
+      const toggle2 = toggleIcon(node2, collapsed2);
       const { logPath, sampleId, epoch } = useParams();
       const url = logPath ? sampleEventUrl(node2.id, logPath, sampleId, epoch) : void 0;
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -63266,7 +63289,7 @@ self.onmessage = function (e) {
               {
                 className: clsx(styles$x.toggle),
                 onClick: () => {
-                  setCollapsed(!collapsed);
+                  setCollapsed(!collapsed2);
                 },
                 children: toggle2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx(toggle2) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
@@ -63311,9 +63334,9 @@ self.onmessage = function (e) {
         void 0
       );
     };
-    const toggleIcon = (node2, collapsed) => {
+    const toggleIcon = (node2, collapsed2) => {
       if (node2.children.length > 0) {
-        return collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down;
+        return collapsed2 ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down;
       }
     };
     const iconForNode = (node2) => {
@@ -63516,15 +63539,19 @@ self.onmessage = function (e) {
       }
       return [];
     };
-    const container$6 = "_container_k5fnd_1";
-    const treeContainer = "_treeContainer_k5fnd_8";
-    const listContainer = "_listContainer_k5fnd_15";
-    const outline = "_outline_k5fnd_19";
+    const container$6 = "_container_jfywc_1";
+    const collapsed = "_collapsed_jfywc_8";
+    const treeContainer = "_treeContainer_jfywc_12";
+    const listContainer = "_listContainer_jfywc_19";
+    const outline = "_outline_jfywc_23";
+    const outlineToggle = "_outlineToggle_jfywc_27";
     const styles$w = {
       container: container$6,
+      collapsed,
       treeContainer,
       listContainer,
-      outline
+      outline,
+      outlineToggle
     };
     const title$2 = "_title_19l1b_1";
     const contents = "_contents_19l1b_8";
@@ -63711,16 +63738,16 @@ self.onmessage = function (e) {
         void 0
       );
     };
-    const label$4 = "_label_14w7y_1";
-    const navs = "_navs_14w7y_6";
-    const card = "_card_14w7y_12";
-    const cardContent = "_cardContent_14w7y_20";
-    const hidden$1 = "_hidden_14w7y_25";
-    const copyLink = "_copyLink_14w7y_33";
-    const hover = "_hover_14w7y_40";
-    const root$1 = "_root_14w7y_44";
-    const bottomDongle = "_bottomDongle_14w7y_49";
-    const dongleIcon = "_dongleIcon_14w7y_66";
+    const label$4 = "_label_1i908_1";
+    const navs = "_navs_1i908_6";
+    const card = "_card_1i908_12";
+    const cardContent = "_cardContent_1i908_20";
+    const hidden$1 = "_hidden_1i908_25";
+    const copyLink = "_copyLink_1i908_33";
+    const hover = "_hover_1i908_41";
+    const root$1 = "_root_1i908_45";
+    const bottomDongle = "_bottomDongle_1i908_50";
+    const dongleIcon = "_dongleIcon_1i908_67";
     const styles$s = {
       label: label$4,
       navs,
@@ -63746,7 +63773,7 @@ self.onmessage = function (e) {
       collapsibleContent,
       collapseControl = "top"
     }) => {
-      const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
+      const [collapsed2, setCollapsed] = useCollapseSampleEvent(id);
       const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
       const useBottomDongle = isCollapsible && collapseControl === "bottom";
       const { logPath, sampleId, epoch } = useParams();
@@ -63777,8 +63804,8 @@ self.onmessage = function (e) {
       gridColumns2.push("minmax(0, max-content)");
       gridColumns2.push("minmax(0, max-content)");
       const toggleCollapse = reactExports.useCallback(() => {
-        setCollapsed(!collapsed);
-      }, [setCollapsed, collapsed, childIds]);
+        setCollapsed(!collapsed2);
+      }, [setCollapsed, collapsed2, childIds]);
       const [mouseOver, setMouseOver] = reactExports.useState(false);
       const titleEl = title2 || icon2 || filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
         "div",
@@ -63798,7 +63825,7 @@ self.onmessage = function (e) {
               "i",
               {
                 onClick: toggleCollapse,
-                className: collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down
+                className: collapsed2 ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down
               },
               void 0,
               false,
@@ -63869,7 +63896,7 @@ self.onmessage = function (e) {
               {
                 className: clsx("text-style-secondary", styles$s.label),
                 onClick: toggleCollapse,
-                children: collapsed ? text2 : ""
+                children: collapsed2 ? text2 : ""
               },
               void 0,
               false,
@@ -63880,7 +63907,7 @@ self.onmessage = function (e) {
               },
               void 0
             ),
-            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$s.navs, children: isCollapsible && collapsibleContent && collapsed ? "" : filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$s.navs, children: isCollapsible && collapsibleContent && collapsed2 ? "" : filteredArrChildren && filteredArrChildren.length > 1 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
               EventNavs,
               {
                 navs: filteredArrChildren.map((child, index) => {
@@ -63936,7 +63963,7 @@ self.onmessage = function (e) {
                 className: clsx(
                   "tab-content",
                   styles$s.cardContent,
-                  isCollapsible && collapsed && collapsibleContent ? styles$s.hidden : void 0
+                  isCollapsible && collapsed2 && collapsibleContent ? styles$s.hidden : void 0
                 ),
                 children: filteredArrChildren == null ? void 0 : filteredArrChildren.map((child, index) => {
                   const id2 = pillId(index);
@@ -63978,7 +64005,7 @@ self.onmessage = function (e) {
                     "i",
                     {
                       className: clsx(
-                        collapsed ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down,
+                        collapsed2 ? ApplicationIcons.chevron.right : ApplicationIcons.chevron.down,
                         styles$s.dongleIcon
                       )
                     },
@@ -73942,65 +73969,104 @@ ${events}
         events,
         running2 === true
       );
-      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$w.container, children: [
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          StickyScroll,
-          {
-            scrollRef,
-            className: styles$w.treeContainer,
-            offsetTop: topOffset,
-            children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-              TranscriptOutline,
+      const [collapsed2, setCollapsed] = useCollapsedState(
+        "transcript-panel",
+        false
+      );
+      return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+        "div",
+        {
+          className: clsx(
+            styles$w.container,
+            collapsed2 ? styles$w.collapsed : void 0
+          ),
+          children: [
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              StickyScroll,
               {
-                className: styles$w.outline,
+                scrollRef,
+                className: styles$w.treeContainer,
+                offsetTop: topOffset,
+                children: [
+                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                    TranscriptOutline,
+                    {
+                      className: clsx(styles$w.outline),
+                      eventNodes,
+                      defaultCollapsedIds
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
+                      lineNumber: 49,
+                      columnNumber: 9
+                    },
+                    void 0
+                  ),
+                  /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                    "div",
+                    {
+                      className: styles$w.outlineToggle,
+                      onClick: () => setCollapsed(!collapsed2),
+                      children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.sidebar }, void 0, false, {
+                        fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
+                        lineNumber: 58,
+                        columnNumber: 11
+                      }, void 0)
+                    },
+                    void 0,
+                    false,
+                    {
+                      fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
+                      lineNumber: 54,
+                      columnNumber: 9
+                    },
+                    void 0
+                  )
+                ]
+              },
+              void 0,
+              true,
+              {
+                fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
+                lineNumber: 44,
+                columnNumber: 7
+              },
+              void 0
+            ),
+            /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+              TranscriptVirtualList,
+              {
+                id,
                 eventNodes,
-                defaultCollapsedIds
+                defaultCollapsedIds,
+                scrollRef,
+                running: running2,
+                initialEventId: initialEventId === void 0 ? null : initialEventId,
+                offsetTop: topOffset,
+                className: styles$w.listContainer
               },
               void 0,
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-                lineNumber: 36,
-                columnNumber: 9
+                lineNumber: 61,
+                columnNumber: 7
               },
               void 0
             )
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-            lineNumber: 31,
-            columnNumber: 7
-          },
-          void 0
-        ),
-        /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
-          TranscriptVirtualList,
-          {
-            id,
-            eventNodes,
-            defaultCollapsedIds,
-            scrollRef,
-            running: running2,
-            initialEventId: initialEventId === void 0 ? null : initialEventId,
-            offsetTop: topOffset,
-            className: styles$w.listContainer
-          },
-          void 0,
-          false,
-          {
-            fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-            lineNumber: 42,
-            columnNumber: 7
-          },
-          void 0
-        )
-      ] }, void 0, true, {
-        fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-        lineNumber: 30,
-        columnNumber: 5
-      }, void 0);
+          ]
+        },
+        void 0,
+        true,
+        {
+          fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
+          lineNumber: 38,
+          columnNumber: 5
+        },
+        void 0
+      );
     });
     const SampleDisplay = ({ id, scrollRef }) => {
       var _a2;
