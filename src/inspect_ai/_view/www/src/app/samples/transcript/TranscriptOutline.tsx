@@ -142,6 +142,7 @@ const TreeNode: FC<TreeNodeProps> = ({ node }) => {
         {icon ? <i className={clsx(icon)} /> : undefined}
       </div>
       <div
+        className={clsx(styles.label)}
         data-depth={node.depth}
         style={{ paddingLeft: `${node.depth * 0.4}em` }}
       >

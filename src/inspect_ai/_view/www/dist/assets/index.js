@@ -42660,10 +42660,10 @@ categories: ${categories.join(" ")}`;
       return { result: result2, error: error2, allErrors: errorCount === samples.length };
     };
     const flex$1 = "_flex_1kye9_1";
-    const label$7 = "_label_1kye9_5";
+    const label$8 = "_label_1kye9_5";
     const styles$19 = {
       flex: flex$1,
-      label: label$7
+      label: label$8
     };
     const SortFilter = ({ sort, setSort, epochs }) => {
       const options2 = [
@@ -44190,10 +44190,10 @@ categories: ${categories.join(" ")}`;
       secondaryContainer
     };
     const button = "_button_12472_1";
-    const label$6 = "_label_12472_14";
+    const label$7 = "_label_12472_14";
     const styles$_ = {
       button,
-      label: label$6
+      label: label$7
     };
     const LinkButton = ({
       id,
@@ -44311,7 +44311,7 @@ categories: ${categories.join(" ")}`;
     const table$1 = "_table_12koy_1";
     const scorer = "_scorer_12koy_5";
     const value$2 = "_value_12koy_6";
-    const label$5 = "_label_12koy_11";
+    const label$6 = "_label_12koy_11";
     const groupSeparator = "_groupSeparator_12koy_28";
     const tableBody = "_tableBody_12koy_33";
     const tableSeparator = "_tableSeparator_12koy_45";
@@ -44319,7 +44319,7 @@ categories: ${categories.join(" ")}`;
       table: table$1,
       scorer,
       value: value$2,
-      label: label$5,
+      label: label$6,
       groupSeparator,
       tableBody,
       tableSeparator
@@ -52598,13 +52598,15 @@ self.onmessage = function (e) {
       }
       return { package: "", module: name2 };
     };
-    const eventRow = "_eventRow_qgi7d_12";
-    const toggle = "_toggle_qgi7d_19";
-    const eventLink = "_eventLink_qgi7d_24";
+    const eventRow = "_eventRow_1f6ai_12";
+    const toggle = "_toggle_1f6ai_19";
+    const eventLink = "_eventLink_1f6ai_24";
+    const label$5 = "_label_1f6ai_35";
     const styles$x = {
       eventRow,
       toggle,
-      eventLink
+      eventLink,
+      label: label$5
     };
     const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
     const fixupEventStream = (events, filterPending = true) => {
@@ -52827,6 +52829,7 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "div",
           {
+            className: clsx(styles$x.label),
             "data-depth": node2.depth,
             style: { paddingLeft: `${node2.depth * 0.4}em` },
             children: url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, className: clsx(styles$x.eventLink), children: parsePackageName(labelForNode(node2)).module }) : parsePackageName(labelForNode(node2)).module
@@ -53027,11 +53030,13 @@ self.onmessage = function (e) {
       }
       return [];
     };
-    const container$6 = "_container_1m8gs_1";
-    const treeContainer = "_treeContainer_1m8gs_8";
+    const container$6 = "_container_1l7z9_1";
+    const treeContainer = "_treeContainer_1l7z9_8";
+    const listContainer = "_listContainer_1l7z9_15";
     const styles$w = {
       container: container$6,
-      treeContainer
+      treeContainer,
+      listContainer
     };
     const title$2 = "_title_19l1b_1";
     const contents = "_contents_19l1b_8";
