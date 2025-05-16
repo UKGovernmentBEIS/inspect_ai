@@ -6,21 +6,20 @@ import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
 import { useEventNodes } from "./transform/hooks";
 
-const kSampleTabOffset = 31;
-
 interface TranscriptPanelProps {
   id: string;
   events: Events;
   scrollRef: RefObject<HTMLDivElement | null>;
   running?: boolean;
   initialEventId?: string | null;
+  topOffset?: number;
 }
 
 /**
  * Renders the Transcript Virtual List.
  */
 export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
-  let { id, scrollRef, events, running, initialEventId } = props;
+  let { id, scrollRef, events, running, initialEventId, topOffset } = props;
 
   const { eventNodes, defaultCollapsedIds } = useEventNodes(
     events,
@@ -32,7 +31,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
       <StickyScroll
         scrollRef={scrollRef}
         className={styles.treeContainer}
-        offsetTop={kSampleTabOffset}
+        offsetTop={topOffset}
       >
         <TranscriptOutline
           scrollRef={scrollRef}
@@ -47,7 +46,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
         scrollRef={scrollRef}
         running={running}
         initialEventId={initialEventId === undefined ? null : initialEventId}
-        offsetTop={kSampleTabOffset}
+        offsetTop={topOffset}
         className={styles.listContainer}
       />
     </div>

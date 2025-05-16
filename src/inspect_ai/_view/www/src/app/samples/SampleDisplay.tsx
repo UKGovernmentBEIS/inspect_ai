@@ -15,6 +15,7 @@ import {
   RefObject,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { EvalSample, Events } from "../../@types/log";
@@ -86,6 +87,16 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
 
   // Navigation hook for URL updates
   const navigate = useNavigate();
+
+  // Ref for samples tabs (used to meaure for offset)
+  const tabsRef: RefObject<HTMLUListElement | null> = useRef(null);
+  const tabsHeight = useMemo(() => {
+    if (tabsRef.current) {
+      const height = tabsRef.current.getBoundingClientRect().height;
+      return height;
+    }
+    return -1;
+  }, [tabsRef.current]);
 
   const sampleSummary = filteredSamples[selectedSampleIndex];
 
@@ -182,6 +193,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
       ) : undefined}
       <TabSet
         id={tabsetId}
+        tabsRef={tabsRef}
         className={clsx(styles.tabControls)}
         tabControlsClassName={clsx("text-size-base")}
         tabPanelsClassName={clsx(styles.tabPanel)}
@@ -204,6 +216,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             id={`${baseId}-transcript-display-${id}`}
             events={sampleEvents || []}
             initialEventId={sampleDetailNavigation.event}
+            topOffset={tabsHeight}
             running={running}
             scrollRef={scrollRef}
           />
@@ -222,6 +235,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
             id={`${baseId}-chat-${id}`}
             messages={sampleMessages}
             initialMessageId={sampleDetailNavigation.message}
+            topOffset={tabsHeight}
             indented={true}
             scrollRef={scrollRef}
             toolCallStyle="complete"
