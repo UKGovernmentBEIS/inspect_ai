@@ -89,7 +89,8 @@ async def run(
             state = await agent(state, **agent_kwargs)
             if limits:
                 return state, None
-            return state
+            else:
+                return state
 
     # the only way we can get here is if one of our limits was exceeded
     return state, limit_scope.limit_error
