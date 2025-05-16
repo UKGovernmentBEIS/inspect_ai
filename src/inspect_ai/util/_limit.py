@@ -89,8 +89,6 @@ class Limit(abc.ABC):
         self._entered = True
 
 
-# TODO: Do we want to control behaviour via parameter, or have a separate function e.g.
-# apply_limits() and catch_limit_errors()?
 @contextmanager
 def apply_limits(
     limits: list[Limit], catch_errors: bool = False
