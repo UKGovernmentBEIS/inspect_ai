@@ -43,6 +43,7 @@ interface TranscriptVirtualListProps {
   eventNodes: EventNode[];
   defaultCollapsedIds: Record<string, boolean>;
   initialEventId: string | null;
+  offsetTop?: number;
   scrollRef: RefObject<HTMLDivElement | null>;
   running?: boolean;
   className?: string | string[];
@@ -60,6 +61,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
       defaultCollapsedIds,
       running,
       initialEventId,
+      offsetTop,
       className,
     } = props;
 
@@ -88,6 +90,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
         id={id}
         eventNodes={flattenedNodes}
         initialEventId={initialEventId}
+        offsetTop={offsetTop}
         scrollRef={scrollRef}
         running={running}
         className={className}
