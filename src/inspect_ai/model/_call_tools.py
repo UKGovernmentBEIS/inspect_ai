@@ -303,7 +303,7 @@ async def execute_tools(
                 )
                 result_messages.append(tool_message)
                 display_conversation_message(tool_message)
-            else:
+            elif result is not None:
                 for message in result.messages:
                     result_messages.append(message)
                     display_conversation_message(message)
