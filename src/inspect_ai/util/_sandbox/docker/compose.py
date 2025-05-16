@@ -29,6 +29,24 @@ COMPOSE_WAIT = 120
 async def compose_up(
     project: ComposeProject, services: dict[str, ComposeService]
 ) -> ExecResult[str]:
+    """Starts Docker Compose services with appropriate timeouts.
+    
+    This function:
+    1. Determines appropriate timeout based on service healthchecks
+    2. Starts containers in detached mode
+    3. Waits for containers to be healthy before returning
+    
+    The function handles Docker Compose's behavior with the --wait flag, which can 
+    return non-zero exit codes even when services start successfully and then exit.
+    Actual service status is verified by calling compose_check_running() after this.
+    
+    Args:
+        project: ComposeProject defining the Docker Compose project
+        services: Dictionary of service definitions from the compose file
+        
+    Returns:
+        ExecResult: Result of the docker-compose up command
+    """
     # compute the maximum amount of time we will
     up_command = ["up", "--detach", "--wait"]
 
@@ -277,6 +295,37 @@ async def compose_command(
     output_limit: int | None = None,
     ansi: Literal["never", "always", "auto"] | None = None,
 ) -> ExecResult[str]:
+    """Executes a Docker Compose command with robust error handling and retry logic.
+    
+    This is the core function for interacting with Docker Compose. It:
+    1. Builds a properly formatted Docker Compose command
+    2. Adds project name and config file references
+    3. Forwards environment variables if requested
+    4. Implements timeout and retry logic for reliability
+    
+    The function includes special handling for Docker Compose reliability issues
+    observed in production environments. It will retry commands up to twice with
+    reduced timeouts if they time out, as this has been found to resolve transient
+    Docker daemon issues.
+    
+    Args:
+        command: Docker Compose subcommand and arguments
+        project: ComposeProject reference
+        timeout: Command execution timeout in seconds
+        timeout_retry: Whether to retry on timeout
+        input: Optional stdin input to the command
+        cwd: Working directory for command execution
+        forward_env: Whether to forward environment variables from project
+        capture_output: Whether to capture command output
+        output_limit: Maximum size of captured output
+        ansi: ANSI color output control
+        
+    Returns:
+        ExecResult: Result of the Docker Compose command
+        
+    Raises:
+        TimeoutError: If command times out and retry is disabled or exceeds retry limit
+    """
     # The base docker compose command
     compose_command = ["docker", "compose"]
 
