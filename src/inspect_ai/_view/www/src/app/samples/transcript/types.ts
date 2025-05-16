@@ -26,6 +26,8 @@ export interface StateManager {
   applyChanges(changes: Changes): object;
 }
 
+export const kTranscriptCollapseScope = "transcript-collapse";
+
 export type EventType =
   | SampleInitEvent
   | SampleLimitEvent

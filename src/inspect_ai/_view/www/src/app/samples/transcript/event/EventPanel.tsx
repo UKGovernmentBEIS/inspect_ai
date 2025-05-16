@@ -18,6 +18,7 @@ import {
   supportsLinking,
   toFullUrl,
 } from "../../../routing/url";
+import { kTranscriptCollapseScope } from "../types";
 import styles from "./EventPanel.module.css";
 
 interface EventPanelProps {
@@ -54,7 +55,10 @@ export const EventPanel: FC<EventPanelProps> = ({
   collapsibleContent,
   collapseControl = "top",
 }) => {
-  const [collapsed, setCollapsed] = useCollapseSampleEvent(id);
+  const [collapsed, setCollapsed] = useCollapseSampleEvent(
+    kTranscriptCollapseScope,
+    id,
+  );
   const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
   const useBottomDongle = isCollapsible && collapseControl === "bottom";
 

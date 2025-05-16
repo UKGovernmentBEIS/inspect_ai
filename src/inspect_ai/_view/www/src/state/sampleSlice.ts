@@ -25,8 +25,11 @@ export interface SampleSlice {
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
-    setCollapsedEvents: (collapsed: Record<string, boolean>) => void;
-    collapseEvent: (id: string, collapsed: boolean) => void;
+    setCollapsedEvents: (
+      scope: string,
+      collapsed: Record<string, boolean>,
+    ) => void;
+    collapseEvent: (scope: string, id: string, collapsed: boolean) => void;
     clearCollapsedEvents: () => void;
 
     setCollapsedIds: (key: string, collapsed: Record<string, true>) => void;
@@ -130,25 +133,37 @@ export const createSampleSlice = (
         set((state) => {
           state.sample.sampleError = error;
         }),
-      setCollapsedEvents: (collapsed: Record<string, boolean>) => {
-        set((state) => {
-          state.sample.collapsedEvents = collapsed;
-        });
-      },
-      clearCollapsedEvents: () => {
-        set((state) => {
-          state.sample.collapsedEvents = null;
-        });
-      },
-      collapseEvent: (id: string, collapsed: boolean) => {
+      setCollapsedEvents: (
+        scope: string,
+        collapsed: Record<string, boolean>,
+      ) => {
         set((state) => {
           if (state.sample.collapsedEvents === null) {
             state.sample.collapsedEvents = {};
           }
+          state.sample.collapsedEvents[scope] = collapsed;
+        });
+      },
+      clearCollapsedEvents: () => {
+        set((state) => {
+          if (state.sample.collapsedEvents !== null) {
+            state.sample.collapsedEvents = null;
+          }
+        });
+      },
+      collapseEvent: (scope: string, id: string, collapsed: boolean) => {
+        set((state) => {
+          if (state.sample.collapsedEvents === null) {
+            state.sample.collapsedEvents = {};
+          }
+          if (!state.sample.collapsedEvents[scope]) {
+            state.sample.collapsedEvents[scope] = {};
+          }
+
           if (collapsed) {
-            state.sample.collapsedEvents[id] = true;
+            state.sample.collapsedEvents[scope][id] = true;
           } else {
-            delete state.sample.collapsedEvents[id];
+            delete state.sample.collapsedEvents[scope][id];
           }
         });
       },

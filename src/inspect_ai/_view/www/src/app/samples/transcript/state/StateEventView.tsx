@@ -18,7 +18,7 @@ import {
 
 import { FC, useEffect, useMemo } from "react";
 import { useStore } from "../../../../state/store";
-import { EventNode } from "../types";
+import { EventNode, kTranscriptCollapseScope } from "../types";
 import styles from "./StateEventView.module.css";
 
 interface StateEventViewProps {
@@ -67,7 +67,7 @@ export const StateEventView: FC<StateEventViewProps> = ({
   const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
   useEffect(() => {
     if (changePreview === undefined) {
-      collapseEvent(id, true);
+      collapseEvent(kTranscriptCollapseScope, id, true);
     }
   }, [changePreview, collapseEvent]);
 
