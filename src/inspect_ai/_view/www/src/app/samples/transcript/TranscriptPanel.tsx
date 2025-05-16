@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { FC, memo, RefObject } from "react";
+import { useParams } from "react-router-dom";
 import { Events } from "../../../@types/log";
 import { StickyScroll } from "../../../components/StickyScroll";
 import { useCollapsedState } from "../../../state/hooks";
@@ -28,9 +29,10 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     events,
     running === true,
   );
+  const { logPath } = useParams<{ logPath: string }>();
 
   const [collapsed, setCollapsed] = useCollapsedState(
-    "transcript-panel",
+    `transcript-panel-${logPath || "na"}`,
     false,
   );
 

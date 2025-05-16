@@ -270,16 +270,17 @@ export const useLogSelection = () => {
 };
 
 export const useCollapseSampleEvent = (
+  scope: string,
   id: string,
 ): [boolean, (collapsed: boolean) => void] => {
   const collapsed = useStore((state) => state.sample.collapsedEvents);
   const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
 
   return useMemo(() => {
-    const isCollapsed = collapsed !== null && collapsed[id] === true;
+    const isCollapsed = collapsed !== null && collapsed[scope][id] === true;
     const set = (value: boolean) => {
       log.debug("Set collapsed", id, value);
-      collapseEvent(id, value);
+      collapseEvent(scope, id, value);
     };
     return [isCollapsed, set];
   }, [collapsed, collapseEvent, id]);

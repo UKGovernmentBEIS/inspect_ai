@@ -31741,25 +31741,33 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           setSampleError: (error2) => set2((state) => {
             state.sample.sampleError = error2;
           }),
-          setCollapsedEvents: (collapsed2) => {
-            set2((state) => {
-              state.sample.collapsedEvents = collapsed2;
-            });
-          },
-          clearCollapsedEvents: () => {
-            set2((state) => {
-              state.sample.collapsedEvents = null;
-            });
-          },
-          collapseEvent: (id, collapsed2) => {
+          setCollapsedEvents: (scope, collapsed2) => {
             set2((state) => {
               if (state.sample.collapsedEvents === null) {
                 state.sample.collapsedEvents = {};
               }
+              state.sample.collapsedEvents[scope] = collapsed2;
+            });
+          },
+          clearCollapsedEvents: () => {
+            set2((state) => {
+              if (state.sample.collapsedEvents !== null) {
+                state.sample.collapsedEvents = null;
+              }
+            });
+          },
+          collapseEvent: (scope, id, collapsed2) => {
+            set2((state) => {
+              if (state.sample.collapsedEvents === null) {
+                state.sample.collapsedEvents = {};
+              }
+              if (!state.sample.collapsedEvents[scope]) {
+                state.sample.collapsedEvents[scope] = {};
+              }
               if (collapsed2) {
-                state.sample.collapsedEvents[id] = true;
+                state.sample.collapsedEvents[scope][id] = true;
               } else {
-                delete state.sample.collapsedEvents[id];
+                delete state.sample.collapsedEvents[scope][id];
               }
             });
           },
@@ -51302,14 +51310,14 @@ categories: ${categories.join(" ")}`;
         };
       }, [selectedLogFile, selectedSampleSummary]);
     };
-    const useCollapseSampleEvent = (id) => {
+    const useCollapseSampleEvent = (scope, id) => {
       const collapsed2 = useStore((state) => state.sample.collapsedEvents);
       const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
       return reactExports.useMemo(() => {
-        const isCollapsed = collapsed2 !== null && collapsed2[id] === true;
+        const isCollapsed = collapsed2 !== null && collapsed2[scope][id] === true;
         const set2 = (value2) => {
           log$1.debug("Set collapsed", id, value2);
-          collapseEvent(id, value2);
+          collapseEvent(scope, id, value2);
         };
         return [isCollapsed, set2];
       }, [collapsed2, collapseEvent, id]);
@@ -62694,6 +62702,7 @@ self.onmessage = function (e) {
         columnNumber: 5
       }, void 0);
     };
+    const kTranscriptCollapseScope = "transcript-collapse";
     class EventNode {
       constructor(id, event, depth) {
         __publicField(this, "id");
@@ -63198,6 +63207,7 @@ self.onmessage = function (e) {
         span_id: name2
       };
     };
+    const kCollapseScope = "transcript-outline";
     const EventPaddingNode = {
       id: "padding",
       event: {
@@ -63229,7 +63239,7 @@ self.onmessage = function (e) {
       const flattenedNodes = reactExports.useMemo(() => {
         const nodeList = flatTree(
           eventNodes,
-          collapsedEvents || defaultCollapsedIds,
+          (collapsedEvents ? collapsedEvents[kCollapseScope] : void 0) || defaultCollapsedIds,
           [
             // Strip specific nodes
             removeNodeVisitor("logger"),
@@ -63255,20 +63265,20 @@ self.onmessage = function (e) {
       }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
       reactExports.useEffect(() => {
         if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
-          setCollapsedEvents(defaultCollapsedIds);
+          setCollapsedEvents(kCollapseScope, defaultCollapsedIds);
         }
       }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
       const renderRow = reactExports.useCallback((_index, node2) => {
         if (node2 === EventPaddingNode) {
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: styles$x.eventPadding }, node2.id, false, {
             fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-            lineNumber: 118,
+            lineNumber: 121,
             columnNumber: 14
           }, void 0);
         } else {
           return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(TreeNode$1, { node: node2 }, node2.id, false, {
             fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-            lineNumber: 120,
+            lineNumber: 123,
             columnNumber: 14
           }, void 0);
         }
@@ -63298,14 +63308,17 @@ self.onmessage = function (e) {
         false,
         {
           fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-          lineNumber: 125,
+          lineNumber: 128,
           columnNumber: 5
         },
         void 0
       );
     };
     const TreeNode$1 = ({ node: node2 }) => {
-      const [collapsed2, setCollapsed] = useCollapseSampleEvent(node2.id);
+      const [collapsed2, setCollapsed] = useCollapseSampleEvent(
+        kCollapseScope,
+        node2.id
+      );
       const icon2 = iconForNode(node2);
       const toggle2 = toggleIcon(node2, collapsed2);
       const { logPath, sampleId, epoch } = useParams();
@@ -63325,7 +63338,7 @@ self.onmessage = function (e) {
                 },
                 children: toggle2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx(toggle2) }, void 0, false, {
                   fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-                  lineNumber: 178,
+                  lineNumber: 184,
                   columnNumber: 19
                 }, void 0) : void 0
               },
@@ -63333,7 +63346,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-                lineNumber: 172,
+                lineNumber: 178,
                 columnNumber: 7
               },
               void 0
@@ -63341,17 +63354,17 @@ self.onmessage = function (e) {
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { className: clsx(styles$x.label), "data-depth": node2.depth, children: [
               icon2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: clsx(icon2, styles$x.icon) }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-                lineNumber: 181,
+                lineNumber: 187,
                 columnNumber: 17
               }, void 0) : void 0,
               url ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(Link, { to: url, className: clsx(styles$x.eventLink), children: parsePackageName(labelForNode(node2)).module }, void 0, false, {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-                lineNumber: 183,
+                lineNumber: 189,
                 columnNumber: 11
               }, void 0) : parsePackageName(labelForNode(node2)).module
             ] }, void 0, true, {
               fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-              lineNumber: 180,
+              lineNumber: 186,
               columnNumber: 7
             }, void 0)
           ]
@@ -63360,7 +63373,7 @@ self.onmessage = function (e) {
         true,
         {
           fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptOutline.tsx",
-          lineNumber: 168,
+          lineNumber: 174,
           columnNumber: 5
         },
         void 0
@@ -63805,7 +63818,10 @@ self.onmessage = function (e) {
       collapsibleContent,
       collapseControl = "top"
     }) => {
-      const [collapsed2, setCollapsed] = useCollapseSampleEvent(id);
+      const [collapsed2, setCollapsed] = useCollapseSampleEvent(
+        kTranscriptCollapseScope,
+        id
+      );
       const isCollapsible = (childIds || []).length > 0 || collapsibleContent;
       const useBottomDongle = isCollapsible && collapseControl === "bottom";
       const { logPath, sampleId, epoch } = useParams();
@@ -63863,7 +63879,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 133,
+                lineNumber: 137,
                 columnNumber: 11
               },
               void 0
@@ -63881,7 +63897,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 145,
+                lineNumber: 149,
                 columnNumber: 11
               },
               void 0
@@ -63897,7 +63913,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 155,
+                lineNumber: 159,
                 columnNumber: 9
               },
               void 0
@@ -63913,14 +63929,14 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 162,
+                lineNumber: 166,
                 columnNumber: 11
               },
               void 0
             ) : "",
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("div", { onClick: toggleCollapse }, void 0, false, {
               fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-              lineNumber: 170,
+              lineNumber: 174,
               columnNumber: 9
             }, void 0),
             /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -63934,7 +63950,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 171,
+                lineNumber: 175,
                 columnNumber: 9
               },
               void 0
@@ -63958,13 +63974,13 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 181,
+                lineNumber: 185,
                 columnNumber: 13
               },
               void 0
             ) : "" }, void 0, false, {
               fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-              lineNumber: 177,
+              lineNumber: 181,
               columnNumber: 9
             }, void 0)
           ]
@@ -63973,7 +63989,7 @@ self.onmessage = function (e) {
         true,
         {
           fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-          lineNumber: 120,
+          lineNumber: 124,
           columnNumber: 7
         },
         void 0
@@ -64011,7 +64027,7 @@ self.onmessage = function (e) {
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                      lineNumber: 230,
+                      lineNumber: 234,
                       columnNumber: 13
                     },
                     void 0
@@ -64022,7 +64038,7 @@ self.onmessage = function (e) {
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 216,
+                lineNumber: 220,
                 columnNumber: 7
               },
               void 0
@@ -64045,7 +64061,7 @@ self.onmessage = function (e) {
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                      lineNumber: 246,
+                      lineNumber: 250,
                       columnNumber: 11
                     },
                     void 0
@@ -64061,7 +64077,7 @@ self.onmessage = function (e) {
               true,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-                lineNumber: 242,
+                lineNumber: 246,
                 columnNumber: 9
               },
               void 0
@@ -64072,7 +64088,7 @@ self.onmessage = function (e) {
         true,
         {
           fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/event/EventPanel.tsx",
-          lineNumber: 207,
+          lineNumber: 211,
           columnNumber: 5
         },
         void 0
@@ -72758,7 +72774,7 @@ ${events}
       const collapseEvent = useStore((state) => state.sampleActions.collapseEvent);
       reactExports.useEffect(() => {
         if (changePreview === void 0) {
-          collapseEvent(id, true);
+          collapseEvent(kTranscriptCollapseScope, id, true);
         }
       }, [changePreview, collapseEvent]);
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -73665,11 +73681,14 @@ ${events}
           (state) => state.sampleActions.setCollapsedEvents
         );
         const flattenedNodes = reactExports.useMemo(() => {
-          return flatTree(eventNodes, collapsedEvents || defaultCollapsedIds);
+          return flatTree(
+            eventNodes,
+            (collapsedEvents ? collapsedEvents[kTranscriptCollapseScope] : void 0) || defaultCollapsedIds
+          );
         }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
         reactExports.useEffect(() => {
           if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
-            setCollapsedEvents(defaultCollapsedIds);
+            setCollapsedEvents(kTranscriptCollapseScope, defaultCollapsedIds);
           }
         }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
         return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -73687,7 +73706,7 @@ ${events}
           false,
           {
             fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-            lineNumber: 89,
+            lineNumber: 94,
             columnNumber: 7
           },
           void 0
@@ -73708,7 +73727,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 114,
+                lineNumber: 119,
                 columnNumber: 11
               },
               void 0
@@ -73724,7 +73743,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 122,
+                lineNumber: 127,
                 columnNumber: 11
               },
               void 0
@@ -73740,7 +73759,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 130,
+                lineNumber: 135,
                 columnNumber: 11
               },
               void 0
@@ -73756,7 +73775,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 138,
+                lineNumber: 143,
                 columnNumber: 11
               },
               void 0
@@ -73772,7 +73791,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 146,
+                lineNumber: 151,
                 columnNumber: 11
               },
               void 0
@@ -73788,7 +73807,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 154,
+                lineNumber: 159,
                 columnNumber: 11
               },
               void 0
@@ -73804,7 +73823,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 162,
+                lineNumber: 167,
                 columnNumber: 11
               },
               void 0
@@ -73821,7 +73840,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 170,
+                lineNumber: 175,
                 columnNumber: 11
               },
               void 0
@@ -73838,7 +73857,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 179,
+                lineNumber: 184,
                 columnNumber: 11
               },
               void 0
@@ -73854,7 +73873,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 188,
+                lineNumber: 193,
                 columnNumber: 11
               },
               void 0
@@ -73871,7 +73890,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 196,
+                lineNumber: 201,
                 columnNumber: 11
               },
               void 0
@@ -73888,7 +73907,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 205,
+                lineNumber: 210,
                 columnNumber: 11
               },
               void 0
@@ -73904,7 +73923,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 214,
+                lineNumber: 219,
                 columnNumber: 11
               },
               void 0
@@ -73920,7 +73939,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 222,
+                lineNumber: 227,
                 columnNumber: 11
               },
               void 0
@@ -73936,7 +73955,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 230,
+                lineNumber: 235,
                 columnNumber: 11
               },
               void 0
@@ -73952,7 +73971,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptVirtualList.tsx",
-                lineNumber: 238,
+                lineNumber: 243,
                 columnNumber: 11
               },
               void 0
@@ -74001,8 +74020,9 @@ ${events}
         events,
         running2 === true
       );
+      const { logPath } = useParams();
       const [collapsed2, setCollapsed] = useCollapsedState(
-        "transcript-panel",
+        `transcript-panel-${logPath || "na"}`,
         false
       );
       return /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
@@ -74031,7 +74051,7 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-                      lineNumber: 49,
+                      lineNumber: 51,
                       columnNumber: 9
                     },
                     void 0
@@ -74043,7 +74063,7 @@ ${events}
                       onClick: () => setCollapsed(!collapsed2),
                       children: /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV("i", { className: ApplicationIcons.sidebar }, void 0, false, {
                         fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-                        lineNumber: 58,
+                        lineNumber: 60,
                         columnNumber: 11
                       }, void 0)
                     },
@@ -74051,7 +74071,7 @@ ${events}
                     false,
                     {
                       fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-                      lineNumber: 54,
+                      lineNumber: 56,
                       columnNumber: 9
                     },
                     void 0
@@ -74062,7 +74082,7 @@ ${events}
               true,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-                lineNumber: 44,
+                lineNumber: 46,
                 columnNumber: 7
               },
               void 0
@@ -74083,7 +74103,7 @@ ${events}
               false,
               {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-                lineNumber: 61,
+                lineNumber: 63,
                 columnNumber: 7
               },
               void 0
@@ -74094,7 +74114,7 @@ ${events}
         true,
         {
           fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/TranscriptPanel.tsx",
-          lineNumber: 38,
+          lineNumber: 40,
           columnNumber: 5
         },
         void 0

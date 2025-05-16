@@ -24,6 +24,8 @@ import styles from "./TranscriptOutline.module.css";
 import { kSandboxSignalName } from "./transform/fixups";
 import { TYPE_SCORER, TYPE_SCORERS } from "./transform/utils";
 
+const kCollapseScope = "transcript-outline";
+
 interface TranscriptOutlineProps {
   eventNodes: EventNode[];
   defaultCollapsedIds: Record<string, boolean>;
@@ -73,7 +75,8 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
     // flattten the event tree
     const nodeList = flatTree(
       eventNodes,
-      collapsedEvents || defaultCollapsedIds,
+      (collapsedEvents ? collapsedEvents[kCollapseScope] : undefined) ||
+        defaultCollapsedIds,
       [
         // Strip specific nodes
         removeNodeVisitor("logger"),
@@ -109,7 +112,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   useEffect(() => {
     // Only initialize collapsedEvents if it's empty
     if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
-      setCollapsedEvents(defaultCollapsedIds);
+      setCollapsedEvents(kCollapseScope, defaultCollapsedIds);
     }
   }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
@@ -148,7 +151,10 @@ interface TreeNodeProps {
   node: EventNode;
 }
 const TreeNode: FC<TreeNodeProps> = ({ node }) => {
-  const [collapsed, setCollapsed] = useCollapseSampleEvent(node.id);
+  const [collapsed, setCollapsed] = useCollapseSampleEvent(
+    kCollapseScope,
+    node.id,
+  );
   const icon = iconForNode(node);
   const toggle = toggleIcon(node, collapsed);
 

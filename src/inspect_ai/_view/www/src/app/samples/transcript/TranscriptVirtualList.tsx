@@ -31,7 +31,7 @@ import { StateEventView } from "./state/StateEventView";
 import { StepEventView } from "./StepEventView";
 import { SubtaskEventView } from "./SubtaskEventView";
 import { ToolEventView } from "./ToolEventView";
-import { EventNode } from "./types";
+import { EventNode, kTranscriptCollapseScope } from "./types";
 
 import { useStore } from "../../../state/store";
 import { SpanEventView } from "./SpanEventView";
@@ -73,7 +73,12 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
 
     const flattenedNodes = useMemo(() => {
       // flattten the event tree
-      return flatTree(eventNodes, collapsedEvents || defaultCollapsedIds);
+      return flatTree(
+        eventNodes,
+        (collapsedEvents
+          ? collapsedEvents[kTranscriptCollapseScope]
+          : undefined) || defaultCollapsedIds,
+      );
     }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
     // Update the collapsed events when the default collapsed IDs change
@@ -81,7 +86,7 @@ export const TranscriptVirtualList: FC<TranscriptVirtualListProps> = memo(
     useEffect(() => {
       // Only initialize collapsedEvents if it's empty
       if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
-        setCollapsedEvents(defaultCollapsedIds);
+        setCollapsedEvents(kTranscriptCollapseScope, defaultCollapsedIds);
       }
     }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
