@@ -49,8 +49,8 @@ async def run(
         limits: List of limits to apply to the agent. Should a limit be
             exceeded, a LimitExceededError is raised which the caller may
             handle as appropriate.
-        name: Optional name for the agent. If not provided, the agent's
-            name as defined in the registry will be used.
+        name: Optional display name for the transcript entry. If not provided, the
+            agent's name as defined in the registry will be used.
         **agent_kwargs: Additional arguments to pass to agent.
 
     Returns:

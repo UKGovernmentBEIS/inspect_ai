@@ -35,7 +35,11 @@ from inspect_ai._util.registry import (
     registry_log_name,
     registry_unqualified_name,
 )
-from inspect_ai._util.working import init_sample_working_time, sample_waiting_time
+from inspect_ai._util.working import (
+    end_sample_working_limit,
+    init_sample_working_limit,
+    sample_waiting_time,
+)
 from inspect_ai._view.notify import view_notify_eval
 from inspect_ai.dataset import Dataset, Sample
 from inspect_ai.log import (
@@ -86,8 +90,6 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._limit import LimitExceededError
-from inspect_ai.util._limit import time_limit as create_time_limit
-from inspect_ai.util._limit import working_limit as create_working_limit
 from inspect_ai.util._sandbox.context import sandbox_connections
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._span import span
@@ -633,6 +635,10 @@ async def task_run_sample(
             )
 
             async with sandboxenv_cm:
+                timeout_cm: (
+                    contextlib._GeneratorContextManager[anyio.CancelScope]
+                    | contextlib.nullcontext[None]
+                ) = contextlib.nullcontext()
                 try:
                     # update active sample wth sandboxes now that we are initialised
                     # (ensure that we still exit init context in presence of sandbox error)
@@ -641,17 +647,19 @@ async def task_run_sample(
                     finally:
                         await init_span.__aexit__(None, None, None)
 
+                    # initialise timeout context manager
+                    timeout_cm = (
+                        anyio.fail_after(time_limit)
+                        if time_limit is not None
+                        else contextlib.nullcontext()
+                    )
+
                     # record start time
                     start_time = time.monotonic()
-                    init_sample_working_time(start_time)
+                    init_sample_working_limit(start_time, working_limit)
 
-                    # run sample w/ optional limits
-                    with (
-                        state._token_limit,
-                        state._message_limit,
-                        create_time_limit(time_limit),
-                        create_working_limit(working_limit),
-                    ):
+                    # run sample w/ optional timeout
+                    with timeout_cm, state._token_limit, state._message_limit:
                         # mark started
                         active.started = datetime.now().timestamp()
 
@@ -669,12 +677,22 @@ async def task_run_sample(
                         # set progress for plan then run it
                         state = await plan(state, generate)
 
+                    # disable sample working limit after execution
+                    end_sample_working_limit()
+
                 except TimeoutError:
-                    # Scoped time limits manifest themselves as LimitExceededError, not
-                    # TimeoutError.
-                    py_logger.warning(
-                        "Unexpected timeout error reached top of sample stack. Are you handling TimeoutError when applying timeouts?"
-                    )
+                    if time_limit is not None:
+                        transcript()._event(
+                            SampleLimitEvent(
+                                type="time",
+                                message=f"Sample completed: exceeded time limit ({time_limit:,} seconds)",
+                                limit=time_limit,
+                            )
+                        )
+                    else:
+                        py_logger.warning(
+                            "Unexpected timeout error reached top of sample stack. Are you handling TimeoutError when applying timeouts?"
+                        )
 
                     # capture most recent state for scoring
                     state = sample_state() or state
@@ -719,14 +737,15 @@ async def task_run_sample(
                 # the cause of the timeout is a hung container and scoring requires
                 # interacting with the container). as a middle ground we use half
                 # of the original timeout value for scoring.
-                scoring_time_limit = time_limit / 2 if time_limit else None
+                if time_limit is not None:
+                    timeout_cm = anyio.fail_after(time_limit / 2)
 
                 set_sample_state(state)
 
                 # scoring
                 try:
                     # timeout during scoring will result in an ordinary sample error
-                    with create_time_limit(scoring_time_limit):
+                    with timeout_cm:
                         if error is None:
                             for scorer in scorers or []:
                                 scorer_name = unique_scorer_name(
@@ -779,7 +798,17 @@ async def task_run_sample(
                     raise
 
                 except BaseException as ex:
-                    # handle error
+                    # note timeout
+                    if isinstance(ex, TimeoutError):
+                        transcript()._event(
+                            SampleLimitEvent(
+                                type="time",
+                                message=f"Unable to score sample due to exceeded time limit ({time_limit:,} seconds)",
+                                limit=time_limit,
+                            )
+                        )
+
+                    # handle error (this will throw if we've exceeded the limit)
                     error, raise_error = handle_error(ex)
 
         except Exception as ex:

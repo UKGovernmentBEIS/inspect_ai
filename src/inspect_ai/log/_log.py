@@ -165,7 +165,7 @@ class EvalSampleLimit(BaseModel):
     ]
     """The type of limit"""
 
-    limit: float
+    limit: int
     """The limit value"""
 
 

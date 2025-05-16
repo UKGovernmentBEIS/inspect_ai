@@ -119,9 +119,7 @@ Appropriate timeouts will vary depending on the nature of your task so please vi
 
 ### Working Limit
 
-{{< include _working_limits.md >}}
-
-Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
+The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
 
 ``` python
 @task
@@ -138,6 +136,8 @@ def intercode_ctf():
         sandbox="docker",
     )
 ```
+
+Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or subprocess execution).
 
 ::: {.callout-note appearance="simple"}
 In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`vertex`, and `azureai`) and in these cases the `working_time` will include any internal retries that the model client performs.
@@ -228,34 +228,6 @@ if limit_scope.were_any_exceeded:
     print(f"One of our limits was hit: {limit_scope.error}")
 
 ```
-
-### Time Limit
-
-To limit the wall clock time to 15 minutes within a block of code:
-
-``` python
-with time_limit(15 * 60):
-    ...
-```
-
-Internally, this uses [`anyio`'s cancellation scopes](https://anyio.readthedocs.io/en/stable/cancellation.html). The block will be cancelled at the first yield point (e.g. `await` statement). 
-
-### Working Limit
-
-{{< include _working_limits.md >}}
-
-To limit the working time to 10 minutes:
-
-``` python
-with working_limit(10 * 60):
-    ...
-```
-
-Unlike time limits, this is not driven by `anyio`. It is checked periodically such as from `generate()` and after each `Solver` runs.
-
-::: {.callout-note appearance="simple"}
-In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`vertex`, and `azureai`) and in these cases the `working_time` will include any internal retries that the model client performs.
-:::
 
 ### Message Limit
 
