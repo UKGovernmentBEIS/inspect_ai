@@ -106,7 +106,7 @@ def apply_limits(
       limits: List of limits to apply while the context manager is open. Should a
         limit be exceeded, a LimitExceededError is raised.
       catch_errors: If True, catch LimitExceededErrors raised by the applied limits. You
-        can determine whether any limits were exceeded by checking the were_any_exceeded
+        can determine whether any limits were exceeded by checking the limit_error
         property of the LimitScope object yielded by this function. If False, all
         LimitExceededError will be allowed to propagate.
     """
@@ -120,7 +120,7 @@ def apply_limits(
             # If it was not one of the limits we applied.
             if e.source is None or e.source not in limits:
                 raise
-            limit_scope.error = e
+            limit_scope.limit_error = e
             if not catch_errors:
                 raise
 
@@ -132,11 +132,7 @@ class LimitScope:
     """
 
     def __init__(self) -> None:
-        self.error: LimitExceededError | None = None
-
-    @property
-    def were_any_exceeded(self) -> bool:
-        return self.error is not None
+        self.limit_error: LimitExceededError | None = None
 
 
 def token_limit(limit: int | None) -> _TokenLimit:

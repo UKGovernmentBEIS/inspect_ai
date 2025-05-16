@@ -30,8 +30,7 @@ def test_apply_limits_empty() -> None:
     with apply_limits([]) as limit_scope:
         pass
 
-    assert limit_scope.were_any_exceeded is False
-    assert limit_scope.error is None
+    assert limit_scope.limit_error is None
 
 
 def test_apply_limits_catch_errors_true() -> None:
@@ -40,9 +39,8 @@ def test_apply_limits_catch_errors_true() -> None:
         record_model_usage(ModelUsage(total_tokens=11))
         check_token_limit()
 
-    assert limit_scope.were_any_exceeded is True
-    assert limit_scope.error is not None
-    assert limit_scope.error.source is limit
+    assert limit_scope.limit_error is not None
+    assert limit_scope.limit_error.source is limit
 
 
 def test_apply_limits_catch_errors_false() -> None:
@@ -52,8 +50,7 @@ def test_apply_limits_catch_errors_false() -> None:
             check_token_limit()
 
     # Despite not catching the error, we still have a reference to it.
-    assert limit_scope.were_any_exceeded is True
-    assert limit_scope.error is exc_info.value
+    assert limit_scope.limit_error is exc_info.value
 
 
 def test_apply_limits_not_checked_once_closed() -> None:
@@ -65,16 +62,14 @@ def test_apply_limits_not_checked_once_closed() -> None:
     check_token_limit()
     check_message_limit(11, raise_for_equal=False)
 
-    assert limit_scope.were_any_exceeded is False
-    assert limit_scope.error is None
+    assert limit_scope.limit_error is None
 
 
 def test_apply_limits_not_exceeded() -> None:
     with apply_limits([token_limit(10)]) as limit_scope:
         pass
 
-    assert limit_scope.were_any_exceeded is False
-    assert limit_scope.error is None
+    assert limit_scope.limit_error is None
 
 
 def test_apply_limits_parent_exceeded() -> None:
@@ -83,8 +78,8 @@ def test_apply_limits_parent_exceeded() -> None:
             record_model_usage(ModelUsage(total_tokens=11))
             check_token_limit()
 
-    assert parent_scope.error is not None
-    assert child_scope.error is None
+    assert parent_scope.limit_error is not None
+    assert child_scope.limit_error is None
 
 
 def test_apply_limits_child_exceeded() -> None:
@@ -93,8 +88,8 @@ def test_apply_limits_child_exceeded() -> None:
             record_model_usage(ModelUsage(total_tokens=11))
             check_token_limit()
 
-    assert parent_scope.error is None
-    assert child_scope.error is not None
+    assert parent_scope.limit_error is None
+    assert child_scope.limit_error is not None
 
 
 def test_apply_limits_handles_error_without_source() -> None:
@@ -102,4 +97,4 @@ def test_apply_limits_handles_error_without_source() -> None:
         with apply_limits([token_limit(10), message_limit(10)]) as limit_scope:
             raise LimitExceededError(type="token", value=11, limit=10)
 
-    assert limit_scope.error is None
+    assert limit_scope.limit_error is None

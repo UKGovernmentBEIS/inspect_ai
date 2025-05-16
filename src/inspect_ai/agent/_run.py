@@ -92,4 +92,4 @@ async def run(
             return state
 
     # the only way we can get here is if one of our limits was exceeded
-    return state, limit_scope.error
+    return state, limit_scope.limit_error

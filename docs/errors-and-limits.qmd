@@ -224,8 +224,8 @@ The `apply_limits()` function which accepts a list of `Limit` instances will aut
 ``` python
 with apply_limits([token_limit(1000), message_limit(10)]) as limit_scope:
     ...
-if limit_scope.were_any_exceeded:
-    print(f"One of our limits was hit: {limit_scope.error}")
+if limit_scope.limit_error:
+    print(f"One of our limits was hit: {limit_scope.limit_error}")
 
 ```
 
