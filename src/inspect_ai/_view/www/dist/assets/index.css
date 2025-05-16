@@ -17266,48 +17266,52 @@ thead th {
 ._scores_las07_54 {
   padding-top: 1em;
 }
-._node_h48zr_1 {
+._node_rzpu5_1 {
   display: grid;
   column-gap: 0.3em;
   grid-template-columns: max-content 1fr;
 }
 
-._panel_h48zr_7 {
+._panel_rzpu5_7 {
   margin-top: 0.65rem;
   overflow: visible;
 }
 
-._eventRow_h48zr_12 {
+._eventRow_rzpu5_12 {
   display: grid;
-  grid-template-columns: 14px 1fr;
-  column-gap: 0em;
+  grid-template-columns: 10px 1fr;
+  column-gap: 3px;
   cursor: pointer;
 }
 
-._eventRow_h48zr_12 ._toggle_h48zr_19 {
+._eventRow_rzpu5_12 ._toggle_rzpu5_19 {
   font-size: 0.7em;
   margin-top: 4px;
 }
 
-._eventLink_h48zr_24 {
+._eventLink_rzpu5_24 {
   color: var(--bs-body);
   text-decoration: none;
   cursor: pointer;
 }
 
-._eventLink_h48zr_24:hover {
+._eventLink_rzpu5_24:hover {
   text-decoration: underline;
   color: var(--bs-link-hover-color);
 }
 
-._label_h48zr_35 {
+._label_rzpu5_35 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._eventPadding_h48zr_41 {
+._eventPadding_rzpu5_41 {
   height: 2em;
+}
+
+._icon_rzpu5_45 {
+  margin-right: 3px;
 }
 ._container_k5fnd_1 {
   display: grid;

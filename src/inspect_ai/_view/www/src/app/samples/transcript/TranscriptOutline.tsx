@@ -149,7 +149,8 @@ interface TreeNodeProps {
 }
 const TreeNode: FC<TreeNodeProps> = ({ node }) => {
   const [collapsed, setCollapsed] = useCollapseSampleEvent(node.id);
-  const icon = iconForNode(node, collapsed);
+  const icon = iconForNode(node);
+  const toggle = toggleIcon(node, collapsed);
 
   // Get all URL parameters at component level
   const { logPath, sampleId, epoch } = useParams<{
@@ -166,7 +167,7 @@ const TreeNode: FC<TreeNodeProps> = ({ node }) => {
   return (
     <div
       className={clsx(styles.eventRow, "text-size-smallest")}
-      style={{ paddingLeft: `${node.depth * 0.8}em` }}
+      style={{ paddingLeft: `${node.depth * 0.4}em` }}
     >
       <div
         className={clsx(styles.toggle)}
@@ -174,9 +175,10 @@ const TreeNode: FC<TreeNodeProps> = ({ node }) => {
           setCollapsed(!collapsed);
         }}
       >
-        {icon ? <i className={clsx(icon)} /> : undefined}
+        {toggle ? <i className={clsx(toggle)} /> : undefined}
       </div>
       <div className={clsx(styles.label)} data-depth={node.depth}>
+        {icon ? <i className={clsx(icon, styles.icon)} /> : undefined}
         {url ? (
           <Link to={url} className={clsx(styles.eventLink)}>
             {parsePackageName(labelForNode(node)).module}
@@ -189,7 +191,7 @@ const TreeNode: FC<TreeNodeProps> = ({ node }) => {
   );
 };
 
-const iconForNode = (
+const toggleIcon = (
   node: EventNode,
   collapsed: boolean,
 ): string | undefined => {
@@ -198,9 +200,18 @@ const iconForNode = (
       ? ApplicationIcons.chevron.right
       : ApplicationIcons.chevron.down;
   }
+};
 
-  if (node.event.event === "sample_limit") {
-    return ApplicationIcons.limits.custom;
+const iconForNode = (node: EventNode): string | undefined => {
+  switch (node.event.event) {
+    case "sample_limit":
+      return ApplicationIcons.limits.custom;
+
+    case "score":
+      return ApplicationIcons.scorer;
+
+    case "error":
+      return ApplicationIcons.error;
   }
 };
 
