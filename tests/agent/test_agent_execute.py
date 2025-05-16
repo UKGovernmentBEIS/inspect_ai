@@ -8,16 +8,18 @@ from inspect_ai._eval.task.task import Task
 from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._run import run
+from inspect_ai.log._transcript import SpanBeginEvent, transcript
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._model import get_model
+from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.solver._solver import Generate, Solver, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.solver._use_tools import use_tools
 from inspect_ai.tool import ToolDef
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_call import ToolCall
-from inspect_ai.util._limit import LimitExceededError, message_limit
+from inspect_ai.util._limit import LimitExceededError, message_limit, token_limit
 
 
 @agent
@@ -82,6 +84,9 @@ def web_surfer_no_param_docs() -> Agent:
 
 @agent
 def looping_agent() -> Agent:
+    model_output = ModelOutput.from_content("mockllm/model", "hello")
+    model_output.usage = ModelUsage(total_tokens=1)
+
     async def execute(state: AgentState) -> AgentState:
         """An agent which forever calls generate and appends messages.
 
@@ -89,7 +94,9 @@ def looping_agent() -> Agent:
             state: Input state (conversation)
         """
         while True:
-            result = await get_model("mockllm/model").generate(state.messages)
+            result = await get_model(
+                "mockllm/model", custom_outputs=[model_output]
+            ).generate(state.messages)
             state.messages.append(result.message)
         return state
 
@@ -350,8 +357,59 @@ def test_agent_as_solver_respects_sample_limits() -> None:
 async def test_agent_run():
     state = await run(web_surfer(), "This is the input", max_searches=22)
     assert state.output.completion == "22"
+    assert any(
+        isinstance(event, SpanBeginEvent) and event.name == "web_surfer"
+        for event in transcript().events
+    )
 
 
+@pytest.mark.anyio
+async def test_agent_run_with_name_param():
+    await run(web_surfer(), "This is the input", name="my-agent", max_searches=22)
+
+    assert any(
+        isinstance(event, SpanBeginEvent) and event.name == "my-agent"
+        for event in transcript().events
+    )
+
+
+@pytest.mark.anyio
+async def test_agent_run_without_limits_param():
+    result = await run(web_surfer(), "This is the input")
+
+    # When no limits parameter is provided, only an AgentState is returned.
+    assert isinstance(result, AgentState)
+
+
+@pytest.mark.anyio
+async def test_agent_run_with_limits_param_but_no_limit_hit() -> None:
+    state, limit_error = await run(
+        web_surfer(), "This is the input", limits=[token_limit(100)]
+    )
+
+    # When a limits parameter is provided, a tuple is returned.
+    assert isinstance(state, AgentState)
+    assert limit_error is None
+
+
+@pytest.mark.anyio
 async def test_agent_run_respects_limits() -> None:
-    with pytest.raises(LimitExceededError):
-        await run(looping_agent(), "This is the input", limits=[message_limit(10)])
+    agent_state, limit_error = await run(
+        looping_agent(), "This is the input", limits=[message_limit(10)]
+    )
+
+    assert limit_error is not None
+    assert limit_error.type == "message"
+    assert len(agent_state.messages) == 10
+
+
+@pytest.mark.anyio
+async def test_agent_run_parent_limit_hit() -> None:
+    # run() should not catch another limit's error.
+    with pytest.raises(LimitExceededError) as exc_info:
+        with token_limit(10):
+            await run(looping_agent(), "This is the input", limits=[token_limit(100)])
+
+    assert exc_info.value.type == "token"
+    assert exc_info.value.value == 11
+    assert exc_info.value.limit == 10
