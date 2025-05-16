@@ -350,6 +350,12 @@ class GoogleGenAIAPI(ModelAPI):
             self.is_gemini() and not self.is_gemini_1_5() and not self.is_gemini_2_0()
         )
         if has_thinking_config:
+            if config.reasoning_tokens == 0:
+                # When reasoning_tokens is set to zero, we disable reasoning and return None.
+                # We cannot return a ThinkingConfig with reasoning_tokens set to 0,
+                # as this will cause the Gemini API to return a 400 INVALID_ARGUMENT error.
+                return None
+
             return ThinkingConfig(
                 include_thoughts=True, thinking_budget=config.reasoning_tokens
             )
