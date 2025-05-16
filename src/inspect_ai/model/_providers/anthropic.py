@@ -358,6 +358,7 @@ class AnthropicAPI(ModelAPI):
             # for "overloaded_error" so we check for it explicitly
             if (
                 isinstance(ex.body, dict)
+                and isinstance(ex.body.get("error", {}), dict)
                 and ex.body.get("error", {}).get("type", "") == "overloaded_error"
             ):
                 return True
