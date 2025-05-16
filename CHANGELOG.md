@@ -20,6 +20,7 @@
 - Inspect View: When deployed via `inspect view bundle`, support linking to individual transcript events or messages.
 - Inspect View: Reduce the maximum size of the header (before it is collapsed) when evals have large numbers of metrics.
 - Bugfix: More robust handling of non-529 "overloaded_error" for Anthropic.
+- Bugfix: More robust handling of no result returned from tool call.
 
 ## v0.3.96 (13 May 2025)
 
