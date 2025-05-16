@@ -51,7 +51,6 @@ class Sample(BaseModel):
                 or narrative text to be used by a model grader.
             id: Optional. Unique identifier for sample.
             metadata: Optional. Arbitrary metadata associated with the sample.
-                sandbox (SandboxEnvironmentType | None): Sandbox environment type (or optionally a str or tuple with a shorthand spec)
             sandbox: Optional. Sandbox specification for this sample.
             files: Optional. Files that go along with the sample (copied to
                 SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
