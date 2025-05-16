@@ -50,7 +50,7 @@ def test_does_not_raise_error_when_limit_not_exceeded() -> None:
 
 
 def test_raises_error_when_limit_exceeded(mock_time: _MockTime) -> None:
-    with working_limit(1):
+    with working_limit(1) as limit:
         with pytest.raises(LimitExceededError) as exc_info:
             mock_time.advance(5)
             check_working_limit()
@@ -58,6 +58,7 @@ def test_raises_error_when_limit_exceeded(mock_time: _MockTime) -> None:
     assert exc_info.value.type == "working"
     assert exc_info.value.value == 5
     assert exc_info.value.limit == 1
+    assert exc_info.value.source is limit
 
 
 def test_raises_error_when_limit_repeatedly_exceeded(
@@ -141,6 +142,35 @@ def test_subtracts_waiting_time_from_ancestors(mock_time: _MockTime) -> None:
                 check_working_limit()
 
     assert exc_info.value.value == 3
+
+
+def test_cannot_reuse_context_manager() -> None:
+    limit = working_limit(10)
+    with limit:
+        pass
+
+    with pytest.raises(RuntimeError) as exc_info:
+        # Reusing the same Limit instance.
+        with limit:
+            pass
+
+    assert "Each Limit may only be used once in a single 'with' block" in str(
+        exc_info.value
+    )
+
+
+def test_cannot_reuse_context_manager_in_stack() -> None:
+    limit = working_limit(10)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        with limit:
+            # Reusing the same Limit instance in a stack.
+            with limit:
+                pass
+
+    assert "Each Limit may only be used once in a single 'with' block" in str(
+        exc_info.value
+    )
 
 
 class _MockTime:

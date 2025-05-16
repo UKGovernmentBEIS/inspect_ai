@@ -645,7 +645,7 @@ async def task_run_sample(
                     start_time = time.monotonic()
                     init_sample_working_time(start_time)
 
-                    # run sample w/ optional timeout
+                    # run sample w/ optional limits
                     with (
                         state._token_limit,
                         state._message_limit,

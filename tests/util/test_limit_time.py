@@ -28,12 +28,13 @@ async def test_does_not_raise_error_when_limit_not_exceeded() -> None:
 
 async def test_raises_error_when_limit_exceeded() -> None:
     with pytest.raises(LimitExceededError) as exc_info:
-        with time_limit(0.1):
+        with time_limit(0.1) as limit:
             await asyncio.sleep(0.5)
 
     assert exc_info.value.type == "time"
     assert exc_info.value.value == 0.1
     assert exc_info.value.limit == 0.1
+    assert exc_info.value.source is limit
 
 
 async def test_out_of_scope_limits_are_not_checked() -> None:
@@ -61,29 +62,30 @@ async def test_inner_limits_are_enforced() -> None:
     assert exc_info.value.value == 0.1
 
 
-async def test_can_reuse_context_manager() -> None:
-    limit = time_limit(0.5)
-
+async def test_cannot_reuse_context_manager() -> None:
+    limit = time_limit(10)
     with limit:
         pass
 
-    with limit:
-        pass
-
-    with pytest.raises(LimitExceededError):
+    with pytest.raises(RuntimeError) as exc_info:
+        # Reusing the same Limit instance.
         with limit:
-            await asyncio.sleep(1)
+            pass
 
-    with limit:
-        pass
+    assert "Each Limit may only be used once in a single 'with' block" in str(
+        exc_info.value
+    )
 
 
-async def test_can_reuse_context_manager_in_stack() -> None:
-    limit = time_limit(1)
+async def test_cannot_reuse_context_manager_in_stack() -> None:
+    limit = time_limit(10)
 
-    with pytest.raises(LimitExceededError) as exc_info:
+    with pytest.raises(RuntimeError) as exc_info:
         with limit:
+            # Reusing the same Limit instance in a stack.
             with limit:
-                await asyncio.sleep(10)
+                pass
 
-    assert exc_info.value.value == 1
+    assert "Each Limit may only be used once in a single 'with' block" in str(
+        exc_info.value
+    )

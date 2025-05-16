@@ -27,18 +27,71 @@ def test_can_use_deprecated_sample_limit_exceeded_error() -> None:
 
 
 def test_apply_limits_empty() -> None:
-    with apply_limits([]):
+    with apply_limits([]) as limit_scope:
         pass
 
+    assert limit_scope.were_any_exceeded is False
 
-def test_apply_limits() -> None:
-    with apply_limits([token_limit(10), message_limit(10)]):
-        with pytest.raises(LimitExceededError):
+
+def test_apply_limits_catch_errors_true() -> None:
+    with apply_limits([token_limit(10)], catch_errors=True) as limit_scope:
+        record_model_usage(ModelUsage(total_tokens=11))
+        check_token_limit()
+
+    assert limit_scope.were_any_exceeded is True
+
+
+def test_apply_limits_catch_errors_false() -> None:
+    with pytest.raises(LimitExceededError):
+        with apply_limits([token_limit(10)], catch_errors=False) as limit_scope:
             record_model_usage(ModelUsage(total_tokens=11))
             check_token_limit()
-        with pytest.raises(LimitExceededError):
-            check_message_limit(11, raise_for_equal=False)
 
+    assert limit_scope.were_any_exceeded is True
+
+
+def test_apply_limits_not_checked_once_closed() -> None:
+    with apply_limits([token_limit(10), message_limit(10)]) as limit_scope:
+        pass
+
+    # Check that the limits no longer apply.
     record_model_usage(ModelUsage(total_tokens=11))
     check_token_limit()
     check_message_limit(11, raise_for_equal=False)
+
+    assert limit_scope.were_any_exceeded is False
+
+
+def test_apply_limits_not_exceeded() -> None:
+    with apply_limits([token_limit(10)]) as limit_scope:
+        pass
+
+    assert limit_scope.were_any_exceeded is False
+
+
+def test_apply_limits_parent_exceeded() -> None:
+    with apply_limits([token_limit(10)], catch_errors=True) as parent_scope:
+        with apply_limits([token_limit(100)], catch_errors=True) as child_scope:
+            record_model_usage(ModelUsage(total_tokens=11))
+            check_token_limit()
+
+    assert parent_scope.were_any_exceeded is True
+    assert child_scope.were_any_exceeded is False
+
+
+def test_apply_limits_child_exceeded() -> None:
+    with apply_limits([token_limit(100)], catch_errors=True) as parent_scope:
+        with apply_limits([token_limit(10)], catch_errors=True) as child_scope:
+            record_model_usage(ModelUsage(total_tokens=11))
+            check_token_limit()
+
+    assert parent_scope.were_any_exceeded is False
+    assert child_scope.were_any_exceeded is True
+
+
+def test_apply_limits_handles_error_without_source() -> None:
+    with pytest.raises(LimitExceededError):
+        with apply_limits([token_limit(10), message_limit(10)]) as limit_scope:
+            raise LimitExceededError(type="token", value=11, limit=10)
+
+    assert limit_scope.were_any_exceeded is False  # type: ignore
