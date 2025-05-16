@@ -1,6 +1,7 @@
 ## Unreleased
 
 - React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).
+- Agents: `is_agent()` typeguard function for checking whether an object is an `Agent`.
 - Anthropic: Show warning when generation config incompatible with extended thinking is used (affects `temperature`, `top_p`, and `top_k`).
 - AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
 - AzureAI: Accept `<tool_calls>` plural from Llama models (as it sometimes uses this instead of `<tool_call>`).

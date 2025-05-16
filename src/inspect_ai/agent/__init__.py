@@ -1,4 +1,4 @@
-from ._agent import Agent, AgentState, agent, agent_with
+from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
 from ._bridge.bridge import bridge
@@ -29,6 +29,7 @@ __all__ = [
     "AgentState",
     "agent",
     "agent_with",
+    "is_agent",
     "AgentPrompt",
     "AgentAttempts",
     "AgentContinue",

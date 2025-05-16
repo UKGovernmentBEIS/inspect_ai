@@ -270,6 +270,18 @@ def agent_register(agent: Callable[P, Agent], name: str) -> Callable[P, Agent]:
 
 
 def is_agent(obj: Any) -> TypeGuard[Agent]:
+    """Check if an object is an Agent.
+
+    Determines if the provided object is registered as an Agent in the system registry.
+    When this function returns True, type checkers will recognize 'obj' as an Agent type.
+
+    Args:
+        obj: Object to check against the registry.
+
+    Returns:
+        True if the object is a registered Agent, False otherwise.
+        Acts as a TypeGuard to provide type narrowing for static type checkers.
+    """
     return is_registry_object(obj, type="agent")
 
 
