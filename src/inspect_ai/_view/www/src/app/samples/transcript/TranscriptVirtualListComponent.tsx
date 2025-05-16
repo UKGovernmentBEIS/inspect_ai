@@ -10,6 +10,7 @@ interface TranscriptVirtualListComponentProps {
   id: string;
   eventNodes: EventNode[];
   initialEventId?: string | null;
+  offsetTop?: number;
   scrollRef?: RefObject<HTMLDivElement | null>;
   running?: boolean;
   className?: string | string[];
@@ -20,7 +21,15 @@ interface TranscriptVirtualListComponentProps {
  */
 export const TranscriptVirtualListComponent: FC<
   TranscriptVirtualListComponentProps
-> = ({ id, eventNodes, scrollRef, running, initialEventId, className }) => {
+> = ({
+  id,
+  eventNodes,
+  scrollRef,
+  running,
+  initialEventId,
+  offsetTop,
+  className,
+}) => {
   const initialEventIndex = useMemo(() => {
     if (initialEventId === null || initialEventId === undefined) {
       return undefined;
@@ -82,6 +91,7 @@ export const TranscriptVirtualListComponent: FC<
       scrollRef={scrollRef}
       data={eventNodes}
       initialTopMostItemIndex={initialEventIndex}
+      offsetTop={offsetTop}
       renderRow={renderRow}
       live={running}
     />
