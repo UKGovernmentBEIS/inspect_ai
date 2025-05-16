@@ -92,6 +92,7 @@ export const ApplicationIcons = {
   sandbox: "bi bi-box-seam",
   scorer: "bi bi-calculator",
   search: "bi bi-search",
+  sidebar: "bi bi-list",
   solvers: {
     default: "bi bi-arrow-return-right",
     generate: "bi bi-share",

@@ -1,6 +1,9 @@
+import clsx from "clsx";
 import { FC, memo, RefObject } from "react";
 import { Events } from "../../../@types/log";
 import { StickyScroll } from "../../../components/StickyScroll";
+import { useCollapsedState } from "../../../state/hooks";
+import { ApplicationIcons } from "../../appearance/icons";
 import { TranscriptOutline } from "./TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
@@ -26,18 +29,34 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
     running === true,
   );
 
+  const [collapsed, setCollapsed] = useCollapsedState(
+    "transcript-panel",
+    false,
+  );
+
   return (
-    <div className={styles.container}>
+    <div
+      className={clsx(
+        styles.container,
+        collapsed ? styles.collapsed : undefined,
+      )}
+    >
       <StickyScroll
         scrollRef={scrollRef}
         className={styles.treeContainer}
         offsetTop={topOffset}
       >
         <TranscriptOutline
-          className={styles.outline}
+          className={clsx(styles.outline)}
           eventNodes={eventNodes}
           defaultCollapsedIds={defaultCollapsedIds}
         />
+        <div
+          className={styles.outlineToggle}
+          onClick={() => setCollapsed(!collapsed)}
+        >
+          <i className={ApplicationIcons.sidebar} />
+        </div>
       </StickyScroll>
       <TranscriptVirtualList
         id={id}
