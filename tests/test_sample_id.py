@@ -55,6 +55,18 @@ def test_sample_id_task_preface():
         log = eval(task, sample_id=["bar:5", "bar:6"], model="mockllm/model")[0]
 
 
+def test_sample_id_task_preface_with_sandbox():
+    task = Task(
+        name="foo",
+        dataset=[Sample(id="sample", input="Input for sample")],
+        sandbox="local",
+    )
+    # qualifier
+    log = eval(task, sample_id="foo:sample", model="mockllm/model")[0]
+    assert log.samples
+    assert len(log.samples) == 1
+
+
 def test_sample_id_task_preface_multiple():
     task1 = Task(
         name="foo",
