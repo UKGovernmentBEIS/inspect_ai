@@ -475,7 +475,10 @@ async def startup_sandbox_environments(
     sandboxenvs: Set[TaskSandboxEnvironment] = set()
     for task in tasks:
         # resolve each sample and add to sandboxenvs
-        dataset = slice_dataset(task.task.dataset, config.limit, config.sample_id)
+        resolved_task_sample_ids = resolve_task_sample_ids(
+            task.task.name, config.sample_id
+        )
+        dataset = slice_dataset(task.task.dataset, config.limit, resolved_task_sample_ids)
         for sample in dataset:
             sandbox = await resolve_sandbox_for_task_and_sample(
                 eval_sandbox, task.task, sample
