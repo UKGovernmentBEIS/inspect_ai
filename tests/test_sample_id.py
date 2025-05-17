@@ -58,7 +58,7 @@ def test_sample_id_task_preface():
 def test_sample_id_task_preface_with_sandbox():
     task = Task(
         name="foo",
-        dataset=[Sample(id="sample", input=f"Input for sample")],
+        dataset=[Sample(id="sample", input="Input for sample")],
         sandbox="local",
     )
     # qualifier
