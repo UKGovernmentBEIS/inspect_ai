@@ -1,3 +1,7 @@
+## Unreleased
+
+- Temporarily pin to textual < 3.0.0 to work around event loop breakage.
+
 ## v0.3.97 (16 May 2025)
 
 - React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).

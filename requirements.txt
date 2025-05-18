@@ -27,6 +27,6 @@ semver>=3.0.0
 shortuuid
 sniffio
 tenacity
-textual>=0.86.2
+textual>=0.86.2,<v3.0.0 # https://github.com/UKGovernmentBEIS/inspect_ai/issues/1891
 typing_extensions>=4.9.0
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
