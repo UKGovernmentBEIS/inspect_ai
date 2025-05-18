@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Google: Disable reasoning when `reasoning_tokens` is set to 0.
 - Temporarily pin to textual < 3.0.0 to work around event loop breakage.
 
 ## v0.3.97 (16 May 2025)
