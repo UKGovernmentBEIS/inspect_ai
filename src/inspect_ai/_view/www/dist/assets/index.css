@@ -17266,56 +17266,60 @@ thead th {
 ._scores_las07_54 {
   padding-top: 1em;
 }
-._node_9ditj_1 {
+._node_a4seo_1 {
   display: grid;
   column-gap: 0.3em;
   grid-template-columns: max-content 1fr;
 }
 
-._panel_9ditj_7 {
+._panel_a4seo_7 {
   margin-top: 0.65rem;
   overflow: visible;
 }
 
-._eventRow_9ditj_12 {
+._eventRow_a4seo_12 {
   display: grid;
   grid-template-columns: 10px 1fr;
   column-gap: 3px;
   cursor: pointer;
 }
 
-._eventRow_9ditj_12 ._toggle_9ditj_19 {
+._eventRow_a4seo_12 ._toggle_a4seo_19 {
   font-size: 0.7em;
   margin-top: 4px;
 }
 
-._eventLink_9ditj_24 {
+._eventLink_a4seo_24 {
   color: var(--bs-body);
   text-decoration: none;
   cursor: pointer;
 }
 
-._eventLink_9ditj_24:hover {
+._eventLink_a4seo_24:hover {
   text-decoration: underline;
   color: var(--bs-link-hover-color);
 }
 
-._label_9ditj_35 {
+._label_a4seo_35 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-._eventPadding_9ditj_41 {
+._eventPadding_a4seo_41 {
   height: 2em;
 }
 
-._icon_9ditj_45 {
+._icon_a4seo_45 {
   margin-right: 3px;
 }
 
-._progress_9ditj_49 {
+._progress_a4seo_49 {
   margin-left: 0.3em !important;
+}
+
+._popover_a4seo_53 {
+  width: 300px;
 }
 ._container_jfywc_1 {
   display: grid;

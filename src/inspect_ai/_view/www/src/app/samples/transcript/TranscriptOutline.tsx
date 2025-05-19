@@ -1,25 +1,30 @@
 import {
   CSSProperties,
   FC,
+  ReactNode,
   RefObject,
   useCallback,
   useEffect,
   useMemo,
   useRef,
 } from "react";
+
 import { ApplicationIcons } from "../../appearance/icons";
 import { EventNode } from "./types";
 
 import clsx from "clsx";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
-import { useCollapseSampleEvent } from "../../../state/hooks";
+import { useCollapseSampleEvent, useSamplePopover } from "../../../state/hooks";
 import { useVirtuosoState } from "../../../state/scrolling";
 import { useStore } from "../../../state/store";
 import { flatTree } from "./transform/treeify";
 
 import { Link, useParams } from "react-router-dom";
+
+import { PopOver } from "../../../components/PopOver";
 import { PulsingDots } from "../../../components/PulsingDots";
 import { parsePackageName } from "../../../utils/python";
+import { MetaDataGrid } from "../../content/MetaDataGrid";
 import { sampleEventUrl } from "../../routing/url";
 import styles from "./TranscriptOutline.module.css";
 import { kSandboxSignalName } from "./transform/fixups";
@@ -100,7 +105,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         collapseMultipleTurnsVisitor(),
 
         // Remove any leftover bare model calls that aren't in turns
-        //removeNodeVisitor("model"),
+        removeNodeVisitor("model"),
 
         // Remove child events for scorers
         noScorerChildren(),
@@ -171,6 +176,11 @@ const TreeNode: FC<TreeNodeProps> = ({ node, running }) => {
   const icon = iconForNode(node);
   const toggle = toggleIcon(node, collapsed);
 
+  const popoverId = `${node.id}-popover`;
+  const { show, hide, isShowing } = useSamplePopover(popoverId);
+
+  const ref = useRef(null);
+
   // Get all URL parameters at component level
   const { logPath, sampleId, epoch } = useParams<{
     logPath?: string;
@@ -184,36 +194,49 @@ const TreeNode: FC<TreeNodeProps> = ({ node, running }) => {
     : undefined;
 
   return (
-    <div
-      className={clsx(styles.eventRow, "text-size-smallest")}
-      style={{ paddingLeft: `${node.depth * 0.4}em` }}
-    >
+    <>
       <div
-        className={clsx(styles.toggle)}
-        onClick={() => {
-          setCollapsed(!collapsed);
-        }}
+        className={clsx(styles.eventRow, "text-size-smallest")}
+        style={{ paddingLeft: `${node.depth * 0.4}em` }}
+        onMouseOver={show}
+        onMouseLeave={hide}
       >
-        {toggle ? <i className={clsx(toggle)} /> : undefined}
+        <div
+          className={clsx(styles.toggle)}
+          onClick={() => {
+            setCollapsed(!collapsed);
+          }}
+        >
+          {toggle ? <i className={clsx(toggle)} /> : undefined}
+        </div>
+        <div className={clsx(styles.label)} data-depth={node.depth}>
+          {icon ? <i className={clsx(icon, styles.icon)} /> : undefined}
+          {url ? (
+            <Link to={url} className={clsx(styles.eventLink)} ref={ref}>
+              {parsePackageName(labelForNode(node)).module}
+            </Link>
+          ) : (
+            <span ref={ref}>{parsePackageName(labelForNode(node)).module}</span>
+          )}
+          {running ? (
+            <PulsingDots
+              size="small"
+              className={clsx(styles.progress)}
+              subtle={false}
+            />
+          ) : undefined}
+        </div>
       </div>
-      <div className={clsx(styles.label)} data-depth={node.depth}>
-        {icon ? <i className={clsx(icon, styles.icon)} /> : undefined}
-        {url ? (
-          <Link to={url} className={clsx(styles.eventLink)}>
-            {parsePackageName(labelForNode(node)).module}
-          </Link>
-        ) : (
-          parsePackageName(labelForNode(node)).module
-        )}
-        {running ? (
-          <PulsingDots
-            size="small"
-            className={styles.progress}
-            subtle={false}
-          />
-        ) : undefined}
-      </div>
-    </div>
+      <PopOver
+        id={`${node.id}-popover`}
+        positionEl={ref.current}
+        isOpen={isShowing}
+        className={clsx(styles.popper)}
+        placement="auto-end"
+      >
+        {summarizeNode(node)}
+      </PopOver>
+    </>
   );
 };
 
@@ -347,6 +370,22 @@ const noScorerChildren = () => {
       return [node];
     },
   };
+};
+
+const summarizeNode = (node: EventNode): ReactNode => {
+  const entries: Record<string, unknown> = {
+    id: node.id,
+    event: node.event.event,
+    start: node.event.working_start,
+    timestamp: node.event.timestamp,
+  };
+  return (
+    <MetaDataGrid
+      entries={entries}
+      size="mini"
+      className={clsx(styles.popover, "text-size-smallest")}
+    />
+  );
 };
 
 const kTurnType = "type";

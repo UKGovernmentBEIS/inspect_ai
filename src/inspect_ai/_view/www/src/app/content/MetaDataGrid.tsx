@@ -7,6 +7,7 @@ interface MetadataGridProps {
   id?: string;
   className?: string | string[];
   style?: CSSProperties;
+  size?: "mini" | "small";
   entries: Record<string, unknown>;
   plain?: boolean;
 }
@@ -18,10 +19,13 @@ export const MetaDataGrid: FC<MetadataGridProps> = ({
   id,
   entries,
   className,
+  size,
   style,
   plain,
 }) => {
   const baseId = "metadata-grid";
+  const fontStyle =
+    size === "mini" ? "text-size-smallest" : "text-size-smaller";
 
   const entryEls = entryRecords(entries).map((entry, index) => {
     const id = `${baseId}-value-${index}`;
@@ -41,14 +45,12 @@ export const MetaDataGrid: FC<MetadataGridProps> = ({
             styles.cell,
             "text-style-label",
             "text-style-secondary",
-            "text-size-smaller",
+            fontStyle,
           )}
         >
           {entry.name}
         </div>
-        <div
-          className={clsx(styles.value, `${baseId}-value`, "text-size-smaller")}
-        >
+        <div className={clsx(styles.value, `${baseId}-value`, fontStyle)}>
           <RenderedContent id={id} entry={entry} />
         </div>
       </Fragment>

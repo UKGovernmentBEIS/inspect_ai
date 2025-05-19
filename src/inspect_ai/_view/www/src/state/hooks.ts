@@ -507,3 +507,31 @@ export const useSetSelectedLogIndex = () => {
     ],
   );
 };
+
+export const useSamplePopover = (id: string) => {
+  const setVisiblePopover = useStore(
+    (store) => store.sampleActions.setVisiblePopover,
+  );
+  const clearVisiblePopover = useStore(
+    (store) => store.sampleActions.clearVisiblePopover,
+  );
+  const visiblePopover = useStore((store) => store.sample.visiblePopover);
+
+  const show = useCallback(() => {
+    setVisiblePopover(id);
+  }, [id, setVisiblePopover]);
+
+  const hide = useCallback(() => {
+    clearVisiblePopover();
+  }, [clearVisiblePopover]);
+
+  const isShowing = useMemo(() => {
+    return visiblePopover === id;
+  }, [id, visiblePopover]);
+
+  return {
+    show,
+    hide,
+    isShowing,
+  };
+};

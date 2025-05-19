@@ -92,6 +92,8 @@ export interface SampleState {
   sampleError: Error | undefined;
   sampleNeedsReload: number;
 
+  visiblePopover?: string;
+
   // Events and attachments
   runningEvents: Event[];
   collapsedEvents: Record<string, Record<string, boolean>> | null;

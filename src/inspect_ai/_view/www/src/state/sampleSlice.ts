@@ -22,6 +22,7 @@ export interface SampleSlice {
     setSelectedSample: (sample: EvalSample) => void;
     getSelectedSample: () => EvalSample | undefined;
     clearSelectedSample: () => void;
+
     setSampleStatus: (status: SampleStatus) => void;
     setSampleError: (error: Error | undefined) => void;
 
@@ -35,6 +36,9 @@ export interface SampleSlice {
     setCollapsedIds: (key: string, collapsed: Record<string, true>) => void;
     collapseId: (key: string, id: string, collapsed: boolean) => void;
     clearCollapsedIds: (key: string) => void;
+
+    setVisiblePopover: (id: string) => void;
+    clearVisiblePopover: () => void;
 
     // Loading
     loadSample: (
@@ -58,6 +62,8 @@ const initialState: SampleState = {
   sampleInState: false,
   sampleStatus: "ok",
   sampleError: undefined,
+
+  visiblePopover: undefined,
 
   // signals that the sample needs to be reloaded
   sampleNeedsReload: 0,
@@ -189,7 +195,16 @@ export const createSampleSlice = (
           delete state.sample.collapsedIdBuckets[key];
         });
       },
-
+      setVisiblePopover: (id: string) => {
+        set((state) => {
+          state.sample.visiblePopover = id;
+        });
+      },
+      clearVisiblePopover: () => {
+        set((state) => {
+          state.sample.visiblePopover = undefined;
+        });
+      },
       pollSample: async (logFile: string, sampleSummary: SampleSummary) => {
         // Poll running sample
         const state = get();

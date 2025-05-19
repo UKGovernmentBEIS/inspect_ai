@@ -118,11 +118,11 @@ var require_assets = __commonJS({
         if (last !== first) {
           heap2[0] = last;
           a: for (var index2 = 0, length = heap2.length, halfLength = length >>> 1; index2 < halfLength; ) {
-            var leftIndex = 2 * (index2 + 1) - 1, left = heap2[leftIndex], rightIndex = leftIndex + 1, right = heap2[rightIndex];
-            if (0 > compare2(left, last))
-              rightIndex < length && 0 > compare2(right, left) ? (heap2[index2] = right, heap2[rightIndex] = last, index2 = rightIndex) : (heap2[index2] = left, heap2[leftIndex] = last, index2 = leftIndex);
-            else if (rightIndex < length && 0 > compare2(right, last))
-              heap2[index2] = right, heap2[rightIndex] = last, index2 = rightIndex;
+            var leftIndex = 2 * (index2 + 1) - 1, left2 = heap2[leftIndex], rightIndex = leftIndex + 1, right2 = heap2[rightIndex];
+            if (0 > compare2(left2, last))
+              rightIndex < length && 0 > compare2(right2, left2) ? (heap2[index2] = right2, heap2[rightIndex] = last, index2 = rightIndex) : (heap2[index2] = left2, heap2[leftIndex] = last, index2 = leftIndex);
+            else if (rightIndex < length && 0 > compare2(right2, last))
+              heap2[index2] = right2, heap2[rightIndex] = last, index2 = rightIndex;
             else break a;
           }
         }
@@ -2110,11 +2110,11 @@ var require_assets = __commonJS({
     var root$3 = null, startText = null, fallbackText = null;
     function getData() {
       if (fallbackText) return fallbackText;
-      var start, startValue = startText, startLength = startValue.length, end, endValue = "value" in root$3 ? root$3.value : root$3.textContent, endLength = endValue.length;
-      for (start = 0; start < startLength && startValue[start] === endValue[start]; start++) ;
-      var minEnd = startLength - start;
-      for (end = 1; end <= minEnd && startValue[startLength - end] === endValue[endLength - end]; end++) ;
-      return fallbackText = endValue.slice(start, 1 < end ? 1 - end : void 0);
+      var start2, startValue = startText, startLength = startValue.length, end2, endValue = "value" in root$3 ? root$3.value : root$3.textContent, endLength = endValue.length;
+      for (start2 = 0; start2 < startLength && startValue[start2] === endValue[start2]; start2++) ;
+      var minEnd = startLength - start2;
+      for (end2 = 1; end2 <= minEnd && startValue[startLength - end2] === endValue[endLength - end2]; end2++) ;
+      return fallbackText = endValue.slice(start2, 1 < end2 ? 1 - end2 : void 0);
     }
     function getEventCharCode(nativeEvent) {
       var keyCode = nativeEvent.keyCode;
@@ -2487,14 +2487,14 @@ var require_assets = __commonJS({
       for (; node2 && node2.firstChild; ) node2 = node2.firstChild;
       return node2;
     }
-    function getNodeForCharacterOffset(root2, offset) {
+    function getNodeForCharacterOffset(root2, offset2) {
       var node2 = getLeafNode(root2);
       root2 = 0;
       for (var nodeEnd; node2; ) {
         if (3 === node2.nodeType) {
           nodeEnd = root2 + node2.textContent.length;
-          if (root2 <= offset && nodeEnd >= offset)
-            return { node: node2, offset: offset - root2 };
+          if (root2 <= offset2 && nodeEnd >= offset2)
+            return { node: node2, offset: offset2 - root2 };
           root2 = nodeEnd;
         }
         a: {
@@ -4559,10 +4559,10 @@ var require_assets = __commonJS({
         );
       },
       useTransition: function() {
-        var booleanOrThenable = updateReducer(basicStateReducer)[0], start = updateWorkInProgressHook().memoizedState;
+        var booleanOrThenable = updateReducer(basicStateReducer)[0], start2 = updateWorkInProgressHook().memoizedState;
         return [
           "boolean" === typeof booleanOrThenable ? booleanOrThenable : useThenable(booleanOrThenable),
-          start
+          start2
         ];
       },
       useSyncExternalStore: updateSyncExternalStore,
@@ -4602,10 +4602,10 @@ var require_assets = __commonJS({
         );
       },
       useTransition: function() {
-        var booleanOrThenable = rerenderReducer(basicStateReducer)[0], start = updateWorkInProgressHook().memoizedState;
+        var booleanOrThenable = rerenderReducer(basicStateReducer)[0], start2 = updateWorkInProgressHook().memoizedState;
         return [
           "boolean" === typeof booleanOrThenable ? booleanOrThenable : useThenable(booleanOrThenable),
-          start
+          start2
         ];
       },
       useSyncExternalStore: updateSyncExternalStore,
@@ -6999,11 +6999,11 @@ var require_assets = __commonJS({
                 JSCompiler_temp = null;
                 break a;
               }
-              var length = 0, start = -1, end = -1, indexWithinAnchor = 0, indexWithinFocus = 0, node2 = root2, parentNode = null;
+              var length = 0, start2 = -1, end2 = -1, indexWithinAnchor = 0, indexWithinFocus = 0, node2 = root2, parentNode = null;
               b: for (; ; ) {
                 for (var next; ; ) {
-                  node2 !== JSCompiler_temp || 0 !== anchorOffset && 3 !== node2.nodeType || (start = length + anchorOffset);
-                  node2 !== focusNode || 0 !== selection && 3 !== node2.nodeType || (end = length + selection);
+                  node2 !== JSCompiler_temp || 0 !== anchorOffset && 3 !== node2.nodeType || (start2 = length + anchorOffset);
+                  node2 !== focusNode || 0 !== selection && 3 !== node2.nodeType || (end2 = length + selection);
                   3 === node2.nodeType && (length += node2.nodeValue.length);
                   if (null === (next = node2.firstChild)) break;
                   parentNode = node2;
@@ -7011,15 +7011,15 @@ var require_assets = __commonJS({
                 }
                 for (; ; ) {
                   if (node2 === root2) break b;
-                  parentNode === JSCompiler_temp && ++indexWithinAnchor === anchorOffset && (start = length);
-                  parentNode === focusNode && ++indexWithinFocus === selection && (end = length);
+                  parentNode === JSCompiler_temp && ++indexWithinAnchor === anchorOffset && (start2 = length);
+                  parentNode === focusNode && ++indexWithinFocus === selection && (end2 = length);
                   if (null !== (next = node2.nextSibling)) break;
                   node2 = parentNode;
                   parentNode = node2.parentNode;
                 }
                 node2 = next;
               }
-              JSCompiler_temp = -1 === start || -1 === end ? null : { start, end };
+              JSCompiler_temp = -1 === start2 || -1 === end2 ? null : { start: start2, end: end2 };
             } else JSCompiler_temp = null;
           }
         JSCompiler_temp = JSCompiler_temp || { start: 0, end: 0 };
@@ -8915,11 +8915,11 @@ var require_assets = __commonJS({
               priorFocusedElem
             )) {
               if (null !== priorSelectionRange && hasSelectionCapabilities(priorFocusedElem)) {
-                var start = priorSelectionRange.start, end = priorSelectionRange.end;
-                void 0 === end && (end = start);
+                var start2 = priorSelectionRange.start, end2 = priorSelectionRange.end;
+                void 0 === end2 && (end2 = start2);
                 if ("selectionStart" in priorFocusedElem)
-                  priorFocusedElem.selectionStart = start, priorFocusedElem.selectionEnd = Math.min(
-                    end,
+                  priorFocusedElem.selectionStart = start2, priorFocusedElem.selectionEnd = Math.min(
+                    end2,
                     priorFocusedElem.value.length
                   );
                 else {
@@ -12144,7 +12144,7 @@ var require_assets = __commonJS({
         return String.fromCodePoint(source.codePointAt(pos));
       }
     }
-    function read() {
+    function read$1() {
       const c2 = peek$1();
       if (c2 === "\n") {
         line++;
@@ -12172,18 +12172,18 @@ var require_assets = __commonJS({
           case "\r":
           case "\u2028":
           case "\u2029":
-            read();
+            read$1();
             return;
           case "/":
-            read();
+            read$1();
             lexState = "comment";
             return;
           case void 0:
-            read();
+            read$1();
             return newToken("eof");
         }
         if (util.isSpaceSeparator(c)) {
-          read();
+          read$1();
           return;
         }
         return lexStates[parseState]();
@@ -12191,40 +12191,40 @@ var require_assets = __commonJS({
       comment() {
         switch (c) {
           case "*":
-            read();
+            read$1();
             lexState = "multiLineComment";
             return;
           case "/":
-            read();
+            read$1();
             lexState = "singleLineComment";
             return;
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       multiLineComment() {
         switch (c) {
           case "*":
-            read();
+            read$1();
             lexState = "multiLineCommentAsterisk";
             return;
           case void 0:
-            throw invalidChar(read());
+            throw invalidChar(read$1());
         }
-        read();
+        read$1();
       },
       multiLineCommentAsterisk() {
         switch (c) {
           case "*":
-            read();
+            read$1();
             return;
           case "/":
-            read();
+            read$1();
             lexState = "default";
             return;
           case void 0:
-            throw invalidChar(read());
+            throw invalidChar(read$1());
         }
-        read();
+        read$1();
         lexState = "multiLineComment";
       },
       singleLineComment() {
@@ -12233,45 +12233,45 @@ var require_assets = __commonJS({
           case "\r":
           case "\u2028":
           case "\u2029":
-            read();
+            read$1();
             lexState = "default";
             return;
           case void 0:
-            read();
+            read$1();
             return newToken("eof");
         }
-        read();
+        read$1();
       },
       value() {
         switch (c) {
           case "{":
           case "[":
-            return newToken("punctuator", read());
+            return newToken("punctuator", read$1());
           case "n":
-            read();
+            read$1();
             literal$1("ull");
             return newToken("null", null);
           case "t":
-            read();
+            read$1();
             literal$1("rue");
             return newToken("boolean", true);
           case "f":
-            read();
+            read$1();
             literal$1("alse");
             return newToken("boolean", false);
           case "-":
           case "+":
-            if (read() === "-") {
+            if (read$1() === "-") {
               sign = -1;
             }
             lexState = "sign";
             return;
           case ".":
-            buffer$1 = read();
+            buffer$1 = read$1();
             lexState = "decimalPointLeading";
             return;
           case "0":
-            buffer$1 = read();
+            buffer$1 = read$1();
             lexState = "zero";
             return;
           case "1":
@@ -12283,31 +12283,31 @@ var require_assets = __commonJS({
           case "7":
           case "8":
           case "9":
-            buffer$1 = read();
+            buffer$1 = read$1();
             lexState = "decimalInteger";
             return;
           case "I":
-            read();
+            read$1();
             literal$1("nfinity");
             return newToken("numeric", Infinity);
           case "N":
-            read();
+            read$1();
             literal$1("aN");
             return newToken("numeric", NaN);
           case '"':
           case "'":
-            doubleQuote = read() === '"';
+            doubleQuote = read$1() === '"';
             buffer$1 = "";
             lexState = "string";
             return;
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       identifierNameStartEscape() {
         if (c !== "u") {
-          throw invalidChar(read());
+          throw invalidChar(read$1());
         }
-        read();
+        read$1();
         const u = unicodeEscape();
         switch (u) {
           case "$":
@@ -12328,24 +12328,24 @@ var require_assets = __commonJS({
           case "_":
           case "‌":
           case "‍":
-            buffer$1 += read();
+            buffer$1 += read$1();
             return;
           case "\\":
-            read();
+            read$1();
             lexState = "identifierNameEscape";
             return;
         }
         if (util.isIdContinueChar(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           return;
         }
         return newToken("identifier", buffer$1);
       },
       identifierNameEscape() {
         if (c !== "u") {
-          throw invalidChar(read());
+          throw invalidChar(read$1());
         }
-        read();
+        read$1();
         const u = unicodeEscape();
         switch (u) {
           case "$":
@@ -12365,11 +12365,11 @@ var require_assets = __commonJS({
       sign() {
         switch (c) {
           case ".":
-            buffer$1 = read();
+            buffer$1 = read$1();
             lexState = "decimalPointLeading";
             return;
           case "0":
-            buffer$1 = read();
+            buffer$1 = read$1();
             lexState = "zero";
             return;
           case "1":
@@ -12381,34 +12381,34 @@ var require_assets = __commonJS({
           case "7":
           case "8":
           case "9":
-            buffer$1 = read();
+            buffer$1 = read$1();
             lexState = "decimalInteger";
             return;
           case "I":
-            read();
+            read$1();
             literal$1("nfinity");
             return newToken("numeric", sign * Infinity);
           case "N":
-            read();
+            read$1();
             literal$1("aN");
             return newToken("numeric", NaN);
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       zero() {
         switch (c) {
           case ".":
-            buffer$1 += read();
+            buffer$1 += read$1();
             lexState = "decimalPoint";
             return;
           case "e":
           case "E":
-            buffer$1 += read();
+            buffer$1 += read$1();
             lexState = "decimalExponent";
             return;
           case "x":
           case "X":
-            buffer$1 += read();
+            buffer$1 += read$1();
             lexState = "hexadecimal";
             return;
         }
@@ -12417,39 +12417,39 @@ var require_assets = __commonJS({
       decimalInteger() {
         switch (c) {
           case ".":
-            buffer$1 += read();
+            buffer$1 += read$1();
             lexState = "decimalPoint";
             return;
           case "e":
           case "E":
-            buffer$1 += read();
+            buffer$1 += read$1();
             lexState = "decimalExponent";
             return;
         }
         if (util.isDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           return;
         }
         return newToken("numeric", sign * Number(buffer$1));
       },
       decimalPointLeading() {
         if (util.isDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           lexState = "decimalFraction";
           return;
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       decimalPoint() {
         switch (c) {
           case "e":
           case "E":
-            buffer$1 += read();
+            buffer$1 += read$1();
             lexState = "decimalExponent";
             return;
         }
         if (util.isDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           lexState = "decimalFraction";
           return;
         }
@@ -12459,12 +12459,12 @@ var require_assets = __commonJS({
         switch (c) {
           case "e":
           case "E":
-            buffer$1 += read();
+            buffer$1 += read$1();
             lexState = "decimalExponent";
             return;
         }
         if (util.isDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           return;
         }
         return newToken("numeric", sign * Number(buffer$1));
@@ -12473,43 +12473,43 @@ var require_assets = __commonJS({
         switch (c) {
           case "+":
           case "-":
-            buffer$1 += read();
+            buffer$1 += read$1();
             lexState = "decimalExponentSign";
             return;
         }
         if (util.isDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           lexState = "decimalExponentInteger";
           return;
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       decimalExponentSign() {
         if (util.isDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           lexState = "decimalExponentInteger";
           return;
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       decimalExponentInteger() {
         if (util.isDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           return;
         }
         return newToken("numeric", sign * Number(buffer$1));
       },
       hexadecimal() {
         if (util.isHexDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           lexState = "hexadecimalInteger";
           return;
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       hexadecimalInteger() {
         if (util.isHexDigit(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           return;
         }
         return newToken("numeric", sign * Number(buffer$1));
@@ -12517,40 +12517,40 @@ var require_assets = __commonJS({
       string() {
         switch (c) {
           case "\\":
-            read();
+            read$1();
             buffer$1 += escape$2();
             return;
           case '"':
             if (doubleQuote) {
-              read();
+              read$1();
               return newToken("string", buffer$1);
             }
-            buffer$1 += read();
+            buffer$1 += read$1();
             return;
           case "'":
             if (!doubleQuote) {
-              read();
+              read$1();
               return newToken("string", buffer$1);
             }
-            buffer$1 += read();
+            buffer$1 += read$1();
             return;
           case "\n":
           case "\r":
-            throw invalidChar(read());
+            throw invalidChar(read$1());
           case "\u2028":
           case "\u2029":
             separatorChar(c);
             break;
           case void 0:
-            throw invalidChar(read());
+            throw invalidChar(read$1());
         }
-        buffer$1 += read();
+        buffer$1 += read$1();
       },
       start() {
         switch (c) {
           case "{":
           case "[":
-            return newToken("punctuator", read());
+            return newToken("punctuator", read$1());
         }
         lexState = "value";
       },
@@ -12558,33 +12558,33 @@ var require_assets = __commonJS({
         switch (c) {
           case "$":
           case "_":
-            buffer$1 = read();
+            buffer$1 = read$1();
             lexState = "identifierName";
             return;
           case "\\":
-            read();
+            read$1();
             lexState = "identifierNameStartEscape";
             return;
           case "}":
-            return newToken("punctuator", read());
+            return newToken("punctuator", read$1());
           case '"':
           case "'":
-            doubleQuote = read() === '"';
+            doubleQuote = read$1() === '"';
             lexState = "string";
             return;
         }
         if (util.isIdStartChar(c)) {
-          buffer$1 += read();
+          buffer$1 += read$1();
           lexState = "identifierName";
           return;
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       afterPropertyName() {
         if (c === ":") {
-          return newToken("punctuator", read());
+          return newToken("punctuator", read$1());
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       beforePropertyValue() {
         lexState = "value";
@@ -12593,13 +12593,13 @@ var require_assets = __commonJS({
         switch (c) {
           case ",":
           case "}":
-            return newToken("punctuator", read());
+            return newToken("punctuator", read$1());
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       beforeArrayValue() {
         if (c === "]") {
-          return newToken("punctuator", read());
+          return newToken("punctuator", read$1());
         }
         lexState = "value";
       },
@@ -12607,12 +12607,12 @@ var require_assets = __commonJS({
         switch (c) {
           case ",":
           case "]":
-            return newToken("punctuator", read());
+            return newToken("punctuator", read$1());
         }
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       },
       end() {
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       }
     };
     function newToken(type, value2) {
@@ -12627,53 +12627,53 @@ var require_assets = __commonJS({
       for (const c2 of s) {
         const p = peek$1();
         if (p !== c2) {
-          throw invalidChar(read());
+          throw invalidChar(read$1());
         }
-        read();
+        read$1();
       }
     }
     function escape$2() {
       const c2 = peek$1();
       switch (c2) {
         case "b":
-          read();
+          read$1();
           return "\b";
         case "f":
-          read();
+          read$1();
           return "\f";
         case "n":
-          read();
+          read$1();
           return "\n";
         case "r":
-          read();
+          read$1();
           return "\r";
         case "t":
-          read();
+          read$1();
           return "	";
         case "v":
-          read();
+          read$1();
           return "\v";
         case "0":
-          read();
+          read$1();
           if (util.isDigit(peek$1())) {
-            throw invalidChar(read());
+            throw invalidChar(read$1());
           }
           return "\0";
         case "x":
-          read();
+          read$1();
           return hexEscape();
         case "u":
-          read();
+          read$1();
           return unicodeEscape();
         case "\n":
         case "\u2028":
         case "\u2029":
-          read();
+          read$1();
           return "";
         case "\r":
-          read();
+          read$1();
           if (peek$1() === "\n") {
-            read();
+            read$1();
           }
           return "";
         case "1":
@@ -12685,24 +12685,24 @@ var require_assets = __commonJS({
         case "7":
         case "8":
         case "9":
-          throw invalidChar(read());
+          throw invalidChar(read$1());
         case void 0:
-          throw invalidChar(read());
+          throw invalidChar(read$1());
       }
-      return read();
+      return read$1();
     }
     function hexEscape() {
       let buffer2 = "";
       let c2 = peek$1();
       if (!util.isHexDigit(c2)) {
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       }
-      buffer2 += read();
+      buffer2 += read$1();
       c2 = peek$1();
       if (!util.isHexDigit(c2)) {
-        throw invalidChar(read());
+        throw invalidChar(read$1());
       }
-      buffer2 += read();
+      buffer2 += read$1();
       return String.fromCodePoint(parseInt(buffer2, 16));
     }
     function unicodeEscape() {
@@ -12711,9 +12711,9 @@ var require_assets = __commonJS({
       while (count-- > 0) {
         const c2 = peek$1();
         if (!util.isHexDigit(c2)) {
-          throw invalidChar(read());
+          throw invalidChar(read$1());
         }
-        buffer2 += read();
+        buffer2 += read$1();
       }
       return String.fromCodePoint(parseInt(buffer2, 16));
     }
@@ -14473,16 +14473,16 @@ var require_assets = __commonJS({
         function parseRange(range) {
           var m = /^\s*(\d+)\s*(?:(,)\s*(?:(\d+)\s*)?)?$/.exec(range || "");
           if (m) {
-            var start = Number(m[1]);
+            var start2 = Number(m[1]);
             var comma = m[2];
-            var end = m[3];
+            var end2 = m[3];
             if (!comma) {
-              return [start, start];
+              return [start2, start2];
             }
-            if (!end) {
-              return [start, void 0];
+            if (!end2) {
+              return [start2, void 0];
             }
-            return [start, Number(end)];
+            return [start2, Number(end2)];
           }
           return void 0;
         }
@@ -14518,19 +14518,19 @@ var require_assets = __commonJS({
                 var range = parseRange(pre2.getAttribute("data-range"));
                 if (range) {
                   var lines = text2.split(/\r\n?|\n/g);
-                  var start = range[0];
-                  var end = range[1] == null ? lines.length : range[1];
-                  if (start < 0) {
-                    start += lines.length;
+                  var start2 = range[0];
+                  var end2 = range[1] == null ? lines.length : range[1];
+                  if (start2 < 0) {
+                    start2 += lines.length;
                   }
-                  start = Math.max(0, Math.min(start - 1, lines.length));
-                  if (end < 0) {
-                    end += lines.length;
+                  start2 = Math.max(0, Math.min(start2 - 1, lines.length));
+                  if (end2 < 0) {
+                    end2 += lines.length;
                   }
-                  end = Math.max(0, Math.min(end, lines.length));
-                  text2 = lines.slice(start, end).join("\n");
+                  end2 = Math.max(0, Math.min(end2, lines.length));
+                  text2 = lines.slice(start2, end2).join("\n");
                   if (!pre2.hasAttribute("data-start")) {
-                    pre2.setAttribute("data-start", String(start + 1));
+                    pre2.setAttribute("data-start", String(start2 + 1));
                   }
                 }
                 code2.textContent = text2;
@@ -15872,14 +15872,14 @@ var require_assets = __commonJS({
         let {
           pathname = "/",
           search = "",
-          hash = ""
+          hash: hash2 = ""
         } = parsePath$1(window2.location.hash.substring(1));
         if (!pathname.startsWith("/") && !pathname.startsWith(".")) {
           pathname = "/" + pathname;
         }
         return createLocation(
           "",
-          { pathname, search, hash },
+          { pathname, search, hash: hash2 },
           // state defaults to `null` because `window.history.state` does
           globalHistory.state && globalHistory.state.usr || null,
           globalHistory.state && globalHistory.state.key || "default"
@@ -15952,12 +15952,12 @@ var require_assets = __commonJS({
     function createPath({
       pathname = "/",
       search = "",
-      hash = ""
+      hash: hash2 = ""
     }) {
       if (search && search !== "?")
         pathname += search.charAt(0) === "?" ? search : "?" + search;
-      if (hash && hash !== "#")
-        pathname += hash.charAt(0) === "#" ? hash : "#" + hash;
+      if (hash2 && hash2 !== "#")
+        pathname += hash2.charAt(0) === "#" ? hash2 : "#" + hash2;
       return pathname;
     }
     function parsePath$1(path) {
@@ -16327,14 +16327,14 @@ var require_assets = __commonJS({
       let matches = [];
       for (let i2 = 0; i2 < routesMeta.length; ++i2) {
         let meta2 = routesMeta[i2];
-        let end = i2 === routesMeta.length - 1;
+        let end2 = i2 === routesMeta.length - 1;
         let remainingPathname = matchedPathname === "/" ? pathname : pathname.slice(matchedPathname.length) || "/";
         let match = matchPath(
-          { path: meta2.relativePath, caseSensitive: meta2.caseSensitive, end },
+          { path: meta2.relativePath, caseSensitive: meta2.caseSensitive, end: end2 },
           remainingPathname
         );
         let route = meta2.route;
-        if (!match && end && allowPartial && !routesMeta[routesMeta.length - 1].route.index) {
+        if (!match && end2 && allowPartial && !routesMeta[routesMeta.length - 1].route.index) {
           match = matchPath(
             {
               path: meta2.relativePath,
@@ -16400,7 +16400,7 @@ var require_assets = __commonJS({
         pattern
       };
     }
-    function compilePath(path, caseSensitive = false, end = true) {
+    function compilePath(path, caseSensitive = false, end2 = true) {
       warning(
         path === "*" || !path.endsWith("*") || path.endsWith("/*"),
         `Route path "${path}" will be treated as if it were "${path.replace(/\*$/, "/*")}" because the \`*\` character must always follow a \`/\` in the pattern. To get rid of this warning, please change the route path to "${path.replace(/\*$/, "/*")}".`
@@ -16416,7 +16416,7 @@ var require_assets = __commonJS({
       if (path.endsWith("*")) {
         params2.push({ paramName: "*" });
         regexpSource += path === "*" || path === "/*" ? "(.*)$" : "(?:\\/(.+)|\\/*)$";
-      } else if (end) {
+      } else if (end2) {
         regexpSource += "\\/*$";
       } else if (path !== "" && path !== "/") {
         regexpSource += "(?:(?=\\/|$))";
@@ -16451,13 +16451,13 @@ var require_assets = __commonJS({
       let {
         pathname: toPathname,
         search = "",
-        hash = ""
+        hash: hash2 = ""
       } = typeof to2 === "string" ? parsePath$1(to2) : to2;
       let pathname = toPathname ? toPathname.startsWith("/") ? toPathname : resolvePathname(toPathname, fromPathname) : fromPathname;
       return {
         pathname,
         search: normalizeSearch(search),
-        hash: normalizeHash(hash)
+        hash: normalizeHash(hash2)
       };
     }
     function resolvePathname(relativePath, fromPathname) {
@@ -16535,7 +16535,7 @@ var require_assets = __commonJS({
     var joinPaths = (paths) => paths.join("/").replace(/\/\/+/g, "/");
     var normalizePathname = (pathname) => pathname.replace(/\/+$/, "").replace(/^\/*/, "/");
     var normalizeSearch = (search) => !search || search === "?" ? "" : search.startsWith("?") ? search : "?" + search;
-    var normalizeHash = (hash) => !hash || hash === "#" ? "" : hash.startsWith("#") ? hash : "#" + hash;
+    var normalizeHash = (hash2) => !hash2 || hash2 === "#" ? "" : hash2.startsWith("#") ? hash2 : "#" + hash2;
     var ErrorResponseImpl = class {
       constructor(status2, statusText2, data2, internal = false) {
         this.status = status2;
@@ -19834,12 +19834,12 @@ var require_assets = __commonJS({
         `useHref() may be used only in the context of a <Router> component.`
       );
       let { basename, navigator: navigator2 } = reactExports.useContext(NavigationContext);
-      let { hash, pathname, search } = useResolvedPath(to2, { relative });
+      let { hash: hash2, pathname, search } = useResolvedPath(to2, { relative });
       let joinedPathname = pathname;
       if (basename !== "/") {
         joinedPathname = pathname === "/" ? basename : joinPaths([basename, pathname]);
       }
-      return navigator2.createHref({ pathname: joinedPathname, search, hash });
+      return navigator2.createHref({ pathname: joinedPathname, search, hash: hash2 });
     }
     function useInRouterContext() {
       return reactExports.useContext(LocationContext) != null;
@@ -19854,7 +19854,7 @@ var require_assets = __commonJS({
       return reactExports.useContext(LocationContext).location;
     }
     var navigateEffectWarning = `You should call navigate() in a React.useEffect(), not when your component is first rendered.`;
-    function useIsomorphicLayoutEffect(cb) {
+    function useIsomorphicLayoutEffect$1(cb) {
       let isStatic = reactExports.useContext(NavigationContext).static;
       if (!isStatic) {
         reactExports.useLayoutEffect(cb);
@@ -19877,7 +19877,7 @@ var require_assets = __commonJS({
       let { pathname: locationPathname } = useLocation();
       let routePathnamesJson = JSON.stringify(getResolveToMatches(matches));
       let activeRef = reactExports.useRef(false);
-      useIsomorphicLayoutEffect(() => {
+      useIsomorphicLayoutEffect$1(() => {
         activeRef.current = true;
       });
       let navigate = reactExports.useCallback(
@@ -20252,7 +20252,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         /* UseNavigateStable */
       );
       let activeRef = reactExports.useRef(false);
-      useIsomorphicLayoutEffect(() => {
+      useIsomorphicLayoutEffect$1(() => {
         activeRef.current = true;
       });
       let navigate = reactExports.useCallback(
@@ -20596,7 +20596,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let {
         pathname = "/",
         search = "",
-        hash = "",
+        hash: hash2 = "",
         state = null,
         key: key2 = "default"
       } = locationProp;
@@ -20609,16 +20609,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           location: {
             pathname: trailingPathname,
             search,
-            hash,
+            hash: hash2,
             state,
             key: key2
           },
           navigationType
         };
-      }, [basename, pathname, search, hash, state, key2, navigationType]);
+      }, [basename, pathname, search, hash2, state, key2, navigationType]);
       warning(
         locationContext != null,
-        `<Router basename="${basename}"> is not able to match the URL "${pathname}${search}${hash}" because it does not start with the basename, so the <Router> won't render anything.`
+        `<Router basename="${basename}"> is not able to match the URL "${pathname}${search}${hash2}" because it does not start with the basename, so the <Router> won't render anything.`
       );
       if (locationContext == null) {
         return null;
@@ -21285,7 +21285,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         "aria-current": ariaCurrentProp = "page",
         caseSensitive = false,
         className: classNameProp = "",
-        end = false,
+        end: end2 = false,
         style: styleProp,
         to: to2,
         viewTransition,
@@ -21311,8 +21311,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           nextLocationPathname = stripBasename(nextLocationPathname, basename) || nextLocationPathname;
         }
         const endSlashPosition = toPathname !== "/" && toPathname.endsWith("/") ? toPathname.length - 1 : toPathname.length;
-        let isActive = locationPathname === toPathname || !end && locationPathname.startsWith(toPathname) && locationPathname.charAt(endSlashPosition) === "/";
-        let isPending = nextLocationPathname != null && (nextLocationPathname === toPathname || !end && nextLocationPathname.startsWith(toPathname) && nextLocationPathname.charAt(toPathname.length) === "/");
+        let isActive = locationPathname === toPathname || !end2 && locationPathname.startsWith(toPathname) && locationPathname.charAt(endSlashPosition) === "/";
+        let isPending = nextLocationPathname != null && (nextLocationPathname === toPathname || !end2 && nextLocationPathname.startsWith(toPathname) && nextLocationPathname.charAt(toPathname.length) === "/");
         let renderProps = {
           isActive,
           isPending,
@@ -22952,7 +22952,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       return logger;
     };
-    function debounce$1(func, wait, options2 = {}) {
+    function debounce$2(func, wait, options2 = {}) {
       let timeout = null;
       let context;
       let args;
@@ -23269,7 +23269,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           timeoutId = setTimeout(poll, backoffTime);
         }
       };
-      const start = () => {
+      const start2 = () => {
         if (isPolling) {
           return;
         }
@@ -23278,7 +23278,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         isStopped = false;
         poll();
       };
-      return { name: name2, start, stop };
+      return { name: name2, start: start2, stop };
     };
     const log$8 = createLogger("logPolling");
     const kRetries = 10;
@@ -24120,6 +24120,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       sampleInState: false,
       sampleStatus: "ok",
       sampleError: void 0,
+      visiblePopover: void 0,
       // signals that the sample needs to be reloaded
       sampleNeedsReload: 0,
       // The resolved events
@@ -24223,6 +24224,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               delete state.sample.collapsedIdBuckets[key2];
             });
           },
+          setVisiblePopover: (id) => {
+            set2((state) => {
+              state.sample.visiblePopover = id;
+            });
+          },
+          clearVisiblePopover: () => {
+            set2((state) => {
+              state.sample.visiblePopover = void 0;
+            });
+          },
           pollSample: async (logFile, sampleSummary) => {
             const state = get2();
             const sampleExists = state.sample.sampleInState ? !!state.sample.selectedSampleObject : !!selectedSampleRef.current;
@@ -24309,7 +24320,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         getItem: (name2) => {
           return storage2 ? storage2.getItem(name2) : null;
         },
-        setItem: debounce$1((name2, value2) => {
+        setItem: debounce$2((name2, value2) => {
           if (storage2) {
             storage2.setItem(name2, value2);
           }
@@ -24633,8 +24644,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
       return new Intl.DateTimeFormat(void 0, options2).format(date);
     }
-    function formatDuration(start, end) {
-      const durationMs = end.getTime() - start.getTime();
+    function formatDuration(start2, end2) {
+      const durationMs = end2.getTime() - start2.getTime();
       const durationSec = durationMs / 1e3;
       return formatTime$1(durationSec);
     }
@@ -25376,10 +25387,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           this.hostname = this.hostname.substr(1, this.hostname.length - 2);
         }
       }
-      const hash = rest.indexOf("#");
-      if (hash !== -1) {
-        this.hash = rest.substr(hash);
-        rest = rest.slice(0, hash);
+      const hash2 = rest.indexOf("#");
+      if (hash2 !== -1) {
+        this.hash = rest.substr(hash2);
+        rest = rest.slice(0, hash2);
       }
       const qm = rest.indexOf("?");
       if (qm !== -1) {
@@ -25569,28 +25580,28 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
        * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      write(str2, offset) {
+      write(str2, offset2) {
         switch (this.state) {
           case EntityDecoderState.EntityStart: {
-            if (str2.charCodeAt(offset) === CharCodes.NUM) {
+            if (str2.charCodeAt(offset2) === CharCodes.NUM) {
               this.state = EntityDecoderState.NumericStart;
               this.consumed += 1;
-              return this.stateNumericStart(str2, offset + 1);
+              return this.stateNumericStart(str2, offset2 + 1);
             }
             this.state = EntityDecoderState.NamedEntity;
-            return this.stateNamedEntity(str2, offset);
+            return this.stateNamedEntity(str2, offset2);
           }
           case EntityDecoderState.NumericStart: {
-            return this.stateNumericStart(str2, offset);
+            return this.stateNumericStart(str2, offset2);
           }
           case EntityDecoderState.NumericDecimal: {
-            return this.stateNumericDecimal(str2, offset);
+            return this.stateNumericDecimal(str2, offset2);
           }
           case EntityDecoderState.NumericHex: {
-            return this.stateNumericHex(str2, offset);
+            return this.stateNumericHex(str2, offset2);
           }
           case EntityDecoderState.NamedEntity: {
-            return this.stateNamedEntity(str2, offset);
+            return this.stateNamedEntity(str2, offset2);
           }
         }
       }
@@ -25603,22 +25614,22 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericStart(str2, offset) {
-        if (offset >= str2.length) {
+      stateNumericStart(str2, offset2) {
+        if (offset2 >= str2.length) {
           return -1;
         }
-        if ((str2.charCodeAt(offset) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
+        if ((str2.charCodeAt(offset2) | TO_LOWER_BIT) === CharCodes.LOWER_X) {
           this.state = EntityDecoderState.NumericHex;
           this.consumed += 1;
-          return this.stateNumericHex(str2, offset + 1);
+          return this.stateNumericHex(str2, offset2 + 1);
         }
         this.state = EntityDecoderState.NumericDecimal;
-        return this.stateNumericDecimal(str2, offset);
+        return this.stateNumericDecimal(str2, offset2);
       }
-      addToNumericResult(str2, start, end, base2) {
-        if (start !== end) {
-          const digitCount = end - start;
-          this.result = this.result * Math.pow(base2, digitCount) + parseInt(str2.substr(start, digitCount), base2);
+      addToNumericResult(str2, start2, end2, base2) {
+        if (start2 !== end2) {
+          const digitCount = end2 - start2;
+          this.result = this.result * Math.pow(base2, digitCount) + parseInt(str2.substr(start2, digitCount), base2);
           this.consumed += digitCount;
         }
       }
@@ -25631,18 +25642,18 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericHex(str2, offset) {
-        const startIdx = offset;
-        while (offset < str2.length) {
-          const char = str2.charCodeAt(offset);
+      stateNumericHex(str2, offset2) {
+        const startIdx = offset2;
+        while (offset2 < str2.length) {
+          const char = str2.charCodeAt(offset2);
           if (isNumber(char) || isHexadecimalCharacter(char)) {
-            offset += 1;
+            offset2 += 1;
           } else {
-            this.addToNumericResult(str2, startIdx, offset, 16);
+            this.addToNumericResult(str2, startIdx, offset2, 16);
             return this.emitNumericEntity(char, 3);
           }
         }
-        this.addToNumericResult(str2, startIdx, offset, 16);
+        this.addToNumericResult(str2, startIdx, offset2, 16);
         return -1;
       }
       /**
@@ -25654,18 +25665,18 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNumericDecimal(str2, offset) {
-        const startIdx = offset;
-        while (offset < str2.length) {
-          const char = str2.charCodeAt(offset);
+      stateNumericDecimal(str2, offset2) {
+        const startIdx = offset2;
+        while (offset2 < str2.length) {
+          const char = str2.charCodeAt(offset2);
           if (isNumber(char)) {
-            offset += 1;
+            offset2 += 1;
           } else {
-            this.addToNumericResult(str2, startIdx, offset, 10);
+            this.addToNumericResult(str2, startIdx, offset2, 10);
             return this.emitNumericEntity(char, 2);
           }
         }
-        this.addToNumericResult(str2, startIdx, offset, 10);
+        this.addToNumericResult(str2, startIdx, offset2, 10);
         return -1;
       }
       /**
@@ -25710,12 +25721,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
        * @param offset The current offset.
        * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
        */
-      stateNamedEntity(str2, offset) {
+      stateNamedEntity(str2, offset2) {
         const { decodeTree } = this;
         let current2 = decodeTree[this.treeIndex];
         let valueLength = (current2 & BinTrieFlags.VALUE_LENGTH) >> 14;
-        for (; offset < str2.length; offset++, this.excess++) {
-          const char = str2.charCodeAt(offset);
+        for (; offset2 < str2.length; offset2++, this.excess++) {
+          const char = str2.charCodeAt(offset2);
           this.treeIndex = determineBranch(decodeTree, current2, this.treeIndex + Math.max(1, valueLength), char);
           if (this.treeIndex < 0) {
             return this.result === 0 || // If we are parsing an attribute
@@ -25802,21 +25813,21 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       const decoder = new EntityDecoder(decodeTree, (str2) => ret += fromCodePoint$2(str2));
       return function decodeWithTrie(str2, decodeMode) {
         let lastIndex = 0;
-        let offset = 0;
-        while ((offset = str2.indexOf("&", offset)) >= 0) {
-          ret += str2.slice(lastIndex, offset);
+        let offset2 = 0;
+        while ((offset2 = str2.indexOf("&", offset2)) >= 0) {
+          ret += str2.slice(lastIndex, offset2);
           decoder.startEntity(decodeMode);
           const len = decoder.write(
             str2,
             // Skip the "&"
-            offset + 1
+            offset2 + 1
           );
           if (len < 0) {
-            lastIndex = offset + decoder.end();
+            lastIndex = offset2 + decoder.end();
             break;
           }
-          lastIndex = offset + len;
-          offset = len === 0 ? lastIndex + 1 : lastIndex;
+          lastIndex = offset2 + len;
+          offset2 = len === 0 ? lastIndex + 1 : lastIndex;
         }
         const result2 = ret + str2.slice(lastIndex);
         ret = "";
@@ -26070,11 +26081,11 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       unescapeAll,
       unescapeMd
     }, Symbol.toStringTag, { value: "Module" }));
-    function parseLinkLabel(state, start, disableNested) {
+    function parseLinkLabel(state, start2, disableNested) {
       let level, found, marker, prevPos;
       const max2 = state.posMax;
       const oldPos = state.pos;
-      state.pos = start + 1;
+      state.pos = start2 + 1;
       level = 1;
       while (state.pos < max2) {
         marker = state.src.charCodeAt(state.pos);
@@ -26103,9 +26114,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       state.pos = oldPos;
       return labelEnd;
     }
-    function parseLinkDestination(str2, start, max2) {
+    function parseLinkDestination(str2, start2, max2) {
       let code2;
-      let pos2 = start;
+      let pos2 = start2;
       const result2 = {
         ok: false,
         pos: 0,
@@ -26123,7 +26134,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
           if (code2 === 62) {
             result2.pos = pos2 + 1;
-            result2.str = unescapeAll(str2.slice(start + 1, pos2));
+            result2.str = unescapeAll(str2.slice(start2 + 1, pos2));
             result2.ok = true;
             return result2;
           }
@@ -26165,20 +26176,20 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         pos2++;
       }
-      if (start === pos2) {
+      if (start2 === pos2) {
         return result2;
       }
       if (level !== 0) {
         return result2;
       }
-      result2.str = unescapeAll(str2.slice(start, pos2));
+      result2.str = unescapeAll(str2.slice(start2, pos2));
       result2.pos = pos2;
       result2.ok = true;
       return result2;
     }
-    function parseLinkTitle(str2, start, max2, prev_state) {
+    function parseLinkTitle(str2, start2, max2, prev_state) {
       let code2;
-      let pos2 = start;
+      let pos2 = start2;
       const state = {
         // if `true`, this is a valid link title
         ok: false,
@@ -26202,7 +26213,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (marker !== 34 && marker !== 39 && marker !== 40) {
           return state;
         }
-        start++;
+        start2++;
         pos2++;
         if (marker === 40) {
           marker = 41;
@@ -26213,7 +26224,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         code2 = str2.charCodeAt(pos2);
         if (code2 === state.marker) {
           state.pos = pos2 + 1;
-          state.str += unescapeAll(str2.slice(start, pos2));
+          state.str += unescapeAll(str2.slice(start2, pos2));
           state.ok = true;
           return state;
         } else if (code2 === 40 && state.marker === 41) {
@@ -26224,7 +26235,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         pos2++;
       }
       state.can_continue = true;
-      state.str += unescapeAll(str2.slice(start, pos2));
+      state.str += unescapeAll(str2.slice(start2, pos2));
       return state;
     }
     const helpers = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
@@ -27004,15 +27015,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.parentType = "root";
       this.level = 0;
       const s = this.src;
-      for (let start = 0, pos2 = 0, indent = 0, offset = 0, len = s.length, indent_found = false; pos2 < len; pos2++) {
+      for (let start2 = 0, pos2 = 0, indent = 0, offset2 = 0, len = s.length, indent_found = false; pos2 < len; pos2++) {
         const ch3 = s.charCodeAt(pos2);
         if (!indent_found) {
           if (isSpace(ch3)) {
             indent++;
             if (ch3 === 9) {
-              offset += 4 - offset % 4;
+              offset2 += 4 - offset2 % 4;
             } else {
-              offset++;
+              offset2++;
             }
             continue;
           } else {
@@ -27023,15 +27034,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (ch3 !== 10) {
             pos2++;
           }
-          this.bMarks.push(start);
+          this.bMarks.push(start2);
           this.eMarks.push(pos2);
           this.tShift.push(indent);
-          this.sCount.push(offset);
+          this.sCount.push(offset2);
           this.bsCount.push(0);
           indent_found = false;
           indent = 0;
-          offset = 0;
-          start = pos2 + 1;
+          offset2 = 0;
+          start2 = pos2 + 1;
         }
       }
       this.bMarks.push(s.length);
@@ -27100,17 +27111,17 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return pos2;
     };
-    StateBlock.prototype.getLines = function getLines(begin, end, indent, keepLastLF) {
-      if (begin >= end) {
+    StateBlock.prototype.getLines = function getLines(begin, end2, indent, keepLastLF) {
+      if (begin >= end2) {
         return "";
       }
-      const queue = new Array(end - begin);
-      for (let i2 = 0, line2 = begin; line2 < end; line2++, i2++) {
+      const queue = new Array(end2 - begin);
+      for (let i2 = 0, line2 = begin; line2 < end2; line2++, i2++) {
         let lineIndent = 0;
         const lineStart = this.bMarks[line2];
         let first = lineStart;
         let last;
-        if (line2 + 1 < end || keepLastLF) {
+        if (line2 + 1 < end2 || keepLastLF) {
           last = this.eMarks[line2] + 1;
         } else {
           last = this.eMarks[line2];
@@ -27468,16 +27479,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           } else {
             spaceAfterMarker = false;
           }
-          let offset = initial;
+          let offset2 = initial;
           oldBMarks.push(state.bMarks[nextLine]);
           state.bMarks[nextLine] = pos2;
           while (pos2 < max2) {
             const ch3 = state.src.charCodeAt(pos2);
             if (isSpace(ch3)) {
               if (ch3 === 9) {
-                offset += 4 - (offset + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
+                offset2 += 4 - (offset2 + state.bsCount[nextLine] + (adjustTab ? 1 : 0)) % 4;
               } else {
-                offset++;
+                offset2++;
               }
             } else {
               break;
@@ -27488,7 +27499,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           oldBSCount.push(state.bsCount[nextLine]);
           state.bsCount[nextLine] = state.sCount[nextLine] + 1 + (spaceAfterMarker ? 1 : 0);
           oldSCount.push(state.sCount[nextLine]);
-          state.sCount[nextLine] = offset - initial;
+          state.sCount[nextLine] = offset2 - initial;
           oldTShift.push(state.tShift[nextLine]);
           state.tShift[nextLine] = pos2 - state.bMarks[nextLine];
           continue;
@@ -27589,9 +27600,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return pos2;
     }
     function skipOrderedListMarker(state, startLine) {
-      const start = state.bMarks[startLine] + state.tShift[startLine];
+      const start2 = state.bMarks[startLine] + state.tShift[startLine];
       const max2 = state.eMarks[startLine];
-      let pos2 = start;
+      let pos2 = start2;
       if (pos2 + 1 >= max2) {
         return -1;
       }
@@ -27605,7 +27616,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         ch3 = state.src.charCodeAt(pos2++);
         if (ch3 >= 48 && ch3 <= 57) {
-          if (pos2 - start >= 10) {
+          if (pos2 - start2 >= 10) {
             return -1;
           }
           continue;
@@ -27634,7 +27645,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     }
     function list$1(state, startLine, endLine, silent) {
-      let max2, pos2, start, token2;
+      let max2, pos2, start2, token2;
       let nextLine = startLine;
       let tight = true;
       if (state.sCount[nextLine] - state.blkIndent >= 4) {
@@ -27654,8 +27665,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let posAfterMarker;
       if ((posAfterMarker = skipOrderedListMarker(state, nextLine)) >= 0) {
         isOrdered = true;
-        start = state.bMarks[nextLine] + state.tShift[nextLine];
-        markerValue = Number(state.src.slice(start, posAfterMarker - 1));
+        start2 = state.bMarks[nextLine] + state.tShift[nextLine];
+        markerValue = Number(state.src.slice(start2, posAfterMarker - 1));
         if (isTerminatingParagraph && markerValue !== 1) return false;
       } else if ((posAfterMarker = skipBulletListMarker(state, nextLine)) >= 0) {
         isOrdered = false;
@@ -27689,13 +27700,13 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         pos2 = posAfterMarker;
         max2 = state.eMarks[nextLine];
         const initial = state.sCount[nextLine] + posAfterMarker - (state.bMarks[nextLine] + state.tShift[nextLine]);
-        let offset = initial;
+        let offset2 = initial;
         while (pos2 < max2) {
           const ch3 = state.src.charCodeAt(pos2);
           if (ch3 === 9) {
-            offset += 4 - (offset + state.bsCount[nextLine]) % 4;
+            offset2 += 4 - (offset2 + state.bsCount[nextLine]) % 4;
           } else if (ch3 === 32) {
-            offset++;
+            offset2++;
           } else {
             break;
           }
@@ -27706,7 +27717,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (contentStart >= max2) {
           indentAfterMarker = 1;
         } else {
-          indentAfterMarker = offset - initial;
+          indentAfterMarker = offset2 - initial;
         }
         if (indentAfterMarker > 4) {
           indentAfterMarker = 1;
@@ -27717,7 +27728,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         const itemLines = [nextLine, 0];
         token2.map = itemLines;
         if (isOrdered) {
-          token2.info = state.src.slice(start, posAfterMarker - 1);
+          token2.info = state.src.slice(start2, posAfterMarker - 1);
         }
         const oldTight = state.tight;
         const oldTShift = state.tShift[nextLine];
@@ -27727,7 +27738,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         state.blkIndent = indent;
         state.tight = true;
         state.tShift[nextLine] = contentStart - state.bMarks[nextLine];
-        state.sCount[nextLine] = offset;
+        state.sCount[nextLine] = offset2;
         if (contentStart >= max2 && state.isEmpty(nextLine + 1)) {
           state.line = Math.min(state.line + 2, endLine);
         } else {
@@ -27770,7 +27781,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (posAfterMarker < 0) {
             break;
           }
-          start = state.bMarks[nextLine] + state.tShift[nextLine];
+          start2 = state.bMarks[nextLine] + state.tShift[nextLine];
         } else {
           posAfterMarker = skipBulletListMarker(state, nextLine);
           if (posAfterMarker < 0) {
@@ -27795,7 +27806,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return true;
     }
-    function reference(state, startLine, _endLine, silent) {
+    function reference$1(state, startLine, _endLine, silent) {
       let pos2 = state.bMarks[startLine] + state.tShift[startLine];
       let max2 = state.eMarks[startLine];
       let nextLine = startLine + 1;
@@ -27894,7 +27905,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       pos2 = destRes.pos;
       const destEndPos = pos2;
       const destEndLineNo = nextLine;
-      const start = pos2;
+      const start2 = pos2;
       for (; pos2 < max2; pos2++) {
         const ch3 = str2.charCodeAt(pos2);
         if (ch3 === 10) {
@@ -27920,7 +27931,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         titleRes = state.md.helpers.parseLinkTitle(str2, pos2, max2, titleRes);
       }
       let title2;
-      if (pos2 < max2 && start !== pos2 && titleRes.ok) {
+      if (pos2 < max2 && start2 !== pos2 && titleRes.ok) {
         title2 = titleRes.str;
         pos2 = titleRes.pos;
       } else {
@@ -28246,7 +28257,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       ["blockquote", blockquote, ["paragraph", "reference", "blockquote", "list"]],
       ["hr", hr$1, ["paragraph", "reference", "blockquote", "list"]],
       ["list", list$1, ["paragraph", "reference", "blockquote"]],
-      ["reference", reference],
+      ["reference", reference$1],
       ["html_block", html_block, ["paragraph", "reference", "blockquote"]],
       ["heading", heading$1, ["paragraph", "reference", "blockquote"]],
       ["lheading", lheading],
@@ -28356,15 +28367,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       this.tokens_meta.push(token_meta);
       return token2;
     };
-    StateInline.prototype.scanDelims = function(start, canSplitWord) {
+    StateInline.prototype.scanDelims = function(start2, canSplitWord) {
       const max2 = this.posMax;
-      const marker = this.src.charCodeAt(start);
-      const lastChar = start > 0 ? this.src.charCodeAt(start - 1) : 32;
-      let pos2 = start;
+      const marker = this.src.charCodeAt(start2);
+      const lastChar = start2 > 0 ? this.src.charCodeAt(start2 - 1) : 32;
+      let pos2 = start2;
       while (pos2 < max2 && this.src.charCodeAt(pos2) === marker) {
         pos2++;
       }
-      const count = pos2 - start;
+      const count = pos2 - start2;
       const nextChar = pos2 < max2 ? this.src.charCodeAt(pos2) : 32;
       const isLastPunctChar = isMdAsciiPunct(lastChar) || isPunctChar(String.fromCharCode(lastChar));
       const isNextPunctChar = isMdAsciiPunct(nextChar) || isPunctChar(String.fromCharCode(nextChar));
@@ -28540,15 +28551,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (ch3 !== 96) {
         return false;
       }
-      const start = pos2;
+      const start2 = pos2;
       pos2++;
       const max2 = state.posMax;
       while (pos2 < max2 && state.src.charCodeAt(pos2) === 96) {
         pos2++;
       }
-      const marker = state.src.slice(start, pos2);
+      const marker = state.src.slice(start2, pos2);
       const openerLength = marker.length;
-      if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start) {
+      if (state.backticksScanned && (state.backticks[openerLength] || 0) <= start2) {
         if (!silent) state.pending += marker;
         state.pos += openerLength;
         return true;
@@ -28578,8 +28589,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return true;
     }
     function strikethrough_tokenize(state, silent) {
-      const start = state.pos;
-      const marker = state.src.charCodeAt(start);
+      const start2 = state.pos;
+      const marker = state.src.charCodeAt(start2);
       if (silent) {
         return false;
       }
@@ -28672,8 +28683,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       postProcess: strikethrough_postProcess
     };
     function emphasis_tokenize(state, silent) {
-      const start = state.pos;
-      const marker = state.src.charCodeAt(start);
+      const start2 = state.pos;
+      const marker = state.src.charCodeAt(start2);
       if (silent) {
         return false;
       }
@@ -28760,7 +28771,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       let code2, label2, res, ref;
       let href = "";
       let title2 = "";
-      let start = state.pos;
+      let start2 = state.pos;
       let parseReference = true;
       if (state.src.charCodeAt(state.pos) !== 91) {
         return false;
@@ -28785,7 +28796,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (pos2 >= max2) {
           return false;
         }
-        start = pos2;
+        start2 = pos2;
         res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
         if (res.ok) {
           href = state.md.normalizeLink(res.str);
@@ -28794,7 +28805,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           } else {
             href = "";
           }
-          start = pos2;
+          start2 = pos2;
           for (; pos2 < max2; pos2++) {
             code2 = state.src.charCodeAt(pos2);
             if (!isSpace(code2) && code2 !== 10) {
@@ -28802,7 +28813,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             }
           }
           res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
-          if (pos2 < max2 && start !== pos2 && res.ok) {
+          if (pos2 < max2 && start2 !== pos2 && res.ok) {
             title2 = res.str;
             pos2 = res.pos;
             for (; pos2 < max2; pos2++) {
@@ -28823,10 +28834,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           return false;
         }
         if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
-          start = pos2 + 1;
+          start2 = pos2 + 1;
           pos2 = state.md.helpers.parseLinkLabel(state, pos2);
           if (pos2 >= 0) {
-            label2 = state.src.slice(start, pos2++);
+            label2 = state.src.slice(start2, pos2++);
           } else {
             pos2 = labelEnd + 1;
           }
@@ -28863,7 +28874,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       return true;
     }
     function image$1(state, silent) {
-      let code2, content2, label2, pos2, ref, res, title2, start;
+      let code2, content2, label2, pos2, ref, res, title2, start2;
       let href = "";
       const oldPos = state.pos;
       const max2 = state.posMax;
@@ -28890,7 +28901,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (pos2 >= max2) {
           return false;
         }
-        start = pos2;
+        start2 = pos2;
         res = state.md.helpers.parseLinkDestination(state.src, pos2, state.posMax);
         if (res.ok) {
           href = state.md.normalizeLink(res.str);
@@ -28900,7 +28911,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             href = "";
           }
         }
-        start = pos2;
+        start2 = pos2;
         for (; pos2 < max2; pos2++) {
           code2 = state.src.charCodeAt(pos2);
           if (!isSpace(code2) && code2 !== 10) {
@@ -28908,7 +28919,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         }
         res = state.md.helpers.parseLinkTitle(state.src, pos2, state.posMax);
-        if (pos2 < max2 && start !== pos2 && res.ok) {
+        if (pos2 < max2 && start2 !== pos2 && res.ok) {
           title2 = res.str;
           pos2 = res.pos;
           for (; pos2 < max2; pos2++) {
@@ -28930,10 +28941,10 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           return false;
         }
         if (pos2 < max2 && state.src.charCodeAt(pos2) === 91) {
-          start = pos2 + 1;
+          start2 = pos2 + 1;
           pos2 = state.md.helpers.parseLinkLabel(state, pos2);
           if (pos2 >= 0) {
-            label2 = state.src.slice(start, pos2++);
+            label2 = state.src.slice(start2, pos2++);
           } else {
             pos2 = labelEnd + 1;
           }
@@ -28980,7 +28991,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       if (state.src.charCodeAt(pos2) !== 60) {
         return false;
       }
-      const start = state.pos;
+      const start2 = state.pos;
       const max2 = state.posMax;
       for (; ; ) {
         if (++pos2 >= max2) return false;
@@ -28988,7 +28999,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (ch3 === 60) return false;
         if (ch3 === 62) break;
       }
-      const url = state.src.slice(start + 1, pos2);
+      const url = state.src.slice(start2 + 1, pos2);
       if (AUTOLINK_RE.test(url)) {
         const fullUrl = state.md.normalizeLink(url);
         if (!state.md.validateLink(fullUrl)) {
@@ -29254,9 +29265,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     ParserInline.prototype.tokenize = function(state) {
       const rules = this.ruler.getRules("");
       const len = rules.length;
-      const end = state.posMax;
+      const end2 = state.posMax;
       const maxNesting = state.md.options.maxNesting;
-      while (state.pos < end) {
+      while (state.pos < end2) {
         const prevPos = state.pos;
         let ok = false;
         if (state.level < maxNesting) {
@@ -29271,7 +29282,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           }
         }
         if (ok) {
-          if (state.pos >= end) {
+          if (state.pos >= end2) {
             break;
           }
           continue;
@@ -29521,12 +29532,12 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       resetScanCache(self2);
     }
     function Match$1(self2, shift2) {
-      const start = self2.__index__;
-      const end = self2.__last_index__;
-      const text2 = self2.__text_cache__.slice(start, end);
+      const start2 = self2.__index__;
+      const end2 = self2.__last_index__;
+      const text2 = self2.__text_cache__.slice(start2, end2);
       this.schema = self2.__schema__.toLowerCase();
-      this.index = start + shift2;
-      this.lastIndex = end + shift2;
+      this.index = start2 + shift2;
+      this.lastIndex = end2 + shift2;
       this.raw = text2;
       this.text = text2;
       this.url = text2;
@@ -30242,8 +30253,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         var input2 = lexer._input;
         input2 = input2.slice(0, position) + "̲" + input2.slice(position);
         var begin = Math.max(0, position - 15);
-        var end = position + 15;
-        error2 += input2.slice(begin, end);
+        var end2 = position + 15;
+        error2 += input2.slice(begin, end2);
       }
       var self2 = new Error(error2);
       self2.name = "ParseError";
@@ -30348,7 +30359,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       return -1;
     };
-    var contains$1 = function(list2, elem) {
+    var contains$2 = function(list2, elem) {
       return indexOf(list2, elem) !== -1;
     };
     var deflt = function(setting, defaultIfUndefined) {
@@ -30389,7 +30400,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       setTextContent(node2, "");
     }
     var utils$8 = {
-      contains: contains$1,
+      contains: contains$2,
       deflt,
       escape,
       hyphenate,
@@ -32409,7 +32420,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       var math = "math";
       var text2 = "text";
-      var main = "main";
+      var main2 = "main";
       var ams = "ams";
       var accent = "accent";
       var bin = "bin";
@@ -32422,90 +32433,90 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       var rel = "rel";
       var spacing = "spacing";
       var textord = "textord";
-      defineSymbol(math, main, rel, "≡", "\\equiv");
-      defineSymbol(math, main, rel, "≺", "\\prec");
-      defineSymbol(math, main, rel, "≻", "\\succ");
-      defineSymbol(math, main, rel, "∼", "\\sim");
-      defineSymbol(math, main, rel, "⊥", "\\perp");
-      defineSymbol(math, main, rel, "⪯", "\\preceq");
-      defineSymbol(math, main, rel, "⪰", "\\succeq");
-      defineSymbol(math, main, rel, "≃", "\\simeq");
-      defineSymbol(math, main, rel, "∣", "\\mid");
-      defineSymbol(math, main, rel, "≪", "\\ll");
-      defineSymbol(math, main, rel, "≫", "\\gg");
-      defineSymbol(math, main, rel, "≍", "\\asymp");
-      defineSymbol(math, main, rel, "∥", "\\parallel");
-      defineSymbol(math, main, rel, "⋈", "\\bowtie");
-      defineSymbol(math, main, rel, "⌣", "\\smile");
-      defineSymbol(math, main, rel, "⊑", "\\sqsubseteq");
-      defineSymbol(math, main, rel, "⊒", "\\sqsupseteq");
-      defineSymbol(math, main, rel, "≐", "\\doteq");
-      defineSymbol(math, main, rel, "⌢", "\\frown");
-      defineSymbol(math, main, rel, "∋", "\\ni");
-      defineSymbol(math, main, rel, "∝", "\\propto");
-      defineSymbol(math, main, rel, "⊢", "\\vdash");
-      defineSymbol(math, main, rel, "⊣", "\\dashv");
-      defineSymbol(math, main, rel, "∋", "\\owns");
-      defineSymbol(math, main, punct, ".", "\\ldotp");
-      defineSymbol(math, main, punct, "⋅", "\\cdotp");
-      defineSymbol(math, main, textord, "#", "\\#");
-      defineSymbol(math, main, textord, "&", "\\&");
-      defineSymbol(math, main, textord, "ℵ", "\\aleph");
-      defineSymbol(math, main, textord, "∀", "\\forall");
-      defineSymbol(math, main, textord, "ℏ", "\\hbar");
-      defineSymbol(math, main, textord, "∃", "\\exists");
-      defineSymbol(math, main, textord, "∇", "\\nabla");
-      defineSymbol(math, main, textord, "♭", "\\flat");
-      defineSymbol(math, main, textord, "ℓ", "\\ell");
-      defineSymbol(math, main, textord, "♮", "\\natural");
-      defineSymbol(math, main, textord, "♣", "\\clubsuit");
-      defineSymbol(math, main, textord, "℘", "\\wp");
-      defineSymbol(math, main, textord, "♯", "\\sharp");
-      defineSymbol(math, main, textord, "♢", "\\diamondsuit");
-      defineSymbol(math, main, textord, "ℜ", "\\Re");
-      defineSymbol(math, main, textord, "♡", "\\heartsuit");
-      defineSymbol(math, main, textord, "ℑ", "\\Im");
-      defineSymbol(math, main, textord, "♠", "\\spadesuit");
-      defineSymbol(math, main, textord, "†", "\\dag");
-      defineSymbol(math, main, textord, "‡", "\\ddag");
-      defineSymbol(math, main, close2, "⎱", "\\rmoustache");
-      defineSymbol(math, main, open, "⎰", "\\lmoustache");
-      defineSymbol(math, main, close2, "⟯", "\\rgroup");
-      defineSymbol(math, main, open, "⟮", "\\lgroup");
-      defineSymbol(math, main, bin, "∓", "\\mp");
-      defineSymbol(math, main, bin, "⊖", "\\ominus");
-      defineSymbol(math, main, bin, "⊎", "\\uplus");
-      defineSymbol(math, main, bin, "⊓", "\\sqcap");
-      defineSymbol(math, main, bin, "∗", "\\ast");
-      defineSymbol(math, main, bin, "⊔", "\\sqcup");
-      defineSymbol(math, main, bin, "◯", "\\bigcirc");
-      defineSymbol(math, main, bin, "∙", "\\bullet");
-      defineSymbol(math, main, bin, "‡", "\\ddagger");
-      defineSymbol(math, main, bin, "≀", "\\wr");
-      defineSymbol(math, main, bin, "⨿", "\\amalg");
-      defineSymbol(math, main, rel, "⟵", "\\longleftarrow");
-      defineSymbol(math, main, rel, "⇐", "\\Leftarrow");
-      defineSymbol(math, main, rel, "⟸", "\\Longleftarrow");
-      defineSymbol(math, main, rel, "⟶", "\\longrightarrow");
-      defineSymbol(math, main, rel, "⇒", "\\Rightarrow");
-      defineSymbol(math, main, rel, "⟹", "\\Longrightarrow");
-      defineSymbol(math, main, rel, "↔", "\\leftrightarrow");
-      defineSymbol(math, main, rel, "⟷", "\\longleftrightarrow");
-      defineSymbol(math, main, rel, "⇔", "\\Leftrightarrow");
-      defineSymbol(math, main, rel, "⟺", "\\Longleftrightarrow");
-      defineSymbol(math, main, rel, "↦", "\\mapsto");
-      defineSymbol(math, main, rel, "⟼", "\\longmapsto");
-      defineSymbol(math, main, rel, "↗", "\\nearrow");
-      defineSymbol(math, main, rel, "↩", "\\hookleftarrow");
-      defineSymbol(math, main, rel, "↪", "\\hookrightarrow");
-      defineSymbol(math, main, rel, "↘", "\\searrow");
-      defineSymbol(math, main, rel, "↼", "\\leftharpoonup");
-      defineSymbol(math, main, rel, "⇀", "\\rightharpoonup");
-      defineSymbol(math, main, rel, "↙", "\\swarrow");
-      defineSymbol(math, main, rel, "↽", "\\leftharpoondown");
-      defineSymbol(math, main, rel, "⇁", "\\rightharpoondown");
-      defineSymbol(math, main, rel, "↖", "\\nwarrow");
-      defineSymbol(math, main, rel, "⇌", "\\rightleftharpoons");
+      defineSymbol(math, main2, rel, "≡", "\\equiv");
+      defineSymbol(math, main2, rel, "≺", "\\prec");
+      defineSymbol(math, main2, rel, "≻", "\\succ");
+      defineSymbol(math, main2, rel, "∼", "\\sim");
+      defineSymbol(math, main2, rel, "⊥", "\\perp");
+      defineSymbol(math, main2, rel, "⪯", "\\preceq");
+      defineSymbol(math, main2, rel, "⪰", "\\succeq");
+      defineSymbol(math, main2, rel, "≃", "\\simeq");
+      defineSymbol(math, main2, rel, "∣", "\\mid");
+      defineSymbol(math, main2, rel, "≪", "\\ll");
+      defineSymbol(math, main2, rel, "≫", "\\gg");
+      defineSymbol(math, main2, rel, "≍", "\\asymp");
+      defineSymbol(math, main2, rel, "∥", "\\parallel");
+      defineSymbol(math, main2, rel, "⋈", "\\bowtie");
+      defineSymbol(math, main2, rel, "⌣", "\\smile");
+      defineSymbol(math, main2, rel, "⊑", "\\sqsubseteq");
+      defineSymbol(math, main2, rel, "⊒", "\\sqsupseteq");
+      defineSymbol(math, main2, rel, "≐", "\\doteq");
+      defineSymbol(math, main2, rel, "⌢", "\\frown");
+      defineSymbol(math, main2, rel, "∋", "\\ni");
+      defineSymbol(math, main2, rel, "∝", "\\propto");
+      defineSymbol(math, main2, rel, "⊢", "\\vdash");
+      defineSymbol(math, main2, rel, "⊣", "\\dashv");
+      defineSymbol(math, main2, rel, "∋", "\\owns");
+      defineSymbol(math, main2, punct, ".", "\\ldotp");
+      defineSymbol(math, main2, punct, "⋅", "\\cdotp");
+      defineSymbol(math, main2, textord, "#", "\\#");
+      defineSymbol(math, main2, textord, "&", "\\&");
+      defineSymbol(math, main2, textord, "ℵ", "\\aleph");
+      defineSymbol(math, main2, textord, "∀", "\\forall");
+      defineSymbol(math, main2, textord, "ℏ", "\\hbar");
+      defineSymbol(math, main2, textord, "∃", "\\exists");
+      defineSymbol(math, main2, textord, "∇", "\\nabla");
+      defineSymbol(math, main2, textord, "♭", "\\flat");
+      defineSymbol(math, main2, textord, "ℓ", "\\ell");
+      defineSymbol(math, main2, textord, "♮", "\\natural");
+      defineSymbol(math, main2, textord, "♣", "\\clubsuit");
+      defineSymbol(math, main2, textord, "℘", "\\wp");
+      defineSymbol(math, main2, textord, "♯", "\\sharp");
+      defineSymbol(math, main2, textord, "♢", "\\diamondsuit");
+      defineSymbol(math, main2, textord, "ℜ", "\\Re");
+      defineSymbol(math, main2, textord, "♡", "\\heartsuit");
+      defineSymbol(math, main2, textord, "ℑ", "\\Im");
+      defineSymbol(math, main2, textord, "♠", "\\spadesuit");
+      defineSymbol(math, main2, textord, "†", "\\dag");
+      defineSymbol(math, main2, textord, "‡", "\\ddag");
+      defineSymbol(math, main2, close2, "⎱", "\\rmoustache");
+      defineSymbol(math, main2, open, "⎰", "\\lmoustache");
+      defineSymbol(math, main2, close2, "⟯", "\\rgroup");
+      defineSymbol(math, main2, open, "⟮", "\\lgroup");
+      defineSymbol(math, main2, bin, "∓", "\\mp");
+      defineSymbol(math, main2, bin, "⊖", "\\ominus");
+      defineSymbol(math, main2, bin, "⊎", "\\uplus");
+      defineSymbol(math, main2, bin, "⊓", "\\sqcap");
+      defineSymbol(math, main2, bin, "∗", "\\ast");
+      defineSymbol(math, main2, bin, "⊔", "\\sqcup");
+      defineSymbol(math, main2, bin, "◯", "\\bigcirc");
+      defineSymbol(math, main2, bin, "∙", "\\bullet");
+      defineSymbol(math, main2, bin, "‡", "\\ddagger");
+      defineSymbol(math, main2, bin, "≀", "\\wr");
+      defineSymbol(math, main2, bin, "⨿", "\\amalg");
+      defineSymbol(math, main2, rel, "⟵", "\\longleftarrow");
+      defineSymbol(math, main2, rel, "⇐", "\\Leftarrow");
+      defineSymbol(math, main2, rel, "⟸", "\\Longleftarrow");
+      defineSymbol(math, main2, rel, "⟶", "\\longrightarrow");
+      defineSymbol(math, main2, rel, "⇒", "\\Rightarrow");
+      defineSymbol(math, main2, rel, "⟹", "\\Longrightarrow");
+      defineSymbol(math, main2, rel, "↔", "\\leftrightarrow");
+      defineSymbol(math, main2, rel, "⟷", "\\longleftrightarrow");
+      defineSymbol(math, main2, rel, "⇔", "\\Leftrightarrow");
+      defineSymbol(math, main2, rel, "⟺", "\\Longleftrightarrow");
+      defineSymbol(math, main2, rel, "↦", "\\mapsto");
+      defineSymbol(math, main2, rel, "⟼", "\\longmapsto");
+      defineSymbol(math, main2, rel, "↗", "\\nearrow");
+      defineSymbol(math, main2, rel, "↩", "\\hookleftarrow");
+      defineSymbol(math, main2, rel, "↪", "\\hookrightarrow");
+      defineSymbol(math, main2, rel, "↘", "\\searrow");
+      defineSymbol(math, main2, rel, "↼", "\\leftharpoonup");
+      defineSymbol(math, main2, rel, "⇀", "\\rightharpoonup");
+      defineSymbol(math, main2, rel, "↙", "\\swarrow");
+      defineSymbol(math, main2, rel, "↽", "\\leftharpoondown");
+      defineSymbol(math, main2, rel, "⇁", "\\rightharpoondown");
+      defineSymbol(math, main2, rel, "↖", "\\nwarrow");
+      defineSymbol(math, main2, rel, "⇌", "\\rightleftharpoons");
       defineSymbol(math, ams, rel, "≮", "\\nless");
       defineSymbol(math, ams, rel, "", "\\nleqslant");
       defineSymbol(math, ams, rel, "", "\\nleqq");
@@ -32672,7 +32683,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       defineSymbol(math, ams, bin, "⊲", "\\lhd");
       defineSymbol(math, ams, bin, "⊳", "\\rhd");
       defineSymbol(math, ams, rel, "≂", "\\eqsim");
-      defineSymbol(math, main, rel, "⋈", "\\Join");
+      defineSymbol(math, main2, rel, "⋈", "\\Join");
       defineSymbol(math, ams, rel, "≑", "\\Doteq");
       defineSymbol(math, ams, bin, "∔", "\\dotplus");
       defineSymbol(math, ams, bin, "∖", "\\smallsetminus");
@@ -32727,168 +32738,168 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       defineSymbol(math, ams, rel, "⇝", "\\leadsto");
       defineSymbol(math, ams, rel, "⇛", "\\Rrightarrow");
       defineSymbol(math, ams, rel, "↾", "\\restriction");
-      defineSymbol(math, main, textord, "‘", "`");
-      defineSymbol(math, main, textord, "$", "\\$");
-      defineSymbol(math, main, textord, "%", "\\%");
-      defineSymbol(math, main, textord, "_", "\\_");
-      defineSymbol(math, main, textord, "∠", "\\angle");
-      defineSymbol(math, main, textord, "∞", "\\infty");
-      defineSymbol(math, main, textord, "′", "\\prime");
-      defineSymbol(math, main, textord, "△", "\\triangle");
-      defineSymbol(math, main, textord, "Γ", "\\Gamma");
-      defineSymbol(math, main, textord, "Δ", "\\Delta");
-      defineSymbol(math, main, textord, "Θ", "\\Theta");
-      defineSymbol(math, main, textord, "Λ", "\\Lambda");
-      defineSymbol(math, main, textord, "Ξ", "\\Xi");
-      defineSymbol(math, main, textord, "Π", "\\Pi");
-      defineSymbol(math, main, textord, "Σ", "\\Sigma");
-      defineSymbol(math, main, textord, "Υ", "\\Upsilon");
-      defineSymbol(math, main, textord, "Φ", "\\Phi");
-      defineSymbol(math, main, textord, "Ψ", "\\Psi");
-      defineSymbol(math, main, textord, "Ω", "\\Omega");
-      defineSymbol(math, main, textord, "¬", "\\neg");
-      defineSymbol(math, main, textord, "¬", "\\lnot");
-      defineSymbol(math, main, textord, "⊤", "\\top");
-      defineSymbol(math, main, textord, "⊥", "\\bot");
-      defineSymbol(math, main, textord, "∅", "\\emptyset");
+      defineSymbol(math, main2, textord, "‘", "`");
+      defineSymbol(math, main2, textord, "$", "\\$");
+      defineSymbol(math, main2, textord, "%", "\\%");
+      defineSymbol(math, main2, textord, "_", "\\_");
+      defineSymbol(math, main2, textord, "∠", "\\angle");
+      defineSymbol(math, main2, textord, "∞", "\\infty");
+      defineSymbol(math, main2, textord, "′", "\\prime");
+      defineSymbol(math, main2, textord, "△", "\\triangle");
+      defineSymbol(math, main2, textord, "Γ", "\\Gamma");
+      defineSymbol(math, main2, textord, "Δ", "\\Delta");
+      defineSymbol(math, main2, textord, "Θ", "\\Theta");
+      defineSymbol(math, main2, textord, "Λ", "\\Lambda");
+      defineSymbol(math, main2, textord, "Ξ", "\\Xi");
+      defineSymbol(math, main2, textord, "Π", "\\Pi");
+      defineSymbol(math, main2, textord, "Σ", "\\Sigma");
+      defineSymbol(math, main2, textord, "Υ", "\\Upsilon");
+      defineSymbol(math, main2, textord, "Φ", "\\Phi");
+      defineSymbol(math, main2, textord, "Ψ", "\\Psi");
+      defineSymbol(math, main2, textord, "Ω", "\\Omega");
+      defineSymbol(math, main2, textord, "¬", "\\neg");
+      defineSymbol(math, main2, textord, "¬", "\\lnot");
+      defineSymbol(math, main2, textord, "⊤", "\\top");
+      defineSymbol(math, main2, textord, "⊥", "\\bot");
+      defineSymbol(math, main2, textord, "∅", "\\emptyset");
       defineSymbol(math, ams, textord, "∅", "\\varnothing");
-      defineSymbol(math, main, mathord, "α", "\\alpha");
-      defineSymbol(math, main, mathord, "β", "\\beta");
-      defineSymbol(math, main, mathord, "γ", "\\gamma");
-      defineSymbol(math, main, mathord, "δ", "\\delta");
-      defineSymbol(math, main, mathord, "ϵ", "\\epsilon");
-      defineSymbol(math, main, mathord, "ζ", "\\zeta");
-      defineSymbol(math, main, mathord, "η", "\\eta");
-      defineSymbol(math, main, mathord, "θ", "\\theta");
-      defineSymbol(math, main, mathord, "ι", "\\iota");
-      defineSymbol(math, main, mathord, "κ", "\\kappa");
-      defineSymbol(math, main, mathord, "λ", "\\lambda");
-      defineSymbol(math, main, mathord, "μ", "\\mu");
-      defineSymbol(math, main, mathord, "ν", "\\nu");
-      defineSymbol(math, main, mathord, "ξ", "\\xi");
-      defineSymbol(math, main, mathord, "o", "\\omicron");
-      defineSymbol(math, main, mathord, "π", "\\pi");
-      defineSymbol(math, main, mathord, "ρ", "\\rho");
-      defineSymbol(math, main, mathord, "σ", "\\sigma");
-      defineSymbol(math, main, mathord, "τ", "\\tau");
-      defineSymbol(math, main, mathord, "υ", "\\upsilon");
-      defineSymbol(math, main, mathord, "ϕ", "\\phi");
-      defineSymbol(math, main, mathord, "χ", "\\chi");
-      defineSymbol(math, main, mathord, "ψ", "\\psi");
-      defineSymbol(math, main, mathord, "ω", "\\omega");
-      defineSymbol(math, main, mathord, "ε", "\\varepsilon");
-      defineSymbol(math, main, mathord, "ϑ", "\\vartheta");
-      defineSymbol(math, main, mathord, "ϖ", "\\varpi");
-      defineSymbol(math, main, mathord, "ϱ", "\\varrho");
-      defineSymbol(math, main, mathord, "ς", "\\varsigma");
-      defineSymbol(math, main, mathord, "φ", "\\varphi");
-      defineSymbol(math, main, bin, "∗", "*");
-      defineSymbol(math, main, bin, "+", "+");
-      defineSymbol(math, main, bin, "−", "-");
-      defineSymbol(math, main, bin, "⋅", "\\cdot");
-      defineSymbol(math, main, bin, "∘", "\\circ");
-      defineSymbol(math, main, bin, "÷", "\\div");
-      defineSymbol(math, main, bin, "±", "\\pm");
-      defineSymbol(math, main, bin, "×", "\\times");
-      defineSymbol(math, main, bin, "∩", "\\cap");
-      defineSymbol(math, main, bin, "∪", "\\cup");
-      defineSymbol(math, main, bin, "∖", "\\setminus");
-      defineSymbol(math, main, bin, "∧", "\\land");
-      defineSymbol(math, main, bin, "∨", "\\lor");
-      defineSymbol(math, main, bin, "∧", "\\wedge");
-      defineSymbol(math, main, bin, "∨", "\\vee");
-      defineSymbol(math, main, textord, "√", "\\surd");
-      defineSymbol(math, main, open, "(", "(");
-      defineSymbol(math, main, open, "[", "[");
-      defineSymbol(math, main, open, "⟨", "\\langle");
-      defineSymbol(math, main, open, "∣", "\\lvert");
-      defineSymbol(math, main, open, "∥", "\\lVert");
-      defineSymbol(math, main, close2, ")", ")");
-      defineSymbol(math, main, close2, "]", "]");
-      defineSymbol(math, main, close2, "?", "?");
-      defineSymbol(math, main, close2, "!", "!");
-      defineSymbol(math, main, close2, "⟩", "\\rangle");
-      defineSymbol(math, main, close2, "∣", "\\rvert");
-      defineSymbol(math, main, close2, "∥", "\\rVert");
-      defineSymbol(math, main, rel, "=", "=");
-      defineSymbol(math, main, rel, "<", "<");
-      defineSymbol(math, main, rel, ">", ">");
-      defineSymbol(math, main, rel, ":", ":");
-      defineSymbol(math, main, rel, "≈", "\\approx");
-      defineSymbol(math, main, rel, "≅", "\\cong");
-      defineSymbol(math, main, rel, "≥", "\\ge");
-      defineSymbol(math, main, rel, "≥", "\\geq");
-      defineSymbol(math, main, rel, "←", "\\gets");
-      defineSymbol(math, main, rel, ">", "\\gt");
-      defineSymbol(math, main, rel, "∈", "\\in");
-      defineSymbol(math, main, rel, "∉", "\\notin");
-      defineSymbol(math, main, rel, "⊂", "\\subset");
-      defineSymbol(math, main, rel, "⊃", "\\supset");
-      defineSymbol(math, main, rel, "⊆", "\\subseteq");
-      defineSymbol(math, main, rel, "⊇", "\\supseteq");
+      defineSymbol(math, main2, mathord, "α", "\\alpha");
+      defineSymbol(math, main2, mathord, "β", "\\beta");
+      defineSymbol(math, main2, mathord, "γ", "\\gamma");
+      defineSymbol(math, main2, mathord, "δ", "\\delta");
+      defineSymbol(math, main2, mathord, "ϵ", "\\epsilon");
+      defineSymbol(math, main2, mathord, "ζ", "\\zeta");
+      defineSymbol(math, main2, mathord, "η", "\\eta");
+      defineSymbol(math, main2, mathord, "θ", "\\theta");
+      defineSymbol(math, main2, mathord, "ι", "\\iota");
+      defineSymbol(math, main2, mathord, "κ", "\\kappa");
+      defineSymbol(math, main2, mathord, "λ", "\\lambda");
+      defineSymbol(math, main2, mathord, "μ", "\\mu");
+      defineSymbol(math, main2, mathord, "ν", "\\nu");
+      defineSymbol(math, main2, mathord, "ξ", "\\xi");
+      defineSymbol(math, main2, mathord, "o", "\\omicron");
+      defineSymbol(math, main2, mathord, "π", "\\pi");
+      defineSymbol(math, main2, mathord, "ρ", "\\rho");
+      defineSymbol(math, main2, mathord, "σ", "\\sigma");
+      defineSymbol(math, main2, mathord, "τ", "\\tau");
+      defineSymbol(math, main2, mathord, "υ", "\\upsilon");
+      defineSymbol(math, main2, mathord, "ϕ", "\\phi");
+      defineSymbol(math, main2, mathord, "χ", "\\chi");
+      defineSymbol(math, main2, mathord, "ψ", "\\psi");
+      defineSymbol(math, main2, mathord, "ω", "\\omega");
+      defineSymbol(math, main2, mathord, "ε", "\\varepsilon");
+      defineSymbol(math, main2, mathord, "ϑ", "\\vartheta");
+      defineSymbol(math, main2, mathord, "ϖ", "\\varpi");
+      defineSymbol(math, main2, mathord, "ϱ", "\\varrho");
+      defineSymbol(math, main2, mathord, "ς", "\\varsigma");
+      defineSymbol(math, main2, mathord, "φ", "\\varphi");
+      defineSymbol(math, main2, bin, "∗", "*");
+      defineSymbol(math, main2, bin, "+", "+");
+      defineSymbol(math, main2, bin, "−", "-");
+      defineSymbol(math, main2, bin, "⋅", "\\cdot");
+      defineSymbol(math, main2, bin, "∘", "\\circ");
+      defineSymbol(math, main2, bin, "÷", "\\div");
+      defineSymbol(math, main2, bin, "±", "\\pm");
+      defineSymbol(math, main2, bin, "×", "\\times");
+      defineSymbol(math, main2, bin, "∩", "\\cap");
+      defineSymbol(math, main2, bin, "∪", "\\cup");
+      defineSymbol(math, main2, bin, "∖", "\\setminus");
+      defineSymbol(math, main2, bin, "∧", "\\land");
+      defineSymbol(math, main2, bin, "∨", "\\lor");
+      defineSymbol(math, main2, bin, "∧", "\\wedge");
+      defineSymbol(math, main2, bin, "∨", "\\vee");
+      defineSymbol(math, main2, textord, "√", "\\surd");
+      defineSymbol(math, main2, open, "(", "(");
+      defineSymbol(math, main2, open, "[", "[");
+      defineSymbol(math, main2, open, "⟨", "\\langle");
+      defineSymbol(math, main2, open, "∣", "\\lvert");
+      defineSymbol(math, main2, open, "∥", "\\lVert");
+      defineSymbol(math, main2, close2, ")", ")");
+      defineSymbol(math, main2, close2, "]", "]");
+      defineSymbol(math, main2, close2, "?", "?");
+      defineSymbol(math, main2, close2, "!", "!");
+      defineSymbol(math, main2, close2, "⟩", "\\rangle");
+      defineSymbol(math, main2, close2, "∣", "\\rvert");
+      defineSymbol(math, main2, close2, "∥", "\\rVert");
+      defineSymbol(math, main2, rel, "=", "=");
+      defineSymbol(math, main2, rel, "<", "<");
+      defineSymbol(math, main2, rel, ">", ">");
+      defineSymbol(math, main2, rel, ":", ":");
+      defineSymbol(math, main2, rel, "≈", "\\approx");
+      defineSymbol(math, main2, rel, "≅", "\\cong");
+      defineSymbol(math, main2, rel, "≥", "\\ge");
+      defineSymbol(math, main2, rel, "≥", "\\geq");
+      defineSymbol(math, main2, rel, "←", "\\gets");
+      defineSymbol(math, main2, rel, ">", "\\gt");
+      defineSymbol(math, main2, rel, "∈", "\\in");
+      defineSymbol(math, main2, rel, "∉", "\\notin");
+      defineSymbol(math, main2, rel, "⊂", "\\subset");
+      defineSymbol(math, main2, rel, "⊃", "\\supset");
+      defineSymbol(math, main2, rel, "⊆", "\\subseteq");
+      defineSymbol(math, main2, rel, "⊇", "\\supseteq");
       defineSymbol(math, ams, rel, "⊈", "\\nsubseteq");
       defineSymbol(math, ams, rel, "⊉", "\\nsupseteq");
-      defineSymbol(math, main, rel, "⊨", "\\models");
-      defineSymbol(math, main, rel, "←", "\\leftarrow");
-      defineSymbol(math, main, rel, "≤", "\\le");
-      defineSymbol(math, main, rel, "≤", "\\leq");
-      defineSymbol(math, main, rel, "<", "\\lt");
-      defineSymbol(math, main, rel, "≠", "\\ne");
-      defineSymbol(math, main, rel, "≠", "\\neq");
-      defineSymbol(math, main, rel, "→", "\\rightarrow");
-      defineSymbol(math, main, rel, "→", "\\to");
+      defineSymbol(math, main2, rel, "⊨", "\\models");
+      defineSymbol(math, main2, rel, "←", "\\leftarrow");
+      defineSymbol(math, main2, rel, "≤", "\\le");
+      defineSymbol(math, main2, rel, "≤", "\\leq");
+      defineSymbol(math, main2, rel, "<", "\\lt");
+      defineSymbol(math, main2, rel, "≠", "\\ne");
+      defineSymbol(math, main2, rel, "≠", "\\neq");
+      defineSymbol(math, main2, rel, "→", "\\rightarrow");
+      defineSymbol(math, main2, rel, "→", "\\to");
       defineSymbol(math, ams, rel, "≱", "\\ngeq");
       defineSymbol(math, ams, rel, "≰", "\\nleq");
-      defineSymbol(math, main, spacing, null, "\\!");
-      defineSymbol(math, main, spacing, " ", "\\ ");
-      defineSymbol(math, main, spacing, " ", "~");
-      defineSymbol(math, main, spacing, null, "\\,");
-      defineSymbol(math, main, spacing, null, "\\:");
-      defineSymbol(math, main, spacing, null, "\\;");
-      defineSymbol(math, main, spacing, null, "\\enspace");
-      defineSymbol(math, main, spacing, null, "\\qquad");
-      defineSymbol(math, main, spacing, null, "\\quad");
-      defineSymbol(math, main, spacing, " ", "\\space");
-      defineSymbol(math, main, punct, ",", ",");
-      defineSymbol(math, main, punct, ";", ";");
-      defineSymbol(math, main, punct, ":", "\\colon");
+      defineSymbol(math, main2, spacing, null, "\\!");
+      defineSymbol(math, main2, spacing, " ", "\\ ");
+      defineSymbol(math, main2, spacing, " ", "~");
+      defineSymbol(math, main2, spacing, null, "\\,");
+      defineSymbol(math, main2, spacing, null, "\\:");
+      defineSymbol(math, main2, spacing, null, "\\;");
+      defineSymbol(math, main2, spacing, null, "\\enspace");
+      defineSymbol(math, main2, spacing, null, "\\qquad");
+      defineSymbol(math, main2, spacing, null, "\\quad");
+      defineSymbol(math, main2, spacing, " ", "\\space");
+      defineSymbol(math, main2, punct, ",", ",");
+      defineSymbol(math, main2, punct, ";", ";");
+      defineSymbol(math, main2, punct, ":", "\\colon");
       defineSymbol(math, ams, bin, "⊼", "\\barwedge");
       defineSymbol(math, ams, bin, "⊻", "\\veebar");
-      defineSymbol(math, main, bin, "⊙", "\\odot");
-      defineSymbol(math, main, bin, "⊕", "\\oplus");
-      defineSymbol(math, main, bin, "⊗", "\\otimes");
-      defineSymbol(math, main, textord, "∂", "\\partial");
-      defineSymbol(math, main, bin, "⊘", "\\oslash");
+      defineSymbol(math, main2, bin, "⊙", "\\odot");
+      defineSymbol(math, main2, bin, "⊕", "\\oplus");
+      defineSymbol(math, main2, bin, "⊗", "\\otimes");
+      defineSymbol(math, main2, textord, "∂", "\\partial");
+      defineSymbol(math, main2, bin, "⊘", "\\oslash");
       defineSymbol(math, ams, bin, "⊚", "\\circledcirc");
       defineSymbol(math, ams, bin, "⊡", "\\boxdot");
-      defineSymbol(math, main, bin, "△", "\\bigtriangleup");
-      defineSymbol(math, main, bin, "▽", "\\bigtriangledown");
-      defineSymbol(math, main, bin, "†", "\\dagger");
-      defineSymbol(math, main, bin, "⋄", "\\diamond");
-      defineSymbol(math, main, bin, "⋆", "\\star");
-      defineSymbol(math, main, bin, "◃", "\\triangleleft");
-      defineSymbol(math, main, bin, "▹", "\\triangleright");
-      defineSymbol(math, main, open, "{", "\\{");
-      defineSymbol(math, main, close2, "}", "\\}");
-      defineSymbol(math, main, open, "{", "\\lbrace");
-      defineSymbol(math, main, close2, "}", "\\rbrace");
-      defineSymbol(math, main, open, "[", "\\lbrack");
-      defineSymbol(math, main, close2, "]", "\\rbrack");
-      defineSymbol(math, main, open, "⌊", "\\lfloor");
-      defineSymbol(math, main, close2, "⌋", "\\rfloor");
-      defineSymbol(math, main, open, "⌈", "\\lceil");
-      defineSymbol(math, main, close2, "⌉", "\\rceil");
-      defineSymbol(math, main, textord, "\\", "\\backslash");
-      defineSymbol(math, main, textord, "∣", "|");
-      defineSymbol(math, main, textord, "∣", "\\vert");
-      defineSymbol(math, main, textord, "∥", "\\|");
-      defineSymbol(math, main, textord, "∥", "\\Vert");
-      defineSymbol(math, main, rel, "↑", "\\uparrow");
-      defineSymbol(math, main, rel, "⇑", "\\Uparrow");
-      defineSymbol(math, main, rel, "↓", "\\downarrow");
-      defineSymbol(math, main, rel, "⇓", "\\Downarrow");
-      defineSymbol(math, main, rel, "↕", "\\updownarrow");
-      defineSymbol(math, main, rel, "⇕", "\\Updownarrow");
+      defineSymbol(math, main2, bin, "△", "\\bigtriangleup");
+      defineSymbol(math, main2, bin, "▽", "\\bigtriangledown");
+      defineSymbol(math, main2, bin, "†", "\\dagger");
+      defineSymbol(math, main2, bin, "⋄", "\\diamond");
+      defineSymbol(math, main2, bin, "⋆", "\\star");
+      defineSymbol(math, main2, bin, "◃", "\\triangleleft");
+      defineSymbol(math, main2, bin, "▹", "\\triangleright");
+      defineSymbol(math, main2, open, "{", "\\{");
+      defineSymbol(math, main2, close2, "}", "\\}");
+      defineSymbol(math, main2, open, "{", "\\lbrace");
+      defineSymbol(math, main2, close2, "}", "\\rbrace");
+      defineSymbol(math, main2, open, "[", "\\lbrack");
+      defineSymbol(math, main2, close2, "]", "\\rbrack");
+      defineSymbol(math, main2, open, "⌊", "\\lfloor");
+      defineSymbol(math, main2, close2, "⌋", "\\rfloor");
+      defineSymbol(math, main2, open, "⌈", "\\lceil");
+      defineSymbol(math, main2, close2, "⌉", "\\rceil");
+      defineSymbol(math, main2, textord, "\\", "\\backslash");
+      defineSymbol(math, main2, textord, "∣", "|");
+      defineSymbol(math, main2, textord, "∣", "\\vert");
+      defineSymbol(math, main2, textord, "∥", "\\|");
+      defineSymbol(math, main2, textord, "∥", "\\Vert");
+      defineSymbol(math, main2, rel, "↑", "\\uparrow");
+      defineSymbol(math, main2, rel, "⇑", "\\Uparrow");
+      defineSymbol(math, main2, rel, "↓", "\\downarrow");
+      defineSymbol(math, main2, rel, "⇓", "\\Downarrow");
+      defineSymbol(math, main2, rel, "↕", "\\updownarrow");
+      defineSymbol(math, main2, rel, "⇕", "\\Updownarrow");
       defineSymbol(math, math, op, "∐", "\\coprod");
       defineSymbol(math, math, op, "⋁", "\\bigvee");
       defineSymbol(math, math, op, "⋀", "\\bigwedge");
@@ -32907,42 +32918,42 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       defineSymbol(math, math, op, "∮", "\\oint");
       defineSymbol(math, math, op, "⨆", "\\bigsqcup");
       defineSymbol(math, math, op, "∫", "\\smallint");
-      defineSymbol(math, main, inner, "…", "\\ldots");
-      defineSymbol(math, main, inner, "⋯", "\\cdots");
-      defineSymbol(math, main, inner, "⋱", "\\ddots");
-      defineSymbol(math, main, textord, "⋮", "\\vdots");
-      defineSymbol(math, main, accent, "´", "\\acute");
-      defineSymbol(math, main, accent, "`", "\\grave");
-      defineSymbol(math, main, accent, "¨", "\\ddot");
-      defineSymbol(math, main, accent, "~", "\\tilde");
-      defineSymbol(math, main, accent, "¯", "\\bar");
-      defineSymbol(math, main, accent, "˘", "\\breve");
-      defineSymbol(math, main, accent, "ˇ", "\\check");
-      defineSymbol(math, main, accent, "^", "\\hat");
-      defineSymbol(math, main, accent, "⃗", "\\vec");
-      defineSymbol(math, main, accent, "˙", "\\dot");
-      defineSymbol(math, main, mathord, "ı", "\\imath");
-      defineSymbol(math, main, mathord, "ȷ", "\\jmath");
-      defineSymbol(text2, main, spacing, " ", "\\ ");
-      defineSymbol(text2, main, spacing, " ", " ");
-      defineSymbol(text2, main, spacing, " ", "~");
+      defineSymbol(math, main2, inner, "…", "\\ldots");
+      defineSymbol(math, main2, inner, "⋯", "\\cdots");
+      defineSymbol(math, main2, inner, "⋱", "\\ddots");
+      defineSymbol(math, main2, textord, "⋮", "\\vdots");
+      defineSymbol(math, main2, accent, "´", "\\acute");
+      defineSymbol(math, main2, accent, "`", "\\grave");
+      defineSymbol(math, main2, accent, "¨", "\\ddot");
+      defineSymbol(math, main2, accent, "~", "\\tilde");
+      defineSymbol(math, main2, accent, "¯", "\\bar");
+      defineSymbol(math, main2, accent, "˘", "\\breve");
+      defineSymbol(math, main2, accent, "ˇ", "\\check");
+      defineSymbol(math, main2, accent, "^", "\\hat");
+      defineSymbol(math, main2, accent, "⃗", "\\vec");
+      defineSymbol(math, main2, accent, "˙", "\\dot");
+      defineSymbol(math, main2, mathord, "ı", "\\imath");
+      defineSymbol(math, main2, mathord, "ȷ", "\\jmath");
+      defineSymbol(text2, main2, spacing, " ", "\\ ");
+      defineSymbol(text2, main2, spacing, " ", " ");
+      defineSymbol(text2, main2, spacing, " ", "~");
       var i2;
       var ch3;
       var mathTextSymbols = '0123456789/@."';
       for (i2 = 0; i2 < mathTextSymbols.length; i2++) {
         ch3 = mathTextSymbols.charAt(i2);
-        defineSymbol(math, main, textord, ch3, ch3);
+        defineSymbol(math, main2, textord, ch3, ch3);
       }
       var textSymbols = "0123456789`!@*()-=+[]'\";:?/.,";
       for (i2 = 0; i2 < textSymbols.length; i2++) {
         ch3 = textSymbols.charAt(i2);
-        defineSymbol(text2, main, textord, ch3, ch3);
+        defineSymbol(text2, main2, textord, ch3, ch3);
       }
       var letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
       for (i2 = 0; i2 < letters.length; i2++) {
         ch3 = letters.charAt(i2);
-        defineSymbol(math, main, mathord, ch3, ch3);
-        defineSymbol(text2, main, textord, ch3, ch3);
+        defineSymbol(math, main2, mathord, ch3, ch3);
+        defineSymbol(text2, main2, textord, ch3, ch3);
       }
     })(symbols$4);
     var symbolsExports = symbols$4.exports;
@@ -33134,15 +33145,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           children2.push(oldChildren[i2]);
         }
       } else if (positionType === "top") {
-        var bottom = positionData;
+        var bottom2 = positionData;
         for (i2 = 0; i2 < children2.length; i2++) {
           if (children2[i2].type === "kern") {
-            bottom -= children2[i2].size;
+            bottom2 -= children2[i2].size;
           } else {
-            bottom -= children2[i2].elem.height + children2[i2].elem.depth;
+            bottom2 -= children2[i2].elem.height + children2[i2].elem.depth;
           }
         }
-        depth = bottom;
+        depth = bottom2;
       } else if (positionType === "bottom") {
         depth = -positionData;
       } else if (positionType === "shift") {
@@ -33358,14 +33369,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       var top2;
       var middle;
       var repeat;
-      var bottom;
-      top2 = repeat = bottom = delim;
+      var bottom2;
+      top2 = repeat = bottom2 = delim;
       middle = null;
       var font = "Size1-Regular";
       if (delim === "\\uparrow") {
-        repeat = bottom = "⏐";
+        repeat = bottom2 = "⏐";
       } else if (delim === "\\Uparrow") {
-        repeat = bottom = "‖";
+        repeat = bottom2 = "‖";
       } else if (delim === "\\downarrow") {
         top2 = repeat = "⏐";
       } else if (delim === "\\Downarrow") {
@@ -33373,82 +33384,82 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       } else if (delim === "\\updownarrow") {
         top2 = "\\uparrow";
         repeat = "⏐";
-        bottom = "\\downarrow";
+        bottom2 = "\\downarrow";
       } else if (delim === "\\Updownarrow") {
         top2 = "\\Uparrow";
         repeat = "‖";
-        bottom = "\\Downarrow";
+        bottom2 = "\\Downarrow";
       } else if (delim === "[" || delim === "\\lbrack") {
         top2 = "⎡";
         repeat = "⎢";
-        bottom = "⎣";
+        bottom2 = "⎣";
         font = "Size4-Regular";
       } else if (delim === "]" || delim === "\\rbrack") {
         top2 = "⎤";
         repeat = "⎥";
-        bottom = "⎦";
+        bottom2 = "⎦";
         font = "Size4-Regular";
       } else if (delim === "\\lfloor") {
         repeat = top2 = "⎢";
-        bottom = "⎣";
+        bottom2 = "⎣";
         font = "Size4-Regular";
       } else if (delim === "\\lceil") {
         top2 = "⎡";
-        repeat = bottom = "⎢";
+        repeat = bottom2 = "⎢";
         font = "Size4-Regular";
       } else if (delim === "\\rfloor") {
         repeat = top2 = "⎥";
-        bottom = "⎦";
+        bottom2 = "⎦";
         font = "Size4-Regular";
       } else if (delim === "\\rceil") {
         top2 = "⎤";
-        repeat = bottom = "⎥";
+        repeat = bottom2 = "⎥";
         font = "Size4-Regular";
       } else if (delim === "(") {
         top2 = "⎛";
         repeat = "⎜";
-        bottom = "⎝";
+        bottom2 = "⎝";
         font = "Size4-Regular";
       } else if (delim === ")") {
         top2 = "⎞";
         repeat = "⎟";
-        bottom = "⎠";
+        bottom2 = "⎠";
         font = "Size4-Regular";
       } else if (delim === "\\{" || delim === "\\lbrace") {
         top2 = "⎧";
         middle = "⎨";
-        bottom = "⎩";
+        bottom2 = "⎩";
         repeat = "⎪";
         font = "Size4-Regular";
       } else if (delim === "\\}" || delim === "\\rbrace") {
         top2 = "⎫";
         middle = "⎬";
-        bottom = "⎭";
+        bottom2 = "⎭";
         repeat = "⎪";
         font = "Size4-Regular";
       } else if (delim === "\\lgroup") {
         top2 = "⎧";
-        bottom = "⎩";
+        bottom2 = "⎩";
         repeat = "⎪";
         font = "Size4-Regular";
       } else if (delim === "\\rgroup") {
         top2 = "⎫";
-        bottom = "⎭";
+        bottom2 = "⎭";
         repeat = "⎪";
         font = "Size4-Regular";
       } else if (delim === "\\lmoustache") {
         top2 = "⎧";
-        bottom = "⎭";
+        bottom2 = "⎭";
         repeat = "⎪";
         font = "Size4-Regular";
       } else if (delim === "\\rmoustache") {
         top2 = "⎫";
-        bottom = "⎩";
+        bottom2 = "⎩";
         repeat = "⎪";
         font = "Size4-Regular";
       } else if (delim === "\\surd") {
         top2 = "";
-        bottom = "⎷";
+        bottom2 = "⎷";
         repeat = "";
         font = "Size4-Regular";
       }
@@ -33456,7 +33467,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       var topHeightTotal = topMetrics.height + topMetrics.depth;
       var repeatMetrics = getMetrics(repeat, font);
       var repeatHeightTotal = repeatMetrics.height + repeatMetrics.depth;
-      var bottomMetrics = getMetrics(bottom, font);
+      var bottomMetrics = getMetrics(bottom2, font);
       var bottomHeightTotal = bottomMetrics.height + bottomMetrics.depth;
       var middleHeightTotal = 0;
       var middleFactor = 1;
@@ -33476,7 +33487,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
       var depth = realHeightTotal / 2 - axisHeight;
       var inners = [];
-      inners.push(makeInner(bottom, font, mode));
+      inners.push(makeInner(bottom2, font, mode));
       var i2;
       if (middle === null) {
         for (i2 = 0; i2 < repeatCount; i2++) {
@@ -33602,8 +33613,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       }
     };
     var traverseSequence = function(delim, height, sequence, options2) {
-      var start = Math.min(2, 3 - options2.style.size);
-      for (var i2 = start; i2 < sequence.length; i2++) {
+      var start2 = Math.min(2, 3 - options2.style.size);
+      for (var i2 = start2; i2 < sequence.length; i2++) {
         if (sequence[i2].type === "stack") {
           break;
         }
@@ -34132,7 +34143,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         totalHeight += depth + gap;
         body2[r2] = outrow;
       }
-      var offset = totalHeight / 2 + fontMetrics$1.metrics.axisHeight;
+      var offset2 = totalHeight / 2 + fontMetrics$1.metrics.axisHeight;
       var colDescriptions = group.value.cols || [];
       var cols = [];
       var colSep;
@@ -34158,7 +34169,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
               []
             );
             separator2.style.height = totalHeight + "em";
-            separator2.style.verticalAlign = -(totalHeight - offset) + "em";
+            separator2.style.verticalAlign = -(totalHeight - offset2) + "em";
             cols.push(separator2);
           } else {
             throw new ParseError$4(
@@ -34188,7 +34199,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           if (!elem) {
             continue;
           }
-          var shift2 = row2.pos - offset;
+          var shift2 = row2.pos - offset2;
           elem.depth = row2.depth;
           elem.height = row2.height;
           col.push({ type: "elem", elem, shift: shift2 });
@@ -34323,7 +34334,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         }
         var finalGroup;
         var top2;
-        var bottom;
+        var bottom2;
         if (!supGroup) {
           top2 = base2.height - baseShift;
           finalGroup = buildCommon$2.makeVList([
@@ -34334,18 +34345,18 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           ], "top", top2, options2);
           finalGroup.children[0].style.marginLeft = -slant + "em";
         } else if (!subGroup) {
-          bottom = base2.depth + baseShift;
+          bottom2 = base2.depth + baseShift;
           finalGroup = buildCommon$2.makeVList([
             { type: "elem", elem: base2 },
             { type: "kern", size: supKern },
             { type: "elem", elem: supmid },
             { type: "kern", size: fontMetrics$1.metrics.bigOpSpacing5 }
-          ], "bottom", bottom, options2);
+          ], "bottom", bottom2, options2);
           finalGroup.children[1].style.marginLeft = slant + "em";
         } else if (!supGroup && !subGroup) {
           return base2;
         } else {
-          bottom = fontMetrics$1.metrics.bigOpSpacing5 + submid.height + submid.depth + subKern + base2.depth + baseShift;
+          bottom2 = fontMetrics$1.metrics.bigOpSpacing5 + submid.height + submid.depth + subKern + base2.depth + baseShift;
           finalGroup = buildCommon$2.makeVList([
             { type: "kern", size: fontMetrics$1.metrics.bigOpSpacing5 },
             { type: "elem", elem: submid },
@@ -34354,7 +34365,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
             { type: "kern", size: supKern },
             { type: "elem", elem: supmid },
             { type: "kern", size: fontMetrics$1.metrics.bigOpSpacing5 }
-          ], "bottom", bottom, options2);
+          ], "bottom", bottom2, options2);
           finalGroup.children[0].style.marginLeft = -slant + "em";
           finalGroup.children[2].style.marginLeft = slant + "em";
         }
@@ -36510,24 +36521,24 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       "\\scriptscriptstyle"
     ];
     Parser$2.prototype.parseImplicitGroup = function() {
-      var start = this.parseSymbol();
-      if (start == null) {
+      var start2 = this.parseSymbol();
+      if (start2 == null) {
         return this.parseFunction();
       }
-      var func = start.result;
+      var func = start2.result;
       var body2;
       if (func === "\\left") {
-        var left = this.parseFunction(start);
+        var left2 = this.parseFunction(start2);
         body2 = this.parseExpression(false);
         this.expect("\\right", false);
-        var right = this.parseFunction();
+        var right2 = this.parseFunction();
         return new ParseNode("leftright", {
           body: body2,
-          left: left.value.value,
-          right: right.value.value
+          left: left2.value.value,
+          right: right2.value.value
         }, this.mode);
       } else if (func === "\\begin") {
-        var begin = this.parseFunction(start);
+        var begin = this.parseFunction(start2);
         var envName = begin.value.name;
         if (!environments.hasOwnProperty(envName)) {
           throw new ParseError$1(
@@ -36547,15 +36558,15 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         };
         var result2 = env.handler(context, args);
         this.expect("\\end", false);
-        var end = this.parseFunction();
-        if (end.value.name !== envName) {
+        var end2 = this.parseFunction();
+        if (end2.value.name !== envName) {
           throw new ParseError$1(
-            "Mismatch: \\begin{" + envName + "} matched by \\end{" + end.value.name + "}",
+            "Mismatch: \\begin{" + envName + "} matched by \\end{" + end2.value.name + "}",
             this.lexer
             /* , end.value.namepos */
           );
         }
-        result2.position = end.position;
+        result2.position = end2.position;
         return result2;
       } else if (utils$1.contains(sizeFuncs, func)) {
         body2 = this.parseExpression(false);
@@ -36573,7 +36584,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           value: body2
         }, this.mode);
       } else {
-        return this.parseFunction(start);
+        return this.parseFunction(start2);
       }
     };
     Parser$2.prototype.parseFunction = function(baseGroup) {
@@ -36831,7 +36842,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       };
     }
     function math_inline(state, silent) {
-      var start, match, token2, res, pos2;
+      var start2, match, token2, res, pos2;
       if (state.src[state.pos] !== "$") {
         return false;
       }
@@ -36843,8 +36854,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         state.pos += 1;
         return true;
       }
-      start = state.pos + 1;
-      match = start;
+      start2 = state.pos + 1;
+      match = start2;
       while ((match = state.src.indexOf("$", match)) !== -1) {
         pos2 = match - 1;
         while (state.src[pos2] === "\\") {
@@ -36859,14 +36870,14 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (!silent) {
           state.pending += "$";
         }
-        state.pos = start;
+        state.pos = start2;
         return true;
       }
-      if (match - start === 0) {
+      if (match - start2 === 0) {
         if (!silent) {
           state.pending += "$$";
         }
-        state.pos = start + 1;
+        state.pos = start2 + 1;
         return true;
       }
       res = isValidDelim(state, match);
@@ -36874,19 +36885,19 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         if (!silent) {
           state.pending += "$";
         }
-        state.pos = start;
+        state.pos = start2;
         return true;
       }
       if (!silent) {
         token2 = state.push("math_inline", "math", 0);
         token2.markup = "$";
-        token2.content = state.src.slice(start, match);
+        token2.content = state.src.slice(start2, match);
       }
       state.pos = match + 1;
       return true;
     }
-    function math_block(state, start, end, silent) {
-      var firstLine, lastLine, next, lastPos, found = false, token2, pos2 = state.bMarks[start] + state.tShift[start], max2 = state.eMarks[start];
+    function math_block(state, start2, end2, silent) {
+      var firstLine, lastLine, next, lastPos, found = false, token2, pos2 = state.bMarks[start2] + state.tShift[start2], max2 = state.eMarks[start2];
       if (pos2 + 2 > max2) {
         return false;
       }
@@ -36902,9 +36913,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         firstLine = firstLine.trim().slice(0, -2);
         found = true;
       }
-      for (next = start; !found; ) {
+      for (next = start2; !found; ) {
         next++;
-        if (next >= end) {
+        if (next >= end2) {
           break;
         }
         pos2 = state.bMarks[next] + state.tShift[next];
@@ -36921,8 +36932,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       state.line = next + 1;
       token2 = state.push("math_block", "math", 0);
       token2.block = true;
-      token2.content = (firstLine && firstLine.trim() ? firstLine + "\n" : "") + state.getLines(start + 1, next, state.tShift[start], true) + (lastLine && lastLine.trim() ? lastLine : "");
-      token2.map = [start, state.line];
+      token2.content = (firstLine && firstLine.trim() ? firstLine + "\n" : "") + state.getLines(start2 + 1, next, state.tShift[start2], true) + (lastLine && lastLine.trim() ? lastLine : "");
+      token2.map = [start2, state.line];
       token2.markup = "$$";
       return true;
     }
@@ -38736,9 +38747,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
            * @param right
            * @returns
            */
-          static equivalent(left, right) {
+          static equivalent(left2, right2) {
             const setReplacer = (_, value2) => value2 instanceof Set ? !value2.size ? void 0 : [...value2] : value2;
-            return left === right || JSON.stringify(left, setReplacer) === JSON.stringify(right, setReplacer);
+            return left2 === right2 || JSON.stringify(left2, setReplacer) === JSON.stringify(right2, setReplacer);
           }
           //#endregion Public Methods
           //#region ANSIFormat Implementation
@@ -39143,7 +39154,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
     };
     const computeCSSProperties = (outputRun) => {
       return !outputRun.format ? {} : {
-        ...computeStyles(outputRun.format.styles || []),
+        ...computeStyles$2(outputRun.format.styles || []),
         ...computeForegroundBackgroundColor(
           kForeground,
           outputRun.format.foregroundColor
@@ -39154,7 +39165,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         )
       };
     };
-    const computeStyles = (styles2) => {
+    const computeStyles$2 = (styles2) => {
       let cssProperties = {};
       if (styles2) {
         styles2.forEach((style2) => {
@@ -39665,7 +39676,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           text: "Refusal"
         });
       }
-      const order = ["C", "P", "I", "N"];
+      const order2 = ["C", "P", "I", "N"];
       return {
         scoreType: kScoreTypePassFail,
         categories,
@@ -39702,7 +39713,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           } else if (typeof a.value !== "string" && typeof b.value === "string") {
             return 1;
           } else {
-            const sort = order.indexOf(String(a.value || "")) - order.indexOf(String(b.value || ""));
+            const sort = order2.indexOf(String(a.value || "")) - order2.indexOf(String(b.value || ""));
             return sort;
           }
         }
@@ -41641,7 +41652,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
         defaultActions: {
           11: [2, 1]
         },
-        parseError: function parseError(str2, hash) {
+        parseError: function parseError(str2, hash2) {
           throw new Error(str2);
         },
         parse: function parse2(input2) {
@@ -41799,9 +41810,9 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       var lexer = function() {
         var lexer2 = {
           EOF: 1,
-          parseError: function parseError(str2, hash) {
+          parseError: function parseError(str2, hash2) {
             if (this.yy.parser) {
-              this.yy.parser.parseError(str2, hash);
+              this.yy.parser.parseError(str2, hash2);
             } else {
               throw new Error(str2);
             }
@@ -43195,6 +43206,29 @@ categories: ${categories.join(" ")}`;
       }, [toolCallContent]);
       return toolViewRef;
     };
+    const useSamplePopover = (id) => {
+      const setVisiblePopover = useStore(
+        (store) => store.sampleActions.setVisiblePopover
+      );
+      const clearVisiblePopover = useStore(
+        (store) => store.sampleActions.clearVisiblePopover
+      );
+      const visiblePopover = useStore((store) => store.sample.visiblePopover);
+      const show = reactExports.useCallback(() => {
+        setVisiblePopover(id);
+      }, [id, setVisiblePopover]);
+      const hide2 = reactExports.useCallback(() => {
+        clearVisiblePopover();
+      }, [clearVisiblePopover]);
+      const isShowing = reactExports.useMemo(() => {
+        return visiblePopover === id;
+      }, [id, visiblePopover]);
+      return {
+        show,
+        hide: hide2,
+        isShowing
+      };
+    };
     const directoryRelativeUrl = (file, dir) => {
       if (!dir) {
         return encodeURIComponent(file);
@@ -43417,7 +43451,7 @@ categories: ${categories.join(" ")}`;
         (state) => state.appActions.setScrollPosition
       );
       const handleScroll = reactExports.useCallback(
-        debounce$1((e) => {
+        debounce$2((e) => {
           const target2 = e.target;
           const position = target2.scrollTop;
           log.debug(`Storing scroll position`, elementKey, position);
@@ -43510,7 +43544,7 @@ categories: ${categories.join(" ")}`;
         [elementKey, setListPosition]
       );
       reactExports.useEffect(() => {
-        debouncedFnRef.current = debounce$1((isScrolling2) => {
+        debouncedFnRef.current = debounce$2((isScrolling2) => {
           log.debug("List scroll", isScrolling2);
           const element = virtuosoRef.current;
           if (!element) {
@@ -48675,10 +48709,12 @@ categories: ${categories.join(" ")}`;
       id,
       entries,
       className: className2,
+      size,
       style: style2,
       plain
     }) => {
       const baseId = "metadata-grid";
+      const fontStyle = size === "mini" ? "text-size-smallest" : "text-size-smaller";
       const entryEls = entryRecords(entries).map((entry2, index2) => {
         const id2 = `${baseId}-value-${index2}`;
         return /* @__PURE__ */ jsxRuntimeExports.jsxs(reactExports.Fragment, { children: [
@@ -48699,18 +48735,12 @@ categories: ${categories.join(" ")}`;
                 styles$Q.cell,
                 "text-style-label",
                 "text-style-secondary",
-                "text-size-smaller"
+                fontStyle
               ),
               children: entry2.name
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "div",
-            {
-              className: clsx(styles$Q.value, `${baseId}-value`, "text-size-smaller"),
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 })
-            }
-          )
+          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: clsx(styles$Q.value, `${baseId}-value`, fontStyle), children: /* @__PURE__ */ jsxRuntimeExports.jsx(RenderedContent, { id: id2, entry: entry2 }) })
         ] }, `${baseId}-record-${index2}`);
       });
       return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id, className: clsx(className2, styles$Q.grid), style: style2, children: entryEls });
@@ -49171,10 +49201,10 @@ self.onmessage = function (e) {
     async function eval_log_size$1(file) {
       return (await api$2("GET", `/api/log-size/${encodeURIComponent(file)}`)).parsed;
     }
-    async function eval_log_bytes$1(file, start, end) {
+    async function eval_log_bytes$1(file, start2, end2) {
       return await api_bytes(
         "GET",
-        `/api/log-bytes/${encodeURIComponent(file)}?start=${start}&end=${end}`
+        `/api/log-bytes/${encodeURIComponent(file)}?start=${start2}&end=${end2}`
       );
     }
     async function eval_log_headers$1(files) {
@@ -49447,10 +49477,10 @@ self.onmessage = function (e) {
       0
     ]);
     var clim = new u8([16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15]);
-    var freb = function(eb, start) {
+    var freb = function(eb, start2) {
       var b = new u16(31);
       for (var i2 = 0; i2 < 31; ++i2) {
-        b[i2] = start += 1 << eb[i2 - 1];
+        b[i2] = start2 += 1 << eb[i2 - 1];
       }
       var r2 = new i32(b[30]);
       for (var i2 = 1; i2 < 30; ++i2) {
@@ -49520,7 +49550,7 @@ self.onmessage = function (e) {
       fdt[i$1] = 5;
     var flrm = /* @__PURE__ */ hMap(flt, 9, 1);
     var fdrm = /* @__PURE__ */ hMap(fdt, 5, 1);
-    var max$1 = function(a) {
+    var max$2 = function(a) {
       var m = a[0];
       for (var i2 = 1; i2 < a.length; ++i2) {
         if (a[i2] > m)
@@ -49620,7 +49650,7 @@ self.onmessage = function (e) {
               clt[clim[i2]] = bits(dat, pos2 + i2 * 3, 7);
             }
             pos2 += hcLen * 3;
-            var clb = max$1(clt), clbmsk = (1 << clb) - 1;
+            var clb = max$2(clt), clbmsk = (1 << clb) - 1;
             var clm = hMap(clt, clb, 1);
             for (var i2 = 0; i2 < tl; ) {
               var r2 = clm[bits(dat, pos2, clbmsk)];
@@ -49641,8 +49671,8 @@ self.onmessage = function (e) {
               }
             }
             var lt2 = ldt.subarray(0, hLit), dt = ldt.subarray(hLit);
-            lbt = max$1(lt2);
-            dbt = max$1(dt);
+            lbt = max$2(lt2);
+            dbt = max$2(dt);
             lm = hMap(lt2, lbt, 1);
             dm = hMap(dt, dbt, 1);
           } else
@@ -49695,15 +49725,15 @@ self.onmessage = function (e) {
             }
             if (resize)
               cbuf(bt2 + 131072);
-            var end = bt2 + add2;
+            var end2 = bt2 + add2;
             if (bt2 < dt) {
-              var shift2 = dl - dt, dend = Math.min(dt, end);
+              var shift2 = dl - dt, dend = Math.min(dt, end2);
               if (shift2 + bt2 < 0)
                 err(3);
               for (; bt2 < dend; ++bt2)
                 buf[bt2] = dict[shift2 + bt2];
             }
-            for (; bt2 < end; ++bt2)
+            for (; bt2 < end2; ++bt2)
               buf[bt2] = buf[bt2 - dt];
           }
         }
@@ -49768,7 +49798,7 @@ self.onmessage = function (e) {
       return wk(ch[id].c + ";onmessage=function(e){for(var k in e.data)self[k]=e.data[k];onmessage=" + init.toString() + "}", id, td2, cbfs(td2), cb);
     };
     var bInflt = function() {
-      return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max$1, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt];
+      return [u8, u16, i32, fleb, fdeb, clim, fl, fd, flrm, fdrm, rev, ec, hMap, max$2, bits, bits16, shft, slc, err, inflt, inflateSync, pbf, gopt];
     };
     var guze = function() {
       return [gzs, gzl];
@@ -50003,9 +50033,9 @@ self.onmessage = function (e) {
       }
       throw new Error("Could not determine content length");
     };
-    const fetchRange = async (url, start, end) => {
+    const fetchRange = async (url, start2, end2) => {
       const response = await fetch(`${url}`, {
-        headers: { Range: `bytes=${start}-${end}` }
+        headers: { Range: `bytes=${start2}-${end2}` }
       });
       const arrayBuffer = await response.arrayBuffer();
       return new Uint8Array(arrayBuffer);
@@ -50023,39 +50053,39 @@ self.onmessage = function (e) {
     };
     const parseZipFileEntry = async (file, rawData) => {
       const view = new DataView(rawData.buffer);
-      let offset = 0;
-      const signature = view.getUint32(offset, true);
+      let offset2 = 0;
+      const signature = view.getUint32(offset2, true);
       if (signature !== 67324752) {
         throw new Error(`Invalid ZIP entry signature for ${file}`);
       }
-      offset += 4;
-      const versionNeeded = view.getUint16(offset, true);
-      offset += 2;
-      const bitFlag = view.getUint16(offset, true);
-      offset += 2;
-      const compressionMethod = view.getUint16(offset, true);
-      offset += 2;
-      offset += 4;
-      const crc32 = view.getUint32(offset, true);
-      offset += 4;
-      let compressedSize = view.getUint32(offset, true);
-      offset += 4;
-      let uncompressedSize = view.getUint32(offset, true);
-      offset += 4;
-      const filenameLength = view.getUint16(offset, true);
-      offset += 2;
-      const extraFieldLength = view.getUint16(offset, true);
-      offset += 2;
-      const headerOffset = offset;
+      offset2 += 4;
+      const versionNeeded = view.getUint16(offset2, true);
+      offset2 += 2;
+      const bitFlag = view.getUint16(offset2, true);
+      offset2 += 2;
+      const compressionMethod = view.getUint16(offset2, true);
+      offset2 += 2;
+      offset2 += 4;
+      const crc32 = view.getUint32(offset2, true);
+      offset2 += 4;
+      let compressedSize = view.getUint32(offset2, true);
+      offset2 += 4;
+      let uncompressedSize = view.getUint32(offset2, true);
+      offset2 += 4;
+      const filenameLength = view.getUint16(offset2, true);
+      offset2 += 2;
+      const extraFieldLength = view.getUint16(offset2, true);
+      offset2 += 2;
+      const headerOffset = offset2;
       const needsZip64 = compressedSize === 4294967295 || uncompressedSize === 4294967295;
       if (needsZip64) {
-        offset += filenameLength;
-        const extraFieldEnd = offset + extraFieldLength;
-        while (offset < extraFieldEnd) {
-          const tag = view.getUint16(offset, true);
-          const size = view.getUint16(offset + 2, true);
+        offset2 += filenameLength;
+        const extraFieldEnd = offset2 + extraFieldLength;
+        while (offset2 < extraFieldEnd) {
+          const tag = view.getUint16(offset2, true);
+          const size = view.getUint16(offset2 + 2, true);
           if (tag === 1) {
-            let zip64Offset = offset + 4;
+            let zip64Offset = offset2 + 4;
             if (uncompressedSize === 4294967295 && zip64Offset + 8 <= extraFieldEnd) {
               uncompressedSize = Number(view.getBigUint64(zip64Offset, true));
               zip64Offset += 8;
@@ -50065,12 +50095,12 @@ self.onmessage = function (e) {
             }
             break;
           }
-          offset += 4 + size;
+          offset2 += 4 + size;
         }
-        offset = headerOffset;
+        offset2 = headerOffset;
       }
-      offset += filenameLength + extraFieldLength;
-      const data = rawData.subarray(offset, offset + compressedSize);
+      offset2 += filenameLength + extraFieldLength;
+      const data = rawData.subarray(offset2, offset2 + compressedSize);
       return {
         versionNeeded,
         bitFlag,
@@ -50085,26 +50115,26 @@ self.onmessage = function (e) {
     };
     const kFileHeaderSize = 46;
     const parseCentralDirectory = (buffer2) => {
-      let offset = 0;
+      let offset2 = 0;
       const view = new DataView(buffer2.buffer);
       const entries = /* @__PURE__ */ new Map();
-      while (offset < buffer2.length) {
-        if (view.getUint32(offset, true) !== 33639248) break;
-        const filenameLength = view.getUint16(offset + 28, true);
-        const extraFieldLength = view.getUint16(offset + 30, true);
-        const fileCommentLength = view.getUint16(offset + 32, true);
-        let compressedSize = view.getUint32(offset + 20, true);
-        let uncompressedSize = view.getUint32(offset + 24, true);
-        let fileOffset = view.getUint32(offset + 42, true);
+      while (offset2 < buffer2.length) {
+        if (view.getUint32(offset2, true) !== 33639248) break;
+        const filenameLength = view.getUint16(offset2 + 28, true);
+        const extraFieldLength = view.getUint16(offset2 + 30, true);
+        const fileCommentLength = view.getUint16(offset2 + 32, true);
+        let compressedSize = view.getUint32(offset2 + 20, true);
+        let uncompressedSize = view.getUint32(offset2 + 24, true);
+        let fileOffset = view.getUint32(offset2 + 42, true);
         const filename2 = new TextDecoder().decode(
           buffer2.subarray(
-            offset + kFileHeaderSize,
-            offset + kFileHeaderSize + filenameLength
+            offset2 + kFileHeaderSize,
+            offset2 + kFileHeaderSize + filenameLength
           )
         );
         const needsZip64 = fileOffset === 4294967295 || compressedSize === 4294967295 || uncompressedSize === 4294967295;
         if (needsZip64) {
-          let extraOffset = offset + kFileHeaderSize + filenameLength;
+          let extraOffset = offset2 + kFileHeaderSize + filenameLength;
           const extraEnd = extraOffset + extraFieldLength;
           while (extraOffset < extraEnd) {
             const tag = view.getUint16(extraOffset, true);
@@ -50129,13 +50159,13 @@ self.onmessage = function (e) {
         }
         const entry2 = {
           filename: filename2,
-          compressionMethod: view.getUint16(offset + 10, true),
+          compressionMethod: view.getUint16(offset2 + 10, true),
           compressedSize,
           uncompressedSize,
           fileOffset
         };
         entries.set(filename2, entry2);
-        offset += kFileHeaderSize + filenameLength + extraFieldLength + fileCommentLength;
+        offset2 += kFileHeaderSize + filenameLength + extraFieldLength + fileCommentLength;
       }
       return entries;
     };
@@ -50185,8 +50215,8 @@ self.onmessage = function (e) {
         eval_log_size: async (log_file) => {
           return await fetchSize(log_file);
         },
-        eval_log_bytes: async (log_file, start, end) => {
-          return await fetchRange(log_file, start, end);
+        eval_log_bytes: async (log_file, start2, end2) => {
+          return await fetchRange(log_file, start2, end2);
         },
         eval_log_headers: async (files) => {
           if (files.length === 0) {
@@ -50399,8 +50429,8 @@ self.onmessage = function (e) {
     async function eval_log_size(log_file) {
       return await vscodeClient(kMethodEvalLogSize, [log_file]);
     }
-    async function eval_log_bytes(log_file, start, end) {
-      return await vscodeClient(kMethodEvalLogBytes, [log_file, start, end]);
+    async function eval_log_bytes(log_file, start2, end2) {
+      return await vscodeClient(kMethodEvalLogBytes, [log_file, start2, end2]);
     }
     async function eval_log_headers(files) {
       const response = await vscodeClient(kMethodEvalLogHeaders, [files]);
@@ -52626,6 +52656,1675 @@ self.onmessage = function (e) {
       }
       return result2;
     };
+    var fromEntries = function fromEntries2(entries) {
+      return entries.reduce(function(acc, _ref) {
+        var key2 = _ref[0], value2 = _ref[1];
+        acc[key2] = value2;
+        return acc;
+      }, {});
+    };
+    var useIsomorphicLayoutEffect = typeof window !== "undefined" && window.document && window.document.createElement ? reactExports.useLayoutEffect : reactExports.useEffect;
+    var top$1 = "top";
+    var bottom = "bottom";
+    var right = "right";
+    var left = "left";
+    var auto = "auto";
+    var basePlacements = [top$1, bottom, right, left];
+    var start = "start";
+    var end = "end";
+    var clippingParents = "clippingParents";
+    var viewport = "viewport";
+    var popper = "popper";
+    var reference = "reference";
+    var variationPlacements = /* @__PURE__ */ basePlacements.reduce(function(acc, placement) {
+      return acc.concat([placement + "-" + start, placement + "-" + end]);
+    }, []);
+    var placements = /* @__PURE__ */ [].concat(basePlacements, [auto]).reduce(function(acc, placement) {
+      return acc.concat([placement, placement + "-" + start, placement + "-" + end]);
+    }, []);
+    var beforeRead = "beforeRead";
+    var read = "read";
+    var afterRead = "afterRead";
+    var beforeMain = "beforeMain";
+    var main = "main";
+    var afterMain = "afterMain";
+    var beforeWrite = "beforeWrite";
+    var write = "write";
+    var afterWrite = "afterWrite";
+    var modifierPhases = [beforeRead, read, afterRead, beforeMain, main, afterMain, beforeWrite, write, afterWrite];
+    function getNodeName(element) {
+      return element ? (element.nodeName || "").toLowerCase() : null;
+    }
+    function getWindow(node2) {
+      if (node2 == null) {
+        return window;
+      }
+      if (node2.toString() !== "[object Window]") {
+        var ownerDocument = node2.ownerDocument;
+        return ownerDocument ? ownerDocument.defaultView || window : window;
+      }
+      return node2;
+    }
+    function isElement(node2) {
+      var OwnElement = getWindow(node2).Element;
+      return node2 instanceof OwnElement || node2 instanceof Element;
+    }
+    function isHTMLElement(node2) {
+      var OwnElement = getWindow(node2).HTMLElement;
+      return node2 instanceof OwnElement || node2 instanceof HTMLElement;
+    }
+    function isShadowRoot(node2) {
+      if (typeof ShadowRoot === "undefined") {
+        return false;
+      }
+      var OwnElement = getWindow(node2).ShadowRoot;
+      return node2 instanceof OwnElement || node2 instanceof ShadowRoot;
+    }
+    function applyStyles(_ref) {
+      var state = _ref.state;
+      Object.keys(state.elements).forEach(function(name2) {
+        var style2 = state.styles[name2] || {};
+        var attributes = state.attributes[name2] || {};
+        var element = state.elements[name2];
+        if (!isHTMLElement(element) || !getNodeName(element)) {
+          return;
+        }
+        Object.assign(element.style, style2);
+        Object.keys(attributes).forEach(function(name3) {
+          var value2 = attributes[name3];
+          if (value2 === false) {
+            element.removeAttribute(name3);
+          } else {
+            element.setAttribute(name3, value2 === true ? "" : value2);
+          }
+        });
+      });
+    }
+    function effect$2(_ref2) {
+      var state = _ref2.state;
+      var initialStyles = {
+        popper: {
+          position: state.options.strategy,
+          left: "0",
+          top: "0",
+          margin: "0"
+        },
+        arrow: {
+          position: "absolute"
+        },
+        reference: {}
+      };
+      Object.assign(state.elements.popper.style, initialStyles.popper);
+      state.styles = initialStyles;
+      if (state.elements.arrow) {
+        Object.assign(state.elements.arrow.style, initialStyles.arrow);
+      }
+      return function() {
+        Object.keys(state.elements).forEach(function(name2) {
+          var element = state.elements[name2];
+          var attributes = state.attributes[name2] || {};
+          var styleProperties = Object.keys(state.styles.hasOwnProperty(name2) ? state.styles[name2] : initialStyles[name2]);
+          var style2 = styleProperties.reduce(function(style3, property) {
+            style3[property] = "";
+            return style3;
+          }, {});
+          if (!isHTMLElement(element) || !getNodeName(element)) {
+            return;
+          }
+          Object.assign(element.style, style2);
+          Object.keys(attributes).forEach(function(attribute2) {
+            element.removeAttribute(attribute2);
+          });
+        });
+      };
+    }
+    const applyStyles$1 = {
+      name: "applyStyles",
+      enabled: true,
+      phase: "write",
+      fn: applyStyles,
+      effect: effect$2,
+      requires: ["computeStyles"]
+    };
+    function getBasePlacement(placement) {
+      return placement.split("-")[0];
+    }
+    var max$1 = Math.max;
+    var min$1 = Math.min;
+    var round = Math.round;
+    function getUAString() {
+      var uaData = navigator.userAgentData;
+      if (uaData != null && uaData.brands && Array.isArray(uaData.brands)) {
+        return uaData.brands.map(function(item2) {
+          return item2.brand + "/" + item2.version;
+        }).join(" ");
+      }
+      return navigator.userAgent;
+    }
+    function isLayoutViewport() {
+      return !/^((?!chrome|android).)*safari/i.test(getUAString());
+    }
+    function getBoundingClientRect(element, includeScale, isFixedStrategy) {
+      if (includeScale === void 0) {
+        includeScale = false;
+      }
+      if (isFixedStrategy === void 0) {
+        isFixedStrategy = false;
+      }
+      var clientRect = element.getBoundingClientRect();
+      var scaleX = 1;
+      var scaleY = 1;
+      if (includeScale && isHTMLElement(element)) {
+        scaleX = element.offsetWidth > 0 ? round(clientRect.width) / element.offsetWidth || 1 : 1;
+        scaleY = element.offsetHeight > 0 ? round(clientRect.height) / element.offsetHeight || 1 : 1;
+      }
+      var _ref = isElement(element) ? getWindow(element) : window, visualViewport = _ref.visualViewport;
+      var addVisualOffsets = !isLayoutViewport() && isFixedStrategy;
+      var x2 = (clientRect.left + (addVisualOffsets && visualViewport ? visualViewport.offsetLeft : 0)) / scaleX;
+      var y2 = (clientRect.top + (addVisualOffsets && visualViewport ? visualViewport.offsetTop : 0)) / scaleY;
+      var width = clientRect.width / scaleX;
+      var height = clientRect.height / scaleY;
+      return {
+        width,
+        height,
+        top: y2,
+        right: x2 + width,
+        bottom: y2 + height,
+        left: x2,
+        x: x2,
+        y: y2
+      };
+    }
+    function getLayoutRect(element) {
+      var clientRect = getBoundingClientRect(element);
+      var width = element.offsetWidth;
+      var height = element.offsetHeight;
+      if (Math.abs(clientRect.width - width) <= 1) {
+        width = clientRect.width;
+      }
+      if (Math.abs(clientRect.height - height) <= 1) {
+        height = clientRect.height;
+      }
+      return {
+        x: element.offsetLeft,
+        y: element.offsetTop,
+        width,
+        height
+      };
+    }
+    function contains$1(parent, child) {
+      var rootNode = child.getRootNode && child.getRootNode();
+      if (parent.contains(child)) {
+        return true;
+      } else if (rootNode && isShadowRoot(rootNode)) {
+        var next = child;
+        do {
+          if (next && parent.isSameNode(next)) {
+            return true;
+          }
+          next = next.parentNode || next.host;
+        } while (next);
+      }
+      return false;
+    }
+    function getComputedStyle$1(element) {
+      return getWindow(element).getComputedStyle(element);
+    }
+    function isTableElement(element) {
+      return ["table", "td", "th"].indexOf(getNodeName(element)) >= 0;
+    }
+    function getDocumentElement(element) {
+      return ((isElement(element) ? element.ownerDocument : (
+        // $FlowFixMe[prop-missing]
+        element.document
+      )) || window.document).documentElement;
+    }
+    function getParentNode(element) {
+      if (getNodeName(element) === "html") {
+        return element;
+      }
+      return (
+        // this is a quicker (but less type safe) way to save quite some bytes from the bundle
+        // $FlowFixMe[incompatible-return]
+        // $FlowFixMe[prop-missing]
+        element.assignedSlot || // step into the shadow DOM of the parent of a slotted node
+        element.parentNode || // DOM Element detected
+        (isShadowRoot(element) ? element.host : null) || // ShadowRoot detected
+        // $FlowFixMe[incompatible-call]: HTMLElement is a Node
+        getDocumentElement(element)
+      );
+    }
+    function getTrueOffsetParent(element) {
+      if (!isHTMLElement(element) || // https://github.com/popperjs/popper-core/issues/837
+      getComputedStyle$1(element).position === "fixed") {
+        return null;
+      }
+      return element.offsetParent;
+    }
+    function getContainingBlock(element) {
+      var isFirefox = /firefox/i.test(getUAString());
+      var isIE = /Trident/i.test(getUAString());
+      if (isIE && isHTMLElement(element)) {
+        var elementCss = getComputedStyle$1(element);
+        if (elementCss.position === "fixed") {
+          return null;
+        }
+      }
+      var currentNode = getParentNode(element);
+      if (isShadowRoot(currentNode)) {
+        currentNode = currentNode.host;
+      }
+      while (isHTMLElement(currentNode) && ["html", "body"].indexOf(getNodeName(currentNode)) < 0) {
+        var css = getComputedStyle$1(currentNode);
+        if (css.transform !== "none" || css.perspective !== "none" || css.contain === "paint" || ["transform", "perspective"].indexOf(css.willChange) !== -1 || isFirefox && css.willChange === "filter" || isFirefox && css.filter && css.filter !== "none") {
+          return currentNode;
+        } else {
+          currentNode = currentNode.parentNode;
+        }
+      }
+      return null;
+    }
+    function getOffsetParent(element) {
+      var window2 = getWindow(element);
+      var offsetParent = getTrueOffsetParent(element);
+      while (offsetParent && isTableElement(offsetParent) && getComputedStyle$1(offsetParent).position === "static") {
+        offsetParent = getTrueOffsetParent(offsetParent);
+      }
+      if (offsetParent && (getNodeName(offsetParent) === "html" || getNodeName(offsetParent) === "body" && getComputedStyle$1(offsetParent).position === "static")) {
+        return window2;
+      }
+      return offsetParent || getContainingBlock(element) || window2;
+    }
+    function getMainAxisFromPlacement(placement) {
+      return ["top", "bottom"].indexOf(placement) >= 0 ? "x" : "y";
+    }
+    function within(min2, value2, max2) {
+      return max$1(min2, min$1(value2, max2));
+    }
+    function withinMaxClamp(min2, value2, max2) {
+      var v = within(min2, value2, max2);
+      return v > max2 ? max2 : v;
+    }
+    function getFreshSideObject() {
+      return {
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0
+      };
+    }
+    function mergePaddingObject(paddingObject) {
+      return Object.assign({}, getFreshSideObject(), paddingObject);
+    }
+    function expandToHashMap(value2, keys) {
+      return keys.reduce(function(hashMap, key2) {
+        hashMap[key2] = value2;
+        return hashMap;
+      }, {});
+    }
+    var toPaddingObject = function toPaddingObject2(padding, state) {
+      padding = typeof padding === "function" ? padding(Object.assign({}, state.rects, {
+        placement: state.placement
+      })) : padding;
+      return mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
+    };
+    function arrow(_ref) {
+      var _state$modifiersData$;
+      var state = _ref.state, name2 = _ref.name, options2 = _ref.options;
+      var arrowElement = state.elements.arrow;
+      var popperOffsets2 = state.modifiersData.popperOffsets;
+      var basePlacement = getBasePlacement(state.placement);
+      var axis = getMainAxisFromPlacement(basePlacement);
+      var isVertical = [left, right].indexOf(basePlacement) >= 0;
+      var len = isVertical ? "height" : "width";
+      if (!arrowElement || !popperOffsets2) {
+        return;
+      }
+      var paddingObject = toPaddingObject(options2.padding, state);
+      var arrowRect = getLayoutRect(arrowElement);
+      var minProp = axis === "y" ? top$1 : left;
+      var maxProp = axis === "y" ? bottom : right;
+      var endDiff = state.rects.reference[len] + state.rects.reference[axis] - popperOffsets2[axis] - state.rects.popper[len];
+      var startDiff = popperOffsets2[axis] - state.rects.reference[axis];
+      var arrowOffsetParent = getOffsetParent(arrowElement);
+      var clientSize = arrowOffsetParent ? axis === "y" ? arrowOffsetParent.clientHeight || 0 : arrowOffsetParent.clientWidth || 0 : 0;
+      var centerToReference = endDiff / 2 - startDiff / 2;
+      var min2 = paddingObject[minProp];
+      var max2 = clientSize - arrowRect[len] - paddingObject[maxProp];
+      var center2 = clientSize / 2 - arrowRect[len] / 2 + centerToReference;
+      var offset2 = within(min2, center2, max2);
+      var axisProp = axis;
+      state.modifiersData[name2] = (_state$modifiersData$ = {}, _state$modifiersData$[axisProp] = offset2, _state$modifiersData$.centerOffset = offset2 - center2, _state$modifiersData$);
+    }
+    function effect$1(_ref2) {
+      var state = _ref2.state, options2 = _ref2.options;
+      var _options$element = options2.element, arrowElement = _options$element === void 0 ? "[data-popper-arrow]" : _options$element;
+      if (arrowElement == null) {
+        return;
+      }
+      if (typeof arrowElement === "string") {
+        arrowElement = state.elements.popper.querySelector(arrowElement);
+        if (!arrowElement) {
+          return;
+        }
+      }
+      if (!contains$1(state.elements.popper, arrowElement)) {
+        return;
+      }
+      state.elements.arrow = arrowElement;
+    }
+    const arrow$1 = {
+      name: "arrow",
+      enabled: true,
+      phase: "main",
+      fn: arrow,
+      effect: effect$1,
+      requires: ["popperOffsets"],
+      requiresIfExists: ["preventOverflow"]
+    };
+    function getVariation(placement) {
+      return placement.split("-")[1];
+    }
+    var unsetSides = {
+      top: "auto",
+      right: "auto",
+      bottom: "auto",
+      left: "auto"
+    };
+    function roundOffsetsByDPR(_ref, win) {
+      var x2 = _ref.x, y2 = _ref.y;
+      var dpr = win.devicePixelRatio || 1;
+      return {
+        x: round(x2 * dpr) / dpr || 0,
+        y: round(y2 * dpr) / dpr || 0
+      };
+    }
+    function mapToStyles(_ref2) {
+      var _Object$assign2;
+      var popper2 = _ref2.popper, popperRect = _ref2.popperRect, placement = _ref2.placement, variation = _ref2.variation, offsets = _ref2.offsets, position = _ref2.position, gpuAcceleration = _ref2.gpuAcceleration, adaptive = _ref2.adaptive, roundOffsets = _ref2.roundOffsets, isFixed = _ref2.isFixed;
+      var _offsets$x = offsets.x, x2 = _offsets$x === void 0 ? 0 : _offsets$x, _offsets$y = offsets.y, y2 = _offsets$y === void 0 ? 0 : _offsets$y;
+      var _ref3 = typeof roundOffsets === "function" ? roundOffsets({
+        x: x2,
+        y: y2
+      }) : {
+        x: x2,
+        y: y2
+      };
+      x2 = _ref3.x;
+      y2 = _ref3.y;
+      var hasX = offsets.hasOwnProperty("x");
+      var hasY = offsets.hasOwnProperty("y");
+      var sideX = left;
+      var sideY = top$1;
+      var win = window;
+      if (adaptive) {
+        var offsetParent = getOffsetParent(popper2);
+        var heightProp = "clientHeight";
+        var widthProp = "clientWidth";
+        if (offsetParent === getWindow(popper2)) {
+          offsetParent = getDocumentElement(popper2);
+          if (getComputedStyle$1(offsetParent).position !== "static" && position === "absolute") {
+            heightProp = "scrollHeight";
+            widthProp = "scrollWidth";
+          }
+        }
+        offsetParent = offsetParent;
+        if (placement === top$1 || (placement === left || placement === right) && variation === end) {
+          sideY = bottom;
+          var offsetY = isFixed && offsetParent === win && win.visualViewport ? win.visualViewport.height : (
+            // $FlowFixMe[prop-missing]
+            offsetParent[heightProp]
+          );
+          y2 -= offsetY - popperRect.height;
+          y2 *= gpuAcceleration ? 1 : -1;
+        }
+        if (placement === left || (placement === top$1 || placement === bottom) && variation === end) {
+          sideX = right;
+          var offsetX = isFixed && offsetParent === win && win.visualViewport ? win.visualViewport.width : (
+            // $FlowFixMe[prop-missing]
+            offsetParent[widthProp]
+          );
+          x2 -= offsetX - popperRect.width;
+          x2 *= gpuAcceleration ? 1 : -1;
+        }
+      }
+      var commonStyles = Object.assign({
+        position
+      }, adaptive && unsetSides);
+      var _ref4 = roundOffsets === true ? roundOffsetsByDPR({
+        x: x2,
+        y: y2
+      }, getWindow(popper2)) : {
+        x: x2,
+        y: y2
+      };
+      x2 = _ref4.x;
+      y2 = _ref4.y;
+      if (gpuAcceleration) {
+        var _Object$assign;
+        return Object.assign({}, commonStyles, (_Object$assign = {}, _Object$assign[sideY] = hasY ? "0" : "", _Object$assign[sideX] = hasX ? "0" : "", _Object$assign.transform = (win.devicePixelRatio || 1) <= 1 ? "translate(" + x2 + "px, " + y2 + "px)" : "translate3d(" + x2 + "px, " + y2 + "px, 0)", _Object$assign));
+      }
+      return Object.assign({}, commonStyles, (_Object$assign2 = {}, _Object$assign2[sideY] = hasY ? y2 + "px" : "", _Object$assign2[sideX] = hasX ? x2 + "px" : "", _Object$assign2.transform = "", _Object$assign2));
+    }
+    function computeStyles(_ref5) {
+      var state = _ref5.state, options2 = _ref5.options;
+      var _options$gpuAccelerat = options2.gpuAcceleration, gpuAcceleration = _options$gpuAccelerat === void 0 ? true : _options$gpuAccelerat, _options$adaptive = options2.adaptive, adaptive = _options$adaptive === void 0 ? true : _options$adaptive, _options$roundOffsets = options2.roundOffsets, roundOffsets = _options$roundOffsets === void 0 ? true : _options$roundOffsets;
+      var commonStyles = {
+        placement: getBasePlacement(state.placement),
+        variation: getVariation(state.placement),
+        popper: state.elements.popper,
+        popperRect: state.rects.popper,
+        gpuAcceleration,
+        isFixed: state.options.strategy === "fixed"
+      };
+      if (state.modifiersData.popperOffsets != null) {
+        state.styles.popper = Object.assign({}, state.styles.popper, mapToStyles(Object.assign({}, commonStyles, {
+          offsets: state.modifiersData.popperOffsets,
+          position: state.options.strategy,
+          adaptive,
+          roundOffsets
+        })));
+      }
+      if (state.modifiersData.arrow != null) {
+        state.styles.arrow = Object.assign({}, state.styles.arrow, mapToStyles(Object.assign({}, commonStyles, {
+          offsets: state.modifiersData.arrow,
+          position: "absolute",
+          adaptive: false,
+          roundOffsets
+        })));
+      }
+      state.attributes.popper = Object.assign({}, state.attributes.popper, {
+        "data-popper-placement": state.placement
+      });
+    }
+    const computeStyles$1 = {
+      name: "computeStyles",
+      enabled: true,
+      phase: "beforeWrite",
+      fn: computeStyles,
+      data: {}
+    };
+    var passive = {
+      passive: true
+    };
+    function effect(_ref) {
+      var state = _ref.state, instance = _ref.instance, options2 = _ref.options;
+      var _options$scroll = options2.scroll, scroll = _options$scroll === void 0 ? true : _options$scroll, _options$resize = options2.resize, resize = _options$resize === void 0 ? true : _options$resize;
+      var window2 = getWindow(state.elements.popper);
+      var scrollParents = [].concat(state.scrollParents.reference, state.scrollParents.popper);
+      if (scroll) {
+        scrollParents.forEach(function(scrollParent) {
+          scrollParent.addEventListener("scroll", instance.update, passive);
+        });
+      }
+      if (resize) {
+        window2.addEventListener("resize", instance.update, passive);
+      }
+      return function() {
+        if (scroll) {
+          scrollParents.forEach(function(scrollParent) {
+            scrollParent.removeEventListener("scroll", instance.update, passive);
+          });
+        }
+        if (resize) {
+          window2.removeEventListener("resize", instance.update, passive);
+        }
+      };
+    }
+    const eventListeners = {
+      name: "eventListeners",
+      enabled: true,
+      phase: "write",
+      fn: function fn2() {
+      },
+      effect,
+      data: {}
+    };
+    var hash$1 = {
+      left: "right",
+      right: "left",
+      bottom: "top",
+      top: "bottom"
+    };
+    function getOppositePlacement(placement) {
+      return placement.replace(/left|right|bottom|top/g, function(matched) {
+        return hash$1[matched];
+      });
+    }
+    var hash = {
+      start: "end",
+      end: "start"
+    };
+    function getOppositeVariationPlacement(placement) {
+      return placement.replace(/start|end/g, function(matched) {
+        return hash[matched];
+      });
+    }
+    function getWindowScroll(node2) {
+      var win = getWindow(node2);
+      var scrollLeft = win.pageXOffset;
+      var scrollTop = win.pageYOffset;
+      return {
+        scrollLeft,
+        scrollTop
+      };
+    }
+    function getWindowScrollBarX(element) {
+      return getBoundingClientRect(getDocumentElement(element)).left + getWindowScroll(element).scrollLeft;
+    }
+    function getViewportRect(element, strategy) {
+      var win = getWindow(element);
+      var html = getDocumentElement(element);
+      var visualViewport = win.visualViewport;
+      var width = html.clientWidth;
+      var height = html.clientHeight;
+      var x2 = 0;
+      var y2 = 0;
+      if (visualViewport) {
+        width = visualViewport.width;
+        height = visualViewport.height;
+        var layoutViewport = isLayoutViewport();
+        if (layoutViewport || !layoutViewport && strategy === "fixed") {
+          x2 = visualViewport.offsetLeft;
+          y2 = visualViewport.offsetTop;
+        }
+      }
+      return {
+        width,
+        height,
+        x: x2 + getWindowScrollBarX(element),
+        y: y2
+      };
+    }
+    function getDocumentRect(element) {
+      var _element$ownerDocumen;
+      var html = getDocumentElement(element);
+      var winScroll = getWindowScroll(element);
+      var body2 = (_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body;
+      var width = max$1(html.scrollWidth, html.clientWidth, body2 ? body2.scrollWidth : 0, body2 ? body2.clientWidth : 0);
+      var height = max$1(html.scrollHeight, html.clientHeight, body2 ? body2.scrollHeight : 0, body2 ? body2.clientHeight : 0);
+      var x2 = -winScroll.scrollLeft + getWindowScrollBarX(element);
+      var y2 = -winScroll.scrollTop;
+      if (getComputedStyle$1(body2 || html).direction === "rtl") {
+        x2 += max$1(html.clientWidth, body2 ? body2.clientWidth : 0) - width;
+      }
+      return {
+        width,
+        height,
+        x: x2,
+        y: y2
+      };
+    }
+    function isScrollParent(element) {
+      var _getComputedStyle = getComputedStyle$1(element), overflow = _getComputedStyle.overflow, overflowX = _getComputedStyle.overflowX, overflowY = _getComputedStyle.overflowY;
+      return /auto|scroll|overlay|hidden/.test(overflow + overflowY + overflowX);
+    }
+    function getScrollParent(node2) {
+      if (["html", "body", "#document"].indexOf(getNodeName(node2)) >= 0) {
+        return node2.ownerDocument.body;
+      }
+      if (isHTMLElement(node2) && isScrollParent(node2)) {
+        return node2;
+      }
+      return getScrollParent(getParentNode(node2));
+    }
+    function listScrollParents(element, list2) {
+      var _element$ownerDocumen;
+      if (list2 === void 0) {
+        list2 = [];
+      }
+      var scrollParent = getScrollParent(element);
+      var isBody = scrollParent === ((_element$ownerDocumen = element.ownerDocument) == null ? void 0 : _element$ownerDocumen.body);
+      var win = getWindow(scrollParent);
+      var target2 = isBody ? [win].concat(win.visualViewport || [], isScrollParent(scrollParent) ? scrollParent : []) : scrollParent;
+      var updatedList = list2.concat(target2);
+      return isBody ? updatedList : (
+        // $FlowFixMe[incompatible-call]: isBody tells us target will be an HTMLElement here
+        updatedList.concat(listScrollParents(getParentNode(target2)))
+      );
+    }
+    function rectToClientRect(rect) {
+      return Object.assign({}, rect, {
+        left: rect.x,
+        top: rect.y,
+        right: rect.x + rect.width,
+        bottom: rect.y + rect.height
+      });
+    }
+    function getInnerBoundingClientRect(element, strategy) {
+      var rect = getBoundingClientRect(element, false, strategy === "fixed");
+      rect.top = rect.top + element.clientTop;
+      rect.left = rect.left + element.clientLeft;
+      rect.bottom = rect.top + element.clientHeight;
+      rect.right = rect.left + element.clientWidth;
+      rect.width = element.clientWidth;
+      rect.height = element.clientHeight;
+      rect.x = rect.left;
+      rect.y = rect.top;
+      return rect;
+    }
+    function getClientRectFromMixedType(element, clippingParent, strategy) {
+      return clippingParent === viewport ? rectToClientRect(getViewportRect(element, strategy)) : isElement(clippingParent) ? getInnerBoundingClientRect(clippingParent, strategy) : rectToClientRect(getDocumentRect(getDocumentElement(element)));
+    }
+    function getClippingParents(element) {
+      var clippingParents2 = listScrollParents(getParentNode(element));
+      var canEscapeClipping = ["absolute", "fixed"].indexOf(getComputedStyle$1(element).position) >= 0;
+      var clipperElement = canEscapeClipping && isHTMLElement(element) ? getOffsetParent(element) : element;
+      if (!isElement(clipperElement)) {
+        return [];
+      }
+      return clippingParents2.filter(function(clippingParent) {
+        return isElement(clippingParent) && contains$1(clippingParent, clipperElement) && getNodeName(clippingParent) !== "body";
+      });
+    }
+    function getClippingRect(element, boundary, rootBoundary, strategy) {
+      var mainClippingParents = boundary === "clippingParents" ? getClippingParents(element) : [].concat(boundary);
+      var clippingParents2 = [].concat(mainClippingParents, [rootBoundary]);
+      var firstClippingParent = clippingParents2[0];
+      var clippingRect = clippingParents2.reduce(function(accRect, clippingParent) {
+        var rect = getClientRectFromMixedType(element, clippingParent, strategy);
+        accRect.top = max$1(rect.top, accRect.top);
+        accRect.right = min$1(rect.right, accRect.right);
+        accRect.bottom = min$1(rect.bottom, accRect.bottom);
+        accRect.left = max$1(rect.left, accRect.left);
+        return accRect;
+      }, getClientRectFromMixedType(element, firstClippingParent, strategy));
+      clippingRect.width = clippingRect.right - clippingRect.left;
+      clippingRect.height = clippingRect.bottom - clippingRect.top;
+      clippingRect.x = clippingRect.left;
+      clippingRect.y = clippingRect.top;
+      return clippingRect;
+    }
+    function computeOffsets(_ref) {
+      var reference2 = _ref.reference, element = _ref.element, placement = _ref.placement;
+      var basePlacement = placement ? getBasePlacement(placement) : null;
+      var variation = placement ? getVariation(placement) : null;
+      var commonX = reference2.x + reference2.width / 2 - element.width / 2;
+      var commonY = reference2.y + reference2.height / 2 - element.height / 2;
+      var offsets;
+      switch (basePlacement) {
+        case top$1:
+          offsets = {
+            x: commonX,
+            y: reference2.y - element.height
+          };
+          break;
+        case bottom:
+          offsets = {
+            x: commonX,
+            y: reference2.y + reference2.height
+          };
+          break;
+        case right:
+          offsets = {
+            x: reference2.x + reference2.width,
+            y: commonY
+          };
+          break;
+        case left:
+          offsets = {
+            x: reference2.x - element.width,
+            y: commonY
+          };
+          break;
+        default:
+          offsets = {
+            x: reference2.x,
+            y: reference2.y
+          };
+      }
+      var mainAxis = basePlacement ? getMainAxisFromPlacement(basePlacement) : null;
+      if (mainAxis != null) {
+        var len = mainAxis === "y" ? "height" : "width";
+        switch (variation) {
+          case start:
+            offsets[mainAxis] = offsets[mainAxis] - (reference2[len] / 2 - element[len] / 2);
+            break;
+          case end:
+            offsets[mainAxis] = offsets[mainAxis] + (reference2[len] / 2 - element[len] / 2);
+            break;
+        }
+      }
+      return offsets;
+    }
+    function detectOverflow(state, options2) {
+      if (options2 === void 0) {
+        options2 = {};
+      }
+      var _options = options2, _options$placement = _options.placement, placement = _options$placement === void 0 ? state.placement : _options$placement, _options$strategy = _options.strategy, strategy = _options$strategy === void 0 ? state.strategy : _options$strategy, _options$boundary = _options.boundary, boundary = _options$boundary === void 0 ? clippingParents : _options$boundary, _options$rootBoundary = _options.rootBoundary, rootBoundary = _options$rootBoundary === void 0 ? viewport : _options$rootBoundary, _options$elementConte = _options.elementContext, elementContext = _options$elementConte === void 0 ? popper : _options$elementConte, _options$altBoundary = _options.altBoundary, altBoundary = _options$altBoundary === void 0 ? false : _options$altBoundary, _options$padding = _options.padding, padding = _options$padding === void 0 ? 0 : _options$padding;
+      var paddingObject = mergePaddingObject(typeof padding !== "number" ? padding : expandToHashMap(padding, basePlacements));
+      var altContext = elementContext === popper ? reference : popper;
+      var popperRect = state.rects.popper;
+      var element = state.elements[altBoundary ? altContext : elementContext];
+      var clippingClientRect = getClippingRect(isElement(element) ? element : element.contextElement || getDocumentElement(state.elements.popper), boundary, rootBoundary, strategy);
+      var referenceClientRect = getBoundingClientRect(state.elements.reference);
+      var popperOffsets2 = computeOffsets({
+        reference: referenceClientRect,
+        element: popperRect,
+        placement
+      });
+      var popperClientRect = rectToClientRect(Object.assign({}, popperRect, popperOffsets2));
+      var elementClientRect = elementContext === popper ? popperClientRect : referenceClientRect;
+      var overflowOffsets = {
+        top: clippingClientRect.top - elementClientRect.top + paddingObject.top,
+        bottom: elementClientRect.bottom - clippingClientRect.bottom + paddingObject.bottom,
+        left: clippingClientRect.left - elementClientRect.left + paddingObject.left,
+        right: elementClientRect.right - clippingClientRect.right + paddingObject.right
+      };
+      var offsetData = state.modifiersData.offset;
+      if (elementContext === popper && offsetData) {
+        var offset2 = offsetData[placement];
+        Object.keys(overflowOffsets).forEach(function(key2) {
+          var multiply = [right, bottom].indexOf(key2) >= 0 ? 1 : -1;
+          var axis = [top$1, bottom].indexOf(key2) >= 0 ? "y" : "x";
+          overflowOffsets[key2] += offset2[axis] * multiply;
+        });
+      }
+      return overflowOffsets;
+    }
+    function computeAutoPlacement(state, options2) {
+      if (options2 === void 0) {
+        options2 = {};
+      }
+      var _options = options2, placement = _options.placement, boundary = _options.boundary, rootBoundary = _options.rootBoundary, padding = _options.padding, flipVariations = _options.flipVariations, _options$allowedAutoP = _options.allowedAutoPlacements, allowedAutoPlacements = _options$allowedAutoP === void 0 ? placements : _options$allowedAutoP;
+      var variation = getVariation(placement);
+      var placements$1 = variation ? flipVariations ? variationPlacements : variationPlacements.filter(function(placement2) {
+        return getVariation(placement2) === variation;
+      }) : basePlacements;
+      var allowedPlacements = placements$1.filter(function(placement2) {
+        return allowedAutoPlacements.indexOf(placement2) >= 0;
+      });
+      if (allowedPlacements.length === 0) {
+        allowedPlacements = placements$1;
+      }
+      var overflows = allowedPlacements.reduce(function(acc, placement2) {
+        acc[placement2] = detectOverflow(state, {
+          placement: placement2,
+          boundary,
+          rootBoundary,
+          padding
+        })[getBasePlacement(placement2)];
+        return acc;
+      }, {});
+      return Object.keys(overflows).sort(function(a, b) {
+        return overflows[a] - overflows[b];
+      });
+    }
+    function getExpandedFallbackPlacements(placement) {
+      if (getBasePlacement(placement) === auto) {
+        return [];
+      }
+      var oppositePlacement = getOppositePlacement(placement);
+      return [getOppositeVariationPlacement(placement), oppositePlacement, getOppositeVariationPlacement(oppositePlacement)];
+    }
+    function flip(_ref) {
+      var state = _ref.state, options2 = _ref.options, name2 = _ref.name;
+      if (state.modifiersData[name2]._skip) {
+        return;
+      }
+      var _options$mainAxis = options2.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options2.altAxis, checkAltAxis = _options$altAxis === void 0 ? true : _options$altAxis, specifiedFallbackPlacements = options2.fallbackPlacements, padding = options2.padding, boundary = options2.boundary, rootBoundary = options2.rootBoundary, altBoundary = options2.altBoundary, _options$flipVariatio = options2.flipVariations, flipVariations = _options$flipVariatio === void 0 ? true : _options$flipVariatio, allowedAutoPlacements = options2.allowedAutoPlacements;
+      var preferredPlacement = state.options.placement;
+      var basePlacement = getBasePlacement(preferredPlacement);
+      var isBasePlacement = basePlacement === preferredPlacement;
+      var fallbackPlacements = specifiedFallbackPlacements || (isBasePlacement || !flipVariations ? [getOppositePlacement(preferredPlacement)] : getExpandedFallbackPlacements(preferredPlacement));
+      var placements2 = [preferredPlacement].concat(fallbackPlacements).reduce(function(acc, placement2) {
+        return acc.concat(getBasePlacement(placement2) === auto ? computeAutoPlacement(state, {
+          placement: placement2,
+          boundary,
+          rootBoundary,
+          padding,
+          flipVariations,
+          allowedAutoPlacements
+        }) : placement2);
+      }, []);
+      var referenceRect = state.rects.reference;
+      var popperRect = state.rects.popper;
+      var checksMap = /* @__PURE__ */ new Map();
+      var makeFallbackChecks = true;
+      var firstFittingPlacement = placements2[0];
+      for (var i2 = 0; i2 < placements2.length; i2++) {
+        var placement = placements2[i2];
+        var _basePlacement = getBasePlacement(placement);
+        var isStartVariation = getVariation(placement) === start;
+        var isVertical = [top$1, bottom].indexOf(_basePlacement) >= 0;
+        var len = isVertical ? "width" : "height";
+        var overflow = detectOverflow(state, {
+          placement,
+          boundary,
+          rootBoundary,
+          altBoundary,
+          padding
+        });
+        var mainVariationSide = isVertical ? isStartVariation ? right : left : isStartVariation ? bottom : top$1;
+        if (referenceRect[len] > popperRect[len]) {
+          mainVariationSide = getOppositePlacement(mainVariationSide);
+        }
+        var altVariationSide = getOppositePlacement(mainVariationSide);
+        var checks = [];
+        if (checkMainAxis) {
+          checks.push(overflow[_basePlacement] <= 0);
+        }
+        if (checkAltAxis) {
+          checks.push(overflow[mainVariationSide] <= 0, overflow[altVariationSide] <= 0);
+        }
+        if (checks.every(function(check) {
+          return check;
+        })) {
+          firstFittingPlacement = placement;
+          makeFallbackChecks = false;
+          break;
+        }
+        checksMap.set(placement, checks);
+      }
+      if (makeFallbackChecks) {
+        var numberOfChecks = flipVariations ? 3 : 1;
+        var _loop = function _loop2(_i2) {
+          var fittingPlacement = placements2.find(function(placement2) {
+            var checks2 = checksMap.get(placement2);
+            if (checks2) {
+              return checks2.slice(0, _i2).every(function(check) {
+                return check;
+              });
+            }
+          });
+          if (fittingPlacement) {
+            firstFittingPlacement = fittingPlacement;
+            return "break";
+          }
+        };
+        for (var _i = numberOfChecks; _i > 0; _i--) {
+          var _ret = _loop(_i);
+          if (_ret === "break") break;
+        }
+      }
+      if (state.placement !== firstFittingPlacement) {
+        state.modifiersData[name2]._skip = true;
+        state.placement = firstFittingPlacement;
+        state.reset = true;
+      }
+    }
+    const flip$1 = {
+      name: "flip",
+      enabled: true,
+      phase: "main",
+      fn: flip,
+      requiresIfExists: ["offset"],
+      data: {
+        _skip: false
+      }
+    };
+    function getSideOffsets(overflow, rect, preventedOffsets) {
+      if (preventedOffsets === void 0) {
+        preventedOffsets = {
+          x: 0,
+          y: 0
+        };
+      }
+      return {
+        top: overflow.top - rect.height - preventedOffsets.y,
+        right: overflow.right - rect.width + preventedOffsets.x,
+        bottom: overflow.bottom - rect.height + preventedOffsets.y,
+        left: overflow.left - rect.width - preventedOffsets.x
+      };
+    }
+    function isAnySideFullyClipped(overflow) {
+      return [top$1, right, bottom, left].some(function(side) {
+        return overflow[side] >= 0;
+      });
+    }
+    function hide(_ref) {
+      var state = _ref.state, name2 = _ref.name;
+      var referenceRect = state.rects.reference;
+      var popperRect = state.rects.popper;
+      var preventedOffsets = state.modifiersData.preventOverflow;
+      var referenceOverflow = detectOverflow(state, {
+        elementContext: "reference"
+      });
+      var popperAltOverflow = detectOverflow(state, {
+        altBoundary: true
+      });
+      var referenceClippingOffsets = getSideOffsets(referenceOverflow, referenceRect);
+      var popperEscapeOffsets = getSideOffsets(popperAltOverflow, popperRect, preventedOffsets);
+      var isReferenceHidden = isAnySideFullyClipped(referenceClippingOffsets);
+      var hasPopperEscaped = isAnySideFullyClipped(popperEscapeOffsets);
+      state.modifiersData[name2] = {
+        referenceClippingOffsets,
+        popperEscapeOffsets,
+        isReferenceHidden,
+        hasPopperEscaped
+      };
+      state.attributes.popper = Object.assign({}, state.attributes.popper, {
+        "data-popper-reference-hidden": isReferenceHidden,
+        "data-popper-escaped": hasPopperEscaped
+      });
+    }
+    const hide$1 = {
+      name: "hide",
+      enabled: true,
+      phase: "main",
+      requiresIfExists: ["preventOverflow"],
+      fn: hide
+    };
+    function distanceAndSkiddingToXY(placement, rects, offset2) {
+      var basePlacement = getBasePlacement(placement);
+      var invertDistance = [left, top$1].indexOf(basePlacement) >= 0 ? -1 : 1;
+      var _ref = typeof offset2 === "function" ? offset2(Object.assign({}, rects, {
+        placement
+      })) : offset2, skidding = _ref[0], distance = _ref[1];
+      skidding = skidding || 0;
+      distance = (distance || 0) * invertDistance;
+      return [left, right].indexOf(basePlacement) >= 0 ? {
+        x: distance,
+        y: skidding
+      } : {
+        x: skidding,
+        y: distance
+      };
+    }
+    function offset(_ref2) {
+      var state = _ref2.state, options2 = _ref2.options, name2 = _ref2.name;
+      var _options$offset = options2.offset, offset2 = _options$offset === void 0 ? [0, 0] : _options$offset;
+      var data = placements.reduce(function(acc, placement) {
+        acc[placement] = distanceAndSkiddingToXY(placement, state.rects, offset2);
+        return acc;
+      }, {});
+      var _data$state$placement = data[state.placement], x2 = _data$state$placement.x, y2 = _data$state$placement.y;
+      if (state.modifiersData.popperOffsets != null) {
+        state.modifiersData.popperOffsets.x += x2;
+        state.modifiersData.popperOffsets.y += y2;
+      }
+      state.modifiersData[name2] = data;
+    }
+    const offset$1 = {
+      name: "offset",
+      enabled: true,
+      phase: "main",
+      requires: ["popperOffsets"],
+      fn: offset
+    };
+    function popperOffsets(_ref) {
+      var state = _ref.state, name2 = _ref.name;
+      state.modifiersData[name2] = computeOffsets({
+        reference: state.rects.reference,
+        element: state.rects.popper,
+        placement: state.placement
+      });
+    }
+    const popperOffsets$1 = {
+      name: "popperOffsets",
+      enabled: true,
+      phase: "read",
+      fn: popperOffsets,
+      data: {}
+    };
+    function getAltAxis(axis) {
+      return axis === "x" ? "y" : "x";
+    }
+    function preventOverflow(_ref) {
+      var state = _ref.state, options2 = _ref.options, name2 = _ref.name;
+      var _options$mainAxis = options2.mainAxis, checkMainAxis = _options$mainAxis === void 0 ? true : _options$mainAxis, _options$altAxis = options2.altAxis, checkAltAxis = _options$altAxis === void 0 ? false : _options$altAxis, boundary = options2.boundary, rootBoundary = options2.rootBoundary, altBoundary = options2.altBoundary, padding = options2.padding, _options$tether = options2.tether, tether = _options$tether === void 0 ? true : _options$tether, _options$tetherOffset = options2.tetherOffset, tetherOffset = _options$tetherOffset === void 0 ? 0 : _options$tetherOffset;
+      var overflow = detectOverflow(state, {
+        boundary,
+        rootBoundary,
+        padding,
+        altBoundary
+      });
+      var basePlacement = getBasePlacement(state.placement);
+      var variation = getVariation(state.placement);
+      var isBasePlacement = !variation;
+      var mainAxis = getMainAxisFromPlacement(basePlacement);
+      var altAxis = getAltAxis(mainAxis);
+      var popperOffsets2 = state.modifiersData.popperOffsets;
+      var referenceRect = state.rects.reference;
+      var popperRect = state.rects.popper;
+      var tetherOffsetValue = typeof tetherOffset === "function" ? tetherOffset(Object.assign({}, state.rects, {
+        placement: state.placement
+      })) : tetherOffset;
+      var normalizedTetherOffsetValue = typeof tetherOffsetValue === "number" ? {
+        mainAxis: tetherOffsetValue,
+        altAxis: tetherOffsetValue
+      } : Object.assign({
+        mainAxis: 0,
+        altAxis: 0
+      }, tetherOffsetValue);
+      var offsetModifierState = state.modifiersData.offset ? state.modifiersData.offset[state.placement] : null;
+      var data = {
+        x: 0,
+        y: 0
+      };
+      if (!popperOffsets2) {
+        return;
+      }
+      if (checkMainAxis) {
+        var _offsetModifierState$;
+        var mainSide = mainAxis === "y" ? top$1 : left;
+        var altSide = mainAxis === "y" ? bottom : right;
+        var len = mainAxis === "y" ? "height" : "width";
+        var offset2 = popperOffsets2[mainAxis];
+        var min2 = offset2 + overflow[mainSide];
+        var max2 = offset2 - overflow[altSide];
+        var additive = tether ? -popperRect[len] / 2 : 0;
+        var minLen = variation === start ? referenceRect[len] : popperRect[len];
+        var maxLen = variation === start ? -popperRect[len] : -referenceRect[len];
+        var arrowElement = state.elements.arrow;
+        var arrowRect = tether && arrowElement ? getLayoutRect(arrowElement) : {
+          width: 0,
+          height: 0
+        };
+        var arrowPaddingObject = state.modifiersData["arrow#persistent"] ? state.modifiersData["arrow#persistent"].padding : getFreshSideObject();
+        var arrowPaddingMin = arrowPaddingObject[mainSide];
+        var arrowPaddingMax = arrowPaddingObject[altSide];
+        var arrowLen = within(0, referenceRect[len], arrowRect[len]);
+        var minOffset = isBasePlacement ? referenceRect[len] / 2 - additive - arrowLen - arrowPaddingMin - normalizedTetherOffsetValue.mainAxis : minLen - arrowLen - arrowPaddingMin - normalizedTetherOffsetValue.mainAxis;
+        var maxOffset2 = isBasePlacement ? -referenceRect[len] / 2 + additive + arrowLen + arrowPaddingMax + normalizedTetherOffsetValue.mainAxis : maxLen + arrowLen + arrowPaddingMax + normalizedTetherOffsetValue.mainAxis;
+        var arrowOffsetParent = state.elements.arrow && getOffsetParent(state.elements.arrow);
+        var clientOffset = arrowOffsetParent ? mainAxis === "y" ? arrowOffsetParent.clientTop || 0 : arrowOffsetParent.clientLeft || 0 : 0;
+        var offsetModifierValue = (_offsetModifierState$ = offsetModifierState == null ? void 0 : offsetModifierState[mainAxis]) != null ? _offsetModifierState$ : 0;
+        var tetherMin = offset2 + minOffset - offsetModifierValue - clientOffset;
+        var tetherMax = offset2 + maxOffset2 - offsetModifierValue;
+        var preventedOffset = within(tether ? min$1(min2, tetherMin) : min2, offset2, tether ? max$1(max2, tetherMax) : max2);
+        popperOffsets2[mainAxis] = preventedOffset;
+        data[mainAxis] = preventedOffset - offset2;
+      }
+      if (checkAltAxis) {
+        var _offsetModifierState$2;
+        var _mainSide = mainAxis === "x" ? top$1 : left;
+        var _altSide = mainAxis === "x" ? bottom : right;
+        var _offset = popperOffsets2[altAxis];
+        var _len = altAxis === "y" ? "height" : "width";
+        var _min = _offset + overflow[_mainSide];
+        var _max = _offset - overflow[_altSide];
+        var isOriginSide = [top$1, left].indexOf(basePlacement) !== -1;
+        var _offsetModifierValue = (_offsetModifierState$2 = offsetModifierState == null ? void 0 : offsetModifierState[altAxis]) != null ? _offsetModifierState$2 : 0;
+        var _tetherMin = isOriginSide ? _min : _offset - referenceRect[_len] - popperRect[_len] - _offsetModifierValue + normalizedTetherOffsetValue.altAxis;
+        var _tetherMax = isOriginSide ? _offset + referenceRect[_len] + popperRect[_len] - _offsetModifierValue - normalizedTetherOffsetValue.altAxis : _max;
+        var _preventedOffset = tether && isOriginSide ? withinMaxClamp(_tetherMin, _offset, _tetherMax) : within(tether ? _tetherMin : _min, _offset, tether ? _tetherMax : _max);
+        popperOffsets2[altAxis] = _preventedOffset;
+        data[altAxis] = _preventedOffset - _offset;
+      }
+      state.modifiersData[name2] = data;
+    }
+    const preventOverflow$1 = {
+      name: "preventOverflow",
+      enabled: true,
+      phase: "main",
+      fn: preventOverflow,
+      requiresIfExists: ["offset"]
+    };
+    function getHTMLElementScroll(element) {
+      return {
+        scrollLeft: element.scrollLeft,
+        scrollTop: element.scrollTop
+      };
+    }
+    function getNodeScroll(node2) {
+      if (node2 === getWindow(node2) || !isHTMLElement(node2)) {
+        return getWindowScroll(node2);
+      } else {
+        return getHTMLElementScroll(node2);
+      }
+    }
+    function isElementScaled(element) {
+      var rect = element.getBoundingClientRect();
+      var scaleX = round(rect.width) / element.offsetWidth || 1;
+      var scaleY = round(rect.height) / element.offsetHeight || 1;
+      return scaleX !== 1 || scaleY !== 1;
+    }
+    function getCompositeRect(elementOrVirtualElement, offsetParent, isFixed) {
+      if (isFixed === void 0) {
+        isFixed = false;
+      }
+      var isOffsetParentAnElement = isHTMLElement(offsetParent);
+      var offsetParentIsScaled = isHTMLElement(offsetParent) && isElementScaled(offsetParent);
+      var documentElement = getDocumentElement(offsetParent);
+      var rect = getBoundingClientRect(elementOrVirtualElement, offsetParentIsScaled, isFixed);
+      var scroll = {
+        scrollLeft: 0,
+        scrollTop: 0
+      };
+      var offsets = {
+        x: 0,
+        y: 0
+      };
+      if (isOffsetParentAnElement || !isOffsetParentAnElement && !isFixed) {
+        if (getNodeName(offsetParent) !== "body" || // https://github.com/popperjs/popper-core/issues/1078
+        isScrollParent(documentElement)) {
+          scroll = getNodeScroll(offsetParent);
+        }
+        if (isHTMLElement(offsetParent)) {
+          offsets = getBoundingClientRect(offsetParent, true);
+          offsets.x += offsetParent.clientLeft;
+          offsets.y += offsetParent.clientTop;
+        } else if (documentElement) {
+          offsets.x = getWindowScrollBarX(documentElement);
+        }
+      }
+      return {
+        x: rect.left + scroll.scrollLeft - offsets.x,
+        y: rect.top + scroll.scrollTop - offsets.y,
+        width: rect.width,
+        height: rect.height
+      };
+    }
+    function order(modifiers2) {
+      var map2 = /* @__PURE__ */ new Map();
+      var visited = /* @__PURE__ */ new Set();
+      var result2 = [];
+      modifiers2.forEach(function(modifier) {
+        map2.set(modifier.name, modifier);
+      });
+      function sort(modifier) {
+        visited.add(modifier.name);
+        var requires = [].concat(modifier.requires || [], modifier.requiresIfExists || []);
+        requires.forEach(function(dep) {
+          if (!visited.has(dep)) {
+            var depModifier = map2.get(dep);
+            if (depModifier) {
+              sort(depModifier);
+            }
+          }
+        });
+        result2.push(modifier);
+      }
+      modifiers2.forEach(function(modifier) {
+        if (!visited.has(modifier.name)) {
+          sort(modifier);
+        }
+      });
+      return result2;
+    }
+    function orderModifiers(modifiers2) {
+      var orderedModifiers = order(modifiers2);
+      return modifierPhases.reduce(function(acc, phase) {
+        return acc.concat(orderedModifiers.filter(function(modifier) {
+          return modifier.phase === phase;
+        }));
+      }, []);
+    }
+    function debounce$1(fn2) {
+      var pending;
+      return function() {
+        if (!pending) {
+          pending = new Promise(function(resolve) {
+            Promise.resolve().then(function() {
+              pending = void 0;
+              resolve(fn2());
+            });
+          });
+        }
+        return pending;
+      };
+    }
+    function mergeByName(modifiers2) {
+      var merged = modifiers2.reduce(function(merged2, current2) {
+        var existing = merged2[current2.name];
+        merged2[current2.name] = existing ? Object.assign({}, existing, current2, {
+          options: Object.assign({}, existing.options, current2.options),
+          data: Object.assign({}, existing.data, current2.data)
+        }) : current2;
+        return merged2;
+      }, {});
+      return Object.keys(merged).map(function(key2) {
+        return merged[key2];
+      });
+    }
+    var DEFAULT_OPTIONS = {
+      placement: "bottom",
+      modifiers: [],
+      strategy: "absolute"
+    };
+    function areValidElements() {
+      for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+        args[_key] = arguments[_key];
+      }
+      return !args.some(function(element) {
+        return !(element && typeof element.getBoundingClientRect === "function");
+      });
+    }
+    function popperGenerator(generatorOptions) {
+      if (generatorOptions === void 0) {
+        generatorOptions = {};
+      }
+      var _generatorOptions = generatorOptions, _generatorOptions$def = _generatorOptions.defaultModifiers, defaultModifiers2 = _generatorOptions$def === void 0 ? [] : _generatorOptions$def, _generatorOptions$def2 = _generatorOptions.defaultOptions, defaultOptions2 = _generatorOptions$def2 === void 0 ? DEFAULT_OPTIONS : _generatorOptions$def2;
+      return function createPopper2(reference2, popper2, options2) {
+        if (options2 === void 0) {
+          options2 = defaultOptions2;
+        }
+        var state = {
+          placement: "bottom",
+          orderedModifiers: [],
+          options: Object.assign({}, DEFAULT_OPTIONS, defaultOptions2),
+          modifiersData: {},
+          elements: {
+            reference: reference2,
+            popper: popper2
+          },
+          attributes: {},
+          styles: {}
+        };
+        var effectCleanupFns = [];
+        var isDestroyed = false;
+        var instance = {
+          state,
+          setOptions: function setOptions(setOptionsAction) {
+            var options3 = typeof setOptionsAction === "function" ? setOptionsAction(state.options) : setOptionsAction;
+            cleanupModifierEffects();
+            state.options = Object.assign({}, defaultOptions2, state.options, options3);
+            state.scrollParents = {
+              reference: isElement(reference2) ? listScrollParents(reference2) : reference2.contextElement ? listScrollParents(reference2.contextElement) : [],
+              popper: listScrollParents(popper2)
+            };
+            var orderedModifiers = orderModifiers(mergeByName([].concat(defaultModifiers2, state.options.modifiers)));
+            state.orderedModifiers = orderedModifiers.filter(function(m) {
+              return m.enabled;
+            });
+            runModifierEffects();
+            return instance.update();
+          },
+          // Sync update – it will always be executed, even if not necessary. This
+          // is useful for low frequency updates where sync behavior simplifies the
+          // logic.
+          // For high frequency updates (e.g. `resize` and `scroll` events), always
+          // prefer the async Popper#update method
+          forceUpdate: function forceUpdate() {
+            if (isDestroyed) {
+              return;
+            }
+            var _state$elements = state.elements, reference3 = _state$elements.reference, popper3 = _state$elements.popper;
+            if (!areValidElements(reference3, popper3)) {
+              return;
+            }
+            state.rects = {
+              reference: getCompositeRect(reference3, getOffsetParent(popper3), state.options.strategy === "fixed"),
+              popper: getLayoutRect(popper3)
+            };
+            state.reset = false;
+            state.placement = state.options.placement;
+            state.orderedModifiers.forEach(function(modifier) {
+              return state.modifiersData[modifier.name] = Object.assign({}, modifier.data);
+            });
+            for (var index2 = 0; index2 < state.orderedModifiers.length; index2++) {
+              if (state.reset === true) {
+                state.reset = false;
+                index2 = -1;
+                continue;
+              }
+              var _state$orderedModifie = state.orderedModifiers[index2], fn2 = _state$orderedModifie.fn, _state$orderedModifie2 = _state$orderedModifie.options, _options = _state$orderedModifie2 === void 0 ? {} : _state$orderedModifie2, name2 = _state$orderedModifie.name;
+              if (typeof fn2 === "function") {
+                state = fn2({
+                  state,
+                  options: _options,
+                  name: name2,
+                  instance
+                }) || state;
+              }
+            }
+          },
+          // Async and optimistically optimized update – it will not be executed if
+          // not necessary (debounced to run at most once-per-tick)
+          update: debounce$1(function() {
+            return new Promise(function(resolve) {
+              instance.forceUpdate();
+              resolve(state);
+            });
+          }),
+          destroy: function destroy() {
+            cleanupModifierEffects();
+            isDestroyed = true;
+          }
+        };
+        if (!areValidElements(reference2, popper2)) {
+          return instance;
+        }
+        instance.setOptions(options2).then(function(state2) {
+          if (!isDestroyed && options2.onFirstUpdate) {
+            options2.onFirstUpdate(state2);
+          }
+        });
+        function runModifierEffects() {
+          state.orderedModifiers.forEach(function(_ref) {
+            var name2 = _ref.name, _ref$options = _ref.options, options3 = _ref$options === void 0 ? {} : _ref$options, effect2 = _ref.effect;
+            if (typeof effect2 === "function") {
+              var cleanupFn = effect2({
+                state,
+                name: name2,
+                instance,
+                options: options3
+              });
+              var noopFn = function noopFn2() {
+              };
+              effectCleanupFns.push(cleanupFn || noopFn);
+            }
+          });
+        }
+        function cleanupModifierEffects() {
+          effectCleanupFns.forEach(function(fn2) {
+            return fn2();
+          });
+          effectCleanupFns = [];
+        }
+        return instance;
+      };
+    }
+    var defaultModifiers = [eventListeners, popperOffsets$1, computeStyles$1, applyStyles$1, offset$1, flip$1, preventOverflow$1, arrow$1, hide$1];
+    var createPopper = /* @__PURE__ */ popperGenerator({
+      defaultModifiers
+    });
+    var hasElementType = typeof Element !== "undefined";
+    var hasMap = typeof Map === "function";
+    var hasSet = typeof Set === "function";
+    var hasArrayBuffer = typeof ArrayBuffer === "function" && !!ArrayBuffer.isView;
+    function equal(a, b) {
+      if (a === b) return true;
+      if (a && b && typeof a == "object" && typeof b == "object") {
+        if (a.constructor !== b.constructor) return false;
+        var length, i2, keys;
+        if (Array.isArray(a)) {
+          length = a.length;
+          if (length != b.length) return false;
+          for (i2 = length; i2-- !== 0; )
+            if (!equal(a[i2], b[i2])) return false;
+          return true;
+        }
+        var it;
+        if (hasMap && a instanceof Map && b instanceof Map) {
+          if (a.size !== b.size) return false;
+          it = a.entries();
+          while (!(i2 = it.next()).done)
+            if (!b.has(i2.value[0])) return false;
+          it = a.entries();
+          while (!(i2 = it.next()).done)
+            if (!equal(i2.value[1], b.get(i2.value[0]))) return false;
+          return true;
+        }
+        if (hasSet && a instanceof Set && b instanceof Set) {
+          if (a.size !== b.size) return false;
+          it = a.entries();
+          while (!(i2 = it.next()).done)
+            if (!b.has(i2.value[0])) return false;
+          return true;
+        }
+        if (hasArrayBuffer && ArrayBuffer.isView(a) && ArrayBuffer.isView(b)) {
+          length = a.length;
+          if (length != b.length) return false;
+          for (i2 = length; i2-- !== 0; )
+            if (a[i2] !== b[i2]) return false;
+          return true;
+        }
+        if (a.constructor === RegExp) return a.source === b.source && a.flags === b.flags;
+        if (a.valueOf !== Object.prototype.valueOf && typeof a.valueOf === "function" && typeof b.valueOf === "function") return a.valueOf() === b.valueOf();
+        if (a.toString !== Object.prototype.toString && typeof a.toString === "function" && typeof b.toString === "function") return a.toString() === b.toString();
+        keys = Object.keys(a);
+        length = keys.length;
+        if (length !== Object.keys(b).length) return false;
+        for (i2 = length; i2-- !== 0; )
+          if (!Object.prototype.hasOwnProperty.call(b, keys[i2])) return false;
+        if (hasElementType && a instanceof Element) return false;
+        for (i2 = length; i2-- !== 0; ) {
+          if ((keys[i2] === "_owner" || keys[i2] === "__v" || keys[i2] === "__o") && a.$$typeof) {
+            continue;
+          }
+          if (!equal(a[keys[i2]], b[keys[i2]])) return false;
+        }
+        return true;
+      }
+      return a !== a && b !== b;
+    }
+    var reactFastCompare = function isEqual2(a, b) {
+      try {
+        return equal(a, b);
+      } catch (error2) {
+        if ((error2.message || "").match(/stack|recursion/i)) {
+          console.warn("react-fast-compare cannot handle circular refs");
+          return false;
+        }
+        throw error2;
+      }
+    };
+    const isEqual = /* @__PURE__ */ getDefaultExportFromCjs(reactFastCompare);
+    var EMPTY_MODIFIERS = [];
+    var usePopper = function usePopper2(referenceElement, popperElement, options2) {
+      if (options2 === void 0) {
+        options2 = {};
+      }
+      var prevOptions = reactExports.useRef(null);
+      var optionsWithDefaults = {
+        onFirstUpdate: options2.onFirstUpdate,
+        placement: options2.placement || "bottom",
+        strategy: options2.strategy || "absolute",
+        modifiers: options2.modifiers || EMPTY_MODIFIERS
+      };
+      var _React$useState = reactExports.useState({
+        styles: {
+          popper: {
+            position: optionsWithDefaults.strategy,
+            left: "0",
+            top: "0"
+          },
+          arrow: {
+            position: "absolute"
+          }
+        },
+        attributes: {}
+      }), state = _React$useState[0], setState = _React$useState[1];
+      var updateStateModifier = reactExports.useMemo(function() {
+        return {
+          name: "updateState",
+          enabled: true,
+          phase: "write",
+          fn: function fn2(_ref) {
+            var state2 = _ref.state;
+            var elements = Object.keys(state2.elements);
+            reactDomExports.flushSync(function() {
+              setState({
+                styles: fromEntries(elements.map(function(element) {
+                  return [element, state2.styles[element] || {}];
+                })),
+                attributes: fromEntries(elements.map(function(element) {
+                  return [element, state2.attributes[element]];
+                }))
+              });
+            });
+          },
+          requires: ["computeStyles"]
+        };
+      }, []);
+      var popperOptions = reactExports.useMemo(function() {
+        var newOptions = {
+          onFirstUpdate: optionsWithDefaults.onFirstUpdate,
+          placement: optionsWithDefaults.placement,
+          strategy: optionsWithDefaults.strategy,
+          modifiers: [].concat(optionsWithDefaults.modifiers, [updateStateModifier, {
+            name: "applyStyles",
+            enabled: false
+          }])
+        };
+        if (isEqual(prevOptions.current, newOptions)) {
+          return prevOptions.current || newOptions;
+        } else {
+          prevOptions.current = newOptions;
+          return newOptions;
+        }
+      }, [optionsWithDefaults.onFirstUpdate, optionsWithDefaults.placement, optionsWithDefaults.strategy, optionsWithDefaults.modifiers, updateStateModifier]);
+      var popperInstanceRef = reactExports.useRef();
+      useIsomorphicLayoutEffect(function() {
+        if (popperInstanceRef.current) {
+          popperInstanceRef.current.setOptions(popperOptions);
+        }
+      }, [popperOptions]);
+      useIsomorphicLayoutEffect(function() {
+        if (referenceElement == null || popperElement == null) {
+          return;
+        }
+        var createPopper$1 = options2.createPopper || createPopper;
+        var popperInstance = createPopper$1(referenceElement, popperElement, popperOptions);
+        popperInstanceRef.current = popperInstance;
+        return function() {
+          popperInstance.destroy();
+          popperInstanceRef.current = null;
+        };
+      }, [referenceElement, popperElement, options2.createPopper]);
+      return {
+        state: popperInstanceRef.current ? popperInstanceRef.current.state : null,
+        styles: state.styles,
+        attributes: state.attributes,
+        update: popperInstanceRef.current ? popperInstanceRef.current.update : null,
+        forceUpdate: popperInstanceRef.current ? popperInstanceRef.current.forceUpdate : null
+      };
+    };
+    const PopOver = ({
+      id,
+      isOpen,
+      positionEl,
+      children: children2,
+      placement = "bottom",
+      showArrow = true,
+      offset: offset2 = [0, 8],
+      className: className2 = "",
+      arrowClassName = "",
+      usePortal = true
+    }) => {
+      const popperRef = reactExports.useRef(null);
+      const arrowRef = reactExports.useRef(null);
+      const [portalContainer, setPortalContainer] = reactExports.useState(
+        null
+      );
+      reactExports.useEffect(() => {
+        if (usePortal && isOpen) {
+          let container2 = document.getElementById(id);
+          if (!container2) {
+            container2 = document.createElement("div");
+            container2.id = id;
+            container2.style.position = "absolute";
+            container2.style.top = "0";
+            container2.style.left = "0";
+            container2.style.zIndex = "9999";
+            container2.style.width = "0";
+            container2.style.height = "0";
+            container2.style.overflow = "visible";
+            document.body.appendChild(container2);
+          }
+          setPortalContainer(container2);
+          return () => {
+            if (document.body.contains(container2)) {
+              document.body.removeChild(container2);
+              setPortalContainer(null);
+            }
+          };
+        }
+        return void 0;
+      }, [usePortal, isOpen, id]);
+      const modifiers2 = [
+        { name: "offset", options: { offset: offset2 } },
+        { name: "preventOverflow", options: { padding: 8 } },
+        {
+          name: "arrow",
+          enabled: showArrow,
+          options: {
+            element: arrowRef.current,
+            padding: 8
+          }
+        },
+        {
+          name: "computeStyles",
+          options: {
+            gpuAcceleration: false,
+            adaptive: true
+          }
+        }
+      ];
+      const { styles: styles2, attributes, state, update } = usePopper(
+        positionEl,
+        popperRef.current,
+        {
+          placement,
+          strategy: "fixed",
+          modifiers: modifiers2
+        }
+      );
+      reactExports.useEffect(() => {
+        if (update && isOpen) {
+          const timer = setTimeout(() => {
+            update();
+          }, 10);
+          return () => clearTimeout(timer);
+        }
+      }, [update, isOpen, showArrow, arrowRef.current]);
+      const getArrowDataPlacement = () => {
+        if (!state || !state.placement) return placement;
+        return state.placement;
+      };
+      const getArrowBorderStyling = () => {
+        const placement2 = getArrowDataPlacement();
+        const borderStyle = "1px solid #eee";
+        const result2 = {
+          borderTop: "none",
+          borderLeft: "none",
+          borderRight: "none",
+          borderBottom: "none"
+        };
+        if (placement2.startsWith("top")) {
+          result2.borderRight = borderStyle;
+          result2.borderBottom = borderStyle;
+        } else if (placement2.startsWith("bottom")) {
+          result2.borderTop = borderStyle;
+          result2.borderLeft = borderStyle;
+        } else if (placement2.startsWith("left")) {
+          result2.borderTop = borderStyle;
+          result2.borderRight = borderStyle;
+        } else if (placement2.startsWith("right")) {
+          result2.borderBottom = borderStyle;
+          result2.borderLeft = borderStyle;
+        }
+        return result2;
+      };
+      const defaultPopperStyles = {
+        backgroundColor: "white",
+        padding: "12px",
+        borderRadius: "4px",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+        border: "1px solid #eee",
+        zIndex: 1200
+      };
+      if (!isOpen) return null;
+      const popperContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
+        "div",
+        {
+          ref: popperRef,
+          style: { ...defaultPopperStyles, ...styles2.popper },
+          className: clsx(className2),
+          ...attributes.popper,
+          children: [
+            children2,
+            showArrow && /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "div",
+              {
+                ref: arrowRef,
+                className: clsx("popper-arrow", arrowClassName),
+                style: {
+                  ...styles2.arrow,
+                  position: "absolute",
+                  width: "8px",
+                  height: "8px",
+                  backgroundColor: "white",
+                  ...getArrowBorderStyling(),
+                  transform: "rotate(45deg)",
+                  // Ensure the arrow isn't too close to content
+                  margin: "-4px",
+                  top: 0,
+                  zIndex: 1
+                },
+                "data-placement": getArrowDataPlacement()
+              }
+            )
+          ]
+        }
+      );
+      if (usePortal && portalContainer) {
+        return reactDomExports.createPortal(popperContent, portalContainer);
+      }
+      return popperContent;
+    };
     const parsePackageName = (name2) => {
       if (name2.includes("/")) {
         const [packageName, moduleName] = name2.split("/", 2);
@@ -52633,13 +54332,14 @@ self.onmessage = function (e) {
       }
       return { package: "", module: name2 };
     };
-    const eventRow = "_eventRow_9ditj_12";
-    const toggle = "_toggle_9ditj_19";
-    const eventLink = "_eventLink_9ditj_24";
-    const label$5 = "_label_9ditj_35";
-    const eventPadding = "_eventPadding_9ditj_41";
-    const icon = "_icon_9ditj_45";
-    const progress$2 = "_progress_9ditj_49";
+    const eventRow = "_eventRow_a4seo_12";
+    const toggle = "_toggle_a4seo_19";
+    const eventLink = "_eventLink_a4seo_24";
+    const label$5 = "_label_a4seo_35";
+    const eventPadding = "_eventPadding_a4seo_41";
+    const icon = "_icon_a4seo_45";
+    const progress$2 = "_progress_a4seo_49";
+    const popover = "_popover_a4seo_53";
     const styles$x = {
       eventRow,
       toggle,
@@ -52647,7 +54347,8 @@ self.onmessage = function (e) {
       label: label$5,
       eventPadding,
       icon,
-      progress: progress$2
+      progress: progress$2,
+      popover
     };
     const kSandboxSignalName = "53787D8A-D3FC-426D-B383-9F880B70E4AA";
     const fixupEventStream = (events, filterPending = true) => {
@@ -52830,7 +54531,7 @@ self.onmessage = function (e) {
             // of turns
             collapseMultipleTurnsVisitor(),
             // Remove any leftover bare model calls that aren't in turns
-            //removeNodeVisitor("model"),
+            removeNodeVisitor("model"),
             // Remove child events for scorers
             noScorerChildren()
           ]
@@ -52889,39 +54590,57 @@ self.onmessage = function (e) {
       );
       const icon2 = iconForNode(node2);
       const toggle2 = toggleIcon(node2, collapsed2);
+      const popoverId = `${node2.id}-popover`;
+      const { show, hide: hide2, isShowing } = useSamplePopover(popoverId);
+      const ref = reactExports.useRef(null);
       const { logPath, sampleId, epoch } = useParams();
       const url = logPath ? sampleEventUrl(node2.id, logPath, sampleId, epoch) : void 0;
-      return /* @__PURE__ */ jsxRuntimeExports.jsxs(
-        "div",
-        {
-          className: clsx(styles$x.eventRow, "text-size-smallest"),
-          style: { paddingLeft: `${node2.depth * 0.4}em` },
-          children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                className: clsx(styles$x.toggle),
-                onClick: () => {
-                  setCollapsed(!collapsed2);
-                },
-                children: toggle2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(toggle2) }) : void 0
-              }
-            ),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$x.label), "data-depth": node2.depth, children: [
-              icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$x.icon) }) : void 0,
-              url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, className: clsx(styles$x.eventLink), children: parsePackageName(labelForNode(node2)).module }) : parsePackageName(labelForNode(node2)).module,
-              running2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-                PulsingDots,
+      return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsxs(
+          "div",
+          {
+            className: clsx(styles$x.eventRow, "text-size-smallest"),
+            style: { paddingLeft: `${node2.depth * 0.4}em` },
+            onMouseOver: show,
+            onMouseLeave: hide2,
+            children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
                 {
-                  size: "small",
-                  className: styles$x.progress,
-                  subtle: false
+                  className: clsx(styles$x.toggle),
+                  onClick: () => {
+                    setCollapsed(!collapsed2);
+                  },
+                  children: toggle2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(toggle2) }) : void 0
                 }
-              ) : void 0
-            ] })
-          ]
-        }
-      );
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$x.label), "data-depth": node2.depth, children: [
+                icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$x.icon) }) : void 0,
+                url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, className: clsx(styles$x.eventLink), ref, children: parsePackageName(labelForNode(node2)).module }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, children: parsePackageName(labelForNode(node2)).module }),
+                running2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  PulsingDots,
+                  {
+                    size: "small",
+                    className: clsx(styles$x.progress),
+                    subtle: false
+                  }
+                ) : void 0
+              ] })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          PopOver,
+          {
+            id: `${node2.id}-popover`,
+            positionEl: ref.current,
+            isOpen: isShowing,
+            className: clsx(styles$x.popper),
+            placement: "auto-end",
+            children: summarizeNode(node2)
+          }
+        )
+      ] });
     };
     const toggleIcon = (node2, collapsed2) => {
       if (node2.children.length > 0) {
@@ -53026,6 +54745,22 @@ self.onmessage = function (e) {
           return [node2];
         }
       };
+    };
+    const summarizeNode = (node2) => {
+      const entries = {
+        id: node2.id,
+        event: node2.event.event,
+        start: node2.event.working_start,
+        timestamp: node2.event.timestamp
+      };
+      return /* @__PURE__ */ jsxRuntimeExports.jsx(
+        MetaDataGrid,
+        {
+          entries,
+          size: "mini",
+          className: clsx(styles$x.popover, "text-size-smallest")
+        }
+      );
     };
     const kTurnType = "type";
     const collapseMultipleTurnsVisitor = () => {
@@ -54236,10 +55971,10 @@ self.onmessage = function (e) {
       }
     }
     class DiffContext extends Context {
-      constructor(left, right) {
+      constructor(left2, right2) {
         super();
-        this.left = left;
-        this.right = right;
+        this.left = left2;
+        this.right = right2;
         this.pipe = "diff";
       }
       prepareDeltaResult(result2) {
@@ -54268,9 +56003,9 @@ self.onmessage = function (e) {
       }
     }
     class PatchContext extends Context {
-      constructor(left, delta) {
+      constructor(left2, delta) {
         super();
-        this.left = left;
+        this.left = left2;
         this.delta = delta;
         this.pipe = "patch";
       }
@@ -54952,28 +56687,28 @@ self.onmessage = function (e) {
       if (context.leftIsArray || context.leftType !== "object") {
         return;
       }
-      const left = context.left;
-      const right = context.right;
+      const left2 = context.left;
+      const right2 = context.right;
       const propertyFilter = (_a2 = context.options) === null || _a2 === void 0 ? void 0 : _a2.propertyFilter;
-      for (const name2 in left) {
-        if (!Object.prototype.hasOwnProperty.call(left, name2)) {
+      for (const name2 in left2) {
+        if (!Object.prototype.hasOwnProperty.call(left2, name2)) {
           continue;
         }
         if (propertyFilter && !propertyFilter(name2, context)) {
           continue;
         }
-        const child = new DiffContext(left[name2], right[name2]);
+        const child = new DiffContext(left2[name2], right2[name2]);
         context.push(child, name2);
       }
-      for (const name2 in right) {
-        if (!Object.prototype.hasOwnProperty.call(right, name2)) {
+      for (const name2 in right2) {
+        if (!Object.prototype.hasOwnProperty.call(right2, name2)) {
           continue;
         }
         if (propertyFilter && !propertyFilter(name2, context)) {
           continue;
         }
-        if (typeof left[name2] === "undefined") {
-          const child = new DiffContext(void 0, right[name2]);
+        if (typeof left2[name2] === "undefined") {
+          const child = new DiffContext(void 0, right2[name2]);
           context.push(child, name2);
         }
       }
@@ -55101,20 +56836,20 @@ self.onmessage = function (e) {
       if (context.leftType !== "string") {
         return;
       }
-      const left = context.left;
-      const right = context.right;
+      const left2 = context.left;
+      const right2 = context.right;
       const minLength = ((_b2 = (_a2 = context.options) === null || _a2 === void 0 ? void 0 : _a2.textDiff) === null || _b2 === void 0 ? void 0 : _b2.minLength) || DEFAULT_MIN_LENGTH;
-      if (left.length < minLength || right.length < minLength) {
-        context.setResult([left, right]).exit();
+      if (left2.length < minLength || right2.length < minLength) {
+        context.setResult([left2, right2]).exit();
         return;
       }
       const diffMatchPatch = getDiffMatchPatch(context.options);
       if (!diffMatchPatch) {
-        context.setResult([left, right]).exit();
+        context.setResult([left2, right2]).exit();
         return;
       }
       const diff2 = diffMatchPatch.diff;
-      context.setResult([diff2(left, right), 0, TEXT_DIFF]).exit();
+      context.setResult([diff2(left2, right2), 0, TEXT_DIFF]).exit();
     };
     diffFilter$1.filterName = "texts";
     const patchFilter$1 = function textsPatchFilter(context) {
@@ -55281,35 +57016,35 @@ self.onmessage = function (e) {
       options(options2) {
         return this.processor.options(options2);
       }
-      diff(left, right) {
-        return this.processor.process(new DiffContext(left, right));
+      diff(left2, right2) {
+        return this.processor.process(new DiffContext(left2, right2));
       }
-      patch(left, delta) {
-        return this.processor.process(new PatchContext(left, delta));
+      patch(left2, delta) {
+        return this.processor.process(new PatchContext(left2, delta));
       }
       reverse(delta) {
         return this.processor.process(new ReverseContext(delta));
       }
-      unpatch(right, delta) {
-        return this.patch(right, this.reverse(delta));
+      unpatch(right2, delta) {
+        return this.patch(right2, this.reverse(delta));
       }
       clone(value2) {
         return clone(value2);
       }
     }
     let defaultInstance$1;
-    function diff$1(left, right) {
+    function diff$1(left2, right2) {
       if (!defaultInstance$1) {
         defaultInstance$1 = new DiffPatcher();
       }
-      return defaultInstance$1.diff(left, right);
+      return defaultInstance$1.diff(left2, right2);
     }
     class BaseFormatter {
-      format(delta, left) {
+      format(delta, left2) {
         const context = {};
         this.prepareContext(context);
         const preparedContext = context;
-        this.recurse(preparedContext, delta, left);
+        this.recurse(preparedContext, delta, left2);
         return this.finalize(preparedContext);
       }
       prepareContext(context) {
@@ -55334,9 +57069,9 @@ self.onmessage = function (e) {
         }
         return "";
       }
-      recurse(context, delta, left, key2, leftKey, movedFrom, isLast) {
+      recurse(context, delta, left2, key2, leftKey, movedFrom, isLast) {
         const useMoveOriginHere = delta && movedFrom;
-        const leftValue = useMoveOriginHere ? movedFrom.value : left;
+        const leftValue = useMoveOriginHere ? movedFrom.value : left2;
         if (typeof delta === "undefined" && typeof key2 === "undefined") {
           return void 0;
         }
@@ -55363,18 +57098,18 @@ self.onmessage = function (e) {
           this.rootEnd(context, type, nodeType);
         }
       }
-      formatDeltaChildren(context, delta, left) {
-        this.forEachDeltaKey(delta, left, (key2, leftKey, movedFrom, isLast) => {
-          this.recurse(context, delta[key2], left ? left[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
+      formatDeltaChildren(context, delta, left2) {
+        this.forEachDeltaKey(delta, left2, (key2, leftKey, movedFrom, isLast) => {
+          this.recurse(context, delta[key2], left2 ? left2[leftKey] : void 0, key2, leftKey, movedFrom, isLast);
         });
       }
-      forEachDeltaKey(delta, left, fn2) {
+      forEachDeltaKey(delta, left2, fn2) {
         const keys = [];
         const arrayKeys = delta._t === "a";
         if (!arrayKeys) {
           const deltaKeys = Object.keys(delta);
-          if (typeof left === "object" && left !== null) {
-            keys.push(...Object.keys(left));
+          if (typeof left2 === "object" && left2 !== null) {
+            keys.push(...Object.keys(left2));
           }
           for (const key2 of deltaKeys) {
             if (keys.indexOf(key2) >= 0)
@@ -55410,7 +57145,7 @@ self.onmessage = function (e) {
         const arrayDelta = delta;
         let leftIndex = 0;
         let rightIndex = 0;
-        const leftArray = Array.isArray(left) ? left : void 0;
+        const leftArray = Array.isArray(left2) ? left2 : void 0;
         const leftLength = leftArray ? leftArray.length : (
           // if we don't have the original array,
           // use a length that ensures we'll go thru all delta keys
@@ -55615,26 +57350,26 @@ self.onmessage = function (e) {
       nodeEnd(context) {
         context.out("</li>");
       }
-      format_unchanged(context, _delta, left) {
-        if (typeof left === "undefined") {
+      format_unchanged(context, _delta, left2) {
+        if (typeof left2 === "undefined") {
           return;
         }
         context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, left);
+        this.formatValue(context, left2);
         context.out("</div>");
       }
-      format_movedestination(context, _delta, left) {
-        if (typeof left === "undefined") {
+      format_movedestination(context, _delta, left2) {
+        if (typeof left2 === "undefined") {
           return;
         }
         context.out('<div class="jsondiffpatch-value">');
-        this.formatValue(context, left);
+        this.formatValue(context, left2);
         context.out("</div>");
       }
-      format_node(context, delta, left) {
+      format_node(context, delta, left2) {
         const nodeType = delta._t === "a" ? "array" : "object";
         context.out(`<ul class="jsondiffpatch-node jsondiffpatch-node-type-${nodeType}">`);
-        this.formatDeltaChildren(context, delta, left);
+        this.formatDeltaChildren(context, delta, left2);
         context.out("</ul>");
       }
       format_added(context, delta) {
@@ -55750,11 +57485,11 @@ self.onmessage = function (e) {
       });
     };
     let defaultInstance;
-    function format(delta, left) {
+    function format(delta, left2) {
       if (!defaultInstance) {
         defaultInstance = new HtmlFormatter();
       }
-      return defaultInstance.format(delta, left);
+      return defaultInstance.format(delta, left2);
     }
     const StateDiffView = ({
       before,
@@ -56010,23 +57745,23 @@ ${val.stack}`;
       let len = arg.length;
       let ptr = malloc(len, 1) >>> 0;
       const mem = getUint8Memory0();
-      let offset = 0;
-      for (; offset < len; offset++) {
-        const code2 = arg.charCodeAt(offset);
+      let offset2 = 0;
+      for (; offset2 < len; offset2++) {
+        const code2 = arg.charCodeAt(offset2);
         if (code2 > 127) break;
-        mem[ptr + offset] = code2;
+        mem[ptr + offset2] = code2;
       }
-      if (offset !== len) {
-        if (offset !== 0) {
-          arg = arg.slice(offset);
+      if (offset2 !== len) {
+        if (offset2 !== 0) {
+          arg = arg.slice(offset2);
         }
-        ptr = realloc(ptr, len, len = offset + arg.length * 3, 1) >>> 0;
-        const view = getUint8Memory0().subarray(ptr + offset, ptr + len);
+        ptr = realloc(ptr, len, len = offset2 + arg.length * 3, 1) >>> 0;
+        const view = getUint8Memory0().subarray(ptr + offset2, ptr + len);
         const ret = encodeString(arg, view);
-        offset += ret.written;
-        ptr = realloc(ptr, len, offset, 1) >>> 0;
+        offset2 += ret.written;
+        ptr = realloc(ptr, len, offset2, 1) >>> 0;
       }
-      WASM_VECTOR_LEN = offset;
+      WASM_VECTOR_LEN = offset2;
       return ptr;
     }
     let cachedInt32Memory0 = null;
@@ -56450,9 +58185,9 @@ ${val.stack}`;
       }
     }
     class Multiplexer {
-      constructor(left, right, comparator) {
-        this.left = left;
-        this.right = right;
+      constructor(left2, right2, comparator) {
+        this.left = left2;
+        this.right = right2;
         this.comparator = comparator;
       }
       [Symbol.iterator]() {
@@ -57553,9 +59288,9 @@ ${events}
     }
     class BinaryReader {
       constructor(inner) {
-        let offset = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : 0;
+        let offset2 = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : 0;
         this.inner = inner;
-        this.offset = offset;
+        this.offset = offset2;
       }
       forward(delta) {
         this.offset += delta;
@@ -58894,7 +60629,7 @@ ${events}
         let newItems = list2() || [], i2, j2;
         newItems[$TRACK];
         return untrack(() => {
-          let newLen = newItems.length, newIndices, newIndicesNext, temp, tempdisposers, tempIndexes, start, end, newEnd, item2;
+          let newLen = newItems.length, newIndices, newIndicesNext, temp, tempdisposers, tempIndexes, start2, end2, newEnd, item2;
           if (newLen === 0) {
             if (len !== 0) {
               dispose(disposers);
@@ -58923,21 +60658,21 @@ ${events}
             temp = new Array(newLen);
             tempdisposers = new Array(newLen);
             indexes && (tempIndexes = new Array(newLen));
-            for (start = 0, end = Math.min(len, newLen); start < end && items[start] === newItems[start]; start++) ;
-            for (end = len - 1, newEnd = newLen - 1; end >= start && newEnd >= start && items[end] === newItems[newEnd]; end--, newEnd--) {
-              temp[newEnd] = mapped[end];
-              tempdisposers[newEnd] = disposers[end];
-              indexes && (tempIndexes[newEnd] = indexes[end]);
+            for (start2 = 0, end2 = Math.min(len, newLen); start2 < end2 && items[start2] === newItems[start2]; start2++) ;
+            for (end2 = len - 1, newEnd = newLen - 1; end2 >= start2 && newEnd >= start2 && items[end2] === newItems[newEnd]; end2--, newEnd--) {
+              temp[newEnd] = mapped[end2];
+              tempdisposers[newEnd] = disposers[end2];
+              indexes && (tempIndexes[newEnd] = indexes[end2]);
             }
             newIndices = /* @__PURE__ */ new Map();
             newIndicesNext = new Array(newEnd + 1);
-            for (j2 = newEnd; j2 >= start; j2--) {
+            for (j2 = newEnd; j2 >= start2; j2--) {
               item2 = newItems[j2];
               i2 = newIndices.get(item2);
               newIndicesNext[j2] = i2 === void 0 ? -1 : i2;
               newIndices.set(item2, j2);
             }
-            for (i2 = start; i2 <= end; i2++) {
+            for (i2 = start2; i2 <= end2; i2++) {
               item2 = items[i2];
               j2 = newIndices.get(item2);
               if (j2 !== void 0 && j2 !== -1) {
@@ -58948,7 +60683,7 @@ ${events}
                 newIndices.set(item2, j2);
               } else disposers[i2]();
             }
-            for (j2 = start; j2 < newLen; j2++) {
+            for (j2 = start2; j2 < newLen; j2++) {
               if (j2 in temp) {
                 mapped[j2] = temp[j2];
                 disposers[j2] = tempdisposers[j2];
@@ -59654,16 +61389,16 @@ ${events}
       }
       if (Array.isArray(target2)) {
         if (target2.length && previous.length && (!merge || key2 && target2[0] && target2[0][key2] != null)) {
-          let i2, j2, start, end, newEnd, item2, newIndicesNext, keyVal;
-          for (start = 0, end = Math.min(previous.length, target2.length); start < end && (previous[start] === target2[start] || key2 && previous[start] && target2[start] && previous[start][key2] === target2[start][key2]); start++) {
-            applyState(target2[start], previous, start, merge, key2);
+          let i2, j2, start2, end2, newEnd, item2, newIndicesNext, keyVal;
+          for (start2 = 0, end2 = Math.min(previous.length, target2.length); start2 < end2 && (previous[start2] === target2[start2] || key2 && previous[start2] && target2[start2] && previous[start2][key2] === target2[start2][key2]); start2++) {
+            applyState(target2[start2], previous, start2, merge, key2);
           }
           const temp = new Array(target2.length), newIndices = /* @__PURE__ */ new Map();
-          for (end = previous.length - 1, newEnd = target2.length - 1; end >= start && newEnd >= start && (previous[end] === target2[newEnd] || key2 && previous[start] && target2[start] && previous[end][key2] === target2[newEnd][key2]); end--, newEnd--) {
-            temp[newEnd] = previous[end];
+          for (end2 = previous.length - 1, newEnd = target2.length - 1; end2 >= start2 && newEnd >= start2 && (previous[end2] === target2[newEnd] || key2 && previous[start2] && target2[start2] && previous[end2][key2] === target2[newEnd][key2]); end2--, newEnd--) {
+            temp[newEnd] = previous[end2];
           }
-          if (start > newEnd || start > end) {
-            for (j2 = start; j2 <= newEnd; j2++) setProperty(previous, j2, target2[j2]);
+          if (start2 > newEnd || start2 > end2) {
+            for (j2 = start2; j2 <= newEnd; j2++) setProperty(previous, j2, target2[j2]);
             for (; j2 < target2.length; j2++) {
               setProperty(previous, j2, temp[j2]);
               applyState(target2[j2], previous, j2, merge, key2);
@@ -59672,14 +61407,14 @@ ${events}
             return;
           }
           newIndicesNext = new Array(newEnd + 1);
-          for (j2 = newEnd; j2 >= start; j2--) {
+          for (j2 = newEnd; j2 >= start2; j2--) {
             item2 = target2[j2];
             keyVal = key2 && item2 ? item2[key2] : item2;
             i2 = newIndices.get(keyVal);
             newIndicesNext[j2] = i2 === void 0 ? -1 : i2;
             newIndices.set(keyVal, j2);
           }
-          for (i2 = start; i2 <= end; i2++) {
+          for (i2 = start2; i2 <= end2; i2++) {
             item2 = previous[i2];
             keyVal = key2 && item2 ? item2[key2] : item2;
             j2 = newIndices.get(keyVal);
@@ -59689,7 +61424,7 @@ ${events}
               newIndices.set(keyVal, j2);
             }
           }
-          for (j2 = start; j2 < target2.length; j2++) {
+          for (j2 = start2; j2 < target2.length; j2++) {
             if (j2 in temp) {
               setProperty(previous, j2, temp[j2]);
               applyState(target2[j2], previous, j2, merge, key2);
@@ -59794,11 +61529,11 @@ ${events}
         return `${prefix2}${color}`;
       }
     }
-    function buildStyle(attrs, offset, width) {
+    function buildStyle(attrs, offset2, width) {
       const fg = attrs.get("fg");
       const bg = attrs.get("bg");
       let style2 = {
-        "--offset": offset,
+        "--offset": offset2,
         width: `${width + 0.01}ch`
       };
       if (typeof fg === "string") {
@@ -63227,16 +64962,16 @@ ${events}
           return true;
         if (other.length != this.length || other.lines != this.lines)
           return false;
-        let start = this.scanIdentical(other, 1), end = this.length - this.scanIdentical(other, -1);
+        let start2 = this.scanIdentical(other, 1), end2 = this.length - this.scanIdentical(other, -1);
         let a = new RawTextCursor(this), b = new RawTextCursor(other);
-        for (let skip = start, pos2 = start; ; ) {
+        for (let skip = start2, pos2 = start2; ; ) {
           a.next(skip);
           b.next(skip);
           skip = 0;
           if (a.lineBreak != b.lineBreak || a.done != b.done || a.value != b.value)
             return false;
           pos2 += a.value.length;
-          if (a.done || pos2 >= end)
+          if (a.done || pos2 >= end2)
             return true;
         }
       }
@@ -63269,8 +65004,8 @@ ${events}
         } else {
           if (to2 == null)
             to2 = this.lines + 1;
-          let start = this.line(from).from;
-          inner = this.iterRange(start, Math.max(start, to2 == this.lines + 1 ? this.length : to2 <= 1 ? 0 : this.line(to2 - 1).to));
+          let start2 = this.line(from).from;
+          inner = this.iterRange(start2, Math.max(start2, to2 == this.lines + 1 ? this.length : to2 <= 1 ? 0 : this.line(to2 - 1).to));
         }
         return new LineCursor(inner);
       }
@@ -63318,12 +65053,12 @@ ${events}
       get children() {
         return null;
       }
-      lineInner(target2, isLine, line2, offset) {
+      lineInner(target2, isLine, line2, offset2) {
         for (let i2 = 0; ; i2++) {
-          let string2 = this.text[i2], end = offset + string2.length;
-          if ((isLine ? line2 : end) >= target2)
-            return new Line(offset, end, line2, string2);
-          offset = end + 1;
+          let string2 = this.text[i2], end2 = offset2 + string2.length;
+          if ((isLine ? line2 : end2) >= target2)
+            return new Line(offset2, end2, line2, string2);
+          offset2 = end2 + 1;
           line2++;
         }
       }
@@ -63356,12 +65091,12 @@ ${events}
         [from, to2] = clip(this, from, to2);
         let result2 = "";
         for (let pos2 = 0, i2 = 0; pos2 <= to2 && i2 < this.text.length; i2++) {
-          let line2 = this.text[i2], end = pos2 + line2.length;
+          let line2 = this.text[i2], end2 = pos2 + line2.length;
           if (pos2 > from && i2)
             result2 += lineSep;
-          if (from < end && to2 > pos2)
+          if (from < end2 && to2 > pos2)
             result2 += line2.slice(Math.max(0, from - pos2), to2 - pos2);
-          pos2 = end + 1;
+          pos2 = end2 + 1;
         }
         return result2;
       }
@@ -63397,34 +65132,34 @@ ${events}
         for (let child of children2)
           this.lines += child.lines;
       }
-      lineInner(target2, isLine, line2, offset) {
+      lineInner(target2, isLine, line2, offset2) {
         for (let i2 = 0; ; i2++) {
-          let child = this.children[i2], end = offset + child.length, endLine = line2 + child.lines - 1;
-          if ((isLine ? endLine : end) >= target2)
-            return child.lineInner(target2, isLine, line2, offset);
-          offset = end + 1;
+          let child = this.children[i2], end2 = offset2 + child.length, endLine = line2 + child.lines - 1;
+          if ((isLine ? endLine : end2) >= target2)
+            return child.lineInner(target2, isLine, line2, offset2);
+          offset2 = end2 + 1;
           line2 = endLine + 1;
         }
       }
       decompose(from, to2, target2, open) {
         for (let i2 = 0, pos2 = 0; pos2 <= to2 && i2 < this.children.length; i2++) {
-          let child = this.children[i2], end = pos2 + child.length;
-          if (from <= end && to2 >= pos2) {
-            let childOpen = open & ((pos2 <= from ? 1 : 0) | (end >= to2 ? 2 : 0));
-            if (pos2 >= from && end <= to2 && !childOpen)
+          let child = this.children[i2], end2 = pos2 + child.length;
+          if (from <= end2 && to2 >= pos2) {
+            let childOpen = open & ((pos2 <= from ? 1 : 0) | (end2 >= to2 ? 2 : 0));
+            if (pos2 >= from && end2 <= to2 && !childOpen)
               target2.push(child);
             else
               child.decompose(from - pos2, to2 - pos2, target2, childOpen);
           }
-          pos2 = end + 1;
+          pos2 = end2 + 1;
         }
       }
       replace(from, to2, text2) {
         [from, to2] = clip(this, from, to2);
         if (text2.lines < this.lines)
           for (let i2 = 0, pos2 = 0; i2 < this.children.length; i2++) {
-            let child = this.children[i2], end = pos2 + child.length;
-            if (from >= pos2 && to2 <= end) {
+            let child = this.children[i2], end2 = pos2 + child.length;
+            if (from >= pos2 && to2 <= end2) {
               let updated = child.replace(from - pos2, to2 - pos2, text2);
               let totalLines = this.lines - child.lines + updated.lines;
               if (updated.lines < totalLines >> 5 - 1 && updated.lines > totalLines >> 5 + 1) {
@@ -63432,9 +65167,9 @@ ${events}
                 copy[i2] = updated;
                 return new TextNode(copy, this.length - (to2 - from) + text2.length);
               }
-              return super.replace(pos2, end, updated);
+              return super.replace(pos2, end2, updated);
             }
-            pos2 = end + 1;
+            pos2 = end2 + 1;
           }
         return super.replace(from, to2, text2);
       }
@@ -63442,12 +65177,12 @@ ${events}
         [from, to2] = clip(this, from, to2);
         let result2 = "";
         for (let i2 = 0, pos2 = 0; i2 < this.children.length && pos2 <= to2; i2++) {
-          let child = this.children[i2], end = pos2 + child.length;
+          let child = this.children[i2], end2 = pos2 + child.length;
           if (pos2 > from && i2)
             result2 += lineSep;
-          if (from < end && to2 > pos2)
+          if (from < end2 && to2 > pos2)
             result2 += child.sliceString(from - pos2, to2 - pos2, lineSep);
-          pos2 = end + 1;
+          pos2 = end2 + 1;
         }
         return result2;
       }
@@ -63527,9 +65262,9 @@ ${events}
     }
     function appendText(text2, target2, from = 0, to2 = 1e9) {
       for (let pos2 = 0, i2 = 0, first = true; i2 < text2.length && pos2 <= to2; i2++) {
-        let line2 = text2[i2], end = pos2 + line2.length;
-        if (end >= from) {
-          if (end > to2)
+        let line2 = text2[i2], end2 = pos2 + line2.length;
+        if (end2 >= from) {
+          if (end2 > to2)
             line2 = line2.slice(0, to2 - pos2);
           if (pos2 < from)
             line2 = line2.slice(from - pos2);
@@ -63539,7 +65274,7 @@ ${events}
           } else
             target2.push(line2);
         }
-        pos2 = end + 1;
+        pos2 = end2 + 1;
       }
       return target2;
     }
@@ -63559,9 +65294,9 @@ ${events}
         this.done = this.lineBreak = false;
         for (; ; ) {
           let last = this.nodes.length - 1;
-          let top2 = this.nodes[last], offsetValue = this.offsets[last], offset = offsetValue >> 1;
+          let top2 = this.nodes[last], offsetValue = this.offsets[last], offset2 = offsetValue >> 1;
           let size = top2 instanceof TextLeaf ? top2.text.length : top2.children.length;
-          if (offset == (dir > 0 ? size : 0)) {
+          if (offset2 == (dir > 0 ? size : 0)) {
             if (last == 0) {
               this.done = true;
               this.value = "";
@@ -63580,7 +65315,7 @@ ${events}
             }
             skip--;
           } else if (top2 instanceof TextLeaf) {
-            let next = top2.text[offset + (dir < 0 ? -1 : 0)];
+            let next = top2.text[offset2 + (dir < 0 ? -1 : 0)];
             this.offsets[last] += dir;
             if (next.length > Math.max(0, skip)) {
               this.value = skip == 0 ? next : dir > 0 ? next.slice(skip) : next.slice(0, next.length - skip);
@@ -63588,7 +65323,7 @@ ${events}
             }
             skip -= next.length;
           } else {
-            let next = top2.children[offset + (dir < 0 ? -1 : 0)];
+            let next = top2.children[offset2 + (dir < 0 ? -1 : 0)];
             if (skip > next.length) {
               skip -= next.length;
               this.offsets[last] += dir;
@@ -63610,13 +65345,13 @@ ${events}
       }
     }
     class PartialTextCursor {
-      constructor(text2, start, end) {
+      constructor(text2, start2, end2) {
         this.value = "";
         this.done = false;
-        this.cursor = new RawTextCursor(text2, start > end ? -1 : 1);
-        this.pos = start > end ? text2.length : 0;
-        this.from = Math.min(start, end);
-        this.to = Math.max(start, end);
+        this.cursor = new RawTextCursor(text2, start2 > end2 ? -1 : 1);
+        this.pos = start2 > end2 ? text2.length : 0;
+        this.from = Math.min(start2, end2);
+        this.to = Math.max(start2, end2);
       }
       nextInner(skip, dir) {
         if (dir < 0 ? this.pos <= this.from : this.pos >= this.to) {
@@ -63871,10 +65606,10 @@ ${events}
       */
       touchesRange(from, to2 = from) {
         for (let i2 = 0, pos2 = 0; i2 < this.sections.length && pos2 <= to2; ) {
-          let len = this.sections[i2++], ins = this.sections[i2++], end = pos2 + len;
-          if (ins >= 0 && pos2 <= to2 && end >= from)
-            return pos2 < from && end > to2 ? "cover" : true;
-          pos2 = end;
+          let len = this.sections[i2++], ins = this.sections[i2++], end2 = pos2 + len;
+          if (ins >= 0 && pos2 <= to2 && end2 >= from)
+            return pos2 < from && end2 > to2 ? "cover" : true;
+          pos2 = end2;
         }
         return false;
       }
@@ -64015,11 +65750,11 @@ ${events}
             iter.forward(len);
             pos2 += len;
           }
-          let end = ranges[i2++];
-          while (pos2 < end) {
+          let end2 = ranges[i2++];
+          while (pos2 < end2) {
             if (iter.done)
               break done;
-            let len = Math.min(iter.len, end - pos2);
+            let len = Math.min(iter.len, end2 - pos2);
             addSection(resultSections, len, -1);
             addSection(filteredSections, len, iter.ins == -1 ? -1 : iter.off == 0 ? iter.ins : 0);
             iter.forward(len);
@@ -64211,15 +65946,15 @@ ${events}
           }
           b.next();
         } else if (a.ins >= 0) {
-          let len = 0, left = a.len;
-          while (left) {
+          let len = 0, left2 = a.len;
+          while (left2) {
             if (b.ins == -1) {
-              let piece = Math.min(left, b.len);
+              let piece = Math.min(left2, b.len);
               len += piece;
-              left -= piece;
+              left2 -= piece;
               b.forward(piece);
-            } else if (b.ins == 0 && b.len < left) {
-              left -= b.len;
+            } else if (b.ins == 0 && b.len < left2) {
+              left2 -= b.len;
               b.next();
             } else {
               break;
@@ -64229,7 +65964,7 @@ ${events}
           if (insert2 && inserted < a.i)
             addInsert(insert2, sections, a.text);
           inserted = a.i;
-          a.forward(a.len - left);
+          a.forward(a.len - left2);
         } else if (a.done && b.done) {
           return insert2 ? ChangeSet.createSet(sections, insert2) : ChangeDesc.create(sections);
         } else {
@@ -64476,8 +66211,8 @@ ${events}
       /**
       Extend this selection with an extra range.
       */
-      addRange(range, main = true) {
-        return EditorSelection.create([range].concat(this.ranges), main ? 0 : this.mainIndex + 1);
+      addRange(range, main2 = true) {
+        return EditorSelection.create([range].concat(this.ranges), main2 ? 0 : this.mainIndex + 1);
       }
       /**
       Replace a given range with another range, and then normalize the
@@ -64542,9 +66277,9 @@ ${events}
       @internal
       */
       static normalized(ranges, mainIndex = 0) {
-        let main = ranges[mainIndex];
+        let main2 = ranges[mainIndex];
         ranges.sort((a, b) => a.from - b.from);
-        mainIndex = ranges.indexOf(main);
+        mainIndex = ranges.indexOf(main2);
         for (let i2 = 1; i2 < ranges.length; i2++) {
           let range = ranges[i2], prev = ranges[i2 - 1];
           if (range.empty ? range.from <= prev.to : range.from < prev.to) {
@@ -65105,8 +66840,8 @@ ${events}
         if (!effects.length)
           return effects;
         let result2 = [];
-        for (let effect of effects) {
-          let mapped = effect.map(mapping);
+        for (let effect2 of effects) {
+          let mapped = effect2.map(mapping);
           if (mapped)
             result2.push(mapped);
         }
@@ -65400,20 +67135,20 @@ ${events}
       */
       applyTransaction(tr2) {
         let conf = this.config, { base: base2, compartments } = conf;
-        for (let effect of tr2.effects) {
-          if (effect.is(Compartment.reconfigure)) {
+        for (let effect2 of tr2.effects) {
+          if (effect2.is(Compartment.reconfigure)) {
             if (conf) {
               compartments = /* @__PURE__ */ new Map();
               conf.compartments.forEach((val, key2) => compartments.set(key2, val));
               conf = null;
             }
-            compartments.set(effect.value.compartment, effect.value.extension);
-          } else if (effect.is(StateEffect.reconfigure)) {
+            compartments.set(effect2.value.compartment, effect2.value.extension);
+          } else if (effect2.is(StateEffect.reconfigure)) {
             conf = null;
-            base2 = effect.value;
-          } else if (effect.is(StateEffect.appendConfig)) {
+            base2 = effect2.value;
+          } else if (effect2.is(StateEffect.appendConfig)) {
             conf = null;
-            base2 = asArray(base2).concat(effect.value);
+            base2 = asArray(base2).concat(effect2.value);
           }
         }
         let startValues;
@@ -65656,20 +67391,20 @@ ${events}
       wordAt(pos2) {
         let { text: text2, from, length } = this.doc.lineAt(pos2);
         let cat = this.charCategorizer(pos2);
-        let start = pos2 - from, end = pos2 - from;
-        while (start > 0) {
-          let prev = findClusterBreak(text2, start, false);
-          if (cat(text2.slice(prev, start)) != CharCategory.Word)
+        let start2 = pos2 - from, end2 = pos2 - from;
+        while (start2 > 0) {
+          let prev = findClusterBreak(text2, start2, false);
+          if (cat(text2.slice(prev, start2)) != CharCategory.Word)
             break;
-          start = prev;
+          start2 = prev;
         }
-        while (end < length) {
-          let next = findClusterBreak(text2, end);
-          if (cat(text2.slice(end, next)) != CharCategory.Word)
+        while (end2 < length) {
+          let next = findClusterBreak(text2, end2);
+          if (cat(text2.slice(end2, next)) != CharCategory.Word)
             break;
-          end = next;
+          end2 = next;
         }
-        return start == end ? null : EditorSelection.range(start + from, end + from);
+        return start2 == end2 ? null : EditorSelection.range(start2 + from, end2 + from);
       }
     }
     EditorState.allowMultipleSelections = allowMultipleSelections;
@@ -65756,13 +67491,13 @@ ${events}
       }
       // Find the index of the given position and side. Use the ranges'
       // `from` pos when `end == false`, `to` when `end == true`.
-      findIndex(pos2, side, end, startAt = 0) {
-        let arr2 = end ? this.to : this.from;
+      findIndex(pos2, side, end2, startAt = 0) {
+        let arr2 = end2 ? this.to : this.from;
         for (let lo2 = startAt, hi = arr2.length; ; ) {
           if (lo2 == hi)
             return lo2;
           let mid = lo2 + hi >> 1;
-          let diff2 = arr2[mid] - pos2 || (end ? this.value[mid].endSide : this.value[mid].startSide) - side;
+          let diff2 = arr2[mid] - pos2 || (end2 ? this.value[mid].endSide : this.value[mid].startSide) - side;
           if (mid == lo2)
             return diff2 >= 0 ? lo2 : hi;
           if (diff2 >= 0)
@@ -65771,15 +67506,15 @@ ${events}
             lo2 = mid + 1;
         }
       }
-      between(offset, from, to2, f) {
+      between(offset2, from, to2, f) {
         for (let i2 = this.findIndex(from, -1e9, true), e = this.findIndex(to2, 1e9, false, i2); i2 < e; i2++)
-          if (f(this.from[i2] + offset, this.to[i2] + offset, this.value[i2]) === false)
+          if (f(this.from[i2] + offset2, this.to[i2] + offset2, this.value[i2]) === false)
             return false;
       }
-      map(offset, changes) {
+      map(offset2, changes) {
         let value2 = [], from = [], to2 = [], newPos = -1, maxPoint = -1;
         for (let i2 = 0; i2 < this.value.length; i2++) {
-          let val = this.value[i2], curFrom = this.from[i2] + offset, curTo = this.to[i2] + offset, newFrom, newTo;
+          let val = this.value[i2], curFrom = this.from[i2] + offset2, curTo = this.to[i2] + offset2, newFrom, newTo;
           if (curFrom == curTo) {
             let mapped = changes.mapPos(curFrom, val.startSide, val.mapMode);
             if (mapped == null)
@@ -65891,14 +67626,14 @@ ${events}
           return this;
         let chunks = [], chunkPos = [], maxPoint = -1;
         for (let i2 = 0; i2 < this.chunk.length; i2++) {
-          let start = this.chunkPos[i2], chunk = this.chunk[i2];
-          let touch = changes.touchesRange(start, start + chunk.length);
+          let start2 = this.chunkPos[i2], chunk = this.chunk[i2];
+          let touch = changes.touchesRange(start2, start2 + chunk.length);
           if (touch === false) {
             maxPoint = Math.max(maxPoint, chunk.maxPoint);
             chunks.push(chunk);
-            chunkPos.push(changes.mapPos(start));
+            chunkPos.push(changes.mapPos(start2));
           } else if (touch === true) {
-            let { mapped, pos: pos2 } = chunk.map(start, changes);
+            let { mapped, pos: pos2 } = chunk.map(start2, changes);
             if (mapped) {
               maxPoint = Math.max(maxPoint, mapped.maxPoint);
               chunks.push(mapped);
@@ -65919,8 +67654,8 @@ ${events}
         if (this.isEmpty)
           return;
         for (let i2 = 0; i2 < this.chunk.length; i2++) {
-          let start = this.chunkPos[i2], chunk = this.chunk[i2];
-          if (to2 >= start && from <= start + chunk.length && chunk.between(start, from - start, to2 - start, f) === false)
+          let start2 = this.chunkPos[i2], chunk = this.chunk[i2];
+          if (to2 >= start2 && from <= start2 + chunk.length && chunk.between(start2, from - start2, to2 - start2, f) === false)
             return;
         }
         this.nextLayer.between(from, to2, f);
@@ -66427,7 +68162,7 @@ ${events}
       let pos2 = startB, dPos = startB - startA;
       for (; ; ) {
         let dEnd = a.to + dPos - b.to, diff2 = dEnd || a.endSide - b.endSide;
-        let end = diff2 < 0 ? a.to + dPos : b.to, clipEnd = Math.min(end, endB);
+        let end2 = diff2 < 0 ? a.to + dPos : b.to, clipEnd = Math.min(end2, endB);
         if (a.point || b.point) {
           if (!(a.point && b.point && (a.point == b.point || a.point.eq(b.point)) && sameValues(a.activeForPoint(a.to), b.activeForPoint(b.to))))
             comparator.comparePoint(pos2, clipEnd, a.point, b.point);
@@ -66435,11 +68170,11 @@ ${events}
           if (clipEnd > pos2 && !sameValues(a.active, b.active))
             comparator.compareRange(pos2, clipEnd, a.active, b.active);
         }
-        if (end > endB)
+        if (end2 > endB)
           break;
         if ((dEnd || a.openEnd != b.openEnd) && comparator.boundChange)
-          comparator.boundChange(end);
-        pos2 = end;
+          comparator.boundChange(end2);
+        pos2 = end2;
         if (diff2 <= 0)
           a.next();
         if (diff2 >= 0)
@@ -66793,8 +68528,8 @@ ${events}
     function maxOffset(node2) {
       return node2.nodeType == 3 ? node2.nodeValue.length : node2.childNodes.length;
     }
-    function flattenRect(rect, left) {
-      let x2 = left ? rect.left : rect.right;
+    function flattenRect(rect, left2) {
+      let x2 = left2 ? rect.left : rect.right;
       return { left: x2, right: x2, top: rect.top, bottom: rect.bottom };
     }
     function windowRect(win) {
@@ -66882,14 +68617,14 @@ ${events}
             } else {
               let movedX = 0, movedY = 0;
               if (moveY) {
-                let start = cur2.scrollTop;
+                let start2 = cur2.scrollTop;
                 cur2.scrollTop += moveY / scaleY;
-                movedY = (cur2.scrollTop - start) * scaleY;
+                movedY = (cur2.scrollTop - start2) * scaleY;
               }
               if (moveX) {
-                let start = cur2.scrollLeft;
+                let start2 = cur2.scrollLeft;
                 cur2.scrollLeft += moveX / scaleX;
-                movedX = (cur2.scrollLeft - start) * scaleX;
+                movedX = (cur2.scrollLeft - start2) * scaleX;
               }
               rect = {
                 left: rect.left - movedX,
@@ -66981,11 +68716,11 @@ ${events}
       if (!preventScrollSupported) {
         preventScrollSupported = false;
         for (let i2 = 0; i2 < stack2.length; ) {
-          let elt = stack2[i2++], top2 = stack2[i2++], left = stack2[i2++];
+          let elt = stack2[i2++], top2 = stack2[i2++], left2 = stack2[i2++];
           if (elt.scrollTop != top2)
             elt.scrollTop = top2;
-          if (elt.scrollLeft != left)
-            elt.scrollLeft = left;
+          if (elt.scrollLeft != left2)
+            elt.scrollLeft = left2;
         }
       }
     }
@@ -67021,25 +68756,25 @@ ${events}
         node2.removeAttributeNode(node2.attributes[0]);
     }
     function atElementStart(doc2, selection) {
-      let node2 = selection.focusNode, offset = selection.focusOffset;
-      if (!node2 || selection.anchorNode != node2 || selection.anchorOffset != offset)
+      let node2 = selection.focusNode, offset2 = selection.focusOffset;
+      if (!node2 || selection.anchorNode != node2 || selection.anchorOffset != offset2)
         return false;
-      offset = Math.min(offset, maxOffset(node2));
+      offset2 = Math.min(offset2, maxOffset(node2));
       for (; ; ) {
-        if (offset) {
+        if (offset2) {
           if (node2.nodeType != 1)
             return false;
-          let prev = node2.childNodes[offset - 1];
+          let prev = node2.childNodes[offset2 - 1];
           if (prev.contentEditable == "false")
-            offset--;
+            offset2--;
           else {
             node2 = prev;
-            offset = maxOffset(node2);
+            offset2 = maxOffset(node2);
           }
         } else if (node2 == doc2) {
           return true;
         } else {
-          offset = domIndex(node2);
+          offset2 = domIndex(node2);
           node2 = node2.parentNode;
         }
       }
@@ -67048,16 +68783,16 @@ ${events}
       return elt.scrollTop > Math.max(1, elt.scrollHeight - elt.clientHeight - 4);
     }
     function textNodeBefore(startNode, startOffset) {
-      for (let node2 = startNode, offset = startOffset; ; ) {
-        if (node2.nodeType == 3 && offset > 0) {
-          return { node: node2, offset };
-        } else if (node2.nodeType == 1 && offset > 0) {
+      for (let node2 = startNode, offset2 = startOffset; ; ) {
+        if (node2.nodeType == 3 && offset2 > 0) {
+          return { node: node2, offset: offset2 };
+        } else if (node2.nodeType == 1 && offset2 > 0) {
           if (node2.contentEditable == "false")
             return null;
-          node2 = node2.childNodes[offset - 1];
-          offset = maxOffset(node2);
+          node2 = node2.childNodes[offset2 - 1];
+          offset2 = maxOffset(node2);
         } else if (node2.parentNode && !isBlockElement(node2)) {
-          offset = domIndex(node2);
+          offset2 = domIndex(node2);
           node2 = node2.parentNode;
         } else {
           return null;
@@ -67065,16 +68800,16 @@ ${events}
       }
     }
     function textNodeAfter(startNode, startOffset) {
-      for (let node2 = startNode, offset = startOffset; ; ) {
-        if (node2.nodeType == 3 && offset < node2.nodeValue.length) {
-          return { node: node2, offset };
-        } else if (node2.nodeType == 1 && offset < node2.childNodes.length) {
+      for (let node2 = startNode, offset2 = startOffset; ; ) {
+        if (node2.nodeType == 3 && offset2 < node2.nodeValue.length) {
+          return { node: node2, offset: offset2 };
+        } else if (node2.nodeType == 1 && offset2 < node2.childNodes.length) {
           if (node2.contentEditable == "false")
             return null;
-          node2 = node2.childNodes[offset];
-          offset = 0;
+          node2 = node2.childNodes[offset2];
+          offset2 = 0;
         } else if (node2.parentNode && !isBlockElement(node2)) {
-          offset = domIndex(node2) + 1;
+          offset2 = domIndex(node2) + 1;
           node2 = node2.parentNode;
         } else {
           return null;
@@ -67082,9 +68817,9 @@ ${events}
       }
     }
     class DOMPos {
-      constructor(node2, offset, precise = true) {
+      constructor(node2, offset2, precise = true) {
         this.node = node2;
-        this.offset = offset;
+        this.offset = offset2;
         this.precise = precise;
       }
       static before(dom, precise) {
@@ -67162,12 +68897,12 @@ ${events}
       }
       reuseDOM(_dom) {
       }
-      localPosFromDOM(node2, offset) {
+      localPosFromDOM(node2, offset2) {
         let after;
         if (node2 == this.dom) {
-          after = this.dom.childNodes[offset];
+          after = this.dom.childNodes[offset2];
         } else {
-          let bias = maxOffset(node2) == 0 ? 0 : offset == 0 ? -1 : 1;
+          let bias = maxOffset(node2) == 0 ? 0 : offset2 == 0 ? -1 : 1;
           for (; ; ) {
             let parent = node2.parentNode;
             if (parent == this.dom)
@@ -67198,13 +68933,13 @@ ${events}
           pos2 += child.length + child.breakAfter;
         }
       }
-      domBoundsAround(from, to2, offset = 0) {
+      domBoundsAround(from, to2, offset2 = 0) {
         let fromI = -1, fromStart = -1, toI = -1, toEnd = -1;
-        for (let i2 = 0, pos2 = offset, prevEnd = offset; i2 < this.children.length; i2++) {
-          let child = this.children[i2], end = pos2 + child.length;
-          if (pos2 < from && end > to2)
+        for (let i2 = 0, pos2 = offset2, prevEnd = offset2; i2 < this.children.length; i2++) {
+          let child = this.children[i2], end2 = pos2 + child.length;
+          if (pos2 < from && end2 > to2)
             return child.domBoundsAround(from, to2, pos2);
-          if (end >= from && fromI == -1) {
+          if (end2 >= from && fromI == -1) {
             fromI = i2;
             fromStart = pos2;
           }
@@ -67213,12 +68948,12 @@ ${events}
             toEnd = prevEnd;
             break;
           }
-          prevEnd = end;
-          pos2 = end + child.breakAfter;
+          prevEnd = end2;
+          pos2 = end2 + child.breakAfter;
         }
         return {
           from: fromStart,
-          to: toEnd < 0 ? offset + this.length : toEnd,
+          to: toEnd < 0 ? offset2 + this.length : toEnd,
           startDOM: (fromI ? this.children[fromI - 1].dom.nextSibling : null) || this.dom.firstChild,
           endDOM: toI < this.children.length && toI >= 0 ? this.children[toI].dom : null
         };
@@ -67482,14 +69217,14 @@ ${events}
         result2.flags |= this.flags & 8;
         return result2;
       }
-      localPosFromDOM(node2, offset) {
-        return node2 == this.dom ? offset : offset ? this.text.length : 0;
+      localPosFromDOM(node2, offset2) {
+        return node2 == this.dom ? offset2 : offset2 ? this.text.length : 0;
       }
       domAtPos(pos2) {
         return new DOMPos(this.dom, pos2);
       }
-      domBoundsAround(_from, _to, offset) {
-        return { from: offset, to: offset + this.length, startDOM: this.dom, endDOM: this.dom.nextSibling };
+      domBoundsAround(_from, _to, offset2) {
+        return { from: offset2, to: offset2 + this.length, startDOM: this.dom, endDOM: this.dom.nextSibling };
       }
       coordsAt(pos2, side) {
         return textCoords(this.dom, pos2, side);
@@ -67539,12 +69274,12 @@ ${events}
       split(from) {
         let result2 = [], off = 0, detachFrom = -1, i2 = 0;
         for (let elt of this.children) {
-          let end = off + elt.length;
-          if (end > from)
+          let end2 = off + elt.length;
+          if (end2 > from)
             result2.push(off < from ? elt.split(from - off) : elt);
           if (detachFrom < 0 && off >= from)
             detachFrom = i2;
-          off = end;
+          off = end2;
           i2++;
         }
         let length = this.length - from;
@@ -67650,8 +69385,8 @@ ${events}
         let top2 = this;
         while (top2.parent)
           top2 = top2.parent;
-        let { view } = top2, text2 = view && view.state.doc, start = this.posAtStart;
-        return text2 ? text2.slice(start, start + this.length) : Text.empty;
+        let { view } = top2, text2 = view && view.state.doc, start2 = this.posAtStart;
+        return text2 ? text2.slice(start2, start2 + this.length) : Text.empty;
       }
       domAtPos(pos2) {
         return (this.length ? pos2 == 0 : this.side > 0) ? DOMPos.before(this.dom) : DOMPos.after(this.dom, pos2 == this.length);
@@ -67740,14 +69475,14 @@ ${events}
     function inlineDOMAtPos(parent, pos2) {
       let dom = parent.dom, { children: children2 } = parent, i2 = 0;
       for (let off = 0; i2 < children2.length; i2++) {
-        let child = children2[i2], end = off + child.length;
-        if (end == off && child.getSide() <= 0)
+        let child = children2[i2], end2 = off + child.length;
+        if (end2 == off && child.getSide() <= 0)
           continue;
-        if (pos2 > off && pos2 < end && child.dom.parentNode == dom)
+        if (pos2 > off && pos2 < end2 && child.dom.parentNode == dom)
           return child.domAtPos(pos2 - off);
         if (pos2 <= off)
           break;
-        off = end;
+        off = end2;
       }
       for (let j2 = i2; j2 > 0; j2--) {
         let prev = children2[j2 - 1];
@@ -67775,19 +69510,19 @@ ${events}
       let before = null, beforePos = -1, after = null, afterPos = -1;
       function scan(view2, pos3) {
         for (let i2 = 0, off = 0; i2 < view2.children.length && off <= pos3; i2++) {
-          let child = view2.children[i2], end = off + child.length;
-          if (end >= pos3) {
+          let child = view2.children[i2], end2 = off + child.length;
+          if (end2 >= pos3) {
             if (child.children.length) {
               scan(child, pos3 - off);
-            } else if ((!after || after.isHidden && (side > 0 || onSameLine(after, child))) && (end > pos3 || off == end && child.getSide() > 0)) {
+            } else if ((!after || after.isHidden && (side > 0 || onSameLine(after, child))) && (end2 > pos3 || off == end2 && child.getSide() > 0)) {
               after = child;
               afterPos = pos3 - off;
-            } else if (off < pos3 || off == end && child.getSide() < 0 && !child.isHidden) {
+            } else if (off < pos3 || off == end2 && child.getSide() < 0 && !child.isHidden) {
               before = child;
               beforePos = pos3 - off;
             }
           }
-          off = end;
+          off = end2;
         }
       }
       scan(view, pos2);
@@ -68003,9 +69738,9 @@ ${events}
           startSide = -5e8;
           endSide = 4e8;
         } else {
-          let { start, end } = getInclusive(spec, block2);
-          startSide = (start ? block2 ? -3e8 : -1 : 5e8) - 1;
-          endSide = (end ? block2 ? 2e8 : 1 : -6e8) + 1;
+          let { start: start2, end: end2 } = getInclusive(spec, block2);
+          startSide = (start2 ? block2 ? -3e8 : -1 : 5e8) - 1;
+          endSide = (end2 ? block2 ? 2e8 : 1 : -6e8) + 1;
         }
         return new PointDecoration(spec, startSide, endSide, block2, spec.widget || null, true);
       }
@@ -68034,8 +69769,8 @@ ${events}
     Decoration.none = RangeSet.empty;
     class MarkDecoration extends Decoration {
       constructor(spec) {
-        let { start, end } = getInclusive(spec);
-        super(start ? -1 : 5e8, end ? 1 : -6e8, null, spec);
+        let { start: start2, end: end2 } = getInclusive(spec);
+        super(start2 ? -1 : 5e8, end2 ? 1 : -6e8, null, spec);
         this.tagName = spec.tagName || "span";
         this.class = spec.class || "";
         this.attrs = spec.attributes || null;
@@ -68093,12 +69828,12 @@ ${events}
     }
     PointDecoration.prototype.point = true;
     function getInclusive(spec, block2 = false) {
-      let { inclusiveStart: start, inclusiveEnd: end } = spec;
-      if (start == null)
-        start = spec.inclusive;
-      if (end == null)
-        end = spec.inclusive;
-      return { start: start !== null && start !== void 0 ? start : block2, end: end !== null && end !== void 0 ? end : block2 };
+      let { inclusiveStart: start2, inclusiveEnd: end2 } = spec;
+      if (start2 == null)
+        start2 = spec.inclusive;
+      if (end2 == null)
+        end2 = spec.inclusive;
+      return { start: start2 !== null && start2 !== void 0 ? start2 : block2, end: end2 !== null && end2 !== void 0 ? end2 : block2 };
     }
     function widgetsEq(a, b) {
       return a == b || !!(a && b && a.compare(b));
@@ -68133,24 +69868,24 @@ ${events}
         return true;
       }
       split(at2) {
-        let end = new LineView();
-        end.breakAfter = this.breakAfter;
+        let end2 = new LineView();
+        end2.breakAfter = this.breakAfter;
         if (this.length == 0)
-          return end;
+          return end2;
         let { i: i2, off } = this.childPos(at2);
         if (off) {
-          end.append(this.children[i2].split(off), 0);
+          end2.append(this.children[i2].split(off), 0);
           this.children[i2].merge(off, this.children[i2].length, null, false, 0, 0);
           i2++;
         }
         for (let j2 = i2; j2 < this.children.length; j2++)
-          end.append(this.children[j2], 0);
+          end2.append(this.children[j2], 0);
         while (i2 > 0 && this.children[i2 - 1].length == 0)
           this.children[--i2].destroy();
         this.children.length = i2;
         this.markDirty();
         this.length = at2;
-        return end;
+        return end2;
       }
       transferDOM(other) {
         if (!this.dom)
@@ -68254,14 +69989,14 @@ ${events}
       }
       static find(docView, pos2) {
         for (let i2 = 0, off = 0; i2 < docView.children.length; i2++) {
-          let block2 = docView.children[i2], end = off + block2.length;
-          if (end >= pos2) {
+          let block2 = docView.children[i2], end2 = off + block2.length;
+          if (end2 >= pos2) {
             if (block2 instanceof LineView)
               return block2;
-            if (end > pos2)
+            if (end2 > pos2)
               break;
           }
-          off = end + block2.breakAfter;
+          off = end2 + block2.breakAfter;
         }
         return null;
       }
@@ -68287,9 +70022,9 @@ ${events}
       split(at2) {
         let len = this.length - at2;
         this.length = at2;
-        let end = new BlockWidgetView(this.widget, len, this.deco);
-        end.breakAfter = this.breakAfter;
-        return end;
+        let end2 = new BlockWidgetView(this.widget, len, this.deco);
+        end2.breakAfter = this.breakAfter;
+        return end2;
       }
       get children() {
         return noChildren;
@@ -68383,10 +70118,10 @@ ${events}
       }
     }
     class ContentBuilder {
-      constructor(doc2, pos2, end, disallowBlockEffectsFor) {
+      constructor(doc2, pos2, end2, disallowBlockEffectsFor) {
         this.doc = doc2;
         this.pos = pos2;
-        this.end = end;
+        this.end = end2;
         this.disallowBlockEffectsFor = disallowBlockEffectsFor;
         this.content = [];
         this.curLine = null;
@@ -68600,8 +70335,8 @@ ${events}
       /**
       @internal
       */
-      side(end, dir) {
-        return this.dir == dir == end ? this.to : this.from;
+      side(end2, dir) {
+        return this.dir == dir == end2 ? this.to : this.from;
       }
       /**
       @internal
@@ -68612,14 +70347,14 @@ ${events}
       /**
       @internal
       */
-      static find(order, index2, level, assoc) {
+      static find(order2, index2, level, assoc) {
         let maybe = -1;
-        for (let i2 = 0; i2 < order.length; i2++) {
-          let span2 = order[i2];
+        for (let i2 = 0; i2 < order2.length; i2++) {
+          let span2 = order2[i2];
           if (span2.from <= index2 && span2.to >= index2) {
             if (span2.level == level)
               return i2;
-            if (maybe < 0 || (assoc != 0 ? assoc < 0 ? span2.from < index2 : span2.to > index2 : order[maybe].level > span2.level))
+            if (maybe < 0 || (assoc != 0 ? assoc < 0 ? span2.from < index2 : span2.to > index2 : order2[maybe].level > span2.level))
               maybe = i2;
           }
         }
@@ -68662,13 +70397,13 @@ ${events}
             else
               types[i2] = 256;
           } else if (type == 64) {
-            let end = i2 + 1;
-            while (end < to2 && types[end] == 64)
-              end++;
-            let replace2 = i2 && prev == 8 || end < rTo && types[end] == 8 ? prevStrong == 1 ? 1 : 8 : 256;
-            for (let j2 = i2; j2 < end; j2++)
+            let end2 = i2 + 1;
+            while (end2 < to2 && types[end2] == 64)
+              end2++;
+            let replace2 = i2 && prev == 8 || end2 < rTo && types[end2] == 8 ? prevStrong == 1 ? 1 : 8 : 256;
+            for (let j2 = i2; j2 < end2; j2++)
               types[j2] = replace2;
-            i2 = end - 1;
+            i2 = end2 - 1;
           } else if (type == 8 && prevStrong == 1) {
             types[i2] = 1;
           }
@@ -68727,30 +70462,30 @@ ${events}
         for (let i2 = from; i2 < to2; ) {
           let type = types[i2];
           if (type == 256) {
-            let end = i2 + 1;
+            let end2 = i2 + 1;
             for (; ; ) {
-              if (end == to2) {
+              if (end2 == to2) {
                 if (iI == isolates.length)
                   break;
-                end = isolates[iI++].to;
+                end2 = isolates[iI++].to;
                 to2 = iI < isolates.length ? isolates[iI].from : rTo;
-              } else if (types[end] == 256) {
-                end++;
+              } else if (types[end2] == 256) {
+                end2++;
               } else {
                 break;
               }
             }
             let beforeL = prev == 1;
-            let afterL = (end < rTo ? types[end] : outerType) == 1;
+            let afterL = (end2 < rTo ? types[end2] : outerType) == 1;
             let replace2 = beforeL == afterL ? beforeL ? 1 : 2 : outerType;
-            for (let j2 = end, jI = iI, fromJ = jI ? isolates[jI - 1].to : rFrom; j2 > i2; ) {
+            for (let j2 = end2, jI = iI, fromJ = jI ? isolates[jI - 1].to : rFrom; j2 > i2; ) {
               if (j2 == fromJ) {
                 j2 = isolates[--jI].from;
                 fromJ = jI ? isolates[jI - 1].to : rFrom;
               }
               types[--j2] = replace2;
             }
-            i2 = end;
+            i2 = end2;
           } else {
             prev = type;
             i2++;
@@ -68758,7 +70493,7 @@ ${events}
         }
       }
     }
-    function emitSpans(line2, from, to2, level, baseLevel, isolates, order) {
+    function emitSpans(line2, from, to2, level, baseLevel, isolates, order2) {
       let ourType = level % 2 ? 2 : 1;
       if (level % 2 == baseLevel % 2) {
         for (let iCh = from, iI = 0; iCh < to2; ) {
@@ -68794,9 +70529,9 @@ ${events}
                 recurse.push(iso);
               } else {
                 if (iso.from > iCh)
-                  order.push(new BidiSpan(iCh, iso.from, localLevel));
+                  order2.push(new BidiSpan(iCh, iso.from, localLevel));
                 let dirSwap = iso.direction == LTR != !(localLevel % 2);
-                computeSectionOrder(line2, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order);
+                computeSectionOrder(line2, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order2);
                 iCh = iso.to;
               }
               iScan = iso.to;
@@ -68807,9 +70542,9 @@ ${events}
             }
           }
           if (recurse)
-            emitSpans(line2, iCh, iScan, level + 1, baseLevel, recurse, order);
+            emitSpans(line2, iCh, iScan, level + 1, baseLevel, recurse, order2);
           else if (iCh < iScan)
-            order.push(new BidiSpan(iCh, iScan, localLevel));
+            order2.push(new BidiSpan(iCh, iScan, localLevel));
           iCh = iScan;
         }
       } else {
@@ -68845,9 +70580,9 @@ ${events}
                 recurse.push(iso);
               } else {
                 if (iso.to < iCh)
-                  order.push(new BidiSpan(iso.to, iCh, localLevel));
+                  order2.push(new BidiSpan(iso.to, iCh, localLevel));
                 let dirSwap = iso.direction == LTR != !(localLevel % 2);
-                computeSectionOrder(line2, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order);
+                computeSectionOrder(line2, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order2);
                 iCh = iso.from;
               }
               iScan = iso.from;
@@ -68858,19 +70593,19 @@ ${events}
             }
           }
           if (recurse)
-            emitSpans(line2, iScan, iCh, level + 1, baseLevel, recurse, order);
+            emitSpans(line2, iScan, iCh, level + 1, baseLevel, recurse, order2);
           else if (iScan < iCh)
-            order.push(new BidiSpan(iScan, iCh, localLevel));
+            order2.push(new BidiSpan(iScan, iCh, localLevel));
           iCh = iScan;
         }
       }
     }
-    function computeSectionOrder(line2, level, baseLevel, isolates, from, to2, order) {
+    function computeSectionOrder(line2, level, baseLevel, isolates, from, to2, order2) {
       let outerType = level % 2 ? 2 : 1;
       computeCharTypes(line2, from, to2, isolates, outerType);
       processBracketPairs(line2, from, to2, isolates, outerType);
       processNeutrals(from, to2, isolates, outerType);
-      emitSpans(line2, from, to2, level, baseLevel, isolates, order);
+      emitSpans(line2, from, to2, level, baseLevel, isolates, order2);
     }
     function computeOrder(line2, direction, isolates) {
       if (!line2)
@@ -68880,24 +70615,24 @@ ${events}
       if (isolates.length)
         while (line2.length > types.length)
           types[types.length] = 256;
-      let order = [], level = direction == LTR ? 0 : 1;
-      computeSectionOrder(line2, level, level, isolates, 0, line2.length, order);
-      return order;
+      let order2 = [], level = direction == LTR ? 0 : 1;
+      computeSectionOrder(line2, level, level, isolates, 0, line2.length, order2);
+      return order2;
     }
     function trivialOrder(length) {
       return [new BidiSpan(0, length, 0)];
     }
     let movedOver = "";
-    function moveVisually(line2, order, dir, start, forward) {
+    function moveVisually(line2, order2, dir, start2, forward) {
       var _a2;
-      let startIndex2 = start.head - line2.from;
-      let spanI = BidiSpan.find(order, startIndex2, (_a2 = start.bidiLevel) !== null && _a2 !== void 0 ? _a2 : -1, start.assoc);
-      let span2 = order[spanI], spanEnd = span2.side(forward, dir);
+      let startIndex2 = start2.head - line2.from;
+      let spanI = BidiSpan.find(order2, startIndex2, (_a2 = start2.bidiLevel) !== null && _a2 !== void 0 ? _a2 : -1, start2.assoc);
+      let span2 = order2[spanI], spanEnd = span2.side(forward, dir);
       if (startIndex2 == spanEnd) {
         let nextI = spanI += forward ? 1 : -1;
-        if (nextI < 0 || nextI >= order.length)
+        if (nextI < 0 || nextI >= order2.length)
           return null;
-        span2 = order[spanI = nextI];
+        span2 = order2[spanI = nextI];
         startIndex2 = span2.side(!forward, dir);
         spanEnd = span2.side(forward, dir);
       }
@@ -68905,7 +70640,7 @@ ${events}
       if (nextIndex < span2.from || nextIndex > span2.to)
         nextIndex = spanEnd;
       movedOver = line2.text.slice(Math.min(startIndex2, nextIndex), Math.max(startIndex2, nextIndex));
-      let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)];
+      let nextSpan = spanI == (forward ? order2.length - 1 : 0) ? null : order2[spanI + (forward ? 1 : -1)];
       if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span2.level)
         return EditorSelection.cursor(nextSpan.side(!forward, dir) + line2.from, nextSpan.forward(forward, dir) ? 1 : -1, nextSpan.level);
       return EditorSelection.cursor(nextIndex + line2.from, span2.forward(forward, dir) ? -1 : 1, span2.level);
@@ -69088,21 +70823,21 @@ ${events}
     }
     const scrollMargins = /* @__PURE__ */ Facet.define();
     function getScrollMargins(view) {
-      let left = 0, right = 0, top2 = 0, bottom = 0;
+      let left2 = 0, right2 = 0, top2 = 0, bottom2 = 0;
       for (let source2 of view.state.facet(scrollMargins)) {
         let m = source2(view);
         if (m) {
           if (m.left != null)
-            left = Math.max(left, m.left);
+            left2 = Math.max(left2, m.left);
           if (m.right != null)
-            right = Math.max(right, m.right);
+            right2 = Math.max(right2, m.right);
           if (m.top != null)
             top2 = Math.max(top2, m.top);
           if (m.bottom != null)
-            bottom = Math.max(bottom, m.bottom);
+            bottom2 = Math.max(bottom2, m.bottom);
         }
       }
-      return { left, right, top: top2, bottom };
+      return { left: left2, right: right2, top: top2, bottom: bottom2 };
     }
     const styleModule = /* @__PURE__ */ Facet.define();
     class ChangedRange {
@@ -69135,13 +70870,13 @@ ${events}
         let result2 = [];
         for (let dI = 0, rI = 0, posA = 0, posB = 0; ; dI++) {
           let next = dI == diff2.length ? null : diff2[dI], off = posA - posB;
-          let end = next ? next.fromB : 1e9;
-          while (rI < ranges.length && ranges[rI] < end) {
+          let end2 = next ? next.fromB : 1e9;
+          while (rI < ranges.length && ranges[rI] < end2) {
             let from = ranges[rI], to2 = ranges[rI + 1];
-            let fromB = Math.max(posB, from), toB = Math.min(end, to2);
+            let fromB = Math.max(posB, from), toB = Math.min(end2, to2);
             if (fromB <= toB)
               new ChangedRange(fromB + off, toB + off, fromB, toB).addToSet(result2);
-            if (to2 > end)
+            if (to2 > end2)
               break;
             else
               rI += 2;
@@ -69365,9 +71100,9 @@ ${events}
       updateEditContextFormatting(update) {
         this.editContextFormatting = this.editContextFormatting.map(update.changes);
         for (let tr2 of update.transactions)
-          for (let effect of tr2.effects)
-            if (effect.is(setEditContextFormatting)) {
-              this.editContextFormatting = effect.value;
+          for (let effect2 of tr2.effects)
+            if (effect2.is(setEditContextFormatting)) {
+              this.editContextFormatting = effect2.value;
             }
       }
       compositionView(composition) {
@@ -69410,17 +71145,17 @@ ${events}
           return;
         let force = this.forceSelection;
         this.forceSelection = false;
-        let main = this.view.state.selection.main;
-        let anchor = this.moveToLine(this.domAtPos(main.anchor));
-        let head = main.empty ? anchor : this.moveToLine(this.domAtPos(main.head));
-        if (browser.gecko && main.empty && !this.hasComposition && betweenUneditable(anchor)) {
+        let main2 = this.view.state.selection.main;
+        let anchor = this.moveToLine(this.domAtPos(main2.anchor));
+        let head = main2.empty ? anchor : this.moveToLine(this.domAtPos(main2.head));
+        if (browser.gecko && main2.empty && !this.hasComposition && betweenUneditable(anchor)) {
           let dummy = document.createTextNode("");
           this.view.observer.ignore(() => anchor.node.insertBefore(dummy, anchor.node.childNodes[anchor.offset] || null));
           anchor = head = new DOMPos(dummy, 0);
           force = true;
         }
         let domSel = this.view.observer.selectionRange;
-        if (force || !domSel.focusNode || (!isEquivalentPosition(anchor.node, anchor.offset, domSel.anchorNode, domSel.anchorOffset) || !isEquivalentPosition(head.node, head.offset, domSel.focusNode, domSel.focusOffset)) && !this.suppressWidgetCursorChange(domSel, main)) {
+        if (force || !domSel.focusNode || (!isEquivalentPosition(anchor.node, anchor.offset, domSel.anchorNode, domSel.anchorOffset) || !isEquivalentPosition(head.node, head.offset, domSel.focusNode, domSel.focusOffset)) && !this.suppressWidgetCursorChange(domSel, main2)) {
           this.view.observer.ignore(() => {
             if (browser.android && browser.chrome && this.dom.contains(domSel.focusNode) && inUneditable(domSel.focusNode, this.dom)) {
               this.dom.blur();
@@ -69428,7 +71163,7 @@ ${events}
             }
             let rawSel = getSelection(this.view.root);
             if (!rawSel) ;
-            else if (main.empty) {
+            else if (main2.empty) {
               if (browser.gecko) {
                 let nextTo = nextToUneditable(anchor.node, anchor.offset);
                 if (nextTo && nextTo != (1 | 2)) {
@@ -69438,8 +71173,8 @@ ${events}
                 }
               }
               rawSel.collapse(anchor.node, anchor.offset);
-              if (main.bidiLevel != null && rawSel.caretBidiLevel !== void 0)
-                rawSel.caretBidiLevel = main.bidiLevel;
+              if (main2.bidiLevel != null && rawSel.caretBidiLevel !== void 0)
+                rawSel.caretBidiLevel = main2.bidiLevel;
             } else if (rawSel.extend) {
               rawSel.collapse(anchor.node, anchor.offset);
               try {
@@ -69448,7 +71183,7 @@ ${events}
               }
             } else {
               let range = document.createRange();
-              if (main.anchor > main.head)
+              if (main2.anchor > main2.head)
                 [anchor, head] = [head, anchor];
               range.setEnd(head.node, head.offset);
               range.setStart(anchor.node, anchor.offset);
@@ -69524,11 +71259,11 @@ ${events}
         }
         return null;
       }
-      posFromDOM(node2, offset) {
+      posFromDOM(node2, offset2) {
         let view = this.nearest(node2);
         if (!view)
           throw new RangeError("Trying to find position for a DOM position outside of the document");
-        return view.localPosFromDOM(node2, offset) + view.posAtStart;
+        return view.localPosFromDOM(node2, offset2) + view.posAtStart;
       }
       domAtPos(pos2) {
         let { i: i2, off } = this.childCursor().findPos(pos2, -1);
@@ -69544,19 +71279,19 @@ ${events}
       coordsAt(pos2, side) {
         let best = null, bestPos = 0;
         for (let off = this.length, i2 = this.children.length - 1; i2 >= 0; i2--) {
-          let child = this.children[i2], end = off - child.breakAfter, start = end - child.length;
-          if (end < pos2)
+          let child = this.children[i2], end2 = off - child.breakAfter, start2 = end2 - child.length;
+          if (end2 < pos2)
             break;
-          if (start <= pos2 && (start < pos2 || child.covers(-1)) && (end > pos2 || child.covers(1)) && (!best || child instanceof LineView && !(best instanceof LineView && side >= 0))) {
+          if (start2 <= pos2 && (start2 < pos2 || child.covers(-1)) && (end2 > pos2 || child.covers(1)) && (!best || child instanceof LineView && !(best instanceof LineView && side >= 0))) {
             best = child;
-            bestPos = start;
-          } else if (best && start == pos2 && end == pos2 && child instanceof BlockWidgetView && Math.abs(side) < 2) {
+            bestPos = start2;
+          } else if (best && start2 == pos2 && end2 == pos2 && child instanceof BlockWidgetView && Math.abs(side) < 2) {
             if (child.deco.startSide < 0)
               break;
             else if (i2)
               best = null;
           }
-          off = start;
+          off = start2;
         }
         return best ? best.coordsAt(pos2 - bestPos, side) : null;
       }
@@ -69576,10 +71311,10 @@ ${events}
         }
         if (!(child instanceof TextView))
           return null;
-        let end = findClusterBreak(child.text, off);
-        if (end == off)
+        let end2 = findClusterBreak(child.text, off);
+        if (end2 == off)
           return null;
-        let rects = textRange(child.dom, off, end).getClientRects();
+        let rects = textRange(child.dom, off, end2).getClientRects();
         for (let i3 = 0; i3 < rects.length; i3++) {
           let rect = rects[i3];
           if (i3 == rects.length - 1 || rect.top < rect.bottom && rect.left < rect.right)
@@ -69587,14 +71322,14 @@ ${events}
         }
         return null;
       }
-      measureVisibleLineHeights(viewport) {
-        let result2 = [], { from, to: to2 } = viewport;
+      measureVisibleLineHeights(viewport2) {
+        let result2 = [], { from, to: to2 } = viewport2;
         let contentWidth = this.view.contentDOM.clientWidth;
         let isWider = contentWidth > Math.max(this.view.scrollDOM.clientWidth, this.minWidth) + 1;
         let widest = -1, ltr = this.view.textDirection == Direction.LTR;
         for (let pos2 = 0, i2 = 0; i2 < this.children.length; i2++) {
-          let child = this.children[i2], end = pos2 + child.length;
-          if (end > to2)
+          let child = this.children[i2], end2 = pos2 + child.length;
+          if (end2 > to2)
             break;
           if (pos2 >= from) {
             let childRect = child.dom.getBoundingClientRect();
@@ -69609,12 +71344,12 @@ ${events}
                   widest = width;
                   this.minWidth = contentWidth;
                   this.minWidthFrom = pos2;
-                  this.minWidthTo = end;
+                  this.minWidthTo = end2;
                 }
               }
             }
           }
-          pos2 = end + child.breakAfter;
+          pos2 = end2 + child.breakAfter;
         }
         return result2;
       }
@@ -69655,15 +71390,15 @@ ${events}
         let deco = [], vs = this.view.viewState;
         for (let pos2 = 0, i2 = 0; ; i2++) {
           let next = i2 == vs.viewports.length ? null : vs.viewports[i2];
-          let end = next ? next.from - 1 : this.length;
-          if (end > pos2) {
-            let height = (vs.lineBlockAt(end).bottom - vs.lineBlockAt(pos2).top) / this.view.scaleY;
+          let end2 = next ? next.from - 1 : this.length;
+          if (end2 > pos2) {
+            let height = (vs.lineBlockAt(end2).bottom - vs.lineBlockAt(pos2).top) / this.view.scaleY;
             deco.push(Decoration.replace({
               widget: new BlockGapWidget(height),
               block: true,
               inclusive: true,
               isBlockGap: true
-            }).range(pos2, end));
+            }).range(pos2, end2));
           }
           if (!next)
             break;
@@ -69788,10 +71523,10 @@ ${events}
           return null;
       }
     }
-    function nextToUneditable(node2, offset) {
+    function nextToUneditable(node2, offset2) {
       if (node2.nodeType != 1)
         return 0;
-      return (offset && node2.childNodes[offset - 1].contentEditable == "false" ? 1 : 0) | (offset < node2.childNodes.length && node2.childNodes[offset].contentEditable == "false" ? 2 : 0);
+      return (offset2 && node2.childNodes[offset2 - 1].contentEditable == "false" ? 1 : 0) | (offset2 < node2.childNodes.length && node2.childNodes[offset2].contentEditable == "false" ? 2 : 0);
     }
     let DecorationComparator$1 = class DecorationComparator {
       constructor() {
@@ -69870,8 +71605,8 @@ ${events}
     function upTop(rect, top2) {
       return top2 < rect.top ? { top: top2, left: rect.left, right: rect.right, bottom: rect.bottom } : rect;
     }
-    function upBot(rect, bottom) {
-      return bottom > rect.bottom ? { top: rect.top, left: rect.left, right: rect.right, bottom } : rect;
+    function upBot(rect, bottom2) {
+      return bottom2 > rect.bottom ? { top: rect.top, left: rect.left, right: rect.right, bottom: bottom2 } : rect;
     }
     function domPosAtCoords(parent, x2, y2) {
       let closest, closestRect, closestX, closestY, closestOverlap = false;
@@ -69922,8 +71657,8 @@ ${events}
         return domPosInText(closest, clipX, y2);
       if (closestOverlap && closest.contentEditable != "false")
         return domPosAtCoords(closest, clipX, y2);
-      let offset = Array.prototype.indexOf.call(parent.childNodes, closest) + (x2 >= (closestRect.left + closestRect.right) / 2 ? 1 : 0);
-      return { node: parent, offset };
+      let offset2 = Array.prototype.indexOf.call(parent.childNodes, closest) + (x2 >= (closestRect.left + closestRect.right) / 2 ? 1 : 0);
+      return { node: parent, offset: offset2 };
     }
     function domPosInText(node2, x2, y2) {
       let len = node2.nodeValue.length;
@@ -69938,11 +71673,11 @@ ${events}
             generalSide = x2 - rect.left;
           let dy = (rect.top > y2 ? rect.top - y2 : y2 - rect.bottom) - 1;
           if (rect.left - 1 <= x2 && rect.right + 1 >= x2 && dy < closestDY) {
-            let right = x2 >= (rect.left + rect.right) / 2, after = right;
+            let right2 = x2 >= (rect.left + rect.right) / 2, after = right2;
             if (browser.chrome || browser.gecko) {
               let rectBefore = textRange(node2, i2).getBoundingClientRect();
               if (rectBefore.left == rect.right)
-                after = !right;
+                after = !right2;
             }
             if (dy <= 0)
               return { node: node2, offset: i2 + (after ? 1 : 0) };
@@ -69993,28 +71728,28 @@ ${events}
         if (element && !view.contentDOM.contains(element))
           element = null;
       }
-      let node2, offset = -1;
+      let node2, offset2 = -1;
       if (element && ((_a2 = view.docView.nearest(element)) === null || _a2 === void 0 ? void 0 : _a2.isEditable) != false) {
         if (doc2.caretPositionFromPoint) {
           let pos2 = doc2.caretPositionFromPoint(x2, y2);
           if (pos2)
-            ({ offsetNode: node2, offset } = pos2);
+            ({ offsetNode: node2, offset: offset2 } = pos2);
         } else if (doc2.caretRangeFromPoint) {
           let range = doc2.caretRangeFromPoint(x2, y2);
           if (range) {
-            ({ startContainer: node2, startOffset: offset } = range);
-            if (!view.contentDOM.contains(node2) || browser.safari && isSuspiciousSafariCaretResult(node2, offset, x2) || browser.chrome && isSuspiciousChromeCaretResult(node2, offset, x2))
+            ({ startContainer: node2, startOffset: offset2 } = range);
+            if (!view.contentDOM.contains(node2) || browser.safari && isSuspiciousSafariCaretResult(node2, offset2, x2) || browser.chrome && isSuspiciousChromeCaretResult(node2, offset2, x2))
               node2 = void 0;
           }
         }
         if (node2)
-          offset = Math.min(maxOffset(node2), offset);
+          offset2 = Math.min(maxOffset(node2), offset2);
       }
       if (!node2 || !view.docView.dom.contains(node2)) {
         let line2 = LineView.find(view.docView, lineStart);
         if (!line2)
           return yOffset > block2.top + block2.height / 2 ? block2.to : block2.from;
-        ({ node: node2, offset } = domPosAtCoords(line2.dom, x2, y2));
+        ({ node: node2, offset: offset2 } = domPosAtCoords(line2.dom, x2, y2));
       }
       let nearest = view.docView.nearest(node2);
       if (!nearest)
@@ -70023,7 +71758,7 @@ ${events}
         let rect = nearest.dom.getBoundingClientRect();
         return coords.y < rect.top || coords.y <= rect.bottom && coords.x <= (rect.left + rect.right) / 2 ? nearest.posAtStart : nearest.posAtEnd;
       } else {
-        return nearest.localPosFromDOM(node2, offset) + nearest.posAtStart;
+        return nearest.localPosFromDOM(node2, offset2) + nearest.posAtStart;
       }
     }
     function posAtCoordsImprecise(view, contentRect, block2, x2, y2) {
@@ -70036,17 +71771,17 @@ ${events}
       let content2 = view.state.sliceDoc(block2.from, block2.to);
       return block2.from + findColumn(content2, into, view.state.tabSize);
     }
-    function isSuspiciousSafariCaretResult(node2, offset, x2) {
+    function isSuspiciousSafariCaretResult(node2, offset2, x2) {
       let len;
-      if (node2.nodeType != 3 || offset != (len = node2.nodeValue.length))
+      if (node2.nodeType != 3 || offset2 != (len = node2.nodeValue.length))
         return false;
       for (let next = node2.nextSibling; next; next = next.nextSibling)
         if (next.nodeType != 1 || next.nodeName != "BR")
           return false;
       return textRange(node2, len - 1, len).getBoundingClientRect().left > x2;
     }
-    function isSuspiciousChromeCaretResult(node2, offset, x2) {
-      if (offset != 0)
+    function isSuspiciousChromeCaretResult(node2, offset2, x2) {
+      if (offset2 != 0)
         return false;
       for (let cur2 = node2; ; ) {
         let parent = cur2.parentNode;
@@ -70068,9 +71803,9 @@ ${events}
         }
       return line2;
     }
-    function moveToLineBoundary(view, start, forward, includeWrap) {
-      let line2 = blockAt(view, start.head);
-      let coords = !includeWrap || line2.type != BlockType.Text || !(view.lineWrapping || line2.widgetLineBreaks) ? null : view.coordsAtPos(start.assoc < 0 && start.head > line2.from ? start.head - 1 : start.head);
+    function moveToLineBoundary(view, start2, forward, includeWrap) {
+      let line2 = blockAt(view, start2.head);
+      let coords = !includeWrap || line2.type != BlockType.Text || !(view.lineWrapping || line2.widgetLineBreaks) ? null : view.coordsAtPos(start2.assoc < 0 && start2.head > line2.from ? start2.head - 1 : start2.head);
       if (coords) {
         let editorRect = view.dom.getBoundingClientRect();
         let direction = view.textDirectionAt(line2.from);
@@ -70083,10 +71818,10 @@ ${events}
       }
       return EditorSelection.cursor(forward ? line2.to : line2.from, forward ? -1 : 1);
     }
-    function moveByChar(view, start, forward, by) {
-      let line2 = view.state.doc.lineAt(start.head), spans = view.bidiSpans(line2);
+    function moveByChar(view, start2, forward, by) {
+      let line2 = view.state.doc.lineAt(start2.head), spans = view.bidiSpans(line2);
       let direction = view.textDirectionAt(line2.from);
-      for (let cur2 = start, check = null; ; ) {
+      for (let cur2 = start2, check = null; ; ) {
         let next = moveVisually(line2, spans, direction, cur2, forward), char = movedOver;
         if (!next) {
           if (line2.number == (forward ? view.state.doc.lines : 1))
@@ -70106,9 +71841,9 @@ ${events}
         cur2 = next;
       }
     }
-    function byGroup(view, pos2, start) {
+    function byGroup(view, pos2, start2) {
       let categorize = view.state.charCategorizer(pos2);
-      let cat = categorize(start);
+      let cat = categorize(start2);
       return (next) => {
         let nextCat = categorize(next);
         if (cat == CharCategory.Space)
@@ -70116,13 +71851,13 @@ ${events}
         return cat == nextCat;
       };
     }
-    function moveVertically(view, start, forward, distance) {
-      let startPos = start.head, dir = forward ? 1 : -1;
+    function moveVertically(view, start2, forward, distance) {
+      let startPos = start2.head, dir = forward ? 1 : -1;
       if (startPos == (forward ? view.state.doc.length : 0))
-        return EditorSelection.cursor(startPos, start.assoc);
-      let goal = start.goalColumn, startY;
+        return EditorSelection.cursor(startPos, start2.assoc);
+      let goal = start2.goalColumn, startY;
       let rect = view.contentDOM.getBoundingClientRect();
-      let startCoords = view.coordsAtPos(startPos, start.assoc || -1), docTop = view.documentTop;
+      let startCoords = view.coordsAtPos(startPos, start2.assoc || -1), docTop = view.documentTop;
       if (startCoords) {
         if (goal == null)
           goal = startCoords.left - rect.left;
@@ -70178,23 +71913,23 @@ ${events}
       lineBreak() {
         this.text += LineBreakPlaceholder;
       }
-      readRange(start, end) {
-        if (!start)
+      readRange(start2, end2) {
+        if (!start2)
           return this;
-        let parent = start.parentNode;
-        for (let cur2 = start; ; ) {
+        let parent = start2.parentNode;
+        for (let cur2 = start2; ; ) {
           this.findPointBefore(parent, cur2);
           let oldLen = this.text.length;
           this.readNode(cur2);
           let next = cur2.nextSibling;
-          if (next == end)
+          if (next == end2)
             break;
           let view = ContentView.get(cur2), nextView = ContentView.get(next);
           if (view && nextView ? view.breakAfter : (view ? view.breakAfter : isBlockElement(cur2)) || isBlockElement(next) && (cur2.nodeName != "BR" || cur2.cmIgnore) && this.text.length > oldLen)
             this.lineBreak();
           cur2 = next;
         }
-        this.findPointBefore(parent, end);
+        this.findPointBefore(parent, end2);
         return this;
       }
       readTextNode(node2) {
@@ -70256,33 +71991,33 @@ ${events}
             point.pos = this.text.length + (isAtEnd(node2, point.node, point.offset) ? length : 0);
       }
     }
-    function isAtEnd(parent, node2, offset) {
+    function isAtEnd(parent, node2, offset2) {
       for (; ; ) {
-        if (!node2 || offset < maxOffset(node2))
+        if (!node2 || offset2 < maxOffset(node2))
           return false;
         if (node2 == parent)
           return true;
-        offset = domIndex(node2) + 1;
+        offset2 = domIndex(node2) + 1;
         node2 = node2.parentNode;
       }
     }
     class DOMPoint {
-      constructor(node2, offset) {
+      constructor(node2, offset2) {
         this.node = node2;
-        this.offset = offset;
+        this.offset = offset2;
         this.pos = -1;
       }
     }
     class DOMChange {
-      constructor(view, start, end, typeOver) {
+      constructor(view, start2, end2, typeOver) {
         this.typeOver = typeOver;
         this.bounds = null;
         this.text = "";
-        this.domChanged = start > -1;
+        this.domChanged = start2 > -1;
         let { impreciseHead: iHead, impreciseAnchor: iAnchor } = view.docView;
-        if (view.state.readOnly && start > -1) {
+        if (view.state.readOnly && start2 > -1) {
           this.newSel = null;
-        } else if (start > -1 && (this.bounds = view.docView.domBoundsAround(start, end, 0))) {
+        } else if (start2 > -1 && (this.bounds = view.docView.domBoundsAround(start2, end2, 0))) {
           let selPoints = iHead || iAnchor ? [] : selectionPoints(view);
           let reader = new DOMReader(selPoints, view.state);
           reader.readRange(this.bounds.startDOM, this.bounds.endDOM);
@@ -70398,11 +72133,11 @@ ${events}
           } else {
             compositionRange = view.state.doc.lineAt(sel.head);
           }
-          let offset = sel.to - change.to, size = sel.to - sel.from;
+          let offset2 = sel.to - change.to, size = sel.to - sel.from;
           tr2 = startState.changeByRange((range) => {
             if (range.from == sel.from && range.to == sel.to)
               return { changes, range: mainSel || range.map(changes) };
-            let to2 = range.to - offset, from = to2 - replaced.length;
+            let to2 = range.to - offset2, from = to2 - replaced.length;
             if (range.to - range.from != size || view.state.sliceDoc(from, to2) != replaced || // Unfortunately, there's no way to make multiple
             // changes in the same node work without aborting
             // composition, so cursors in the composition range are
@@ -70543,14 +72278,14 @@ ${events}
         let handlers2 = computeHandlers(plugins2), prev = this.handlers, dom = this.view.contentDOM;
         for (let type in handlers2)
           if (type != "scroll") {
-            let passive = !handlers2[type].handlers.length;
+            let passive2 = !handlers2[type].handlers.length;
             let exists = prev[type];
-            if (exists && passive != !exists.handlers.length) {
+            if (exists && passive2 != !exists.handlers.length) {
               dom.removeEventListener(type, this.handleEvent);
               exists = null;
             }
             if (!exists)
-              dom.addEventListener(type, this.handleEvent, { passive });
+              dom.addEventListener(type, this.handleEvent, { passive: passive2 });
           }
         for (let type in prev)
           if (type != "scroll" && !handlers2[type])
@@ -70696,20 +72431,20 @@ ${events}
           return;
         this.select(this.lastEvent = event);
         let sx = 0, sy = 0;
-        let left = 0, top2 = 0, right = this.view.win.innerWidth, bottom = this.view.win.innerHeight;
+        let left2 = 0, top2 = 0, right2 = this.view.win.innerWidth, bottom2 = this.view.win.innerHeight;
         if (this.scrollParents.x)
-          ({ left, right } = this.scrollParents.x.getBoundingClientRect());
+          ({ left: left2, right: right2 } = this.scrollParents.x.getBoundingClientRect());
         if (this.scrollParents.y)
-          ({ top: top2, bottom } = this.scrollParents.y.getBoundingClientRect());
+          ({ top: top2, bottom: bottom2 } = this.scrollParents.y.getBoundingClientRect());
         let margins = getScrollMargins(this.view);
-        if (event.clientX - margins.left <= left + dragScrollMargin)
-          sx = -dragScrollSpeed(left - event.clientX);
-        else if (event.clientX + margins.right >= right - dragScrollMargin)
-          sx = dragScrollSpeed(event.clientX - right);
+        if (event.clientX - margins.left <= left2 + dragScrollMargin)
+          sx = -dragScrollSpeed(left2 - event.clientX);
+        else if (event.clientX + margins.right >= right2 - dragScrollMargin)
+          sx = dragScrollSpeed(event.clientX - right2);
         if (event.clientY - margins.top <= top2 + dragScrollMargin)
           sy = -dragScrollSpeed(top2 - event.clientY);
-        else if (event.clientY + margins.bottom >= bottom - dragScrollMargin)
-          sy = dragScrollSpeed(event.clientY - bottom);
+        else if (event.clientY + margins.bottom >= bottom2 - dragScrollMargin)
+          sy = dragScrollSpeed(event.clientY - bottom2);
         this.setScrollSpeed(sx, sy);
       }
       up(event) {
@@ -70798,8 +72533,8 @@ ${events}
       return facet.length ? facet[0](event) : browser.mac ? !event.altKey : !event.ctrlKey;
     }
     function isInPrimarySelection(view, event) {
-      let { main } = view.state.selection;
-      if (main.empty)
+      let { main: main2 } = view.state.selection;
+      if (main2.empty)
         return false;
       let sel = getSelection(view.root);
       if (!sel || sel.rangeCount == 0)
@@ -70970,20 +72705,20 @@ ${events}
       return lastMouseDownCount = !last || lastTime > Date.now() - 400 && Math.abs(last.clientX - event.clientX) < 2 && Math.abs(last.clientY - event.clientY) < 2 ? (lastMouseDownCount + 1) % 3 : 1;
     }
     function basicMouseSelection(view, event) {
-      let start = queryPos(view, event), type = getClickType(event);
+      let start2 = queryPos(view, event), type = getClickType(event);
       let startSel = view.state.selection;
       return {
         update(update) {
           if (update.docChanged) {
-            start.pos = update.changes.mapPos(start.pos);
+            start2.pos = update.changes.mapPos(start2.pos);
             startSel = startSel.map(update.changes);
           }
         },
         get(event2, extend, multiple) {
           let cur2 = queryPos(view, event2), removed;
           let range = rangeForClick(view, cur2.pos, cur2.bias, type);
-          if (start.pos != cur2.pos && !extend) {
-            let startRange = rangeForClick(view, start.pos, start.bias, type);
+          if (start2.pos != cur2.pos && !extend) {
+            let startRange = rangeForClick(view, start2.pos, start2.bias, type);
             let from = Math.min(startRange.from, range.from), to2 = Math.max(startRange.to, range.to);
             range = from < range.from ? EditorSelection.range(from, to2) : EditorSelection.range(to2, from);
           }
@@ -71154,9 +72889,9 @@ ${events}
     function focusChangeTransaction(state, focus) {
       let effects = [];
       for (let getEffect of state.facet(focusChangeEffect)) {
-        let effect = getEffect(state, focus);
-        if (effect)
-          effects.push(effect);
+        let effect2 = getEffect(state, focus);
+        if (effect2)
+          effects.push(effect2);
       }
       return effects ? state.update({ effects, annotations: isFocusChange.of(true) }) : null;
     }
@@ -71431,19 +73166,19 @@ ${events}
         let me = this, doc2 = oracle.doc;
         for (let i2 = changes.length - 1; i2 >= 0; i2--) {
           let { fromA, toA, fromB, toB } = changes[i2];
-          let start = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle.setDoc(oldDoc), 0, 0);
-          let end = start.to >= toA ? start : me.lineAt(toA, QueryType.ByPosNoHeight, oracle, 0, 0);
-          toB += end.to - toA;
-          toA = end.to;
-          while (i2 > 0 && start.from <= changes[i2 - 1].toA) {
+          let start2 = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle.setDoc(oldDoc), 0, 0);
+          let end2 = start2.to >= toA ? start2 : me.lineAt(toA, QueryType.ByPosNoHeight, oracle, 0, 0);
+          toB += end2.to - toA;
+          toA = end2.to;
+          while (i2 > 0 && start2.from <= changes[i2 - 1].toA) {
             fromA = changes[i2 - 1].fromA;
             fromB = changes[i2 - 1].fromB;
             i2--;
-            if (fromA < start.from)
-              start = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle, 0, 0);
+            if (fromA < start2.from)
+              start2 = me.lineAt(fromA, QueryType.ByPosNoHeight, oracle, 0, 0);
           }
-          fromB += start.from - fromA;
-          fromA = start.from;
+          fromB += start2.from - fromA;
+          fromA = start2.from;
           let nodes = NodeBuilder.build(oracle.setDoc(doc2), decorations2, fromB, toB);
           me = replace(me, me.replace(fromA, toA, nodes));
         }
@@ -71515,18 +73250,18 @@ ${events}
         super(length, height);
         this.deco = deco;
       }
-      blockAt(_height, _oracle, top2, offset) {
-        return new BlockInfo(offset, this.length, top2, this.height, this.deco || 0);
+      blockAt(_height, _oracle, top2, offset2) {
+        return new BlockInfo(offset2, this.length, top2, this.height, this.deco || 0);
       }
-      lineAt(_value, _type, oracle, top2, offset) {
-        return this.blockAt(0, oracle, top2, offset);
+      lineAt(_value, _type, oracle, top2, offset2) {
+        return this.blockAt(0, oracle, top2, offset2);
       }
-      forEachLine(from, to2, oracle, top2, offset, f) {
-        if (from <= offset + this.length && to2 >= offset)
-          f(this.blockAt(0, oracle, top2, offset));
+      forEachLine(from, to2, oracle, top2, offset2, f) {
+        if (from <= offset2 + this.length && to2 >= offset2)
+          f(this.blockAt(0, oracle, top2, offset2));
       }
-      updateHeight(oracle, offset = 0, _force = false, measured) {
-        if (measured && measured.from <= offset && measured.more)
+      updateHeight(oracle, offset2 = 0, _force = false, measured) {
+        if (measured && measured.from <= offset2 && measured.more)
           this.setHeight(measured.heights[measured.index++]);
         this.outdated = false;
         return this;
@@ -71542,8 +73277,8 @@ ${events}
         this.widgetHeight = 0;
         this.breaks = 0;
       }
-      blockAt(_height, _oracle, top2, offset) {
-        return new BlockInfo(offset, this.length, top2, this.height, this.breaks);
+      blockAt(_height, _oracle, top2, offset2) {
+        return new BlockInfo(offset2, this.length, top2, this.height, this.breaks);
       }
       replace(_from, _to, nodes) {
         let node2 = nodes[0];
@@ -71559,8 +73294,8 @@ ${events}
           return HeightMap.of(nodes);
         }
       }
-      updateHeight(oracle, offset = 0, force = false, measured) {
-        if (measured && measured.from <= offset && measured.more)
+      updateHeight(oracle, offset2 = 0, force = false, measured) {
+        if (measured && measured.from <= offset2 && measured.more)
           this.setHeight(measured.heights[measured.index++]);
         else if (force || this.outdated)
           this.setHeight(Math.max(this.widgetHeight, oracle.heightForLine(this.length - this.collapsed)) + this.breaks * oracle.lineHeight);
@@ -71575,8 +73310,8 @@ ${events}
       constructor(length) {
         super(length, 0);
       }
-      heightMetrics(oracle, offset) {
-        let firstLine = oracle.doc.lineAt(offset).number, lastLine = oracle.doc.lineAt(offset + this.length).number;
+      heightMetrics(oracle, offset2) {
+        let firstLine = oracle.doc.lineAt(offset2).number, lastLine = oracle.doc.lineAt(offset2 + this.length).number;
         let lines = lastLine - firstLine + 1;
         let perLine, perChar = 0;
         if (oracle.lineWrapping) {
@@ -71589,10 +73324,10 @@ ${events}
         }
         return { firstLine, lastLine, perLine, perChar };
       }
-      blockAt(height, oracle, top2, offset) {
-        let { firstLine, lastLine, perLine, perChar } = this.heightMetrics(oracle, offset);
+      blockAt(height, oracle, top2, offset2) {
+        let { firstLine, lastLine, perLine, perChar } = this.heightMetrics(oracle, offset2);
         if (oracle.lineWrapping) {
-          let guess = offset + (height < oracle.lineHeight ? 0 : Math.round(Math.max(0, Math.min(1, (height - top2) / this.height)) * this.length));
+          let guess = offset2 + (height < oracle.lineHeight ? 0 : Math.round(Math.max(0, Math.min(1, (height - top2) / this.height)) * this.length));
           let line2 = oracle.doc.lineAt(guess), lineHeight = perLine + line2.length * perChar;
           let lineTop = Math.max(top2, height - lineHeight / 2);
           return new BlockInfo(line2.from, line2.length, lineTop, lineHeight, 0);
@@ -71602,28 +73337,28 @@ ${events}
           return new BlockInfo(from, length, top2 + perLine * line2, perLine, 0);
         }
       }
-      lineAt(value2, type, oracle, top2, offset) {
+      lineAt(value2, type, oracle, top2, offset2) {
         if (type == QueryType.ByHeight)
-          return this.blockAt(value2, oracle, top2, offset);
+          return this.blockAt(value2, oracle, top2, offset2);
         if (type == QueryType.ByPosNoHeight) {
           let { from, to: to2 } = oracle.doc.lineAt(value2);
           return new BlockInfo(from, to2 - from, 0, 0, 0);
         }
-        let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset);
+        let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset2);
         let line2 = oracle.doc.lineAt(value2), lineHeight = perLine + line2.length * perChar;
         let linesAbove = line2.number - firstLine;
-        let lineTop = top2 + perLine * linesAbove + perChar * (line2.from - offset - linesAbove);
+        let lineTop = top2 + perLine * linesAbove + perChar * (line2.from - offset2 - linesAbove);
         return new BlockInfo(line2.from, line2.length, Math.max(top2, Math.min(lineTop, top2 + this.height - lineHeight)), lineHeight, 0);
       }
-      forEachLine(from, to2, oracle, top2, offset, f) {
-        from = Math.max(from, offset);
-        to2 = Math.min(to2, offset + this.length);
-        let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset);
+      forEachLine(from, to2, oracle, top2, offset2, f) {
+        from = Math.max(from, offset2);
+        to2 = Math.min(to2, offset2 + this.length);
+        let { firstLine, perLine, perChar } = this.heightMetrics(oracle, offset2);
         for (let pos2 = from, lineTop = top2; pos2 <= to2; ) {
           let line2 = oracle.doc.lineAt(pos2);
           if (pos2 == from) {
             let linesAbove = line2.number - firstLine;
-            lineTop += perLine * linesAbove + perChar * (from - offset - linesAbove);
+            lineTop += perLine * linesAbove + perChar * (from - offset2 - linesAbove);
           }
           let lineHeight = perLine + perChar * line2.length;
           f(new BlockInfo(line2.from, line2.length, lineTop, lineHeight, 0));
@@ -71655,13 +73390,13 @@ ${events}
       decomposeRight(from, result2) {
         result2.push(null, new HeightMapGap(this.length - from - 1));
       }
-      updateHeight(oracle, offset = 0, force = false, measured) {
-        let end = offset + this.length;
-        if (measured && measured.from <= offset + this.length && measured.more) {
-          let nodes = [], pos2 = Math.max(offset, measured.from), singleHeight = -1;
-          if (measured.from > offset)
-            nodes.push(new HeightMapGap(measured.from - offset - 1).updateHeight(oracle, offset));
-          while (pos2 <= end && measured.more) {
+      updateHeight(oracle, offset2 = 0, force = false, measured) {
+        let end2 = offset2 + this.length;
+        if (measured && measured.from <= offset2 + this.length && measured.more) {
+          let nodes = [], pos2 = Math.max(offset2, measured.from), singleHeight = -1;
+          if (measured.from > offset2)
+            nodes.push(new HeightMapGap(measured.from - offset2 - 1).updateHeight(oracle, offset2));
+          while (pos2 <= end2 && measured.more) {
             let len = oracle.doc.lineAt(pos2).length;
             if (nodes.length)
               nodes.push(null);
@@ -71675,14 +73410,14 @@ ${events}
             nodes.push(line2);
             pos2 += len + 1;
           }
-          if (pos2 <= end)
-            nodes.push(null, new HeightMapGap(end - pos2).updateHeight(oracle, pos2));
+          if (pos2 <= end2)
+            nodes.push(null, new HeightMapGap(end2 - pos2).updateHeight(oracle, pos2));
           let result2 = HeightMap.of(nodes);
-          if (singleHeight < 0 || Math.abs(result2.height - this.height) >= Epsilon || Math.abs(singleHeight - this.heightMetrics(oracle, offset).perLine) >= Epsilon)
+          if (singleHeight < 0 || Math.abs(result2.height - this.height) >= Epsilon || Math.abs(singleHeight - this.heightMetrics(oracle, offset2).perLine) >= Epsilon)
             heightChangeFlag = true;
           return replace(this, result2);
         } else if (force || this.outdated) {
-          this.setHeight(oracle.heightForGap(offset, offset + this.length));
+          this.setHeight(oracle.heightForGap(offset2, offset2 + this.length));
           this.outdated = false;
         }
         return this;
@@ -71692,42 +73427,42 @@ ${events}
       }
     }
     class HeightMapBranch extends HeightMap {
-      constructor(left, brk, right) {
-        super(left.length + brk + right.length, left.height + right.height, brk | (left.outdated || right.outdated ? 2 : 0));
-        this.left = left;
-        this.right = right;
-        this.size = left.size + right.size;
+      constructor(left2, brk, right2) {
+        super(left2.length + brk + right2.length, left2.height + right2.height, brk | (left2.outdated || right2.outdated ? 2 : 0));
+        this.left = left2;
+        this.right = right2;
+        this.size = left2.size + right2.size;
       }
       get break() {
         return this.flags & 1;
       }
-      blockAt(height, oracle, top2, offset) {
+      blockAt(height, oracle, top2, offset2) {
         let mid = top2 + this.left.height;
-        return height < mid ? this.left.blockAt(height, oracle, top2, offset) : this.right.blockAt(height, oracle, mid, offset + this.left.length + this.break);
+        return height < mid ? this.left.blockAt(height, oracle, top2, offset2) : this.right.blockAt(height, oracle, mid, offset2 + this.left.length + this.break);
       }
-      lineAt(value2, type, oracle, top2, offset) {
-        let rightTop = top2 + this.left.height, rightOffset = offset + this.left.length + this.break;
-        let left = type == QueryType.ByHeight ? value2 < rightTop : value2 < rightOffset;
-        let base2 = left ? this.left.lineAt(value2, type, oracle, top2, offset) : this.right.lineAt(value2, type, oracle, rightTop, rightOffset);
-        if (this.break || (left ? base2.to < rightOffset : base2.from > rightOffset))
+      lineAt(value2, type, oracle, top2, offset2) {
+        let rightTop = top2 + this.left.height, rightOffset = offset2 + this.left.length + this.break;
+        let left2 = type == QueryType.ByHeight ? value2 < rightTop : value2 < rightOffset;
+        let base2 = left2 ? this.left.lineAt(value2, type, oracle, top2, offset2) : this.right.lineAt(value2, type, oracle, rightTop, rightOffset);
+        if (this.break || (left2 ? base2.to < rightOffset : base2.from > rightOffset))
           return base2;
         let subQuery = type == QueryType.ByPosNoHeight ? QueryType.ByPosNoHeight : QueryType.ByPos;
-        if (left)
+        if (left2)
           return base2.join(this.right.lineAt(rightOffset, subQuery, oracle, rightTop, rightOffset));
         else
-          return this.left.lineAt(rightOffset, subQuery, oracle, top2, offset).join(base2);
+          return this.left.lineAt(rightOffset, subQuery, oracle, top2, offset2).join(base2);
       }
-      forEachLine(from, to2, oracle, top2, offset, f) {
-        let rightTop = top2 + this.left.height, rightOffset = offset + this.left.length + this.break;
+      forEachLine(from, to2, oracle, top2, offset2, f) {
+        let rightTop = top2 + this.left.height, rightOffset = offset2 + this.left.length + this.break;
         if (this.break) {
           if (from < rightOffset)
-            this.left.forEachLine(from, to2, oracle, top2, offset, f);
+            this.left.forEachLine(from, to2, oracle, top2, offset2, f);
           if (to2 >= rightOffset)
             this.right.forEachLine(from, to2, oracle, rightTop, rightOffset, f);
         } else {
-          let mid = this.lineAt(rightOffset, QueryType.ByPos, oracle, top2, offset);
+          let mid = this.lineAt(rightOffset, QueryType.ByPos, oracle, top2, offset2);
           if (from < mid.from)
-            this.left.forEachLine(from, mid.from - 1, oracle, top2, offset, f);
+            this.left.forEachLine(from, mid.from - 1, oracle, top2, offset2, f);
           if (mid.to >= from && mid.from <= to2)
             f(mid);
           if (to2 > mid.to)
@@ -71743,64 +73478,64 @@ ${events}
         let result2 = [];
         if (from > 0)
           this.decomposeLeft(from, result2);
-        let left = result2.length;
+        let left2 = result2.length;
         for (let node2 of nodes)
           result2.push(node2);
         if (from > 0)
-          mergeGaps(result2, left - 1);
+          mergeGaps(result2, left2 - 1);
         if (to2 < this.length) {
-          let right = result2.length;
+          let right2 = result2.length;
           this.decomposeRight(to2, result2);
-          mergeGaps(result2, right);
+          mergeGaps(result2, right2);
         }
         return HeightMap.of(result2);
       }
       decomposeLeft(to2, result2) {
-        let left = this.left.length;
-        if (to2 <= left)
+        let left2 = this.left.length;
+        if (to2 <= left2)
           return this.left.decomposeLeft(to2, result2);
         result2.push(this.left);
         if (this.break) {
-          left++;
-          if (to2 >= left)
+          left2++;
+          if (to2 >= left2)
             result2.push(null);
         }
-        if (to2 > left)
-          this.right.decomposeLeft(to2 - left, result2);
+        if (to2 > left2)
+          this.right.decomposeLeft(to2 - left2, result2);
       }
       decomposeRight(from, result2) {
-        let left = this.left.length, right = left + this.break;
-        if (from >= right)
-          return this.right.decomposeRight(from - right, result2);
-        if (from < left)
+        let left2 = this.left.length, right2 = left2 + this.break;
+        if (from >= right2)
+          return this.right.decomposeRight(from - right2, result2);
+        if (from < left2)
           this.left.decomposeRight(from, result2);
-        if (this.break && from < right)
+        if (this.break && from < right2)
           result2.push(null);
         result2.push(this.right);
       }
-      balanced(left, right) {
-        if (left.size > 2 * right.size || right.size > 2 * left.size)
-          return HeightMap.of(this.break ? [left, null, right] : [left, right]);
-        this.left = replace(this.left, left);
-        this.right = replace(this.right, right);
-        this.setHeight(left.height + right.height);
-        this.outdated = left.outdated || right.outdated;
-        this.size = left.size + right.size;
-        this.length = left.length + this.break + right.length;
+      balanced(left2, right2) {
+        if (left2.size > 2 * right2.size || right2.size > 2 * left2.size)
+          return HeightMap.of(this.break ? [left2, null, right2] : [left2, right2]);
+        this.left = replace(this.left, left2);
+        this.right = replace(this.right, right2);
+        this.setHeight(left2.height + right2.height);
+        this.outdated = left2.outdated || right2.outdated;
+        this.size = left2.size + right2.size;
+        this.length = left2.length + this.break + right2.length;
         return this;
       }
-      updateHeight(oracle, offset = 0, force = false, measured) {
-        let { left, right } = this, rightStart = offset + left.length + this.break, rebalance = null;
-        if (measured && measured.from <= offset + left.length && measured.more)
-          rebalance = left = left.updateHeight(oracle, offset, force, measured);
+      updateHeight(oracle, offset2 = 0, force = false, measured) {
+        let { left: left2, right: right2 } = this, rightStart = offset2 + left2.length + this.break, rebalance = null;
+        if (measured && measured.from <= offset2 + left2.length && measured.more)
+          rebalance = left2 = left2.updateHeight(oracle, offset2, force, measured);
         else
-          left.updateHeight(oracle, offset, force);
-        if (measured && measured.from <= rightStart + right.length && measured.more)
-          rebalance = right = right.updateHeight(oracle, rightStart, force, measured);
+          left2.updateHeight(oracle, offset2, force);
+        if (measured && measured.from <= rightStart + right2.length && measured.more)
+          rebalance = right2 = right2.updateHeight(oracle, rightStart, force, measured);
         else
-          right.updateHeight(oracle, rightStart, force);
+          right2.updateHeight(oracle, rightStart, force);
         if (rebalance)
-          return this.balanced(left, right);
+          return this.balanced(left2, right2);
         this.height = this.left.height + this.right.height;
         this.outdated = false;
         return this;
@@ -71830,13 +73565,13 @@ ${events}
       }
       span(_from, to2) {
         if (this.lineStart > -1) {
-          let end = Math.min(to2, this.lineEnd), last = this.nodes[this.nodes.length - 1];
+          let end2 = Math.min(to2, this.lineEnd), last = this.nodes[this.nodes.length - 1];
           if (last instanceof HeightMapText)
-            last.length += end - this.pos;
-          else if (end > this.pos || !this.isCovered)
-            this.nodes.push(new HeightMapText(end - this.pos, -1));
-          this.writtenTo = end;
-          if (to2 > end) {
+            last.length += end2 - this.pos;
+          else if (end2 > this.pos || !this.isCovered)
+            this.nodes.push(new HeightMapText(end2 - this.pos, -1));
+          this.writtenTo = end2;
+          if (to2 > end2) {
             this.nodes.push(null);
             this.writtenTo++;
             this.lineStart = -1;
@@ -71954,18 +73689,18 @@ ${events}
     function visiblePixelRange(dom, paddingTop) {
       let rect = dom.getBoundingClientRect();
       let doc2 = dom.ownerDocument, win = doc2.defaultView || window;
-      let left = Math.max(0, rect.left), right = Math.min(win.innerWidth, rect.right);
-      let top2 = Math.max(0, rect.top), bottom = Math.min(win.innerHeight, rect.bottom);
+      let left2 = Math.max(0, rect.left), right2 = Math.min(win.innerWidth, rect.right);
+      let top2 = Math.max(0, rect.top), bottom2 = Math.min(win.innerHeight, rect.bottom);
       for (let parent = dom.parentNode; parent && parent != doc2.body; ) {
         if (parent.nodeType == 1) {
           let elt = parent;
           let style2 = window.getComputedStyle(elt);
           if ((elt.scrollHeight > elt.clientHeight || elt.scrollWidth > elt.clientWidth) && style2.overflow != "visible") {
             let parentRect = elt.getBoundingClientRect();
-            left = Math.max(left, parentRect.left);
-            right = Math.min(right, parentRect.right);
+            left2 = Math.max(left2, parentRect.left);
+            right2 = Math.min(right2, parentRect.right);
             top2 = Math.max(top2, parentRect.top);
-            bottom = Math.min(parent == dom.parentNode ? win.innerHeight : bottom, parentRect.bottom);
+            bottom2 = Math.min(parent == dom.parentNode ? win.innerHeight : bottom2, parentRect.bottom);
           }
           parent = style2.position == "absolute" || style2.position == "fixed" ? elt.offsetParent : elt.parentNode;
         } else if (parent.nodeType == 11) {
@@ -71975,10 +73710,10 @@ ${events}
         }
       }
       return {
-        left: left - rect.left,
-        right: Math.max(left, right) - rect.left,
+        left: left2 - rect.left,
+        right: Math.max(left2, right2) - rect.left,
         top: top2 - (rect.top + paddingTop),
-        bottom: Math.max(top2, bottom) - (rect.top + paddingTop)
+        bottom: Math.max(top2, bottom2) - (rect.top + paddingTop)
       };
     }
     function inWindow(elt) {
@@ -72080,9 +73815,9 @@ ${events}
         this.computeVisibleRanges();
       }
       updateForViewport() {
-        let viewports = [this.viewport], { main } = this.state.selection;
+        let viewports = [this.viewport], { main: main2 } = this.state.selection;
         for (let i2 = 0; i2 <= 1; i2++) {
-          let pos2 = i2 ? main.head : main.anchor;
+          let pos2 = i2 ? main2.head : main2.anchor;
           if (!viewports.some(({ from, to: to2 }) => pos2 >= from && pos2 <= to2)) {
             let { from, to: to2 } = this.lineBlockAt(pos2);
             viewports.push(new Viewport(from, to2));
@@ -72121,11 +73856,11 @@ ${events}
           this.scrollAnchorPos = -1;
           this.scrollAnchorHeight = this.heightMap.height;
         }
-        let viewport = heightChanges.length ? this.mapViewport(this.viewport, update.changes) : this.viewport;
-        if (scrollTarget && (scrollTarget.range.head < viewport.from || scrollTarget.range.head > viewport.to) || !this.viewportIsAppropriate(viewport))
-          viewport = this.getViewport(0, scrollTarget);
-        let viewportChange = viewport.from != this.viewport.from || viewport.to != this.viewport.to;
-        this.viewport = viewport;
+        let viewport2 = heightChanges.length ? this.mapViewport(this.viewport, update.changes) : this.viewport;
+        if (scrollTarget && (scrollTarget.range.head < viewport2.from || scrollTarget.range.head > viewport2.to) || !this.viewportIsAppropriate(viewport2))
+          viewport2 = this.getViewport(0, scrollTarget);
+        let viewportChange = viewport2.from != this.viewport.from || viewport2.to != this.viewport.to;
+        this.viewport = viewport2;
         update.flags |= this.updateForViewport();
         if (viewportChange || !update.changes.empty || update.flags & 2)
           this.updateViewportLines();
@@ -72245,25 +73980,25 @@ ${events}
         let marginTop = 0.5 - Math.max(-0.5, Math.min(0.5, bias / 1e3 / 2));
         let map2 = this.heightMap, oracle = this.heightOracle;
         let { visibleTop, visibleBottom } = this;
-        let viewport = new Viewport(map2.lineAt(visibleTop - marginTop * 1e3, QueryType.ByHeight, oracle, 0, 0).from, map2.lineAt(visibleBottom + (1 - marginTop) * 1e3, QueryType.ByHeight, oracle, 0, 0).to);
+        let viewport2 = new Viewport(map2.lineAt(visibleTop - marginTop * 1e3, QueryType.ByHeight, oracle, 0, 0).from, map2.lineAt(visibleBottom + (1 - marginTop) * 1e3, QueryType.ByHeight, oracle, 0, 0).to);
         if (scrollTarget) {
           let { head } = scrollTarget.range;
-          if (head < viewport.from || head > viewport.to) {
+          if (head < viewport2.from || head > viewport2.to) {
             let viewHeight = Math.min(this.editorHeight, this.pixelViewport.bottom - this.pixelViewport.top);
             let block2 = map2.lineAt(head, QueryType.ByPos, oracle, 0, 0), topPos;
             if (scrollTarget.y == "center")
               topPos = (block2.top + block2.bottom) / 2 - viewHeight / 2;
-            else if (scrollTarget.y == "start" || scrollTarget.y == "nearest" && head < viewport.from)
+            else if (scrollTarget.y == "start" || scrollTarget.y == "nearest" && head < viewport2.from)
               topPos = block2.top;
             else
               topPos = block2.bottom - viewHeight;
-            viewport = new Viewport(map2.lineAt(topPos - 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).from, map2.lineAt(topPos + viewHeight + 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).to);
+            viewport2 = new Viewport(map2.lineAt(topPos - 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).from, map2.lineAt(topPos + viewHeight + 1e3 / 2, QueryType.ByHeight, oracle, 0, 0).to);
           }
         }
-        return viewport;
+        return viewport2;
       }
-      mapViewport(viewport, changes) {
-        let from = changes.mapPos(viewport.from, -1), to2 = changes.mapPos(viewport.to, 1);
+      mapViewport(viewport2, changes) {
+        let from = changes.mapPos(viewport2.from, -1), to2 = changes.mapPos(viewport2.to, 1);
         return new Viewport(this.heightMap.lineAt(from, QueryType.ByPos, this.heightOracle, 0, 0).from, this.heightMap.lineAt(to2, QueryType.ByPos, this.heightOracle, 0, 0).to);
       }
       // Checks if a given viewport covers the visible part of the
@@ -72272,17 +74007,17 @@ ${events}
         if (!this.inView)
           return true;
         let { top: top2 } = this.heightMap.lineAt(from, QueryType.ByPos, this.heightOracle, 0, 0);
-        let { bottom } = this.heightMap.lineAt(to2, QueryType.ByPos, this.heightOracle, 0, 0);
+        let { bottom: bottom2 } = this.heightMap.lineAt(to2, QueryType.ByPos, this.heightOracle, 0, 0);
         let { visibleTop, visibleBottom } = this;
         return (from == 0 || top2 <= visibleTop - Math.max(10, Math.min(
           -bias,
           250
           /* VP.MaxCoverMargin */
-        ))) && (to2 == this.state.doc.length || bottom >= visibleBottom + Math.max(10, Math.min(
+        ))) && (to2 == this.state.doc.length || bottom2 >= visibleBottom + Math.max(10, Math.min(
           bias,
           250
           /* VP.MaxCoverMargin */
-        ))) && (top2 > visibleTop - 2 * 1e3 && bottom < visibleBottom + 2 * 1e3);
+        ))) && (top2 > visibleTop - 2 * 1e3 && bottom2 < visibleBottom + 2 * 1e3);
       }
       mapLineGaps(gaps, changes) {
         if (!gaps.length || changes.empty)
@@ -72364,18 +74099,18 @@ ${events}
                   horizOffset = old.size - old.displaySize;
               }
             let pxLeft = this.pixelViewport.left + horizOffset, pxRight = this.pixelViewport.right + horizOffset;
-            let left, right;
+            let left2, right2;
             if (target2 != null) {
               let targetFrac = findFraction(structure, target2);
               let spaceFrac = ((pxRight - pxLeft) / 2 + marginWidth) / totalWidth;
-              left = targetFrac - spaceFrac;
-              right = targetFrac + spaceFrac;
+              left2 = targetFrac - spaceFrac;
+              right2 = targetFrac + spaceFrac;
             } else {
-              left = (pxLeft - marginWidth) / totalWidth;
-              right = (pxRight + marginWidth) / totalWidth;
+              left2 = (pxLeft - marginWidth) / totalWidth;
+              right2 = (pxRight + marginWidth) / totalWidth;
             }
-            viewFrom = findPosition(structure, left);
-            viewTo = findPosition(structure, right);
+            viewFrom = findPosition(structure, left2);
+            viewTo = findPosition(structure, right2);
           }
           if (viewFrom > line2.from)
             addGap(line2.from, viewFrom, line2, structure);
@@ -72524,9 +74259,9 @@ ${events}
         let vpHeight = 0, base2 = 0, domBase = 0;
         this.viewports = viewports.map(({ from, to: to2 }) => {
           let top2 = heightMap.lineAt(from, QueryType.ByPos, oracle, 0, 0).top;
-          let bottom = heightMap.lineAt(to2, QueryType.ByPos, oracle, 0, 0).bottom;
-          vpHeight += bottom - top2;
-          return { from, to: to2, top: top2, bottom, domTop: 0, domBottom: 0 };
+          let bottom2 = heightMap.lineAt(to2, QueryType.ByPos, oracle, 0, 0).bottom;
+          vpHeight += bottom2 - top2;
+          return { from, to: to2, top: top2, bottom: bottom2, domTop: 0, domBottom: 0 };
         });
         this.scale = (7e6 - vpHeight) / (heightMap.height - vpHeight);
         for (let obj of this.viewports) {
@@ -72573,16 +74308,16 @@ ${events}
     const darkTheme = /* @__PURE__ */ Facet.define({ combine: (values) => values.indexOf(true) > -1 });
     const baseThemeID = /* @__PURE__ */ StyleModule.newName(), baseLightID = /* @__PURE__ */ StyleModule.newName(), baseDarkID = /* @__PURE__ */ StyleModule.newName();
     const lightDarkIDs = { "&light": "." + baseLightID, "&dark": "." + baseDarkID };
-    function buildTheme(main, spec, scopes) {
+    function buildTheme(main2, spec, scopes) {
       return new StyleModule(spec, {
         finish(sel) {
           return /&/.test(sel) ? sel.replace(/&\w*/, (m) => {
             if (m == "&")
-              return main;
+              return main2;
             if (!scopes || !scopes[m])
               throw new RangeError(`Unsupported selector: ${m}`);
             return scopes[m];
-          }) : main + " " + sel;
+          }) : main2 + " " + sel;
         }
       });
     }
@@ -73303,7 +75038,7 @@ ${events}
           selectionEnd: this.toContextPos(view.state.selection.main.head)
         });
         this.handlers.textupdate = (e) => {
-          let main = view.state.selection.main, { anchor, head } = main;
+          let main2 = view.state.selection.main, { anchor, head } = main2;
           let from = this.toEditorPos(e.updateRangeStart), to2 = this.toEditorPos(e.updateRangeEnd);
           if (view.inputState.composing >= 0 && !this.composing)
             this.composing = { contextBase: e.updateRangeStart, editorBase: from, drifted: false };
@@ -73314,7 +75049,7 @@ ${events}
             change.to = anchor;
           if (change.from == change.to && !change.insert.length) {
             let newSel = EditorSelection.single(this.toEditorPos(e.selectionStart), this.toEditorPos(e.selectionEnd));
-            if (!newSel.main.eq(main))
+            if (!newSel.main.eq(main2))
               view.dispatch({ selection: newSel, userEvent: "select" });
             return;
           }
@@ -73332,7 +75067,7 @@ ${events}
         };
         this.handlers.characterboundsupdate = (e) => {
           let rects = [], prev = null;
-          for (let i2 = this.toEditorPos(e.rangeStart), end = this.toEditorPos(e.rangeEnd); i2 < end; i2++) {
+          for (let i2 = this.toEditorPos(e.rangeStart), end2 = this.toEditorPos(e.rangeEnd); i2 < end2; i2++) {
             let rect = view.coordsForChar(i2);
             prev = rect && new DOMRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top) || prev || new DOMRect();
             rects.push(prev);
@@ -73452,11 +75187,11 @@ ${events}
         this.editContext.updateText(this.toContextPos(pending.from), this.toContextPos(pending.from + pending.insert.length), state.doc.sliceString(pending.from, pending.to));
       }
       setSelection(state) {
-        let { main } = state.selection;
-        let start = this.toContextPos(Math.max(this.from, Math.min(this.to, main.anchor)));
-        let end = this.toContextPos(main.head);
-        if (this.editContext.selectionStart != start || this.editContext.selectionEnd != end)
-          this.editContext.updateSelection(start, end);
+        let { main: main2 } = state.selection;
+        let start2 = this.toContextPos(Math.max(this.from, Math.min(this.to, main2.anchor)));
+        let end2 = this.toContextPos(main2.head);
+        if (this.editContext.selectionStart != start2 || this.editContext.selectionEnd != end2)
+          this.editContext.updateSelection(start2, end2);
       }
       rangeIsValid(state) {
         let { head } = state.selection.main;
@@ -73646,8 +75381,8 @@ ${events}
             if (scrollTarget)
               scrollTarget = scrollTarget.map(tr2.changes);
             if (tr2.scrollIntoView) {
-              let { main } = tr2.state.selection;
-              scrollTarget = new ScrollTarget(main.empty ? main : EditorSelection.cursor(main.head, main.head > main.anchor ? -1 : 1));
+              let { main: main2 } = tr2.state.selection;
+              scrollTarget = new ScrollTarget(main2.empty ? main2 : EditorSelection.cursor(main2.head, main2.head > main2.anchor ? -1 : 1));
             }
             for (let e of tr2.effects)
               if (e.is(scrollIntoView$1))
@@ -73915,13 +75650,13 @@ ${events}
       showAnnouncements(trs) {
         let first = true;
         for (let tr2 of trs)
-          for (let effect of tr2.effects)
-            if (effect.is(EditorView.announce)) {
+          for (let effect2 of tr2.effects)
+            if (effect2.is(EditorView.announce)) {
               if (first)
                 this.announceDOM.textContent = "";
               first = false;
               let div = this.announceDOM.appendChild(document.createElement("div"));
-              div.textContent = effect.value;
+              div.textContent = effect2.value;
             }
       }
       mountStyles() {
@@ -74060,16 +75795,16 @@ ${events}
       a predicate that determines, for each subsequent cluster,
       whether it should also be moved over.
       */
-      moveByChar(start, forward, by) {
-        return skipAtoms(this, start, moveByChar(this, start, forward, by));
+      moveByChar(start2, forward, by) {
+        return skipAtoms(this, start2, moveByChar(this, start2, forward, by));
       }
       /**
       Move a cursor position across the next group of either
       [letters](https://codemirror.net/6/docs/ref/#state.EditorState.charCategorizer) or non-letter
       non-whitespace characters.
       */
-      moveByGroup(start, forward) {
-        return skipAtoms(this, start, moveByChar(this, start, forward, (initial) => byGroup(this, start.head, initial)));
+      moveByGroup(start2, forward) {
+        return skipAtoms(this, start2, moveByChar(this, start2, forward, (initial) => byGroup(this, start2.head, initial)));
       }
       /**
       Get the cursor position visually at the start or end of a line.
@@ -74077,10 +75812,10 @@ ${events}
       start or end (which is simply at `line.from`/`line.to`) if text
       at the start or end goes against the line's base text direction.
       */
-      visualLineSide(line2, end) {
-        let order = this.bidiSpans(line2), dir = this.textDirectionAt(line2.from);
-        let span2 = order[end ? order.length - 1 : 0];
-        return EditorSelection.cursor(span2.side(end, dir) + line2.from, span2.forward(!end, dir) ? 1 : -1);
+      visualLineSide(line2, end2) {
+        let order2 = this.bidiSpans(line2), dir = this.textDirectionAt(line2.from);
+        let span2 = order2[end2 ? order2.length - 1 : 0];
+        return EditorSelection.cursor(span2.side(end2, dir) + line2.from, span2.forward(!end2, dir) ? 1 : -1);
       }
       /**
       Move to the next line boundary in the given direction. If
@@ -74089,8 +75824,8 @@ ${events}
       returned. Otherwise this function will return the start or end
       of the line.
       */
-      moveToLineBoundary(start, forward, includeWrap = true) {
-        return moveToLineBoundary(this, start, forward, includeWrap);
+      moveToLineBoundary(start2, forward, includeWrap = true) {
+        return moveToLineBoundary(this, start2, forward, includeWrap);
       }
       /**
       Move a cursor position vertically. When `distance` isn't given,
@@ -74105,8 +75840,8 @@ ${events}
       cursor will have its goal column set to whichever column was
       used.
       */
-      moveVertically(start, forward, distance) {
-        return skipAtoms(this, start, moveVertically(this, start, forward, distance));
+      moveVertically(start2, forward, distance) {
+        return skipAtoms(this, start2, moveVertically(this, start2, forward, distance));
       }
       /**
       Find the DOM parent node and offset (child offset if `node` is
@@ -74126,8 +75861,8 @@ ${events}
       for associating positions with DOM events. Will raise an error
       when `node` isn't part of the editor content.
       */
-      posAtDOM(node2, offset = 0) {
-        return this.docView.posFromDOM(node2, offset);
+      posAtDOM(node2, offset2 = 0) {
+        return this.docView.posFromDOM(node2, offset2);
       }
       posAtCoords(coords, precise = true) {
         this.readMeasured();
@@ -74145,8 +75880,8 @@ ${events}
         let rect = this.docView.coordsAt(pos2, side);
         if (!rect || rect.left == rect.right)
           return rect;
-        let line2 = this.state.doc.lineAt(pos2), order = this.bidiSpans(line2);
-        let span2 = order[BidiSpan.find(order, pos2 - line2.from, -1, side)];
+        let line2 = this.state.doc.lineAt(pos2), order2 = this.bidiSpans(line2);
+        let span2 = order2[BidiSpan.find(order2, pos2 - line2.from, -1, side)];
         return flattenRect(rect, span2.dir == Direction.LTR == side > 0);
       }
       /**
@@ -74226,9 +75961,9 @@ ${events}
         }
         if (!isolates)
           isolates = getIsolatedRanges(this, line2);
-        let order = computeOrder(line2.text, dir, isolates);
-        this.bidiCache.push(new CachedOrder(line2.from, line2.to, dir, isolates, true, order));
-        return order;
+        let order2 = computeOrder(line2.text, dir, isolates);
+        this.bidiCache.push(new CachedOrder(line2.from, line2.to, dir, isolates, true, order2));
+        return order2;
       }
       /**
       Check whether the editor has focus.
@@ -74420,13 +76155,13 @@ ${events}
     const MaxBidiLine = 4096;
     const BadMeasure = {};
     class CachedOrder {
-      constructor(from, to2, dir, isolates, fresh, order) {
+      constructor(from, to2, dir, isolates, fresh, order2) {
         this.from = from;
         this.to = to2;
         this.dir = dir;
         this.isolates = isolates;
         this.fresh = fresh;
-        this.order = order;
+        this.order = order2;
       }
       static update(cache, changes) {
         if (changes.empty && !cache.some((c2) => c2.fresh))
@@ -74639,9 +76374,9 @@ ${events}
       Create a marker with the given class and dimensions. If `width`
       is null, the DOM element will get no width style.
       */
-      constructor(className2, left, top2, width, height) {
+      constructor(className2, left2, top2, width, height) {
         this.className = className2;
-        this.left = left;
+        this.left = left2;
         this.top = top2;
         this.width = width;
         this.height = height;
@@ -74689,8 +76424,8 @@ ${events}
     }
     function getBase(view) {
       let rect = view.scrollDOM.getBoundingClientRect();
-      let left = view.textDirection == Direction.LTR ? rect.left : rect.right - view.scrollDOM.clientWidth * view.scaleX;
-      return { left: left - view.scrollDOM.scrollLeft * view.scaleX, top: rect.top - view.scrollDOM.scrollTop * view.scaleY };
+      let left2 = view.textDirection == Direction.LTR ? rect.left : rect.right - view.scrollDOM.clientWidth * view.scaleX;
+      return { left: left2 - view.scrollDOM.scrollLeft * view.scaleX, top: rect.top - view.scrollDOM.scrollTop * view.scaleY };
     }
     function wrappedLine(view, pos2, side, inside2) {
       let coords = view.coordsAtPos(pos2, side * 2);
@@ -74698,11 +76433,11 @@ ${events}
         return inside2;
       let editorRect = view.dom.getBoundingClientRect();
       let y2 = (coords.top + coords.bottom) / 2;
-      let left = view.posAtCoords({ x: editorRect.left + 1, y: y2 });
-      let right = view.posAtCoords({ x: editorRect.right - 1, y: y2 });
-      if (left == null || right == null)
+      let left2 = view.posAtCoords({ x: editorRect.left + 1, y: y2 });
+      let right2 = view.posAtCoords({ x: editorRect.right - 1, y: y2 });
+      if (left2 == null || right2 == null)
         return inside2;
-      return { from: Math.max(inside2.from, Math.min(left, right)), to: Math.min(inside2.to, Math.max(left, right)) };
+      return { from: Math.max(inside2.from, Math.min(left2, right2)), to: Math.min(inside2.to, Math.max(left2, right2)) };
     }
     function rectanglesForRange(view, className2, range) {
       if (range.to <= view.viewport.from || range.from >= view.viewport.to)
@@ -74724,48 +76459,48 @@ ${events}
         return pieces(drawForLine(range.from, range.to, visualStart));
       } else {
         let top2 = visualStart ? drawForLine(range.from, null, visualStart) : drawForWidget(startBlock, false);
-        let bottom = visualEnd ? drawForLine(null, range.to, visualEnd) : drawForWidget(endBlock, true);
+        let bottom2 = visualEnd ? drawForLine(null, range.to, visualEnd) : drawForWidget(endBlock, true);
         let between = [];
-        if ((visualStart || startBlock).to < (visualEnd || endBlock).from - (visualStart && visualEnd ? 1 : 0) || startBlock.widgetLineBreaks > 1 && top2.bottom + view.defaultLineHeight / 2 < bottom.top)
-          between.push(piece(leftSide, top2.bottom, rightSide, bottom.top));
-        else if (top2.bottom < bottom.top && view.elementAtHeight((top2.bottom + bottom.top) / 2).type == BlockType.Text)
-          top2.bottom = bottom.top = (top2.bottom + bottom.top) / 2;
-        return pieces(top2).concat(between).concat(pieces(bottom));
+        if ((visualStart || startBlock).to < (visualEnd || endBlock).from - (visualStart && visualEnd ? 1 : 0) || startBlock.widgetLineBreaks > 1 && top2.bottom + view.defaultLineHeight / 2 < bottom2.top)
+          between.push(piece(leftSide, top2.bottom, rightSide, bottom2.top));
+        else if (top2.bottom < bottom2.top && view.elementAtHeight((top2.bottom + bottom2.top) / 2).type == BlockType.Text)
+          top2.bottom = bottom2.top = (top2.bottom + bottom2.top) / 2;
+        return pieces(top2).concat(between).concat(pieces(bottom2));
       }
-      function piece(left, top2, right, bottom) {
-        return new RectangleMarker(className2, left - base2.left, top2 - base2.top, right - left, bottom - top2);
+      function piece(left2, top2, right2, bottom2) {
+        return new RectangleMarker(className2, left2 - base2.left, top2 - base2.top, right2 - left2, bottom2 - top2);
       }
-      function pieces({ top: top2, bottom, horizontal }) {
+      function pieces({ top: top2, bottom: bottom2, horizontal }) {
         let pieces2 = [];
         for (let i2 = 0; i2 < horizontal.length; i2 += 2)
-          pieces2.push(piece(horizontal[i2], top2, horizontal[i2 + 1], bottom));
+          pieces2.push(piece(horizontal[i2], top2, horizontal[i2 + 1], bottom2));
         return pieces2;
       }
       function drawForLine(from2, to3, line2) {
-        let top2 = 1e9, bottom = -1e9, horizontal = [];
+        let top2 = 1e9, bottom2 = -1e9, horizontal = [];
         function addSpan(from3, fromOpen, to4, toOpen, dir) {
           let fromCoords = view.coordsAtPos(from3, from3 == line2.to ? -2 : 2);
           let toCoords = view.coordsAtPos(to4, to4 == line2.from ? 2 : -2);
           if (!fromCoords || !toCoords)
             return;
           top2 = Math.min(fromCoords.top, toCoords.top, top2);
-          bottom = Math.max(fromCoords.bottom, toCoords.bottom, bottom);
+          bottom2 = Math.max(fromCoords.bottom, toCoords.bottom, bottom2);
           if (dir == Direction.LTR)
             horizontal.push(ltr && fromOpen ? leftSide : fromCoords.left, ltr && toOpen ? rightSide : toCoords.right);
           else
             horizontal.push(!ltr && toOpen ? leftSide : toCoords.left, !ltr && fromOpen ? rightSide : fromCoords.right);
         }
-        let start = from2 !== null && from2 !== void 0 ? from2 : line2.from, end = to3 !== null && to3 !== void 0 ? to3 : line2.to;
+        let start2 = from2 !== null && from2 !== void 0 ? from2 : line2.from, end2 = to3 !== null && to3 !== void 0 ? to3 : line2.to;
         for (let r2 of view.visibleRanges)
-          if (r2.to > start && r2.from < end) {
-            for (let pos2 = Math.max(r2.from, start), endPos = Math.min(r2.to, end); ; ) {
+          if (r2.to > start2 && r2.from < end2) {
+            for (let pos2 = Math.max(r2.from, start2), endPos = Math.min(r2.to, end2); ; ) {
               let docLine = view.state.doc.lineAt(pos2);
               for (let span2 of view.bidiSpans(docLine)) {
                 let spanFrom = span2.from + docLine.from, spanTo = span2.to + docLine.from;
                 if (spanFrom >= endPos)
                   break;
                 if (spanTo > pos2)
-                  addSpan(Math.max(spanFrom, pos2), from2 == null && spanFrom <= start, Math.min(spanTo, endPos), to3 == null && spanTo >= end, span2.dir);
+                  addSpan(Math.max(spanFrom, pos2), from2 == null && spanFrom <= start2, Math.min(spanTo, endPos), to3 == null && spanTo >= end2, span2.dir);
               }
               pos2 = docLine.to + 1;
               if (pos2 >= endPos)
@@ -74773,8 +76508,8 @@ ${events}
             }
           }
         if (horizontal.length == 0)
-          addSpan(start, from2 == null, end, to3 == null, view.textDirection);
-        return { top: top2, bottom, horizontal };
+          addSpan(start2, from2 == null, end2, to3 == null, view.textDirection);
+        return { top: top2, bottom: bottom2, horizontal };
       }
       function drawForWidget(block2, top2) {
         let y2 = contentRect.top + (top2 ? block2.top : block2.bottom);
@@ -74818,8 +76553,8 @@ ${events}
           view.requestMeasure(this.measureReq);
       }
       setOrder(state) {
-        let pos2 = 0, order = state.facet(layerOrder);
-        while (pos2 < order.length && order[pos2] != this.layer)
+        let pos2 = 0, order2 = state.facet(layerOrder);
+        while (pos2 < order2.length && order2[pos2] != this.layer)
           pos2++;
         this.dom.style.zIndex = String((this.layer.above ? 150 : -1) - pos2);
       }
@@ -75030,29 +76765,29 @@ ${events}
           let from = Math.max(r2.from, updateFrom), to2 = Math.min(r2.to, updateTo);
           if (to2 > from) {
             let fromLine = view.state.doc.lineAt(from), toLine = fromLine.to < to2 ? view.state.doc.lineAt(to2) : fromLine;
-            let start = Math.max(r2.from, fromLine.from), end = Math.min(r2.to, toLine.to);
+            let start2 = Math.max(r2.from, fromLine.from), end2 = Math.min(r2.to, toLine.to);
             if (this.boundary) {
               for (; from > fromLine.from; from--)
                 if (this.boundary.test(fromLine.text[from - 1 - fromLine.from])) {
-                  start = from;
+                  start2 = from;
                   break;
                 }
               for (; to2 < toLine.to; to2++)
                 if (this.boundary.test(toLine.text[to2 - toLine.from])) {
-                  end = to2;
+                  end2 = to2;
                   break;
                 }
             }
             let ranges = [], m;
             let add2 = (from2, to3, deco2) => ranges.push(deco2.range(from2, to3));
             if (fromLine == toLine) {
-              this.regexp.lastIndex = start - fromLine.from;
-              while ((m = this.regexp.exec(fromLine.text)) && m.index < end - fromLine.from)
+              this.regexp.lastIndex = start2 - fromLine.from;
+              while ((m = this.regexp.exec(fromLine.text)) && m.index < end2 - fromLine.from)
                 this.addMatch(m, view, m.index + fromLine.from, add2);
             } else {
-              iterMatches(view.state.doc, this.regexp, start, end, (from2, m2) => this.addMatch(m2, view, from2, add2));
+              iterMatches(view.state.doc, this.regexp, start2, end2, (from2, m2) => this.addMatch(m2, view, from2, add2));
             }
-            deco = deco.update({ filterFrom: start, filterTo: end, filter: (from2, to3) => from2 < start || to3 > end, add: ranges });
+            deco = deco.update({ filterFrom: start2, filterTo: end2, filter: (from2, to3) => from2 < start2 || to3 > end2, add: ranges });
           }
         }
         return deco;
@@ -75362,9 +77097,9 @@ ${events}
         let before = prev ? prev.dom : null;
         tooltipView.dom.classList.add("cm-tooltip");
         if (tooltip.arrow && !tooltipView.dom.querySelector(".cm-tooltip > .cm-tooltip-arrow")) {
-          let arrow = document.createElement("div");
-          arrow.className = "cm-tooltip-arrow";
-          tooltipView.dom.appendChild(arrow);
+          let arrow2 = document.createElement("div");
+          arrow2.className = "cm-tooltip-arrow";
+          tooltipView.dom.appendChild(arrow2);
         }
         tooltipView.dom.style.position = this.position;
         tooltipView.dom.style.top = Outside;
@@ -75448,13 +77183,13 @@ ${events}
             dom.style.top = Outside;
             continue;
           }
-          let arrow = tooltip.arrow ? tView.dom.querySelector(".cm-tooltip-arrow") : null;
-          let arrowHeight = arrow ? 7 : 0;
+          let arrow2 = tooltip.arrow ? tView.dom.querySelector(".cm-tooltip-arrow") : null;
+          let arrowHeight = arrow2 ? 7 : 0;
           let width = size.right - size.left, height = (_a2 = knownHeight.get(tView)) !== null && _a2 !== void 0 ? _a2 : size.bottom - size.top;
-          let offset = tView.offset || noOffset, ltr = this.view.textDirection == Direction.LTR;
-          let left = size.width > space.right - space.left ? ltr ? space.left : space.right - size.width : ltr ? Math.max(space.left, Math.min(pos2.left - (arrow ? 14 : 0) + offset.x, space.right - width)) : Math.min(Math.max(space.left, pos2.left - width + (arrow ? 14 : 0) - offset.x), space.right - width);
+          let offset2 = tView.offset || noOffset, ltr = this.view.textDirection == Direction.LTR;
+          let left2 = size.width > space.right - space.left ? ltr ? space.left : space.right - size.width : ltr ? Math.max(space.left, Math.min(pos2.left - (arrow2 ? 14 : 0) + offset2.x, space.right - width)) : Math.min(Math.max(space.left, pos2.left - width + (arrow2 ? 14 : 0) - offset2.x), space.right - width);
           let above = this.above[i2];
-          if (!tooltip.strictSide && (above ? pos2.top - height - arrowHeight - offset.y < space.top : pos2.bottom + height + arrowHeight + offset.y > space.bottom) && above == space.bottom - pos2.bottom > pos2.top - space.top)
+          if (!tooltip.strictSide && (above ? pos2.top - height - arrowHeight - offset2.y < space.top : pos2.bottom + height + arrowHeight + offset2.y > space.bottom) && above == space.bottom - pos2.bottom > pos2.top - space.top)
             above = this.above[i2] = !above;
           let spaceVert = (above ? pos2.top - space.top : space.bottom - pos2.bottom) - arrowHeight;
           if (spaceVert < height && tView.resize !== false) {
@@ -75467,26 +77202,26 @@ ${events}
           } else if (dom.style.height) {
             dom.style.height = "";
           }
-          let top2 = above ? pos2.top - height - arrowHeight - offset.y : pos2.bottom + arrowHeight + offset.y;
-          let right = left + width;
+          let top2 = above ? pos2.top - height - arrowHeight - offset2.y : pos2.bottom + arrowHeight + offset2.y;
+          let right2 = left2 + width;
           if (tView.overlap !== true) {
             for (let r2 of others)
-              if (r2.left < right && r2.right > left && r2.top < top2 + height && r2.bottom > top2)
+              if (r2.left < right2 && r2.right > left2 && r2.top < top2 + height && r2.bottom > top2)
                 top2 = above ? r2.top - height - 2 - arrowHeight : r2.bottom + arrowHeight + 2;
           }
           if (this.position == "absolute") {
             dom.style.top = (top2 - measured.parent.top) / scaleY + "px";
-            setLeftStyle(dom, (left - measured.parent.left) / scaleX);
+            setLeftStyle(dom, (left2 - measured.parent.left) / scaleX);
           } else {
             dom.style.top = top2 / scaleY + "px";
-            setLeftStyle(dom, left / scaleX);
+            setLeftStyle(dom, left2 / scaleX);
           }
-          if (arrow) {
-            let arrowLeft = pos2.left + (ltr ? offset.x : -offset.x) - (left + 14 - 7);
-            arrow.style.left = arrowLeft / scaleX + "px";
+          if (arrow2) {
+            let arrowLeft = pos2.left + (ltr ? offset2.x : -offset2.x) - (left2 + 14 - 7);
+            arrow2.style.left = arrowLeft / scaleX + "px";
           }
           if (tView.overlap !== true)
-            others.push({ left, top: top2, right, bottom: top2 + height });
+            others.push({ left: left2, top: top2, right: right2, bottom: top2 + height });
           dom.classList.toggle("cm-tooltip-above", above);
           dom.classList.toggle("cm-tooltip-below", !above);
           if (tView.positioned)
@@ -75749,8 +77484,8 @@ ${events}
           this.hoverTimeout = setTimeout(this.checkHover, this.hoverTime);
         let { active: active2, tooltip } = this;
         if (active2.length && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
-          let { pos: pos2 } = active2[0] || this.pending, end = (_b2 = (_a2 = active2[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b2 !== void 0 ? _b2 : pos2;
-          if (pos2 == end ? this.view.posAtCoords(this.lastMove) != pos2 : !isOverRange(this.view, pos2, end, event.clientX, event.clientY)) {
+          let { pos: pos2 } = active2[0] || this.pending, end2 = (_b2 = (_a2 = active2[0]) === null || _a2 === void 0 ? void 0 : _a2.end) !== null && _b2 !== void 0 ? _b2 : pos2;
+          if (pos2 == end2 ? this.view.posAtCoords(this.lastMove) != pos2 : !isOverRange(this.view, pos2, end2, event.clientX, event.clientY)) {
             this.view.dispatch({ effects: this.setHover.of([]) });
             this.pending = null;
           }
@@ -75785,13 +77520,13 @@ ${events}
     }
     const tooltipMargin = 4;
     function isInTooltip(tooltip, event) {
-      let { left, right, top: top2, bottom } = tooltip.getBoundingClientRect(), arrow;
-      if (arrow = tooltip.querySelector(".cm-tooltip-arrow")) {
-        let arrowRect = arrow.getBoundingClientRect();
+      let { left: left2, right: right2, top: top2, bottom: bottom2 } = tooltip.getBoundingClientRect(), arrow2;
+      if (arrow2 = tooltip.querySelector(".cm-tooltip-arrow")) {
+        let arrowRect = arrow2.getBoundingClientRect();
         top2 = Math.min(arrowRect.top, top2);
-        bottom = Math.max(arrowRect.bottom, bottom);
+        bottom2 = Math.max(arrowRect.bottom, bottom2);
       }
-      return event.clientX >= left - tooltipMargin && event.clientX <= right + tooltipMargin && event.clientY >= top2 - tooltipMargin && event.clientY <= bottom + tooltipMargin;
+      return event.clientX >= left2 - tooltipMargin && event.clientX <= right2 + tooltipMargin && event.clientY >= top2 - tooltipMargin && event.clientY <= bottom2 + tooltipMargin;
     }
     function isOverRange(view, from, to2, x2, y2, margin) {
       let rect = view.scrollDOM.getBoundingClientRect();
@@ -75828,10 +77563,10 @@ ${events}
               value2 = mapped;
             }
           }
-          for (let effect of tr2.effects) {
-            if (effect.is(setHover))
-              value2 = effect.value;
-            if (effect.is(closeHoverTooltipEffect))
+          for (let effect2 of tr2.effects) {
+            if (effect2.is(setHover))
+              value2 = effect2.value;
+            if (effect2.is(closeHoverTooltipEffect))
               value2 = [];
           }
           return value2;
@@ -75903,7 +77638,7 @@ ${events}
         let input2 = update.state.facet(showPanel);
         if (input2 != this.input) {
           let specs = input2.filter((x2) => x2);
-          let panels = [], top2 = [], bottom = [], mount2 = [];
+          let panels = [], top2 = [], bottom2 = [], mount2 = [];
           for (let spec of specs) {
             let known = this.specs.indexOf(spec), panel2;
             if (known < 0) {
@@ -75915,12 +77650,12 @@ ${events}
                 panel2.update(update);
             }
             panels.push(panel2);
-            (panel2.top ? top2 : bottom).push(panel2);
+            (panel2.top ? top2 : bottom2).push(panel2);
           }
           this.specs = specs;
           this.panels = panels;
           this.top.sync(top2);
-          this.bottom.sync(bottom);
+          this.bottom.sync(bottom2);
           for (let p of mount2) {
             p.dom.classList.add("cm-panel");
             if (p.mount)
@@ -76605,20 +78340,20 @@ ${events}
       nextChild(i2, dir, pos2, side, mode = 0) {
         for (let parent = this; ; ) {
           for (let { children: children2, positions } = parent._tree, e = dir > 0 ? children2.length : -1; i2 != e; i2 += dir) {
-            let next = children2[i2], start = positions[i2] + parent.from;
-            if (!checkSide(side, pos2, start, start + next.length))
+            let next = children2[i2], start2 = positions[i2] + parent.from;
+            if (!checkSide(side, pos2, start2, start2 + next.length))
               continue;
             if (next instanceof TreeBuffer) {
               if (mode & IterMode.ExcludeBuffers)
                 continue;
-              let index2 = next.findChild(0, next.buffer.length, dir, pos2 - start, side);
+              let index2 = next.findChild(0, next.buffer.length, dir, pos2 - start2, side);
               if (index2 > -1)
-                return new BufferNode(new BufferContext(parent, next, i2, start), null, index2);
+                return new BufferNode(new BufferContext(parent, next, i2, start2), null, index2);
             } else if (mode & IterMode.IncludeAnonymous || (!next.type.isAnonymous || hasChild(next))) {
               let mounted;
               if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay)
-                return new TreeNode(mounted.tree, start, i2, parent);
-              let inner = new TreeNode(next, start, i2, parent);
+                return new TreeNode(mounted.tree, start2, i2, parent);
+              let inner = new TreeNode(next, start2, i2, parent);
               return mode & IterMode.IncludeAnonymous || !inner.type.isAnonymous ? inner : inner.nextChild(dir < 0 ? next.children.length - 1 : 0, dir, pos2, side);
             }
           }
@@ -76752,11 +78487,11 @@ ${events}
       return true;
     }
     class BufferContext {
-      constructor(parent, buffer2, index2, start) {
+      constructor(parent, buffer2, index2, start2) {
         this.parent = parent;
         this.buffer = buffer2;
         this.index = index2;
-        this.start = start;
+        this.start = start2;
       }
     }
     class BufferNode extends BaseNode {
@@ -76957,10 +78692,10 @@ ${events}
       }
       yieldBuf(index2, type) {
         this.index = index2;
-        let { start, buffer: buffer2 } = this.buffer;
+        let { start: start2, buffer: buffer2 } = this.buffer;
         this.type = type || buffer2.set.types[buffer2.buffer[index2]];
-        this.from = start + buffer2.buffer[index2 + 1];
-        this.to = start + buffer2.buffer[index2 + 2];
+        this.from = start2 + buffer2.buffer[index2 + 1];
+        this.to = start2 + buffer2.buffer[index2 + 2];
         return true;
       }
       /**
@@ -77269,14 +79004,14 @@ ${events}
       let types2 = nodeSet2.types;
       let contextHash = 0, lookAhead = 0;
       function takeNode(parentStart, minPos, children3, positions2, inRepeat, depth) {
-        let { id, start, end, size } = cursor;
+        let { id, start: start2, end: end2, size } = cursor;
         let lookAheadAtStart = lookAhead, contextAtStart = contextHash;
         while (size < 0) {
           cursor.next();
           if (size == -1) {
             let node3 = reused[id];
             children3.push(node3);
-            positions2.push(start - parentStart);
+            positions2.push(start2 - parentStart);
             return;
           } else if (size == -3) {
             contextHash = id;
@@ -77289,43 +79024,43 @@ ${events}
           }
         }
         let type = types2[id], node2, buffer3;
-        let startPos = start - parentStart;
-        if (end - start <= maxBufferLength && (buffer3 = findBufferSize(cursor.pos - minPos, inRepeat))) {
+        let startPos = start2 - parentStart;
+        if (end2 - start2 <= maxBufferLength && (buffer3 = findBufferSize(cursor.pos - minPos, inRepeat))) {
           let data2 = new Uint16Array(buffer3.size - buffer3.skip);
           let endPos = cursor.pos - buffer3.size, index2 = data2.length;
           while (cursor.pos > endPos)
             index2 = copyToBuffer(buffer3.start, data2, index2);
-          node2 = new TreeBuffer(data2, end - buffer3.start, nodeSet2);
+          node2 = new TreeBuffer(data2, end2 - buffer3.start, nodeSet2);
           startPos = buffer3.start - parentStart;
         } else {
           let endPos = cursor.pos - size;
           cursor.next();
           let localChildren = [], localPositions = [];
           let localInRepeat = id >= minRepeatType ? id : -1;
-          let lastGroup = 0, lastEnd = end;
+          let lastGroup = 0, lastEnd = end2;
           while (cursor.pos > endPos) {
             if (localInRepeat >= 0 && cursor.id == localInRepeat && cursor.size >= 0) {
               if (cursor.end <= lastEnd - maxBufferLength) {
-                makeRepeatLeaf(localChildren, localPositions, start, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+                makeRepeatLeaf(localChildren, localPositions, start2, lastGroup, cursor.end, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
                 lastGroup = localChildren.length;
                 lastEnd = cursor.end;
               }
               cursor.next();
             } else if (depth > 2500) {
-              takeFlatNode(start, endPos, localChildren, localPositions);
+              takeFlatNode(start2, endPos, localChildren, localPositions);
             } else {
-              takeNode(start, endPos, localChildren, localPositions, localInRepeat, depth + 1);
+              takeNode(start2, endPos, localChildren, localPositions, localInRepeat, depth + 1);
             }
           }
           if (localInRepeat >= 0 && lastGroup > 0 && lastGroup < localChildren.length)
-            makeRepeatLeaf(localChildren, localPositions, start, lastGroup, start, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
+            makeRepeatLeaf(localChildren, localPositions, start2, lastGroup, start2, lastEnd, localInRepeat, lookAheadAtStart, contextAtStart);
           localChildren.reverse();
           localPositions.reverse();
           if (localInRepeat > -1 && lastGroup > 0) {
             let make = makeBalanced(type, contextAtStart);
-            node2 = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end - start, make, make);
+            node2 = balanceRange(type, localChildren, localPositions, 0, localChildren.length, 0, end2 - start2, make, make);
           } else {
-            node2 = makeTree(type, localChildren, localPositions, end - start, lookAheadAtStart - end, contextAtStart);
+            node2 = makeTree(type, localChildren, localPositions, end2 - start2, lookAheadAtStart - end2, contextAtStart);
           }
         }
         children3.push(node2);
@@ -77335,30 +79070,30 @@ ${events}
         let nodes = [];
         let nodeCount = 0, stopAt = -1;
         while (cursor.pos > minPos) {
-          let { id, start, end, size } = cursor;
+          let { id, start: start2, end: end2, size } = cursor;
           if (size > 4) {
             cursor.next();
-          } else if (stopAt > -1 && start < stopAt) {
+          } else if (stopAt > -1 && start2 < stopAt) {
             break;
           } else {
             if (stopAt < 0)
-              stopAt = end - maxBufferLength;
-            nodes.push(id, start, end);
+              stopAt = end2 - maxBufferLength;
+            nodes.push(id, start2, end2);
             nodeCount++;
             cursor.next();
           }
         }
         if (nodeCount) {
           let buffer3 = new Uint16Array(nodeCount * 4);
-          let start = nodes[nodes.length - 2];
+          let start2 = nodes[nodes.length - 2];
           for (let i2 = nodes.length - 3, j2 = 0; i2 >= 0; i2 -= 3) {
             buffer3[j2++] = nodes[i2];
-            buffer3[j2++] = nodes[i2 + 1] - start;
-            buffer3[j2++] = nodes[i2 + 2] - start;
+            buffer3[j2++] = nodes[i2 + 1] - start2;
+            buffer3[j2++] = nodes[i2 + 2] - start2;
             buffer3[j2++] = j2;
           }
-          children3.push(new TreeBuffer(buffer3, nodes[2] - start, nodeSet2));
-          positions2.push(start - parentStart);
+          children3.push(new TreeBuffer(buffer3, nodes[2] - start2, nodeSet2));
+          positions2.push(start2 - parentStart);
         }
       }
       function makeBalanced(type, contextHash2) {
@@ -77395,13 +79130,13 @@ ${events}
       }
       function findBufferSize(maxSize, inRepeat) {
         let fork = cursor.fork();
-        let size = 0, start = 0, skip = 0, minStart = fork.end - maxBufferLength;
+        let size = 0, start2 = 0, skip = 0, minStart = fork.end - maxBufferLength;
         let result2 = { size: 0, start: 0, skip: 0 };
         scan: for (let minPos = fork.pos - maxSize; fork.pos > minPos; ) {
           let nodeSize2 = fork.size;
           if (fork.id == inRepeat && nodeSize2 >= 0) {
             result2.size = size;
-            result2.start = start;
+            result2.start = start2;
             result2.skip = skip;
             skip += 4;
             size += 4;
@@ -77425,19 +79160,19 @@ ${events}
             }
             fork.next();
           }
-          start = nodeStart;
+          start2 = nodeStart;
           size += nodeSize2;
           skip += localSkipped;
         }
         if (inRepeat < 0 || size == maxSize) {
           result2.size = size;
-          result2.start = start;
+          result2.start = start2;
           result2.skip = skip;
         }
         return result2.size > 4 ? result2 : void 0;
       }
       function copyToBuffer(bufferStart, buffer3, index2) {
-        let { id, start, end, size } = cursor;
+        let { id, start: start2, end: end2, size } = cursor;
         cursor.next();
         if (size >= 0 && id < minRepeatType) {
           let startIndex2 = index2;
@@ -77447,8 +79182,8 @@ ${events}
               index2 = copyToBuffer(bufferStart, buffer3, index2);
           }
           buffer3[--index2] = startIndex2;
-          buffer3[--index2] = end - bufferStart;
-          buffer3[--index2] = start - bufferStart;
+          buffer3[--index2] = end2 - bufferStart;
+          buffer3[--index2] = start2 - bufferStart;
           buffer3[--index2] = id;
         } else if (size == -3) {
           contextHash = id;
@@ -77481,7 +79216,7 @@ ${events}
       }
       return size;
     }
-    function balanceRange(balanceType, children2, positions, from, to2, start, length, mkTop, mkTree) {
+    function balanceRange(balanceType, children2, positions, from, to2, start2, length, mkTop, mkTree) {
       let total = 0;
       for (let i2 = from; i2 < to2; i2++)
         total += nodeSize(balanceType, children2[i2]);
@@ -77490,7 +79225,7 @@ ${events}
         /* Balance.BranchFactor */
       );
       let localChildren = [], localPositions = [];
-      function divide(children3, positions2, from2, to3, offset) {
+      function divide(children3, positions2, from2, to3, offset2) {
         for (let i2 = from2; i2 < to3; ) {
           let groupFrom = i2, groupStart = positions2[i2], groupSize = nodeSize(balanceType, children3[i2]);
           i2++;
@@ -77503,7 +79238,7 @@ ${events}
           if (i2 == groupFrom + 1) {
             if (groupSize > maxChild) {
               let only = children3[groupFrom];
-              divide(only.children, only.positions, 0, only.children.length, positions2[groupFrom] + offset);
+              divide(only.children, only.positions, 0, only.children.length, positions2[groupFrom] + offset2);
               continue;
             }
             localChildren.push(children3[groupFrom]);
@@ -77511,7 +79246,7 @@ ${events}
             let length2 = positions2[i2 - 1] + children3[i2 - 1].length - groupStart;
             localChildren.push(balanceRange(balanceType, children3, positions2, groupFrom, i2, groupStart, length2, null, mkTree));
           }
-          localPositions.push(groupStart + offset - start);
+          localPositions.push(groupStart + offset2 - start2);
         }
       }
       divide(children2, positions, from, to2, 0);
@@ -77524,11 +79259,11 @@ ${events}
       [`applyChanges`](#common.TreeFragment^applyChanges) instead of
       calling this directly.
       */
-      constructor(from, to2, tree, offset, openStart = false, openEnd = false) {
+      constructor(from, to2, tree, offset2, openStart = false, openEnd = false) {
         this.from = from;
         this.to = to2;
         this.tree = tree;
-        this.offset = offset;
+        this.offset = offset2;
         this.open = (openStart ? 1 : 0) | (openEnd ? 2 : 0);
       }
       /**
@@ -77859,8 +79594,8 @@ ${events}
           this.span(this.at, to2, this.class);
       }
       highlightRange(cursor, from, to2, inheritedClass, highlighters) {
-        let { type, from: start, to: end } = cursor;
-        if (start >= to2 || end <= from)
+        let { type, from: start2, to: end2 } = cursor;
+        if (start2 >= to2 || end2 <= from)
           return;
         if (type.isTop)
           highlighters = this.highlighters.filter((h) => !h.scope || h.scope(type));
@@ -77874,17 +79609,17 @@ ${events}
           if (rule.mode == 1)
             inheritedClass += (inheritedClass ? " " : "") + tagCls;
         }
-        this.startSpan(Math.max(from, start), cls);
+        this.startSpan(Math.max(from, start2), cls);
         if (rule.opaque)
           return;
         let mounted = cursor.tree && cursor.tree.prop(NodeProp.mounted);
         if (mounted && mounted.overlay) {
-          let inner = cursor.node.enter(mounted.overlay[0].from + start, 1);
+          let inner = cursor.node.enter(mounted.overlay[0].from + start2, 1);
           let innerHighlighters = this.highlighters.filter((h) => !h.scope || h.scope(mounted.tree.type));
           let hasChild2 = cursor.firstChild();
-          for (let i2 = 0, pos2 = start; ; i2++) {
+          for (let i2 = 0, pos2 = start2; ; i2++) {
             let next = i2 < mounted.overlay.length ? mounted.overlay[i2] : null;
-            let nextPos = next ? next.from + start : end;
+            let nextPos = next ? next.from + start2 : end2;
             let rangeFrom2 = Math.max(from, pos2), rangeTo2 = Math.min(to2, nextPos);
             if (rangeFrom2 < rangeTo2 && hasChild2) {
               while (cursor.from < rangeTo2) {
@@ -77896,9 +79631,9 @@ ${events}
             }
             if (!next || nextPos > to2)
               break;
-            pos2 = next.to + start;
+            pos2 = next.to + start2;
             if (pos2 > from) {
-              this.highlightRange(inner.cursor(), Math.max(from, next.from + start), Math.min(to2, pos2), "", innerHighlighters);
+              this.highlightRange(inner.cursor(), Math.max(from, next.from + start2), Math.min(to2, pos2), "", innerHighlighters);
               this.startSpan(Math.min(to2, pos2), cls);
             }
           }
@@ -78478,13 +80213,13 @@ ${events}
     }
     let currentContext = null;
     class ParseContext {
-      constructor(parser2, state, fragments = [], tree, treeLen, viewport, skipped, scheduleOn) {
+      constructor(parser2, state, fragments = [], tree, treeLen, viewport2, skipped, scheduleOn) {
         this.parser = parser2;
         this.state = state;
         this.fragments = fragments;
         this.tree = tree;
         this.treeLen = treeLen;
-        this.viewport = viewport;
+        this.viewport = viewport2;
         this.skipped = skipped;
         this.scheduleOn = scheduleOn;
         this.parse = null;
@@ -78493,8 +80228,8 @@ ${events}
       /**
       @internal
       */
-      static create(parser2, state, viewport) {
-        return new ParseContext(parser2, state, [], Tree.empty, 0, viewport, [], null);
+      static create(parser2, state, viewport2) {
+        return new ParseContext(parser2, state, [], Tree.empty, 0, viewport2, [], null);
       }
       startParse() {
         return this.parser.startParse(new DocInput(this.state.doc), this.fragments);
@@ -78572,7 +80307,7 @@ ${events}
       @internal
       */
       changes(changes, newState) {
-        let { fragments, tree, treeLen, viewport, skipped } = this;
+        let { fragments, tree, treeLen, viewport: viewport2, skipped } = this;
         this.takeTree();
         if (!changes.empty) {
           let ranges = [];
@@ -78580,7 +80315,7 @@ ${events}
           fragments = TreeFragment.applyChanges(fragments, ranges);
           tree = Tree.empty;
           treeLen = 0;
-          viewport = { from: changes.mapPos(viewport.from, -1), to: changes.mapPos(viewport.to, 1) };
+          viewport2 = { from: changes.mapPos(viewport2.from, -1), to: changes.mapPos(viewport2.to, 1) };
           if (this.skipped.length) {
             skipped = [];
             for (let r2 of this.skipped) {
@@ -78590,19 +80325,19 @@ ${events}
             }
           }
         }
-        return new ParseContext(this.parser, newState, fragments, tree, treeLen, viewport, skipped, this.scheduleOn);
+        return new ParseContext(this.parser, newState, fragments, tree, treeLen, viewport2, skipped, this.scheduleOn);
       }
       /**
       @internal
       */
-      updateViewport(viewport) {
-        if (this.viewport.from == viewport.from && this.viewport.to == viewport.to)
+      updateViewport(viewport2) {
+        if (this.viewport.from == viewport2.from && this.viewport.to == viewport2.to)
           return false;
-        this.viewport = viewport;
+        this.viewport = viewport2;
         let startLen = this.skipped.length;
         for (let i2 = 0; i2 < this.skipped.length; i2++) {
           let { from, to: to2 } = this.skipped[i2];
-          if (from < viewport.to && to2 > viewport.from) {
+          if (from < viewport2.to && to2 > viewport2.from) {
             this.fragments = cutFragments(this.fragments, from, to2);
             this.skipped.splice(i2--, 1);
           }
@@ -79127,8 +80862,8 @@ ${events}
       }
     });
     function getHighlighters(state) {
-      let main = state.facet(highlighterFacet);
-      return main.length ? main : state.facet(fallbackHighlighter);
+      let main2 = state.facet(highlighterFacet);
+      return main2.length ? main2 : state.facet(fallbackHighlighter);
     }
     function syntaxHighlighting(highlighter, options2) {
       let ext = [treeHighlighter], themeType;
@@ -79157,14 +80892,14 @@ ${events}
       update(update) {
         let tree = syntaxTree(update.state), highlighters = getHighlighters(update.state);
         let styleChange = highlighters != getHighlighters(update.startState);
-        let { viewport } = update.view, decoratedToMapped = update.changes.mapPos(this.decoratedTo, 1);
-        if (tree.length < viewport.to && !styleChange && tree.type == this.tree.type && decoratedToMapped >= viewport.to) {
+        let { viewport: viewport2 } = update.view, decoratedToMapped = update.changes.mapPos(this.decoratedTo, 1);
+        if (tree.length < viewport2.to && !styleChange && tree.type == this.tree.type && decoratedToMapped >= viewport2.to) {
           this.decorations = this.decorations.map(update.changes);
           this.decoratedTo = decoratedToMapped;
         } else if (tree != this.tree || update.viewportChanged || styleChange) {
           this.tree = tree;
           this.decorations = this.buildDeco(update.view, highlighters);
-          this.decoratedTo = viewport.to;
+          this.decoratedTo = viewport2.to;
         }
       }
       buildDeco(view, highlighters) {
@@ -79379,7 +81114,7 @@ ${events}
         if (dir < 0)
           distance += text2.length;
         let basePos = pos2 + distance * dir;
-        for (let pos3 = dir > 0 ? 0 : text2.length - 1, end = dir > 0 ? text2.length : -1; pos3 != end; pos3 += dir) {
+        for (let pos3 = dir > 0 ? 0 : text2.length - 1, end2 = dir > 0 ? text2.length : -1; pos3 != end2; pos3 += dir) {
           let found = brackets.indexOf(text2[pos3]);
           if (found < 0 || tree.resolveInner(basePos + pos3, 1).type != tokenType)
             continue;
@@ -79396,14 +81131,14 @@ ${events}
       }
       return iter.done ? { start: startToken, matched: false } : null;
     }
-    function countCol(string2, end, tabSize, startIndex2 = 0, startValue = 0) {
-      if (end == null) {
-        end = string2.search(/[^\s\u00a0]/);
-        if (end == -1)
-          end = string2.length;
+    function countCol(string2, end2, tabSize, startIndex2 = 0, startValue = 0) {
+      if (end2 == null) {
+        end2 = string2.search(/[^\s\u00a0]/);
+        if (end2 == -1)
+          end2 = string2.length;
       }
       let n = startValue;
-      for (let i2 = startIndex2; i2 < end; i2++) {
+      for (let i2 = startIndex2; i2 < end2; i2++) {
         if (string2.charCodeAt(i2) == 9)
           n += tabSize - n % tabSize;
         else
@@ -79473,20 +81208,20 @@ ${events}
       characters were consumed.
       */
       eatWhile(match) {
-        let start = this.pos;
+        let start2 = this.pos;
         while (this.eat(match)) {
         }
-        return this.pos > start;
+        return this.pos > start2;
       }
       /**
       Consume whitespace ahead of `this.pos`. Return true if any was
       found.
       */
       eatSpace() {
-        let start = this.pos;
+        let start2 = this.pos;
         while (/[\s\u00a0]/.test(this.string.charAt(this.pos)))
           ++this.pos;
-        return this.pos > start;
+        return this.pos > start2;
       }
       /**
       Move to the end of the line.
@@ -79623,10 +81358,10 @@ ${events}
           if (from != null && from < cx.pos - 1e4)
             from = void 0;
         }
-        let start = findState(this, cx.node.tree, cx.node.from, cx.node.from, from !== null && from !== void 0 ? from : cx.pos), statePos, state;
-        if (start) {
-          state = start.state;
-          statePos = start.pos + 1;
+        let start2 = findState(this, cx.node.tree, cx.node.from, cx.node.from, from !== null && from !== void 0 ? from : cx.pos), statePos, state;
+        if (start2) {
+          state = start2.state;
+          statePos = start2.pos + 1;
         } else {
           state = this.streamParser.startState(cx.unit);
           statePos = cx.node.from;
@@ -79634,16 +81369,16 @@ ${events}
         if (cx.pos - statePos > 1e4)
           return null;
         while (statePos < cx.pos) {
-          let line3 = cx.state.doc.lineAt(statePos), end = Math.min(cx.pos, line3.to);
+          let line3 = cx.state.doc.lineAt(statePos), end2 = Math.min(cx.pos, line3.to);
           if (line3.length) {
             let indentation = overrideIndentation ? overrideIndentation(line3.from) : -1;
             let stream = new StringStream(line3.text, cx.state.tabSize, cx.unit, indentation < 0 ? void 0 : indentation);
-            while (stream.pos < end - line3.from)
+            while (stream.pos < end2 - line3.from)
               readToken(this.streamParser.token, stream, state);
           } else {
             this.streamParser.blankLine(state, cx.unit);
           }
-          if (end == cx.pos)
+          if (end2 == cx.pos)
             break;
           statePos = line3.to + 1;
         }
@@ -79723,14 +81458,14 @@ ${events}
       advance() {
         let context = ParseContext.get();
         let parseEnd = this.stoppedAt == null ? this.to : Math.min(this.to, this.stoppedAt);
-        let end = Math.min(
+        let end2 = Math.min(
           parseEnd,
           this.chunkStart + 2048
           /* C.ChunkSize */
         );
         if (context)
-          end = Math.min(end, context.viewport.to);
-        while (this.parsedPos < end)
+          end2 = Math.min(end2, context.viewport.to);
+        while (this.parsedPos < end2)
           this.parseLine(context);
         if (this.chunkStart < this.parsedPos)
           this.finishChunk();
@@ -79757,44 +81492,44 @@ ${events}
         return pos2 + chunk.length <= this.to ? chunk : chunk.slice(0, this.to - pos2);
       }
       nextLine() {
-        let from = this.parsedPos, line2 = this.lineAfter(from), end = from + line2.length;
+        let from = this.parsedPos, line2 = this.lineAfter(from), end2 = from + line2.length;
         for (let index2 = this.rangeIndex; ; ) {
           let rangeEnd2 = this.ranges[index2].to;
-          if (rangeEnd2 >= end)
+          if (rangeEnd2 >= end2)
             break;
-          line2 = line2.slice(0, rangeEnd2 - (end - line2.length));
+          line2 = line2.slice(0, rangeEnd2 - (end2 - line2.length));
           index2++;
           if (index2 == this.ranges.length)
             break;
           let rangeStart = this.ranges[index2].from;
           let after = this.lineAfter(rangeStart);
           line2 += after;
-          end = rangeStart + after.length;
+          end2 = rangeStart + after.length;
         }
-        return { line: line2, end };
+        return { line: line2, end: end2 };
       }
-      skipGapsTo(pos2, offset, side) {
+      skipGapsTo(pos2, offset2, side) {
         for (; ; ) {
-          let end = this.ranges[this.rangeIndex].to, offPos = pos2 + offset;
-          if (side > 0 ? end > offPos : end >= offPos)
+          let end2 = this.ranges[this.rangeIndex].to, offPos = pos2 + offset2;
+          if (side > 0 ? end2 > offPos : end2 >= offPos)
             break;
-          let start = this.ranges[++this.rangeIndex].from;
-          offset += start - end;
+          let start2 = this.ranges[++this.rangeIndex].from;
+          offset2 += start2 - end2;
         }
-        return offset;
+        return offset2;
       }
       moveRangeIndex() {
         while (this.ranges[this.rangeIndex].to < this.parsedPos)
           this.rangeIndex++;
       }
-      emitToken(id, from, to2, offset) {
+      emitToken(id, from, to2, offset2) {
         let size = 4;
         if (this.ranges.length > 1) {
-          offset = this.skipGapsTo(from, offset, 1);
-          from += offset;
+          offset2 = this.skipGapsTo(from, offset2, 1);
+          from += offset2;
           let len0 = this.chunk.length;
-          offset = this.skipGapsTo(to2, offset, -1);
-          to2 += offset;
+          offset2 = this.skipGapsTo(to2, offset2, -1);
+          to2 += offset2;
           size += this.chunk.length - len0;
         }
         let last = this.chunk.length - 4;
@@ -79802,10 +81537,10 @@ ${events}
           this.chunk[last + 2] = to2;
         else
           this.chunk.push(id, from, to2, size);
-        return offset;
+        return offset2;
       }
       parseLine(context) {
-        let { line: line2, end } = this.nextLine(), offset = 0, { streamParser } = this.lang;
+        let { line: line2, end: end2 } = this.nextLine(), offset2 = 0, { streamParser } = this.lang;
         let stream = new StringStream(line2, context ? context.state.tabSize : 4, context ? getIndentUnit(context.state) : 2);
         if (stream.eol()) {
           streamParser.blankLine(this.state, stream.indentUnit);
@@ -79813,12 +81548,12 @@ ${events}
           while (!stream.eol()) {
             let token2 = readToken(streamParser.token, stream, this.state);
             if (token2)
-              offset = this.emitToken(this.lang.tokenTable.resolve(token2), this.parsedPos + stream.start, this.parsedPos + stream.pos, offset);
+              offset2 = this.emitToken(this.lang.tokenTable.resolve(token2), this.parsedPos + stream.start, this.parsedPos + stream.pos, offset2);
             if (stream.start > 1e4)
               break;
           }
         }
-        this.parsedPos = end;
+        this.parsedPos = end2;
         this.moveRangeIndex();
         if (this.parsedPos < this.to)
           this.parsedPos++;
@@ -79974,10 +81709,10 @@ ${events}
       */
       matchBefore(expr) {
         let line2 = this.state.doc.lineAt(this.pos);
-        let start = Math.max(line2.from, this.pos - 250);
-        let str2 = line2.text.slice(start - line2.from, this.pos - line2.from);
+        let start2 = Math.max(line2.from, this.pos - 250);
+        let str2 = line2.text.slice(start2 - line2.from, this.pos - line2.from);
         let found = str2.search(ensureAnchor(expr, false));
-        return found < 0 ? null : { from: start + found, to: this.pos, text: str2.slice(found) };
+        return found < 0 ? null : { from: start2 + found, to: this.pos, text: str2.slice(found) };
       }
       /**
       Yields true when the query has been aborted. Can be useful in
@@ -80043,23 +81778,23 @@ ${events}
     function cur(state) {
       return state.selection.main.from;
     }
-    function ensureAnchor(expr, start) {
+    function ensureAnchor(expr, start2) {
       var _a2;
       let { source: source2 } = expr;
-      let addStart = start && source2[0] != "^", addEnd = source2[source2.length - 1] != "$";
+      let addStart = start2 && source2[0] != "^", addEnd = source2[source2.length - 1] != "$";
       if (!addStart && !addEnd)
         return expr;
       return new RegExp(`${addStart ? "^" : ""}(?:${source2})${addEnd ? "$" : ""}`, (_a2 = expr.flags) !== null && _a2 !== void 0 ? _a2 : expr.ignoreCase ? "i" : "");
     }
     const pickedCompletion = /* @__PURE__ */ Annotation.define();
     function insertCompletionText(state, text2, from, to2) {
-      let { main } = state.selection, fromOff = from - main.from, toOff = to2 - main.from;
+      let { main: main2 } = state.selection, fromOff = from - main2.from, toOff = to2 - main2.from;
       return Object.assign(Object.assign({}, state.changeByRange((range) => {
-        if (range != main && from != to2 && state.sliceDoc(range.from + fromOff, range.from + toOff) != state.sliceDoc(from, to2))
+        if (range != main2 && from != to2 && state.sliceDoc(range.from + fromOff, range.from + toOff) != state.sliceDoc(from, to2))
           return { range };
         let lines = state.toText(text2);
         return {
-          changes: { from: range.from + fromOff, to: to2 == main.from ? range.to : range.from + toOff, insert: lines },
+          changes: { from: range.from + fromOff, to: to2 == main2.from ? range.to : range.from + toOff, insert: lines },
           range: EditorSelection.cursor(range.from + fromOff + lines.length)
         };
       })), { scrollIntoView: true, userEvent: "input.complete" });
@@ -80202,11 +81937,11 @@ ${events}
       match(word) {
         if (word.length < this.pattern.length)
           return null;
-        let start = word.slice(0, this.pattern.length);
-        let match = start == this.pattern ? 0 : start.toLowerCase() == this.folded ? -200 : null;
+        let start2 = word.slice(0, this.pattern.length);
+        let match = start2 == this.pattern ? 0 : start2.toLowerCase() == this.folded ? -200 : null;
         if (match == null)
           return null;
-        this.matched = [0, start.length];
+        this.matched = [0, start2.length];
         this.score = match + (word.length == this.pattern.length ? 0 : -100);
         return this;
       }
@@ -80247,17 +81982,17 @@ ${events}
       return a ? b ? a + " " + b : a : b;
     }
     function defaultPositionInfo(view, list2, option, info, space, tooltip) {
-      let rtl = view.textDirection == Direction.RTL, left = rtl, narrow = false;
-      let side = "top", offset, maxWidth;
+      let rtl = view.textDirection == Direction.RTL, left2 = rtl, narrow = false;
+      let side = "top", offset2, maxWidth;
       let spaceLeft = list2.left - space.left, spaceRight = space.right - list2.right;
       let infoWidth = info.right - info.left, infoHeight = info.bottom - info.top;
-      if (left && spaceLeft < Math.min(infoWidth, spaceRight))
-        left = false;
-      else if (!left && spaceRight < Math.min(infoWidth, spaceLeft))
-        left = true;
-      if (infoWidth <= (left ? spaceLeft : spaceRight)) {
-        offset = Math.max(space.top, Math.min(option.top, space.bottom - infoHeight)) - list2.top;
-        maxWidth = Math.min(400, left ? spaceLeft : spaceRight);
+      if (left2 && spaceLeft < Math.min(infoWidth, spaceRight))
+        left2 = false;
+      else if (!left2 && spaceRight < Math.min(infoWidth, spaceLeft))
+        left2 = true;
+      if (infoWidth <= (left2 ? spaceLeft : spaceRight)) {
+        offset2 = Math.max(space.top, Math.min(option.top, space.bottom - infoHeight)) - list2.top;
+        maxWidth = Math.min(400, left2 ? spaceLeft : spaceRight);
       } else {
         narrow = true;
         maxWidth = Math.min(
@@ -80267,17 +82002,17 @@ ${events}
         );
         let spaceBelow = space.bottom - list2.bottom;
         if (spaceBelow >= infoHeight || spaceBelow > list2.top) {
-          offset = option.bottom - list2.top;
+          offset2 = option.bottom - list2.top;
         } else {
           side = "bottom";
-          offset = list2.bottom - option.top;
+          offset2 = list2.bottom - option.top;
         }
       }
       let scaleY = (list2.bottom - list2.top) / tooltip.offsetHeight;
       let scaleX = (list2.right - list2.left) / tooltip.offsetWidth;
       return {
-        style: `${side}: ${offset / scaleY}px; max-width: ${maxWidth / scaleX}px`,
-        class: "cm-completionInfo-" + (narrow ? rtl ? "left-narrow" : "right-narrow" : left ? "left" : "right")
+        style: `${side}: ${offset2 / scaleY}px; max-width: ${maxWidth / scaleX}px`,
+        class: "cm-completionInfo-" + (narrow ? rtl ? "left-narrow" : "right-narrow" : left2 ? "left" : "right")
       };
     }
     function optionContent(config2) {
@@ -80718,9 +82453,9 @@ ${events}
             0
             /* State.Inactive */
           ) : a);
-        for (let effect of tr2.effects)
-          if (effect.is(setSelectedEffect))
-            open = open && open.setSelected(effect.value, this.id);
+        for (let effect2 of tr2.effects)
+          if (effect2.is(setSelectedEffect))
+            open = open && open.setSelected(effect2.value, this.id);
         return active2 == this.active && open == this.open ? this : new CompletionState(active2, this.id, open);
       }
       get tooltip() {
@@ -80796,17 +82531,17 @@ ${events}
             /* State.Pending */
           );
         value2 = value2.updateFor(tr2, type);
-        for (let effect of tr2.effects) {
-          if (effect.is(startCompletionEffect))
-            value2 = new ActiveSource(value2.source, 1, effect.value);
-          else if (effect.is(closeCompletionEffect))
+        for (let effect2 of tr2.effects) {
+          if (effect2.is(startCompletionEffect))
+            value2 = new ActiveSource(value2.source, 1, effect2.value);
+          else if (effect2.is(closeCompletionEffect))
             value2 = new ActiveSource(
               value2.source,
               0
               /* State.Inactive */
             );
-          else if (effect.is(setActiveEffect)) {
-            for (let active2 of effect.value)
+          else if (effect2.is(setActiveEffect)) {
+            for (let active2 of effect2.value)
               if (active2.source == value2.source)
                 value2 = active2;
           }
@@ -81413,14 +83148,14 @@ ${events}
             panel2 = null;
           value2 = new LintState(mapped, panel2, selected2);
         }
-        for (let effect of tr2.effects) {
-          if (effect.is(setDiagnosticsEffect)) {
-            let panel2 = !tr2.state.facet(lintConfig).autoPanel ? value2.panel : effect.value.length ? LintPanel.open : null;
-            value2 = LintState.init(effect.value, panel2, tr2.state);
-          } else if (effect.is(togglePanel)) {
-            value2 = new LintState(value2.diagnostics, effect.value ? LintPanel.open : null, value2.selected);
-          } else if (effect.is(movePanelSelection)) {
-            value2 = new LintState(value2.diagnostics, value2.panel, effect.value);
+        for (let effect2 of tr2.effects) {
+          if (effect2.is(setDiagnosticsEffect)) {
+            let panel2 = !tr2.state.facet(lintConfig).autoPanel ? value2.panel : effect2.value.length ? LintPanel.open : null;
+            value2 = LintState.init(effect2.value, panel2, tr2.state);
+          } else if (effect2.is(togglePanel)) {
+            value2 = new LintState(value2.diagnostics, effect2.value ? LintPanel.open : null, value2.selected);
+          } else if (effect2.is(movePanelSelection)) {
+            value2 = new LintState(value2.diagnostics, value2.panel, effect2.value);
           }
         }
         return value2;
@@ -81433,12 +83168,12 @@ ${events}
     const activeMark = /* @__PURE__ */ Decoration.mark({ class: "cm-lintRange cm-lintRange-active" });
     function lintTooltip(view, pos2, side) {
       let { diagnostics } = view.state.field(lintState);
-      let found, start = -1, end = -1;
+      let found, start2 = -1, end2 = -1;
       diagnostics.between(pos2 - (side < 0 ? 1 : 0), pos2 + (side > 0 ? 1 : 0), (from, to2, { spec }) => {
         if (pos2 >= from && pos2 <= to2 && (from == to2 || (pos2 > from || side > 0) && (pos2 < to2 || side < 0))) {
           found = spec.diagnostics;
-          start = from;
-          end = to2;
+          start2 = from;
+          end2 = to2;
           return false;
         }
       });
@@ -81448,9 +83183,9 @@ ${events}
       if (!found)
         return null;
       return {
-        pos: start,
-        end,
-        above: view.state.doc.lineAt(start).to < end,
+        pos: start2,
+        end: end2,
+        above: view.state.doc.lineAt(start2).to < end2,
         create() {
           return { dom: diagnosticsTooltip(view, found) };
         }
@@ -82181,8 +83916,8 @@ ${events}
       }
     }
     function updateBranch(branch, to2, maxLen, newEvent) {
-      let start = to2 + 1 > maxLen + 20 ? to2 - maxLen - 1 : 0;
-      let newBranch = branch.slice(start, to2);
+      let start2 = to2 + 1 > maxLen + 20 ? to2 - maxLen - 1 : 0;
+      let newBranch = branch.slice(start2, to2);
       newBranch.push(newEvent);
       return newBranch;
     }
@@ -82353,10 +84088,10 @@ ${events}
       let len = node2.to - node2.from;
       return len && (len > 2 || /[^\s,.;:]/.test(state.sliceDoc(node2.from, node2.to))) || node2.firstChild;
     }
-    function moveBySyntax(state, start, forward) {
-      let pos2 = syntaxTree(state).resolveInner(start.head);
+    function moveBySyntax(state, start2, forward) {
+      let pos2 = syntaxTree(state).resolveInner(start2.head);
       let bracketProp = forward ? NodeProp.closedBy : NodeProp.openedBy;
-      for (let at2 = start.head; ; ) {
+      for (let at2 = start2.head; ; ) {
         let next = forward ? pos2.childAfter(at2) : pos2.childBefore(at2);
         if (!next)
           break;
@@ -82413,26 +84148,26 @@ ${events}
       });
       if (selection.eq(state.selection))
         return false;
-      let effect;
+      let effect2;
       if (page.selfScroll) {
         let startPos = view.coordsAtPos(state.selection.main.head);
         let scrollRect = view.scrollDOM.getBoundingClientRect();
         let scrollTop = scrollRect.top + page.marginTop, scrollBottom = scrollRect.bottom - page.marginBottom;
         if (startPos && startPos.top > scrollTop && startPos.bottom < scrollBottom)
-          effect = EditorView.scrollIntoView(selection.main.head, { y: "start", yMargin: startPos.top - scrollTop });
+          effect2 = EditorView.scrollIntoView(selection.main.head, { y: "start", yMargin: startPos.top - scrollTop });
       }
-      view.dispatch(setSel(state, selection), { effects: effect });
+      view.dispatch(setSel(state, selection), { effects: effect2 });
       return true;
     }
     const cursorPageUp = (view) => cursorByPage(view, false);
     const cursorPageDown = (view) => cursorByPage(view, true);
-    function moveByLineBoundary(view, start, forward) {
-      let line2 = view.lineBlockAt(start.head), moved = view.moveToLineBoundary(start, forward);
-      if (moved.head == start.head && moved.head != (forward ? line2.to : line2.from))
-        moved = view.moveToLineBoundary(start, forward, false);
+    function moveByLineBoundary(view, start2, forward) {
+      let line2 = view.lineBlockAt(start2.head), moved = view.moveToLineBoundary(start2, forward);
+      if (moved.head == start2.head && moved.head != (forward ? line2.to : line2.from))
+        moved = view.moveToLineBoundary(start2, forward, false);
       if (!forward && moved.head == line2.from && line2.length) {
         let space = /^\s*/.exec(view.state.sliceDoc(line2.from, Math.min(line2.from + 100, line2.to)))[0].length;
-        if (space && start.head != line2.from + space)
+        if (space && start2.head != line2.from + space)
           moved = EditorSelection.cursor(line2.from + space);
       }
       return moved;
@@ -82828,8 +84563,8 @@ ${events}
       if (state.readOnly)
         return false;
       let updated = /* @__PURE__ */ Object.create(null);
-      let context = new IndentContext(state, { overrideIndentation: (start) => {
-        let found = updated[start];
+      let context = new IndentContext(state, { overrideIndentation: (start2) => {
+        let found = updated[start2];
         return found == null ? -1 : found;
       } });
       let changes = changeBySelectedLine(state, (line2, changes2, range) => {
@@ -83384,7 +85119,7 @@ Supported expressions:
         [filterError]
       );
       const debounceSetFilter = reactExports.useCallback(
-        debounce$1((value2) => {
+        debounce$2((value2) => {
           setFilter(value2);
         }, 200),
         [setFilter]
@@ -84198,8 +85933,8 @@ Supported expressions:
         return noGrouping(samples, groupByOrder, sampleDescriptor, score2);
       }
     };
-    const noGrouping = (samples, order, sampleDescriptor, score2) => {
-      const counter = getCounter(samples.length, 1, order);
+    const noGrouping = (samples, order2, sampleDescriptor, score2) => {
+      const counter = getCounter(samples.length, 1, order2);
       return (sample2, index2) => {
         var _a2, _b2;
         counter.incrementItem();
@@ -84218,16 +85953,16 @@ Supported expressions:
         ];
       };
     };
-    const groupBySample = (samples, epochs, sampleDescriptor, order, score2) => {
+    const groupBySample = (samples, epochs, sampleDescriptor, order2, score2) => {
       samples = samples.sort((a, b) => {
         if (typeof a.id === "string") {
-          if (order === "asc") {
+          if (order2 === "asc") {
             return String(a.id).localeCompare(String(b.id));
           } else {
             return String(b.id).localeCompare(String(a.id));
           }
         } else {
-          if (order === "asc") {
+          if (order2 === "asc") {
             return Number(a.id) - Number(b.id);
           } else {
             return Number(b.id) - Number(b.id);
@@ -84236,7 +85971,7 @@ Supported expressions:
       });
       const groupCount = samples.length / epochs;
       const itemCount = samples.length / groupCount;
-      const counter = getCounter(itemCount, groupCount, order);
+      const counter = getCounter(itemCount, groupCount, order2);
       return (sample2, index2, previousSample) => {
         var _a2, _b2;
         const results = [];
@@ -84266,10 +86001,10 @@ Supported expressions:
         return results;
       };
     };
-    const groupByEpoch = (samples, epochs, sampleDescriptor, order, score2) => {
+    const groupByEpoch = (samples, epochs, sampleDescriptor, order2, score2) => {
       const groupCount = epochs;
       const itemCount = samples.length / groupCount;
-      const counter = getCounter(itemCount, groupCount, order);
+      const counter = getCounter(itemCount, groupCount, order2);
       return (sample2, index2, previousSample) => {
         var _a2, _b2;
         const results = [];
@@ -84299,22 +86034,22 @@ Supported expressions:
         return results;
       };
     };
-    const getCounter = (itemCount, groupCount, order) => {
-      let itemIndex = order !== "desc" ? 0 : itemCount + 1;
-      let groupIndex = order !== "desc" ? 0 : groupCount + 1;
+    const getCounter = (itemCount, groupCount, order2) => {
+      let itemIndex = order2 !== "desc" ? 0 : itemCount + 1;
+      let groupIndex = order2 !== "desc" ? 0 : groupCount + 1;
       return {
         resetItem: () => {
-          itemIndex = order !== "desc" ? 0 : itemCount + 1;
+          itemIndex = order2 !== "desc" ? 0 : itemCount + 1;
         },
         incrementItem: () => {
-          if (order !== "desc") {
+          if (order2 !== "desc") {
             itemIndex++;
           } else {
             itemIndex--;
           }
         },
         incrementGroup: () => {
-          if (order !== "desc") {
+          if (order2 !== "desc") {
             groupIndex++;
           } else {
             groupIndex--;

@@ -49,3 +49,7 @@
 .progress {
   margin-left: 0.3em !important;
 }
+
+.popover {
+  width: 300px;
+}

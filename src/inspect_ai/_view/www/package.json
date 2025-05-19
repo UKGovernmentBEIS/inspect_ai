@@ -88,6 +88,7 @@
     "prismjs": "^1.30.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-popper": "^2.3.0",
     "react-router-dom": "^7.5.3",
     "react-virtuoso": "^4.12.6",
     "zustand": "^5.0.5",
