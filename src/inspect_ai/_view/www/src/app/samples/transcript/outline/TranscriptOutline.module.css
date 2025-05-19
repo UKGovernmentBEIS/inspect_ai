@@ -1,0 +1,10 @@
+.node {
+  display: grid;
+  column-gap: 0.3em;
+  grid-template-columns: max-content 1fr;
+}
+
+.panel {
+  margin-top: 0.65rem;
+  overflow: visible;
+}

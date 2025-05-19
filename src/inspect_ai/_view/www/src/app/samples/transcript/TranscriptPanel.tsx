@@ -5,7 +5,7 @@ import { Events } from "../../../@types/log";
 import { StickyScroll } from "../../../components/StickyScroll";
 import { useCollapsedState } from "../../../state/hooks";
 import { ApplicationIcons } from "../../appearance/icons";
-import { TranscriptOutline } from "./TranscriptOutline";
+import { TranscriptOutline } from "./outline/TranscriptOutline";
 import styles from "./TranscriptPanel.module.css";
 import { TranscriptVirtualList } from "./TranscriptVirtualList";
 import { useEventNodes } from "./transform/hooks";
