@@ -19,18 +19,36 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = [
-    "E",      # pycodestyle errors
-    "W",      # pycodestyle warnings
-    "F",      # flake8
-    "D",      # pydocstyle
-    "I",      # isort
-    "B",      # flake8-bugbear
-    "SIM101", # duplicate isinstance
-    "UP038",  # non-pep604-isinstance
-    # "RET", # flake8-return
-    # "RUF", # ruff rules
+  "E",      # pycodestyle errors
+  "W",      # pycodestyle warnings
+  "F",      # flake8
+  "D",      # pydocstyle
+  "I",      # isort
+  "B",      # flake8-bugbear
+  "SIM101", # duplicate isinstance
+  "UP038",  # non-pep604-isinstance
+  # "RET", # flake8-return
+  # "RUF", # ruff rules
 ]
-ignore = ["E203", "E501", "D10", "D212", "D415","B006", "B007", "B008","B009","B010", "B011", "B017", "B027", "B028", "B039", "B904", "B905"]
+ignore = [
+  "E203",
+  "E501",
+  "D10",
+  "D212",
+  "D415",
+  "B006",
+  "B007",
+  "B008",
+  "B009",
+  "B010",
+  "B011",
+  "B017",
+  "B027",
+  "B028",
+  "B039",
+  "B904",
+  "B905",
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
@@ -41,16 +59,22 @@ addopts = "-rA --doctest-modules --color=yes"
 testpaths = ["tests"]
 doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
 norecursedirs = [
-    "tests/test_helpers",
-    "tests/test_package",
-    "tests/test_task_list",
+  "tests/test_helpers",
+  "tests/test_package",
+  "tests/test_task_list",
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 log_level = "warning"
 
 [tool.mypy]
-exclude = ["tests/test_package", "build", "(?:^|/)_resources/", "examples/bridge", "src/inspect_tool_support"]
+exclude = [
+  "tests/test_package",
+  "build",
+  "(?:^|/)_resources/",
+  "examples/bridge",
+  "src/inspect_tool_support",
+]
 warn_unused_ignores = true
 no_implicit_reexport = true
 strict_equality = true
@@ -91,16 +115,16 @@ requires-python = ">=3.10"
 license = { text = "MIT License" }
 dynamic = ["version", "dependencies"]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Environment :: Console",
-    "Intended Audience :: Science/Research",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Natural Language :: English",
-    "Programming Language :: Python :: 3",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Typing :: Typed",
-    "Operating System :: OS Independent",
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+  "Operating System :: OS Independent",
 ]
 
 [project.urls]
@@ -113,49 +137,49 @@ inspect = "inspect_ai._cli.main:main"
 
 [project.optional-dependencies]
 dev = [
-    "anthropic", 
-    "aioboto3", 
-    "azure-ai-inference",
-    "google-cloud-aiplatform",
-    "google-genai",
-    "griffe",
-    "groq", 
-    "ipython",
-    "jsonpath-ng",
-    "markdown",
-    "mcp",
-    "mistralai",
-    "moto[server]",
-    "mypy>=1.16.0",
-    "nbformat",
-    "openai",
-    "pandas>=2.0.0",
-    "panflute",
-    "pip",
-    "pre-commit",
-    "pyarrow>=10.0.1",
-    "pylint",
-    "pytest",
-    "pytest-asyncio",
-    "pytest-cov",
-    "pytest-dotenv",
-    "pytest-xdist",
-    "ruff==0.9.6", # match version specified in .pre-commit-config.yaml
-    "textual-dev>=0.86.2",
-    "trio",
-    "pandas-stubs",
-    "pyarrow-stubs",
-    "types-Markdown",
-    "types-PyYAML",
-    "types-beautifulsoup4",
-    "types-aioboto3",
-    "types-boto3",
-    "types-botocore",
-    "types-jsonpatch",
-    "types-jsonschema",
-    "types-protobuf",
-    "types-psutil",
-    "types-python-dateutil"
+  "anthropic",
+  "aioboto3",
+  "azure-ai-inference",
+  "google-cloud-aiplatform",
+  "google-genai",
+  "griffe",
+  "groq",
+  "ipython",
+  "jsonpath-ng",
+  "markdown",
+  "mcp",
+  "mistralai",
+  "moto[server]",
+  "mypy>=1.16.0",
+  "nbformat",
+  "openai",
+  "pandas>=2.0.0",
+  "panflute",
+  "pip",
+  "pre-commit",
+  "pyarrow>=10.0.1",
+  "pylint",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+  "pytest-dotenv",
+  "pytest-xdist",
+  "ruff==0.9.6",             # match version specified in .pre-commit-config.yaml
+  "textual-dev>=0.86.2",
+  "trio",
+  "pandas-stubs",
+  "pyarrow-stubs",
+  "types-Markdown",
+  "types-PyYAML",
+  "types-beautifulsoup4",
+  "types-aioboto3",
+  "types-boto3",
+  "types-botocore",
+  "types-jsonpatch",
+  "types-jsonschema",
+  "types-protobuf",
+  "types-psutil",
+  "types-python-dateutil",
 ]
 dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
 doc = ["quarto-cli==1.5.57", "jupyter", "panflute", "markdown", "griffe"]
@@ -164,3 +188,6 @@ dist = ["twine", "build"]
 [tool.typos.default.extend-words]
 ba = "ba"
 lsat = "lsat"
+
+[tool.uv]
+cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
