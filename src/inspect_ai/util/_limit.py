@@ -107,7 +107,7 @@ def apply_limits(
       limits: List of limits to apply while the context manager is open. Should a
         limit be exceeded, a `LimitExceededError` is raised.
       catch_errors: If True, catch any `LimitExceededError` raised by the applied
-        limits. You can determine whether any limits were exceeded by checking the
+        limits. Callers can determine whether any limits were exceeded by checking the
         limit_error property of the `LimitScope` object yielded by this function. If
         False, all `LimitExceededError` exceptions will be allowed to propagate.
     """
