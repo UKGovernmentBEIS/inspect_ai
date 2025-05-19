@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-TNode = TypeVar("TNode", bound="_LimitNode")
+TNode = TypeVar("TNode", bound="_Node")
 
 
 class LimitExceededError(Exception):
@@ -254,8 +254,12 @@ token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
 
 
-class _LimitNode(Limit):
-    """Adds a parent pointer for `Limit`s which will be stored in a tree."""
+class _Node:
+    """Mixin for objects used as nodes in a limit tree.
+
+    This allows us to have an "internal" parent property which is not exported as part
+    of the public API.
+    """
 
     parent: Self | None
 
@@ -269,7 +273,7 @@ class _LimitNode(Limit):
             )
 
 
-class _TokenLimit(_LimitNode):
+class _TokenLimit(Limit, _Node):
     def __init__(self, limit: int | None) -> None:
         from inspect_ai.model._model_output import ModelUsage
 
@@ -343,7 +347,7 @@ class _TokenLimit(_LimitNode):
             )
 
 
-class _MessageLimit(_LimitNode):
+class _MessageLimit(Limit, _Node):
     def __init__(self, limit: int | None) -> None:
         super().__init__()
         self._validate_message_limit(limit)
