@@ -51,6 +51,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
         <TranscriptOutline
           className={clsx(styles.outline)}
           eventNodes={eventNodes}
+          running={running}
           defaultCollapsedIds={defaultCollapsedIds}
         />
         <div

@@ -45,3 +45,7 @@
 .icon {
   margin-right: 3px;
 }
+
+.progress {
+  margin-left: 0.3em !important;
+}

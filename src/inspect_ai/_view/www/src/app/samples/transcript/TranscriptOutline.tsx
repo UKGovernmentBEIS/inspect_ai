@@ -18,6 +18,7 @@ import { useStore } from "../../../state/store";
 import { flatTree } from "./transform/treeify";
 
 import { Link, useParams } from "react-router-dom";
+import { PulsingDots } from "../../../components/PulsingDots";
 import { parsePackageName } from "../../../utils/python";
 import { sampleEventUrl } from "../../routing/url";
 import styles from "./TranscriptOutline.module.css";
@@ -29,6 +30,7 @@ const kCollapseScope = "transcript-outline";
 interface TranscriptOutlineProps {
   eventNodes: EventNode[];
   defaultCollapsedIds: Record<string, boolean>;
+  running?: boolean;
   className?: string | string[];
   scrollRef?: RefObject<HTMLDivElement | null>;
   style?: CSSProperties;
@@ -55,6 +57,7 @@ const EventPaddingNode: EventNode = {
 export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   eventNodes,
   defaultCollapsedIds,
+  running,
   className,
   scrollRef,
   style,
@@ -97,14 +100,14 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         collapseMultipleTurnsVisitor(),
 
         // Remove any leftover bare model calls that aren't in turns
-        removeNodeVisitor("model"),
+        //removeNodeVisitor("model"),
 
         // Remove child events for scorers
         noScorerChildren(),
       ],
     );
 
-    return [...nodeList, EventPaddingNode];
+    return nodeList;
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
   // Update the collapsed events when the default collapsed IDs change
@@ -116,13 +119,22 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
     }
   }, [defaultCollapsedIds, collapsedEvents, setCollapsedEvents]);
 
-  const renderRow = useCallback((_index: number, node: EventNode) => {
-    if (node === EventPaddingNode) {
-      return <div className={styles.eventPadding} key={node.id} />;
-    } else {
-      return <TreeNode node={node} key={node.id} />;
-    }
-  }, []);
+  const renderRow = useCallback(
+    (index: number, node: EventNode) => {
+      if (node === EventPaddingNode) {
+        return <div className={styles.eventPadding} key={node.id} />;
+      } else {
+        return (
+          <TreeNode
+            node={node}
+            key={node.id}
+            running={running && index === flattenedNodes.length - 1}
+          />
+        );
+      }
+    },
+    [flattenedNodes],
+  );
 
   return (
     <Virtuoso
@@ -130,7 +142,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
       customScrollParent={scrollRef?.current ? scrollRef.current : undefined}
       id={id}
       style={{ ...style }}
-      data={flattenedNodes}
+      data={[...flattenedNodes, EventPaddingNode]}
       defaultItemHeight={50}
       itemContent={renderRow}
       atBottomThreshold={30}
@@ -149,8 +161,9 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
 
 interface TreeNodeProps {
   node: EventNode;
+  running?: boolean;
 }
-const TreeNode: FC<TreeNodeProps> = ({ node }) => {
+const TreeNode: FC<TreeNodeProps> = ({ node, running }) => {
   const [collapsed, setCollapsed] = useCollapseSampleEvent(
     kCollapseScope,
     node.id,
@@ -192,6 +205,13 @@ const TreeNode: FC<TreeNodeProps> = ({ node }) => {
         ) : (
           parsePackageName(labelForNode(node)).module
         )}
+        {running ? (
+          <PulsingDots
+            size="small"
+            className={styles.progress}
+            subtle={false}
+          />
+        ) : undefined}
       </div>
     </div>
   );
@@ -379,7 +399,7 @@ const collapseMultipleTurnsVisitor = () => {
 };
 
 const collapseTurnsVisitor = () => {
-  let startTurn: EventNode | null = null;
+  let pendingTurn: EventNode | null = null;
   let turnCount = 1;
   let currentDepth = 0;
 
@@ -410,30 +430,37 @@ const collapseTurnsVisitor = () => {
 
       const result: EventNode[] = [];
       if (node.event.event === "model") {
-        if (startTurn) {
-          result.push(makeTurn(startTurn));
-          startTurn = null;
+        // If we hit back to back model calls, push
+        // the previous as a turn
+        if (pendingTurn) {
+          result.push(makeTurn(pendingTurn));
+          pendingTurn = null;
         }
-        startTurn = node;
+
+        // Capture the new model call as the start of a new turn
+        pendingTurn = node;
       } else if (
-        startTurn &&
+        pendingTurn &&
         node.event.event === "tool" &&
-        startTurn.depth === node.depth
+        pendingTurn.depth === node.depth
       ) {
-        result.push(makeTurn(startTurn));
-        startTurn = null;
+        // If there is a pending turn and
+        // we hit a tool call
+        // ignore the tool call
       } else {
-        if (startTurn) {
-          result.push(startTurn);
-          startTurn = null;
+        // If we hit a non-tool event, push the pending turn
+        // and the current node
+        if (pendingTurn) {
+          result.push(pendingTurn);
+          pendingTurn = null;
         }
         result.push(node);
       }
       return result;
     },
     flush: (): EventNode[] => {
-      if (startTurn) {
-        return [startTurn];
+      if (pendingTurn) {
+        return [makeTurn(pendingTurn)];
       }
       return [];
     },
