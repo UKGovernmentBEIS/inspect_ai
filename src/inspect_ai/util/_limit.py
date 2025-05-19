@@ -33,7 +33,7 @@ class LimitExceededError(Exception):
        value: Value compared to.
        limit: Limit applied.
        message (str | None): Optional. Human readable message.
-       source (Limit | None): Optional. The Limit instance which was responsible for
+       source (Limit | None): Optional. The `Limit` instance which was responsible for
          raising this error.
     """
 
@@ -96,19 +96,19 @@ def apply_limits(
     """
     Apply a list of limits within a context manager.
 
-    Optionally catches any LimitExceededErrors raised by the applied limits, while
+    Optionally catches any `LimitExceededError` raised by the applied limits, while
     allowing other limit errors from any other scope (e.g. the Sample level) propagate.
 
-    Yields a LimitScope object which can be used once the context manager is closed
+    Yields a `LimitScope` object which can be used once the context manager is closed
     to determine which, if any, limits were exceeded.
 
     Args:
       limits: List of limits to apply while the context manager is open. Should a
-        limit be exceeded, a LimitExceededError is raised.
-      catch_errors: If True, catch LimitExceededErrors raised by the applied limits. You
-        can determine whether any limits were exceeded by checking the limit_error
-        property of the LimitScope object yielded by this function. If False, all
-        LimitExceededError will be allowed to propagate.
+        limit be exceeded, a `LimitExceededError` is raised.
+      catch_errors: If True, catch any `LimitExceededError` raised by the applied
+        limits. You can determine whether any limits were exceeded by checking the
+        limit_error property of the `LimitScope` object yielded by this function. If
+        False, all `LimitExceededError` exceptions will be allowed to propagate.
     """
     limit_scope = LimitScope()
     with ExitStack() as stack:
@@ -126,7 +126,7 @@ def apply_limits(
 
 
 class LimitScope:
-    """Object returned from apply_limits().
+    """Object returned from `apply_limits()`.
 
     Used to check which, if any, limits were exceeded.
     """
@@ -144,10 +144,10 @@ def token_limit(limit: int | None) -> _TokenLimit:
 
     These limits can be stacked.
 
-    This relies on "cooperative" checking - consumers must call check_token_limit()
+    This relies on "cooperative" checking - consumers must call `check_token_limit()`
     themselves whenever tokens are consumed.
 
-    When a limit is exceeded, a LimitExceededError is raised.
+    When a limit is exceeded, a `LimitExceededError` is raised.
 
     Args:
       limit: The maximum number of tokens that can be used while the context manager is
@@ -255,7 +255,7 @@ message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
 
 
 class _LimitNode(Limit):
-    """Adds a parent pointer for Limits which will be stored in a tree."""
+    """Adds a parent pointer for `Limit`s which will be stored in a tree."""
 
     parent: Self | None
 
