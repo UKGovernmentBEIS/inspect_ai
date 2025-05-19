@@ -39446,7 +39446,7 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           const rendered = entry2.value.trim();
           if (options2.renderString === "markdown") {
             return {
-              rendered
+              rendered: /* @__PURE__ */ jsxRuntimeExports.jsx(MarkdownDiv, { markdown: rendered })
             };
           } else {
             return {
@@ -51898,12 +51898,12 @@ self.onmessage = function (e) {
       );
       return scorerDescriptor == null ? void 0 : scorerDescriptor.render(scoreData.value);
     };
-    const container$6 = "_container_8i3m0_1";
-    const cell$1 = "_cell_8i3m0_9";
-    const fullWidth = "_fullWidth_8i3m0_13";
-    const separator$2 = "_separator_8i3m0_25";
-    const separatorPadded = "_separatorPadded_8i3m0_30";
-    const headerSep = "_headerSep_8i3m0_35";
+    const container$6 = "_container_181fj_1";
+    const cell$1 = "_cell_181fj_9";
+    const fullWidth = "_fullWidth_181fj_13";
+    const separator$2 = "_separator_181fj_25";
+    const separatorPadded = "_separatorPadded_181fj_30";
+    const headerSep = "_headerSep_181fj_35";
     const styles$x = {
       container: container$6,
       cell: cell$1,
