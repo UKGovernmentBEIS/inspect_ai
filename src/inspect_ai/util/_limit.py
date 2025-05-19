@@ -194,7 +194,7 @@ def message_limit(limit: int | None) -> _MessageLimit:
     This relies on "cooperative" checking - consumers must call check_message_limit()
     themselves whenever the message count is updated.
 
-    When a limit is exceeded, a LimitExceededError is raised.
+    When a limit is exceeded, a `LimitExceededError` is raised.
 
     Args:
       limit: The maximum conversation length (number of messages) allowed while the
