@@ -97,7 +97,8 @@ def apply_limits(
     Apply a list of limits within a context manager.
 
     Optionally catches any `LimitExceededError` raised by the applied limits, while
-    allowing other limit errors from any other scope (e.g. the Sample level) propagate.
+    allowing other limit errors from any other scope (e.g. the Sample level) to
+    propagate.
 
     Yields a `LimitScope` object which can be used once the context manager is closed
     to determine which, if any, limits were exceeded.
