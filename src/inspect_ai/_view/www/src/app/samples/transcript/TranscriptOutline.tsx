@@ -198,8 +198,6 @@ const TreeNode: FC<TreeNodeProps> = ({ node, running }) => {
       <div
         className={clsx(styles.eventRow, "text-size-smallest")}
         style={{ paddingLeft: `${node.depth * 0.4}em` }}
-        onMouseOver={show}
-        onMouseLeave={hide}
       >
         <div
           className={clsx(styles.toggle)}
@@ -212,11 +210,19 @@ const TreeNode: FC<TreeNodeProps> = ({ node, running }) => {
         <div className={clsx(styles.label)} data-depth={node.depth}>
           {icon ? <i className={clsx(icon, styles.icon)} /> : undefined}
           {url ? (
-            <Link to={url} className={clsx(styles.eventLink)} ref={ref}>
+            <Link
+              to={url}
+              className={clsx(styles.eventLink)}
+              ref={ref}
+              onMouseOver={show}
+              onMouseLeave={hide}
+            >
               {parsePackageName(labelForNode(node)).module}
             </Link>
           ) : (
-            <span ref={ref}>{parsePackageName(labelForNode(node)).module}</span>
+            <span ref={ref} onMouseOver={show} onMouseLeave={hide}>
+              {parsePackageName(labelForNode(node)).module}
+            </span>
           )}
           {running ? (
             <PulsingDots
@@ -519,7 +525,7 @@ const collapseTurnsVisitor = () => {
         // If we hit a new model event while already collecting a turn
         // process any pending model event first
         result.push(...processPendingModelEvents());
-        
+
         // Start collecting a new potential turn with this model event
         pendingModelEvent = node;
       } else if (

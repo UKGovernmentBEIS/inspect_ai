@@ -54601,8 +54601,6 @@ self.onmessage = function (e) {
           {
             className: clsx(styles$x.eventRow, "text-size-smallest"),
             style: { paddingLeft: `${node2.depth * 0.4}em` },
-            onMouseOver: show,
-            onMouseLeave: hide2,
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
                 "div",
@@ -54616,7 +54614,17 @@ self.onmessage = function (e) {
               ),
               /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: clsx(styles$x.label), "data-depth": node2.depth, children: [
                 icon2 ? /* @__PURE__ */ jsxRuntimeExports.jsx("i", { className: clsx(icon2, styles$x.icon) }) : void 0,
-                url ? /* @__PURE__ */ jsxRuntimeExports.jsx(Link, { to: url, className: clsx(styles$x.eventLink), ref, children: parsePackageName(labelForNode(node2)).module }) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, children: parsePackageName(labelForNode(node2)).module }),
+                url ? /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  Link,
+                  {
+                    to: url,
+                    className: clsx(styles$x.eventLink),
+                    ref,
+                    onMouseOver: show,
+                    onMouseLeave: hide2,
+                    children: parsePackageName(labelForNode(node2)).module
+                  }
+                ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, onMouseOver: show, onMouseLeave: hide2, children: parsePackageName(labelForNode(node2)).module }),
                 running2 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
                   PulsingDots,
                   {
