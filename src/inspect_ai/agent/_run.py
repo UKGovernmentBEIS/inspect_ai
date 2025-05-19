@@ -81,7 +81,7 @@ async def run(
     # create state
     state = AgentState(messages=input_messages)
 
-    # run the agent with limits. catching errors which are a direct result of our limits
+    # run the agent with limits, catching errors which are a direct result of our limits
     with apply_limits(limits, catch_errors=True) as limit_scope:
         # run the agent
         agent_name = name or registry_unqualified_name(agent)
@@ -92,5 +92,5 @@ async def run(
             else:
                 return state
 
-    # the only way we can get here is if one of our limits was exceeded
+    # execution reaches this point iff one of "our" limits was exceeded
     return state, limit_scope.limit_error
