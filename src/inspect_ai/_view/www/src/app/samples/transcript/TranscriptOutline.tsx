@@ -438,70 +438,121 @@ const collapseMultipleTurnsVisitor = () => {
 };
 
 const collapseTurnsVisitor = () => {
-  let pendingTurn: EventNode | null = null;
+  // This visitor combines model events followed by tool events into "turns"
+  let pendingModelEvent: EventNode | null = null;
+  let collectingToolEvents: EventNode[] = [];
   let turnCount = 1;
   let currentDepth = 0;
+  // Track if we've flushed already to avoid duplicate output
+  let flushed = false;
 
-  const makeTurn = (baseTurn: EventNode) => {
-    return new EventNode(
-      baseTurn.id,
+  const makeTurn = (modelEvent: EventNode, toolEvents: EventNode[]) => {
+    // Create a new "turn" node based on the model event
+    const turnNode = new EventNode(
+      modelEvent.id,
       {
-        id: baseTurn.id,
+        id: modelEvent.id,
         event: "span_begin",
         type: kTurnType,
         name: `turn ${turnCount++}`,
         pending: false,
-        working_start: baseTurn.event.working_start,
-        timestamp: baseTurn.event.timestamp,
+        working_start: modelEvent.event.working_start,
+        timestamp: modelEvent.event.timestamp,
         parent_id: null,
-        span_id: baseTurn.event.span_id,
+        span_id: modelEvent.event.span_id,
       },
-      baseTurn.depth,
+      modelEvent.depth,
     );
+
+    // Add the original model event and tool events as children
+    turnNode.children = [modelEvent, ...toolEvents];
+    return turnNode;
+  };
+
+  const shouldCreateTurn = (toolEvents: EventNode[]): boolean => {
+    // Only create a turn if there are tool events
+    return toolEvents.length > 0;
+  };
+
+  const processPendingModelEvents = (): EventNode[] => {
+    const result: EventNode[] = [];
+
+    if (pendingModelEvent) {
+      // Only create a turn if there are tool events
+      if (shouldCreateTurn(collectingToolEvents)) {
+        // Create a turn from the pending model and collected tool events
+        result.push(makeTurn(pendingModelEvent, collectingToolEvents));
+      } else {
+        // Otherwise just output the model event as-is
+        result.push(pendingModelEvent);
+      }
+
+      // Clear the pending model and tools
+      pendingModelEvent = null;
+      collectingToolEvents = [];
+    }
+
+    return result;
   };
 
   return {
     visit: (node: EventNode): EventNode[] => {
+      // Reset turn counter if depth changes
       if (currentDepth !== node.depth) {
         turnCount = 1;
+        // Process any pending model at the previous depth
+        const result = processPendingModelEvents();
+        currentDepth = node.depth;
+
+        // Handle the current node
+        if (node.event.event === "model") {
+          pendingModelEvent = node;
+          return result;
+        } else {
+          return [...result, node];
+        }
       }
-      currentDepth = node.depth;
 
       const result: EventNode[] = [];
-      if (node.event.event === "model") {
-        // If we hit back to back model calls, push
-        // the previous as a turn
-        if (pendingTurn) {
-          result.push(makeTurn(pendingTurn));
-          pendingTurn = null;
-        }
 
-        // Capture the new model call as the start of a new turn
-        pendingTurn = node;
+      if (node.event.event === "model") {
+        // If we hit a new model event while already collecting a turn
+        // process any pending model event first
+        result.push(...processPendingModelEvents());
+        
+        // Start collecting a new potential turn with this model event
+        pendingModelEvent = node;
       } else if (
-        pendingTurn &&
+        pendingModelEvent &&
         node.event.event === "tool" &&
-        pendingTurn.depth === node.depth
+        pendingModelEvent.depth === node.depth
       ) {
-        // If there is a pending turn and
-        // we hit a tool call
-        // ignore the tool call
+        // We're in the middle of a potential turn and found a tool event at the same depth
+        // Add it to our collection of tool events for this turn
+        collectingToolEvents.push(node);
+        // Don't output anything yet - we'll create the turn when we hit a non-tool/model event
+        // or when we reach the end of processing
       } else {
-        // If we hit a non-tool event, push the pending turn
-        // and the current node
-        if (pendingTurn) {
-          result.push(pendingTurn);
-          pendingTurn = null;
-        }
+        // We hit a non-model, non-tool event (or a tool at the wrong depth)
+        result.push(...processPendingModelEvents());
+
+        // Output the current node as-is
         result.push(node);
       }
+
       return result;
     },
+
     flush: (): EventNode[] => {
-      if (pendingTurn) {
-        return [makeTurn(pendingTurn)];
+      // Only process pending events if we haven't flushed already
+      if (flushed) {
+        return [];
       }
-      return [];
+
+      flushed = true;
+
+      // Handle any remaining model/tools at the end of processing
+      return processPendingModelEvents();
     },
   };
 };

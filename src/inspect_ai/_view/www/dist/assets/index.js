@@ -54804,54 +54804,77 @@ self.onmessage = function (e) {
       };
     };
     const collapseTurnsVisitor = () => {
-      let pendingTurn = null;
+      let pendingModelEvent = null;
+      let collectingToolEvents = [];
       let turnCount = 1;
       let currentDepth = 0;
-      const makeTurn = (baseTurn) => {
-        return new EventNode(
-          baseTurn.id,
+      let flushed = false;
+      const makeTurn = (modelEvent, toolEvents) => {
+        const turnNode = new EventNode(
+          modelEvent.id,
           {
-            id: baseTurn.id,
+            id: modelEvent.id,
             event: "span_begin",
             type: kTurnType,
             name: `turn ${turnCount++}`,
             pending: false,
-            working_start: baseTurn.event.working_start,
-            timestamp: baseTurn.event.timestamp,
+            working_start: modelEvent.event.working_start,
+            timestamp: modelEvent.event.timestamp,
             parent_id: null,
-            span_id: baseTurn.event.span_id
+            span_id: modelEvent.event.span_id
           },
-          baseTurn.depth
+          modelEvent.depth
         );
+        turnNode.children = [modelEvent, ...toolEvents];
+        return turnNode;
+      };
+      const shouldCreateTurn = (toolEvents) => {
+        return toolEvents.length > 0;
+      };
+      const processPendingModelEvents = () => {
+        const result2 = [];
+        if (pendingModelEvent) {
+          if (shouldCreateTurn(collectingToolEvents)) {
+            result2.push(makeTurn(pendingModelEvent, collectingToolEvents));
+          } else {
+            result2.push(pendingModelEvent);
+          }
+          pendingModelEvent = null;
+          collectingToolEvents = [];
+        }
+        return result2;
       };
       return {
         visit: (node2) => {
           if (currentDepth !== node2.depth) {
             turnCount = 1;
+            const result22 = processPendingModelEvents();
+            currentDepth = node2.depth;
+            if (node2.event.event === "model") {
+              pendingModelEvent = node2;
+              return result22;
+            } else {
+              return [...result22, node2];
+            }
           }
-          currentDepth = node2.depth;
           const result2 = [];
           if (node2.event.event === "model") {
-            if (pendingTurn) {
-              result2.push(makeTurn(pendingTurn));
-              pendingTurn = null;
-            }
-            pendingTurn = node2;
-          } else if (pendingTurn && node2.event.event === "tool" && pendingTurn.depth === node2.depth) ;
-          else {
-            if (pendingTurn) {
-              result2.push(pendingTurn);
-              pendingTurn = null;
-            }
+            result2.push(...processPendingModelEvents());
+            pendingModelEvent = node2;
+          } else if (pendingModelEvent && node2.event.event === "tool" && pendingModelEvent.depth === node2.depth) {
+            collectingToolEvents.push(node2);
+          } else {
+            result2.push(...processPendingModelEvents());
             result2.push(node2);
           }
           return result2;
         },
         flush: () => {
-          if (pendingTurn) {
-            return [makeTurn(pendingTurn)];
+          if (flushed) {
+            return [];
           }
-          return [];
+          flushed = true;
+          return processPendingModelEvents();
         }
       };
     };
