@@ -27,6 +27,7 @@ title: "inspect_ai.agent"
 ### AgentState
 ### agent
 ### agent_with
+### is_agent
 
 ## Types
 

@@ -23,3 +23,29 @@ async def test_anthropic_api() -> None:
     message = "This is a test string. What are you?"
     response = await model.generate(input=message)
     assert len(response.completion) >= 1
+
+
+@skip_if_no_anthropic
+def test_anthropic_should_retry():
+    import httpx
+    from anthropic import APIStatusError
+
+    # scaffold for should_retry
+    model = get_model("anthropic/claude-3-5-sonnet-latest")
+    response = httpx.Response(
+        status_code=405, request=httpx.Request("GET", "https://example.com")
+    )
+
+    # check whether we handle overloaded_error correctly
+    ex = APIStatusError(
+        "error", response=response, body={"error": {"type": "overloaded_error"}}
+    )
+    assert model.api.should_retry(ex)
+
+    # check whether we handle body not being a dict (will raise if we don't)
+    ex = APIStatusError("error", response=response, body="error")
+    model.api.should_retry(ex)
+
+    # check whether we handle error not being a dict (will raise if we don't)
+    ex = APIStatusError("error", response=response, body={"error": "error"})
+    model.api.should_retry(ex)

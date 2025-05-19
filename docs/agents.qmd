@@ -252,14 +252,6 @@ You can pass a different continuation message, or alternative pass an `AgentCont
 
 ### Submit Tool
 
-::: callout-note
-The ability to disable the submit tool described below is available only in the development version of Inspect. To install the development version from GitHub:
-
-``` bash
-pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-```
-:::
-
 As described above, the `react()` agent uses a special `submit()` tool internally to enable the model to signal explicitly when it is complete and has an answer. The use of a `submit()` tool has a couple of benefits:
 
 1.  Some implementations of ReAct loops terminate the loop when the model stops calling tools. However, in some cases models will unintentionally stop calling tools (e.g. write a message saying they are going to call a tool and then not do it). The use of an explicit `submit()` tool call to signal completion works around this problem, as the model can be encouraged to keep calling tools rather than terminating.

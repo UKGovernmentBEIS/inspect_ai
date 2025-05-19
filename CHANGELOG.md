@@ -1,6 +1,12 @@
-## Unreleased
+## v0.3.98 (18 May 2025)
+
+- Google: Disable reasoning when `reasoning_tokens` is set to 0.
+- Temporarily pin to textual < 3.0.0 to work around event loop breakage.
+
+## v0.3.97 (16 May 2025)
 
 - React agent: Use of `submit()` tool is now [optional](https://inspect.aisi.org.uk/agent.html#submit-tool).
+- Agents: `is_agent()` typeguard function for checking whether an object is an `Agent`.
 - Anthropic: Show warning when generation config incompatible with extended thinking is used (affects `temperature`, `top_p`, and `top_k`).
 - AzureAI: Don't include `tools` or `tool_choice` in  requests when emulating tool calling (avoiding a 400 error).
 - AzureAI: Accept `<tool_calls>` plural from Llama models (as it sometimes uses this instead of `<tool_call>`).
@@ -18,6 +24,8 @@
 - Inspect View: Render metadata for samples and tasks as an interactive tree.
 - Inspect View: When deployed via `inspect view bundle`, support linking to individual transcript events or messages.
 - Inspect View: Reduce the maximum size of the header (before it is collapsed) when evals have large numbers of metrics.
+- Bugfix: More robust handling of non-529 "overloaded_error" for Anthropic.
+- Bugfix: More robust handling of no result returned from tool call.
 
 ## v0.3.96 (13 May 2025)
 
