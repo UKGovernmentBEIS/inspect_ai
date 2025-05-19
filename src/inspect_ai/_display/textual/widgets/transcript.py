@@ -84,6 +84,7 @@ class TranscriptView(ScrollableContainer):
                 scroll_to_end = (
                     new_sample or abs(self.scroll_y - self.max_scroll_y) <= 20
                 )
+
                 async with self.batch():
                     await self.remove_children()
                     await self.mount_all(
@@ -100,9 +101,13 @@ class TranscriptView(ScrollableContainer):
         else:
             self._pending_sample = sample
 
-    def _widgets_for_events(self, events: Sequence[Event]) -> list[Widget]:
+    def _widgets_for_events(
+        self, events: Sequence[Event], limit: int = 10
+    ) -> list[Widget]:
         widgets: list[Widget] = []
-        for event in events:
+        widget_count = 0
+        # reverse the events so that the N most recents events are displayed
+        for event in events[::-1]:
             display = render_event(event)
             if display:
                 for d in display:
@@ -118,7 +123,14 @@ class TranscriptView(ScrollableContainer):
                             set_transcript_markdown_options(d.content)
                         widgets.append(Static(d.content, markup=False))
                         widgets.append(Static(Text(" ")))
-        return widgets
+                        widget_count += 1
+
+            # only render the N most recent events
+            if widget_count >= limit:
+                break
+
+        # reverse the list since we added the events in reverse order
+        return widgets[::-1]
 
 
 class EventDisplay(NamedTuple):
