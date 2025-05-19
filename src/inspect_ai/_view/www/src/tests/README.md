@@ -5,8 +5,8 @@ This directory contains the test files for the application. The test framework i
 ## Directory Structure
 
 - `tests/`: Root directory for all tests
-  - `__mocks__/`: Mock files for CSS modules and other assets
-  - `setupTests.mjs`: Setup file for Jest tests
+    - `__mocks__/`: Mock files for CSS modules and other assets
+    - `setupTests.mjs`: Setup file for Jest tests
 
 ## Running Tests
 

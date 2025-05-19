@@ -1,0 +1,33 @@
+{
+  "name": "inspect-ai Devcontainer",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/inspect/app,type=bind,consistency=cached",
+  "workspaceFolder": "/home/inspect/app",
+  "mounts": [
+    {
+      "source": "${localEnv:HOME}${localEnv:USERPROFILE}/.aws",
+      "target": "/home/inspect/.aws",
+      "type": "bind"
+    },
+    {
+      "source": "inspect-ai-home",
+      "target": "/home/inspect",
+      "type": "volume"
+    },
+    {
+      "source": "inspect-ai-docker-data",
+      "target": "/var/lib/docker",
+      "type": "volume"
+    }
+  ],
+  "runArgs": [
+    "--name=inspect-ai-dev",
+    "--hostname=inspect-ai",
+    "--privileged"
+  ],
+  "overrideCommand": false,
+  "remoteUser": "inspect"
+}
