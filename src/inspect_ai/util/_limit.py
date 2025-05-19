@@ -319,9 +319,9 @@ class _TokenLimit(Limit, _Node):
 
     def check(self) -> None:
         """Check if this token limit or any parent limits have been exceeded."""
-        # TODO: Is there a preference to check limits "top-down" or "bottom-up"?
-        # E.g. if we've exceeded multiple limits, would we rather raise the "highest"
-        # i.e. Sample level one first?
+        # Check leaf node first, then parent nodes. This is so that if multiple limits
+        # are exceeded, the innermost one raises an error, giving the user the ability
+        # to log, adjust state etc.
         self._check_self()
         if self.parent is not None:
             self.parent.check()
