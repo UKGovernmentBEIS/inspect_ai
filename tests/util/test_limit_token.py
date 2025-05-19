@@ -12,7 +12,6 @@ from inspect_ai.solver._solver import Generate, solver
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._limit import (
     LimitExceededError,
-    _TokenLimit,
     check_token_limit,
     record_model_usage,
     token_limit,
@@ -63,13 +62,14 @@ def test_does_not_raise_error_when_limit_not_exceeded() -> None:
 
 
 def test_raises_error_when_limit_exceeded() -> None:
-    with token_limit(10):
+    with token_limit(10) as limit:
         with pytest.raises(LimitExceededError) as exc_info:
             _consume_tokens(11)
 
     assert exc_info.value.type == "token"
     assert exc_info.value.value == 11
     assert exc_info.value.limit == 10
+    assert exc_info.value.source is limit
 
 
 def test_raises_error_when_limit_repeatedly_exceeded() -> None:
@@ -143,41 +143,40 @@ def test_outer_limit_is_checked_after_inner_limit_popped() -> None:
     assert exc_info.value.value == 11
 
 
-def test_can_reuse_context_manager() -> None:
+def test_cannot_reuse_context_manager() -> None:
     limit = token_limit(10)
-
     with limit:
-        _consume_tokens(10)
+        pass
 
-    with limit:
-        _consume_tokens(10)
-
-    with limit:
-        with pytest.raises(LimitExceededError):
-            _consume_tokens(11)
-
-    with limit:
-        _consume_tokens(10)
-
-
-def test_can_reuse_context_manager_in_stack() -> None:
-    limit = token_limit(10)
-
-    with limit:
-        _consume_tokens(10)
-
+    with pytest.raises(RuntimeError) as exc_info:
+        # Reusing the same Limit instance.
         with limit:
-            with pytest.raises(LimitExceededError) as exc_info:
-                _consume_tokens(10)
+            pass
 
-    assert exc_info.value.value == 20
+    assert "Each Limit may only be used once in a single 'with' block" in str(
+        exc_info.value
+    )
+
+
+def test_cannot_reuse_context_manager_in_stack() -> None:
+    limit = token_limit(10)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        with limit:
+            # Reusing the same Limit instance in a stack.
+            with limit:
+                pass
+
+    assert "Each Limit may only be used once in a single 'with' block" in str(
+        exc_info.value
+    )
 
 
 async def test_same_context_manager_across_async_contexts():
-    async def async_task(limit: _TokenLimit):
+    async def async_task():
         _consume_tokens(5)
 
-        with limit:
+        with token_limit(10):
             # Incrementally use 10 tokens (should not exceed the limit).
             for _ in range(10):
                 _consume_tokens(1)
@@ -187,10 +186,8 @@ async def test_same_context_manager_across_async_contexts():
                 _consume_tokens(1)
                 assert exc_info.value.value == 11
 
-    # The same TokenLimit instance is reused across different async contexts.
-    reused_context_manager = token_limit(10)
     # This will result in 3 distinct "trees" each with 1 root node.
-    await asyncio.gather(*(async_task(reused_context_manager) for _ in range(3)))
+    await asyncio.gather(*(async_task() for _ in range(3)))
 
 
 def test_can_update_limit_value() -> None:
@@ -212,25 +209,6 @@ def test_can_update_limit_value() -> None:
         _consume_tokens(5)
 
     assert limit.limit is None
-
-
-def test_can_update_limit_value_on_reused_context_manager() -> None:
-    shared_limit = token_limit(10)
-
-    with shared_limit:
-        _consume_tokens(10)
-
-        with shared_limit:
-            shared_limit.limit = 20
-
-            _consume_tokens(10)
-
-            with pytest.raises(LimitExceededError) as exc_info:
-                # Should trigger the outer limit (20).
-                _consume_tokens(10)
-
-    assert exc_info.value.value == 30
-    assert exc_info.value.limit == 20
 
 
 def test_parallel_nested_forks(model: Model):

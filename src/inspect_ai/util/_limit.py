@@ -5,7 +5,9 @@ import logging
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from types import TracebackType
-from typing import TYPE_CHECKING, Iterator, Literal
+from typing import TYPE_CHECKING, Generic, Iterator, Literal, TypeVar
+
+from typing_extensions import Self
 
 from inspect_ai._util.logger import warn_once
 
@@ -16,18 +18,7 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
-
-# Stores the current execution context's leaf _TokenLimitNode.
-# The resulting data structure is a tree of _TokenLimitNode nodes which each
-# have a pointer to their parent node. Each additional context manager inserts a new
-# child node into the tree. The fact that there can be multiple execution contexts is
-# what makes this a tree rather than a stack.
-token_limit_leaf_node: ContextVar[_TokenLimitNode | None] = ContextVar(
-    "token_limit_leaf_node", default=None
-)
-message_limit_leaf_node: ContextVar[_MessageLimitNode | None] = ContextVar(
-    "message_limit_leaf_node", default=None
-)
+TNode = TypeVar("TNode", bound="_Node")
 
 
 class LimitExceededError(Exception):
@@ -42,6 +33,8 @@ class LimitExceededError(Exception):
        value: Value compared to.
        limit: Limit applied.
        message (str | None): Optional. Human readable message.
+       source (Limit | None): Optional. The `Limit` instance which was responsible for
+         raising this error.
     """
 
     def __init__(
@@ -51,11 +44,13 @@ class LimitExceededError(Exception):
         value: int,
         limit: int,
         message: str | None = None,
+        source: Limit | None = None,
     ) -> None:
         self.type = type
         self.value = value
         self.limit = limit
         self.message = f"Exceeded {type} limit: {limit:,}"
+        self.source = source
         super().__init__(message)
 
     def with_state(self, state: TaskState) -> LimitExceededError:
@@ -67,7 +62,10 @@ class LimitExceededError(Exception):
 
 
 class Limit(abc.ABC):
-    """Base class for all limits."""
+    """Base class for all limit context managers."""
+
+    def __init__(self) -> None:
+        self._entered = False
 
     @abc.abstractmethod
     def __enter__(self) -> Limit:
@@ -82,20 +80,60 @@ class Limit(abc.ABC):
     ) -> None:
         pass
 
+    def _check_reuse(self) -> None:
+        if self._entered:
+            raise RuntimeError(
+                "Each Limit may only be used once in a single 'with' block. Please "
+                "create a new instance of the Limit."
+            )
+        self._entered = True
+
 
 @contextmanager
-def apply_limits(limits: list[Limit]) -> Iterator[None]:
+def apply_limits(
+    limits: list[Limit], catch_errors: bool = False
+) -> Iterator[LimitScope]:
     """
     Apply a list of limits within a context manager.
 
+    Optionally catches any `LimitExceededError` raised by the applied limits, while
+    allowing other limit errors from any other scope (e.g. the Sample level) to
+    propagate.
+
+    Yields a `LimitScope` object which can be used once the context manager is closed
+    to determine which, if any, limits were exceeded.
+
     Args:
       limits: List of limits to apply while the context manager is open. Should a
-        limit be exceeded, a LimitExceededError is raised.
+        limit be exceeded, a `LimitExceededError` is raised.
+      catch_errors: If True, catch any `LimitExceededError` raised by the applied
+        limits. Callers can determine whether any limits were exceeded by checking the
+        limit_error property of the `LimitScope` object yielded by this function. If
+        False, all `LimitExceededError` exceptions will be allowed to propagate.
     """
+    limit_scope = LimitScope()
     with ExitStack() as stack:
         for limit in limits:
             stack.enter_context(limit)
-        yield
+        try:
+            yield limit_scope
+        except LimitExceededError as e:
+            # If it was not one of the limits we applied.
+            if e.source is None or e.source not in limits:
+                raise
+            limit_scope.limit_error = e
+            if not catch_errors:
+                raise
+
+
+class LimitScope:
+    """Object returned from `apply_limits()`.
+
+    Used to check which, if any, limits were exceeded.
+    """
+
+    def __init__(self) -> None:
+        self.limit_error: LimitExceededError | None = None
 
 
 def token_limit(limit: int | None) -> _TokenLimit:
@@ -107,10 +145,10 @@ def token_limit(limit: int | None) -> _TokenLimit:
 
     These limits can be stacked.
 
-    This relies on "cooperative" checking - consumers must call check_token_limit()
+    This relies on "cooperative" checking - consumers must call `check_token_limit()`
     themselves whenever tokens are consumed.
 
-    When a limit is exceeded, a LimitExceededError is raised.
+    When a limit is exceeded, a `LimitExceededError` is raised.
 
     Args:
       limit: The maximum number of tokens that can be used while the context manager is
@@ -125,7 +163,7 @@ def record_model_usage(usage: ModelUsage) -> None:
 
     Does not check if the limit has been exceeded.
     """
-    node = token_limit_leaf_node.get()
+    node = token_limit_tree.get()
     if node is None:
         return
     node.record(usage)
@@ -138,7 +176,7 @@ def check_token_limit() -> None:
 
     Note that all active token limits are checked, not just the most recent one.
     """
-    node = token_limit_leaf_node.get()
+    node = token_limit_tree.get()
     if node is None:
         return
     node.check()
@@ -156,7 +194,7 @@ def message_limit(limit: int | None) -> _MessageLimit:
     This relies on "cooperative" checking - consumers must call check_message_limit()
     themselves whenever the message count is updated.
 
-    When a limit is exceeded, a LimitExceededError is raised.
+    When a limit is exceeded, a `LimitExceededError` is raised.
 
     Args:
       limit: The maximum conversation length (number of messages) allowed while the
@@ -176,35 +214,78 @@ def check_message_limit(count: int, raise_for_equal: bool) -> None:
         limit, otherwise, only raise an error if the message count is greater than the
         limit.
     """
-    node = message_limit_leaf_node.get()
+    node = message_limit_tree.get()
     if node is None:
         return
     node.check(count, raise_for_equal)
 
 
-class _LimitValueWrapper:
-    """Container/wrapper type for the limit value.
+class _Tree(Generic[TNode]):
+    """A tree data structure of limit nodes.
 
-    This facilitates updating the limit value, which may have been passed to many
-    _TokenLimitNode instances.
+    Each node has a pointer to its parent, or None if it is a root node.
+
+    Each additional context manager inserts a new child node into the tree. The fact
+    that there can be multiple execution contexts is what makes this a tree rather than
+    a stack and why a context variable is used to store the leaf node.
     """
 
-    def __init__(self, value: int | None) -> None:
-        self.value = value
+    def __init__(self, id: str) -> None:
+        self._leaf_node: ContextVar[TNode | None] = ContextVar(id, default=None)
+
+    def get(self) -> TNode | None:
+        return self._leaf_node.get()
+
+    def push(self, new_node: TNode) -> None:
+        current_leaf = self._leaf_node.get()
+        new_node.parent = current_leaf
+        self._leaf_node.set(new_node)
+
+    def pop(self) -> TNode:
+        current_leaf = self._leaf_node.get()
+        if current_leaf is None:
+            raise RuntimeError("Limit tree is empty. Cannot pop from an empty tree.")
+        self._leaf_node.set(current_leaf.parent)
+        return current_leaf
 
 
-class _TokenLimit(Limit):
+token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
+# Store the message limit leaf node so that we know which limit to check in
+# check_message_limit().
+message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
+
+
+class _Node:
+    """Mixin for objects used as nodes in a limit tree.
+
+    This allows us to have an "internal" parent property which is not exported as part
+    of the public API.
+    """
+
+    parent: Self | None
+
+    def _pop_and_check_identity(self, tree: _Tree[TNode]) -> None:
+        popped = tree.pop()
+        if popped is not self:
+            raise RuntimeError(
+                "The limit context manager being closed is not the leaf node in the "
+                "tree. Make sure to open and close the context managers in a "
+                "stack-like manner using a `with` statement."
+            )
+
+
+class _TokenLimit(Limit, _Node):
     def __init__(self, limit: int | None) -> None:
+        from inspect_ai.model._model_output import ModelUsage
+
+        super().__init__()
         self._validate_token_limit(limit)
-        self._limit_value_wrapper = _LimitValueWrapper(limit)
+        self._limit = limit
+        self._usage = ModelUsage()
 
     def __enter__(self) -> Limit:
-        current_node = token_limit_leaf_node.get()
-        new_node = _TokenLimitNode(self._limit_value_wrapper, current_node)
-        # Note that we don't store new_node as an instance variable, because the context
-        # manager may be used across multiple execution contexts, or opened multiple
-        # times.
-        token_limit_leaf_node.set(new_node)
+        super()._check_reuse()
+        token_limit_tree.push(self)
         return self
 
     def __exit__(
@@ -213,60 +294,22 @@ class _TokenLimit(Limit):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        current_node = token_limit_leaf_node.get()
-        assert current_node is not None, (
-            "Token limit node should not be None when exiting context manager."
-        )
-        token_limit_leaf_node.set(current_node.parent)
+        self._pop_and_check_identity(token_limit_tree)
 
     @property
     def limit(self) -> int | None:
         """Get the configured token limit value."""
-        return self._limit_value_wrapper.value
+        return self._limit
 
     @limit.setter
     def limit(self, value: int | None) -> None:
         """Update the token limit value.
 
-        This will affect the limit for all active token limit nodes derived from this
-        context manager.
-
         This does not trigger a check of the token limit (which could now have been
         exceeded).
         """
         self._validate_token_limit(value)
-        self._limit_value_wrapper.value = value
-
-    def _validate_token_limit(self, value: int | None) -> None:
-        if value is not None and value < 0:
-            raise ValueError("Token limit value must be a non-negative integer.")
-
-
-class _TokenLimitNode:
-    def __init__(
-        self,
-        limit: _LimitValueWrapper,
-        parent: _TokenLimitNode | None,
-    ) -> None:
-        """
-        Initialize a token limit node.
-
-        Forms part of a tree structure. Each node has a pointer to its parent, or None
-        if it is the root node.
-
-        Tracks the token usage for this node and its parent nodes and checks if the
-        usage has exceeded a (variable) limit.
-
-        Args:
-          limit: The maximum number of tokens that can be used while the context
-            manager is open.
-          parent: The parent node in the tree.
-        """
-        from inspect_ai.model._model_output import ModelUsage
-
-        self._limit = limit
-        self.parent = parent
-        self._usage = ModelUsage()
+        self._limit = value
 
     def record(self, usage: ModelUsage) -> None:
         """Record model usage for this node and its parent nodes."""
@@ -276,40 +319,44 @@ class _TokenLimitNode:
 
     def check(self) -> None:
         """Check if this token limit or any parent limits have been exceeded."""
+        # Check leaf node first, then parent nodes. This is so that if multiple limits
+        # are exceeded, the innermost one raises an error, giving the user the ability
+        # to log, adjust state etc.
         self._check_self()
         if self.parent is not None:
             self.parent.check()
 
+    def _validate_token_limit(self, value: int | None) -> None:
+        if value is not None and value < 0:
+            raise ValueError(
+                f"Token limit value must be a non-negative integer or None: {value}"
+            )
+
     def _check_self(self) -> None:
         from inspect_ai.log._transcript import SampleLimitEvent, transcript
 
-        if self._limit.value is None:
+        if self.limit is None:
             return
         total = self._usage.total_tokens
-        if total > self._limit.value:
-            message = (
-                f"Token limit exceeded. value: {total:,}; limit: {self._limit.value:,}"
-            )
+        if total > self.limit:
+            message = f"Token limit exceeded. value: {total:,}; limit: {self.limit:,}"
             transcript()._event(
-                SampleLimitEvent(type="token", limit=self._limit.value, message=message)
+                SampleLimitEvent(type="token", limit=self.limit, message=message)
             )
             raise LimitExceededError(
-                "token", value=total, limit=self._limit.value, message=message
+                "token", value=total, limit=self.limit, message=message, source=self
             )
 
 
-class _MessageLimit(Limit):
+class _MessageLimit(Limit, _Node):
     def __init__(self, limit: int | None) -> None:
+        super().__init__()
         self._validate_message_limit(limit)
-        self._limit_value_wrapper = _LimitValueWrapper(limit)
+        self._limit = limit
 
     def __enter__(self) -> Limit:
-        current_node = message_limit_leaf_node.get()
-        new_node = _MessageLimitNode(self._limit_value_wrapper, current_node)
-        # Note that we don't store new_node as an instance variable, because the context
-        # manager may be used across multiple execution contexts, or opened multiple
-        # times.
-        message_limit_leaf_node.set(new_node)
+        super()._check_reuse()
+        message_limit_tree.push(self)
         return self
 
     def __exit__(
@@ -318,16 +365,12 @@ class _MessageLimit(Limit):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        current_node = message_limit_leaf_node.get()
-        assert current_node is not None, (
-            "Message limit node should not be None when exiting context manager."
-        )
-        message_limit_leaf_node.set(current_node.parent)
+        self._pop_and_check_identity(message_limit_tree)
 
     @property
     def limit(self) -> int | None:
         """Get the configured message limit value."""
-        return self._limit_value_wrapper.value
+        return self._limit
 
     @limit.setter
     def limit(self, value: int | None) -> None:
@@ -340,34 +383,7 @@ class _MessageLimit(Limit):
         exceeded).
         """
         self._validate_message_limit(value)
-        self._limit_value_wrapper.value = value
-
-    def _validate_message_limit(self, value: int | None) -> None:
-        if value is not None and value < 0:
-            raise ValueError("Message limit value must be a non-negative integer.")
-
-
-class _MessageLimitNode:
-    def __init__(
-        self,
-        limit: _LimitValueWrapper,
-        parent: _MessageLimitNode | None,
-    ) -> None:
-        """
-        Initialize a message limit node.
-
-        Forms part of a tree structure. Each node has a pointer to its parent, or None
-        if it is the root node.
-
-        Checks if the message count for this node has exceeded a (variable) limit.
-
-        Args:
-          limit: The maximum conversation length (number of messages) allowed while this
-            node is the lead node of the current execution context.
-          parent: The parent node in the tree.
-        """
-        self._limit = limit
-        self.parent = parent
+        self._limit = value
 
     def check(self, count: int, raise_for_equal: bool) -> None:
         """Check if this message limit has been exceeded.
@@ -376,18 +392,23 @@ class _MessageLimitNode:
         """
         from inspect_ai.log._transcript import SampleLimitEvent, transcript
 
-        if self._limit.value is None:
+        if self.limit is None:
             return
-        limit = self._limit.value
-        if count > limit or (raise_for_equal and count == limit):
-            reached_or_exceeded = "reached" if count == limit else "exceeded"
+        if count > self.limit or (raise_for_equal and count == self.limit):
+            reached_or_exceeded = "reached" if count == self.limit else "exceeded"
             message = (
                 f"Message limit {reached_or_exceeded}. count: {count:,}; "
-                f"limit: {limit:,}"
+                f"limit: {self.limit:,}"
             )
             transcript()._event(
-                SampleLimitEvent(type="message", limit=limit, message=message)
+                SampleLimitEvent(type="message", limit=self.limit, message=message)
             )
             raise LimitExceededError(
-                "message", value=count, limit=limit, message=message
+                "message", value=count, limit=self.limit, message=message, source=self
+            )
+
+    def _validate_message_limit(self, value: int | None) -> None:
+        if value is not None and value < 0:
+            raise ValueError(
+                f"Message limit value must be a non-negative integer or None: {value}"
             )

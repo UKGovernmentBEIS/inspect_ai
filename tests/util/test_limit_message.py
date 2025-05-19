@@ -4,7 +4,6 @@ import pytest
 
 from inspect_ai.util._limit import (
     LimitExceededError,
-    _MessageLimit,
     check_message_limit,
     message_limit,
 )
@@ -31,13 +30,14 @@ def test_does_not_raise_error_when_limit_not_exceeded() -> None:
 
 
 def test_raises_error_when_limit_exceeded() -> None:
-    with message_limit(10):
+    with message_limit(10) as limit:
         with pytest.raises(LimitExceededError) as exc_info:
             check_message_limit(11, raise_for_equal=False)
 
     assert exc_info.value.type == "message"
     assert exc_info.value.value == 11
     assert exc_info.value.limit == 10
+    assert exc_info.value.source is limit
 
 
 def test_raises_error_when_limit_equal_and_check_equal_true() -> None:
@@ -87,34 +87,33 @@ def test_ancestor_limits_are_restored() -> None:
     assert exc_info.value.limit == 10
 
 
-def test_can_reuse_context_manager() -> None:
+def test_cannot_reuse_context_manager() -> None:
     limit = message_limit(10)
-
     with limit:
-        check_message_limit(10, raise_for_equal=False)
+        pass
 
-    with limit:
-        check_message_limit(10, raise_for_equal=False)
-
-    with limit:
-        with pytest.raises(LimitExceededError):
-            check_message_limit(11, raise_for_equal=False)
-
-    with limit:
-        check_message_limit(10, raise_for_equal=False)
-
-
-def test_can_reuse_context_manager_in_stack() -> None:
-    limit = message_limit(10)
-
-    with limit:
-        check_message_limit(10, raise_for_equal=False)
-
+    with pytest.raises(RuntimeError) as exc_info:
+        # Reusing the same Limit instance.
         with limit:
-            with pytest.raises(LimitExceededError) as exc_info:
-                check_message_limit(20, raise_for_equal=False)
+            pass
 
-    assert exc_info.value.value == 20
+    assert "Each Limit may only be used once in a single 'with' block" in str(
+        exc_info.value
+    )
+
+
+def test_cannot_reuse_context_manager_in_stack() -> None:
+    limit = message_limit(10)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        with limit:
+            # Reusing the same Limit instance in a stack.
+            with limit:
+                pass
+
+    assert "Each Limit may only be used once in a single 'with' block" in str(
+        exc_info.value
+    )
 
 
 def test_can_update_limit_value() -> None:
@@ -134,9 +133,9 @@ def test_can_update_limit_value() -> None:
     assert limit.limit is None
 
 
-async def test_same_context_manager_across_async_contexts():
-    async def async_task(limit: _MessageLimit):
-        with limit:
+async def test_limits_across_async_contexts():
+    async def async_task():
+        with message_limit(10):
             # Incrementally increase conversation length (should not exceed the limit).
             for i in range(11):
                 check_message_limit(i, raise_for_equal=False)
@@ -146,7 +145,5 @@ async def test_same_context_manager_across_async_contexts():
                 check_message_limit(11, raise_for_equal=False)
                 assert exc_info.value.value == 11
 
-    # The same MessageLimit instance is reused across different async contexts.
-    reused_context_manager = message_limit(10)
     # This will result in 3 distinct "trees" each with 1 root node.
-    await asyncio.gather(*(async_task(reused_context_manager) for _ in range(3)))
+    await asyncio.gather(*(async_task() for _ in range(3)))
