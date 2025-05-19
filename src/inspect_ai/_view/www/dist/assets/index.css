@@ -17166,41 +17166,41 @@ thead th {
   flex-direction: column;
   padding-top: 0.1em;
 }
-._container_8i3m0_1 {
+._container_181fj_1 {
   display: grid;
   grid-template-columns:
-    minmax(auto, 1fr) minmax(auto, 1fr) minmax(auto, 1fr)
-    2fr;
+    minmax(0, max-content) minmax(0, max-content) minmax(0, max-content)
+    5fr;
   column-gap: 0.75em;
 }
 
-._container_8i3m0_1 ._cell_8i3m0_9 {
+._container_181fj_1 ._cell_181fj_9 {
   margin-bottom: 0.5em;
 }
 
-._fullWidth_8i3m0_13 {
+._fullWidth_181fj_13 {
   grid-column: 1 / -1;
 }
 
-._heading_8i3m0_17 {
+._heading_181fj_17 {
   font-weight: 600;
 }
 
-._padded_8i3m0_21 {
+._padded_181fj_21 {
   padding-bottom: 3em;
 }
 
-._separator_8i3m0_25 {
+._separator_181fj_25 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
 
-._separatorPadded_8i3m0_30 {
+._separatorPadded_181fj_30 {
   margin-top: 0.5em;
   margin-bottom: 0.5em;
 }
 
-._headerSep_8i3m0_35 {
+._headerSep_181fj_35 {
   margin-top: 0.1em;
   margin-bottom: 0.2em;
 }
