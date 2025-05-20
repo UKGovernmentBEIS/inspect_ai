@@ -54811,8 +54811,8 @@ self.onmessage = function (e) {
       let modelNode = null;
       const toolNodes = [];
       let turnCount = 1;
-      const makeTurn = () => {
-        if (modelNode !== null) {
+      const makeTurn = (force) => {
+        if (modelNode !== null && (force || toolNodes.length > 0)) {
           const turnNode = new EventNode(
             modelNode.id,
             {
@@ -54830,14 +54830,14 @@ self.onmessage = function (e) {
           );
           turnNode.children = [modelNode, ...toolNodes];
           results.push(turnNode);
-          modelNode = null;
-          toolNodes.length = 0;
         }
+        modelNode = null;
+        toolNodes.length = 0;
       };
       for (const node2 of eventNodes) {
         if (node2.event.event === "model") {
           if (modelNode !== null && toolNodes.length === 0) {
-            makeTurn();
+            makeTurn(true);
           } else {
             makeTurn();
             modelNode = node2;
@@ -54849,6 +54849,7 @@ self.onmessage = function (e) {
           results.push(node2);
         }
       }
+      makeTurn();
       return results;
     };
     const collapseTurns = (eventNodes) => {
@@ -54925,8 +54926,6 @@ self.onmessage = function (e) {
             removeNodeVisitor("input"),
             // Strip the sandbox wrapper (and children)
             removeStepSpanNameVisitor(kSandboxSignalName),
-            // Remove any leftover bare model calls that aren't in turns
-            // removeNodeVisitor("model"),
             // Remove child events for scorers
             noScorerChildren()
           ]

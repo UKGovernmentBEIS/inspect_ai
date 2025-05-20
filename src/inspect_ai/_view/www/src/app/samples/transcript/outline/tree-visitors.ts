@@ -67,8 +67,8 @@ export const makeTurns = (eventNodes: EventNode[]): EventNode[] => {
   const toolNodes: EventNode[] = [];
   let turnCount = 1;
 
-  const makeTurn = () => {
-    if (modelNode !== null) {
+  const makeTurn = (force?: boolean) => {
+    if (modelNode !== null && (force || toolNodes.length > 0)) {
       // Create a new "turn" node based on the model event
       const turnNode = new EventNode(
         modelNode.id,
@@ -89,17 +89,16 @@ export const makeTurns = (eventNodes: EventNode[]): EventNode[] => {
       // Add the original model event and tool events as children
       turnNode.children = [modelNode, ...toolNodes];
       results.push(turnNode);
-
-      modelNode = null;
-      toolNodes.length = 0;
     }
+    modelNode = null;
+    toolNodes.length = 0;
   };
 
   for (const node of eventNodes) {
     if (node.event.event === "model") {
       if (modelNode !== null && toolNodes.length === 0) {
         // back to back model calls are considered a single turn
-        makeTurn();
+        makeTurn(true);
       } else {
         makeTurn();
         modelNode = node;
@@ -111,6 +110,8 @@ export const makeTurns = (eventNodes: EventNode[]): EventNode[] => {
       results.push(node);
     }
   }
+  makeTurn();
+
   return results;
 };
 

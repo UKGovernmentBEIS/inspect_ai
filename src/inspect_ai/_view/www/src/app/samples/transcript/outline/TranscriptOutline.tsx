@@ -94,9 +94,6 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         // Strip the sandbox wrapper (and children)
         removeStepSpanNameVisitor(kSandboxSignalName),
 
-        // Remove any leftover bare model calls that aren't in turns
-        // removeNodeVisitor("model"),
-
         // Remove child events for scorers
         noScorerChildren(),
       ],
