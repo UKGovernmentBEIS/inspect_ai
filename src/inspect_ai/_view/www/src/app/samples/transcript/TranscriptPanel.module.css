@@ -17,6 +17,10 @@
   height: 100%;
 }
 
+.collapsed .treeContainer {
+  border-top: solid 1px var(--bs-light-border-subtle);
+}
+
 .listContainer {
   background-color: var(--bs-body-bg);
 }
