@@ -54788,8 +54788,52 @@ self.onmessage = function (e) {
         }
       };
     };
+    const makeTurns = (eventNodes) => {
+      const results = [];
+      let modelNode = null;
+      const toolNodes = [];
+      let turnCount = 1;
+      const makeTurn = () => {
+        if (modelNode !== null) {
+          const turnNode = new EventNode(
+            modelNode.id,
+            {
+              id: modelNode.id,
+              event: "span_begin",
+              type: kTurnType,
+              name: `turn ${turnCount++}`,
+              pending: false,
+              working_start: modelNode.event.working_start,
+              timestamp: modelNode.event.timestamp,
+              parent_id: null,
+              span_id: modelNode.event.span_id
+            },
+            modelNode.depth
+          );
+          turnNode.children = [modelNode, ...toolNodes];
+          results.push(turnNode);
+          modelNode = null;
+          toolNodes.length = 0;
+        }
+      };
+      for (const node2 of eventNodes) {
+        if (node2.event.event === "model") {
+          if (modelNode !== null && toolNodes.length === 0) {
+            makeTurn();
+          } else {
+            makeTurn();
+            modelNode = node2;
+          }
+        } else if (node2.event.event === "tool") {
+          toolNodes.push(node2);
+        } else {
+          makeTurn();
+          results.push(node2);
+        }
+      }
+      return results;
+    };
     const collapseTurns = (eventNodes) => {
-      console.log({ eventNodes });
       const results = [];
       const collecting = [];
       const collect = () => {
@@ -54798,7 +54842,10 @@ self.onmessage = function (e) {
           const firstTurn = collecting[0];
           const turnNode = new EventNode(
             firstTurn.id,
-            { ...firstTurn.event, name: `${numberOfTurns} turns` },
+            {
+              ...firstTurn.event,
+              name: `${numberOfTurns} ${numberOfTurns === 1 ? "turn" : "turns"}`
+            },
             firstTurn.depth
           );
           results.push(turnNode);
@@ -54807,91 +54854,14 @@ self.onmessage = function (e) {
       };
       for (const node2 of eventNodes) {
         if (node2.event.event === "span_begin" && node2.event.type === kTurnType) {
-          console.log("turn", collecting.length, node2.event.name);
           collecting.push(node2);
         } else {
-          console.log("collect", collecting.length);
           collect();
           results.push(node2);
         }
       }
       collect();
       return results;
-    };
-    const collapseTurnsVisitor = () => {
-      let pendingModelEvent = null;
-      let collectingToolEvents = [];
-      let turnCount = 1;
-      let currentDepth = 0;
-      let flushed = false;
-      const makeTurn = (modelEvent, toolEvents) => {
-        const turnNode = new EventNode(
-          modelEvent.id,
-          {
-            id: modelEvent.id,
-            event: "span_begin",
-            type: kTurnType,
-            name: `turn ${turnCount++}`,
-            pending: false,
-            working_start: modelEvent.event.working_start,
-            timestamp: modelEvent.event.timestamp,
-            parent_id: null,
-            span_id: modelEvent.event.span_id
-          },
-          modelEvent.depth
-        );
-        turnNode.children = [modelEvent, ...toolEvents];
-        return turnNode;
-      };
-      const shouldCreateTurn = (toolEvents) => {
-        return toolEvents.length > 0;
-      };
-      const processPendingModelEvents = () => {
-        const result2 = [];
-        if (pendingModelEvent) {
-          if (shouldCreateTurn(collectingToolEvents)) {
-            result2.push(makeTurn(pendingModelEvent, collectingToolEvents));
-          } else {
-            result2.push(pendingModelEvent);
-          }
-          pendingModelEvent = null;
-          collectingToolEvents = [];
-        }
-        return result2;
-      };
-      return {
-        visit: (node2) => {
-          if (currentDepth !== node2.depth) {
-            turnCount = 1;
-            const result22 = processPendingModelEvents();
-            currentDepth = node2.depth;
-            if (node2.event.event === "model") {
-              pendingModelEvent = node2;
-              return result22;
-            } else {
-              return [...result22, node2];
-            }
-          }
-          const result2 = [];
-          if (node2.event.event === "model") {
-            result2.push(...processPendingModelEvents());
-            pendingModelEvent = node2;
-          } else if (pendingModelEvent && node2.event.event === "tool" && pendingModelEvent.depth === node2.depth) {
-            collectingToolEvents.push(node2);
-          } else {
-            result2.push(...processPendingModelEvents());
-            result2.push(node2);
-          }
-          return result2;
-        },
-        flush: () => {
-          if (flushed) {
-            return [];
-          }
-          flushed = true;
-          return processPendingModelEvents();
-        }
-      };
     };
     const kCollapseScope = "transcript-outline";
     const EventPaddingNode = {
@@ -54937,15 +54907,13 @@ self.onmessage = function (e) {
             removeNodeVisitor("input"),
             // Strip the sandbox wrapper (and children)
             removeStepSpanNameVisitor(kSandboxSignalName),
-            // Collapse model calls into turns
-            collapseTurnsVisitor(),
             // Remove any leftover bare model calls that aren't in turns
-            removeNodeVisitor("model"),
+            // removeNodeVisitor("model"),
             // Remove child events for scorers
             noScorerChildren()
           ]
         );
-        return collapseTurns(nodeList);
+        return collapseTurns(makeTurns(nodeList));
       }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
       reactExports.useEffect(() => {
         if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {

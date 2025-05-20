@@ -21,7 +21,7 @@ import { OutlineRow } from "./OutlineRow";
 import styles from "./TranscriptOutline.module.css";
 import {
   collapseTurns,
-  collapseTurnsVisitor,
+  makeTurns,
   noScorerChildren,
   removeNodeVisitor,
   removeStepSpanNameVisitor,
@@ -94,18 +94,15 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         // Strip the sandbox wrapper (and children)
         removeStepSpanNameVisitor(kSandboxSignalName),
 
-        // Collapse model calls into turns
-        collapseTurnsVisitor(),
-
         // Remove any leftover bare model calls that aren't in turns
-        removeNodeVisitor("model"),
+        // removeNodeVisitor("model"),
 
         // Remove child events for scorers
         noScorerChildren(),
       ],
     );
 
-    return collapseTurns(nodeList);
+    return collapseTurns(makeTurns(nodeList));
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
   // Update the collapsed events when the default collapsed IDs change
