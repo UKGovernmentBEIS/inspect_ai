@@ -199,6 +199,6 @@ def view_resource(file: str) -> str:
 
 
 def view_type_resource(file: str) -> str:
-    resource = PKG_PATH / "_view" / "www" / "src" / "types" / file
+    resource = PKG_PATH / "_view" / "www" / "src" / "@types" / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()
