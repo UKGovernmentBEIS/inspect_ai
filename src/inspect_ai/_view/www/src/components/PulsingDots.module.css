@@ -13,7 +13,7 @@
 }
 
 .small .dotsContainer {
-  column-gap: 3px;
+  column-gap: 2px;
 }
 
 .medium .dotsContainer {
@@ -42,8 +42,8 @@
 }
 
 .small .dot {
-  width: 4px;
-  height: 4px;
+  width: 3px;
+  height: 3px;
 }
 
 .medium .dot {

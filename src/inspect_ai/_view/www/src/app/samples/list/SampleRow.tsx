@@ -115,7 +115,7 @@ export const SampleRow: FC<SampleRowProps> = ({
         ) : completed ? (
           scoreRendered
         ) : (
-          <PulsingDots />
+          <PulsingDots subtle={false}/>
         )}
       </div>
     </div>

@@ -61623,15 +61623,15 @@ self.onmessage = function (e) {
 </div>`;
       return headingHtml;
     };
-    const container$8 = "_container_4954m_2";
-    const dotsContainer = "_dotsContainer_4954m_8";
-    const small = "_small_4954m_15";
-    const medium = "_medium_4954m_19";
-    const large = "_large_4954m_24";
-    const dot = "_dot_4954m_8";
-    const subtle = "_subtle_4954m_36";
-    const primary = "_primary_4954m_40";
-    const visuallyHidden = "_visuallyHidden_4954m_59";
+    const container$8 = "_container_4p85e_2";
+    const dotsContainer = "_dotsContainer_4p85e_8";
+    const small = "_small_4p85e_15";
+    const medium = "_medium_4p85e_19";
+    const large = "_large_4p85e_24";
+    const dot = "_dot_4p85e_8";
+    const subtle = "_subtle_4p85e_36";
+    const primary = "_primary_4p85e_40";
+    const visuallyHidden = "_visuallyHidden_4p85e_59";
     const styles$G = {
       container: container$8,
       dotsContainer,
@@ -65136,7 +65136,7 @@ self.onmessage = function (e) {
                   lineNumber: 81,
                   columnNumber: 13
                 }, void 0),
-                running2 ? /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
+                /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(
                   PulsingDots,
                   {
                     size: "small",
@@ -65151,7 +65151,7 @@ self.onmessage = function (e) {
                     columnNumber: 13
                   },
                   void 0
-                ) : void 0
+                )
               ] }, void 0, true, {
                 fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/transcript/outline/OutlineRow.tsx",
                 lineNumber: 68,
@@ -98186,7 +98186,7 @@ Supported expressions:
               fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/list/SampleRow.tsx",
               lineNumber: 114,
               columnNumber: 11
-            }, void 0) : completed ? scoreRendered : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(PulsingDots, {}, void 0, false, {
+            }, void 0) : completed ? scoreRendered : /* @__PURE__ */ jsxDevRuntimeExports.jsxDEV(PulsingDots, { subtle: false }, void 0, false, {
               fileName: "/Users/charlesteague/Development/inspect_ai/src/inspect_ai/_view/www/src/app/samples/list/SampleRow.tsx",
               lineNumber: 118,
               columnNumber: 11
