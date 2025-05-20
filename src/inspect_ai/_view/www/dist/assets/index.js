@@ -51648,7 +51648,7 @@ self.onmessage = function (e) {
             (_a2 = listHandle.current) == null ? void 0 : _a2.scrollToIndex({
               index: initialTopMostItemIndex,
               align: "start",
-              behavior: "auto",
+              behavior: "smooth",
               offset: offsetTop ? -offsetTop : void 0
             });
           }, 50);
@@ -54344,15 +54344,60 @@ self.onmessage = function (e) {
       offset: offset2 = [0, 8],
       className: className2 = "",
       arrowClassName = "",
-      usePortal = true
+      usePortal = true,
+      hoverDelay = 250
     }) => {
       const popperRef = reactExports.useRef(null);
       const arrowRef = reactExports.useRef(null);
       const [portalContainer, setPortalContainer] = reactExports.useState(
         null
       );
+      const [shouldShowPopover, setShouldShowPopover] = reactExports.useState(false);
+      const hoverTimerRef = reactExports.useRef(null);
+      const isMouseMovingRef = reactExports.useRef(false);
       reactExports.useEffect(() => {
-        if (usePortal && isOpen) {
+        if (!isOpen || hoverDelay <= 0) {
+          setShouldShowPopover(isOpen);
+          return;
+        }
+        const handleMouseMove = () => {
+          isMouseMovingRef.current = true;
+          if (hoverTimerRef.current !== null) {
+            window.clearTimeout(hoverTimerRef.current);
+          }
+          hoverTimerRef.current = window.setTimeout(() => {
+            if (isOpen) {
+              isMouseMovingRef.current = false;
+              setShouldShowPopover(true);
+            }
+          }, hoverDelay);
+        };
+        const handleMouseLeave = () => {
+          if (hoverTimerRef.current !== null) {
+            window.clearTimeout(hoverTimerRef.current);
+          }
+          isMouseMovingRef.current = false;
+          setShouldShowPopover(false);
+        };
+        if (positionEl && isOpen) {
+          positionEl.addEventListener("mousemove", handleMouseMove);
+          positionEl.addEventListener("mouseleave", handleMouseLeave);
+          handleMouseMove();
+        } else {
+          setShouldShowPopover(false);
+        }
+        return () => {
+          if (positionEl) {
+            positionEl.removeEventListener("mousemove", handleMouseMove);
+            positionEl.removeEventListener("mouseleave", handleMouseLeave);
+          }
+          if (hoverTimerRef.current !== null) {
+            window.clearTimeout(hoverTimerRef.current);
+          }
+        };
+      }, [isOpen, positionEl, hoverDelay]);
+      reactExports.useEffect(() => {
+        if (usePortal && isOpen && shouldShowPopover) {
           let container2 = document.getElementById(id);
           if (!container2) {
             container2 = document.createElement("div");
@@ -54375,7 +54420,7 @@ self.onmessage = function (e) {
           };
         }
         return void 0;
-      }, [usePortal, isOpen, id]);
+      }, [usePortal, isOpen, shouldShowPopover, id]);
       const modifiers2 = [
         { name: "offset", options: { offset: offset2 } },
         { name: "preventOverflow", options: { padding: 8 } },
@@ -54413,13 +54458,13 @@ self.onmessage = function (e) {
         }
       );
       reactExports.useEffect(() => {
-        if (update && isOpen) {
+        if (update && isOpen && shouldShowPopover) {
           const timer = setTimeout(() => {
             update();
           }, 10);
           return () => clearTimeout(timer);
         }
-      }, [update, isOpen, showArrow, arrowRef.current]);
+      }, [update, isOpen, shouldShowPopover, showArrow, arrowRef.current]);
       const getArrowDataPlacement = () => {
         if (!state || !state.placement) return placement;
         return state.placement;
@@ -54434,7 +54479,9 @@ self.onmessage = function (e) {
         zIndex: 1200,
         position: "relative"
       };
-      if (!isOpen) return null;
+      if (!isOpen || hoverDelay > 0 && !shouldShowPopover) {
+        return null;
+      }
       const popperContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {

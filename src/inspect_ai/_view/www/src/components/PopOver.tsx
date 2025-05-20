@@ -18,6 +18,7 @@ interface PopOverProps {
   showArrow?: boolean;
   offset?: [number, number];
   usePortal?: boolean;
+  hoverDelay?: number;
 
   className?: string | string[];
   arrowClassName?: string | string[];
@@ -39,17 +40,78 @@ export const PopOver: React.FC<PopOverProps> = ({
   className = "",
   arrowClassName = "",
   usePortal = true,
+  hoverDelay = 250,
 }) => {
   const popperRef = useRef<HTMLDivElement | null>(null);
   const arrowRef = useRef<HTMLDivElement | null>(null);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
     null,
   );
-
+  
+  // For delayed hover functionality
+  const [shouldShowPopover, setShouldShowPopover] = useState(false);
+  const hoverTimerRef = useRef<number | null>(null);
+  const isMouseMovingRef = useRef(false);
+  
+  // Setup hover timer and mouse movement detection
+  useEffect(() => {
+    if (!isOpen || hoverDelay <= 0) {
+      setShouldShowPopover(isOpen);
+      return;
+    }
+    
+    const handleMouseMove = () => {
+      isMouseMovingRef.current = true;
+      
+      // Clear any existing timer when mouse moves
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+      
+      // Start a new timer to check if mouse has stopped moving
+      hoverTimerRef.current = window.setTimeout(() => {
+        if (isOpen) {
+          isMouseMovingRef.current = false;
+          setShouldShowPopover(true);
+        }
+      }, hoverDelay);
+    };
+    
+    const handleMouseLeave = () => {
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+      isMouseMovingRef.current = false;
+      setShouldShowPopover(false);
+    };
+    
+    // Add event listeners to the positionEl (the trigger element)
+    if (positionEl && isOpen) {
+      positionEl.addEventListener('mousemove', handleMouseMove);
+      positionEl.addEventListener('mouseleave', handleMouseLeave);
+      
+      // Initial mouse move to start the timer
+      handleMouseMove();
+    } else {
+      setShouldShowPopover(false);
+    }
+    
+    return () => {
+      if (positionEl) {
+        positionEl.removeEventListener('mousemove', handleMouseMove);
+        positionEl.removeEventListener('mouseleave', handleMouseLeave);
+      }
+      
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+    };
+  }, [isOpen, positionEl, hoverDelay]);
+  
   // Effect to create portal container when needed
   useEffect(() => {
     // Only create portal when the popover is open
-    if (usePortal && isOpen) {
+    if (usePortal && isOpen && shouldShowPopover) {
       let container = document.getElementById(id);
 
       if (!container) {
@@ -78,7 +140,7 @@ export const PopOver: React.FC<PopOverProps> = ({
     }
 
     return undefined;
-  }, [usePortal, isOpen, id]);
+  }, [usePortal, isOpen, shouldShowPopover, id]);
 
   // Configure modifiers for popper
   const modifiers = [
@@ -121,14 +183,14 @@ export const PopOver: React.FC<PopOverProps> = ({
 
   // Force update when needed refs change
   useEffect(() => {
-    if (update && isOpen) {
+    if (update && isOpen && shouldShowPopover) {
       // Need to delay the update slightly to ensure refs are properly set
       const timer = setTimeout(() => {
         update();
       }, 10);
       return () => clearTimeout(timer);
     }
-  }, [update, isOpen, showArrow, arrowRef.current]);
+  }, [update, isOpen, shouldShowPopover, showArrow, arrowRef.current]);
 
   // Define arrow data-* attribute based on placement
   const getArrowDataPlacement = () => {
@@ -153,8 +215,10 @@ export const PopOver: React.FC<PopOverProps> = ({
     position: "relative",
   };
 
-  // Early return if not open
-  if (!isOpen) return null;
+  // Early return if not open or should not show due to hover delay
+  if (!isOpen || (hoverDelay > 0 && !shouldShowPopover)) {
+    return null;
+  }
 
   // Create the popper content
   const popperContent = (
