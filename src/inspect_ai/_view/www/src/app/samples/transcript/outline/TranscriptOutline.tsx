@@ -97,15 +97,15 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         // Collapse model calls into turns
         collapseTurnsVisitor(),
 
-        // Collapse turns into a single node for sequential runs
-        // of turns
-        collapseMultipleTurnsVisitor(),
-
         // Remove any leftover bare model calls that aren't in turns
         removeNodeVisitor("model"),
 
         // Remove child events for scorers
         noScorerChildren(),
+
+        // Collapse turns into a single node for sequential runs
+        // of turns
+        collapseMultipleTurnsVisitor(),
       ],
     );
 
@@ -136,7 +136,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         );
       }
     },
-    [flattenedNodes],
+    [flattenedNodes, running],
   );
 
   return (
