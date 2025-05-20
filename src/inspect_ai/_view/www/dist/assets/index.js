@@ -52636,9 +52636,16 @@ self.onmessage = function (e) {
               visitors,
               pendingNode
             );
+            pendingNode.children = children2;
             result2.push(pendingNode);
             if (collapsed2 === null || collapsed2[pendingNode.id] !== true) {
               result2.push(...children2);
+            }
+          }
+          for (const visitor of visitors) {
+            if (visitor.flush) {
+              const finalNodes = visitor.flush();
+              result2.push(...finalNodes);
             }
           }
         } else {
@@ -52646,14 +52653,6 @@ self.onmessage = function (e) {
           const children2 = flatTree(node2.children, collapsed2, visitors, node2);
           if (collapsed2 === null || collapsed2[node2.id] !== true) {
             result2.push(...children2);
-          }
-        }
-      }
-      if (visitors && visitors.length > 0) {
-        for (const visitor of visitors) {
-          if (visitor.flush) {
-            const finalNodes = visitor.flush();
-            result2.push(...finalNodes);
           }
         }
       }
@@ -54789,45 +54788,35 @@ self.onmessage = function (e) {
         }
       };
     };
-    const collapseMultipleTurnsVisitor = () => {
-      const collectedTurns = [];
-      const gatherCollectedTurns = () => {
-        if (collectedTurns.length > 0) {
-          const numberOfTurns = collectedTurns.length;
-          const firstTurn = collectedTurns[0];
+    const collapseTurns = (eventNodes) => {
+      console.log({ eventNodes });
+      const results = [];
+      const collecting = [];
+      const collect = () => {
+        if (collecting.length > 0) {
+          const numberOfTurns = collecting.length;
+          const firstTurn = collecting[0];
           const turnNode = new EventNode(
             firstTurn.id,
             { ...firstTurn.event, name: `${numberOfTurns} turns` },
             firstTurn.depth
           );
-          collectedTurns.length = 0;
-          return turnNode;
+          results.push(turnNode);
+          collecting.length = 0;
+        }
+      };
+      for (const node2 of eventNodes) {
+        if (node2.event.event === "span_begin" && node2.event.type === kTurnType) {
+          console.log("turn", collecting.length, node2.event.name);
+          collecting.push(node2);
         } else {
-          return void 0;
+          console.log("collect", collecting.length);
+          collect();
+          results.push(node2);
         }
-      };
-      return {
-        visit: (node2) => {
-          if (node2.event.event === "span_begin" && node2.event.type === kTurnType) {
-            collectedTurns.push(node2);
-            return [];
-          } else {
-            const collectedTurn = gatherCollectedTurns();
-            if (collectedTurn) {
-              return [collectedTurn, node2];
-            } else {
-              return [node2];
-            }
-          }
-        },
-        flush: () => {
-          const collectedTurn = gatherCollectedTurns();
-          if (collectedTurn) {
-            return [collectedTurn];
-          }
-          return [];
-        }
-      };
+      }
+      collect();
+      return results;
     };
     const collapseTurnsVisitor = () => {
       let pendingModelEvent = null;
@@ -54953,13 +54942,10 @@ self.onmessage = function (e) {
             // Remove any leftover bare model calls that aren't in turns
             removeNodeVisitor("model"),
             // Remove child events for scorers
-            noScorerChildren(),
-            // Collapse turns into a single node for sequential runs
-            // of turns
-            collapseMultipleTurnsVisitor()
+            noScorerChildren()
           ]
         );
-        return nodeList;
+        return collapseTurns(nodeList);
       }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
       reactExports.useEffect(() => {
         if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {

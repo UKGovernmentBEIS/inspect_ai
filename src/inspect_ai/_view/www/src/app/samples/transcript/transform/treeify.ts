@@ -494,9 +494,17 @@ export const flatTree = (
           visitors,
           pendingNode,
         );
+        pendingNode.children = children;
         result.push(pendingNode);
         if (collapsed === null || collapsed[pendingNode.id] !== true) {
           result.push(...children);
+        }
+      }
+
+      for (const visitor of visitors) {
+        if (visitor.flush) {
+          const finalNodes = visitor.flush();
+          result.push(...finalNodes);
         }
       }
     } else {
@@ -504,16 +512,6 @@ export const flatTree = (
       const children = flatTree(node.children, collapsed, visitors, node);
       if (collapsed === null || collapsed[node.id] !== true) {
         result.push(...children);
-      }
-    }
-  }
-
-  // Final flush of all visitors (handle buffered nodes)
-  if (visitors && visitors.length > 0) {
-    for (const visitor of visitors) {
-      if (visitor.flush) {
-        const finalNodes = visitor.flush();
-        result.push(...finalNodes);
       }
     }
   }

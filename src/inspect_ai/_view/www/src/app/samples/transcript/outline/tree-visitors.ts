@@ -61,6 +61,39 @@ export const noScorerChildren = () => {
   };
 };
 
+export const collapseTurns = (eventNodes: EventNode[]): EventNode[] => {
+  console.log({ eventNodes });
+  const results: EventNode[] = [];
+  const collecting: EventNode[] = [];
+  const collect = () => {
+    if (collecting.length > 0) {
+      const numberOfTurns = collecting.length;
+      const firstTurn = collecting[0];
+      const turnNode = new EventNode(
+        firstTurn.id,
+        { ...firstTurn.event, name: `${numberOfTurns} turns` },
+        firstTurn.depth,
+      );
+      results.push(turnNode);
+      collecting.length = 0;
+    }
+  };
+
+  for (const node of eventNodes) {
+    if (node.event.event === "span_begin" && node.event.type === kTurnType) {
+      console.log("turn", collecting.length, node.event.name);
+      collecting.push(node);
+    } else {
+      console.log("collect", collecting.length);
+      collect();
+      results.push(node);
+    }
+  }
+  // Handle any remaining collected turns
+  collect();
+  return results;
+};
+
 export const collapseMultipleTurnsVisitor = () => {
   const collectedTurns: EventNode[] = [];
 

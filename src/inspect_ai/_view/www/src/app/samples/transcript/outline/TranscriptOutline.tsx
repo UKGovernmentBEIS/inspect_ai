@@ -20,7 +20,7 @@ import { kSandboxSignalName } from "../transform/fixups";
 import { OutlineRow } from "./OutlineRow";
 import styles from "./TranscriptOutline.module.css";
 import {
-  collapseMultipleTurnsVisitor,
+  collapseTurns,
   collapseTurnsVisitor,
   noScorerChildren,
   removeNodeVisitor,
@@ -102,14 +102,10 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
 
         // Remove child events for scorers
         noScorerChildren(),
-
-        // Collapse turns into a single node for sequential runs
-        // of turns
-        collapseMultipleTurnsVisitor(),
       ],
     );
 
-    return nodeList;
+    return collapseTurns(nodeList);
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
   // Update the collapsed events when the default collapsed IDs change
