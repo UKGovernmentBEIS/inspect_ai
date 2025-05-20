@@ -1136,6 +1136,18 @@
           "default": null,
           "title": "Log Samples"
         },
+        "log_realtime": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Log Realtime"
+        },
         "log_images": {
           "anyOf": [
             {
@@ -1205,6 +1217,7 @@
         "max_sandboxes",
         "sandbox_cleanup",
         "log_samples",
+        "log_realtime",
         "log_images",
         "log_buffer",
         "log_shared",
@@ -1502,7 +1515,8 @@
             "reasoning_tokens": null,
             "reasoning_summary": null,
             "reasoning_history": null,
-            "response_schema": null
+            "response_schema": null,
+            "extra_body": null
           }
         }
       },
@@ -1944,7 +1958,7 @@
       "additionalProperties": false
     },
     "EvalSampleLimit": {
-      "description": "Limit encontered by sample.",
+      "description": "Limit encountered by sample.",
       "properties": {
         "type": {
           "enum": [
@@ -2277,6 +2291,10 @@
     "EvalSpec": {
       "description": "Eval target and configuration.",
       "properties": {
+        "eval_id": {
+          "title": "Eval Id",
+          "type": "string"
+        },
         "run_id": {
           "title": "Run Id",
           "type": "string"
@@ -2294,9 +2312,16 @@
           "type": "string"
         },
         "task_version": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
           "default": 0,
-          "title": "Task Version",
-          "type": "integer"
+          "title": "Task Version"
         },
         "task_file": {
           "anyOf": [
@@ -2500,6 +2525,7 @@
         }
       },
       "required": [
+        "eval_id",
         "run_id",
         "created",
         "task",
@@ -2897,6 +2923,19 @@
             }
           ],
           "default": null
+        },
+        "extra_body": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extra Body"
         }
       },
       "title": "GenerateConfig",
@@ -2927,7 +2966,8 @@
         "reasoning_tokens",
         "reasoning_summary",
         "reasoning_history",
-        "response_schema"
+        "response_schema",
+        "extra_body"
       ],
       "additionalProperties": false
     },

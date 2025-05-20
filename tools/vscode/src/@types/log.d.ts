@@ -7,11 +7,12 @@
 
 export type Version = number;
 export type Status = "started" | "success" | "cancelled" | "error";
+export type EvalId = string;
 export type RunId = string;
 export type Created = string;
 export type Task = string;
 export type TaskId = string;
-export type TaskVersion = number;
+export type TaskVersion = number | string;
 export type TaskFile = string | null;
 export type TaskRegistryName = string | null;
 export type Solver = string | null;
@@ -68,6 +69,9 @@ export type Anyof = JSONSchema[] | null;
 export type Required = string[] | null;
 export type Description1 = string | null;
 export type Strict = boolean | null;
+export type ExtraBody = {
+  [k: string]: unknown;
+} | null;
 export type ModelBaseUrl = string | null;
 export type ModelRoles = {
   [k: string]: EvalModelConfig;
@@ -99,6 +103,7 @@ export type MaxSubprocesses = number | null;
 export type MaxSandboxes = number | null;
 export type SandboxCleanup = boolean | null;
 export type LogSamples = boolean | null;
+export type LogRealtime = boolean | null;
 export type LogImages = boolean | null;
 export type LogBuffer = number | null;
 export type LogShared = number | null;
@@ -263,9 +268,10 @@ export type Type9 =
   | "permission"
   | "file_not_found"
   | "is_a_directory"
-  | "output_limit"
+  | "limit"
   | "approval"
-  | "unknown";
+  | "unknown"
+  | "output_limit";
 export type Message1 = string;
 export type Choices = string[] | null;
 export type Target = string | string[];
@@ -639,6 +645,7 @@ export interface EvalLog {
  * Eval target and configuration.
  */
 export interface EvalSpec {
+  eval_id: EvalId;
   run_id: RunId;
   created: Created;
   task: Task;
@@ -721,6 +728,7 @@ export interface GenerateConfig {
   reasoning_summary: ReasoningSummary;
   reasoning_history: ReasoningHistory;
   response_schema: ResponseSchema | null;
+  extra_body: ExtraBody;
 }
 /**
  * Schema for model response when using Structured Output.
@@ -785,6 +793,7 @@ export interface EvalConfig {
   max_sandboxes: MaxSandboxes;
   sandbox_cleanup: SandboxCleanup;
   log_samples: LogSamples;
+  log_realtime: LogRealtime;
   log_images: LogImages;
   log_buffer: LogBuffer;
   log_shared: LogShared;
@@ -887,6 +896,7 @@ export interface GenerateConfig1 {
   reasoning_summary: ReasoningSummary;
   reasoning_history: ReasoningHistory;
   response_schema: ResponseSchema | null;
+  extra_body: ExtraBody;
 }
 /**
  * Scoring results from evaluation.
@@ -1524,7 +1534,7 @@ export interface Attachments {
   [k: string]: string;
 }
 /**
- * Limit encontered by sample.
+ * Limit encountered by sample.
  */
 export interface EvalSampleLimit {
   type: Type16;

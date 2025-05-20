@@ -30,6 +30,7 @@ def sync_view_schema() -> None:
         for key in defs.keys():
             defs[key] = schema_to_strict(defs[key])
         f.write(json.dumps(schema, indent=2))
+        f.write("\n")
 
         # generate types w/ json-schema-to-typescript
         subprocess.run(

@@ -56,7 +56,7 @@ class TaskLogger:
     def __init__(
         self,
         task_name: str,
-        task_version: int,
+        task_version: int | str,
         task_file: str | None,
         task_registry_name: str | None,
         task_id: str | None,
