@@ -3,6 +3,7 @@
   width: 100%;
   grid-template-columns: 180px 1fr;
   min-height: 100vh;
+  transition: grid-template-columns 0.3s ease;
 }
 
 .container.collapsed {
