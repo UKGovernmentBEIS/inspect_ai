@@ -82,7 +82,7 @@ export const OutlineRow: FC<OutlineRowProps> = ({
               {parsePackageName(labelForNode(node)).module}
             </span>
           )}
-          {running || true ? (
+          {running ? (
             <PulsingDots
               size="small"
               className={clsx(styles.progress)}

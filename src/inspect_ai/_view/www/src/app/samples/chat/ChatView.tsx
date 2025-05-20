@@ -26,7 +26,6 @@ export const ChatView: FC<ChatViewProps> = ({
   numbered = true,
   className,
 }) => {
-
   const collapsedMessages = resolveMessages(messages);
   const result = (
     <div className={clsx(className)}>

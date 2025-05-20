@@ -100,11 +100,11 @@ export const PopOver: React.FC<PopOverProps> = ({
       },
     },
     // Ensure popper is positioned correctly with respect to its reference element
-    { 
-      name: "flip", 
+    {
+      name: "flip",
       options: {
-        fallbackPlacements: ['top', 'right', 'bottom', 'left'],
-      }
+        fallbackPlacements: ["top", "right", "bottom", "left"],
+      },
     },
   ];
 
@@ -135,7 +135,7 @@ export const PopOver: React.FC<PopOverProps> = ({
     if (!state || !state.placement) return placement;
     return state.placement;
   };
-  
+
   // Get the actual placement from Popper state
   const actualPlacement = state?.placement || placement;
 
@@ -174,128 +174,138 @@ export const PopOver: React.FC<PopOverProps> = ({
             style={{ position: "absolute", visibility: "hidden" }}
             data-placement={getArrowDataPlacement()}
           />
-          
+
           {/* Arrow container - positioned by Popper */}
-          <div 
+          <div
             className={clsx("popper-arrow-container", arrowClassName)}
             style={{
               ...styles.arrow,
               position: "absolute",
               zIndex: 1,
               // Size and positioning based on placement - smaller arrow
-              ...(actualPlacement.startsWith('top') && { 
-                bottom: '-8px', 
-                width: '16px', 
-                height: '8px',
+              ...(actualPlacement.startsWith("top") && {
+                bottom: "-8px",
+                width: "16px",
+                height: "8px",
               }),
-              ...(actualPlacement.startsWith('bottom') && { 
-                top: '-8px', 
-                width: '16px', 
-                height: '8px',
+              ...(actualPlacement.startsWith("bottom") && {
+                top: "-8px",
+                width: "16px",
+                height: "8px",
               }),
-              ...(actualPlacement.startsWith('left') && { 
-                right: '-8px', 
-                width: '8px', 
-                height: '16px',
+              ...(actualPlacement.startsWith("left") && {
+                right: "-8px",
+                width: "8px",
+                height: "16px",
               }),
-              ...(actualPlacement.startsWith('right') && { 
-                left: '-8px', 
-                width: '8px', 
-                height: '16px',
+              ...(actualPlacement.startsWith("right") && {
+                left: "-8px",
+                width: "8px",
+                height: "16px",
               }),
               // Content positioning
-              overflow: 'hidden',
+              overflow: "hidden",
             }}
           >
             {/* Border element (rendered behind) */}
-            {actualPlacement.startsWith('top') && (
-              <div style={{
-                position: 'absolute',
-                width: 0,
-                height: 0,
-                borderStyle: 'solid',
-                borderWidth: '0 8px 8px 8px',
-                borderColor: 'transparent transparent #eee transparent',
-                top: '0px',
-                left: '0px',
-              }} />
+            {actualPlacement.startsWith("top") && (
+              <div
+                style={{
+                  position: "absolute",
+                  width: 0,
+                  height: 0,
+                  borderStyle: "solid",
+                  borderWidth: "0 8px 8px 8px",
+                  borderColor: "transparent transparent #eee transparent",
+                  top: "0px",
+                  left: "0px",
+                }}
+              />
             )}
-            {actualPlacement.startsWith('bottom') && (
-              <div style={{
-                position: 'absolute',
-                width: 0,
-                height: 0,
-                borderStyle: 'solid',
-                borderWidth: '8px 8px 0 8px',
-                borderColor: '#eee transparent transparent transparent',
-                top: '0px',
-                left: '0px',
-              }} />
+            {actualPlacement.startsWith("bottom") && (
+              <div
+                style={{
+                  position: "absolute",
+                  width: 0,
+                  height: 0,
+                  borderStyle: "solid",
+                  borderWidth: "8px 8px 0 8px",
+                  borderColor: "#eee transparent transparent transparent",
+                  top: "0px",
+                  left: "0px",
+                }}
+              />
             )}
-            {actualPlacement.startsWith('left') && (
-              <div style={{
-                position: 'absolute',
-                width: 0,
-                height: 0,
-                borderStyle: 'solid',
-                borderWidth: '8px 0 8px 8px',
-                borderColor: 'transparent transparent transparent #eee',
-                top: '0px',
-                left: '0px',
-              }} />
+            {actualPlacement.startsWith("left") && (
+              <div
+                style={{
+                  position: "absolute",
+                  width: 0,
+                  height: 0,
+                  borderStyle: "solid",
+                  borderWidth: "8px 0 8px 8px",
+                  borderColor: "transparent transparent transparent #eee",
+                  top: "0px",
+                  left: "0px",
+                }}
+              />
             )}
-            {actualPlacement.startsWith('right') && (
-              <div style={{
-                position: 'absolute',
-                width: 0,
-                height: 0,
-                borderStyle: 'solid',
-                borderWidth: '8px 8px 8px 0',
-                borderColor: 'transparent #eee transparent transparent',
-                top: '0px',
-                left: '0px',
-              }} />
+            {actualPlacement.startsWith("right") && (
+              <div
+                style={{
+                  position: "absolute",
+                  width: 0,
+                  height: 0,
+                  borderStyle: "solid",
+                  borderWidth: "8px 8px 8px 0",
+                  borderColor: "transparent #eee transparent transparent",
+                  top: "0px",
+                  left: "0px",
+                }}
+              />
             )}
-            
+
             {/* Actual triangle created with CSS borders, slightly smaller and offset to create border effect */}
-            <div style={{
-              position: 'absolute',
-              width: 0,
-              height: 0,
-              borderStyle: 'solid',
-              backgroundColor: 'transparent',
-              // Position relative to border triangle
-              left: '0px',
-              top: '1px',
-              zIndex: 1,
-              
-              // Top placement - pointing down
-              ...(actualPlacement.startsWith('top') && {
-                borderWidth: '0 7px 7px 7px',
-                borderColor: 'transparent transparent white transparent',
-              }),
-              
-              // Bottom placement - pointing up
-              ...(actualPlacement.startsWith('bottom') && {
-                borderWidth: '7px 7px 0 7px',
-                borderColor: 'white transparent transparent transparent',
-                top: '0px',
-              }),
-              
-              // Left placement - pointing right
-              ...(actualPlacement.startsWith('left') && {
-                borderWidth: '7px 0 7px 7px',
-                borderColor: 'transparent transparent transparent white',
-                left: '0px',
-              }),
-              
-              // Right placement - pointing left
-              ...(actualPlacement.startsWith('right') && {
-                borderWidth: '7px 7px 7px 0',
-                borderColor: 'transparent white transparent transparent',
-                left: '1px',
-              }),
-            }}/>
+            <div
+              style={{
+                position: "absolute",
+                width: 0,
+                height: 0,
+                borderStyle: "solid",
+                backgroundColor: "transparent",
+                // Position relative to border triangle
+                left: "0px",
+                top: "1px",
+                zIndex: 1,
+
+                // Top placement - pointing down
+                ...(actualPlacement.startsWith("top") && {
+                  borderWidth: "0 7px 7px 7px",
+                  borderColor: "transparent transparent white transparent",
+                }),
+
+                // Bottom placement - pointing up
+                ...(actualPlacement.startsWith("bottom") && {
+                  borderWidth: "7px 7px 0 7px",
+                  borderColor: "white transparent transparent transparent",
+                  top: "0px",
+                }),
+
+                // Left placement - pointing right
+                ...(actualPlacement.startsWith("left") && {
+                  borderWidth: "7px 0 7px 7px",
+                  borderColor: "transparent transparent transparent white",
+                  left: "0px",
+                }),
+
+                // Right placement - pointing left
+                ...(actualPlacement.startsWith("right") && {
+                  borderWidth: "7px 7px 7px 0",
+                  borderColor: "transparent white transparent transparent",
+                  left: "1px",
+                }),
+              }}
+            />
           </div>
         </>
       )}

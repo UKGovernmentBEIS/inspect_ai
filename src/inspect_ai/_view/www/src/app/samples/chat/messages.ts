@@ -39,10 +39,6 @@ export const resolveMessages = (messages: Messages) => {
 
     // Create a stable id for the item, if it doesn't have one
     if (message.id === undefined) {
-      if (typeof(message) === "string") {
-        debugger;
-      }
-
       message.id = `msg-${index}`;
     }
     index++;

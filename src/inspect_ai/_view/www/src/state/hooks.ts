@@ -516,23 +516,23 @@ export const useSamplePopover = (id: string) => {
     (store) => store.sampleActions.clearVisiblePopover,
   );
   const visiblePopover = useStore((store) => store.sample.visiblePopover);
-  const timerRef = useRef<number>();
+  const timerRef = useRef<number | null>(null);
 
   const show = useCallback(() => {
     if (timerRef.current) {
       return; // Timer already running
     }
-    
+
     timerRef.current = window.setTimeout(() => {
       setVisiblePopover(id);
-      timerRef.current = undefined;
+      timerRef.current = null;
     }, 250);
   }, [id, setVisiblePopover]);
 
   const hide = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
-      timerRef.current = undefined;
+      timerRef.current = null;
     }
     clearVisiblePopover();
   }, [clearVisiblePopover]);
