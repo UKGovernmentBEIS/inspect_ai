@@ -98,7 +98,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
     return -1;
   }, [tabsRef.current]);
 
-  const sampleSummary = filteredSamples[selectedSampleIndex];
+  const sampleSummary = useMemo(() => {
+    return filteredSamples[selectedSampleIndex];
+  }, [filteredSamples, selectedSampleIndex]);
 
   // Consolidate the events and messages into the proper list
   // whether running or not
@@ -182,7 +184,9 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
   }
 
   // Is the sample running?
-  const running = isRunning(sampleSummary, runningSampleData);
+  const running = useMemo(() => {
+    return isRunning(sampleSummary, runningSampleData);
+  }, [sampleSummary, runningSampleData]);
 
   const sampleDetailNavigation = useSampleDetailNavigation();
 

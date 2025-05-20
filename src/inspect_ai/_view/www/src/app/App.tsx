@@ -48,7 +48,6 @@ export const App: FC<AppProps> = ({ api }) => {
 
   const loadLog = useStore((state) => state.logActions.loadLog);
   const pollLog = useStore((state) => state.logActions.pollLog);
-  const selectSample = useStore((state) => state.logActions.selectSample);
 
   // Load a specific log
   useEffect(() => {
@@ -60,10 +59,6 @@ export const App: FC<AppProps> = ({ api }) => {
 
           // Then load the log
           await loadLog(selectedLogFile);
-
-          if (selectedSampleIndex !== undefined) {
-            selectSample(selectedSampleIndex);
-          }
 
           // Finally set loading to false
           setAppStatus({ loading: false, error: undefined });
