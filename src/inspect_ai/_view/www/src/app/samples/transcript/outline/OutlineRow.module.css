@@ -5,6 +5,10 @@
   cursor: pointer;
 }
 
+.eventRow.selected {
+  font-weight: 800;
+}
+
 .eventRow .toggle {
   font-size: 0.7em;
   margin-top: 4px;

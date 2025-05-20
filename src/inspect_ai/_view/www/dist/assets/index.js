@@ -24126,7 +24126,8 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
       // The resolved events
       runningEvents: [],
       collapsedEvents: null,
-      collapsedIdBuckets: {}
+      collapsedIdBuckets: {},
+      selectedOutlineId: void 0
     };
     const createSampleSlice = (set2, get2, _store) => {
       const samplePolling = createSamplePolling(get2, set2);
@@ -24232,6 +24233,16 @@ Please change the parent <Route path="${parentPath}"> to <Route path="${parentPa
           clearVisiblePopover: () => {
             set2((state) => {
               state.sample.visiblePopover = void 0;
+            });
+          },
+          setSelectedOutlineId: (id) => {
+            set2((state) => {
+              state.sample.selectedOutlineId = id;
+            });
+          },
+          clearSelectedOutlineId: () => {
+            set2((state) => {
+              state.sample.selectedOutlineId = void 0;
             });
           },
           pollSample: async (logFile, sampleSummary) => {
@@ -54593,15 +54604,17 @@ self.onmessage = function (e) {
       }
       return { package: "", module: name2 };
     };
-    const eventRow = "_eventRow_5j33s_1";
-    const toggle = "_toggle_5j33s_8";
-    const eventLink = "_eventLink_5j33s_13";
-    const label$5 = "_label_5j33s_24";
-    const icon = "_icon_5j33s_34";
-    const progress$2 = "_progress_5j33s_38";
-    const popover = "_popover_5j33s_42";
+    const eventRow = "_eventRow_x0z4b_1";
+    const selected$1 = "_selected_x0z4b_8";
+    const toggle = "_toggle_x0z4b_12";
+    const eventLink = "_eventLink_x0z4b_17";
+    const label$5 = "_label_x0z4b_28";
+    const icon = "_icon_x0z4b_38";
+    const progress$2 = "_progress_x0z4b_42";
+    const popover = "_popover_x0z4b_46";
     const styles$y = {
       eventRow,
+      selected: selected$1,
       toggle,
       eventLink,
       label: label$5,
@@ -54612,11 +54625,15 @@ self.onmessage = function (e) {
     const OutlineRow = ({
       node: node2,
       collapseScope,
-      running: running2
+      running: running2,
+      selected: selected2
     }) => {
       const [collapsed2, setCollapsed] = useCollapseSampleEvent(
         collapseScope,
         node2.id
+      );
+      const setSelectedOutlineId = useStore(
+        (state) => state.sampleActions.setSelectedOutlineId
       );
       const icon2 = iconForNode(node2);
       const toggle2 = toggleIcon(node2, collapsed2);
@@ -54629,7 +54646,11 @@ self.onmessage = function (e) {
         /* @__PURE__ */ jsxRuntimeExports.jsxs(
           "div",
           {
-            className: clsx(styles$y.eventRow, "text-size-smallest"),
+            className: clsx(
+              styles$y.eventRow,
+              "text-size-smallest",
+              selected2 ? styles$y.selected : ""
+            ),
             style: { paddingLeft: `${node2.depth * 0.4}em` },
             children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -54652,6 +54673,9 @@ self.onmessage = function (e) {
                     ref,
                     onMouseOver: show,
                     onMouseLeave: hide2,
+                    onClick: () => {
+                      setSelectedOutlineId(node2.id);
+                    },
                     children: parsePackageName(labelForNode(node2)).module
                   }
                 ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, onMouseOver: show, onMouseLeave: hide2, children: parsePackageName(labelForNode(node2)).module }),
@@ -54947,6 +54971,7 @@ self.onmessage = function (e) {
       const setCollapsedEvents = useStore(
         (state) => state.sampleActions.setCollapsedEvents
       );
+      const selectedOutlineId = useStore((state) => state.sample.selectedOutlineId);
       const flattenedNodes = reactExports.useMemo(() => {
         const nodeList = flatTree(
           eventNodes,
@@ -54983,13 +55008,14 @@ self.onmessage = function (e) {
               {
                 collapseScope: kCollapseScope,
                 node: node2,
-                running: running2 && index2 === flattenedNodes.length - 1
+                running: running2 && index2 === flattenedNodes.length - 1,
+                selected: selectedOutlineId ? selectedOutlineId === node2.id : index2 === 0
               },
               node2.id
             );
           }
         },
-        [flattenedNodes, running2]
+        [flattenedNodes, running2, selectedOutlineId]
       );
       return /* @__PURE__ */ jsxRuntimeExports.jsx(
         Kr,

@@ -98,6 +98,8 @@ export interface SampleState {
   runningEvents: Event[];
   collapsedEvents: Record<string, Record<string, boolean>> | null;
   collapsedIdBuckets: Record<string, Record<string, boolean>>;
+
+  selectedOutlineId?: string;
 }
 
 export type Event =

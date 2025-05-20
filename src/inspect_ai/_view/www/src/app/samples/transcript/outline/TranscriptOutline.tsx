@@ -76,6 +76,8 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
     (state) => state.sampleActions.setCollapsedEvents,
   );
 
+  const selectedOutlineId = useStore((state) => state.sample.selectedOutlineId);
+
   const flattenedNodes = useMemo(() => {
     // flattten the event tree
     const nodeList = flatTree(
@@ -123,11 +125,14 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
             node={node}
             key={node.id}
             running={running && index === flattenedNodes.length - 1}
+            selected={
+              selectedOutlineId ? selectedOutlineId === node.id : index === 0
+            }
           />
         );
       }
     },
-    [flattenedNodes, running],
+    [flattenedNodes, running, selectedOutlineId],
   );
 
   return (

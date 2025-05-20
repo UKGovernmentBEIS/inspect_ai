@@ -7,6 +7,7 @@ import {
   useCollapseSampleEvent,
   useSamplePopover,
 } from "../../../../state/hooks";
+import { useStore } from "../../../../state/store";
 import { formatDateTime, formatTime } from "../../../../utils/format";
 import { parsePackageName } from "../../../../utils/python";
 import { ApplicationIcons } from "../../../appearance/icons";
@@ -20,16 +21,21 @@ export interface OutlineRowProps {
   node: EventNode;
   collapseScope: string;
   running?: boolean;
+  selected?: boolean;
 }
 
 export const OutlineRow: FC<OutlineRowProps> = ({
   node,
   collapseScope,
   running,
+  selected,
 }) => {
   const [collapsed, setCollapsed] = useCollapseSampleEvent(
     collapseScope,
     node.id,
+  );
+  const setSelectedOutlineId = useStore(
+    (state) => state.sampleActions.setSelectedOutlineId,
   );
   const icon = iconForNode(node);
   const toggle = toggleIcon(node, collapsed);
@@ -54,7 +60,11 @@ export const OutlineRow: FC<OutlineRowProps> = ({
   return (
     <>
       <div
-        className={clsx(styles.eventRow, "text-size-smallest")}
+        className={clsx(
+          styles.eventRow,
+          "text-size-smallest",
+          selected ? styles.selected : "",
+        )}
         style={{ paddingLeft: `${node.depth * 0.4}em` }}
       >
         <div
@@ -74,6 +84,9 @@ export const OutlineRow: FC<OutlineRowProps> = ({
               ref={ref}
               onMouseOver={show}
               onMouseLeave={hide}
+              onClick={() => {
+                setSelectedOutlineId(node.id);
+              }}
             >
               {parsePackageName(labelForNode(node)).module}
             </Link>

@@ -40,6 +40,9 @@ export interface SampleSlice {
     setVisiblePopover: (id: string) => void;
     clearVisiblePopover: () => void;
 
+    setSelectedOutlineId: (id: string) => void;
+    clearSelectedOutlineId: () => void;
+
     // Loading
     loadSample: (
       logFile: string,
@@ -73,6 +76,7 @@ const initialState: SampleState = {
   collapsedEvents: null,
 
   collapsedIdBuckets: {},
+  selectedOutlineId: undefined,
 };
 
 export const createSampleSlice = (
@@ -203,6 +207,16 @@ export const createSampleSlice = (
       clearVisiblePopover: () => {
         set((state) => {
           state.sample.visiblePopover = undefined;
+        });
+      },
+      setSelectedOutlineId: (id: string) => {
+        set((state) => {
+          state.sample.selectedOutlineId = id;
+        });
+      },
+      clearSelectedOutlineId: () => {
+        set((state) => {
+          state.sample.selectedOutlineId = undefined;
         });
       },
       pollSample: async (logFile: string, sampleSummary: SampleSummary) => {
