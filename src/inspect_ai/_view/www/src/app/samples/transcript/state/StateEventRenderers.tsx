@@ -35,6 +35,9 @@ const system_msg_added_sig: ChangeType = {
   render: (_changes, resolvedState) => {
     const messages = resolvedState["messages"] as Array<unknown>;
     const message = messages[0];
+    if (typeof message !== "object" || !message) {
+      return <></>;
+    }
     return (
       <ChatView
         key="system_msg_event_preview"
