@@ -174,7 +174,7 @@ export const LiveVirtualList = <T,>({
         listHandle.current?.scrollToIndex({
           index: initialTopMostItemIndex,
           align: "start",
-          behavior: "auto",
+          behavior: "smooth",
           offset: offsetTop ? -offsetTop : undefined,
         });
       }, 50);
