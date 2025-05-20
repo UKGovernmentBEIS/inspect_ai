@@ -38,7 +38,7 @@ export const PulsingDots: FC<PulsingDotsProps> = ({
               styles.dot,
               subtle ? styles.subtle : styles.primary,
             )}
-            style={{ animationDelay: `${index * 0.15}s` }}
+            style={{ animationDelay: `${index * 0.2}s` }}
           />
         ))}
       </div>

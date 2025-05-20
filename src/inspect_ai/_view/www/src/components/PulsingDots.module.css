@@ -34,11 +34,11 @@
 }
 
 .subtle {
-  background-color: var(--bs-primary-bg-subtle);
+  background-color: var(--bs-secondary-bg-subtle);
 }
 
 .primary {
-  background-color: var(--bs-primary);
+  background-color: var(--bs-secondary);
 }
 
 .small .dot {
@@ -71,11 +71,11 @@
 @keyframes pulse {
   0%,
   100% {
-    transform: scale(1);
-    opacity: 0.3;
+    transform: scale(0.7);
+    opacity: 0.4;
   }
   50% {
-    transform: scale(1.2);
-    opacity: 1;
+    transform: scale(1);
+    opacity: 0.8;
   }
 }
