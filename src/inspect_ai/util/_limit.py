@@ -318,13 +318,15 @@ class _TokenLimit(Limit, _Node):
         self._usage += usage
 
     def check(self) -> None:
-        """Check if this token limit or any parent limits have been exceeded."""
-        # Check leaf node first, then parent nodes. This is so that if multiple limits
-        # are exceeded, the innermost one raises an error, giving the user the ability
-        # to log, adjust state etc.
-        self._check_self()
+        """Check if this token limit or any ancestor limits have been exceeded.
+
+        The checks occur from root to leaf. This is so that if multiple limits are
+        simultaneously exceeded, the outermost (closest to root) one raises the error,
+        preventing certain sub-agent architectures from ending up in an infinite loop.
+        """
         if self.parent is not None:
             self.parent.check()
+        self._check_self()
 
     def _validate_token_limit(self, value: int | None) -> None:
         if value is not None and value < 0:
@@ -388,7 +390,7 @@ class _MessageLimit(Limit, _Node):
     def check(self, count: int, raise_for_equal: bool) -> None:
         """Check if this message limit has been exceeded.
 
-        Does not check parents.
+        Does not check ancestors.
         """
         from inspect_ai.log._transcript import SampleLimitEvent, transcript
 

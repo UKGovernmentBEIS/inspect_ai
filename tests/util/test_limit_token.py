@@ -143,6 +143,21 @@ def test_outer_limit_is_checked_after_inner_limit_popped() -> None:
     assert exc_info.value.value == 11
 
 
+def test_outermost_limit_raises_error_when_multiple_limits_exceeded() -> None:
+    with pytest.raises(LimitExceededError) as exc_info:
+        with token_limit(1) as outer:
+            with token_limit(2):
+                _consume_tokens(10)
+
+    # The outermost limit is the one that the error is raised against, despite both
+    # limits being exceeded.
+    # This prevents sub-agent architectures (e.g. one that dispatches a new sub-agent
+    # each time a sub-agent reaches a token limit) from getting stuck in an infinite
+    # loop.
+    assert exc_info.value.limit == 1
+    assert exc_info.value.source is outer
+
+
 def test_cannot_reuse_context_manager() -> None:
     limit = token_limit(10)
     with limit:
