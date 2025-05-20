@@ -516,14 +516,35 @@ export const useSamplePopover = (id: string) => {
     (store) => store.sampleActions.clearVisiblePopover,
   );
   const visiblePopover = useStore((store) => store.sample.visiblePopover);
+  const timerRef = useRef<number>();
 
   const show = useCallback(() => {
-    setVisiblePopover(id);
+    if (timerRef.current) {
+      return; // Timer already running
+    }
+    
+    timerRef.current = window.setTimeout(() => {
+      setVisiblePopover(id);
+      timerRef.current = undefined;
+    }, 250);
   }, [id, setVisiblePopover]);
 
   const hide = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = undefined;
+    }
     clearVisiblePopover();
   }, [clearVisiblePopover]);
+
+  // Clear the timeout when component unmounts
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
 
   const isShowing = useMemo(() => {
     return visiblePopover === id;

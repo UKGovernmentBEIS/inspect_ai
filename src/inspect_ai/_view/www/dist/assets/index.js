@@ -43214,12 +43214,30 @@ categories: ${categories.join(" ")}`;
         (store) => store.sampleActions.clearVisiblePopover
       );
       const visiblePopover = useStore((store) => store.sample.visiblePopover);
+      const timerRef = reactExports.useRef();
       const show = reactExports.useCallback(() => {
-        setVisiblePopover(id);
+        if (timerRef.current) {
+          return;
+        }
+        timerRef.current = window.setTimeout(() => {
+          setVisiblePopover(id);
+          timerRef.current = void 0;
+        }, 250);
       }, [id, setVisiblePopover]);
       const hide2 = reactExports.useCallback(() => {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+          timerRef.current = void 0;
+        }
         clearVisiblePopover();
       }, [clearVisiblePopover]);
+      reactExports.useEffect(() => {
+        return () => {
+          if (timerRef.current) {
+            clearTimeout(timerRef.current);
+          }
+        };
+      }, []);
       const isShowing = reactExports.useMemo(() => {
         return visiblePopover === id;
       }, [id, visiblePopover]);
