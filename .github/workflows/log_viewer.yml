@@ -103,7 +103,7 @@ jobs:
         with:
           node-version: "22.x"
       - name: Install Node.js dependencies
-        run: yarn install
+        run: yarn install --frozen-lockfile
 
       - name: Update schema and types
         run: python src/inspect_ai/_view/schema.py
