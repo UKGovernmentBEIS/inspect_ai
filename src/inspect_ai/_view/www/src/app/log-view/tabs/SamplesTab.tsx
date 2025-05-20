@@ -105,6 +105,7 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
   const groupBy = useGroupBy();
   const groupByOrder = useGroupByOrder();
   const currentScore = useScore();
+  const selectSample = useStore((state) => state.logActions.selectSample);
 
   const selectedSampleIdentifier = useStore(
     (state) => state.sample.sample_identifier,
@@ -186,6 +187,10 @@ export const SamplesTab: FC<SamplesTabProps> = ({ running }) => {
           })
         : [],
     );
+
+    if (sampleSummaries.length === 1) {
+      selectSample(0);
+    }
   }, [sampleSummaries, sampleProcessor]);
 
   const title =
