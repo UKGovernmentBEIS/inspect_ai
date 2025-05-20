@@ -1975,7 +1975,7 @@
         },
         "limit": {
           "title": "Limit",
-          "type": "integer"
+          "type": "number"
         }
       },
       "required": [
@@ -4203,7 +4203,7 @@
         "limit": {
           "anyOf": [
             {
-              "type": "integer"
+              "type": "number"
             },
             {
               "type": "null"

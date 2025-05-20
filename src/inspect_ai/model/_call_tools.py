@@ -172,7 +172,7 @@ async def execute_tools(
             except LimitExceededError as ex:
                 tool_error = ToolCallError(
                     "limit",
-                    f"The tool exceeded its {ex.type} limit of {ex.limit}.",
+                    f"The tool exceeded its {ex.type} limit of {ex.limit_str}.",
                 )
             except ToolParsingError as ex:
                 tool_error = ToolCallError("parsing", ex.message)
@@ -497,7 +497,7 @@ async def agent_handoff(
             ChatMessageUser(
                 content=(
                     f"The {agent_name} exceeded its {limit_error.type} limit of "
-                    f"{limit_error.limit}."
+                    f"{limit_error.limit_str}."
                 )
             )
         )

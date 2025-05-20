@@ -119,7 +119,9 @@ Appropriate timeouts will vary depending on the nature of your task so please vi
 
 ### Working Limit
 
-The `working_limit` differs from the `time_limit` in that it measures only the time spent working (as opposed to retrying in response to rate limits or waiting on other shared resources). Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
+{{< include _working_limits.md >}}
+
+Here we set an `working_limit` of 10 minutes (10 x 60 seconds) for each sample within a task:
 
 ``` python
 @task
@@ -137,11 +139,6 @@ def intercode_ctf():
     )
 ```
 
-Working time is computed based on total clock time minus time spent on (a) unsuccessful model generations (e.g. rate limited requests); and (b) waiting on shared resources (e.g. Docker containers or subprocess execution).
-
-::: {.callout-note appearance="simple"}
-In order to distinguish successful generate requests from rate limited and retried requests, Inspect installs hooks into the HTTP client of various model packages. This is not possible for some models (`vertex`, and `azureai`) and in these cases the `working_time` will include any internal retries that the model client performs.
-:::
 
 ### Message Limit
 
@@ -219,6 +216,16 @@ with token_limit(1024*500):
 
 A `LimitExceededError` will be raised if the limit is exceeded. The `source` field on `LimitExceededError` will be set to the `Limit` instance that was exceeded.
 
+When catching `LimitExceededError`, ensure that your `try` block encompasses the usage of the limit context manager as some `LimitExceededError` exceptions are raised at the scope of closing the context manager:
+
+``` python
+try:
+    with token_limit(1024*500):
+        ...
+except LimitExceededError:
+    ...
+```
+
 The `apply_limits()` function accepts a list of `Limit` instances. If any of the limits passed in are exceeded, the `limit_error` property on the `LimitScope` yielded when opening the context manager will be set to the exception. By default, all `LimitExceededError` exceptions are propagated. However, if `catch_errors` is true, errors which are as a direct result of exceeding one of the limits passed to it will be caught. It will always allow `LimitExceededError` exceptions triggered by other limits (e.g. Sample scoped limits) to propagate up the call stack.
 
 ``` python
@@ -230,6 +237,31 @@ if limit_scope.limit_error:
     print(f"One of our limits was hit: {limit_scope.limit_error}")
 
 ```
+
+### Time Limit
+
+To limit the wall clock time to 15 minutes within a block of code:
+
+``` python
+with time_limit(15 * 60):
+    ...
+```
+
+Internally, this uses [`anyio`'s cancellation scopes](https://anyio.readthedocs.io/en/stable/cancellation.html). The block will be cancelled at the first yield point (e.g. `await` statement). 
+
+### Working Limit
+
+{{< include _working_limits.md >}}
+
+To limit the working time to 10 minutes:
+
+``` python
+with working_limit(10 * 60):
+    ...
+```
+
+Unlike time limits, this is not driven by `anyio`. It is checked periodically such as from `generate()` and after each `Solver` runs.
+
 
 ### Message Limit
 
