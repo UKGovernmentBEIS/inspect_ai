@@ -81,10 +81,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: 3.11
+      - name: Cache pip dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}-${{ matrix.python-version }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .[dev]
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -93,13 +106,13 @@ jobs:
         run: yarn install
 
       - name: Update schema and types
-        run: python3 src/inspect_ai/_view/schema.py
+        run: python src/inspect_ai/_view/schema.py
 
       - name: Ensure schema and types changes are checked in
         run: |
           if [[ $(git status --porcelain) != "" ]]
           then
-            echo "Log format JSON Schema and TypeScript types are out of date. Please run python3 src/inspect_ai/_view/schema.py and check in the changes."
+            echo "Log format JSON Schema and TypeScript types are out of date. Please run python src/inspect_ai/_view/schema.py and check in the changes."
             git status
             git diff
             exit 1
