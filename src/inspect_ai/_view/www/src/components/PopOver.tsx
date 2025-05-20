@@ -89,7 +89,7 @@ export const PopOver: React.FC<PopOverProps> = ({
       enabled: showArrow,
       options: {
         element: arrowRef.current,
-        padding: 8,
+        padding: 5, // This keeps the arrow from getting too close to the corner
       },
     },
     {
@@ -98,6 +98,13 @@ export const PopOver: React.FC<PopOverProps> = ({
         gpuAcceleration: false,
         adaptive: true,
       },
+    },
+    // Ensure popper is positioned correctly with respect to its reference element
+    { 
+      name: "flip", 
+      options: {
+        fallbackPlacements: ['top', 'right', 'bottom', 'left'],
+      }
     },
   ];
 
@@ -128,35 +135,12 @@ export const PopOver: React.FC<PopOverProps> = ({
     if (!state || !state.placement) return placement;
     return state.placement;
   };
+  
+  // Get the actual placement from Popper state
+  const actualPlacement = state?.placement || placement;
 
-  // Get appropriate color for the arrow based on side it's on
-  const getArrowBorderStyling = (): CSSProperties => {
-    const placement = getArrowDataPlacement();
-
-    const borderStyle = "1px solid #eee";
-    const result: CSSProperties = {
-      borderTop: "none",
-      borderLeft: "none",
-      borderRight: "none",
-      borderBottom: "none",
-    };
-
-    if (placement.startsWith("top")) {
-      result.borderRight = borderStyle;
-      result.borderBottom = borderStyle;
-    } else if (placement.startsWith("bottom")) {
-      result.borderTop = borderStyle;
-      result.borderLeft = borderStyle;
-    } else if (placement.startsWith("left")) {
-      result.borderTop = borderStyle;
-      result.borderRight = borderStyle;
-    } else if (placement.startsWith("right")) {
-      result.borderBottom = borderStyle;
-      result.borderLeft = borderStyle;
-    }
-
-    return result;
-  };
+  // For a CSS triangle, we use the border trick
+  // A CSS triangle doesn't need separate border styling like a rotated square would
 
   // Popper container styles
   const defaultPopperStyles: CSSProperties = {
@@ -166,6 +150,7 @@ export const PopOver: React.FC<PopOverProps> = ({
     boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
     border: "1px solid #eee",
     zIndex: 1200,
+    position: "relative",
   };
 
   // Early return if not open
@@ -182,24 +167,137 @@ export const PopOver: React.FC<PopOverProps> = ({
       {children}
 
       {showArrow && (
-        <div
-          ref={arrowRef}
-          className={clsx("popper-arrow", arrowClassName)}
-          style={{
-            ...styles.arrow,
-            position: "absolute",
-            width: "8px",
-            height: "8px",
-            backgroundColor: "white",
-            ...getArrowBorderStyling(),
-            transform: "rotate(45deg)",
-            // Ensure the arrow isn't too close to content
-            margin: "-4px",
-            top: 0,
-            zIndex: 1,
-          }}
-          data-placement={getArrowDataPlacement()}
-        />
+        <>
+          {/* Invisible div for Popper.js to use as reference */}
+          <div
+            ref={arrowRef}
+            style={{ position: "absolute", visibility: "hidden" }}
+            data-placement={getArrowDataPlacement()}
+          />
+          
+          {/* Arrow container - positioned by Popper */}
+          <div 
+            className={clsx("popper-arrow-container", arrowClassName)}
+            style={{
+              ...styles.arrow,
+              position: "absolute",
+              zIndex: 1,
+              // Size and positioning based on placement - smaller arrow
+              ...(actualPlacement.startsWith('top') && { 
+                bottom: '-8px', 
+                width: '16px', 
+                height: '8px',
+              }),
+              ...(actualPlacement.startsWith('bottom') && { 
+                top: '-8px', 
+                width: '16px', 
+                height: '8px',
+              }),
+              ...(actualPlacement.startsWith('left') && { 
+                right: '-8px', 
+                width: '8px', 
+                height: '16px',
+              }),
+              ...(actualPlacement.startsWith('right') && { 
+                left: '-8px', 
+                width: '8px', 
+                height: '16px',
+              }),
+              // Content positioning
+              overflow: 'hidden',
+            }}
+          >
+            {/* Border element (rendered behind) */}
+            {actualPlacement.startsWith('top') && (
+              <div style={{
+                position: 'absolute',
+                width: 0,
+                height: 0,
+                borderStyle: 'solid',
+                borderWidth: '0 8px 8px 8px',
+                borderColor: 'transparent transparent #eee transparent',
+                top: '0px',
+                left: '0px',
+              }} />
+            )}
+            {actualPlacement.startsWith('bottom') && (
+              <div style={{
+                position: 'absolute',
+                width: 0,
+                height: 0,
+                borderStyle: 'solid',
+                borderWidth: '8px 8px 0 8px',
+                borderColor: '#eee transparent transparent transparent',
+                top: '0px',
+                left: '0px',
+              }} />
+            )}
+            {actualPlacement.startsWith('left') && (
+              <div style={{
+                position: 'absolute',
+                width: 0,
+                height: 0,
+                borderStyle: 'solid',
+                borderWidth: '8px 0 8px 8px',
+                borderColor: 'transparent transparent transparent #eee',
+                top: '0px',
+                left: '0px',
+              }} />
+            )}
+            {actualPlacement.startsWith('right') && (
+              <div style={{
+                position: 'absolute',
+                width: 0,
+                height: 0,
+                borderStyle: 'solid',
+                borderWidth: '8px 8px 8px 0',
+                borderColor: 'transparent #eee transparent transparent',
+                top: '0px',
+                left: '0px',
+              }} />
+            )}
+            
+            {/* Actual triangle created with CSS borders, slightly smaller and offset to create border effect */}
+            <div style={{
+              position: 'absolute',
+              width: 0,
+              height: 0,
+              borderStyle: 'solid',
+              backgroundColor: 'transparent',
+              // Position relative to border triangle
+              left: '0px',
+              top: '1px',
+              zIndex: 1,
+              
+              // Top placement - pointing down
+              ...(actualPlacement.startsWith('top') && {
+                borderWidth: '0 7px 7px 7px',
+                borderColor: 'transparent transparent white transparent',
+              }),
+              
+              // Bottom placement - pointing up
+              ...(actualPlacement.startsWith('bottom') && {
+                borderWidth: '7px 7px 0 7px',
+                borderColor: 'white transparent transparent transparent',
+                top: '0px',
+              }),
+              
+              // Left placement - pointing right
+              ...(actualPlacement.startsWith('left') && {
+                borderWidth: '7px 0 7px 7px',
+                borderColor: 'transparent transparent transparent white',
+                left: '0px',
+              }),
+              
+              // Right placement - pointing left
+              ...(actualPlacement.startsWith('right') && {
+                borderWidth: '7px 7px 7px 0',
+                borderColor: 'transparent white transparent transparent',
+                left: '1px',
+              }),
+            }}/>
+          </div>
+        </>
       )}
     </div>
   );

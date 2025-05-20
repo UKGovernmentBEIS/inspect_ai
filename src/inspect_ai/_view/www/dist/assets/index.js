@@ -54353,7 +54353,8 @@ self.onmessage = function (e) {
           enabled: showArrow,
           options: {
             element: arrowRef.current,
-            padding: 8
+            padding: 5
+            // This keeps the arrow from getting too close to the corner
           }
         },
         {
@@ -54361,6 +54362,13 @@ self.onmessage = function (e) {
           options: {
             gpuAcceleration: false,
             adaptive: true
+          }
+        },
+        // Ensure popper is positioned correctly with respect to its reference element
+        {
+          name: "flip",
+          options: {
+            fallbackPlacements: ["top", "right", "bottom", "left"]
           }
         }
       ];
@@ -54385,37 +54393,15 @@ self.onmessage = function (e) {
         if (!state || !state.placement) return placement;
         return state.placement;
       };
-      const getArrowBorderStyling = () => {
-        const placement2 = getArrowDataPlacement();
-        const borderStyle = "1px solid #eee";
-        const result2 = {
-          borderTop: "none",
-          borderLeft: "none",
-          borderRight: "none",
-          borderBottom: "none"
-        };
-        if (placement2.startsWith("top")) {
-          result2.borderRight = borderStyle;
-          result2.borderBottom = borderStyle;
-        } else if (placement2.startsWith("bottom")) {
-          result2.borderTop = borderStyle;
-          result2.borderLeft = borderStyle;
-        } else if (placement2.startsWith("left")) {
-          result2.borderTop = borderStyle;
-          result2.borderRight = borderStyle;
-        } else if (placement2.startsWith("right")) {
-          result2.borderBottom = borderStyle;
-          result2.borderLeft = borderStyle;
-        }
-        return result2;
-      };
+      const actualPlacement = (state == null ? void 0 : state.placement) || placement;
       const defaultPopperStyles = {
         backgroundColor: "white",
         padding: "12px",
         borderRadius: "4px",
         boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
         border: "1px solid #eee",
-        zIndex: 1200
+        zIndex: 1200,
+        position: "relative"
       };
       if (!isOpen) return null;
       const popperContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
@@ -54427,27 +54413,126 @@ self.onmessage = function (e) {
           ...attributes.popper,
           children: [
             children2,
-            showArrow && /* @__PURE__ */ jsxRuntimeExports.jsx(
-              "div",
-              {
-                ref: arrowRef,
-                className: clsx("popper-arrow", arrowClassName),
-                style: {
-                  ...styles2.arrow,
-                  position: "absolute",
-                  width: "8px",
-                  height: "8px",
-                  backgroundColor: "white",
-                  ...getArrowBorderStyling(),
-                  transform: "rotate(45deg)",
-                  // Ensure the arrow isn't too close to content
-                  margin: "-4px",
-                  top: 0,
-                  zIndex: 1
-                },
-                "data-placement": getArrowDataPlacement()
-              }
-            )
+            showArrow && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "div",
+                {
+                  ref: arrowRef,
+                  style: { position: "absolute", visibility: "hidden" },
+                  "data-placement": getArrowDataPlacement()
+                }
+              ),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                "div",
+                {
+                  className: clsx("popper-arrow-container", arrowClassName),
+                  style: {
+                    ...styles2.arrow,
+                    position: "absolute",
+                    zIndex: 1,
+                    // Size and positioning based on placement - smaller arrow
+                    ...actualPlacement.startsWith("top") && {
+                      bottom: "-8px",
+                      width: "16px",
+                      height: "8px"
+                    },
+                    ...actualPlacement.startsWith("bottom") && {
+                      top: "-8px",
+                      width: "16px",
+                      height: "8px"
+                    },
+                    ...actualPlacement.startsWith("left") && {
+                      right: "-8px",
+                      width: "8px",
+                      height: "16px"
+                    },
+                    ...actualPlacement.startsWith("right") && {
+                      left: "-8px",
+                      width: "8px",
+                      height: "16px"
+                    },
+                    // Content positioning
+                    overflow: "hidden"
+                  },
+                  children: [
+                    actualPlacement.startsWith("top") && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: {
+                      position: "absolute",
+                      width: 0,
+                      height: 0,
+                      borderStyle: "solid",
+                      borderWidth: "0 8px 8px 8px",
+                      borderColor: "transparent transparent #eee transparent",
+                      top: "0px",
+                      left: "0px"
+                    } }),
+                    actualPlacement.startsWith("bottom") && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: {
+                      position: "absolute",
+                      width: 0,
+                      height: 0,
+                      borderStyle: "solid",
+                      borderWidth: "8px 8px 0 8px",
+                      borderColor: "#eee transparent transparent transparent",
+                      top: "0px",
+                      left: "0px"
+                    } }),
+                    actualPlacement.startsWith("left") && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: {
+                      position: "absolute",
+                      width: 0,
+                      height: 0,
+                      borderStyle: "solid",
+                      borderWidth: "8px 0 8px 8px",
+                      borderColor: "transparent transparent transparent #eee",
+                      top: "0px",
+                      left: "0px"
+                    } }),
+                    actualPlacement.startsWith("right") && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: {
+                      position: "absolute",
+                      width: 0,
+                      height: 0,
+                      borderStyle: "solid",
+                      borderWidth: "8px 8px 8px 0",
+                      borderColor: "transparent #eee transparent transparent",
+                      top: "0px",
+                      left: "0px"
+                    } }),
+                    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { style: {
+                      position: "absolute",
+                      width: 0,
+                      height: 0,
+                      borderStyle: "solid",
+                      backgroundColor: "transparent",
+                      // Position relative to border triangle
+                      left: "0px",
+                      top: "1px",
+                      zIndex: 1,
+                      // Top placement - pointing down
+                      ...actualPlacement.startsWith("top") && {
+                        borderWidth: "0 7px 7px 7px",
+                        borderColor: "transparent transparent white transparent"
+                      },
+                      // Bottom placement - pointing up
+                      ...actualPlacement.startsWith("bottom") && {
+                        borderWidth: "7px 7px 0 7px",
+                        borderColor: "white transparent transparent transparent",
+                        top: "0px"
+                      },
+                      // Left placement - pointing right
+                      ...actualPlacement.startsWith("left") && {
+                        borderWidth: "7px 0 7px 7px",
+                        borderColor: "transparent transparent transparent white",
+                        left: "0px"
+                      },
+                      // Right placement - pointing left
+                      ...actualPlacement.startsWith("right") && {
+                        borderWidth: "7px 7px 7px 0",
+                        borderColor: "transparent white transparent transparent",
+                        left: "1px"
+                      }
+                    } })
+                  ]
+                }
+              )
+            ] })
           ]
         }
       );
