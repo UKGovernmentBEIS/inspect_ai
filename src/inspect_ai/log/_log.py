@@ -688,7 +688,7 @@ class EvalSpec(BaseModel):
     created: str
     """Time created."""
 
-    task: str
+    task: str | int
     """Task name."""
 
     task_id: str = Field(default_factory=str)
