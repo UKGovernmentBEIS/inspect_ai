@@ -172,7 +172,11 @@ const renderTools = (
     return change.path.startsWith("/tool_choice");
   });
   if (resolvedState.tool_choice && hasToolChoice) {
-    toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+    toolsInfo["Tool Choice"] = (
+      <span className={clsx("text-size-smaller")}>
+        {toolName(resolvedState.tool_choice)}
+      </span>
+    );
   }
 
   // Show either all tools or just the specific tools

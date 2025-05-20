@@ -63107,7 +63107,7 @@ ${events}
         return change.path.startsWith("/tool_choice");
       });
       if (resolvedState.tool_choice && hasToolChoice) {
-        toolsInfo["Tool Choice"] = toolName(resolvedState.tool_choice);
+        toolsInfo["Tool Choice"] = /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: clsx("text-size-smaller"), children: toolName(resolvedState.tool_choice) });
       }
       const tools2 = resolvedState.tools;
       if (tools2.length > 0) {
