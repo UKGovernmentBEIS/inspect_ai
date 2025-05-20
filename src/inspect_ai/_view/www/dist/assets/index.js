@@ -54379,9 +54379,17 @@ self.onmessage = function (e) {
           isMouseMovingRef.current = false;
           setShouldShowPopover(false);
         };
+        const handleMouseDown = () => {
+          if (hoverTimerRef.current !== null) {
+            window.clearTimeout(hoverTimerRef.current);
+          }
+          setShouldShowPopover(false);
+        };
         if (positionEl && isOpen) {
           positionEl.addEventListener("mousemove", handleMouseMove);
           positionEl.addEventListener("mouseleave", handleMouseLeave);
+          document.addEventListener("mousedown", handleMouseDown);
+          document.addEventListener("click", handleMouseDown);
           handleMouseMove();
         } else {
           setShouldShowPopover(false);
@@ -54391,6 +54399,8 @@ self.onmessage = function (e) {
             positionEl.removeEventListener("mousemove", handleMouseMove);
             positionEl.removeEventListener("mouseleave", handleMouseLeave);
           }
+          document.removeEventListener("mousedown", handleMouseDown);
+          document.removeEventListener("click", handleMouseDown);
           if (hoverTimerRef.current !== null) {
             window.clearTimeout(hoverTimerRef.current);
           }
@@ -54477,16 +54487,30 @@ self.onmessage = function (e) {
         boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
         border: "1px solid #eee",
         zIndex: 1200,
-        position: "relative"
+        position: "relative",
+        // Apply opacity transition to smooth the appearance
+        opacity: (state == null ? void 0 : state.placement) ? 1 : 0,
+        transition: "opacity 0.1s"
       };
       if (!isOpen || hoverDelay > 0 && !shouldShowPopover) {
         return null;
       }
+      const positionedStyle = state && state.styles && state.styles.popper ? {
+        ...styles2.popper,
+        opacity: 1
+      } : {
+        ...styles2.popper,
+        opacity: 0,
+        // Position offscreen initially to prevent flicker
+        position: "fixed",
+        top: "-9999px",
+        left: "-9999px"
+      };
       const popperContent = /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "div",
         {
           ref: popperRef,
-          style: { ...defaultPopperStyles, ...styles2.popper },
+          style: { ...defaultPopperStyles, ...positionedStyle },
           className: clsx(className2),
           ...attributes.popper,
           children: [

@@ -47,27 +47,27 @@ export const PopOver: React.FC<PopOverProps> = ({
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
     null,
   );
-  
+
   // For delayed hover functionality
   const [shouldShowPopover, setShouldShowPopover] = useState(false);
   const hoverTimerRef = useRef<number | null>(null);
   const isMouseMovingRef = useRef(false);
-  
+
   // Setup hover timer and mouse movement detection
   useEffect(() => {
     if (!isOpen || hoverDelay <= 0) {
       setShouldShowPopover(isOpen);
       return;
     }
-    
+
     const handleMouseMove = () => {
       isMouseMovingRef.current = true;
-      
+
       // Clear any existing timer when mouse moves
       if (hoverTimerRef.current !== null) {
         window.clearTimeout(hoverTimerRef.current);
       }
-      
+
       // Start a new timer to check if mouse has stopped moving
       hoverTimerRef.current = window.setTimeout(() => {
         if (isOpen) {
@@ -76,7 +76,7 @@ export const PopOver: React.FC<PopOverProps> = ({
         }
       }, hoverDelay);
     };
-    
+
     const handleMouseLeave = () => {
       if (hoverTimerRef.current !== null) {
         window.clearTimeout(hoverTimerRef.current);
@@ -84,30 +84,47 @@ export const PopOver: React.FC<PopOverProps> = ({
       isMouseMovingRef.current = false;
       setShouldShowPopover(false);
     };
-    
+
+    const handleMouseDown = () => {
+      // Cancel popover on any mouse down
+      if (hoverTimerRef.current !== null) {
+        window.clearTimeout(hoverTimerRef.current);
+      }
+      setShouldShowPopover(false);
+    };
+
     // Add event listeners to the positionEl (the trigger element)
     if (positionEl && isOpen) {
-      positionEl.addEventListener('mousemove', handleMouseMove);
-      positionEl.addEventListener('mouseleave', handleMouseLeave);
-      
+      positionEl.addEventListener("mousemove", handleMouseMove);
+      positionEl.addEventListener("mouseleave", handleMouseLeave);
+
+      // Add document-wide mousedown listener to dismiss on interaction
+      document.addEventListener("mousedown", handleMouseDown);
+      document.addEventListener("click", handleMouseDown);
+
       // Initial mouse move to start the timer
       handleMouseMove();
     } else {
       setShouldShowPopover(false);
     }
-    
+
     return () => {
       if (positionEl) {
-        positionEl.removeEventListener('mousemove', handleMouseMove);
-        positionEl.removeEventListener('mouseleave', handleMouseLeave);
+        positionEl.removeEventListener("mousemove", handleMouseMove);
+        positionEl.removeEventListener("mouseleave", handleMouseLeave);
       }
-      
+
+      // Clean up the document mousedown listener
+      document.removeEventListener("mousedown", handleMouseDown);
+
+      document.removeEventListener("click", handleMouseDown);
+
       if (hoverTimerRef.current !== null) {
         window.clearTimeout(hoverTimerRef.current);
       }
     };
   }, [isOpen, positionEl, hoverDelay]);
-  
+
   // Effect to create portal container when needed
   useEffect(() => {
     // Only create portal when the popover is open
@@ -206,13 +223,16 @@ export const PopOver: React.FC<PopOverProps> = ({
 
   // Popper container styles
   const defaultPopperStyles: CSSProperties = {
-    backgroundColor: "white",
+    backgroundColor: "var(--bs-body-bg)",
     padding: "12px",
     borderRadius: "4px",
     boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
     border: "1px solid #eee",
     zIndex: 1200,
     position: "relative",
+    // Apply opacity transition to smooth the appearance
+    opacity: state?.placement ? 1 : 0,
+    transition: "opacity 0.1s",
   };
 
   // Early return if not open or should not show due to hover delay
@@ -220,11 +240,27 @@ export const PopOver: React.FC<PopOverProps> = ({
     return null;
   }
 
-  // Create the popper content
+  // For position-aware rendering
+  const positionedStyle =
+    state && state.styles && state.styles.popper
+      ? {
+          ...styles.popper,
+          opacity: 1,
+        }
+      : {
+          ...styles.popper,
+          opacity: 0,
+          // Position offscreen initially to prevent flicker
+          position: "fixed" as const,
+          top: "-9999px",
+          left: "-9999px",
+        };
+
+  // Create the popper content with position-aware styles
   const popperContent = (
     <div
       ref={popperRef}
-      style={{ ...defaultPopperStyles, ...styles.popper }}
+      style={{ ...defaultPopperStyles, ...positionedStyle }}
       className={clsx(className)}
       {...attributes.popper}
     >
@@ -279,8 +315,8 @@ export const PopOver: React.FC<PopOverProps> = ({
                   width: 0,
                   height: 0,
                   borderStyle: "solid",
-                  borderWidth: "0 8px 8px 8px",
-                  borderColor: "transparent transparent #eee transparent",
+                  borderWidth: "8px 8px 0 8px",
+                  borderColor: "#eee transparent transparent transparent",
                   top: "0px",
                   left: "0px",
                 }}
@@ -293,8 +329,8 @@ export const PopOver: React.FC<PopOverProps> = ({
                   width: 0,
                   height: 0,
                   borderStyle: "solid",
-                  borderWidth: "8px 8px 0 8px",
-                  borderColor: "#eee transparent transparent transparent",
+                  borderWidth: "0 8px 8px 8px",
+                  borderColor: "transparent transparent #eee transparent",
                   top: "0px",
                   left: "0px",
                 }}
@@ -339,20 +375,20 @@ export const PopOver: React.FC<PopOverProps> = ({
                 backgroundColor: "transparent",
                 // Position relative to border triangle
                 left: "0px",
-                top: "1px",
                 zIndex: 1,
 
                 // Top placement - pointing down
                 ...(actualPlacement.startsWith("top") && {
-                  borderWidth: "0 7px 7px 7px",
-                  borderColor: "transparent transparent white transparent",
+                  borderWidth: "7px 7px 0 7px",
+                  borderColor: "white transparent transparent transparent",
+                  top: "0px",
                 }),
 
                 // Bottom placement - pointing up
                 ...(actualPlacement.startsWith("bottom") && {
-                  borderWidth: "7px 7px 0 7px",
-                  borderColor: "white transparent transparent transparent",
-                  top: "0px",
+                  borderWidth: "0 7px 7px 7px",
+                  borderColor: "transparent transparent white transparent",
+                  top: "1px",
                 }),
 
                 // Left placement - pointing right
