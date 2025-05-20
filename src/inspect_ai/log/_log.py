@@ -694,7 +694,7 @@ class EvalSpec(BaseModel):
     task_id: str = Field(default_factory=str)
     """Unique task id."""
 
-    task_version: int = Field(default=0)
+    task_version: int | str = Field(default=0)
     """Task version."""
 
     task_file: str | None = Field(default=None)

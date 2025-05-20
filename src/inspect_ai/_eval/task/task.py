@@ -64,7 +64,7 @@ class Task:
         time_limit: int | None = None,
         working_limit: int | None = None,
         name: str | None = None,
-        version: int = 0,
+        version: int | str = 0,
         metadata: dict[str, Any] | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
