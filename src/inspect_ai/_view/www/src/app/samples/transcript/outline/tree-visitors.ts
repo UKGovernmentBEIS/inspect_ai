@@ -1,7 +1,9 @@
+import { SpanBeginEvent } from "../../../../@types/log";
 import { TYPE_SCORER, TYPE_SCORERS } from "../transform/utils";
 import { EventNode } from "../types";
 
 const kTurnType = "turn";
+const kTurnsType = "turns";
 
 // Visitors are used to transform the event tree
 export const removeNodeVisitor = (event: string) => {
@@ -125,8 +127,9 @@ export const collapseTurns = (eventNodes: EventNode[]): EventNode[] => {
       const turnNode = new EventNode(
         firstTurn.id,
         {
-          ...firstTurn.event,
+          ...(firstTurn.event as SpanBeginEvent),
           name: `${numberOfTurns} ${numberOfTurns === 1 ? "turn" : "turns"}`,
+          type: kTurnsType,
         },
         firstTurn.depth,
       );

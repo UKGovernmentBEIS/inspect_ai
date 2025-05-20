@@ -54748,33 +54748,41 @@ self.onmessage = function (e) {
       switch (node2.event.event) {
         case "sample_init":
           entries = {
-            started: formatDateTime(new Date(node2.event.timestamp)),
             sample_id: node2.event.sample.id,
             sandbox: (_a2 = node2.event.sample.sandbox) == null ? void 0 : _a2.type,
+            started: formatDateTime(new Date(node2.event.timestamp)),
             working_start: formatTime$1(node2.event.working_start)
           };
           break;
         case "sample_limit":
           entries = {
-            started: formatDateTime(new Date(node2.event.timestamp)),
             type: node2.event.type,
             message: node2.event.message,
             limit: node2.event.limit,
+            started: formatDateTime(new Date(node2.event.timestamp)),
             working_start: formatTime$1(node2.event.working_start)
           };
           break;
         case "score":
           entries = {
-            started: formatDateTime(new Date(node2.event.timestamp)),
             answer: node2.event.score.answer,
             score: node2.event.score.value,
+            started: formatDateTime(new Date(node2.event.timestamp)),
+            working_start: formatTime$1(node2.event.working_start)
+          };
+          break;
+        case "span_begin":
+          entries = {
+            type: node2.event.type,
+            name: node2.event.name,
+            started: formatDateTime(new Date(node2.event.timestamp)),
             working_start: formatTime$1(node2.event.working_start)
           };
           break;
         default:
           entries = {
-            started: formatDateTime(new Date(node2.event.timestamp)),
             event: node2.event.event,
+            started: formatDateTime(new Date(node2.event.timestamp)),
             working_start: formatTime$1(node2.event.working_start)
           };
       }
@@ -54789,6 +54797,7 @@ self.onmessage = function (e) {
     };
     const styles$x = {};
     const kTurnType = "turn";
+    const kTurnsType = "turns";
     const removeNodeVisitor = (event) => {
       return {
         visit: (node2) => {
@@ -54888,7 +54897,8 @@ self.onmessage = function (e) {
             firstTurn.id,
             {
               ...firstTurn.event,
-              name: `${numberOfTurns} ${numberOfTurns === 1 ? "turn" : "turns"}`
+              name: `${numberOfTurns} ${numberOfTurns === 1 ? "turn" : "turns"}`,
+              type: kTurnsType
             },
             firstTurn.depth
           );

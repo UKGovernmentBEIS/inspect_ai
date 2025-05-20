@@ -182,35 +182,42 @@ export const summarizeNode = (node: EventNode): ReactNode => {
   switch (node.event.event) {
     case "sample_init":
       entries = {
-        started: formatDateTime(new Date(node.event.timestamp)),
         sample_id: node.event.sample.id,
         sandbox: node.event.sample.sandbox?.type,
+        started: formatDateTime(new Date(node.event.timestamp)),
         working_start: formatTime(node.event.working_start),
       };
       break;
 
     case "sample_limit":
       entries = {
-        started: formatDateTime(new Date(node.event.timestamp)),
         type: node.event.type,
-
         message: node.event.message,
         limit: node.event.limit,
+        started: formatDateTime(new Date(node.event.timestamp)),
         working_start: formatTime(node.event.working_start),
       };
       break;
     case "score":
       entries = {
-        started: formatDateTime(new Date(node.event.timestamp)),
         answer: node.event.score.answer,
         score: node.event.score.value,
+        started: formatDateTime(new Date(node.event.timestamp)),
+        working_start: formatTime(node.event.working_start),
+      };
+      break;
+    case "span_begin":
+      entries = {
+        type: node.event.type,
+        name: node.event.name,
+        started: formatDateTime(new Date(node.event.timestamp)),
         working_start: formatTime(node.event.working_start),
       };
       break;
     default:
       entries = {
-        started: formatDateTime(new Date(node.event.timestamp)),
         event: node.event.event,
+        started: formatDateTime(new Date(node.event.timestamp)),
         working_start: formatTime(node.event.working_start),
       };
   }
