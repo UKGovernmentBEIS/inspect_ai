@@ -54471,7 +54471,7 @@ self.onmessage = function (e) {
       };
       const actualPlacement = (state == null ? void 0 : state.placement) || placement;
       const defaultPopperStyles = {
-        backgroundColor: "white",
+        backgroundColor: "var(--bs-body-bg)",
         padding: "12px",
         borderRadius: "4px",
         boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
@@ -54541,8 +54541,8 @@ self.onmessage = function (e) {
                           width: 0,
                           height: 0,
                           borderStyle: "solid",
-                          borderWidth: "0 8px 8px 8px",
-                          borderColor: "transparent transparent #eee transparent",
+                          borderWidth: "8px 8px 0 8px",
+                          borderColor: "#eee transparent transparent transparent",
                           top: "0px",
                           left: "0px"
                         }
@@ -54556,8 +54556,8 @@ self.onmessage = function (e) {
                           width: 0,
                           height: 0,
                           borderStyle: "solid",
-                          borderWidth: "8px 8px 0 8px",
-                          borderColor: "#eee transparent transparent transparent",
+                          borderWidth: "0 8px 8px 8px",
+                          borderColor: "transparent transparent #eee transparent",
                           top: "0px",
                           left: "0px"
                         }
@@ -54604,18 +54604,18 @@ self.onmessage = function (e) {
                           backgroundColor: "transparent",
                           // Position relative to border triangle
                           left: "0px",
-                          top: "1px",
                           zIndex: 1,
                           // Top placement - pointing down
                           ...actualPlacement.startsWith("top") && {
-                            borderWidth: "0 7px 7px 7px",
-                            borderColor: "transparent transparent white transparent"
-                          },
-                          // Bottom placement - pointing up
-                          ...actualPlacement.startsWith("bottom") && {
                             borderWidth: "7px 7px 0 7px",
                             borderColor: "white transparent transparent transparent",
                             top: "0px"
+                          },
+                          // Bottom placement - pointing up
+                          ...actualPlacement.startsWith("bottom") && {
+                            borderWidth: "0 7px 7px 7px",
+                            borderColor: "transparent transparent white transparent",
+                            top: "1px"
                           },
                           // Left placement - pointing right
                           ...actualPlacement.startsWith("left") && {
@@ -54679,9 +54679,6 @@ self.onmessage = function (e) {
         collapseScope,
         node2.id
       );
-      const setSelectedOutlineId = useStore(
-        (state) => state.sampleActions.setSelectedOutlineId
-      );
       const icon2 = iconForNode(node2);
       const toggle2 = toggleIcon(node2, collapsed2);
       const popoverId = `${node2.id}-popover`;
@@ -54720,9 +54717,6 @@ self.onmessage = function (e) {
                     ref,
                     onMouseOver: show,
                     onMouseLeave: hide2,
-                    onClick: () => {
-                      setSelectedOutlineId(node2.id);
-                    },
                     children: parsePackageName(labelForNode(node2)).module
                   }
                 ) : /* @__PURE__ */ jsxRuntimeExports.jsx("span", { ref, onMouseOver: show, onMouseLeave: hide2, children: parsePackageName(labelForNode(node2)).module }),
@@ -55019,6 +55013,15 @@ self.onmessage = function (e) {
         (state) => state.sampleActions.setCollapsedEvents
       );
       const selectedOutlineId = useStore((state) => state.sample.selectedOutlineId);
+      const setSelectedOutlineId = useStore(
+        (state) => state.sampleActions.setSelectedOutlineId
+      );
+      const sampleDetailNavigation = useSampleDetailNavigation();
+      reactExports.useEffect(() => {
+        if (sampleDetailNavigation.event) {
+          setSelectedOutlineId(sampleDetailNavigation.event);
+        }
+      }, [sampleDetailNavigation.event]);
       const flattenedNodes = reactExports.useMemo(() => {
         const nodeList = flatTree(
           eventNodes,
@@ -55040,6 +55043,7 @@ self.onmessage = function (e) {
         );
         return collapseTurns(makeTurns(nodeList));
       }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+      flattenedNodes.map((n) => n.id);
       reactExports.useEffect(() => {
         if (!collapsedEvents && Object.keys(defaultCollapsedIds).length > 0) {
           setCollapsedEvents(kCollapseScope, defaultCollapsedIds);

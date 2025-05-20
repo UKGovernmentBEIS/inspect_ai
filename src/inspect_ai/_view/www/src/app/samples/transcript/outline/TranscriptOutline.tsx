@@ -16,6 +16,7 @@ import { useVirtuosoState } from "../../../../state/scrolling";
 import { useStore } from "../../../../state/store";
 import { flatTree } from "../transform/treeify";
 
+import { useSampleDetailNavigation } from "../../../routing/navigationHooks";
 import { kSandboxSignalName } from "../transform/fixups";
 import { OutlineRow } from "./OutlineRow";
 import styles from "./TranscriptOutline.module.css";
@@ -77,6 +78,16 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   );
 
   const selectedOutlineId = useStore((state) => state.sample.selectedOutlineId);
+  const setSelectedOutlineId = useStore(
+    (state) => state.sampleActions.setSelectedOutlineId,
+  );
+  const sampleDetailNavigation = useSampleDetailNavigation();
+
+  useEffect(() => {
+    if (sampleDetailNavigation.event) {
+      setSelectedOutlineId(sampleDetailNavigation.event);
+    }
+  }, [sampleDetailNavigation.event]);
 
   const flattenedNodes = useMemo(() => {
     // flattten the event tree
@@ -104,6 +115,8 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
 
     return collapseTurns(makeTurns(nodeList));
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
+
+  const outlineIds = flattenedNodes.map((n) => n.id);
 
   // Update the collapsed events when the default collapsed IDs change
   // This effect only depends on defaultCollapsedIds, not eventNodes
