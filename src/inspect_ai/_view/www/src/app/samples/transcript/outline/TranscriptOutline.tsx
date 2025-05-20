@@ -90,6 +90,7 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
         removeNodeVisitor("store"),
         removeNodeVisitor("approval"),
         removeNodeVisitor("input"),
+        removeNodeVisitor("sandbox"),
 
         // Strip the sandbox wrapper (and children)
         removeStepSpanNameVisitor(kSandboxSignalName),
