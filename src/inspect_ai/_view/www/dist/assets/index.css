@@ -20203,16 +20203,13 @@ span.ap-marker-container:hover span.ap-marker {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
-._container_1vtdq_1 {
+._container_ly812_1 {
   width: 100%;
   display: flex;
   flex-direction: column;
 }
 
-._body_1vtdq_7 {
-}
-
-._scroller_1vtdq_10 {
+._scroller_ly812_7 {
   overflow-y: auto;
   width: 100%;
   height: 100%;

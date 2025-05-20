@@ -474,23 +474,27 @@ export const flatTree = (
   for (const node of eventNodes) {
     if (visitors && visitors.length > 0) {
       let pendingNodes: EventNode[] = [{ ...node }];
+
       for (const visitor of visitors) {
         const allResults: EventNode[] = [];
         for (const pendingNode of pendingNodes) {
-          const visitorResult = visitor.visit(pendingNode, parentNode);
+          const visitorResult = visitor.visit(pendingNode);
+          if (parentNode) {
+            parentNode.children = visitorResult;
+          }
           allResults.push(...visitorResult);
         }
         pendingNodes = allResults;
       }
 
       for (const pendingNode of pendingNodes) {
-        result.push(pendingNode);
         const children = flatTree(
           pendingNode.children,
           collapsed,
           visitors,
           pendingNode,
         );
+        result.push(pendingNode);
         if (collapsed === null || collapsed[pendingNode.id] !== true) {
           result.push(...children);
         }

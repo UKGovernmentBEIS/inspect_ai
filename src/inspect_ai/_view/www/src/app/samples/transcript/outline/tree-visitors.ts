@@ -6,9 +6,9 @@ const kTurnType = "turn";
 // Visitors are used to transform the event tree
 export const removeNodeVisitor = (event: string) => {
   return {
-    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
+    visit: (node: EventNode): EventNode[] => {
       if (node.event.event === event) {
-        return removeNode(node, parent);
+        return [];
       }
       return [node];
     },
@@ -17,12 +17,12 @@ export const removeNodeVisitor = (event: string) => {
 
 export const removeStepSpanNameVisitor = (name: string) => {
   return {
-    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
+    visit: (node: EventNode): EventNode[] => {
       if (
         (node.event.event === "step" || node.event.event === "span_begin") &&
         node.event.name === name
       ) {
-        return removeNode(node, parent);
+        return [];
       }
       return [node];
     },
@@ -34,7 +34,7 @@ export const noScorerChildren = () => {
   let inScorer = false;
   let currentDepth = -1;
   return {
-    visit: (node: EventNode, parent?: EventNode): EventNode[] => {
+    visit: (node: EventNode): EventNode[] => {
       // Note once we're in the scorers span
       if (
         node.event.event === "span_begin" &&
@@ -54,7 +54,7 @@ export const noScorerChildren = () => {
       }
 
       if (inScorers && inScorer && node.depth === currentDepth + 1) {
-        return removeNode(node, parent);
+        return [];
       }
       return [node];
     },
@@ -226,11 +226,4 @@ export const collapseTurnsVisitor = () => {
       return processPendingModelEvents();
     },
   };
-};
-
-const removeNode = (node: EventNode, parent?: EventNode): EventNode[] => {
-  if (parent) {
-    parent.children = parent.children.filter((child) => child.id !== node.id);
-  }
-  return [];
 };

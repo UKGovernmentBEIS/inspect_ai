@@ -44215,7 +44215,7 @@ categories: ${categories.join(" ")}`;
     const container$f = "_container_291sb_1";
     const wrapper$3 = "_wrapper_291sb_8";
     const toggle$1 = "_toggle_291sb_14";
-    const body$2 = "_body_291sb_19";
+    const body$1 = "_body_291sb_19";
     const bodyContainer = "_bodyContainer_291sb_25";
     const taskTitle = "_taskTitle_291sb_31";
     const taskModel = "_taskModel_291sb_36";
@@ -44225,7 +44225,7 @@ categories: ${categories.join(" ")}`;
       container: container$f,
       wrapper: wrapper$3,
       toggle: toggle$1,
-      body: body$2,
+      body: body$1,
       bodyContainer,
       taskTitle,
       taskModel,
@@ -52621,19 +52621,22 @@ self.onmessage = function (e) {
           for (const visitor of visitors) {
             const allResults = [];
             for (const pendingNode of pendingNodes) {
-              const visitorResult = visitor.visit(pendingNode, parentNode);
+              const visitorResult = visitor.visit(pendingNode);
+              if (parentNode) {
+                parentNode.children = visitorResult;
+              }
               allResults.push(...visitorResult);
             }
             pendingNodes = allResults;
           }
           for (const pendingNode of pendingNodes) {
-            result2.push(pendingNode);
             const children2 = flatTree(
               pendingNode.children,
               collapsed2,
               visitors,
               pendingNode
             );
+            result2.push(pendingNode);
             if (collapsed2 === null || collapsed2[pendingNode.id] !== true) {
               result2.push(...children2);
             }
@@ -54746,9 +54749,9 @@ self.onmessage = function (e) {
     const kTurnType = "turn";
     const removeNodeVisitor = (event) => {
       return {
-        visit: (node2, parent) => {
+        visit: (node2) => {
           if (node2.event.event === event) {
-            return removeNode(node2, parent);
+            return [];
           }
           return [node2];
         }
@@ -54756,9 +54759,9 @@ self.onmessage = function (e) {
     };
     const removeStepSpanNameVisitor = (name2) => {
       return {
-        visit: (node2, parent) => {
+        visit: (node2) => {
           if ((node2.event.event === "step" || node2.event.event === "span_begin") && node2.event.name === name2) {
-            return removeNode(node2, parent);
+            return [];
           }
           return [node2];
         }
@@ -54769,7 +54772,7 @@ self.onmessage = function (e) {
       let inScorer = false;
       let currentDepth = -1;
       return {
-        visit: (node2, parent) => {
+        visit: (node2) => {
           if (node2.event.event === "span_begin" && node2.event.type === TYPE_SCORERS) {
             inScorers = true;
             return [node2];
@@ -54780,7 +54783,7 @@ self.onmessage = function (e) {
             return [node2];
           }
           if (inScorers && inScorer && node2.depth === currentDepth + 1) {
-            return removeNode(node2, parent);
+            return [];
           }
           return [node2];
         }
@@ -54900,12 +54903,6 @@ self.onmessage = function (e) {
           return processPendingModelEvents();
         }
       };
-    };
-    const removeNode = (node2, parent) => {
-      if (parent) {
-        parent.children = parent.children.filter((child) => child.id !== node2.id);
-      }
-      return [];
     };
     const kCollapseScope = "transcript-outline";
     const EventPaddingNode = {
@@ -64628,12 +64625,10 @@ ${events}
       }
       return false;
     };
-    const container$3 = "_container_1vtdq_1";
-    const body$1 = "_body_1vtdq_7";
-    const scroller = "_scroller_1vtdq_10";
+    const container$3 = "_container_ly812_1";
+    const scroller = "_scroller_ly812_7";
     const styles$d = {
       container: container$3,
-      body: body$1,
       scroller
     };
     const InlineSampleDisplay = () => {
@@ -86821,9 +86816,6 @@ Supported expressions:
       const rehydrated = useStore((state) => state.app.rehydrated);
       const logs = useStore((state) => state.logs.logs);
       const selectedLogFile = useStore((state) => state.logs.selectedLogFile);
-      useStore(
-        (state) => state.log.selectedSampleIndex
-      );
       const loadedLogFile = useStore((state) => state.log.loadedLog);
       const selectedLogSummary = useStore((state) => state.log.selectedLogSummary);
       const setIntialState = useStore((state) => state.appActions.setInitialState);
