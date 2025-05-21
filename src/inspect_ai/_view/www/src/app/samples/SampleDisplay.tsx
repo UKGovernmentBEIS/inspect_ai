@@ -275,7 +275,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
                       output={sample.error.traceback_ansi}
                       className={clsx("text-size-small", styles.ansi)}
                       style={{
-                        fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                        fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                         margin: "0.5em 0",
                       }}
                     />
@@ -291,7 +291,7 @@ export const SampleDisplay: FC<SampleDisplayProps> = ({ id, scrollRef }) => {
                         output={retry.traceback_ansi}
                         className={clsx("text-size-small", styles.ansi)}
                         style={{
-                          fontSize: "clamp(0.4rem, calc(0.15em + 1vw), 0.8rem)",
+                          fontSize: "clamp(0.3rem, 1.1vw, 0.8rem)",
                           margin: "0.5em 0",
                         }}
                       />
