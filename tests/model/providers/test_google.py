@@ -1,5 +1,5 @@
 from google.genai.types import Candidate, Content, FinishReason
-from test_helpers.utils import skip_if_no_google, skip_if_trio
+from test_helpers.utils import skip_if_no_google
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample

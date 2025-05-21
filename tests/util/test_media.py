@@ -4,7 +4,6 @@ from test_helpers.utils import (
     skip_if_no_google,
     skip_if_no_openai,
     skip_if_no_vertex,
-    skip_if_trio,
 )
 
 from inspect_ai import Task, eval, task

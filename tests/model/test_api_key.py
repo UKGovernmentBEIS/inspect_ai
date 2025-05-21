@@ -9,7 +9,6 @@ from test_helpers.utils import (
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_together,
-    skip_if_trio,
 )
 
 from inspect_ai.model import get_model
