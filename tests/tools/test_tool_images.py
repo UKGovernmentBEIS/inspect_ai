@@ -58,7 +58,6 @@ def test_openai_responses_tool_image_result():
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_tool_image_result():
     check_tool_image_result("google/gemini-1.5-pro")
 

@@ -46,13 +46,11 @@ def check_video(model):
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_media_google_audio():
     check_audio("google/gemini-1.5-flash")
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_media_google_video():
     check_video("google/gemini-1.5-flash")
 

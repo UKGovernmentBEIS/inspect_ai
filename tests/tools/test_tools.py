@@ -190,7 +190,6 @@ def test_mistral_tools():
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_tools():
     check_tools("google/gemini-1.5-pro")
 

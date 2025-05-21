@@ -148,7 +148,6 @@ def test_openai_responses_structured_output():
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_structured_output():
     check_color_structured_output("google/gemini-2.0-flash")
     check_nested_pydantic_output("google/gemini-2.0-flash")

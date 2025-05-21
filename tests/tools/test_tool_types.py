@@ -282,7 +282,6 @@ def test_anthropoic_tool_types() -> None:
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_tool_types() -> None:
     check_tool_types("google/gemini-1.5-pro")
 

@@ -8,7 +8,6 @@ from inspect_ai.scorer import includes
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_safety_settings():
     safety_settings = dict(
         dangerous_content="medium_and_above",
@@ -27,7 +26,6 @@ def test_google_safety_settings():
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_block_reason():
     safety_settings = dict(harassment="low")
     eval(

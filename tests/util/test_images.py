@@ -37,7 +37,6 @@ def check_images(model):
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_images():
     check_images("google/gemini-1.5-flash")
 
