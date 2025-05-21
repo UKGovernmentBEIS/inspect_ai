@@ -10,6 +10,7 @@ from inspect_ai._eval.score import score, score_async
 from inspect_ai._eval.task import Epochs, Task, TaskInfo, task_with
 from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.constants import PKG_NAME
+from inspect_ai._view.view import view
 from inspect_ai.agent._human.agent import human_cli
 from inspect_ai.solver._human_agent import human_agent
 
@@ -32,4 +33,5 @@ __all__ = [
     "TaskInfo",
     "task",
     "task_with",
+    "view",
 ]

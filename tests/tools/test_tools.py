@@ -13,7 +13,6 @@ from test_helpers.utils import (
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_vertex,
-    skip_if_trio,
 )
 
 from inspect_ai import Task, eval
@@ -190,7 +189,6 @@ def test_mistral_tools():
 
 
 @skip_if_no_google
-@skip_if_trio
 def test_google_tools():
     check_tools("google/gemini-1.5-pro")
 

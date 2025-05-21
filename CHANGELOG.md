@@ -1,3 +1,9 @@
+## Unreleased
+
+- Exported `view()` function for running Inspect View from Python.
+- Always return tasks in the same order they were passed to `eval()` or `eval_set()`.
+- Google: Updated required version of `google-genai` to 1.16.1 (which includes support for reasoning summaries and is now compatible with the trio async backend).
+
 ## v0.3.98 (18 May 2025)
 
 - Google: Disable reasoning when `reasoning_tokens` is set to 0.
