@@ -146,7 +146,7 @@ def copy_log_files(
     log_fs = filesystem(log_dir, fs_options)
     if log_fs.exists(log_dir):
         eval_logs = log_files_from_ls(
-            log_fs.ls(log_dir, recursive=True), ["json", "eval"], True
+            log_fs.ls(log_dir, recursive=True), ["json", "eval"], False
         )
         if len(eval_logs) == 0:
             raise PrerequisiteError(
