@@ -136,7 +136,7 @@ def current_async_backend() -> Literal["asyncio", "trio"] | None:
 
 
 def configured_async_backend() -> Literal["asyncio", "trio"]:
-    backend = os.environ.get("INSPECT_ASYNC_BACKEND", "asyncio").lower()
+    backend = os.environ.get("INSPECT_ASYNC_BACKEND", "asyncio").lower() or "asyncio"
     return _validate_backend(backend)
 
 

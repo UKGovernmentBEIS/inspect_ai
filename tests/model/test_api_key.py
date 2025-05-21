@@ -9,7 +9,6 @@ from test_helpers.utils import (
     skip_if_no_mistral,
     skip_if_no_openai,
     skip_if_no_together,
-    skip_if_trio,
 )
 
 from inspect_ai.model import get_model
@@ -54,7 +53,6 @@ async def test_anthropic_api_key():
 
 @pytest.mark.anyio
 @skip_if_no_google
-@skip_if_trio
 async def test_google_api_key():
     await check_explicit_api_key("google/gemini-1.5-pro", "GOOGLE_API_KEY")
 
