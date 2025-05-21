@@ -53,6 +53,7 @@ export const TranscriptPanel: FC<TranscriptPanelProps> = memo((props) => {
           eventNodes={eventNodes}
           running={running}
           defaultCollapsedIds={defaultCollapsedIds}
+          scrollRef={scrollRef}
         />
         <div
           className={styles.outlineToggle}
