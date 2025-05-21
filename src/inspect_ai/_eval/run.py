@@ -298,9 +298,12 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
     # setup pending tasks, queue, and results
     pending_tasks = tasks.copy()
-    results: list[EvalLog] = []
+    results: list[tuple[int, EvalLog]] = []
     tasks_completed = 0
     total_tasks = len(tasks)
+    
+    # Create a mapping from task to its original index
+    task_to_original_index = {id(task): i for i, task in enumerate(tasks)}
 
     # produce/consume tasks
     send_channel, receive_channel = anyio.create_memory_object_stream[TaskRunOptions](
@@ -322,7 +325,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             # among those models, pick one with the least usage
             model = min(models_with_pending, key=lambda m: model_counts[m])
 
-            # now we know there’s at least one pending task for this model so it’s safe to pick it
+            # now we know there's at least one pending task for this model so it's safe to pick it
             next_task = next(t for t in pending_tasks if str(t.model) == model)
             pending_tasks.remove(next_task)
             model_counts[str(next_task.model)] += 1
@@ -339,6 +342,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
             nonlocal tasks_completed
             async for task_options in receive_channel:
                 result: EvalLog | None = None
+                # Get the original index of this task
+                original_index = task_to_original_index[id(task_options)]
 
                 # run the task
                 try:
@@ -354,11 +359,13 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
                             # see: https://docs.python.org/3/faq/programming.html#why-do-lambdas-defined-in-a-loop-with-different-values-all-return-the-same-result
                             def create_task_runner(
                                 options: TaskRunOptions = task_options,
+                                idx: int = original_index,
                             ) -> Callable[[], Awaitable[None]]:
                                 async def run_task() -> None:
                                     nonlocal result
                                     result = await task_run(options)
-                                    results.append(result)
+                                    # Store result with its original index
+                                    results.append((idx, result))
 
                                 return run_task
 
@@ -426,8 +433,8 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
             clear_task_screen()
 
-        return results
-
+        # Sort results by original index and return just the values
+        return [r for _, r in sorted(results)]
 
 def resolve_task_sample_ids(
     task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
