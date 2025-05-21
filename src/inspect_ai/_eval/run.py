@@ -301,7 +301,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
     results: list[tuple[int, EvalLog]] = []
     tasks_completed = 0
     total_tasks = len(tasks)
-    
+
     # Create a mapping from task to its original index
     task_to_original_index = {id(task): i for i, task in enumerate(tasks)}
 
@@ -435,6 +435,7 @@ async def run_multiple(tasks: list[TaskRunOptions], parallel: int) -> list[EvalL
 
         # Sort results by original index and return just the values
         return [r for _, r in sorted(results)]
+
 
 def resolve_task_sample_ids(
     task: str, sample_id: str | int | list[str] | list[int] | list[str | int] | None
