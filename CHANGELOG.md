@@ -1,3 +1,7 @@
+## Unreleased
+
+- Exported `view()` function for running Inspect View from Python.
+
 ## v0.3.98 (18 May 2025)
 
 - Google: Disable reasoning when `reasoning_tokens` is set to 0.
