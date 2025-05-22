@@ -1,7 +1,7 @@
 import { RefObject, useCallback, useEffect, useRef } from "react";
 import { StateCallback, StateSnapshot, VirtuosoHandle } from "react-virtuoso";
 import { createLogger } from "../utils/logger";
-import { debounce } from "../utils/sync";
+import { debounce, throttle } from "../utils/sync";
 import { useStore } from "./store";
 
 const log = createLogger("scrolling");
@@ -236,4 +236,243 @@ export function useRafThrottle<T extends (...args: any[]) => any>(
   }, []);
 
   return throttledCallback;
+}
+
+interface ScrollCacheEntry {
+  position: number;
+  stale: boolean;
+}
+
+export interface ScrollTrackingOptions {
+  topOffset?: number;
+  bottomOffset?: number;
+}
+
+/**
+ * A hook that tracks scroll position and determines which element from a list
+ * should be considered "active" based on the current scroll position.
+ *
+ * @param elementIds - Array of element IDs to track
+ * @param onElementVisible - Callback function triggered when an element becomes the active one
+ * @param scrollRef - Optional ref to a scrollable container. If not provided, window scroll is used
+ */
+export function useScrollTracking(
+  elementIds: string[],
+  onElementVisible: (id: string) => void,
+  scrollRef?: RefObject<HTMLElement | null>,
+  options?: ScrollTrackingOptions,
+): void {
+  // Cache of element positions to avoid recalculating on every scroll
+  const positionCache = useRef<Record<string, ScrollCacheEntry>>({});
+
+  // Track when element IDs change to update the cache
+  const idsRef = useRef<string[]>(elementIds);
+
+  // Track which item was last 'selected'
+  const selectedIdRef = useRef<string | null>(null);
+
+  // Track if we're in the middle of a smooth scroll
+  const isScrollingRef = useRef<boolean>(false);
+
+  const getAbsScrollTop = useCallback(() => {
+    const scrollTop = scrollRef?.current
+      ? scrollRef.current.scrollTop
+      : (window.scrollY || document.documentElement.scrollTop) -
+        document.documentElement.getBoundingClientRect().top;
+    return scrollTop;
+  }, [scrollRef]);
+
+  // Compute absolute positions for elements regardless of scroll state
+  const updateCache = useCallback(() => {
+    if (elementIds.length === 0) return;
+
+    // Get all elements in the list and calculate their absolute positions
+    for (const elementId of elementIds) {
+      if (
+        !positionCache.current[elementId] ||
+        positionCache.current[elementId].stale
+      ) {
+        const el = document.getElementById(elementId);
+        if (el) {
+          // Calculate the absolute position by getting the element's offset from the top of its offset parent,
+          // then adding all parent offsets until we reach the top of the document/container
+          let absolutePosition = 0;
+
+          // If we're using a custom scroll container, measure position relative to that container
+          if (scrollRef?.current) {
+            // Get offset position relative to the scroll container
+            const scrollContainer = scrollRef.current;
+            const containerRect = scrollContainer.getBoundingClientRect();
+            const elementRect = el.getBoundingClientRect();
+
+            // Position relative to container is element's top minus container's top
+            absolutePosition = elementRect.top - containerRect.top;
+          } else {
+            // For window scrolling, calculate actual document position
+            // This gives us an absolute position that doesn't change with scrolling
+            let currentEl: HTMLElement | null = el;
+
+            while (currentEl && currentEl !== document.body) {
+              absolutePosition += currentEl.offsetTop;
+              currentEl = currentEl.offsetParent as HTMLElement;
+            }
+          }
+
+          log.debug(`Absolute position for ${elementId}:`, absolutePosition);
+
+          positionCache.current[elementId] = {
+            position: absolutePosition,
+            stale: false,
+          };
+        }
+      }
+    }
+  }, [elementIds, scrollRef]);
+
+  const findLargestElLessThanOrEqual = (position: number): string | null => {
+    let bestKey: string | null = null;
+    let bestValue: number = -Infinity;
+
+    for (const [key, value] of Object.entries(positionCache.current)) {
+      // Find the largest element position that is less than or equal to scroll position
+      if (value.position <= position && value.position > bestValue) {
+        bestKey = key;
+        bestValue = value.position;
+      }
+    }
+
+    return bestKey;
+  };
+
+  // Using the absolute positions and current scroll position, find the selected element
+  const selectedElementId = useCallback(() => {
+    // If we have no elements, return null
+    if (elementIds.length === 0) {
+      return null;
+    }
+
+    // Ensure all positions are calculated
+    const hasAllPositions = elementIds.every(
+      (id) => positionCache.current[id] && !positionCache.current[id].stale,
+    );
+
+    if (!hasAllPositions) {
+      updateCache();
+    }
+
+    // Get current scroll position with offset
+    const topOffset = options?.topOffset || 60; // Default 60px offset
+    const currentScrollPosition = getAbsScrollTop() + topOffset;
+
+    // Check if we're at the bottom of the scroll area
+    if (
+      scrollRef?.current &&
+      scrollRef.current.scrollHeight - scrollRef.current.scrollTop <=
+        scrollRef.current.clientHeight + (options?.bottomOffset || 10)
+    ) {
+      log.debug("At bottom of scroll area, selecting last element");
+      return elementIds[elementIds.length - 1];
+    }
+
+    // Compare the scroll position against each element's absolute position
+    // When using the scroll container, we don't need to add scrollTop since our positions
+    // are already relative to the container
+    const position = currentScrollPosition;
+
+    log.debug("Current scroll position for selection:", position);
+
+    // Find the element with largest position <= scroll position
+    const el = findLargestElLessThanOrEqual(position);
+
+    // If no element was found, select the first element as fallback
+    if (el === null && elementIds.length > 0) {
+      return elementIds[0];
+    }
+
+    return el;
+  }, [elementIds, scrollRef, getAbsScrollTop, updateCache, options]);
+
+  // set stale flag on positions to try to get them to recompute when the
+  // size changes
+
+  // Update refs and cache when elementIds change
+  useEffect(() => {
+    const oldIds = new Set(idsRef.current);
+    const newIds = new Set(elementIds);
+
+    // Clear cache entries for IDs that are no longer in the list
+    if (idsRef.current !== elementIds) {
+      Object.keys(positionCache.current).forEach((id) => {
+        if (!newIds.has(id)) {
+          delete positionCache.current[id];
+        }
+      });
+
+      // Check for new IDs that weren't in the previous list
+      const hasNewIds = elementIds.some((id) => !oldIds.has(id));
+
+      // If we have new IDs, we should update positions
+      if (hasNewIds) {
+        updateCache();
+      }
+      idsRef.current = elementIds;
+    }
+  }, [elementIds, updateCache]);
+
+  // Use RAF throttling to optimize scroll handling
+  const handleScrollEnd = useCallback(
+    throttle(() => {
+      isScrollingRef.current = false;
+
+      // First, update the cache
+      updateCache();
+
+      // Get the currently selected element ID
+      const selectedId = selectedElementId();
+
+      if (selectedId !== null && selectedId !== selectedIdRef.current) {
+        // If the selected ID is different from the last one, call the callback
+        if (onElementVisible) {
+          onElementVisible(selectedId);
+        }
+        selectedIdRef.current = selectedId;
+      }
+    }, 100),
+    [updateCache, selectedElementId, onElementVisible],
+  );
+
+  const handleScroll = useRafThrottle(() => {
+    if (elementIds.length === 0) return;
+
+    // Mark that we're currently scrolling
+    isScrollingRef.current = true;
+
+    // Invoke the debounced function
+    handleScrollEnd();
+  }, [elementIds, handleScrollEnd]);
+
+  // Set up scroll listener and initialize cache
+  useEffect(() => {
+    if (elementIds.length === 0) return;
+
+    const scrollElement = scrollRef?.current || window;
+
+    // Initial position update
+    updateCache();
+
+    // Initial check to set the active element
+    handleScroll();
+
+    // Add scroll event listener
+    scrollElement.addEventListener("scroll", handleScroll);
+
+    // Add resize listener to update positions when window size changes
+    window.addEventListener("resize", updateCache);
+
+    // Cleanup
+    return () => {
+      scrollElement.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", updateCache);
+    };
+  }, [elementIds, handleScroll, scrollRef, updateCache]);
 }

@@ -12,7 +12,10 @@ import { EventNode } from "../types";
 
 import clsx from "clsx";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
-import { useVirtuosoState } from "../../../../state/scrolling";
+import {
+  useScrollTracking,
+  useVirtuosoState,
+} from "../../../../state/scrolling";
 import { useStore } from "../../../../state/store";
 import { flatTree } from "../transform/treeify";
 
@@ -117,6 +120,13 @@ export const TranscriptOutline: FC<TranscriptOutlineProps> = ({
   }, [eventNodes, collapsedEvents, defaultCollapsedIds]);
 
   const outlineIds = flattenedNodes.map((n) => n.id);
+  useScrollTracking(
+    outlineIds,
+    (id: string) => {
+      setSelectedOutlineId(id);
+    },
+    scrollRef,
+  );
 
   // Update the collapsed events when the default collapsed IDs change
   // This effect only depends on defaultCollapsedIds, not eventNodes
