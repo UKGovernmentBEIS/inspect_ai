@@ -154,6 +154,11 @@ class DockerSandboxEnvironment(SandboxEnvironment):
         return {}
 
     @override
+    def project_name(self) -> str:
+        """Get the project name of the current sandbox. (Only applicable to docker compose based sandboxes.)"""
+        return self._project.name
+
+    @override
     @classmethod
     async def sample_init(
         cls,
