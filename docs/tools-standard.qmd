@@ -372,59 +372,93 @@ inspect eval computer.py --no-internal-tools
 
 ## Web Search {#sec-web-search}
 
-The `web_search()` tool provides models the ability to enhance their context window by performing a search. By default web searches retrieve 10 results from a provider, uses a model to determine if the contents is relevant then returns the top 3 relevant search results to the main model. Here is the definition of the `web_search()` function:
+The `web_search()` tool provides models the ability to enhance their context window by performing a search. The search providers are split into two categories:
+
+- External providers: "google" and "tavily" - these require API keys and make external API calls to perform the search.
+- Internal providers: "openai" - these use the model's built-in search capability and do not require separate API keys.
+
+Internal providers will be prioritized if running on the corresponding model (e.g., "openai" provider will be used when running on OpenAI models). If an internal provider is specified but the evaluation is run with a different model, a fallback external provider must also be specified.
+
+Here is the updated definition of the `web_search()` function:
 
 ``` python
 def web_search(
-    provider: Literal["tavily", "google"],
-    num_results: int = 3,
-    max_provider_calls: int = 3,
-    max_connections: int = 10,
-    model: str | Model | None = None,
+    providers: Provider | Providers | list[Provider | Providers],
+    **deprecated_args: Unpack[WebSearchDeprecatedArgs],
 ) -> Tool:
     ...
 ```
 
-You can use the `web_search()` tool like this:
+You can use the `web_search()` tool in various ways:
 
 ``` python
 from inspect_ai.tool import web_search
 
+# Single provider
 solver=[
-    use_tools(web_search(provider="tavily")), 
+    use_tools(web_search("tavily")), 
+    generate()
+]
+
+# With internal provider and fallback
+solver=[
+    use_tools(web_search(["openai", "google"])),  # "openai" used for OpenAI models, "google" as fallback
+    generate()
+]
+
+# Provider with specific options
+solver=[
+    use_tools(web_search({"tavily": {"max_results": 5}})),
+    generate()
+]
+
+# Multiple providers with options
+solver=[
+    use_tools(web_search([{"openai": None}, {"google": {"num_results": 5}}])),  # With fallback
     generate()
 ],
 ```
 
-Web search options include:
+### Provider-Specific Options
 
--   `provider`---Web search provider (currently only Tavily and Google fare supported, see below for instructions on setup and configuration).
-
--   `num_results`---The number of search result pages used to provide information back to the model (defaults to 3). 
-
--   `max_provider_calls`---Number of times to retrieve more links from the search provider in case previous ones were irrelevant (used only by the Google provider and defaults to 3).
-
--   `max_connections`---Maximum number of concurrent connections to the search API provider (defaults to 10).
-
--   `model`---Model to use to determine if search results are relevant (used only by the Google provider and defaults to the model currently being evaluated).
+Each provider supports different configuration options:
 
 #### Tavily Provider
 
-The `web_search()` tool can use [Tavily](https://tavily.com/)'s Research API. To use it you will therefore need to setup your own Tavily account . Then, ensure that the following environment variable is defined:
+The `web_search()` tool can use [Tavily](https://tavily.com/)'s Research API. To use it you will need to set up your own Tavily account. Then, ensure that the following environment variable is defined:
 
 -   `TAVILY_API_KEY` — Tavily Research API key
 
-When using this provider, `num_results` specifies the number of webpage results used to create a summarized response to the query.
+Tavily supports the following options:
+-   `max_results` — Number of results to return (replaces the deprecated `num_results`)
+-   `search_depth` — Can be "basic" or "advanced"
+-   `topic` — Can be "general" or "news"
+-   `include_domains`/`exclude_domains` — Lists of domains to include or exclude
+-   `time_range` — Time range for search results (e.g., "day", "week", "month")
+-   `max_connections` — Maximum number of concurrent connections
+
+For more options, see the [Tavily API Documentation](https://docs.tavily.com/documentation/api-reference/endpoint/search).
 
 #### Google Provider
 
-The `web_search()` can use [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will therefore need to setup your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
+The `web_search()` can use [Google Programmable Search Engine](https://programmablesearchengine.google.com/about/). To use it you will need to set up your own Google Programmable Search Engine and also enable the [Programmable Search Element Paid API](https://developers.google.com/custom-search/docs/paid_element). Then, ensure that the following environment variables are defined:
 
 -   `GOOGLE_CSE_ID` — Google Custom Search Engine ID
-
 -   `GOOGLE_CSE_API_KEY` — Google API key used to enable the Search API
 
-When using this provider, `num_results` specifies the number of relevant webpages whose contents are returned.
+Google supports the following options:
+-   `num_results` — The number of relevant webpages whose contents are returned
+-   `max_provider_calls` — Number of times to retrieve more links in case previous ones were irrelevant (defaults to 3)
+-   `max_connections` — Maximum number of concurrent connections (defaults to 10)
+-   `model` — Model to use to determine if search results are relevant (defaults to the model being evaluated)
+
+#### OpenAI Provider
+
+The `web_search()` tool can use OpenAI's built-in search capability when running on OpenAI models. This provider does not require any API keys beyond what's needed for the model itself.
+
+For more details on OpenAI's web search parameters, see [OpenAI Web Search Documentation](https://platform.openai.com/docs/guides/tools-web-search?api-mode=responses).
+
+Note that when using the "openai" provider, you should also specify a fallback external provider (like "google" or "tavily") to use when the evaluation is run with a non-OpenAI model.
 
 
 ## Think {#sec-think}
