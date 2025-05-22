@@ -29,6 +29,8 @@ website:
           href: reference/inspect_ai.qmd#taskinfo
         - text: Tasks
           href: reference/inspect_ai.qmd#tasks
+        - text: view
+          href: reference/inspect_ai.qmd#view
         - text: task
           href: reference/inspect_ai.qmd#task
       - section: inspect_ai.solver
@@ -154,6 +156,8 @@ website:
           href: reference/inspect_ai.agent.qmd#agent
         - text: agent_with
           href: reference/inspect_ai.agent.qmd#agent_with
+        - text: is_agent
+          href: reference/inspect_ai.agent.qmd#is_agent
         - text: AgentPrompt
           href: reference/inspect_ai.agent.qmd#agentprompt
         - text: AgentAttempts
