@@ -389,7 +389,7 @@ def web_search(
     ...
 ```
 
-You can use the `web_search()` tool in various ways:
+You can configure the `web_search()` tool in various ways:
 
 ``` python
 from inspect_ai.tool import web_search
